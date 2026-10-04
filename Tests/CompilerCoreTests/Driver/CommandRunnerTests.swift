@@ -1,9 +1,38 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Dispatch
 import Foundation
 import Testing
 
-@Suite @MainActor
+private final class CommandRunnerConcurrentResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var successes = 0
+    private var failures: [String] = []
+
+    func record(_ result: CommandResult, token: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if result.exitCode == 0 && result.stdout.contains(token) {
+            successes += 1
+        } else {
+            failures.append("unexpected result for \(token): exit=\(result.exitCode) stdout=\(result.stdout)")
+        }
+    }
+
+    func recordFailure(_ message: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        failures.append(message)
+    }
+
+    func snapshot() -> (successes: Int, failures: [String]) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (successes, failures)
+    }
+}
+
+@Suite
 struct CommandRunnerTests {
     // MARK: - resolveExecutable
 
@@ -67,6 +96,73 @@ struct CommandRunnerTests {
             pathEnvironment: directory.path
         )
         #expect(resolved == directory.appendingPathComponent(toolName).path)
+    }
+
+    @Test
+    func testResolveExecutableRejectsWritableExecutableInTrustedPATHDirectory() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let directory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let toolURL = directory.appendingPathComponent(toolName)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o777))],
+            ofItemAtPath: toolURL.path
+        )
+
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: directory.path
+        )
+        #expect(resolved == fallback)
+    }
+
+    @Test
+    func testResolveExecutableRejectsSymlinkToWritableTarget() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let directory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let targetDirectory = try makeTemporaryDirectory(permissions: 0o755)
+        defer { try? FileManager.default.removeItem(at: targetDirectory) }
+        let targetURL = targetDirectory.appendingPathComponent(toolName)
+        try FileManager.default.copyItem(at: directory.appendingPathComponent(toolName), to: targetURL)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o777))],
+            ofItemAtPath: targetURL.path
+        )
+        try FileManager.default.removeItem(at: directory.appendingPathComponent(toolName))
+        try makeSymbolicLink(at: directory.appendingPathComponent(toolName), pointingTo: targetURL)
+
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: directory.path
+        )
+        #expect(resolved == fallback)
+    }
+
+    @Test
+    func testResolveExecutableAcceptsSymlinkToTrustedTarget() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let directory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let targetDirectory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        defer { try? FileManager.default.removeItem(at: targetDirectory) }
+        let toolPath = directory.appendingPathComponent(toolName)
+        try FileManager.default.removeItem(at: toolPath)
+        try makeSymbolicLink(at: toolPath, pointingTo: targetDirectory.appendingPathComponent(toolName))
+
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: directory.path
+        )
+        #expect(resolved == toolPath.path)
     }
 
     @Test
@@ -204,6 +300,34 @@ struct CommandRunnerTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stderr.count == 131_072)
+    }
+
+    @Test
+    func testRunConcurrentCommandsCaptureDistinctStdout() throws {
+        let group = DispatchGroup()
+        let results = CommandRunnerConcurrentResults()
+        let launchCount = 8
+        for index in 0..<launchCount {
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                defer { group.leave() }
+                let token = "concurrent-\(index)"
+                do {
+                    let result = try CommandRunner.run(
+                        executable: "/bin/echo",
+                        arguments: [token]
+                    )
+                    results.record(result, token: token)
+                } catch {
+                    results.recordFailure("\(token): \(error)")
+                }
+            }
+        }
+        let finished = group.wait(timeout: .now() + 30) == .success
+        let snapshot = results.snapshot()
+        #expect(finished, "Concurrent CommandRunner.run timed out")
+        #expect(snapshot.failures.isEmpty, "Concurrent Process launches failed: \(snapshot.failures)")
+        #expect(snapshot.successes == launchCount)
     }
 
     @Test

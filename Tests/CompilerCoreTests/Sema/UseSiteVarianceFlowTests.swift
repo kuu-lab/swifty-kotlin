@@ -4,68 +4,64 @@ import Testing
 
 @Suite
 struct UseSiteVarianceFlowTests {
+
     @Test
-    func testOutProjectionBlocksWriteAndPreservesReadType() throws {
-        let source = """
-        class E
+    func testUseSiteVarianceBlocksWriteAndPreservesReadType() throws {
+        let sources = [
+            """
+            package sample0
 
-        class Box<T> {
-            fun get(): T = throw E()
-            fun set(v: T) {}
-        }
+            class E
 
-        fun readOnly(box: Box<out Any>): Any = box.get()
+            class Box<T> {
+                fun get(): T = throw E()
+                fun set(v: T) {}
+            }
 
-        fun writeBlocked(box: Box<out Any>) {
-            box.set(42)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+            fun readOnly(box: Box<out Any>): Any = box.get()
+
+            fun writeBlocked(box: Box<out Any>) {
+                box.set(42)
+            }
+            """,
+            """
+            package sample1
+
+            class E
+
+            class Box<T> {
+                fun get(): T = throw E()
+                fun set(v: T) {}
+            }
+
+            fun starRead(box: Box<*>): Any? = box.get()
+
+            fun starWrite(box: Box<*>) {
+                box.set(42)
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let getCall = try #require(firstExprID(in: ast) { _, expr in
+            let outPath = paths[0]
+            let outGetCall = try #require(firstExprID(in: ast, path: outPath, ctx: ctx) { exprID, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "get"
             })
-            #expect(sema.bindings.exprType(for: getCall) == sema.types.anyType)
+            #expect(sema.bindings.exprType(for: outGetCall) == sema.types.anyType)
 
-            assertHasDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        }
-    }
-
-    @Test
-    func testStarProjectionReadsAsNullableAnyAndBlocksWrite() throws {
-        let source = """
-        class E
-
-        class Box<T> {
-            fun get(): T = throw E()
-            fun set(v: T) {}
-        }
-
-        fun starRead(box: Box<*>): Any? = box.get()
-
-        fun starWrite(box: Box<*>) {
-            box.set(42)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let getCall = try #require(firstExprID(in: ast) { _, expr in
+            let starPath = paths[1]
+            let starGetCall = try #require(firstExprID(in: ast, path: starPath, ctx: ctx) { exprID, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "get"
             })
-            #expect(sema.bindings.exprType(for: getCall) == sema.types.nullableAnyType)
+            #expect(sema.bindings.exprType(for: starGetCall) == sema.types.nullableAnyType)
 
             assertHasDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)

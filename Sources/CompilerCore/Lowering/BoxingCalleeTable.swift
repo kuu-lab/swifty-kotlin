@@ -16,12 +16,28 @@ struct BoxingCalleeTable {
 
     private static let primitiveCalleeRules: [PrimitiveCalleeRule] = [
         PrimitiveCalleeRule(
-            primitives: [.int, .uint, .ubyte, .ushort],
+            primitives: [.int, .byte, .short],
             names: PrimitiveCalleeNames(box: "kk_box_int", unbox: "kk_unbox_int")
         ),
         PrimitiveCalleeRule(
-            primitives: [.long, .ulong],
+            primitives: [.uint],
+            names: PrimitiveCalleeNames(box: "kk_box_uint", unbox: "kk_unbox_int")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.ubyte],
+            names: PrimitiveCalleeNames(box: "kk_box_ubyte", unbox: "kk_unbox_int")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.ushort],
+            names: PrimitiveCalleeNames(box: "kk_box_ushort", unbox: "kk_unbox_int")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.long],
             names: PrimitiveCalleeNames(box: "kk_box_long", unbox: "kk_unbox_long")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.ulong],
+            names: PrimitiveCalleeNames(box: "kk_box_ulong", unbox: "kk_unbox_ulong")
         ),
         PrimitiveCalleeRule(
             primitives: [.boolean],
@@ -63,10 +79,69 @@ struct BoxingCalleeTable {
         return result
     }()
 
-    static let primitiveBoxingCalleeNames: Set<String> = Set(primitiveBoxingCalleeNamesByPrimitive.values)
-    static let primitiveUnboxingCalleeNames: Set<String> = Set(primitiveUnboxingCalleeNamesByPrimitive.values)
+    /// Box callees used in place of the default one when the source's static
+    /// type is provably non-null (TypeKind nullability `.nonNull`).
+    ///
+    /// Only `.long`/`.ulong`/`.double` need this: `runtimeNullSentinelInt`
+    /// (Int64.min) collides bit-for-bit with a legitimate value of those
+    /// 64-bit types (Long.MIN_VALUE / ULong 2^63 / Double -0.0), so the
+    /// default box callees must keep treating that bit pattern as null for
+    /// callers whose source might genuinely be null (e.g. a nullable Long?
+    /// argument). When the source is statically known non-null, that
+    /// ambiguity can't arise, so the `_nonnull` variant boxes the value
+    /// unconditionally instead of misreporting it as null. Every other
+    /// primitive's box callee already handles non-null values correctly
+    /// (Float's bit pattern occupies only the low 32 bits), so no override
+    /// is needed for them.
+    private static let nonNullOnlyBoxCalleeOverridesByPrimitive: [PrimitiveType: String] = [
+        .long: "kk_box_long_nonnull",
+        .ulong: "kk_box_ulong_nonnull",
+        .double: "kk_box_double_nonnull",
+    ]
+
+    /// ABI entry points for values whose primitive representation is known at
+    /// the compiler boxing boundary. These retain the canonical Swift object
+    /// box but use the tagged-handle fast path; ambiguous runtime values keep
+    /// the legacy callees above.
+    private static let staticPrimitiveBoxCalleeNamesByPrimitive: [PrimitiveType: String] = [
+        .int: "kk_box_int_static",
+        .uint: "kk_box_uint_static",
+        .ubyte: "kk_box_ubyte_static",
+        .ushort: "kk_box_ushort_static",
+        .long: "kk_box_long_static",
+        .ulong: "kk_box_ulong_static",
+        .boolean: "kk_box_bool_static",
+        .float: "kk_box_float_static",
+        .double: "kk_box_double_static",
+        .char: "kk_box_char_static",
+    ]
+
+    private static let staticPrimitiveUnboxCalleeNamesByPrimitive: [PrimitiveType: String] = [
+        .int: "kk_unbox_int_static",
+        .uint: "kk_unbox_int_static",
+        .ubyte: "kk_unbox_int_static",
+        .ushort: "kk_unbox_int_static",
+        .long: "kk_unbox_long_static",
+        .ulong: "kk_unbox_ulong_static",
+        .boolean: "kk_unbox_bool_static",
+        .float: "kk_unbox_float_static",
+        .double: "kk_unbox_double_static",
+        .char: "kk_unbox_char_static",
+    ]
+
+    private static let staticNonNullOnlyBoxCalleeOverridesByPrimitive: [PrimitiveType: String] = [
+        .long: "kk_box_long_nonnull_static",
+        .ulong: "kk_box_ulong_nonnull_static",
+        .double: "kk_box_double_nonnull_static",
+    ]
 
     private let calleesByPrimitive: [PrimitiveType: InternedPrimitiveCallees]
+    private let nonNullOnlyBoxOverridesByPrimitive: [PrimitiveType: InternedString]
+    private let staticBoxCalleesByPrimitive: [PrimitiveType: InternedString]
+    private let staticUnboxCalleesByPrimitive: [PrimitiveType: InternedString]
+    private let staticNonNullOnlyBoxOverridesByPrimitive: [PrimitiveType: InternedString]
+    private let stringCallees: InternedPrimitiveCallees
+    private let unitCallee: InternedString
 
     init(interner: StringInterner) {
         var internedByName: [String: InternedString] = [:]
@@ -91,6 +166,35 @@ struct BoxingCalleeTable {
             }
         }
         calleesByPrimitive = callees
+        stringCallees = InternedPrimitiveCallees(
+            box: intern("kk_string_from_flat"),
+            unbox: intern("kk_string_to_flat")
+        )
+        unitCallee = intern("kk_box_unit")
+
+        var nonNullOverrides: [PrimitiveType: InternedString] = [:]
+        for (primitive, name) in Self.nonNullOnlyBoxCalleeOverridesByPrimitive {
+            nonNullOverrides[primitive] = intern(name)
+        }
+        nonNullOnlyBoxOverridesByPrimitive = nonNullOverrides
+
+        var staticBoxCallees: [PrimitiveType: InternedString] = [:]
+        for (primitive, name) in Self.staticPrimitiveBoxCalleeNamesByPrimitive {
+            staticBoxCallees[primitive] = intern(name)
+        }
+        staticBoxCalleesByPrimitive = staticBoxCallees
+
+        var staticUnboxCallees: [PrimitiveType: InternedString] = [:]
+        for (primitive, name) in Self.staticPrimitiveUnboxCalleeNamesByPrimitive {
+            staticUnboxCallees[primitive] = intern(name)
+        }
+        staticUnboxCalleesByPrimitive = staticUnboxCallees
+
+        var staticNonNullOverrides: [PrimitiveType: InternedString] = [:]
+        for (primitive, name) in Self.staticNonNullOnlyBoxCalleeOverridesByPrimitive {
+            staticNonNullOverrides[primitive] = intern(name)
+        }
+        staticNonNullOnlyBoxOverridesByPrimitive = staticNonNullOverrides
     }
 
     static func boxCalleeName(for primitive: PrimitiveType) -> String? {
@@ -101,20 +205,6 @@ struct BoxingCalleeTable {
         primitiveUnboxingCalleeNamesByPrimitive[primitive]
     }
 
-    static func boxCalleeName(for kind: TypeKind, requireNonNull: Bool = false) -> String? {
-        guard let primitive = primitive(for: kind, requireNonNull: requireNonNull) else {
-            return nil
-        }
-        return boxCalleeName(for: primitive)
-    }
-
-    static func unboxCalleeName(for kind: TypeKind, requireNonNull: Bool = false) -> String? {
-        guard let primitive = primitive(for: kind, requireNonNull: requireNonNull) else {
-            return nil
-        }
-        return unboxCalleeName(for: primitive)
-    }
-
     func boxCallee(for primitive: PrimitiveType) -> InternedString? {
         calleesByPrimitive[primitive]?.box
     }
@@ -123,26 +213,89 @@ struct BoxingCalleeTable {
         calleesByPrimitive[primitive]?.unbox
     }
 
-    func boxCallee(for kind: TypeKind, requireNonNull: Bool) -> InternedString? {
+    func boxCallee(
+        for kind: TypeKind,
+        requireNonNull: Bool,
+        preferStaticPrimitive: Bool = false
+    ) -> InternedString? {
+        if case .unit = kind {
+            return unitCallee
+        }
+        if requireNonNull, Self.isNonNullableStringStruct(kind) {
+            return stringCallees.box
+        }
         guard let primitive = Self.primitive(for: kind, requireNonNull: requireNonNull) else {
             return nil
+        }
+        if preferStaticPrimitive {
+            if Self.isProvablyNonNull(kind),
+               let override = staticNonNullOnlyBoxOverridesByPrimitive[primitive]
+            {
+                return override
+            }
+            return staticBoxCalleesByPrimitive[primitive]
+        }
+        if Self.isProvablyNonNull(kind), let override = nonNullOnlyBoxOverridesByPrimitive[primitive] {
+            return override
         }
         return boxCallee(for: primitive)
     }
 
-    func unboxCallee(for kind: TypeKind, requireNonNull: Bool) -> InternedString? {
+    func unboxCallee(
+        for kind: TypeKind,
+        requireNonNull: Bool,
+        preferStaticPrimitive: Bool = false
+    ) -> InternedString? {
+        if requireNonNull, Self.isNonNullableStringStruct(kind) {
+            return stringCallees.unbox
+        }
         guard let primitive = Self.primitive(for: kind, requireNonNull: requireNonNull) else {
             return nil
+        }
+        if preferStaticPrimitive {
+            return staticUnboxCalleesByPrimitive[primitive]
         }
         return unboxCallee(for: primitive)
     }
 
-    func boxCallee(for type: TypeID, types: TypeSystem, requireNonNull: Bool) -> InternedString? {
-        boxCallee(for: types.kind(of: type), requireNonNull: requireNonNull)
+    func boxCallee(
+        for type: TypeID,
+        types: TypeSystem,
+        requireNonNull: Bool,
+        preferStaticPrimitive: Bool = false
+    ) -> InternedString? {
+        boxCallee(
+            for: types.kind(of: type),
+            requireNonNull: requireNonNull,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
     }
 
-    func unboxCallee(for type: TypeID, types: TypeSystem, requireNonNull: Bool) -> InternedString? {
-        unboxCallee(for: types.kind(of: type), requireNonNull: requireNonNull)
+    func unboxCallee(
+        for type: TypeID,
+        types: TypeSystem,
+        requireNonNull: Bool,
+        preferStaticPrimitive: Bool = false
+    ) -> InternedString? {
+        unboxCallee(
+            for: types.kind(of: type),
+            requireNonNull: requireNonNull,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
+    }
+
+    private static func isProvablyNonNull(_ kind: TypeKind) -> Bool {
+        guard case let .primitive(_, nullability) = kind else {
+            return false
+        }
+        return nullability == .nonNull
+    }
+
+    private static func isNonNullableStringStruct(_ kind: TypeKind) -> Bool {
+        guard case let .stringStruct(nullability) = kind else {
+            return false
+        }
+        return nullability == .nonNull
     }
 
     private static func primitive(

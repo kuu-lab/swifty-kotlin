@@ -1,0 +1,55 @@
+symbol fq=golden.sema.charSequenceReplaceFirstRegex.$0.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceReplaceFirstRegex[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=String
+symbol fq=golden.sema.charSequenceReplaceRangeEmpty.$1.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceReplaceRangeEmpty[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.CharSequence
+symbol fq=golden.sema.charSequenceReplaceRangeIndices.$2.replacement[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceReplaceRangeIndices.$2.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceReplaceRangeIndices[kind=fun;params=kotlin.CharSequence,kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,kotlin.CharSequence] ret=kotlin.CharSequence
+symbol fq=golden.sema.charSequenceReplaceRangeIntRange.$3.replacement[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceReplaceRangeIntRange.$3.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceReplaceRangeIntRange[kind=fun;params=kotlin.CharSequence,kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,kotlin.CharSequence] ret=kotlin.CharSequence
+symbol fq=golden.sema.charSequenceReplaceRegex.$4.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceReplaceRegexLambda.$5.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceReplaceRegexLambda[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=String
+symbol fq=golden.sema.charSequenceReplaceRegex[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=String
+file fstdlib_kotlin_text_CharSequence_replace package=golden.sema
+  decl golden.sema.charSequenceReplaceRegex[kind=fun;params=kotlin.CharSequence] fun charSequenceReplaceRegex sym=golden.sema.charSequenceReplaceRegex[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceReplaceRegexLambda[kind=fun;params=kotlin.CharSequence] fun charSequenceReplaceRegexLambda sym=golden.sema.charSequenceReplaceRegexLambda[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceReplaceFirstRegex[kind=fun;params=kotlin.CharSequence] fun charSequenceReplaceFirstRegex sym=golden.sema.charSequenceReplaceFirstRegex[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceReplaceRangeIndices[kind=fun;params=kotlin.CharSequence,kotlin.CharSequence] fun charSequenceReplaceRangeIndices sym=golden.sema.charSequenceReplaceRangeIndices[kind=fun;params=kotlin.CharSequence,kotlin.CharSequence]
+  decl golden.sema.charSequenceReplaceRangeIntRange[kind=fun;params=kotlin.CharSequence,kotlin.CharSequence] fun charSequenceReplaceRangeIntRange sym=golden.sema.charSequenceReplaceRangeIntRange[kind=fun;params=kotlin.CharSequence,kotlin.CharSequence]
+  decl golden.sema.charSequenceReplaceRangeEmpty[kind=fun;params=kotlin.CharSequence] fun charSequenceReplaceRangeEmpty sym=golden.sema.charSequenceReplaceRangeEmpty[kind=fun;params=kotlin.CharSequence]
+expr e@4:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRegex.$4.source[kind=vparam]
+expr e@4:26 string(a+) type=String
+expr e@4:20 call callee=e@4:20#1 args=[_:e@4:26] type=kotlin.text.Regex call=kotlin.text.Regex.<init>[kind=ctor;recv=kotlin.text.Regex;params=String]
+expr e@4:33 string(X) type=String
+expr e@4:5#1 memberCall recv=e@4:5 callee=replace args=[_:e@4:20,_:e@4:33] type=String call=kotlin.text.replace[kind=fun;recv=kotlin.CharSequence;params=kotlin.text.Regex,String]
+expr e@7:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRegexLambda.$5.source[kind=vparam]
+expr e@7:26 string(a+) type=String
+expr e@7:20 call callee=e@7:20#1 args=[_:e@7:26] type=kotlin.text.Regex call=kotlin.text.Regex.<init>[kind=ctor;recv=kotlin.text.Regex;params=String]
+expr e@7:48 name(match) type=kotlin.text.MatchResult ref=s-0
+expr e@7:48#1 memberCall recv=e@7:48 callee=value args=[] type=String call=kotlin.text.value.$get[kind=fun;recv=kotlin.text.MatchResult;params=]
+expr e@7:44 stringTemplate[lit([),expr(e@7:48#1),lit(])] type=String
+expr e@7:33 lambda params=[match] body=e@7:44 label=replace type=(kotlin.text.MatchResult) -> kotlin.CharSequence
+expr e@7:5#1 memberCall recv=e@7:5 callee=replace args=[_:e@7:20,_:e@7:33] type=String call=kotlin.text.replace[kind=fun;recv=kotlin.CharSequence;params=kotlin.text.Regex,fn{p=kotlin.text.MatchResult;ret=kotlin.CharSequence}]
+expr e@10:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceFirstRegex.$0.source[kind=vparam]
+expr e@10:31 string(a+) type=String
+expr e@10:25 call callee=e@10:25#1 args=[_:e@10:31] type=kotlin.text.Regex call=kotlin.text.Regex.<init>[kind=ctor;recv=kotlin.text.Regex;params=String]
+expr e@10:38 string(X) type=String
+expr e@10:5#1 memberCall recv=e@10:5 callee=replaceFirst args=[_:e@10:25,_:e@10:38] type=String call=kotlin.text.replaceFirst[kind=fun;recv=kotlin.CharSequence;params=kotlin.text.Regex,String]
+expr e@15:19 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRangeIndices.$2.source[kind=vparam]
+expr e@15:39 int(1) type=Int
+expr e@15:42 int(3) type=Int
+expr e@15:45 name(replacement) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRangeIndices.$2.replacement[kind=vparam]
+expr e@15:19#1 memberCall recv=e@15:19 callee=replaceRange args=[_:e@15:39,_:e@15:42,_:e@15:45] type=kotlin.CharSequence call=kotlin.text.replaceRange[kind=fun;recv=kotlin.CharSequence;params=Int,Int,kotlin.CharSequence]
+expr e@20:19 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRangeIntRange.$3.source[kind=vparam]
+expr e@20:39 int(1) type=Int
+expr e@20:42 int(2) type=Int
+expr e@20:39#1 binary(rangeTo) lhs=e@20:39 rhs=e@20:42 type=Int
+expr e@20:45 name(replacement) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRangeIntRange.$3.replacement[kind=vparam]
+expr e@20:19#1 memberCall recv=e@20:19 callee=replaceRange args=[_:e@20:39#1,_:e@20:45] type=kotlin.CharSequence call=kotlin.text.replaceRange[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange,kotlin.CharSequence]
+expr e@23:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRangeEmpty.$1.source[kind=vparam]
+expr e@23:25 int(2) type=Int
+expr e@23:28 int(2) type=Int
+expr e@23:31 string(X) type=String
+expr e@23:5#1 memberCall recv=e@23:5 callee=replaceRange args=[_:e@23:25,_:e@23:28,_:e@23:31] type=kotlin.CharSequence call=kotlin.text.replaceRange[kind=fun;recv=kotlin.CharSequence;params=Int,Int,kotlin.CharSequence]

@@ -38,19 +38,24 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
     /// Whether the runtime callee may throw (Kotlin exception propagation via `outThrown`).
     /// Defaults to `true`; non-throwing callees omit the `outThrown` ABI lowering path.
     public let isThrowing: Bool
+    /// Whether the callee returns a raw 0/1 Boolean instead of a boxed Boolean handle.
+    /// When set, ABILoweringPass does not insert `kk_unbox_bool` on the call result.
+    public let returnsRawBoolean: Bool
 
     public init(
         name: String,
         parameters: [RuntimeABIParameter],
         returnType: RuntimeABICType,
         section: String,
-        isThrowing: Bool = true
+        isThrowing: Bool = true,
+        returnsRawBoolean: Bool = false
     ) {
         self.name = name
         self.parameters = parameters
         self.returnType = returnType
         self.section = section
         self.isThrowing = isThrowing
+        self.returnsRawBoolean = returnsRawBoolean
     }
 
     public var cDeclaration: String {
@@ -74,8 +79,15 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 }
 
 public enum RuntimeABISpec {
-    public static let specVersion = "J35"
-
+    /// SHA-256 hex of the canonical serialization of `allFunctions`.
+    /// Computed at first access so parallel PRs no longer need to update a hardcoded hash line.
+    public static let specVersion: String = {
+        let canonical = allFunctions.map { spec in
+            let params = spec.parameters.map { "\($0.name):\($0.type.rawValue)" }.joined(separator: ",")
+            return "\(spec.name)|\(spec.returnType.rawValue)|\(params)|\(spec.section)|\(spec.isThrowing)|\(spec.returnsRawBoolean)"
+        }.joined(separator: "\n")
+        return SHA256.hex(Array(canonical.utf8))
+    }()
     /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
     ///
     /// The sub-arrays are listed in alphabetical order, one entry per line, so that
@@ -89,7 +101,6 @@ public enum RuntimeABISpec {
         arrayFunctions,
         atomicFunctions,
         base64Functions,
-        bigIntegerFunctions,
         bitwiseFunctions,
         booleanFunctions,
         boxingFunctions,
@@ -106,10 +117,10 @@ public enum RuntimeABISpec {
         durationFunctions,
         exceptionFunctions,
         fileIOFunctions,
+        fileSystemExceptionFunctions,
         gcFunctions,
         i18nFunctions,
         ioFunctions,
-        jsNumberFunctions,
         kFunctionFunctions,
         kParameterFunctions,
         kPropertyStubFunctions,
@@ -117,11 +128,11 @@ public enum RuntimeABISpec {
         localeFunctions,
         mathFunctions,
         memoryFunctions,
+        nativeConcurrentFunctions,
         nativeRefFunctions,
         networkFunctions,
         numericRuntimeBridgeFunctions,
         operatorFunctions,
-        pathFunctions,
         primitiveNumericConversionFunctions,
         randomFunctions,
         rangeFunctions,
@@ -129,18 +140,22 @@ public enum RuntimeABISpec {
         resultFunctions,
         runtimeOnlyBridgeFunctions,
         sequenceFunctions,
-        serializationFunctions,
+        staticPrimitiveBoxingFunctions,
         stringBridgeFunctions,
         stringBuilderFunctions,
         stringFunctions,
-        stringHOFFunctions,
         stringParsingFunctions,
         stringSearchFunctions,
         systemFunctions,
-        testFunctions,
-        threadFunctions,
         threadLocalFunctions,
         timeAndPathBridgeFunctions,
         uuidFunctions,
     ] as [[RuntimeABIFunctionSpec]]).flatMap { $0 }
+
+    /// `allFunctions` indexed by ABI link name; keeps the first spec per name,
+    /// matching `allFunctions.first(where: { $0.name == ... })` semantics.
+    public static let byName: [String: RuntimeABIFunctionSpec] = Dictionary(
+        allFunctions.map { ($0.name, $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
 }

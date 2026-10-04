@@ -1,12 +1,14 @@
 package kotlin.ranges
 
+import kotlin.internal.KsSymbolName
+
 // MIGRATION-RANGE-001
 // contains(value) / isEmpty() for IntRange, LongRange, CharRange, IntProgression,
 // LongProgression, CharProgression.
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
-//   (kk_range_contains, kk_range_isEmpty, kk_char_range_isEmpty, kk_op_contains)
+//   (__kk_range_contains, __kk_range_isEmpty, kk_op_contains)
 //   Sources/Runtime/RuntimeRangeLongRange.swift
-//   (kk_long_range_contains, kk_long_range_isEmpty)
+//   (__kk_long_range_contains, __kk_long_range_isEmpty)
 // See RangeIterators.kt for the iterator() half of this migration.
 //
 // NOTE: KSP-312 wires explicit `contains`/`isEmpty` calls through bundled stdlib
@@ -19,22 +21,27 @@ package kotlin.ranges
 // These implementations are written purely in terms of the first/last/step
 // properties every one of the six classes already exposes as Kotlin members.
 //
-// LongRange.step is Kotlin-typed Long (registerSyntheticLongRangeStub) while
-// LongProgression.step is Kotlin-typed Int (registerSyntheticProgressionStub,
-// shared stepType across all *Progression classes) — a pre-existing asymmetry in
-// those registrations, not introduced here. The LongProgression overloads below
-// widen step to Long before delegating so the shared helper only has to handle
-// one width.
+// The LongRange/LongProgression overloads below pass their Long step through
+// the same helpers the Int/Char/UInt overloads widen into, so the shared
+// helpers only have to handle one width.
 
-private fun <T : Comparable<T>> rangeIsEmpty(first: T, last: T, step: Long): Boolean =
+// Keep these helpers specialized: the generic Comparable helper makes bundled
+// source type-checking fail to terminate even for unrelated small programs.
+private fun rangeIsEmptyInt(first: Int, last: Int, step: Long): Boolean =
     if (step > 0L) first > last else if (step < 0L) first < last else true
 
-public fun IntRange.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
-public fun IntProgression.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
-public fun LongRange.isEmpty(): Boolean = rangeIsEmpty(first, last, step)
-public fun LongProgression.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
-public fun CharRange.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
-public fun CharProgression.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
+private fun rangeIsEmptyLong(first: Long, last: Long, step: Long): Boolean =
+    if (step > 0L) first > last else if (step < 0L) first < last else true
+
+private fun rangeIsEmptyChar(first: Char, last: Char, step: Long): Boolean =
+    if (step > 0L) first > last else if (step < 0L) first < last else true
+
+public fun IntRange.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
+public fun IntProgression.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
+public fun LongRange.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step)
+public fun LongProgression.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step)
+public fun CharRange.isEmpty(): Boolean = rangeIsEmptyChar(first, last, step.toLong())
+public fun CharProgression.isEmpty(): Boolean = rangeIsEmptyChar(first, last, step.toLong())
 
 // Widening the subtraction to Long (Int) / staying in Long (Long) keeps
 // `value - first` from wrapping when first/value sit near Int.MIN_VALUE /
@@ -73,10 +80,70 @@ private fun containsChar(value: Char, first: Char, last: Char, step: Int): Boole
     return (value - first) % step == 0
 }
 
+private fun rangeIsEmptyUInt(first: UInt, last: UInt, step: Long): Boolean =
+    if (step > 0L) first > last else if (step < 0L) first < last else true
+
+private fun rangeIsEmptyULong(first: ULong, last: ULong, step: Long): Boolean =
+    if (step > 0L) first > last else if (step < 0L) first < last else true
+
+private fun containsUInt(value: UInt, first: UInt, last: UInt, step: Int): Boolean {
+    if (step > 0) {
+        if (value < first || value > last) return false
+    } else if (step < 0) {
+        if (value > first || value < last) return false
+    } else {
+        return false
+    }
+    val diff = if (value >= first) value - first else first - value
+    return diff % step.toUInt() == 0u
+}
+
+private fun containsULong(value: ULong, first: ULong, last: ULong, step: Long): Boolean {
+    if (step > 0L) {
+        if (value < first || value > last) return false
+    } else if (step < 0L) {
+        if (value > first || value < last) return false
+    } else {
+        return false
+    }
+    val diff = if (value >= first) value - first else first - value
+    // Negative steps sign-extend when widened to ULong, so take the
+    // magnitude before the modulo or descending members never match.
+    val magnitude = if (step < 0L) (-step).toULong() else step.toULong()
+    return diff % magnitude == 0uL
+}
+
+@KsSymbolName("__kk_range_contains")
 public operator fun IntRange.contains(value: Int): Boolean = containsInt(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
 public operator fun IntProgression.contains(value: Int): Boolean = containsInt(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
 public operator fun LongRange.contains(value: Long): Boolean = containsLong(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
 public operator fun LongProgression.contains(value: Long): Boolean =
-    containsLong(value, first, last, step.toLong())
+    containsLong(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
 public operator fun CharRange.contains(value: Char): Boolean = containsChar(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
 public operator fun CharProgression.contains(value: Char): Boolean = containsChar(value, first, last, step)
+
+public fun UIntRange.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
+public fun UIntProgression.isEmpty(): Boolean = rangeIsEmptyUInt(first, last, step.toLong())
+public fun ULongProgression.isEmpty(): Boolean = rangeIsEmptyULong(first, last, step.toLong())
+
+@KsSymbolName("__kk_range_contains")
+public operator fun UIntRange.contains(value: UInt): Boolean = containsUInt(value, first, last, step)
+
+@KsSymbolName("__kk_range_contains")
+public operator fun UIntProgression.contains(value: UInt): Boolean = containsUInt(value, first, last, step)
+
+// Keep ULong membership on the Kotlin body: the signed runtime bridge cannot
+// compare values whose high bit is set.
+public operator fun ULongRange.contains(value: ULong): Boolean = containsULong(value, first, last, step.toLong())
+
+public operator fun ULongProgression.contains(value: ULong): Boolean = containsULong(value, first, last, step)

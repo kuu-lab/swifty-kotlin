@@ -13,7 +13,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         if rewriteSequencePipelineCall(
             symbol: symbol,
@@ -33,6 +33,7 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         if rewriteSequenceTerminalCall(
+            symbol: symbol,
             callee: callee,
             arguments: arguments,
             result: result,
@@ -40,19 +41,6 @@ extension CollectionLiteralConstructionLoweringPass {
             thrownResult: thrownResult,
             module: module,
             ctx: ctx,
-            lookup: lookup,
-            state: &state,
-            loweredBody: &loweredBody
-        ) {
-            return true
-        }
-
-        if rewriteArrayConversionCall(
-            callee: callee,
-            arguments: arguments,
-            result: result,
-            thrownResult: thrownResult,
-            module: module,
             lookup: lookup,
             state: &state,
             loweredBody: &loweredBody

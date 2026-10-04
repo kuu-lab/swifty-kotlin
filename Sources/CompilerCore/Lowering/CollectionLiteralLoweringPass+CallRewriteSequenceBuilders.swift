@@ -11,7 +11,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         if callee == lookup.kkSequenceBuilderBuildName {
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
@@ -23,40 +23,15 @@ extension CollectionLiteralConstructionLoweringPass {
             return false
         }
 
-        // sequence { ... } builder → kk_sequence_builder_build
-        if callee == lookup.sequenceName, arguments.count == 1 || arguments.count == 2 {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequenceBuilderBuildName,
-                arguments: arguments,
-                result: result,
-                canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
-            return true
-        }
+        // KSP-1519: `sequence { ... }`/`iterator { ... }` are now source-backed
+        // (Stdlib/kotlin/sequences/SequenceBuilder.kt, @KsSymbolName-bridged to
+        // __kk_sequence_builder_build / __kk_iterator_builder_build), so the
+        // normal external-call codegen path already emits calls to those names
+        // directly — the two guards above pick them up for state tracking.
+        // The raw-source-name rewrites that used to synthesize these calls for
+        // the Swift-side synthetic stub were removed here.
 
-        // iterator { ... } builder → kk_iterator_builder_build (STDLIB-331)
-        // Mirror the sequence {} builder rewrite. The sema layer
-        // already special-cases the synthetic stdlib builder, so
-        // by this point plain `iterator { ... }` should refer to
-        // kotlin.sequences.iterator rather than a user-defined
-        // overload. Keep the runtime call non-throwing.
-        if callee == lookup.iteratorBuilderName, arguments.count == 1, symbol == nil {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkIteratorBuilderBuildName,
-                arguments: arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result { state.iteratorBuilderExprIDs.insert(result.rawValue) }
-            return true
-        }
-
-        // yield(value) inside sequence builder → kk_sequence_builder_yield
+        // yield(value) inside sequence builder → __kk_sequence_builder_yield
         if callee == lookup.yieldName, arguments.count == 2 {
             let builderArg = arguments[0]
             let valueArg = arguments[1]
@@ -66,16 +41,24 @@ extension CollectionLiteralConstructionLoweringPass {
                let boxCallee = primitiveBoxCalleeName(
                    for: argType,
                    types: types,
+                   symbols: ctx.sema?.symbols,
                    interner: ctx.interner
                )
             {
-                storedValue = emitNonThrowingCall(
-                    callee: boxCallee,
-                    arg: valueArg,
+                let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                emitBoxCallWithValueClassTag(
+                    boxCallee: boxCallee,
+                    value: valueArg,
+                    rawSourceKind: types.kind(of: argType),
+                    result: boxedResult,
                     resultType: types.anyType,
+                    types: types,
+                    symbols: ctx.sema?.symbols,
+                    interner: ctx.interner,
                     arena: module.arena,
                     into: &loweredBody
                 )
+                storedValue = boxedResult
             } else {
                 storedValue = valueArg
             }
@@ -90,7 +73,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // yieldAll(iterable) inside sequence builder → kk_sequence_builder_yieldAll (STDLIB-553)
+        // yieldAll(iterable) inside sequence builder → __kk_sequence_builder_yieldAll (STDLIB-553)
         if callee == lookup.yieldAllName, arguments.count == 2 {
             loweredBody.append(.call(
                 symbol: nil,

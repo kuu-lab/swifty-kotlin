@@ -1,73 +1,52 @@
+/*
+ * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Licensed under the Apache License, Version 2.0.
+ *
+ * Derived from kotlin-stdlib libraries/stdlib/src/kotlin/random/{Random,XorWowRandom}.kt.
+ */
+
 package kotlin.random
 
 import kotlin.math.nextDown
+import kotlin.internal.KsSymbolName
 
-// KSP-466: Random — Kotlin-source implementation of kotlin.random.Random, using
-// the real kotlin.random.XorWowRandom algorithm (ported from kotlin-stdlib
-// libraries/stdlib/src/kotlin/random/{Random,XorWowRandom}.kt) so behavior
-// matches kotlinc exactly for the deterministic (seeded) path.
-//
-// NOTE: upstream Kotlin splits this into an `abstract class Random` (skeleton,
-// no state) + `internal class XorWowRandom : Random()` (the concrete PRNG) +
-// top-level `fun Random(seed: Int): Random` factory functions. KSwiftK's Sema
-// does not currently support a class and a same-named top-level function
-// coexisting in the same package (a general limitation, not specific to
-// Random). This file therefore merges Random/XorWowRandom into a single open
-// class and uses public secondary constructors (`Random(seed): this(...)`)
-// instead of top-level factory functions, so `Random(seed)` remains ordinary
-// constructor-call syntax with identical observable behavior and a bit-exact
-// algorithm.
+// KSP-466/KSP-685: Random — Kotlin-source implementation of
+// kotlin.random.Random and its deterministic XorWowRandom generator. The
+// public API and state initialization follow kotlin-stdlib's
+// libraries/stdlib/src/kotlin/random/{Random,XorWowRandom}.kt structure so
+// seeded output remains bit-exact with kotlinc.
 //
 // Bridge residue: __kk_random_seed_entropy is the only native call, used once
 // to seed Random.Default from system entropy.
 private external fun __kk_random_seed_entropy(): Long
 
-public open class Random internal constructor(
-    private var x: Int,
-    private var y: Int,
-    private var z: Int,
-    private var w: Int,
-    private var v: Int,
-    private var addend: Int
-) {
-    public constructor(seed: Int) : this(
-        seed, seed.shr(31), 0, 0, seed.inv(), (seed shl 10) xor (seed.shr(31) ushr 4)
-    )
+@KsSymbolName("__kk_random_nextInt_rangeObject")
+private external fun __kk_random_nextInt_rangeObject(random: Random, range: IntRange): Int
 
-    public constructor(seed: Long) : this(
-        seed.toInt(), seed.shr(32).toInt(), 0, 0,
-        seed.toInt().inv(), (seed.toInt() shl 10) xor (seed.shr(32).toInt() ushr 4)
-    )
+@KsSymbolName("__kk_random_nextLong_rangeObject")
+private external fun __kk_random_nextLong_rangeObject(random: Random, range: LongRange): Long
 
-    init {
-        require((x or y or z or w or v) != 0) { "Initial state must have at least one non-zero element." }
-        repeat(64) { val _ = stepXorWow() }
-    }
+@KsSymbolName("__kk_random_nextUInt_uintRange")
+private external fun __kk_random_nextUInt_uintRange(random: Random, range: UIntRange): UInt
 
-    // Raw XorWow step. Private (non-overridable) so the warm-up loop above
-    // always advances *this* instance's own state: calling an `open` member
-    // from here would dispatch to a subclass override before the subclass's
-    // own properties (e.g. Default's `defaultRandom`) are initialized.
-    private fun stepXorWow(): Int {
-        var t = x
-        t = t xor (t ushr 2)
-        x = y
-        y = z
-        z = w
-        val v0 = v
-        w = v0
-        t = (t xor (t shl 1)) xor v0 xor (v0 shl 4)
-        v = t
-        // NOTE: `addend += 362437` (compound assignment) does not persist on
-        // instance fields in this compiler (confirmed reproducible outside
-        // Random too — a general codegen gap, not specific to this class).
-        // Explicit reassignment works correctly and is used everywhere in
-        // this file for that reason.
-        addend = addend + 362437
-        return t + addend
-    }
+@KsSymbolName("__kk_random_nextULong_ulongRange")
+private external fun __kk_random_nextULong_ulongRange(random: Random, range: ULongRange): ULong
 
-    public open fun nextBits(bitCount: Int): Int = stepXorWow().takeUpperBits(bitCount)
+// Interfaces exposing the Random methods that native runtime helpers need to
+// call through itable dispatch. Single-method interfaces keep the itable
+// methodSlot at 0 and independent of source-ordering symbol IDs. They are
+// public so they can be exported in library metadata and resolved by downstream
+// modules that load the compiled Random class from a .kklib.
+public interface RandomSource {
+    public fun nextIntBelow(until: Int): Int
+}
+
+public interface RandomLongSource {
+    public fun nextLongBits(): Long
+}
+
+public abstract class Random : RandomSource, RandomLongSource {
+    public abstract fun nextBits(bitCount: Int): Int
 
     public open fun nextInt(): Int = nextBits(32)
 
@@ -97,7 +76,11 @@ public open class Random internal constructor(
         return result
     }
 
-    public open fun nextLong(): Long = nextInt().toLong().shl(32) + nextInt()
+    public open fun nextInt(range: IntRange): Int = __kk_random_nextInt_rangeObject(this, range)
+
+    // Keep both operands as Long to preserve Kotlin's sign extension of the
+    // low Int when composing the 64-bit result.
+    public open fun nextLong(): Long = nextInt().toLong().shl(32) + nextInt().toLong()
 
     public open fun nextLong(until: Long): Long = nextLong(0L, until)
 
@@ -134,6 +117,14 @@ public open class Random internal constructor(
         } while (result !in from until until)
         return result
     }
+
+    public open fun nextLong(range: LongRange): Long = __kk_random_nextLong_rangeObject(this, range)
+
+    // Implementations of the runtime-dispatch interfaces used by native
+    // collection/range helpers for deterministic seeded random values.
+    public open override fun nextIntBelow(until: Int): Int = nextInt(until)
+
+    public open override fun nextLongBits(): Long = nextLong()
 
     public open fun nextBoolean(): Boolean = nextBits(1) != 0
 
@@ -201,14 +192,9 @@ public open class Random internal constructor(
     public open fun nextBytes(size: Int): ByteArray = nextBytes(ByteArray(size) { 0 })
 
     // nextUInt/nextULong (scalar overloads; ported from kotlin-stdlib
-    // libraries/stdlib/src/kotlin/random/URandom.kt) are declared as real
-    // members here rather than package-level extensions (as upstream does):
-    // the kept native nextUInt(UIntRange)/nextULong(ULongRange) bridges
-    // (KSP-457 scope) are registered as members named "nextUInt"/"nextULong",
-    // and this compiler's overload resolution does not consider package-level
-    // extensions once a member of the same name exists (same shadowing
-    // confirmed for nextInt/nextLong above). Declaring these as sibling
-    // members avoids that entirely.
+    // libraries/stdlib/src/main/kotlin/kotlin/random/URandom.kt) are declared
+    // as real members here rather than package-level extensions, matching the
+    // existing KSwiftK member-based Random surface.
     public open fun nextUInt(): UInt = nextInt().toUInt()
 
     public open fun nextUInt(until: UInt): UInt = nextUInt(0u, until)
@@ -220,6 +206,8 @@ public open class Random internal constructor(
         val signedResult = nextInt(signedFrom, signedUntil) xor Int.MIN_VALUE
         return signedResult.toUInt()
     }
+
+    public open fun nextUInt(range: UIntRange): UInt = __kk_random_nextUInt_uintRange(this, range)
 
     public open fun nextULong(): ULong = nextLong().toULong()
 
@@ -233,7 +221,9 @@ public open class Random internal constructor(
         return signedResult.toULong()
     }
 
-    public companion object Default : Random(1, 0, 0, 0, 1, 0) {
+    public open fun nextULong(range: ULongRange): ULong = __kk_random_nextULong_ulongRange(this, range)
+
+    public companion object Default : Random() {
         private val defaultRandom: Random
 
         init {
@@ -241,10 +231,9 @@ public open class Random internal constructor(
             defaultRandom = Random(entropy)
         }
 
-        // NOTE: every open member is re-declared here, forwarding to
-        // defaultRandom, even though most bodies are identical to what
-        // Random's own skeleton implementation would already compute by
-        // calling nextBits() virtually. This compiler's "bare ClassName.member()"
+        // NOTE: every open member is re-declared here, even though most bodies
+        // are identical to what Random's own skeleton implementation would
+        // already compute by calling nextBits() virtually. This compiler's "bare ClassName.member()"
         // shorthand for named-companion access (used throughout existing
         // diff_cases/golden tests, e.g. `Random.nextInt(1, 10)`) only resolves
         // members the companion *directly declares*, not ones it merely
@@ -255,9 +244,11 @@ public open class Random internal constructor(
         override fun nextInt(): Int = defaultRandom.nextInt()
         override fun nextInt(until: Int): Int = defaultRandom.nextInt(until)
         override fun nextInt(from: Int, until: Int): Int = defaultRandom.nextInt(from, until)
+        override fun nextInt(range: IntRange): Int = defaultRandom.nextInt(range)
         override fun nextLong(): Long = defaultRandom.nextLong()
         override fun nextLong(until: Long): Long = defaultRandom.nextLong(until)
         override fun nextLong(from: Long, until: Long): Long = defaultRandom.nextLong(from, until)
+        override fun nextLong(range: LongRange): Long = defaultRandom.nextLong(range)
         override fun nextBoolean(): Boolean = defaultRandom.nextBoolean()
         override fun nextDouble(): Double = defaultRandom.nextDouble()
         override fun nextDouble(until: Double): Double = defaultRandom.nextDouble(until)
@@ -272,11 +263,54 @@ public open class Random internal constructor(
         override fun nextUInt(): UInt = defaultRandom.nextUInt()
         override fun nextUInt(until: UInt): UInt = defaultRandom.nextUInt(until)
         override fun nextUInt(from: UInt, until: UInt): UInt = defaultRandom.nextUInt(from, until)
+        override fun nextUInt(range: UIntRange): UInt = defaultRandom.nextUInt(range)
         override fun nextULong(): ULong = defaultRandom.nextULong()
         override fun nextULong(until: ULong): ULong = defaultRandom.nextULong(until)
         override fun nextULong(from: ULong, until: ULong): ULong = defaultRandom.nextULong(from, until)
+        override fun nextULong(range: ULongRange): ULong = defaultRandom.nextULong(range)
     }
 }
+
+internal class XorWowRandom internal constructor(
+    private var x: Int,
+    private var y: Int,
+    private var z: Int,
+    private var w: Int,
+    private var v: Int,
+    private var addend: Int
+) : Random() {
+    internal constructor(seed1: Int, seed2: Int) :
+        this(seed1, seed2, 0, 0, seed1.inv(), (seed1 shl 10) xor (seed2 ushr 4))
+
+    init {
+        require((x or y or z or w or v) != 0) { "Initial state must have at least one non-zero element." }
+        // Some trivial seeds produce several values with zeroes in upper bits,
+        // so discard the first 64 values just like kotlin-stdlib.
+        repeat(64) { val _ = nextInt() }
+    }
+
+    // Marsaglia's xorwow step. The explicit field reassignment is intentional:
+    // compound assignment on instance fields is not persistent in this compiler.
+    override fun nextInt(): Int {
+        var t = x
+        t = t xor (t ushr 2)
+        x = y
+        y = z
+        z = w
+        val v0 = v
+        w = v0
+        t = (t xor (t shl 1)) xor v0 xor (v0 shl 4)
+        v = t
+        addend = addend + 362437
+        return t + addend
+    }
+
+    override fun nextBits(bitCount: Int): Int = nextInt().takeUpperBits(bitCount)
+}
+
+public fun Random(seed: Int): Random = XorWowRandom(seed, seed.shr(31))
+
+public fun Random(seed: Long): Random = XorWowRandom(seed.toInt(), seed.shr(32).toInt())
 
 internal fun fastLog2(value: Int): Int = 31 - value.countLeadingZeroBits()
 

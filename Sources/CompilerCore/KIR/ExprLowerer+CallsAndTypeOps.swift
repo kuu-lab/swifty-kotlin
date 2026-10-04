@@ -1,5 +1,60 @@
 
 extension ExprLowerer {
+    /// A generic Array cast only changes the erased element type. When both
+    /// sides are statically the same non-null Array class, checking the
+    /// parameterized type at runtime is both unnecessary and impossible: the
+    /// runtime array handle does not carry its erased element type.
+    func isRedundantGenericArrayCast(
+        from sourceType: TypeID?,
+        to targetType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let sourceType,
+              sema.types.nullability(of: sourceType) == .nonNull,
+              let (sourceClass, sourceSymbol) = resolveClassTypeSymbol(sourceType, sema: sema),
+              let (targetClass, targetSymbol) = resolveClassTypeSymbol(targetType, sema: sema)
+        else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        return sourceSymbol.name == knownNames.array
+            && targetSymbol.name == knownNames.array
+            && sourceClass.classSymbol == targetClass.classSymbol
+            && sourceClass.args.count == 1
+            && targetClass.args.count == 1
+    }
+
+    /// A generic comparison helper uses an erased Comparable cast to reach the
+    /// source-backed member. The runtime representation does not attach
+    /// interface metadata to primitive values, so checking this cast would
+    /// reject valid calls before the bridge can compare them.
+    func isRedundantComparableCast(
+        from sourceType: TypeID?,
+        to targetType: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        guard let sourceType,
+              case let .typeParam(sourceParam) = sema.types.kind(of: sourceType),
+              case let .classType(targetClass) = sema.types.kind(of: sema.types.makeNonNullable(targetType)),
+              targetClass.classSymbol == sema.types.comparableInterfaceSymbol
+        else {
+            return false
+        }
+        let upperBounds = sema.symbols.typeParameterUpperBounds(for: sourceParam.symbol)
+        if upperBounds.isEmpty {
+            // An unconstrained T is the intentional erasure boundary used by
+            // compareValuesUnchecked and Array/List binary search.
+            return true
+        }
+        return upperBounds.contains { bound in
+            guard case let .classType(boundClass) = sema.types.kind(of: sema.types.makeNonNullable(bound)) else {
+                return false
+            }
+            return boundClass.classSymbol == targetClass.classSymbol
+        }
+    }
+
     func lowerIsCheckTypeTokenExpr(
         typeRefID: TypeRefID,
         ast: ASTModule,
@@ -28,6 +83,9 @@ extension ExprLowerer {
             if path.count == 1,
                let tokenSymbol = reifiedTypeTokenSymbol(for: last, sema: sema)
             {
+                if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
+                    return tokenValue
+                }
                 let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
                 instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
                 return tokenExpr
@@ -91,6 +149,9 @@ extension ExprLowerer {
            symbolInfo.flags.contains(.reifiedTypeParameter),
            let tokenSymbol = reifiedTypeTokenSymbol(for: symbolInfo.name, sema: sema)
         {
+            if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
+                return tokenValue
+            }
             let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
             instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
             return tokenExpr
@@ -105,21 +166,33 @@ extension ExprLowerer {
         for typeName: InternedString,
         sema: SemaModule
     ) -> SymbolID? {
-        guard let currentFunctionSymbol = driver.ctx.activeFunctionSymbol(),
-              let signature = sema.symbols.functionSignature(for: currentFunctionSymbol)
-        else {
-            return nil
-        }
-        for typeParameterSymbol in signature.typeParameterSymbols {
-            guard let symbol = sema.symbols.symbol(typeParameterSymbol),
-                  symbol.kind == .typeParameter,
-                  symbol.name == typeName,
-                  symbol.flags.contains(.reifiedTypeParameter)
-            else {
-                continue
+        if let currentFunctionSymbol = driver.ctx.activeFunctionSymbol(),
+           let signature = sema.symbols.functionSignature(for: currentFunctionSymbol)
+        {
+            for typeParameterSymbol in signature.typeParameterSymbols {
+                guard let symbol = sema.symbols.symbol(typeParameterSymbol),
+                      symbol.kind == .typeParameter,
+                      symbol.name == typeName,
+                      symbol.flags.contains(.reifiedTypeParameter)
+                else {
+                    continue
+                }
+                return SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
             }
-            return SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
         }
-        return nil
+        // A lambda body can refer to a reified type parameter captured from an
+        // enclosing inline function. The lambda has no function signature for
+        // that outer parameter, so recover the token from its capture context.
+        return sema.symbols.allSymbols()
+            .filter { symbol in
+                symbol.kind == .typeParameter
+                    && symbol.name == typeName
+                    && symbol.flags.contains(.reifiedTypeParameter)
+            }
+            .compactMap { symbol -> SymbolID? in
+                let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: symbol.id)
+                return driver.ctx.localValue(for: tokenSymbol) != nil ? tokenSymbol : nil
+            }
+            .first
     }
 }

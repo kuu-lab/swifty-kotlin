@@ -1,14 +1,5 @@
-/// Synthetic stubs for kotlin.time.Duration class, Companion extension properties,
-/// and inWhole* accessor properties (STDLIB-582/583/584).
-private let syntheticDurationUnitEntries = [
-    "NANOSECONDS",
-    "MICROSECONDS",
-    "MILLISECONDS",
-    "SECONDS",
-    "MINUTES",
-    "HOURS",
-    "DAYS",
-]
+/// Synthetic bridges retained for kotlin.time.Duration's native parsing and
+/// arithmetic compatibility surface.
 
 extension DataFlowSemaPhase {
     func registerSyntheticDurationStubs(
@@ -21,23 +12,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TIME-STABLE-008: DurationUnit enum surface ---
-        let durationUnitSymbol = ensureSyntheticDurationUnitEnumClass(
+        // --- STDLIB-TIME-STABLE-008: DurationUnit enum anchor ---
+        // The enum entries are declared by bundled DurationUnit.kt. Keep only
+        // the nominal shell here so source collection can reuse it.
+        _ = ensureSyntheticDurationUnitEnumClass(
             in: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
-        let durationUnitType = types.make(.classType(ClassType(
-            classSymbol: durationUnitSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        setSyntheticDurationUnitEntryTypes(
-            enumSymbol: durationUnitSymbol,
-            enumType: durationUnitType,
-            symbols: symbols
-        )
-
         // --- Duration class symbol ---
         let durationSymbol = ensureClassSymbol(
             named: "Duration",
@@ -60,44 +42,9 @@ extension DataFlowSemaPhase {
         )))
 
         let intType = types.intType
-        let longType = types.longType
         let doubleType = types.doubleType
         let stringType = types.stringType
         let boolType = types.make(.primitive(.boolean, .nonNull))
-
-        // --- STDLIB-TIME-STABLE-009: Numeric.toDuration(unit) extension functions ---
-        registerDurationFactoryExtensionFunction(
-            named: "toDuration",
-            externalLinkName: "kk_duration_toDuration_int",
-            receiverType: intType,
-            parameters: [(name: "unit", type: durationUnitType)],
-            returnType: durationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionFunction(
-            named: "toDuration",
-            externalLinkName: "kk_duration_toDuration_long",
-            receiverType: longType,
-            parameters: [(name: "unit", type: durationUnitType)],
-            returnType: durationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionFunction(
-            named: "toDuration",
-            externalLinkName: "kk_duration_toDuration_double",
-            receiverType: doubleType,
-            parameters: [(name: "unit", type: durationUnitType)],
-            returnType: durationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         // --- STDLIB-TIME-STABLE-001: Duration companion constants ---
         // KSP-471: ZERO/INFINITE/parse* are Kotlin source Companion extension
@@ -166,19 +113,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [stringType],
             returnType: types.makeNullable(durationType),
             packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-582/583/584: Duration.inWhole* properties ---
-        // KSP-471: inWholeMilliseconds/Microseconds/Seconds/Minutes/Hours/Days are Kotlin
-        // source extension properties (Stdlib/kotlin/time/Duration.kt) built on top of
-        // inWholeNanoseconds, which stays native (base primitive) below.
-        registerDurationMemberProperty(
-            named: "inWholeNanoseconds",
-            externalLinkName: "kk_duration_inWholeNanoseconds",
-            ownerSymbol: durationSymbol,
-            returnType: longType,
             symbols: symbols,
             interner: interner
         )
@@ -343,48 +277,9 @@ extension DataFlowSemaPhase {
         // top-level extension properties (Stdlib/kotlin/time/Duration.kt) built on
         // top of the toDuration(unit) bridges registered above. No direct stubs.
 
-        // --- STDLIB-660: TimedValue class ---
-        let timedValueSymbol = ensureClassSymbol(
-            named: "TimedValue",
-            in: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let timedValueType = types.make(.classType(ClassType(
-            classSymbol: timedValueSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        // TimedValue.value / TimedValue.duration are implemented in Kotlin
-        // source (Stdlib/kotlin/time/TimedValue.kt) as extension properties
-        // delegating to these __kk_timedvalue_* bridges (KSP-472).
-
-        // __kk_timedvalue_value(): Any? — generic T erased to Any?
-        registerDurationMemberMethod(
-            named: "__kk_timedvalue_value",
-            externalLinkName: "kk_timedvalue_value",
-            ownerSymbol: timedValueSymbol,
-            ownerType: timedValueType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.anyType),
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // __kk_timedvalue_duration(): Duration
-        registerDurationMemberMethod(
-            named: "__kk_timedvalue_duration",
-            externalLinkName: "kk_timedvalue_duration",
-            ownerSymbol: timedValueSymbol,
-            ownerType: timedValueType,
-            parameterTypes: [],
-            returnType: durationType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1497: TimedValue is declared as a bundled Kotlin data class.
+        // Its constructor, stored properties, and synthesized members use the
+        // ordinary source-backed data-class pipeline, with no runtime bridge.
 
         // KSP-471: Long/Double factory extension properties are also Kotlin
         // source (see note above); no direct stubs for those receivers either.
@@ -418,40 +313,7 @@ extension DataFlowSemaPhase {
             enumSymbol = symbol
         }
 
-        for entry in syntheticDurationUnitEntries {
-            let entryName = interner.intern(entry)
-            let entryFQName = enumFQName + [entryName]
-            let entrySymbol: SymbolID
-            if let existing = symbols.lookup(fqName: entryFQName) {
-                entrySymbol = existing
-            } else {
-                entrySymbol = symbols.define(
-                    kind: .field,
-                    name: entryName,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
-        }
-
         return enumSymbol
-    }
-
-    private func setSyntheticDurationUnitEntryTypes(
-        enumSymbol: SymbolID,
-        enumType: TypeID,
-        symbols: SymbolTable
-    ) {
-        guard let enumInfo = symbols.symbol(enumSymbol) else { return }
-        for child in symbols.children(ofFQName: enumInfo.fqName) {
-            guard let childInfo = symbols.symbol(child), childInfo.kind == .field else {
-                continue
-            }
-            symbols.setPropertyType(enumType, for: child)
-        }
     }
 
     private func ensureDurationCompanionSymbol(
@@ -470,6 +332,17 @@ extension DataFlowSemaPhase {
         }
         let companionName = interner.intern("Companion")
         let companionFQName = ownerInfo.fqName + [companionName]
+        // Reuse a companion nominal already imported from a shared stdlib
+        // artifact; otherwise source-backed companion extensions would carry
+        // a receiver type tied to a duplicate synthetic symbol.
+        if let importedCompanion = symbols.lookupAll(fqName: companionFQName)
+            .compactMap({ symbols.symbol($0) })
+            .first(where: { $0.kind == .object || $0.kind == .class || $0.kind == .interface })
+        {
+            symbols.setParentSymbol(ownerSymbol, for: importedCompanion.id)
+            symbols.setCompanionObjectSymbol(importedCompanion.id, for: ownerSymbol)
+            return companionFQName
+        }
         let companionSymbol = symbols.define(
             kind: .object,
             name: companionName,
@@ -803,5 +676,138 @@ private extension FunctionSignature {
             typeParameterUpperBoundsList: typeParameterUpperBoundsList,
             classTypeParameterCount: classTypeParameterCount
         )
+    }
+}
+
+extension DataFlowSemaPhase {
+
+    func registerSyntheticDurationCompatibilityStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        // --- kotlin.time package (STDLIB-230/231/585) ---
+        let kotlinTimePkg = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin"), interner.intern("time")],
+            symbols: symbols
+        )
+
+        // Register synthetic Duration class (STDLIB-585)
+        let durationName = interner.intern("Duration")
+        let durationFQName = kotlinTimePkg + [durationName]
+        let durationSymbol: SymbolID = if let existing = symbols.lookup(fqName: durationFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .class,
+                name: durationName,
+                fqName: durationFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let packageSymbol = symbols.lookup(fqName: kotlinTimePkg) {
+            symbols.setParentSymbol(packageSymbol, for: durationSymbol)
+        }
+
+        let durationClassType = types.make(.classType(ClassType(
+            classSymbol: durationSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(durationClassType, for: durationSymbol)
+
+        // Register Duration.inWholeNanoseconds property (returns Long)
+        registerSyntheticDurationMember(
+            named: "inWholeNanoseconds",
+            externalLinkName: "kk_duration_inWholeNanoseconds",
+            durationSymbol: durationSymbol,
+            durationFQName: durationFQName,
+            receiverType: durationClassType,
+            returnType: types.longType,
+            symbols: symbols,
+            interner: interner,
+            isProperty: true
+        )
+
+        // Register Duration.toString() (returns String)
+        registerSyntheticDurationMember(
+            named: "toString",
+            externalLinkName: "kk_duration_toString",
+            durationSymbol: durationSymbol,
+            durationFQName: durationFQName,
+            receiverType: durationClassType,
+            returnType: types.stringType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // measureTime / measureTimedValue live in bundled Kotlin source
+        // (Stdlib/kotlin/time/MeasureTime.kt).
+    }
+
+    private func registerSyntheticDurationMember(
+        named name: String,
+        externalLinkName: String,
+        durationSymbol: SymbolID,
+        durationFQName: [InternedString],
+        receiverType: TypeID,
+        returnType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner,
+        isProperty: Bool = false
+    ) {
+        let memberName = interner.intern(name)
+        let memberFQName = durationFQName + [memberName]
+
+        // If a symbol already exists at this fqName, ensure its linkage
+        // metadata is up-to-date (mirroring registerSyntheticTopLevelFunction).
+        if let existing = symbols.lookup(fqName: memberFQName) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            if isProperty {
+                symbols.setPropertyType(returnType, for: existing)
+            }
+            return
+        }
+
+        if isProperty {
+            let memberSymbol = symbols.define(
+                kind: .property,
+                name: memberName,
+                fqName: memberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(durationSymbol, for: memberSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+            symbols.setPropertyType(returnType, for: memberSymbol)
+        } else {
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: memberName,
+                fqName: memberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(durationSymbol, for: memberSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [],
+                    returnType: returnType,
+                    valueParameterSymbols: [],
+                    valueParameterHasDefaultValues: [],
+                    valueParameterIsVararg: [],
+                    typeParameterSymbols: [],
+                    classTypeParameterCount: 0
+                ),
+                for: memberSymbol
+            )
+        }
     }
 }

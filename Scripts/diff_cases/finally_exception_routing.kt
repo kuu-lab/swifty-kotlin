@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 fun routeWithFinally(): String {
     try {
         println("Before try block")
@@ -10,6 +9,7 @@ fun routeWithFinally(): String {
         }
     } catch (e: Exception) {
         println("Caught exception: $e")
+        return "caught"
     } finally {
         println("Outer finally - should execute after try-catch")
     }

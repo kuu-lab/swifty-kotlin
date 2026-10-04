@@ -1,13 +1,13 @@
 import Foundation
 
-public enum DiagnosticSeverity: Sendable {
+public enum DiagnosticSeverity: Hashable, Sendable {
     case error
     case warning
     case note
     case info
 }
 
-public struct Diagnostic: Equatable {
+public struct Diagnostic: Hashable {
     public let severity: DiagnosticSeverity
     public let code: String
     public let message: String
@@ -33,11 +33,28 @@ public struct Diagnostic: Equatable {
 }
 
 public final class DiagnosticEngine: @unchecked Sendable {
+    /// Maximum diagnostics retained per file bucket before overflow is
+    /// aggregated into a single truncation notice. Diagnostics without a
+    /// primary range share one bucket keyed by `FileID.invalid`.
+    public static let defaultMaxDiagnosticsPerFile = 1_000
+
+    /// Diagnostic code attached to the truncation notice.
+    private static let truncationNoticeCode = "KSWIFTK-PIPELINE-0005"
+
     private let lock = NSLock()
     private var _diagnostics: [Diagnostic] = []
+    /// Companion set to `_diagnostics` for O(1) duplicate detection in `emit`.
+    /// Holds exactly the same elements; the array preserves emission order.
+    private var _emittedDiagnostics: Set<Diagnostic> = []
     /// Diagnostic codes suppressed at specific source ranges via `@Suppress` annotations.
     /// Key = diagnostic code, Value = set of source ranges where the code is suppressed.
     private var suppressions: [String: [SourceRange]] = [:]
+    private let maxDiagnosticsPerFile: Int
+    /// Stored diagnostics per file bucket, excluding truncation notices.
+    private var _diagnosticCountByFile: [FileID: Int] = [:]
+    /// The truncation notice appended for each bucket that hit the limit, kept
+    /// so it can be escalated to `.error` or rolled back by `truncate(to:)`.
+    private var _truncationNoticeByFile: [FileID: Diagnostic] = [:]
 
     public var diagnostics: [Diagnostic] {
         lock.lock()
@@ -45,7 +62,9 @@ public final class DiagnosticEngine: @unchecked Sendable {
         return _diagnostics
     }
 
-    public init() {}
+    public init(maxDiagnosticsPerFile: Int = DiagnosticEngine.defaultMaxDiagnosticsPerFile) {
+        self.maxDiagnosticsPerFile = max(1, maxDiagnosticsPerFile)
+    }
 
     /// Register a @Suppress annotation: suppress the given diagnostic code for any
     /// diagnostic whose primary range overlaps or is contained within `range`.
@@ -61,6 +80,24 @@ public final class DiagnosticEngine: @unchecked Sendable {
         }
     }
 
+    /// Marks the current diagnostic count for `rollback(to:)`.
+    public func checkpoint() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _diagnostics.count
+    }
+
+    /// Drops diagnostics emitted after `checkpoint`, for speculative paths
+    /// that re-infer an expression and keep the original diagnostic when the
+    /// retry fails.
+    public func rollback(to checkpoint: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        if _diagnostics.count > checkpoint {
+            _diagnostics.removeSubrange(checkpoint...)
+        }
+    }
+
     public func emit(_ diagnostic: Diagnostic) {
         lock.lock()
         defer { lock.unlock() }
@@ -70,10 +107,57 @@ public final class DiagnosticEngine: @unchecked Sendable {
                 return // Suppressed — do not emit.
             }
         }
-        if _diagnostics.contains(diagnostic) {
+        guard _emittedDiagnostics.insert(diagnostic).inserted else {
+            return
+        }
+        let bucket = fileBucket(for: diagnostic)
+        guard (_diagnosticCountByFile[bucket] ?? 0) < maxDiagnosticsPerFile else {
+            _emittedDiagnostics.remove(diagnostic)
+            recordOverflow(in: bucket, dropping: diagnostic)
             return
         }
         _diagnostics.append(diagnostic)
+        _diagnosticCountByFile[bucket, default: 0] += 1
+    }
+
+    /// Bucket key for the per-file diagnostic limit. Diagnostics without a
+    /// primary range share the `FileID.invalid` bucket.
+    private func fileBucket(for diagnostic: Diagnostic) -> FileID {
+        diagnostic.primaryRange?.start.file ?? .invalid
+    }
+
+    /// Handles a diagnostic dropped because its file bucket hit the limit:
+    /// appends the bucket's single truncation notice, or escalates an existing
+    /// softer notice to `.error` once an error diagnostic is dropped, so a
+    /// compile that lost error diagnostics cannot report success.
+    private func recordOverflow(in bucket: FileID, dropping dropped: Diagnostic) {
+        if let existing = _truncationNoticeByFile[bucket] {
+            guard dropped.severity == .error, existing.severity != .error else {
+                return
+            }
+            let upgraded = makeTruncationNotice(severity: .error, inPlaceOf: dropped)
+            if let index = _diagnostics.firstIndex(of: existing) {
+                _diagnostics[index] = upgraded
+            }
+            _emittedDiagnostics.remove(existing)
+            _emittedDiagnostics.insert(upgraded)
+            _truncationNoticeByFile[bucket] = upgraded
+            return
+        }
+        let notice = makeTruncationNotice(severity: dropped.severity, inPlaceOf: dropped)
+        _diagnostics.append(notice)
+        _emittedDiagnostics.insert(notice)
+        _truncationNoticeByFile[bucket] = notice
+    }
+
+    private func makeTruncationNotice(severity: DiagnosticSeverity, inPlaceOf dropped: Diagnostic) -> Diagnostic {
+        Diagnostic(
+            severity: severity,
+            code: Self.truncationNoticeCode,
+            message: "Too many diagnostics for this file; further diagnostics were suppressed.",
+            primaryRange: dropped.primaryRange,
+            secondaryRanges: []
+        )
     }
 
     public func error(
@@ -128,11 +212,15 @@ public final class DiagnosticEngine: @unchecked Sendable {
         ))
     }
 
-    public var hasError: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return _diagnostics.contains(where: { $0.severity == .error })
-    }
+    public var hasError: Bool { hasDiagnostic { $0.severity == .error } }
+    public var hasWarning: Bool { hasDiagnostic { $0.severity == .warning } }
+    public var hasNote: Bool { hasDiagnostic { $0.severity == .note } }
+    public var hasInfo: Bool { hasDiagnostic { $0.severity == .info } }
+
+    public var errorCount: Int { countDiagnostics { $0.severity == .error } }
+    public var warningCount: Int { countDiagnostics { $0.severity == .warning } }
+    public var noteCount: Int { countDiagnostics { $0.severity == .note } }
+    public var infoCount: Int { countDiagnostics { $0.severity == .info } }
 
     /// Snapshot index for rolling back speculatively emitted diagnostics.
     public var count: Int {
@@ -146,6 +234,15 @@ public final class DiagnosticEngine: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard count >= 0, count < _diagnostics.count else { return }
+        for diagnostic in _diagnostics[count...] {
+            let bucket = fileBucket(for: diagnostic)
+            if _truncationNoticeByFile[bucket] == diagnostic {
+                _truncationNoticeByFile.removeValue(forKey: bucket)
+            } else {
+                _diagnosticCountByFile[bucket, default: 0] -= 1
+            }
+        }
+        _emittedDiagnostics.subtract(_diagnostics[count...])
         _diagnostics.removeSubrange(count...)
     }
 
@@ -191,12 +288,92 @@ public final class DiagnosticEngine: @unchecked Sendable {
 
     private func formatDiagnostic(_ diagnostic: Diagnostic, sourceManager: SourceManager) -> String {
         let severityLabel = label(for: diagnostic.severity)
+        var rendered: String
         if let range = diagnostic.primaryRange {
             let position = sourceManager.lineColumn(of: range.start)
             let path = sourceManager.path(of: range.start.file)
-            return "\(path):\(position.line):\(position.column): \(severityLabel) \(diagnostic.code): \(diagnostic.message)"
+            let header = "\(path):\(position.line):\(position.column): \(severityLabel) \(diagnostic.code): \(diagnostic.message)"
+            if let snippet = sourceSnippet(for: range.start, sourceManager: sourceManager) {
+                rendered = "\(header)\n\(snippet)"
+            } else {
+                rendered = header
+            }
+        } else {
+            rendered = "\(severityLabel) \(diagnostic.code): \(diagnostic.message)"
         }
-        return "\(severityLabel) \(diagnostic.code): \(diagnostic.message)"
+        for secondaryRange in diagnostic.secondaryRanges {
+            let position = sourceManager.lineColumn(of: secondaryRange.start)
+            let path = sourceManager.path(of: secondaryRange.start.file)
+            var note = "\(path):\(position.line):\(position.column): note: \(secondaryRangeLabel(for: diagnostic.code))"
+            if let snippet = sourceSnippet(for: secondaryRange.start, sourceManager: sourceManager) {
+                note += "\n\(snippet)"
+            }
+            rendered += "\n\(note)"
+        }
+        return rendered
+    }
+
+    /// Human-readable label attached to secondary ranges. `Diagnostic` stores
+    /// bare ranges without per-range messages, so the label is derived from the
+    /// diagnostic code.
+    private func secondaryRangeLabel(for code: String) -> String {
+        switch code {
+        case "KSWIFTK-SEMA-0003":
+            "candidate declared here"
+        case "KSWIFTK-TYPE-0001":
+            "expected type declared here"
+        default:
+            "related location"
+        }
+    }
+
+    /// Returns the source line and a caret pointing at the diagnostic start.
+    private func sourceSnippet(for location: SourceLocation, sourceManager: SourceManager) -> String? {
+        guard !sourceManager.path(of: location.file).isEmpty else {
+            return nil
+        }
+
+        let contents = sourceManager.contents(of: location.file)
+        let offset = max(0, min(location.offset, contents.count))
+
+        var lineStart = offset
+        while lineStart > 0, contents[lineStart - 1] != 0x0A {
+            lineStart -= 1
+        }
+
+        var lineEnd = offset
+        while lineEnd < contents.count, contents[lineEnd] != 0x0A {
+            lineEnd += 1
+        }
+
+        let visibleLineEnd = lineEnd > lineStart && contents[lineEnd - 1] == 0x0D
+            ? lineEnd - 1
+            : lineEnd
+        let sourceLine = String(decoding: contents[lineStart ..< visibleLineEnd], as: UTF8.self)
+        let prefixEnd = min(offset, visibleLineEnd)
+        let prefix = String(decoding: contents[lineStart ..< prefixEnd], as: UTF8.self)
+        let caretIndentation = prefix.unicodeScalars.reduce(into: "") { result, scalar in
+            if scalar.value == 0x09 {
+                // Preserve tabs so the caret follows the source tab stops.
+                result.append("\t")
+            } else {
+                result.append(contentsOf: String(repeating: " ", count: scalar.utf16.count))
+            }
+        }
+
+        return "\(sourceLine)\n\(caretIndentation)^"
+    }
+
+    private func hasDiagnostic(where predicate: (Diagnostic) -> Bool) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _diagnostics.contains(where: predicate)
+    }
+
+    private func countDiagnostics(where predicate: (Diagnostic) -> Bool) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _diagnostics.filter(predicate).count
     }
 
     private func label(for severity: DiagnosticSeverity) -> String {
@@ -342,8 +519,28 @@ public final class DiagnosticEngine: @unchecked Sendable {
         }
 
         let actionsJSON = actions.map { action in
-            "{ \"title\": \(escapeJSON(action.title)), \"kind\": \(escapeJSON(action.kind)) }"
+            let header = "{ \"title\": \(escapeJSON(action.title)), \"kind\": \(escapeJSON(action.kind))"
+            guard !action.edits.isEmpty else {
+                return header + " }"
+            }
+            let editsJSON = action.edits.map { edit in
+                let editStart = sourceManager.lspPosition(of: edit.range.start)
+                let editEnd = sourceManager.lspPosition(of: edit.range.end)
+                return "{ \"range\": { \"start\": { \"line\": \(editStart.line), \"character\": \(editStart.character) }, \"end\": { \"line\": \(editEnd.line), \"character\": \(editEnd.character) } }, \"newText\": \(escapeJSON(edit.newText)) }"
+            }.joined(separator: ", ")
+            return header + ", \"edits\": [\(editsJSON)] }"
         }.joined(separator: ", ")
+
+        // LSP `relatedInformation` entries for secondary ranges (e.g. overload
+        // candidates or the expected type's declaration site).
+        let relatedJSON = diagnostic.secondaryRanges.map { relatedRange in
+            let relatedStart = sourceManager.lspPosition(of: relatedRange.start)
+            let relatedEnd = sourceManager.lspPosition(of: relatedRange.end)
+            return "{ \"location\": { \"uri\": \(escapeJSON(sourceManager.path(of: relatedRange.start.file))), \"range\": { \"start\": { \"line\": \(relatedStart.line), \"character\": \(relatedStart.character) }, \"end\": { \"line\": \(relatedEnd.line), \"character\": \(relatedEnd.character) } } }, \"message\": \(escapeJSON(secondaryRangeLabel(for: diagnostic.code))) }"
+        }.joined(separator: ", ")
+        let relatedField = diagnostic.secondaryRanges.isEmpty
+            ? ""
+            : ",\n              \"relatedInformation\": [\(relatedJSON)]"
 
         return """
         {
@@ -357,7 +554,7 @@ public final class DiagnosticEngine: @unchecked Sendable {
               "code": \(escapeJSON(diagnostic.code)),
               "source": "kswiftk",
               "message": \(escapeJSON(diagnostic.message)),
-              "codeActions": [\(actionsJSON)]
+              "codeActions": [\(actionsJSON)]\(relatedField)
             }
         """
     }

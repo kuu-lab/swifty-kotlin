@@ -15,6 +15,27 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
+    /// Parses an explicitly labeled trailing lambda (`foo(...) lbl@{ ... }`).
+    /// Returns nil (leaving the cursor untouched) unless the next tokens are
+    /// exactly `identifier @ {`.
+    private func parseLabeledTrailingLambda() -> ExprID? {
+        guard let nameToken = current(),
+              let name = identifierFromToken(nameToken),
+              let atToken = peek(1), atToken.kind == .symbol(.at),
+              let braceToken = peek(2), braceToken.kind == .symbol(.lBrace)
+        else {
+            return nil
+        }
+        let savedIndex = index
+        _ = consume()
+        _ = consume()
+        if let lambda = parseLambdaLiteral(label: name, start: nameToken.range.start) {
+            return lambda
+        }
+        index = savedIndex
+        return nil
+    }
+
     func parsePostfixOrPrimary() -> ExprID? {
         guard var expr = parsePrimary() else {
             return nil
@@ -73,6 +94,9 @@ extension BuildASTPhase.ExpressionParser {
                 {
                     args.append(CallArgument(expr: trailingLambda))
                     callEndRange = astArena.exprRange(trailingLambda) ?? braceToken.range
+                } else if let trailingLambda = parseLabeledTrailingLambda() {
+                    args.append(CallArgument(expr: trailingLambda))
+                    callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
                 }
                 let fallbackEnd = close?.range.end ?? open.range.end
                 let endRange = SourceRange(start: fallbackEnd, end: fallbackEnd)
@@ -101,6 +125,14 @@ extension BuildASTPhase.ExpressionParser {
                let indexedExpr = tryParseIndexedAccess(receiver: expr)
             {
                 expr = indexedExpr
+                continue
+            }
+
+            if matches(.symbol(.plusPlus)) || matches(.symbol(.minusMinus)) {
+                guard let mutation = tryParseIncrementDecrement(operand: expr) else {
+                    break
+                }
+                expr = mutation
                 continue
             }
 
@@ -138,6 +170,7 @@ extension BuildASTPhase.ExpressionParser {
             var args: [CallArgument] = []
             var typeArgs: [TypeRefID] = []
             var memberEndRange = memberToken.range
+            var hasExplicitCall = false
             if matches(.symbol(.lessThan)) {
                 let savedIndex = index
                 if let ta = tryParseExplicitTypeArgs() {
@@ -149,6 +182,7 @@ extension BuildASTPhase.ExpressionParser {
             if matches(.symbol(.lParen)),
                let open = consume()
             {
+                hasExplicitCall = true
                 args = parseCallArguments(implicitLambdaLabel: memberName)
                 let close = consumeIf(.symbol(.rParen))
                 memberEndRange = close?.range ?? open.range
@@ -162,21 +196,29 @@ extension BuildASTPhase.ExpressionParser {
             }
             let range = mergeRanges(astArena.exprRange(expr), memberEndRange, fallback: dotToken.range)
             if isSafeDot {
-                expr = astArena.appendExpr(.safeMemberCall(
+                let memberCall = astArena.appendExpr(.safeMemberCall(
                     receiver: expr,
                     callee: memberName,
                     typeArgs: typeArgs,
                     args: args,
                     range: range
                 ))
+                if hasExplicitCall {
+                    astArena.markExplicitCall(memberCall)
+                }
+                expr = memberCall
             } else {
-                expr = astArena.appendExpr(.memberCall(
+                let memberCall = astArena.appendExpr(.memberCall(
                     receiver: expr,
                     callee: memberName,
                     typeArgs: typeArgs,
                     args: args,
                     range: range
                 ))
+                if hasExplicitCall {
+                    astArena.markExplicitCall(memberCall)
+                }
+                expr = memberCall
             }
         }
         return expr

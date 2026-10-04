@@ -92,10 +92,18 @@ public struct SuperTypeEntry: Equatable, Codable {
     /// When present, this supertype (must be an interface) is implemented by
     /// delegating to the given expression. Absent for non-delegated supertypes.
     public let delegateExpression: ExprID?
+    /// Arguments of the superclass constructor invocation in the class header
+    /// (`class Sub(n: Int) : Base(n)`). Empty for interfaces and for `Base()`.
+    public let constructorArgs: [CallArgument]
 
-    public init(typeRef: TypeRefID, delegateExpression: ExprID? = nil) {
+    public init(
+        typeRef: TypeRefID,
+        delegateExpression: ExprID? = nil,
+        constructorArgs: [CallArgument] = []
+    ) {
         self.typeRef = typeRef
         self.delegateExpression = delegateExpression
+        self.constructorArgs = constructorArgs
     }
 }
 
@@ -248,6 +256,9 @@ public struct ObjectDecl: Codable {
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
     public let superTypes: [TypeRefID]
+    /// Arguments of the superclass constructor invocation in the object
+    /// header (`object : Base(n) { ... }`).
+    public let superTypeConstructorArgs: [CallArgument]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let initBlocks: [FunctionBody]
     public let classBodyInitOrder: [ClassBodyInitMember]
@@ -262,6 +273,7 @@ public struct ObjectDecl: Codable {
         modifiers: Modifiers,
         annotations: [AnnotationNode] = [],
         superTypes: [TypeRefID] = [],
+        superTypeConstructorArgs: [CallArgument] = [],
         nestedTypeAliases: [TypeAliasDecl] = [],
         initBlocks: [FunctionBody] = [],
         classBodyInitOrder: [ClassBodyInitMember] = [],
@@ -275,6 +287,7 @@ public struct ObjectDecl: Codable {
         self.modifiers = modifiers
         self.annotations = annotations
         self.superTypes = superTypes
+        self.superTypeConstructorArgs = superTypeConstructorArgs
         self.nestedTypeAliases = nestedTypeAliases
         self.initBlocks = initBlocks
         self.classBodyInitOrder = classBodyInitOrder
@@ -294,6 +307,14 @@ public struct FunDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let receiverType: TypeRefID?
+    /// Declaration-level `context(...)` receivers. Names are nil for unnamed
+    /// or `_:` parameters. These stay independent of `receiverType` so a
+    /// member function's class `this` is not overwritten by a context type.
+    public let contextReceivers: [ContextReceiverDecl]
+    /// Names of `context(name: Type)` parameters, parallel to `contextReceivers`.
+    public var contextReceiverNames: [InternedString?] {
+        contextReceivers.map(\.name)
+    }
     public let valueParams: [ValueParamDecl]
     public let returnType: TypeRefID?
     public let body: FunctionBody
@@ -308,6 +329,7 @@ public struct FunDecl: Codable {
         annotations: [AnnotationNode] = [],
         typeParams: [TypeParamDecl] = [],
         receiverType: TypeRefID? = nil,
+        contextReceivers: [ContextReceiverDecl] = [],
         valueParams: [ValueParamDecl] = [],
         returnType: TypeRefID? = nil,
         body: FunctionBody = .unit,
@@ -321,12 +343,40 @@ public struct FunDecl: Codable {
         self.annotations = annotations
         self.typeParams = typeParams
         self.receiverType = receiverType
+        self.contextReceivers = contextReceivers
         self.valueParams = valueParams
         self.returnType = returnType
         self.body = body
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.isTailrec = isTailrec
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        name = try container.decode(InternedString.self, forKey: .name)
+        modifiers = try container.decode(Modifiers.self, forKey: .modifiers)
+        annotations = try container.decode([AnnotationNode].self, forKey: .annotations)
+        typeParams = try container.decode([TypeParamDecl].self, forKey: .typeParams)
+        receiverType = try container.decodeIfPresent(TypeRefID.self, forKey: .receiverType)
+        contextReceivers = try container.decodeIfPresent([ContextReceiverDecl].self, forKey: .contextReceivers) ?? []
+        valueParams = try container.decode([ValueParamDecl].self, forKey: .valueParams)
+        returnType = try container.decodeIfPresent(TypeRefID.self, forKey: .returnType)
+        body = try container.decode(FunctionBody.self, forKey: .body)
+        isSuspend = try container.decode(Bool.self, forKey: .isSuspend)
+        isInline = try container.decode(Bool.self, forKey: .isInline)
+        isTailrec = try container.decode(Bool.self, forKey: .isTailrec)
+    }
+}
+
+public struct ContextReceiverDecl: Codable {
+    public let name: InternedString?
+    public let type: TypeRefID
+
+    public init(name: InternedString? = nil, type: TypeRefID) {
+        self.name = name
+        self.type = type
     }
 }
 
@@ -370,7 +420,7 @@ public struct ExplicitBackingField: Codable {
     /// The initializer expression for the backing field (required).
     public let initializer: ExprID
 
-    public init(type: TypeRefID?, initializer: ExprID) {
+    public init(type: TypeRefID? = nil, initializer: ExprID) {
         self.type = type
         self.initializer = initializer
     }
@@ -388,9 +438,13 @@ public struct PropertyDecl: Codable {
     public let setter: PropertyAccessorDecl?
     public let delegateExpression: ExprID?
     /// The trailing lambda body for delegate properties (e.g. `lazy { body }`,
-    /// `Delegates.observable(init) { body }`). Captured separately because
-    /// `propertyHeadTokens` excludes the block node from the delegate expression.
+    /// `Delegates.observable(init) { body }`). Captured separately so existing
+    /// delegate lowering can reuse the call argument's parsed body.
     public let delegateBody: FunctionBody?
+    /// Parameter names declared by the trailing lambda of a delegate property
+    /// (e.g. `property, old, new` in `Delegates.observable(init) { property, old, new -> ... }`).
+    /// Empty when the lambda declares no parameters.
+    public let delegateBodyParams: [InternedString]
     /// The receiver type reference for extension properties (e.g. `val Int.double`).
     /// `nil` for regular (non-extension) properties.
     public let receiverType: TypeRefID?
@@ -414,6 +468,7 @@ public struct PropertyDecl: Codable {
         setter: PropertyAccessorDecl? = nil,
         delegateExpression: ExprID? = nil,
         delegateBody: FunctionBody? = nil,
+        delegateBodyParams: [InternedString] = [],
         receiverType: TypeRefID? = nil,
         isSynthesizedPrimaryConstructorProperty: Bool = false,
         explicitBackingField: ExplicitBackingField? = nil
@@ -429,6 +484,7 @@ public struct PropertyDecl: Codable {
         self.setter = setter
         self.delegateExpression = delegateExpression
         self.delegateBody = delegateBody
+        self.delegateBodyParams = delegateBodyParams
         self.receiverType = receiverType
         self.isSynthesizedPrimaryConstructorProperty = isSynthesizedPrimaryConstructorProperty
         self.explicitBackingField = explicitBackingField
@@ -464,11 +520,27 @@ public struct EnumEntryDecl: Codable {
     public let range: SourceRange
     public let name: InternedString
     public let annotations: [AnnotationNode]
+    public let constructorArgs: [CallArgument]
+    /// Functions declared in an enum entry's anonymous class body.
+    ///
+    /// These declarations are kept separate from the enum class members. The
+    /// runtime still represents enum values as ordinals, so the lowering pass
+    /// can synthesize ordinal-based dispatch for overrides without creating a
+    /// second heap-backed representation for enum entries.
+    public let memberFunctions: [DeclID]
 
-    public init(range: SourceRange, name: InternedString, annotations: [AnnotationNode] = []) {
+    public init(
+        range: SourceRange,
+        name: InternedString,
+        annotations: [AnnotationNode] = [],
+        constructorArgs: [CallArgument] = [],
+        memberFunctions: [DeclID] = []
+    ) {
         self.range = range
         self.name = name
         self.annotations = annotations
+        self.constructorArgs = constructorArgs
+        self.memberFunctions = memberFunctions
     }
 }
 
@@ -476,6 +548,43 @@ public struct ImportDecl: Sendable, Codable {
     public let range: SourceRange
     public let path: [InternedString]
     public let alias: InternedString?
+    public let isWildcard: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case range
+        case path
+        case alias
+        case isWildcard
+    }
+
+    public init(
+        range: SourceRange,
+        path: [InternedString],
+        alias: InternedString? = nil,
+        isWildcard: Bool = false
+    ) {
+        self.range = range
+        self.path = path
+        self.alias = alias
+        self.isWildcard = isWildcard
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        path = try container.decode([InternedString].self, forKey: .path)
+        alias = try container.decodeIfPresent(InternedString.self, forKey: .alias)
+        // Older frontend caches did not record whether an import was wildcard.
+        isWildcard = try container.decodeIfPresent(Bool.self, forKey: .isWildcard) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(range, forKey: .range)
+        try container.encode(path, forKey: .path)
+        try container.encodeIfPresent(alias, forKey: .alias)
+        try container.encode(isWildcard, forKey: .isWildcard)
+    }
 }
 
 public struct TypeParamDecl: Codable {
@@ -483,10 +592,6 @@ public struct TypeParamDecl: Codable {
     public let variance: TypeVariance
     public let isReified: Bool
     public let upperBounds: [TypeRefID]
-
-    public var upperBound: TypeRefID? {
-        upperBounds.first
-    }
 
     public init(
         name: InternedString,
@@ -498,18 +603,6 @@ public struct TypeParamDecl: Codable {
         self.variance = variance
         self.isReified = isReified
         self.upperBounds = upperBounds
-    }
-
-    public init(
-        name: InternedString,
-        variance: TypeVariance = .invariant,
-        isReified: Bool = false,
-        upperBound: TypeRefID?
-    ) {
-        self.name = name
-        self.variance = variance
-        self.isReified = isReified
-        upperBounds = upperBound.map { [$0] } ?? []
     }
 }
 
@@ -524,8 +617,18 @@ public struct ValueParamDecl: Equatable, Codable {
     /// `true` when a primary constructor property parameter carries the
     /// `override` modifier, e.g. `class Foo(override val x: String)`.
     public let isOverrideProperty: Bool
+    /// `true` when a primary constructor property parameter carries the
+    /// `open` modifier, e.g. `open class Foo(open val x: String)`.
+    public let isOpenProperty: Bool
+    /// Explicit visibility on a primary constructor property. Optional so AST
+    /// payloads written before this field was introduced retain default visibility.
+    public let propertyVisibilityModifiers: Modifiers?
     public let hasDefaultValue: Bool
     public let isVararg: Bool
+    /// `true` when a function parameter is declared with `crossinline`.
+    public let isCrossinline: Bool
+    /// `true` when a function parameter is declared with `noinline`.
+    public let isNoinline: Bool
     public let defaultValue: ExprID?
     public let annotations: [AnnotationNode]
 
@@ -535,8 +638,12 @@ public struct ValueParamDecl: Equatable, Codable {
         isProperty: Bool = false,
         isMutableProperty: Bool = false,
         isOverrideProperty: Bool = false,
+        isOpenProperty: Bool = false,
+        propertyVisibilityModifiers: Modifiers? = nil,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
+        isCrossinline: Bool = false,
+        isNoinline: Bool = false,
         defaultValue: ExprID? = nil,
         annotations: [AnnotationNode] = []
     ) {
@@ -545,8 +652,12 @@ public struct ValueParamDecl: Equatable, Codable {
         self.isProperty = isProperty
         self.isMutableProperty = isMutableProperty
         self.isOverrideProperty = isOverrideProperty
+        self.isOpenProperty = isOpenProperty
+        self.propertyVisibilityModifiers = propertyVisibilityModifiers
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
+        self.isCrossinline = isCrossinline
+        self.isNoinline = isNoinline
         self.defaultValue = defaultValue
         self.annotations = annotations
     }

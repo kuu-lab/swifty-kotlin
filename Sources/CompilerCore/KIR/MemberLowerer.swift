@@ -58,6 +58,7 @@ final class MemberLowerer {
             // Skip storage emission here so a plain interface property (with no
             // accessor body) doesn't leak a bogus module-level global.
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
+            let isAbstractProperty = sema.symbols.symbol(symbol)?.flags.contains(.abstractType) == true
             let isGetterOnlyComputed = propertyDecl.getter != nil
                 && propertyDecl.setter == nil
                 && propertyDecl.initializer == nil
@@ -65,7 +66,7 @@ final class MemberLowerer {
                 && !hasExplicitBackingField
             let isDelegateProperty = propertyDecl.delegateExpression != nil
 
-            if !isInterfaceContext, !isGetterOnlyComputed, !isDelegateProperty {
+            if !isInterfaceContext, !isAbstractProperty, !isGetterOnlyComputed, !isDelegateProperty {
                 let kirID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: propType)))
                 directMembers.append(kirID)
                 allDecls.append(kirID)
@@ -112,6 +113,88 @@ final class MemberLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     allDecls: &allDecls
                 )
+            }
+
+            // BUG-141: give properties that participate in interface itable
+            // dispatch a getter accessor function. A plain interface property
+            // (no custom getter, no delegate) gets a stub whose signature the
+            // dispatch site targets; a concrete `override` stored property gets
+            // a field-reading getter that is registered into the itable so an
+            // interface-typed receiver can dispatch to it. Custom-getter and
+            // delegated properties already emit their own accessor above.
+            //
+            // BUG-227: the same field-reading getter is also exactly what a
+            // *class* vtable slot needs behind it, so every property that
+            // ever needs virtual dispatch — not just `override` members, but
+            // also the open stored-property root of the chain — gets one here too.
+            // A `final` property never needs one: LayoutSynthesis never gives
+            // it a vtable slot, so no call site ever looks for this accessor.
+            let hasCustomGetterBody = (propertyDecl.getter?.body).map { $0 != .unit } ?? false
+            let hasCustomSetterBody = (propertyDecl.setter?.body).map { $0 != .unit } ?? false
+            let hasDelegate = propertyDecl.delegateExpression != nil
+            let propFlags = sema.symbols.symbol(symbol)?.flags
+            let needsVirtualAccessor = propFlags.map {
+                $0.contains(.overrideMember) || $0.contains(.openType) || $0.contains(.abstractType)
+            } ?? false
+            if !hasCustomGetterBody, !hasDelegate,
+               let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
+            {
+                let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
+                if isInterfaceContext, !isExternalLinked {
+                    synthesizeInterfacePropertyGetterStub(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                } else if !isInterfaceContext, needsVirtualAccessor {
+                    synthesizeStoredPropertyGetterAccessor(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                }
+            }
+            // BUG-227: symmetric default setter accessor for a `var` in the
+            // same situation — a write through a base-typed reference must
+            // dispatch to the actual runtime type's setter the same way a
+            // read dispatches to the getter above.
+            if !hasCustomSetterBody, !hasDelegate,
+               propFlags?.contains(.mutable) == true,
+               let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
+            {
+                let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
+                if isInterfaceContext, !isExternalLinked {
+                    // An abstract interface `var`'s setter had no registered
+                    // symbol at all (unlike its getter, which
+                    // `synthesizeInterfacePropertyGetterStub` above already
+                    // covers) — anything that referenced it by symbol, such
+                    // as a `by`-delegation forwarder falling back to the
+                    // interface's own declaration for a class that has no
+                    // concrete override, linked against an undefined name.
+                    synthesizeInterfacePropertySetterStub(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                } else if !isInterfaceContext, needsVirtualAccessor {
+                    synthesizeStoredPropertySetterAccessor(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                }
             }
 
             // Lower delegated property: emit delegate storage global and
@@ -205,35 +288,46 @@ final class MemberLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     compilationCtx: compilationCtx
                 )
+                var nestedAllDecls = nestedAll
+                if sema.symbols.symbol(symbol)?.kind == .enumClass {
+                    nestedAllDecls.append(contentsOf: lowerEnumEntryMemberFunctions(
+                        classDecl: nested,
+                        shared: KIRLoweringSharedContext(
+                            ast: ast,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            propertyConstantInitializers: propertyConstantInitializers
+                        ),
+                        compilationCtx: compilationCtx
+                    ))
+                }
                 let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
                 directMembers.append(kirID)
                 allDecls.append(kirID)
-                allDecls.append(contentsOf: nestedAll)
+                allDecls.append(contentsOf: nestedAllDecls)
 
                 // Lower constructors for nested classes (inner and static).
                 // Without this, nested class constructors would not be emitted
                 // into KIR and codegen would produce undefined symbol references.
-                if let compilationCtx {
-                    let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
-                    let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                    let shared = KIRLoweringSharedContext(
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers
+                let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
+                let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
+                let shared = KIRLoweringSharedContext(
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
+                for ctorSymbol in ctorSymbols {
+                    let ctorDecls = driver.lowerConstructor(
+                        ctorSymbol: ctorSymbol,
+                        ctorFQName: ctorFQName,
+                        classDecl: nested,
+                        ownerSymbol: symbol,
+                        shared: shared
                     )
-                    for ctorSymbol in ctorSymbols {
-                        let ctorDecls = driver.lowerConstructor(
-                            ctorSymbol: ctorSymbol,
-                            ctorFQName: ctorFQName,
-                            classDecl: nested,
-                            ownerSymbol: symbol,
-                            shared: shared,
-                            compilationCtx: compilationCtx
-                        )
-                        allDecls.append(contentsOf: ctorDecls)
-                    }
+                    allDecls.append(contentsOf: ctorDecls)
                 }
             case let .interfaceDecl(nestedInterface):
                 // Interface properties have no backing storage of their own, but
@@ -254,6 +348,7 @@ final class MemberLowerer {
                     arena: arena,
                     interner: interner,
                     propertyConstantInitializers: propertyConstantInitializers,
+                    compilationCtx: compilationCtx,
                     isInterfaceContext: true
                 )
                 let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
@@ -281,15 +376,78 @@ final class MemberLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers
+                propertyConstantInitializers: propertyConstantInitializers,
+                compilationCtx: compilationCtx
             )
             let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
             directMembers.append(kirID)
             allDecls.append(kirID)
             allDecls.append(contentsOf: nestedAll)
+
+            // Nested objects that implement interfaces need a heap-backed global
+            // and initializer so interface-typed receivers can use dynamic
+            // itable dispatch. Without this, a source-backed extension such as
+            // TimeSource.measureTime reaches TimeSource.markNow() with an object
+            // that has no registered interface entry.
+            // A non-Any class superclass needs it too: the implicit `super(...)`
+            // call and the superclass's field storage only exist once the
+            // singleton is actually allocated (BUG-264). Companions are
+            // excluded — `synthesizeCompanionInitializerIfNeeded` already owns
+            // their allocation and super delegation.
+            let isCompanion = nested.modifiers.contains(.companion)
+            let needsRuntimeInitialization = sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
+                let kind = sema.symbols.symbol(superSymbol)?.kind
+                if kind == .interface {
+                    return true
+                }
+                return !isCompanion
+                    && (kind == .class || kind == .enumClass)
+                    && superSymbol != sema.types.anyClassSymbol
+            }
+            if needsRuntimeInitialization {
+                let objectType = sema.types.make(.classType(ClassType(
+                    classSymbol: symbol, args: [], nullability: .nonNull
+                )))
+                allDecls.append(arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: objectType))))
+                allDecls.append(contentsOf: driver.synthesizeObjectInitializer(
+                    nested,
+                    objectSymbol: symbol,
+                    shared: KIRLoweringSharedContext(
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers
+                    )
+                ))
+            }
         }
 
         return (directMembers, allDecls)
+    }
+
+    /// Lowers functions declared in enum entry bodies as ordinary functions
+    /// whose receiver is the ordinal-backed enum value. They are emitted as
+    /// module declarations, but are intentionally not added to the enum's
+    /// direct member list because entry bodies are reached through the enum
+    /// dispatch helpers synthesized later.
+    func lowerEnumEntryMemberFunctions(
+        classDecl: ClassDecl,
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext?
+    ) -> [KIRDeclID] {
+        var declIDs: [KIRDeclID] = []
+        for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty {
+            declIDs.append(contentsOf: lowerMemberDecls(
+                memberFunctions: entry.memberFunctions,
+                memberProperties: [],
+                nestedClasses: [],
+                nestedObjects: [],
+                shared: shared,
+                compilationCtx: compilationCtx
+            ).allDecls)
+        }
+        return declIDs
     }
 
     private func lowerSingleMemberFunction(
@@ -321,6 +479,20 @@ final class MemberLowerer {
         if function.modifiers.contains(.external), function.body == .unit {
             return
         }
+        // BUG (found via KSP-CAP-001): member functions are usually lowered
+        // between top-level declarations, where resetting scope with no
+        // restore is harmless -- there is no enclosing function lowering in
+        // progress. But an object literal's member functions are lowered
+        // *from inside* whichever function's expression lowering constructs
+        // it (`ObjectLiteralLowerer.lowerObjectLiteralMemberFunctions`), so
+        // without save/restore here, this reset previously wiped that
+        // enclosing function's own locals (parameters, prior `val`/`var`
+        // declarations) for the remainder of its lowering. Save/restore
+        // (mirroring `LambdaLowerer`'s per-closure scope handling) makes
+        // this a no-op for the ordinary top-level case while fixing the
+        // nested case.
+        let scopeSnapshot = driver.ctx.saveScope()
+        defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
         driver.ctx.setCurrentFunctionSymbol(symbol)
@@ -372,6 +544,15 @@ final class MemberLowerer {
         let returnType = signature?.returnType ?? sema.types.unitType
         var body: [KIRInstruction] = [.beginBlock]
         bindFunctionParameterLocals(params: params, body: &body, arena: arena)
+        // KSP-CAP-001: no-op for ordinary class members -- only object
+        // literals ever populate `objectLiteralCaptureSymbols`.
+        driver.objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: symbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        )
         switch function.body {
         case let .block(exprIDs, _):
             var terminatedByReturn = false

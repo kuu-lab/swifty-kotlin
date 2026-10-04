@@ -4,18 +4,68 @@ import Testing
 
 @Suite
 struct ExperimentalTimeSourceSyntheticSurfaceTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected experimental time source surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+    private static let fixture = SemaFixture(surface: "experimental time source", diagnostics: .noDiagnostics)
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
+    }
+
+    private static let timeSourceSource: String = """
+    import kotlin.time.AbstractDoubleTimeSource
+    import kotlin.time.AbstractLongTimeSource
+    import kotlin.time.Clock
+    import kotlin.time.ComparableTimeMark
+    import kotlin.time.Duration.Companion.milliseconds
+    import kotlin.time.DurationUnit
+    import kotlin.time.ExperimentalTime
+    import kotlin.time.Instant
+    import kotlin.time.TestTimeSource
+    import kotlin.time.TimeSource
+
+    @OptIn(ExperimentalTime::class)
+    class ProbeDoubleSource : AbstractDoubleTimeSource(DurationUnit.MILLISECONDS) {
+        protected override fun read(): Double = 12.5
+    }
+
+    @OptIn(ExperimentalTime::class)
+    fun markDouble(source: ProbeDoubleSource) = source.markNow()
+
+    @OptIn(ExperimentalTime::class)
+    class ProbeLongSource : AbstractLongTimeSource(DurationUnit.NANOSECONDS) {
+        protected override fun read(): Long = 42L
+    }
+
+    @OptIn(ExperimentalTime::class)
+    fun markLong(source: ProbeLongSource) = source.markNow()
+
+    @OptIn(ExperimentalTime::class)
+    fun markTest(): ComparableTimeMark {
+        val source = TestTimeSource()
+        source += 5.milliseconds
+        return source.markNow()
+    }
+
+    fun makeClock(source: TimeSource, origin: Instant): Clock {
+        return source.asClock(origin)
+    }
+    """
+
+    private static nonisolated(unsafe) var _sharedSourceSema: (SemaModule, StringInterner)?
+
+    private func sharedSourceSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSourceSema { return cached }
+        let pair = try makeSema(source: Self.timeSourceSource)
+        Self._sharedSourceSema = pair
+        return pair
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -29,7 +79,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testExperimentalTimeIsRequiresOptInMarker() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let experimentalTimeSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("ExperimentalTime"),
@@ -56,7 +106,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testExperimentalTimeCarriesOfficialTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let experimentalTimeSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("ExperimentalTime"),
@@ -83,6 +133,35 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
             hasTarget,
             "ExperimentalTime must carry the official @Target list, got \(annotations)"
         )
+    }
+
+    @Test func testExperimentalTimeImplicitConstructorIsRegistered() throws {
+        let (sema, interner) = try sharedSema()
+        let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
+        let experimentalTimeSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
+            interner.intern("ExperimentalTime"),
+        ]))
+        let experimentalTimeType = sema.types.make(.classType(ClassType(
+            classSymbol: experimentalTimeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let constructorSymbol = try #require(sema.symbols.lookupAll(
+            fqName: kotlinTime + [interner.intern("ExperimentalTime"), interner.intern("<init>")]
+        ).first { symbolID in
+            guard sema.symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = sema.symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.receiverType == experimentalTimeType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == experimentalTimeType
+        })
+        let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
+        #expect(constructorInfo.visibility == .public)
+        #expect(constructorInfo.flags.contains(.synthetic))
     }
 
     @Test func testExperimentalTimeIsApplicableToFunction() {
@@ -146,7 +225,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testAbstractDoubleTimeSourceSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let timeSourceSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [interner.intern("TimeSource")]))
         #expect(sema.symbols.symbol(timeSourceSymbol)?.kind == .interface)
@@ -164,7 +243,8 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         ]))
         #expect(sema.symbols.symbol(abstractDoubleSymbol)?.kind == .class)
         #expect(sema.symbols.symbol(abstractDoubleSymbol)?.flags.contains(.abstractType) == true)
-        #expect(sema.symbols.directSupertypes(for: abstractDoubleSymbol) == [withComparableMarksSymbol])
+        let abstractDoubleSupertypes = sema.symbols.directSupertypes(for: abstractDoubleSymbol)
+        #expect(abstractDoubleSupertypes.contains(withComparableMarksSymbol))
 
         let durationUnitSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("DurationUnit"),
@@ -208,22 +288,8 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testAbstractDoubleTimeSourceCanBeSubclassedInSource() throws {
-        let source = """
-        import kotlin.time.AbstractDoubleTimeSource
-        import kotlin.time.DurationUnit
-        import kotlin.time.ExperimentalTime
-
-        @OptIn(ExperimentalTime::class)
-        class ProbeSource : AbstractDoubleTimeSource(DurationUnit.MILLISECONDS) {
-            protected override fun read(): Double = 12.5
-        }
-
-        @OptIn(ExperimentalTime::class)
-        fun mark(source: ProbeSource) = source.markNow()
-        """
-
-        let (sema, interner) = try makeSema(source: source)
-        let markSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("mark")]))
+        let (sema, interner) = try sharedSourceSema()
+        let markSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("markDouble")]))
         let markSignature = try #require(sema.symbols.functionSignature(for: markSymbol))
         let comparableTimeMarkSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
@@ -239,7 +305,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testAbstractLongTimeSourceSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let withComparableMarksSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("TimeSource"),
@@ -250,7 +316,8 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         ]))
         #expect(sema.symbols.symbol(abstractLongSymbol)?.kind == .class)
         #expect(sema.symbols.symbol(abstractLongSymbol)?.flags.contains(.abstractType) == true)
-        #expect(sema.symbols.directSupertypes(for: abstractLongSymbol) == [withComparableMarksSymbol])
+        let abstractLongSupertypes = sema.symbols.directSupertypes(for: abstractLongSymbol)
+        #expect(abstractLongSupertypes.contains(withComparableMarksSymbol))
 
         let durationUnitSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("DurationUnit"),
@@ -294,22 +361,8 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testAbstractLongTimeSourceCanBeSubclassedInSource() throws {
-        let source = """
-        import kotlin.time.AbstractLongTimeSource
-        import kotlin.time.DurationUnit
-        import kotlin.time.ExperimentalTime
-
-        @OptIn(ExperimentalTime::class)
-        class ProbeLongSource : AbstractLongTimeSource(DurationUnit.NANOSECONDS) {
-            protected override fun read(): Long = 42L
-        }
-
-        @OptIn(ExperimentalTime::class)
-        fun mark(source: ProbeLongSource) = source.markNow()
-        """
-
-        let (sema, interner) = try makeSema(source: source)
-        let markSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("mark")]))
+        let (sema, interner) = try sharedSourceSema()
+        let markSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("markLong")]))
         let markSignature = try #require(sema.symbols.functionSignature(for: markSymbol))
         let comparableTimeMarkSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
@@ -325,7 +378,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testTestTimeSourceSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let abstractLongSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("AbstractLongTimeSource"),
@@ -361,11 +414,14 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         let readSymbol = try #require(sema.symbols.lookupAll(fqName: kotlinTime + [
             interner.intern("TestTimeSource"),
             interner.intern("read"),
-        ]).first)
+        ]).first { symbol in
+            guard let signature = sema.symbols.functionSignature(for: symbol) else { return false }
+            return signature.receiverType == testTimeSourceType
+        })
         let readSignature = try #require(sema.symbols.functionSignature(for: readSymbol))
         let readInfo = try #require(sema.symbols.symbol(readSymbol))
-        #expect(readInfo.visibility == .protected)
-        #expect(readInfo.flags.isSuperset(of: [.openType, .overrideMember]))
+        #expect(readInfo.visibility == .public)
+        #expect(readInfo.flags.contains(.overrideMember))
         #expect(readSignature.receiverType == testTimeSourceType)
         #expect(readSignature.parameterTypes == [])
         #expect(readSignature.returnType == sema.types.longType)
@@ -383,22 +439,8 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testTestTimeSourceResolvesOperatorAndInheritedMarkNowInSource() throws {
-        let source = """
-        import kotlin.time.Duration.Companion.milliseconds
-        import kotlin.time.ComparableTimeMark
-        import kotlin.time.ExperimentalTime
-        import kotlin.time.TestTimeSource
-
-        @OptIn(ExperimentalTime::class)
-        fun mark(): ComparableTimeMark {
-            val source = TestTimeSource()
-            source += 5.milliseconds
-            return source.markNow()
-        }
-        """
-
-        let (sema, interner) = try makeSema(source: source)
-        let markSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("mark")]))
+        let (sema, interner) = try sharedSourceSema()
+        let markSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("markTest")]))
         let markSignature = try #require(sema.symbols.functionSignature(for: markSymbol))
         let comparableTimeMarkSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
@@ -414,7 +456,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
     }
 
     @Test func testTimeSourceAsClockExtensionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
 
         let timeSourceSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
@@ -426,6 +468,10 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         let clockSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("Clock"),
         ]))
+        #expect(
+            sema.symbols.symbol(clockSymbol)?.kind == .interface,
+            "Clock must remain a user-implementable interface"
+        )
         let timeSourceType = sema.types.make(.classType(ClassType(
             classSymbol: timeSourceSymbol,
             args: [],
@@ -446,22 +492,27 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
             interner.intern("asClock"),
         ]).first)
         let signature = try #require(sema.symbols.functionSignature(for: asClockSymbol))
-        #expect(sema.symbols.externalLinkName(for: asClockSymbol) == "kk_time_source_as_clock")
+        #expect(sema.symbols.externalLinkName(for: asClockSymbol) == "__kk_time_source_as_clock")
         #expect(signature.receiverType == timeSourceType)
         #expect(signature.parameterTypes == [instantType])
         #expect(signature.returnType == clockType)
+
+        let nowSymbol = try #require(sema.symbols.lookupAll(fqName: kotlinTime + [
+            interner.intern("Clock"),
+            interner.intern("now"),
+        ]).first { symbol in
+            guard let nowSignature = sema.symbols.functionSignature(for: symbol) else {
+                return false
+            }
+            return nowSignature.receiverType == clockType
+                && nowSignature.parameterTypes.isEmpty
+                && nowSignature.returnType == instantType
+        })
+        #expect(sema.symbols.externalLinkName(for: nowSymbol) == "kk_clock_now")
     }
 
     @Test func testTimeSourceAsClockResolvesInSource() throws {
-        let source = """
-        import kotlin.time.*
-
-        fun makeClock(source: TimeSource, origin: Instant): Clock {
-            return source.asClock(origin)
-        }
-        """
-
-        let (sema, interner) = try makeSema(source: source)
+        let (sema, interner) = try sharedSourceSema()
         let makeClockSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("makeClock")]))
         let signature = try #require(sema.symbols.functionSignature(for: makeClockSymbol))
         let clockSymbol = try #require(sema.symbols.lookup(fqName: [

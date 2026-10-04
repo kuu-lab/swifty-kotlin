@@ -1,5 +1,49 @@
 
 extension CallTypeChecker {
+    func coroutineScopeType(sema: SemaModule, interner: StringInterner) -> TypeID? {
+        let symbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlinx"),
+            interner.intern("coroutines"),
+            interner.intern("CoroutineScope"),
+        ])
+        guard let symbol else { return nil }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    func isCoroutineScopeType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let expected = coroutineScopeType(sema: sema, interner: interner) else {
+            return false
+        }
+        return sema.types.isSubtype(
+            sema.types.makeNonNullable(type),
+            sema.types.makeNonNullable(expected)
+        )
+    }
+
+    func markCoroutineScopeImplicitReceiverCallIfNeeded(
+        _ expr: ExprID,
+        chosenCallee: SymbolID,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) {
+        guard ctx.isCoroutineBuilderLambdaScope,
+              isCoroutineScopeType(receiverType, sema: ctx.sema, interner: ctx.interner),
+              let signature = ctx.sema.symbols.functionSignature(for: chosenCallee),
+              signature.receiverType != nil
+        else {
+            return
+        }
+        ctx.sema.bindings.markCoroutineScopeImplicitReceiverCall(expr)
+    }
+
     /// `async`/`coroutineScope`/`supervisorScope` are registered with an
     /// `Any`-returning signature (STDLIB-CORO builders don't get real generic
     /// dispatch). Narrow the call's bound type using the trailing lambda's

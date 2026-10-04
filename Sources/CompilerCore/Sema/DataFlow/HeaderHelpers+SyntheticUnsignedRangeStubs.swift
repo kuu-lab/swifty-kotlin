@@ -28,6 +28,29 @@ extension DataFlowSemaPhase {
             classSymbol = created
         }
 
+        // KSP-1316: Keep the Companion nominal available for the bundled
+        // source-backed UIntRange.Companion.EMPTY extension.
+        if symbols.companionObjectSymbol(for: classSymbol) == nil {
+            let companionName = interner.intern("Companion")
+            let companionFQName = classFQName + [companionName]
+            let companionSymbol: SymbolID
+            if let imported = symbols.lookupAll(fqName: companionFQName).first {
+                companionSymbol = imported
+                symbols.setParentSymbol(classSymbol, for: companionSymbol)
+            } else {
+                companionSymbol = symbols.define(
+                    kind: .object,
+                    name: companionName,
+                    fqName: companionFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(classSymbol, for: companionSymbol)
+            }
+            symbols.setCompanionObjectSymbol(companionSymbol, for: classSymbol)
+        }
+
         let rangeType = types.make(.classType(ClassType(
             classSymbol: classSymbol,
             args: [],
@@ -47,40 +70,27 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types
         )
-        let progressionType = syntheticNominalType(
-            named: "UIntProgression",
-            in: rangesFQName,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         let iteratorType = syntheticIteratorType(
             elementType: types.uintType,
             symbols: symbols,
             types: types,
             interner: interner
         )
-        let uintArrayType = syntheticNominalType(
-            named: "UIntArray",
-            in: [interner.intern("kotlin")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        let randomType = syntheticNominalType(
-            named: "Random",
-            in: [interner.intern("kotlin"), interner.intern("random")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
+        // KSP-1523: these externalLinkNames are dead metadata for codegen — a
+        // property access on a UIntRange-typed receiver is intercepted earlier,
+        // in CallLowerer+LegacyMemberLikeCalls.swift, via the reliable
+        // `sema.bindings.isUIntRangeExpr` marker, which already emits
+        // `__kk_range_first`/`__kk_range_last` directly. Sema still needs a
+        // registered property here so expressions like `r.first` type-check as
+        // UInt. Keep the link names aligned to the bridge that's actually used
+        // so they don't dangle on a symbol slated for removal.
+        // KSP-1315: `start`, `endInclusive`, and `endExclusive` moved to the
+        // bundled `UIntRange/UIntRange.kt` extension declarations; `end`
+        // remains a legacy alias with no Kotlin API surface.
         for property in [
-            ("start", "kk_uint_range_first"),
-            ("end", "kk_uint_range_last"),
-            ("first", "kk_uint_range_first"),
-            ("last", "kk_uint_range_last"),
-            ("endExclusive", "kk_range_endExclusive"),
+            ("end", "__kk_range_last"),
+            ("first", "__kk_range_first"),
+            ("last", "__kk_range_last"),
         ] {
             registerProgressionProperty(
                 named: property.0,
@@ -100,113 +110,42 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerProgressionMethod(
-            named: "contains",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [types.uintType],
-            returnType: types.booleanType,
-            externalLinkName: "kk_uint_range_contains",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "isEmpty",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.booleanType,
-            externalLinkName: "kk_uint_range_isEmpty",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1523: no `contains`/`isEmpty` registration here. `isEmpty`
+        // resolves via the shared `ClosedRange<T>` interface member (see
+        // `closedRangeInterfaceRuntimeName` in
+        // CallLowerer+MemberCallDefaultsAndResolution.swift). Confirmed by KIR
+        // probe: both member names reach `__kk_range_contains`/`__kk_range_isEmpty`
+        // for variable- and literal-receiver call shapes with no class-level
+        // registration for either name.
         registerProgressionMethod(
             named: "iterator",
             ownerSymbol: classSymbol,
             receiverType: rangeType,
             parameterTypes: [],
             returnType: iteratorType,
-            externalLinkName: "kk_uint_range_iterator",
+            externalLinkName: "__kk_uint_range_iterator",
             symbols: symbols,
             interner: interner
         )
-        registerProgressionMethod(
-            named: "reversed",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: progressionType,
-            externalLinkName: "kk_uint_range_reversed",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toList",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_uint_range_toList",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toUIntArray",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: uintArrayType,
-            externalLinkName: "kk_uint_range_toUIntArray",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "firstOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.uintType),
-            externalLinkName: "kk_uint_range_firstOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "lastOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.uintType),
-            externalLinkName: "kk_uint_range_lastOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "randomOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.uintType),
-            externalLinkName: "kk_uint_range_randomOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "randomOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [randomType],
-            returnType: types.makeNullable(types.uintType),
-            externalLinkName: "kk_uint_range_randomOrNull_random",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1523: no `reversed`/`toList`/`firstOrNull`/`lastOrNull`
+        // registrations here — all four now have bundled Kotlin declarations
+        // in RangeHOF.kt. Confirmed dead by marker probe (ZZZ-tagged
+        // externalLinkNames, rebuilt, comprehensive real-kklib nm +
+        // `--emit kir` check: zero occurrences; the Sema golden suite is
+        // also unaffected by their removal). `toUIntArray`'s registration
+        // was removed here too, but for a different reason: it isn't a
+        // real UIntRange member in Kotlin at all — `toUIntArray()` is a
+        // `Collection<UInt>` member, and UIntRange is `Iterable<UInt>` but
+        // not `Collection` (confirmed via diff_kotlinc.sh: real kotlinc
+        // rejects it) — so it was dropped entirely rather than migrated to
+        // RangeHOF.kt.
         registerProgressionMethod(
             named: "take",
             ownerSymbol: classSymbol,
             receiverType: rangeType,
             parameterTypes: [types.intType],
             returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_uint_range_take",
+            externalLinkName: "__kk_uint_range_take",
             symbols: symbols,
             interner: interner
         )
@@ -216,59 +155,21 @@ extension DataFlowSemaPhase {
             receiverType: rangeType,
             parameterTypes: [types.intType],
             returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_uint_range_drop",
+            externalLinkName: "__kk_uint_range_drop",
             symbols: symbols,
             interner: interner
         )
-        registerProgressionMethod(
-            named: "average",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.doubleType,
-            externalLinkName: "kk_uint_range_average",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "sorted",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_uint_range_sorted",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "random",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.uintType,
-            externalLinkName: "kk_uint_range_random",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "random",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [randomType],
-            returnType: types.uintType,
-            externalLinkName: "kk_uint_range_random_random",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticConstructor(
-            ownerSymbol: classSymbol,
-            ownerType: rangeType,
-            parameterTypes: [types.uintType, types.uintType],
-            parameterNames: ["start", "end"],
-            externalLinkName: "kk_uint_rangeTo",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1523: no `sorted` registration here either — same
+        // bundled-overlap reasoning and marker-probe confirmation as above
+        // (bundled in RangeHOF.kt). `average`'s registration was removed
+        // here too, but has no bundled declaration to fall back to — real
+        // kotlinc rejects `UIntRange.average()` (it exists only for
+        // `Iterable<Byte/Short/Int/Long/Float/Double>`, confirmed via
+        // diff_kotlinc.sh), so it was dropped entirely rather than
+        // migrated.
+        // KSP-1281: no constructor registration either — the bundled
+        // `UIntRange/Stdlib.kt` declares it with the `@KsSymbolName`
+        // `__kk_uint_rangeTo` link, same as ULongRange in KSP-1320.
     }
 
     func registerSyntheticULongRangeStub(
@@ -316,40 +217,16 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types
         )
-        let progressionType = syntheticNominalType(
-            named: "ULongProgression",
-            in: rangesFQName,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         let iteratorType = syntheticIteratorType(
             elementType: types.ulongType,
             symbols: symbols,
             types: types,
             interner: interner
         )
-        let ulongArrayType = syntheticNominalType(
-            named: "ULongArray",
-            in: [interner.intern("kotlin")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        let randomType = syntheticNominalType(
-            named: "Random",
-            in: [interner.intern("kotlin"), interner.intern("random")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         for property in [
-            ("start", "kk_ulong_range_first"),
-            ("endInclusive", "kk_ulong_range_last"),
-            ("first", "kk_ulong_range_first"),
-            ("last", "kk_ulong_range_last"),
-            ("endExclusive", "kk_range_endExclusive"),
+            ("start", "__kk_range_first"),
+            ("first", "__kk_range_first"),
+            ("last", "__kk_range_last"),
         ] {
             registerProgressionProperty(
                 named: property.0,
@@ -363,119 +240,32 @@ extension DataFlowSemaPhase {
         registerProgressionProperty(
             named: "step",
             ownerSymbol: classSymbol,
-            propertyType: types.intType,
+            propertyType: types.longType,
             externalLinkName: "kk_ulong_range_step",
             symbols: symbols,
             interner: interner
         )
 
         registerProgressionMethod(
-            named: "contains",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [types.ulongType],
-            returnType: types.booleanType,
-            externalLinkName: "kk_ulong_range_contains",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "isEmpty",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.booleanType,
-            externalLinkName: "kk_ulong_range_isEmpty",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
             named: "iterator",
             ownerSymbol: classSymbol,
             receiverType: rangeType,
             parameterTypes: [],
             returnType: iteratorType,
-            externalLinkName: "kk_ulong_range_iterator",
+            externalLinkName: "__kk_ulong_range_iterator",
             symbols: symbols,
             interner: interner
         )
-        registerProgressionMethod(
-            named: "reversed",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: progressionType,
-            externalLinkName: "kk_ulong_range_reversed",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toList",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_ulong_range_toList",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toULongArray",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: ulongArrayType,
-            externalLinkName: "kk_ulong_range_toULongArray",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "firstOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.ulongType),
-            externalLinkName: "kk_ulong_range_firstOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "lastOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.ulongType),
-            externalLinkName: "kk_ulong_range_lastOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "randomOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.ulongType),
-            externalLinkName: "kk_ulong_range_randomOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "randomOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [randomType],
-            returnType: types.makeNullable(types.ulongType),
-            externalLinkName: "kk_ulong_range_randomOrNull_random",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1524: contains/isEmpty and the aggregate/membership helpers are
+        // bundled Kotlin declarations. Keep only the synthetic members that
+        // have no source-backed replacement in this stub.
         registerProgressionMethod(
             named: "take",
             ownerSymbol: classSymbol,
             receiverType: rangeType,
             parameterTypes: [types.intType],
             returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_ulong_range_take",
+            externalLinkName: "__kk_ulong_range_take",
             symbols: symbols,
             interner: interner
         )
@@ -485,56 +275,7 @@ extension DataFlowSemaPhase {
             receiverType: rangeType,
             parameterTypes: [types.intType],
             returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_ulong_range_drop",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "average",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.doubleType,
-            externalLinkName: "kk_ulong_range_average",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "sorted",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_ulong_range_sorted",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "random",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.ulongType,
-            externalLinkName: "kk_ulong_range_random",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "random",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [randomType],
-            returnType: types.ulongType,
-            externalLinkName: "kk_ulong_range_random_random",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticConstructor(
-            ownerSymbol: classSymbol,
-            ownerType: rangeType,
-            parameterTypes: [types.ulongType, types.ulongType],
-            parameterNames: ["start", "endInclusive"],
-            externalLinkName: "kk_ulong_rangeTo",
+            externalLinkName: "__kk_ulong_range_drop",
             symbols: symbols,
             interner: interner
         )

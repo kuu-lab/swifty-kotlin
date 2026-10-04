@@ -21,6 +21,8 @@
 /// to `kk_lambda_invoke` for backward compatibility.
 final class LambdaClosureConversionPass: LoweringPass {
     static let name = "LambdaClosureConversion"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     // MARK: - Analysis types
 
@@ -92,6 +94,17 @@ final class LambdaClosureConversionPass: LoweringPass {
         }
     }
 
+    /// Index built by `shouldRun`, reused by `run` since the driver invokes
+    /// them back-to-back on the same module.
+    private var cachedCallSiteIndex: (module: KIRModule, index: CallSiteIndex)?
+
+    private func callSiteIndex(for module: KIRModule) -> CallSiteIndex {
+        if let cached = cachedCallSiteIndex, cached.module === module {
+            return cached.index
+        }
+        return CallSiteIndex.build(from: module)
+    }
+
     // MARK: - shouldRun
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
@@ -100,8 +113,9 @@ final class LambdaClosureConversionPass: LoweringPass {
         if module.usedCallees.contains(markerCallee) { return true }
         let lambdaPrefix = "kk_lambda_"
         let callSiteIndex = CallSiteIndex.build(from: module)
+        cachedCallSiteIndex = (module, callSiteIndex)
         for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+            guard case let .function(function) = decl, !function.isInlineOnly else { continue }
             let name = ctx.interner.resolve(function.name)
             if name.hasPrefix(lambdaPrefix),
                detectCaptureParamCount(
@@ -142,8 +156,9 @@ final class LambdaClosureConversionPass: LoweringPass {
 
         if let sema {
             // Build call-site index once for all analysis (capture-count
-            // validation and canThrow detection).
-            let callSiteIndex = CallSiteIndex.build(from: module)
+            // validation and canThrow detection); reuse the one `shouldRun`
+            // already built for this module when available.
+            let callSiteIndex = callSiteIndex(for: module)
 
             // Phase 1: Identify lambda functions with captures.
             let lambdaInfos = identifyLambdasWithCaptures(
@@ -224,7 +239,9 @@ final class LambdaClosureConversionPass: LoweringPass {
         var results: [LambdaCaptureInfo] = []
 
         for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+            // Non-local-return lambdas are expanded before closure conversion.
+            // They have no emitted body for a runtime invoke wrapper to call.
+            guard case let .function(function) = decl, !function.isInlineOnly else { continue }
             let name = ctx.interner.resolve(function.name)
             guard name.hasPrefix(lambdaPrefix), function.params.count > 0 else {
                 continue
@@ -351,7 +368,7 @@ final class LambdaClosureConversionPass: LoweringPass {
         let invokeParams = [closureObjParam] + lambdaInfo.valueParams
         let returnType = lambdaInfo.function.returnType
 
-        var invokeBody: [KIRInstruction] = [.beginBlock]
+        var invokeBody: KIRLoweringEmitContext = [.beginBlock]
         let kk_array_get = interner.intern("kk_array_get_inbounds")
         // Compute next temp ID from the arena's current expression count.
         // This is safe here because synthesizeClosureObject is called
@@ -445,10 +462,13 @@ final class LambdaClosureConversionPass: LoweringPass {
         var nextTempID = Self.maxTempID(in: function) + 1
 
         var updated = function
-        var loweredBody: [KIRInstruction] = []
-        loweredBody.reserveCapacity(function.body.count * 2)
+        var loweredBody = KIRLoweringEmitContext()
+        loweredBody.instructions.reserveCapacity(function.body.count * 2)
 
-        for instruction in function.body {
+        for (index, instruction) in function.body.enumerated() {
+            loweredBody.currentSourceRange = index < function.instructionLocations.count
+                ? function.instructionLocations[index]
+                : nil
             switch instruction {
             case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                 if callee == markerCallee {
@@ -558,7 +578,7 @@ final class LambdaClosureConversionPass: LoweringPass {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        body: inout [KIRInstruction]
+        body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let typeKind = sema.types.kind(of: type)
         guard case .primitive(_, .nonNull) = typeKind,

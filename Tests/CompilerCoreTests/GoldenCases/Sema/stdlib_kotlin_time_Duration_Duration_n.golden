@@ -1,0 +1,110 @@
+symbol fq=__local_0.duration[kind=local] kind=local vis=private flags=_ type=kotlin.time.Duration
+symbol fq=__local_1.scaled[kind=local] kind=local vis=private flags=_ type=kotlin.time.Duration
+symbol fq=__local_2.divided[kind=local] kind=local vis=private flags=_ type=kotlin.time.Duration
+symbol fq=__local_3.seconds[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_4.minutes[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_5.hours[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_6.days[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_time_Duration_Duration_n package=_
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@6:20 int(1500) type=Int
+expr e@6:20#1 memberCall recv=e@6:20 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.milliseconds.$get[kind=fun;recv=Int;params=]
+expr e@6:5 localDecl duration mutable=0 type=_ init=e@6:20#1 type=Unit ref=__local_0.duration[kind=local]
+expr e@7:18 name(duration) type=kotlin.time.Duration ref=__local_0.duration[kind=local]
+expr e@7:29 double(1.5) type=Double
+expr e@7:18#1 binary(multiply) lhs=e@7:18 rhs=e@7:29 type=kotlin.time.Duration call=kotlin.time.times[kind=fun;recv=kotlin.time.Duration;params=Double]
+expr e@7:5 localDecl scaled mutable=0 type=_ init=e@7:18#1 type=Unit ref=__local_1.scaled[kind=local]
+expr e@8:19 name(duration) type=kotlin.time.Duration ref=__local_0.duration[kind=local]
+expr e@8:30 double(2.0) type=Double
+expr e@8:19#1 binary(divide) lhs=e@8:19 rhs=e@8:30 type=kotlin.time.Duration call=kotlin.time.div[kind=fun;recv=kotlin.time.Duration;params=Double]
+expr e@8:5 localDecl divided mutable=0 type=_ init=e@8:19#1 type=Unit ref=__local_2.divided[kind=local]
+expr e@9:19 name(duration) type=kotlin.time.Duration ref=__local_0.duration[kind=local]
+expr e@10:9 name(wholeSeconds) type=Long ref=s-0
+expr e@10:24 long(1000000000) type=Long
+expr e@10:9#1 binary(multiply) lhs=e@10:9 rhs=e@10:24 type=Long
+expr e@10:41 name(nanos) type=Int ref=s-1
+expr e@10:9#2 binary(add) lhs=e@10:9#1 rhs=e@10:41 type=Long
+expr e@9:41 lambda params=[wholeSeconds,nanos] body=e@10:9#2 label=toComponents type=(Long, Int) -> Long
+expr e@9:19#1 memberCall recv=e@9:19 callee=toComponents args=[_:e@9:41] type=Long call=kotlin.time.toComponents[kind=fun;recv=kotlin.time.Duration;params=fn{p=Long,Int;ret=T0};gen=1] targs=[Long]
+expr e@9:5 localDecl seconds mutable=0 type=_ init=e@9:19#1 type=Unit ref=__local_3.seconds[kind=local]
+expr e@12:19 name(duration) type=kotlin.time.Duration ref=__local_0.duration[kind=local]
+expr e@13:9 name(wholeMinutes) type=Long ref=s-2
+expr e@13:24 long(60) type=Long
+expr e@13:9#1 binary(multiply) lhs=e@13:9 rhs=e@13:24 type=Long
+expr e@13:30 name(wholeSeconds) type=Int ref=s-3
+expr e@13:9#2 binary(add) lhs=e@13:9#1 rhs=e@13:30 type=Long
+expr e@13:45 name(nanos) type=Int ref=s-4
+expr e@13:53 long(1000000000) type=Long
+expr e@13:45#1 binary(divide) lhs=e@13:45 rhs=e@13:53 type=Long
+expr e@13:9#3 binary(add) lhs=e@13:9#2 rhs=e@13:45#1 type=Long
+expr e@12:41 lambda params=[wholeMinutes,wholeSeconds,nanos] body=e@13:9#3 label=toComponents type=(Long, Int, Int) -> Long
+expr e@12:19#1 memberCall recv=e@12:19 callee=toComponents args=[_:e@12:41] type=Long call=kotlin.time.toComponents[kind=fun;recv=kotlin.time.Duration;params=fn{p=Long,Int,Int;ret=T0};gen=1] targs=[Long]
+expr e@12:5 localDecl minutes mutable=0 type=_ init=e@12:19#1 type=Unit ref=__local_4.minutes[kind=local]
+expr e@15:17 name(duration) type=kotlin.time.Duration ref=__local_0.duration[kind=local]
+expr e@16:9 name(wholeHours) type=Long ref=s-5
+expr e@16:22 long(3600) type=Long
+expr e@16:9#1 binary(multiply) lhs=e@16:9 rhs=e@16:22 type=Long
+expr e@16:31 name(wholeMinutes) type=Int ref=s-6
+expr e@16:46 long(60) type=Long
+expr e@16:31#1 binary(multiply) lhs=e@16:31 rhs=e@16:46 type=Long
+expr e@16:9#2 binary(add) lhs=e@16:9#1 rhs=e@16:31#1 type=Long
+expr e@16:52 name(wholeSeconds) type=Int ref=s-7
+expr e@16:9#3 binary(add) lhs=e@16:9#2 rhs=e@16:52 type=Long
+expr e@16:67 name(nanos) type=Int ref=s-8
+expr e@16:75 long(1000000000) type=Long
+expr e@16:67#1 binary(divide) lhs=e@16:67 rhs=e@16:75 type=Long
+expr e@16:9#4 binary(add) lhs=e@16:9#3 rhs=e@16:67#1 type=Long
+expr e@15:39 lambda params=[wholeHours,wholeMinutes,wholeSeconds,nanos] body=e@16:9#4 label=toComponents type=(Long, Int, Int, Int) -> Long
+expr e@15:17#1 memberCall recv=e@15:17 callee=toComponents args=[_:e@15:39] type=Long call=kotlin.time.toComponents[kind=fun;recv=kotlin.time.Duration;params=fn{p=Long,Int,Int,Int;ret=T0};gen=1] targs=[Long]
+expr e@15:5 localDecl hours mutable=0 type=_ init=e@15:17#1 type=Unit ref=__local_5.hours[kind=local]
+expr e@18:16 name(duration) type=kotlin.time.Duration ref=__local_0.duration[kind=local]
+expr e@19:9 name(wholeDays) type=Long ref=s-9
+expr e@19:21 long(86400) type=Long
+expr e@19:9#1 binary(multiply) lhs=e@19:9 rhs=e@19:21 type=Long
+expr e@19:31 name(wholeHours) type=Int ref=s-10
+expr e@19:44 long(3600) type=Long
+expr e@19:31#1 binary(multiply) lhs=e@19:31 rhs=e@19:44 type=Long
+expr e@19:9#2 binary(add) lhs=e@19:9#1 rhs=e@19:31#1 type=Long
+expr e@19:53 name(wholeMinutes) type=Int ref=s-11
+expr e@19:68 long(60) type=Long
+expr e@19:53#1 binary(multiply) lhs=e@19:53 rhs=e@19:68 type=Long
+expr e@19:9#3 binary(add) lhs=e@19:9#2 rhs=e@19:53#1 type=Long
+expr e@19:74 name(wholeSeconds) type=Int ref=s-12
+expr e@19:9#4 binary(add) lhs=e@19:9#3 rhs=e@19:74 type=Long
+expr e@19:89 name(nanos) type=Int ref=s-13
+expr e@19:97 long(1000000000) type=Long
+expr e@19:89#1 binary(divide) lhs=e@19:89 rhs=e@19:97 type=Long
+expr e@19:9#5 binary(add) lhs=e@19:9#4 rhs=e@19:89#1 type=Long
+expr e@18:38 lambda params=[wholeDays,wholeHours,wholeMinutes,wholeSeconds,nanos] body=e@19:9#5 label=toComponents type=(Long, Int, Int, Int, Int) -> Long
+expr e@18:16#1 memberCall recv=e@18:16 callee=toComponents args=[_:e@18:38] type=Long call=kotlin.time.toComponents[kind=fun;recv=kotlin.time.Duration;params=fn{p=Long,Int,Int,Int,Int;ret=T0};gen=1] targs=[Long]
+expr e@18:5 localDecl days mutable=0 type=_ init=e@18:16#1 type=Unit ref=__local_6.days[kind=local]
+expr e@22:13 name(scaled) type=kotlin.time.Duration ref=__local_1.scaled[kind=local]
+expr e@22:29 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@22:29#1 memberCall recv=e@22:29 callee=SECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.SECONDS[kind=field]
+expr e@22:13#1 memberCall recv=e@22:13 callee=toDouble args=[_:e@22:29#1] type=Double call=kotlin.time.toDouble[kind=fun;recv=kotlin.time.Duration;params=kotlin.time.DurationUnit]
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@23:13 name(divided) type=kotlin.time.Duration ref=__local_2.divided[kind=local]
+expr e@23:28 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@23:28#1 memberCall recv=e@23:28 callee=MILLISECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.MILLISECONDS[kind=field]
+expr e@23:13#1 memberCall recv=e@23:13 callee=toLong args=[_:e@23:28#1] type=Long call=kotlin.time.toLong[kind=fun;recv=kotlin.time.Duration;params=kotlin.time.DurationUnit]
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@24:13 name(duration) type=kotlin.time.Duration ref=__local_0.duration[kind=local]
+expr e@24:28 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@24:28#1 memberCall recv=e@24:28 callee=SECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.SECONDS[kind=field]
+expr e@24:13#1 memberCall recv=e@24:13 callee=toInt args=[_:e@24:28#1] type=Int call=kotlin.time.toInt[kind=fun;recv=kotlin.time.Duration;params=kotlin.time.DurationUnit]
+expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@25:13 name(duration) type=kotlin.time.Duration ref=__local_0.duration[kind=local]
+expr e@25:31 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@25:31#1 memberCall recv=e@25:31 callee=SECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.SECONDS[kind=field]
+expr e@25:53 int(2) type=Int
+expr e@25:13#1 memberCall recv=e@25:13 callee=toString args=[_:e@25:31#1,_:e@25:53] type=String call=kotlin.time.toString[kind=fun;recv=kotlin.time.Duration;params=kotlin.time.DurationUnit,Int]
+expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@26:13 name(seconds) type=Long ref=__local_3.seconds[kind=local]
+expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@27:13 name(minutes) type=Long ref=__local_4.minutes[kind=local]
+expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@28:13 name(hours) type=Long ref=__local_5.hours[kind=local]
+expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@29:13 name(days) type=Long ref=__local_6.days[kind=local]
+expr e@29:5 call callee=e@29:5#1 args=[_:e@29:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

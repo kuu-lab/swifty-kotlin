@@ -2,13 +2,19 @@
 extension BuildASTPhase.ExpressionParser {
     func parseObjectLiteralDecl(
         superTypes: [TypeRefID],
+        superTypeConstructorArgs: [CallArgument] = [],
         bodyTokens: [Token],
         range: SourceRange
     ) -> DeclID? {
+        // KSP-CAP-018: a body with no members (`object : Base(x) {}`) still
+        // gets an `ObjectDecl`. Returning `nil` here used to route the literal
+        // through `ObjectLiteralLowerer`'s no-decl path, which allocates with
+        // `classID = 0` and no `NominalLayout` — so inherited fields had no
+        // slots reserved and the superclass constructor was never called.
+        // Reading any inherited property then panicked with
+        // `kk_array_get_inbounds precondition failed`. Only a *failed* member
+        // parse below still returns `nil` (the lenient malformed-body path).
         let statementRanges = objectLiteralMemberRanges(in: bodyTokens)
-        guard !statementRanges.isEmpty else {
-            return nil
-        }
 
         var functionDeclIDs: [DeclID] = []
         var propertyDeclIDs: [DeclID] = []
@@ -27,10 +33,6 @@ extension BuildASTPhase.ExpressionParser {
             propertyDeclIDs.append(astArena.appendDecl(.propertyDecl(propertyDecl)))
         }
 
-        guard !functionDeclIDs.isEmpty || !propertyDeclIDs.isEmpty else {
-            return nil
-        }
-
         let syntheticName = interner.intern(
             "__ObjectLiteral_\(range.start.file.rawValue)_\(range.start.offset)_\(range.end.offset)"
         )
@@ -39,6 +41,7 @@ extension BuildASTPhase.ExpressionParser {
             name: syntheticName,
             modifiers: [.private],
             superTypes: superTypes,
+            superTypeConstructorArgs: superTypeConstructorArgs,
             memberFunctions: functionDeclIDs,
             memberProperties: propertyDeclIDs
         )
@@ -71,7 +74,7 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseObjectLiteralFunctionDecl(from tokens: ArraySlice<Token>) -> FunDecl? {
-        let sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        let sanitized = strippingMemberSeparatorSemicolons(tokens)
         guard sanitized.contains(where: { $0.kind == .keyword(.fun) }) else {
             return nil
         }
@@ -95,6 +98,35 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena
         )
+    }
+
+    /// Drops only the statement-separator semicolons *between* object literal
+    /// members (and any trailing one), keeping semicolons nested inside a
+    /// member's own body. A member function separates its statements with them
+    /// on a single line — `fun bump(): Int { i = i + 1; return i }` — and
+    /// stripping those made the re-parsed body collapse into one malformed
+    /// statement, surfacing as `KSWIFTK-TYPE-0001` on the member declaration.
+    /// The same applies to accessor bodies and to lambdas inside a property
+    /// initializer or `by` delegate expression.
+    private func strippingMemberSeparatorSemicolons(
+        _ tokens: some Sequence<Token>
+    ) -> [Token] {
+        var depth = 0
+        var result: [Token] = []
+        for token in tokens {
+            switch token.kind {
+            case .symbol(.lBrace), .symbol(.lParen), .symbol(.lBracket):
+                depth += 1
+            case .symbol(.rBrace), .symbol(.rParen), .symbol(.rBracket):
+                depth -= 1
+            case .symbol(.semicolon) where depth <= 0:
+                continue
+            default:
+                break
+            }
+            result.append(token)
+        }
+        return result
     }
 
     private func objectLiteralMemberParseTokens(from tokens: [Token]) -> [Token] {
@@ -122,7 +154,7 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseObjectLiteralPropertyDecl(from tokens: ArraySlice<Token>) -> PropertyDecl? {
-        let sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        let sanitized = strippingMemberSeparatorSemicolons(tokens)
         guard let first = sanitized.first, let last = sanitized.last else {
             return nil
         }
@@ -137,16 +169,20 @@ extension BuildASTPhase.ExpressionParser {
         var setter: PropertyAccessorDecl?
         var delegateExpression: ExprID?
         var delegateBody: FunctionBody?
+        var delegateBodyParams: [InternedString] = []
 
         if !suffixTokens.isEmpty {
             switch suffixTokens[0].kind {
             case .softKeyword(.by):
-                let delegateTokens = Array(suffixTokens.dropFirst()).filter { $0.kind != .symbol(.semicolon) }
+                let delegateTokens = strippingMemberSeparatorSemicolons(suffixTokens.dropFirst())
                 guard let parsedDelegateExpr = parseObjectLiteralExpression(from: delegateTokens) else {
                     return nil
                 }
                 delegateExpression = parsedDelegateExpr
-                delegateBody = objectLiteralDelegateBody(from: parsedDelegateExpr)
+                if let parsedDelegateBody = objectLiteralDelegateBody(from: parsedDelegateExpr) {
+                    delegateBodyParams = parsedDelegateBody.params
+                    delegateBody = parsedDelegateBody.body
+                }
 
             case .softKeyword(.get), .softKeyword(.set):
                 guard let accessors = parseObjectLiteralAccessors(from: suffixTokens) else {
@@ -170,7 +206,8 @@ extension BuildASTPhase.ExpressionParser {
             getter: getter,
             setter: setter,
             delegateExpression: delegateExpression,
-            delegateBody: delegateBody
+            delegateBody: delegateBody,
+            delegateBodyParams: delegateBodyParams
         )
     }
 
@@ -181,6 +218,13 @@ extension BuildASTPhase.ExpressionParser {
         while let accessorIndex = topLevelAccessorStartIndex(in: tokens, from: searchIndex) {
             if let prefix = parseObjectLiteralLocalDeclPrefix(from: tokens[..<accessorIndex], endIndex: accessorIndex) {
                 return prefix
+            }
+            // `val name get() = ...` has neither a type nor an initializer, so the
+            // local-decl parser rejects the prefix. Without this fallback the whole
+            // member was re-parsed as one declaration whose `=` (after `get()`)
+            // turned the getter body into the property initializer.
+            if let bareHeader = parseObjectLiteralBareHeader(from: Array(tokens[..<accessorIndex])) {
+                return (bareHeader.name, bareHeader.isMutable, bareHeader.typeAnnotation, nil, accessorIndex)
             }
             searchIndex = accessorIndex + 1
         }
@@ -214,7 +258,11 @@ extension BuildASTPhase.ExpressionParser {
     private func parseObjectLiteralBareHeader(
         from tokens: [Token]
     ) -> (name: InternedString, isMutable: Bool, typeAnnotation: TypeRefID?)? {
-        let sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        var sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        // Skip leading modifiers (`override`, `private`, ...) before `val`/`var`.
+        if let declIndex = sanitized.firstIndex(where: { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }) {
+            sanitized.removeFirst(declIndex)
+        }
         guard sanitized.count >= 2 else {
             return nil
         }
@@ -246,7 +294,8 @@ extension BuildASTPhase.ExpressionParser {
               let typeRef = BuildASTPhase.ExpressionParser(
                   tokens: typeTokens[...],
                   interner: interner,
-                  astArena: astArena
+                  astArena: astArena,
+                  diagnostics: diagnostics
               ).parseTypeReference(typeStart)
         else {
             return nil
@@ -340,7 +389,7 @@ extension BuildASTPhase.ExpressionParser {
         case .symbol(.assign):
             let exprStart = startIndex + 1
             let nextAccessorIndex = topLevelAccessorStartIndex(in: tokens, from: exprStart) ?? tokens.count
-            let exprTokens = Array(tokens[exprStart ..< nextAccessorIndex]).filter { $0.kind != .symbol(.semicolon) }
+            let exprTokens = strippingMemberSeparatorSemicolons(tokens[exprStart ..< nextAccessorIndex])
             guard let exprID = parseObjectLiteralExpression(from: exprTokens),
                   let range = astArena.exprRange(exprID)
             else {
@@ -373,7 +422,8 @@ extension BuildASTPhase.ExpressionParser {
         return BuildASTPhase.ExpressionParser(
             tokens: tokens[...],
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ).parse()
     }
 
@@ -382,7 +432,8 @@ extension BuildASTPhase.ExpressionParser {
               let blockExprID = BuildASTPhase.ExpressionParser(
                   tokens: tokens[...],
                   interner: interner,
-                  astArena: astArena
+                  astArena: astArena,
+                  diagnostics: diagnostics
               ).parseBlockExpression(),
               let blockExpr = astArena.expr(blockExprID),
               case let .blockExpr(statements, trailingExpr, range) = blockExpr
@@ -397,7 +448,7 @@ extension BuildASTPhase.ExpressionParser {
         return .block(bodyExprs, range)
     }
 
-    private func objectLiteralDelegateBody(from exprID: ExprID) -> FunctionBody? {
+    private func objectLiteralDelegateBody(from exprID: ExprID) -> (params: [InternedString], body: FunctionBody)? {
         guard let expr = astArena.expr(exprID) else {
             return nil
         }
@@ -413,7 +464,7 @@ extension BuildASTPhase.ExpressionParser {
 
         guard let trailingLambdaExprID,
               let lambdaExpr = astArena.expr(trailingLambdaExprID),
-              case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr
+              case let .lambdaLiteral(params, bodyExprID, _, _) = lambdaExpr
         else {
             return nil
         }
@@ -427,13 +478,13 @@ extension BuildASTPhase.ExpressionParser {
             if let trailingExpr {
                 exprs.append(trailingExpr)
             }
-            return .block(exprs, range)
+            return (params, .block(exprs, range))
 
         default:
             guard let range = astArena.exprRange(bodyExprID) else {
                 return nil
             }
-            return .expr(bodyExprID, range)
+            return (params, .expr(bodyExprID, range))
         }
     }
 
@@ -629,7 +680,7 @@ extension BuildASTPhase.ExpressionParser {
             if token.kind == .symbol(.rParen) {
                 break
             }
-            if TypeRefParserCore.isTypeLikeNameToken(token.kind),
+            if TypeRefParserCore.isDeclarationNameToken(token.kind),
                let name = tokenText(token)
             {
                 return name

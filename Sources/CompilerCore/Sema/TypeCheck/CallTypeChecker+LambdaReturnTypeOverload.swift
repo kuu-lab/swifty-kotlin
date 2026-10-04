@@ -5,6 +5,15 @@ extension CallTypeChecker {
         let lambdaLiteralIndices: Set<Int>
         let inputOnlyLambdaIndices: Set<Int>
         let blockedLambdaRefinement: Bool
+        /// True when a bare (no declared parameter list) lambda argument relies on an
+        /// implicit single parameter (`it`) whose type can't be fixed before overload
+        /// resolution, because the remaining candidates each expect exactly one
+        /// parameter but disagree on its type (DEBT-SEMA-004). Unlike
+        /// `blockedLambdaRefinement`, which only forces an ambiguity diagnostic when a
+        /// candidate opts in via `@OverloadResolutionByLambdaReturnType`, this case is
+        /// unresolvable regardless of that annotation: there is no locally-known type
+        /// to check the lambda body against.
+        let hasUnresolvableImplicitLambdaParameter: Bool
     }
 
     private struct LambdaParameterCandidate {
@@ -17,8 +26,10 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         preInferredNonLambdaArgTypes: [Int: TypeID] = [:],
         expectedTypeOverrides: [Int: TypeID] = [:],
+        contextualCallResultType: TypeID? = nil,
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
+        lambdaContextOverrides: [Int: TypeInferenceContext] = [:],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> PreparedCallArguments {
@@ -29,6 +40,7 @@ extension CallTypeChecker {
         var lambdaLiteralIndices: Set<Int> = []
         var inputOnlyLambdaIndices: Set<Int> = []
         var blockedLambdaRefinement = false
+        var hasUnresolvableImplicitLambdaParameter = false
         var contextualArgExpectedTypes = [TypeID?](repeating: nil, count: args.count)
 
         for (index, argument) in args.enumerated() {
@@ -41,12 +53,42 @@ extension CallTypeChecker {
             case .callableRef:
                 break
             case .intLiteral:
-                if inferredNonLambdaArgTypes[index] != nil {
+                // Always re-infer an unsuffixed int literal against the surviving
+                // candidates' parameter type, even if a previous pass already gave
+                // it a default Int. This lets member calls like
+                // `shortArray.binarySearch(20)` narrow to Short/Byte.
+                let literalExpectedType = uniformNumericLiteralParameterType(
+                    at: index,
+                    candidates: candidates,
+                    sema: sema
+                )
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                )
+            case .uintLiteral:
+                // Contextualize suffixed unsigned literals too. Kotlin narrows
+                // constants such as 1u to UByte/UShort parameters when the value
+                // fits, which is needed by source-backed unsigned extensions.
+                let literalExpectedType = uniformUnsignedLiteralParameterType(
+                    at: index,
+                    candidates: candidates,
+                    sema: sema
+                )
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                )
+            case .unaryExpr(let op, let operandID, _):
+                guard (op == .unaryPlus || op == .unaryMinus),
+                      case .intLiteral = ast.arena.expr(operandID)
+                else {
+                    if inferredNonLambdaArgTypes[index] == nil {
+                        inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                    }
                     continue
                 }
-                // An unsuffixed int literal must see the candidates' parameter
-                // type (e.g. Long) before inference, or it defaults to Int and
-                // every candidate rejects it (`Millis(1500)` with `value: Long`).
+                // Constant-folded unary +/- over an int literal should see the
+                // candidates' parameter type, just like a bare int literal, so
+                // `byteArrayOf(1, -1)` and `shortArrayOf(1, -1)` resolve.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
                     candidates: candidates,
@@ -63,86 +105,193 @@ extension CallTypeChecker {
             }
         }
 
-        for (index, argument) in args.enumerated() {
-            if let override = expectedTypeOverrides[index] {
-                contextualArgExpectedTypes[index] = override
-                continue
-            }
-
-            guard let argumentExpr = ast.arena.expr(argument.expr) else {
-                continue
-            }
-            let narrowedCandidates = narrowedCallCandidates(
-                candidates: candidates,
-                args: args,
-                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-                ctx: ctx
-            )
-            let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
-
-            switch argumentExpr {
-            case .callableRef:
-                contextualArgExpectedTypes[index] = callableReferenceExpectedType(
-                    at: index,
-                    candidates: expectedTypeCandidates,
-                    explicitTypeArgs: explicitTypeArgs,
-                    sema: sema
-                )
-            case .lambdaLiteral:
-                let expectation = lambdaLiteralExpectedType(
-                    at: index,
-                    candidates: expectedTypeCandidates,
-                    explicitTypeArgs: explicitTypeArgs,
-                    receiverType: receiverType,
-                    inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-                    resolver: ctx.resolver,
-                    sema: sema
-                )
-                contextualArgExpectedTypes[index] = expectation.type
-                if expectation.isInputOnly {
-                    inputOnlyLambdaIndices.insert(index)
-                }
-                if expectation.blocksRefinement {
-                    blockedLambdaRefinement = true
-                }
-            default:
-                continue
-            }
-        }
-
         if lambdaLiteralIndices.count > 1 {
             blockedLambdaRefinement = true
         }
 
-        let argTypes = args.enumerated().map { index, argument -> TypeID in
+        // Each argument's expected type is computed and applied before moving to
+        // the next one, so an already-inferred lambda constrains the arguments
+        // that follow it: in `fold({ k, e -> ... }, { k, acc, e -> ... })` the
+        // accumulator type is only pinned down by the first lambda's return type.
+        var argTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
+        for (index, argument) in args.enumerated() {
+            if let override = expectedTypeOverrides[index] {
+                contextualArgExpectedTypes[index] = override
+            } else if let argumentExpr = ast.arena.expr(argument.expr) {
+                let narrowedCandidates = narrowedCallCandidates(
+                    candidates: candidates,
+                    args: args,
+                    inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                    receiverType: receiverType,
+                    ctx: ctx
+                )
+                let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
+
+                switch argumentExpr {
+                case .callableRef:
+                    contextualArgExpectedTypes[index] = callableReferenceExpectedType(
+                        at: index,
+                        candidates: expectedTypeCandidates,
+                        explicitTypeArgs: explicitTypeArgs,
+                        sema: sema
+                    )
+                case let .lambdaLiteral(lambdaParams, _, _, _):
+                    let expectation = lambdaLiteralExpectedType(
+                        at: index,
+                        argumentCount: args.count,
+                        argumentLabel: argument.label,
+                        candidates: expectedTypeCandidates,
+                        explicitTypeArgs: explicitTypeArgs,
+                        receiverType: receiverType,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        resolver: ctx.resolver,
+                        sema: sema
+                    )
+                    // For a generic scope function such as `T.let(block: (T) -> R): R`,
+                    // the expected call result fixes R before the lambda body is
+                    // inferred. Keep the receiver-derived T in the expected lambda
+                    // while replacing only its matching return type parameter.
+                    let contextualLambdaType: TypeID? = {
+                        // Only a definitely non-null expected result can fix R: for `R?` returns
+                        // and safe calls (`x?.let {}` expected `Int?`) the expectation says
+                        // nothing certain about the lambda's own result type.
+                        guard let contextualCallResultType,
+                              sema.types.makeNonNullable(contextualCallResultType) == contextualCallResultType,
+                              candidates.count == 1,
+                              let signature = sema.symbols.functionSignature(for: candidates[0]),
+                              sema.types.makeNonNullable(signature.returnType) == signature.returnType,
+                              case let .typeParam(resultParam) = sema.types.kind(of: signature.returnType),
+                              let expectedLambdaType = expectation.type,
+                              case let .functionType(fn) = sema.types.kind(of: expectedLambdaType),
+                              case let .typeParam(lambdaResultParam) = sema.types.kind(of: fn.returnType),
+                              lambdaResultParam.symbol == resultParam.symbol,
+                              // `reduce<S, T : S>` also feeds S back into the lambda
+                              // parameters; fixing it early conflicts with T's bound.
+                              !fn.params.contains(where: { sema.types.typeContainsTypeParam($0, symbol: resultParam.symbol) }),
+                              !(fn.receiver.map { sema.types.typeContainsTypeParam($0, symbol: resultParam.symbol) } ?? false)
+                        else { return expectation.type }
+                        return sema.types.make(.functionType(FunctionType(
+                            contextReceivers: fn.contextReceivers,
+                            receiver: fn.receiver,
+                            params: fn.params,
+                            returnType: contextualCallResultType,
+                            isSuspend: fn.isSuspend,
+                            nullability: fn.nullability,
+                            throws: fn.throws
+                        )))
+                    }()
+                    contextualArgExpectedTypes[index] = contextualLambdaType
+                    if declaresConcreteLambdaParameterTypes(
+                        at: index,
+                        argumentCount: args.count,
+                        argumentLabel: argument.label,
+                        candidates: expectedTypeCandidates,
+                        sema: sema
+                    ) {
+                        sema.bindings.markSourceDeclaredExpectedType(argument.expr)
+                    }
+                    if expectation.isInputOnly {
+                        inputOnlyLambdaIndices.insert(index)
+                    }
+                    if expectation.blocksRefinement {
+                        blockedLambdaRefinement = true
+                        // A lambda with no declared parameter list (`{ it }` or `{ ... }`)
+                        // has no locally-known type to fall back on; if the surviving
+                        // candidates each want exactly one parameter but disagree on its
+                        // type, there is no way to check the body without guessing which
+                        // overload was meant.
+                        if lambdaParams.isEmpty,
+                           expectation.hasAmbiguousImplicitParameterShape,
+                           lambdaBodyUsesImplicitIt(argument.expr, ctx: ctx)
+                        {
+                            hasUnresolvableImplicitLambdaParameter = true
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+
             if let contextualExpectedType = contextualArgExpectedTypes[index] {
+                let inferenceContext = lambdaContextOverrides[index] ?? ctx
                 let inferredType = driver.inferExpr(
                     argument.expr,
-                    ctx: ctx,
+                    ctx: inferenceContext,
                     locals: &locals,
                     expectedType: contextualExpectedType
                 )
                 if inputOnlyLambdaIndices.contains(index) {
-                    return rebuildLambdaLiteralType(
+                    argTypes[index] = rebuildLambdaLiteralType(
                         exprID: argument.expr,
                         inferredType: inferredType,
                         contextualExpectedType: contextualExpectedType,
                         sema: sema
                     )
+                } else {
+                    argTypes[index] = inferredType
                 }
-                return inferredType
+            } else if let cached = inferredNonLambdaArgTypes[index] {
+                argTypes[index] = cached
+            } else {
+                argTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
             }
-            if let cached = inferredNonLambdaArgTypes[index] {
-                return cached
+            inferredNonLambdaArgTypes[index] = argTypes[index]
+        }
+
+        // An inline range literal (e.g. `1..3`) is bound with its element type
+        // (Int) plus a range-expr marker, so it does not match a range-class
+        // parameter (IntRange) by subtyping alone. When a candidate expects a
+        // range-like parameter at this position, report the argument as the
+        // corresponding range class type so source-backed overloads such as
+        // String.slice(IntRange) resolve. The same holds for a plain
+        // `Iterable<T>` parameter, which every range class implements
+        // (`fun f(x: Iterable<Int>)` called as `f(1..3)`).
+        let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
+            let type = argTypes[index]
+            // A bare `ClassName` argument denotes the class's companion object.
+            if !lambdaLiteralIndices.contains(index),
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   argument.expr, currentType: type, ast: ast, sema: sema
+               )
+            {
+                return companionType
             }
-            return driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            guard !lambdaLiteralIndices.contains(index),
+                  let rangeClassType = sourceLevelRangeMemberLookupType(
+                      receiverExpr: argument.expr,
+                      receiverType: type,
+                      sema: sema,
+                      interner: ctx.interner
+                  ),
+                  candidates.contains(where: { candidate in
+                      guard let signature = sema.symbols.functionSignature(for: candidate),
+                            let parameterType = parameterTypeForArgument(at: index, in: signature)
+                      else {
+                          return false
+                      }
+                      let nonNullParameterType = sema.types.makeNonNullable(parameterType)
+                      return driver.helpers.isRangeLikeType(
+                          nonNullParameterType,
+                          sema: sema,
+                          interner: ctx.interner
+                      ) || driver.helpers.isPlainIterableType(
+                          nonNullParameterType,
+                          sema: sema,
+                          interner: ctx.interner
+                      )
+                  })
+            else {
+                return type
+            }
+            return rangeClassType
         }
 
         return PreparedCallArguments(
-            argTypes: argTypes,
+            argTypes: refinedArgTypes,
             lambdaLiteralIndices: lambdaLiteralIndices,
             inputOnlyLambdaIndices: inputOnlyLambdaIndices,
-            blockedLambdaRefinement: blockedLambdaRefinement
+            blockedLambdaRefinement: blockedLambdaRefinement,
+            hasUnresolvableImplicitLambdaParameter: hasUnresolvableImplicitLambdaParameter
         )
     }
 
@@ -158,10 +307,18 @@ extension CallTypeChecker {
         lambdaLiteralIndices: Set<Int>,
         inputOnlyLambdaIndices: Set<Int>,
         blockedLambdaRefinement: Bool,
+        hasUnresolvableImplicitLambdaParameter: Bool,
         ctx: TypeInferenceContext
     ) -> ResolvedCall {
         let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            return CallArg(
+                label: argument.label,
+                isSpread: argument.isSpread,
+                type: type,
+                signedIntegerLiteral: literal.signed,
+                unsignedIntegerLiteral: literal.unsigned
+            )
         }
         let call = CallExpr(
             range: range,
@@ -175,11 +332,22 @@ extension CallTypeChecker {
         })
         let functionParameterArgumentPositions = Set(args.indices.filter { argIndex in
             candidates.contains { candidate in
-                guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
-                      let parameterType = parameterTypeForArgument(at: argIndex, in: signature)
-                else {
+                guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else {
                     return false
                 }
+                let parameterType: TypeID?
+                if lambdaLiteralIndices.contains(argIndex) {
+                    parameterType = lambdaParameterTypeForArgument(
+                        at: argIndex,
+                        argumentCount: args.count,
+                        argumentLabel: args[argIndex].label,
+                        in: signature,
+                        sema: ctx.sema
+                    )
+                } else {
+                    parameterType = parameterTypeForArgument(at: argIndex, in: signature)
+                }
+                guard let parameterType else { return false }
                 if case .functionType = ctx.sema.types.kind(of: parameterType) {
                     return true
                 }
@@ -199,15 +367,17 @@ extension CallTypeChecker {
             return true
         })
 
-        if blockedLambdaRefinement, hasRefinementAnnotation {
-            return ambiguousCallResult(range: range)
+        if blockedLambdaRefinement, hasRefinementAnnotation || hasUnresolvableImplicitLambdaParameter {
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
+
+        let contextualExpectedType = overloadResolutionExpectedType(from: expectedType, sema: ctx.sema)
 
         guard !inputOnlyLambdaIndices.isEmpty else {
             return ctx.resolver.resolveCall(
                 candidates: candidates,
                 call: call,
-                expectedType: expectedType,
+                expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 ctx: ctx.semaCtx
             )
@@ -217,10 +387,10 @@ extension CallTypeChecker {
         // resolution is actually attempted (inputOnlyLambdaIndices is non-empty).
         // Running them earlier would incorrectly reject single-candidate calls.
         if functionParameterArgumentPositions.count > 1, hasRefinementAnnotation {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
         if functionTypedArgumentIndices.count > 1, hasRefinementAnnotation {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
 
         let overloadResolutionExpectedType: TypeID? = nil
@@ -256,19 +426,18 @@ extension CallTypeChecker {
               let lambdaIndex = lambdaLiteralIndices.first,
               inputOnlyLambdaIndices.contains(lambdaIndex)
         else {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: viableSymbols, sema: ctx.sema)
         }
-        // When all viable candidates share the same input-only HOF link name (e.g.
-        // String.zip and CharSequence.zip both map to kk_string_zipTransform), the
+        // When all viable candidates share the same input-only HOF shape, the
         // apparent ambiguity is structural — not semantic. Fall back to the standard
-        // resolver which picks the most specific receiver type (String over CharSequence).
+        // resolver which picks the most specific receiver type.
         if viableSymbols.allSatisfy({
             Self.inputOnlyExternalLinkNames.contains(ctx.sema.symbols.externalLinkName(for: $0) ?? "")
         }) {
             return ctx.resolver.resolveCall(
                 candidates: viableSymbols,
                 call: call,
-                expectedType: expectedType,
+                expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 ctx: ctx.semaCtx
             )
@@ -276,13 +445,15 @@ extension CallTypeChecker {
         guard viableSymbols.contains(where: {
             hasOverloadResolutionByLambdaReturnTypeAnnotation(symbol: $0, sema: ctx.sema)
         }) else {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: viableSymbols, sema: ctx.sema)
         }
 
         let refinedCandidates = refineCandidatesByLambdaReturnType(
             candidateSymbols: viableSymbols,
             lambdaArgumentIndex: lambdaIndex,
             argType: argTypes[lambdaIndex],
+            argumentCount: args.count,
+            argumentLabel: args[lambdaIndex].label,
             sema: ctx.sema
         )
         if refinedCandidates.isEmpty {
@@ -303,16 +474,48 @@ extension CallTypeChecker {
                 ctx: ctx.semaCtx
             )
         }
-        return ambiguousCallResult(range: range)
+        return ambiguousCallResult(range: range, candidateSymbols: refinedCandidates, sema: ctx.sema)
     }
 
-    /// Returns the expected numeric type (Long/UInt/ULong) for an unsuffixed
-    /// int-literal argument if every candidate agrees on that parameter being
-    /// one of those types, so the literal can be widened before overload
-    /// resolution instead of defaulting to Int and rejecting every candidate.
-    /// Returns nil (leaving the literal as Int) when candidates disagree or
-    /// none expect a wideable numeric type — the normal Int-literal path and
-    /// existing overload resolution still handle those cases.
+    func integerLiteralValues(
+        _ exprID: ExprID,
+        ast: ASTModule
+    ) -> (signed: Int64?, unsigned: UInt64?) {
+        switch ast.arena.expr(exprID) {
+        case let .intLiteral(value, _):
+            return (value, nil)
+        case let .uintLiteral(value, _):
+            return (nil, value)
+        case let .unaryExpr(op, operand, _) where op == .unaryMinus || op == .unaryPlus:
+            guard case let .intLiteral(value, _) = ast.arena.expr(operand) else {
+                return (nil, nil)
+            }
+            if op == .unaryMinus {
+                let (negated, overflow) = value.multipliedReportingOverflow(by: -1)
+                return (overflow ? nil : negated, nil)
+            }
+            return (value, nil)
+        default:
+            return (nil, nil)
+        }
+    }
+
+    func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
+        // Unit contexts accept and discard any expression result, so Unit must
+        // not act as a return-type constraint while choosing an overload.
+        guard expectedType != sema.types.unitType else {
+            return nil
+        }
+        return expectedType
+    }
+
+    /// Returns the expected numeric type (Long/UInt/ULong/Byte/Short) for an
+    /// unsuffixed int-literal argument if every candidate agrees on that
+    /// parameter being one of those types, so the literal can be widened before
+    /// overload resolution instead of defaulting to Int and rejecting every
+    /// candidate. Returns nil (leaving the literal as Int) when candidates
+    /// disagree or none expect a wideable numeric type — the normal Int-literal
+    /// path and existing overload resolution still handle those cases.
     private func uniformNumericLiteralParameterType(
         at index: Int,
         candidates: [SymbolID],
@@ -327,7 +530,39 @@ extension CallTypeChecker {
             }
             let nonNullParameterType = sema.types.makeNonNullable(parameterType)
             guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
-                  primitive == .long || primitive == .uint || primitive == .ulong
+                  primitive == .long || primitive == .uint || primitive == .ulong ||
+                  primitive == .byte || primitive == .short
+            else {
+                return nil
+            }
+            if let result, result != nonNullParameterType {
+                return nil
+            }
+            result = nonNullParameterType
+        }
+        return result
+    }
+
+    /// Returns the single unsigned parameter type shared by all candidates for a
+    /// suffixed unsigned literal. Unlike unsuffixed integer literals, Kotlin
+    /// allows a constant UInt literal to narrow to UByte/UShort or widen to
+    /// ULong when the expected parameter type requires it.
+    private func uniformUnsignedLiteralParameterType(
+        at index: Int,
+        candidates: [SymbolID],
+        sema: SemaModule
+    ) -> TypeID? {
+        var result: TypeID?
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let parameterType = parameterTypeForArgument(at: index, in: signature)
+            else {
+                return nil
+            }
+            let nonNullParameterType = sema.types.makeNonNullable(parameterType)
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
+                  primitive == .ubyte || primitive == .ushort ||
+                  primitive == .uint || primitive == .ulong
             else {
                 return nil
             }
@@ -343,10 +578,26 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         args: [CallArgument],
         inferredNonLambdaArgTypes: [Int: TypeID],
+        receiverType: TypeID?,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
-        let narrowed = candidates.filter { candidate in
+
+        // A candidate that declares an extension/member receiver can never be
+        // chosen when the call site has no receiver at all (explicit or
+        // implicit) -- Resolution.swift's buildReceiverConstraints rejects it
+        // outright in that case. Without pruning it here too, an unqualified
+        // call such as `measureTimedValue { ... }` still sees an unrelated
+        // same-named extension (e.g. `TimeSource.measureTimedValue`) as a live
+        // candidate for the lambda's expected type, corrupting it even though
+        // that extension can never actually be selected. A present-but-
+        // mismatched receiver is left to final resolution, unchanged.
+        let effectiveReceiverType = receiverType ?? ctx.implicitReceiverType
+        let candidates = effectiveReceiverType != nil
+            ? candidates
+            : candidates.filter { sema.symbols.functionSignature(for: $0)?.receiverType == nil }
+
+        var narrowed = candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
                   isCallableArityCompatible(signature: signature, argCount: args.count)
             else {
@@ -356,13 +607,284 @@ extension CallTypeChecker {
                 guard let parameterType = parameterTypeForArgument(at: otherIndex, in: signature) else {
                     return false
                 }
-                if !sema.types.isSubtype(inferredType, parameterType) {
+                if sema.types.isSubtype(inferredType, parameterType) {
+                    continue
+                }
+                if !args[otherIndex].isSpread,
+                   let varargIndex = signature.valueParameterIsVararg.firstIndex(of: true),
+                   otherIndex >= varargIndex,
+                   integerLiteralFitsVararg(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
+                {
+                    continue
+                }
+                // A parameter whose type is still an unsubstituted type
+                // parameter (`initialValue: R`) never passes a subtype check
+                // before inference runs, so judge those positions by shape:
+                // reject only when the parameter wants a function type the
+                // argument cannot provide.
+                guard typeMentionsTypeParameter(parameterType, sema: sema) else {
+                    return false
+                }
+                if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)),
+                   !isFunctionTypeLike(inferredType, sema: sema)
+                {
+                    return false
+                }
+            }
+            // Overloads that differ only in the arity of a function-typed
+            // parameter (Grouping.fold's initialValue vs. initialValueSelector
+            // forms) can be told apart before inference when the lambda spells
+            // out its parameters: a `{ a, b -> ... }` argument can only match a
+            // two-parameter function type. Without this the surviving
+            // candidates disagree on the lambda's shape and no expected type is
+            // pushed into the body, leaving its parameters untyped.
+            for (argIndex, argument) in args.enumerated() {
+                guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr),
+                      !lambdaParams.isEmpty
+                else {
+                    continue
+                }
+                guard let parameterType = lambdaParameterTypeForArgument(
+                    at: argIndex,
+                    argumentCount: args.count,
+                    argumentLabel: argument.label,
+                    in: signature,
+                    sema: sema
+                ),
+                      case let .functionType(functionType) = sema.types.kind(
+                          of: sema.types.makeNonNullable(parameterType)
+                      ),
+                      functionType.params.count == lambdaParams.count
+                else {
                     return false
                 }
             }
             return true
         }
+
+        // Prune candidates whose declared receiver the call-site receiver can
+        // never satisfy: `onEach` is declared on `Sequence`, `Iterable`,
+        // `Map`, and `CharSequence`, but a `String` receiver can only ever
+        // select the `CharSequence` overload. Infeasible siblings still go
+        // through final resolution unchanged — leaving them in this set only
+        // corrupts the lambda's expected type with irreconcilable parameter
+        // shapes and leaves implicit `it` untyped.
+        let receiverFeasible = narrowed.filter { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return receiverConstraintIsFeasible(
+                signature: signature,
+                receiverType: effectiveReceiverType,
+                sema: sema
+            )
+        }
+        narrowed = receiverFeasible.isEmpty ? narrowed : receiverFeasible
+
+        // A bare lambda literal is itself a function value. When overloads
+        // differ between a function-typed parameter and an unconstrained type
+        // parameter at the same position, prefer the function-typed candidates
+        // so the lambda receives a single contextual type. Otherwise a generic
+        // overload can also bind its type parameter to the lambda's function
+        // type, leaving equivalent candidates and untyped `it` parameters in
+        // later lambdas. This is a general shape rule, not a stdlib-name rule.
+        let emptyLambdaIndices = args.indices.filter { argIndex in
+            guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(args[argIndex].expr),
+                  lambdaParams.isEmpty
+            else {
+                return false
+            }
+            return true
+        }
+        let lambdaShapeIndices = emptyLambdaIndices.filter { argIndex in
+            let hasFunctionCandidate = narrowed.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = lambdaParameterTypeForArgument(
+                          at: argIndex,
+                          argumentCount: args.count,
+                          argumentLabel: args[argIndex].label,
+                          in: signature,
+                          sema: sema
+                      )
+                else {
+                    return false
+                }
+                return isFunctionTypeLike(parameterType, sema: sema)
+            }
+            let hasNonFunctionCandidate = narrowed.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = lambdaParameterTypeForArgument(
+                          at: argIndex,
+                          argumentCount: args.count,
+                          argumentLabel: args[argIndex].label,
+                          in: signature,
+                          sema: sema
+                      )
+                else {
+                    return false
+                }
+                return !isFunctionTypeLike(parameterType, sema: sema)
+            }
+            return hasFunctionCandidate && hasNonFunctionCandidate
+        }
+        let lambdaShapeNarrowed = narrowed.filter { candidate in
+            lambdaShapeIndices.allSatisfy { argIndex in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = lambdaParameterTypeForArgument(
+                          at: argIndex,
+                          argumentCount: args.count,
+                          argumentLabel: args[argIndex].label,
+                          in: signature,
+                          sema: sema
+                      )
+                else {
+                    return false
+                }
+                return isFunctionTypeLike(parameterType, sema: sema)
+            }
+        }
+        if !lambdaShapeNarrowed.isEmpty,
+           lambdaShapeNarrowed.count < narrowed.count
+        {
+            return lambdaShapeNarrowed
+        }
+
+        // A null-only producer has no non-null lower bound from which the
+        // generic `() -> T?` overload can infer T. Kotlin resolves this case
+        // through the bottom-type overload, but that overload must not win for
+        // ordinary producers such as `{ 42 }`.
+        let nullOnlyLambdaIndices = emptyLambdaIndices.filter { argIndex in
+            lambdaBodyIsNullLiteral(args[argIndex].expr, ctx: ctx)
+        }
+        let nullProducerNarrowed = narrowed.filter { candidate in
+            nullOnlyLambdaIndices.allSatisfy { argIndex in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = lambdaParameterTypeForArgument(
+                          at: argIndex,
+                          argumentCount: args.count,
+                          argumentLabel: args[argIndex].label,
+                          in: signature,
+                          sema: sema
+                      ),
+                      case let .functionType(functionType) = sema.types.kind(
+                          of: sema.types.makeNonNullable(parameterType)
+                      )
+                else {
+                    return false
+                }
+                return functionType.returnType == sema.types.nullableNothingType
+            }
+        }
+        if !nullOnlyLambdaIndices.isEmpty,
+           !nullProducerNarrowed.isEmpty,
+           nullProducerNarrowed.count < narrowed.count
+        {
+            return nullProducerNarrowed
+        }
+
         return narrowed.isEmpty ? candidates : narrowed
+    }
+
+    private func integerLiteralFitsVararg(
+        _ exprID: ExprID,
+        parameterType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let values = integerLiteralValues(exprID, ast: ctx.ast)
+        let types = ctx.sema.types
+        guard case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(parameterType)) else {
+            return false
+        }
+        if let value = values.signed {
+            switch primitive {
+            case .byte: return (-128...127).contains(value)
+            case .short: return (-32768...32767).contains(value)
+            case .long: return true
+            default: return false
+            }
+        }
+        if let value = values.unsigned {
+            switch primitive {
+            case .ubyte: return value <= UInt64(UInt8.max)
+            case .ushort: return value <= UInt64(UInt16.max)
+            case .ulong: return true
+            default: return false
+            }
+        }
+        return false
+    }
+
+    /// Whether the call-site receiver can ever satisfy the candidate's declared
+    /// receiver. Used only to keep the lambda expected-type candidate set free
+    /// of same-named overloads that final resolution could never select.
+    private func receiverConstraintIsFeasible(
+        signature: FunctionSignature,
+        receiverType: TypeID?,
+        sema: SemaModule
+    ) -> Bool {
+        guard let receiverType,
+              let declaredReceiver = signature.receiverType
+        else {
+            return true
+        }
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        let nonNullDeclared = sema.types.makeNonNullable(declaredReceiver)
+        if case let .typeParam(receiverTypeParam) = sema.types.kind(of: nonNullDeclared) {
+            // Bare type-parameter receiver (`C : Iterable<T>`, `S : CharSequence`):
+            // judge feasibility by the parameter's upper bounds after
+            // substituting the receiver variable itself, so F-bounded contracts
+            // (`T : Comparable<T>`) still hold. Bounds that stay type parameters
+            // (`C : R`) constrain a different variable and are skipped.
+            let bounds = sema.symbols.typeParameterUpperBounds(for: receiverTypeParam.symbol)
+            guard !bounds.isEmpty else {
+                return true
+            }
+            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            guard let typeVar = typeVarBySymbol[receiverTypeParam.symbol] else {
+                return true
+            }
+            let substitution: [TypeVarID: TypeID] = [typeVar: nonNullReceiver]
+            for bound in bounds {
+                let substitutedBound = sema.types.substituteTypeParameters(
+                    in: bound,
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                let nonNullBound = sema.types.makeNonNullable(substitutedBound)
+                if case .typeParam = sema.types.kind(of: nonNullBound) {
+                    continue
+                }
+                if let boundClass = resolveClassType(nonNullBound, sema: sema),
+                   let actualClass = resolveClassType(nonNullReceiver, sema: sema)
+                {
+                    if actualClass.classSymbol != boundClass.classSymbol,
+                       !sema.types.isNominalSubtypeSymbol(
+                           actualClass.classSymbol,
+                           of: boundClass.classSymbol
+                       )
+                    {
+                        return false
+                    }
+                    continue
+                }
+                if !sema.types.isSubtype(nonNullReceiver, nonNullBound) {
+                    return false
+                }
+            }
+            return true
+        }
+        guard let declaredClass = resolveClassType(nonNullDeclared, sema: sema),
+              let actualClass = resolveClassType(nonNullReceiver, sema: sema)
+        else {
+            // Non-nominal actual receiver (e.g. primitive String) or an opaque
+            // declared receiver: fall back to the subtype oracle.
+            return sema.types.isSubtype(nonNullReceiver, nonNullDeclared)
+        }
+        return declaredClass.classSymbol == actualClass.classSymbol
+            || sema.types.isNominalSubtypeSymbol(
+                actualClass.classSymbol,
+                of: declaredClass.classSymbol
+            )
     }
 
     /// Applies explicit type arguments to a parameter type from a given signature.
@@ -403,46 +925,128 @@ extension CallTypeChecker {
         )
     }
 
-    /// Substitutes the leading class type parameters of `signature` with the
-    /// concrete generic arguments of `receiverType` (if it is a generic class
-    /// type). This lets trailing-lambda expected types be computed with the
-    /// receiver's generic substitutions already applied, so `it` in
-    /// `xs.map { it.uppercase() }` is seen as `String` rather than `T`.
-    private func applyReceiverClassTypeArgs(
+    /// Substitutes the class type parameters used in `signature.receiverType`
+    /// with the concrete generic arguments of the call-site `receiverType`. This
+    /// lets trailing-lambda expected types be computed with the receiver's
+    /// generic substitutions already applied, so `it` in `xs.map { it * 10 }`
+    /// is seen as `Int` rather than `T`.
+    ///
+    /// For member functions whose declared receiver type is not available in the
+    /// signature, the leading `classTypeParameterCount` type parameters are taken
+    /// to be the class type parameters and are substituted from the call-site
+    /// receiver's concrete class arguments.
+    func applyReceiverClassTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
         candidate: SymbolID,
         receiverType: TypeID?,
         sema: SemaModule
     ) -> TypeID {
-        guard let receiverType,
-              signature.classTypeParameterCount > 0,
+        guard sema.symbols.symbol(candidate)?.kind != .constructor,
               !signature.typeParameterSymbols.isEmpty,
-              sema.symbols.symbol(candidate)?.kind != .constructor,
-              let classType = resolveClassType(receiverType, sema: sema)
+              let callSiteReceiverType = receiverType,
+              let callSiteClass = resolveClassType(callSiteReceiverType, sema: sema)
         else {
             return parameterType
         }
+
+        let declaredClassArgs: [TypeArg]
+        let concreteClassArgs: [TypeArg]
+        if let signatureReceiverType = signature.receiverType,
+           let declaredClass = resolveClassType(signatureReceiverType, sema: sema) {
+            if declaredClass.classSymbol == callSiteClass.classSymbol,
+               declaredClass.args.count == callSiteClass.args.count {
+                declaredClassArgs = declaredClass.args
+                concreteClassArgs = callSiteClass.args
+            } else if sema.types.isNominalSubtypeSymbol(callSiteClass.classSymbol, of: declaredClass.classSymbol) {
+                declaredClassArgs = declaredClass.args
+                guard let lifted = sema.types.liftedNominalSupertypeArgs(
+                    from: callSiteClass.classSymbol,
+                    childArgs: callSiteClass.args,
+                    to: declaredClass.classSymbol
+                ), lifted.count == declaredClassArgs.count else {
+                    return parameterType
+                }
+                concreteClassArgs = lifted
+            } else {
+                return parameterType
+            }
+        } else if signature.classTypeParameterCount > 0,
+                  callSiteClass.args.count >= signature.classTypeParameterCount {
+            let prefix = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+            declaredClassArgs = prefix
+            concreteClassArgs = prefix
+        } else {
+            return parameterType
+        }
+
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         var substitution: [TypeVarID: TypeID] = [:]
-        let count = min(
-            signature.classTypeParameterCount,
-            classType.args.count,
-            signature.typeParameterSymbols.count
-        )
-        for index in 0 ..< count {
-            let concreteType: TypeID = switch classType.args[index] {
+        for index in 0 ..< declaredClassArgs.count {
+            let declaredArg: TypeID
+            switch declaredClassArgs[index] {
+            case let .invariant(type), let .out(type), let .in(type):
+                declaredArg = type
+            case .star:
+                continue
+            }
+            guard case let .typeParam(declaredTypeParam) = sema.types.kind(of: declaredArg),
+                  let typeVar = typeVarBySymbol[declaredTypeParam.symbol]
+            else {
+                continue
+            }
+            let concreteType: TypeID = switch concreteClassArgs[index] {
             case let .invariant(type), let .out(type), let .in(type):
                 type
             case .star:
                 sema.types.anyType
             }
-            let typeParamSymbol = signature.typeParameterSymbols[index]
-            if let typeVar = typeVarBySymbol[typeParamSymbol] {
-                substitution[typeVar] = concreteType
-            }
+            substitution[typeVar] = concreteType
         }
         guard !substitution.isEmpty else { return parameterType }
+        return sema.types.substituteTypeParameters(
+            in: parameterType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+    }
+
+    /// Substitutes the receiver type parameter of `signature` with the concrete
+    /// call-site receiver type. For extension functions like `fun <T> T.apply(block: T.() -> Unit)`,
+    /// the lambda's expected type `T.() -> Unit` must become `ConcreteType.() -> Unit`
+    /// before the lambda body is type-checked so that unqualified member access on
+    /// the implicit receiver resolves correctly.
+    private func applyFunctionReceiverTypeArgs(
+        to parameterType: TypeID,
+        signature: FunctionSignature,
+        receiverType: TypeID?,
+        sema: SemaModule
+    ) -> TypeID {
+        guard let receiverType,
+              let declaredReceiver = signature.receiverType,
+              !signature.typeParameterSymbols.isEmpty
+        else {
+            return parameterType
+        }
+        let nonNullDeclaredReceiver = sema.types.makeNonNullable(declaredReceiver)
+        guard case let .typeParam(receiverTypeParam) = sema.types.kind(of: nonNullDeclaredReceiver) else {
+            return parameterType
+        }
+        // Class type parameters at the start of the list are handled by applyReceiverClassTypeArgs.
+        if let index = signature.typeParameterSymbols.firstIndex(of: receiverTypeParam.symbol),
+           index < signature.classTypeParameterCount {
+            return parameterType
+        }
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        // Avoid circular substitution when the concrete receiver still references the same type parameter.
+        guard !sema.types.typeContainsTypeParam(nonNullReceiverType, symbol: receiverTypeParam.symbol) else {
+            return parameterType
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        guard let typeVar = typeVarBySymbol[receiverTypeParam.symbol] else {
+            return parameterType
+        }
+        let substitution: [TypeVarID: TypeID] = [typeVar: nonNullReceiverType]
         return sema.types.substituteTypeParameters(
             in: parameterType,
             substitution: substitution,
@@ -525,25 +1129,102 @@ extension CallTypeChecker {
     }
 
     private static let inputOnlyExternalLinkNames: Set<String> = [
-        "kk_string_zipTransform",
-        "kk_string_zipTransform_flat",
-        "kk_string_zipWithNextTransform",
-        "kk_string_zipWithNextTransform_flat",
-        "kk_string_chunked_sequence_transform",
-        "kk_string_windowedSequence_transform",
     ]
+
+    /// Whether the only candidate for the call declares this argument as a
+    /// function type whose parameter types are written out concretely in source
+    /// (no type parameter left for inference to substitute). Such a signature
+    /// is authoritative even where it says `Any`, unlike the `Any` inference
+    /// falls back to when a type variable stays unsolved (BUG-163).
+    private func declaresConcreteLambdaParameterTypes(
+        at index: Int,
+        argumentCount: Int,
+        argumentLabel: InternedString?,
+        candidates: [SymbolID],
+        sema: SemaModule
+    ) -> Bool {
+        guard candidates.count == 1,
+              let candidate = candidates.first,
+              sema.symbols.isSourceBackedSymbol(candidate),
+              let signature = sema.symbols.functionSignature(for: candidate),
+              let parameterType = lambdaParameterTypeForArgument(
+                  at: index,
+                  argumentCount: argumentCount,
+                  argumentLabel: argumentLabel,
+                  in: signature,
+                  sema: sema
+              ),
+              case let .functionType(declared) = sema.types.kind(of: parameterType)
+        else {
+            return false
+        }
+        return !declared.params.contains { typeMentionsTypeParameter($0, sema: sema) }
+    }
+
+    /// Returns the parameter type for a lambda argument, including Kotlin's
+    /// trailing-lambda rule: a final lambda may bind to a later function
+    /// parameter when the parameters between the explicit arguments and that
+    /// function parameter all have defaults (for example
+    /// `joinToString("|") { ... }`).
+    private func lambdaParameterTypeForArgument(
+        at index: Int,
+        argumentCount: Int,
+        argumentLabel: InternedString?,
+        in signature: FunctionSignature,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard index >= 0 else {
+            return nil
+        }
+
+        if let argumentLabel {
+            for (parameterIndex, parameterSymbol) in signature.valueParameterSymbols.enumerated() {
+                if sema.symbols.symbol(parameterSymbol)?.name == argumentLabel,
+                   parameterIndex < signature.parameterTypes.count
+                {
+                    return signature.parameterTypes[parameterIndex]
+                }
+            }
+            return nil
+        }
+
+        guard index == argumentCount - 1,
+              let lastParameterIndex = signature.parameterTypes.indices.last,
+              case .functionType = sema.types.kind(
+                  of: sema.types.makeNonNullable(signature.parameterTypes[lastParameterIndex])
+              )
+        else {
+            return parameterTypeForArgument(at: index, in: signature)
+        }
+
+        guard index <= lastParameterIndex,
+              (index ..< lastParameterIndex).allSatisfy({ parameterIndex in
+                  signature.valueParameterHasDefaultValues.indices.contains(parameterIndex)
+                      && signature.valueParameterHasDefaultValues[parameterIndex]
+              })
+        else {
+            return parameterTypeForArgument(at: index, in: signature)
+        }
+        return signature.parameterTypes[lastParameterIndex]
+    }
 
     private func lambdaLiteralExpectedType(
         at index: Int,
+        argumentCount: Int,
+        argumentLabel: InternedString?,
         candidates: [SymbolID],
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
         inferredNonLambdaArgTypes: [Int: TypeID] = [:],
         resolver: OverloadResolver? = nil,
         sema: SemaModule
-    ) -> (type: TypeID?, isInputOnly: Bool, blocksRefinement: Bool) {
-        // When all candidates share the same input-only HOF link name (e.g. String and
-                // CharSequence overloads of zip both map to kk_string_zipTransform), pick the
+    ) -> (
+        type: TypeID?,
+        isInputOnly: Bool,
+        blocksRefinement: Bool,
+        hasAmbiguousImplicitParameterShape: Bool
+    ) {
+        // When all candidates share the same input-only HOF shape, pick the
         // first candidate and treat the lambda as input-only so that its return type is
         // not used for constraint solving — matches what the single-candidate path does.
         if !candidates.isEmpty,
@@ -551,31 +1232,14 @@ extension CallTypeChecker {
                Self.inputOnlyExternalLinkNames.contains(sema.symbols.externalLinkName(for: $0) ?? "")
            }),
            let signature = sema.symbols.functionSignature(for: candidates[0]),
-           index < signature.parameterTypes.count
+           let rawType = lambdaParameterTypeForArgument(
+               at: index,
+               argumentCount: argumentCount,
+               argumentLabel: argumentLabel,
+               in: signature,
+               sema: sema
+           )
         {
-            let rawType = signature.parameterTypes[index]
-            let explicitSubstituted = applyExplicitTypeArgs(
-                to: rawType,
-                signature: signature,
-                candidate: candidates[0],
-                explicitTypeArgs: explicitTypeArgs,
-                sema: sema
-            )
-            let substituted = applyReceiverClassTypeArgs(
-                to: explicitSubstituted,
-                signature: signature,
-                candidate: candidates[0],
-                receiverType: receiverType,
-                sema: sema
-            )
-            return (substituted, true, false)
-        }
-
-        if candidates.count == 1,
-           let signature = sema.symbols.functionSignature(for: candidates[0]),
-           index < signature.parameterTypes.count
-        {
-            let rawType = signature.parameterTypes[index]
             let explicitSubstituted = applyExplicitTypeArgs(
                 to: rawType,
                 signature: signature,
@@ -590,52 +1254,212 @@ extension CallTypeChecker {
                 receiverType: receiverType,
                 sema: sema
             )
-            let substituted = applyInferredArgumentTypeArgs(
+            let substituted = applyFunctionReceiverTypeArgs(
                 to: receiverSubstituted,
+                signature: signature,
+                receiverType: receiverType,
+                sema: sema
+            )
+            return (substituted, true, false, false)
+        }
+
+        if candidates.count == 1,
+           let signature = sema.symbols.functionSignature(for: candidates[0]),
+           let rawType = lambdaParameterTypeForArgument(
+               at: index,
+               argumentCount: argumentCount,
+               argumentLabel: argumentLabel,
+               in: signature,
+               sema: sema
+           )
+        {
+            let explicitSubstituted = applyExplicitTypeArgs(
+                to: rawType,
+                signature: signature,
+                candidate: candidates[0],
+                explicitTypeArgs: explicitTypeArgs,
+                sema: sema
+            )
+            let receiverSubstituted = applyReceiverClassTypeArgs(
+                to: explicitSubstituted,
+                signature: signature,
+                candidate: candidates[0],
+                receiverType: receiverType,
+                sema: sema
+            )
+            let functionReceiverSubstituted = applyFunctionReceiverTypeArgs(
+                to: receiverSubstituted,
+                signature: signature,
+                receiverType: receiverType,
+                sema: sema
+            )
+            let substituted = applyInferredArgumentTypeArgs(
+                to: functionReceiverSubstituted,
                 signature: signature,
                 inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                 resolver: resolver,
                 sema: sema
             )
-            return (substituted, false, false)
+            return (substituted, false, false, false)
         }
 
         let parameterCandidates = lambdaParameterCandidates(
             at: index,
+            argumentCount: argumentCount,
+            argumentLabel: argumentLabel,
             candidates: candidates,
+            explicitTypeArgs: explicitTypeArgs,
+            receiverType: receiverType,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            resolver: resolver,
             sema: sema
         )
         guard !parameterCandidates.isEmpty else {
-            return (nil, false, false)
+            return (nil, false, false, false)
         }
 
         if let first = parameterCandidates.first,
            parameterCandidates.dropFirst().allSatisfy({ $0.originalType == first.originalType })
         {
-            return (first.originalType, false, false)
+            return (first.originalType, false, false, false)
         }
 
         guard let sharedType = sharedLambdaInputOnlyType(
             from: parameterCandidates,
             types: sema.types
         ) else {
-            return (nil, false, parameterCandidates.count > 1)
+            // Candidates whose parameter type still mentions a type parameter
+            // (e.g. `Sequence<T>.onEach` seen through a `String` receiver) can
+            // never pin down a usable shape at this call site. When the
+            // fully-concrete subset agrees on one shape, use it -- the
+            // remaining candidates are infeasible or will unify to the same
+            // shape once final resolution binds their type parameters.
+            let concreteCandidates = parameterCandidates.filter {
+                !typeMentionsTypeParameter($0.originalType, sema: sema)
+            }
+            if let firstConcrete = concreteCandidates.first,
+               !concreteCandidates.isEmpty,
+               concreteCandidates.dropFirst().allSatisfy({ $0.originalType == firstConcrete.originalType })
+            {
+                return (firstConcrete.originalType, false, false, false)
+            }
+            // The candidates disagree on this lambda's parameter shape, so no single
+            // expected type can be pushed down. When every surviving candidate still
+            // expects exactly one, genuinely concrete parameter type, a bare lambda
+            // here would need an implicit `it` whose type cannot be determined
+            // before an overload is chosen (DEBT-SEMA-004) -- e.g. `(Int) -> String`
+            // vs. `(String) -> Int`. Candidates whose parameter type still mentions a
+            // type parameter are excluded: two independently-registered overloads
+            // (e.g. a source declaration and a synthetic vararg sibling) can each
+            // mint their own distinct type-parameter symbol for what is conceptually
+            // the same generic slot, so raw TypeID inequality there reflects how the
+            // signatures happened to be built rather than a real shape conflict --
+            // unlike concrete types, where inequality always means a real conflict.
+            let isImplicitSingleParameterAmbiguous = parameterCandidates.allSatisfy { candidate in
+                guard candidate.functionType.params.count == 1,
+                      let onlyParam = candidate.functionType.params.first
+                else {
+                    return false
+                }
+                return !typeMentionsTypeParameter(onlyParam, sema: sema)
+            }
+            return (nil, false, parameterCandidates.count > 1, isImplicitSingleParameterAmbiguous)
         }
-        return (sharedType, true, false)
+        return (sharedType, true, false, false)
+    }
+
+    /// Whether `type` can be passed where a function type is expected, covering
+    /// both plain function types and SAM-convertible interfaces.
+    private func isFunctionTypeLike(_ type: TypeID, sema: SemaModule) -> Bool {
+        if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(type)) {
+            return true
+        }
+        return driver.helpers.samFunctionType(for: type, sema: sema) != nil
+    }
+
+    /// Recursively checks whether `type` (or any nested type argument / function
+    /// parameter / return type) is or mentions a type parameter. Used to keep
+    /// implicit-`it` ambiguity detection scoped to genuinely concrete, conflicting
+    /// parameter types rather than misreading distinct type-parameter symbols that
+    /// happen to represent the same generic slot as a real conflict.
+    func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case .typeParam:
+            return true
+        case let .classType(classType):
+            return classType.args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    typeMentionsTypeParameter(inner, sema: sema)
+                case .star:
+                    false
+                }
+            }
+        case let .functionType(functionType):
+            return functionType.params.contains { typeMentionsTypeParameter($0, sema: sema) }
+                || typeMentionsTypeParameter(functionType.returnType, sema: sema)
+                || (functionType.receiver.map { typeMentionsTypeParameter($0, sema: sema) } ?? false)
+        case let .intersection(members):
+            return members.contains { typeMentionsTypeParameter($0, sema: sema) }
+        default:
+            return false
+        }
     }
 
     private func lambdaParameterCandidates(
         at index: Int,
+        argumentCount: Int,
+        argumentLabel: InternedString?,
         candidates: [SymbolID],
+        explicitTypeArgs: [TypeID] = [],
+        receiverType: TypeID? = nil,
+        inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        resolver: OverloadResolver? = nil,
         sema: SemaModule
     ) -> [LambdaParameterCandidate] {
         candidates.compactMap { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  index < signature.parameterTypes.count
+                  let rawParameterType = lambdaParameterTypeForArgument(
+                      at: index,
+                      argumentCount: argumentCount,
+                      argumentLabel: argumentLabel,
+                      in: signature,
+                      sema: sema
+                  )
             else {
                 return nil
             }
-            let parameterType = signature.parameterTypes[index]
+            // Substitute the same way the single-candidate path does, so a
+            // generic receiver's arguments reach the lambda's expected type
+            // (`Iterable<T>.f(transform: (T) -> R)` called on `List<Int>` must
+            // expose `it: Int`, not the bare declaration type parameter `T`).
+            let explicitSubstituted = applyExplicitTypeArgs(
+                to: rawParameterType,
+                signature: signature,
+                candidate: candidate,
+                explicitTypeArgs: explicitTypeArgs,
+                sema: sema
+            )
+            let receiverSubstituted = applyReceiverClassTypeArgs(
+                to: explicitSubstituted,
+                signature: signature,
+                candidate: candidate,
+                receiverType: receiverType,
+                sema: sema
+            )
+            let functionReceiverSubstituted = applyFunctionReceiverTypeArgs(
+                to: receiverSubstituted,
+                signature: signature,
+                receiverType: receiverType,
+                sema: sema
+            )
+            let parameterType = applyInferredArgumentTypeArgs(
+                to: functionReceiverSubstituted,
+                signature: signature,
+                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                resolver: resolver,
+                sema: sema
+            )
             guard case let .functionType(functionType) = sema.types.kind(of: parameterType) else {
                 return nil
             }
@@ -707,6 +1531,8 @@ extension CallTypeChecker {
         candidateSymbols: [SymbolID],
         lambdaArgumentIndex: Int,
         argType: TypeID,
+        argumentCount: Int,
+        argumentLabel: InternedString?,
         sema: SemaModule
     ) -> [SymbolID] {
         guard case let .functionType(argumentFunctionType) = sema.types.kind(of: argType) else {
@@ -715,7 +1541,13 @@ extension CallTypeChecker {
 
         return candidateSymbols.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let parameterType = parameterTypeForArgument(at: lambdaArgumentIndex, in: signature),
+                  let parameterType = lambdaParameterTypeForArgument(
+                      at: lambdaArgumentIndex,
+                      argumentCount: argumentCount,
+                      argumentLabel: argumentLabel,
+                      in: signature,
+                      sema: sema
+                  ),
                   case let .functionType(parameterFunctionType) = sema.types.kind(of: parameterType)
             else {
                 return false
@@ -733,7 +1565,174 @@ extension CallTypeChecker {
         }
     }
 
-    private func ambiguousCallResult(range: SourceRange) -> ResolvedCall {
+    private func lambdaBodyUsesImplicitIt(
+        _ lambdaExprID: ExprID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard case let .lambdaLiteral(_, body, _, _) = ctx.ast.arena.expr(lambdaExprID) else {
+            return false
+        }
+        var visited: Set<Int32> = []
+        return expressionUsesImplicitIt(body, ctx: ctx, visited: &visited)
+    }
+
+    private func lambdaBodyIsNullLiteral(
+        _ lambdaExprID: ExprID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard case let .lambdaLiteral(_, body, _, _) = ctx.ast.arena.expr(lambdaExprID),
+              case let .nameRef(name, _) = ctx.ast.arena.expr(body)
+        else {
+            return false
+        }
+        return name == ctx.interner.intern("null")
+    }
+
+    // A no-arrow lambda only has an unresolvable implicit parameter when its
+    // body actually references `it`; `{ null }` is a zero-parameter producer.
+    private func expressionUsesImplicitIt(
+        _ exprID: ExprID,
+        ctx: TypeInferenceContext,
+        visited: inout Set<Int32>
+    ) -> Bool {
+        guard visited.insert(exprID.rawValue).inserted,
+              let expr = ctx.ast.arena.expr(exprID)
+        else {
+            return false
+        }
+        func visit(_ child: ExprID) -> Bool {
+            return self.expressionUsesImplicitIt(child, ctx: ctx, visited: &visited)
+        }
+        switch expr {
+        case let .nameRef(name, _):
+            return name == ctx.interner.intern("it")
+        case let .stringTemplate(parts, _):
+            return parts.contains { part in
+                if case let .expression(child) = part { return visit(child) }
+                return false
+            }
+        case let .forExpr(_, iterable, body, _, _):
+            return visit(iterable) || visit(body)
+        case let .whileExpr(condition, body, _, _):
+            return visit(condition) || visit(body)
+        case let .doWhileExpr(body, condition, _, _):
+            return visit(body) || visit(condition)
+        case let .localDecl(_, _, _, initializer, _, _):
+            return initializer.map(visit) ?? false
+        case let .localAssign(_, value, _):
+            return visit(value)
+        case let .memberAssign(receiver, _, value, _):
+            return visit(receiver) || visit(value)
+        case let .indexedAssign(receiver, indices, value, _):
+            return visit(receiver) || indices.contains(where: visit) || visit(value)
+        case let .call(callee, _, args, _):
+            return visit(callee) || args.contains { visit($0.expr) }
+        case let .memberCall(receiver, _, _, args, _):
+            return visit(receiver) || args.contains { visit($0.expr) }
+        case let .indexedAccess(receiver, indices, _):
+            return visit(receiver) || indices.contains(where: visit)
+        case let .binary(_, lhs, rhs, _):
+            return visit(lhs) || visit(rhs)
+        case let .whenExpr(subject, branches, elseExpr, _):
+            return (subject.map(visit) ?? false)
+                || branches.contains { branch in
+                    branch.conditions.contains(where: visit)
+                        || (branch.guard_.map(visit) ?? false)
+                        || visit(branch.body)
+                }
+                || (elseExpr.map(visit) ?? false)
+        case let .returnExpr(value, _, _):
+            return value.map(visit) ?? false
+        case let .ifExpr(condition, thenExpr, elseExpr, _):
+            return visit(condition) || visit(thenExpr) || (elseExpr.map(visit) ?? false)
+        case let .tryExpr(body, catchClauses, finallyExpr, _):
+            return visit(body)
+                || catchClauses.contains { visit($0.body) }
+                || (finallyExpr.map(visit) ?? false)
+        case let .unaryExpr(_, operand, _), let .nullAssert(operand, _):
+            return visit(operand)
+        case let .isCheck(value, _, _, _), let .asCast(value, _, _, _):
+            return visit(value)
+        case let .safeMemberCall(receiver, _, _, args, _):
+            return visit(receiver) || args.contains { visit($0.expr) }
+        case let .compoundAssign(_, _, value, _):
+            return visit(value)
+        case let .indexedCompoundAssign(_, receiver, indices, value, _):
+            return visit(receiver) || indices.contains(where: visit) || visit(value)
+        case let .memberCompoundAssign(_, receiver, _, value, _):
+            return visit(receiver) || visit(value)
+        case let .throwExpr(value, _):
+            return visit(value)
+        case .lambdaLiteral, .localFunDecl:
+            return false
+        case let .callableRef(receiver, _, _):
+            return receiver.map(visit) ?? false
+        case let .blockExpr(statements, trailingExpr, _):
+            return statements.contains(where: visit) || (trailingExpr.map(visit) ?? false)
+        case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
+            return visit(lhs) || visit(rhs)
+        case let .destructuringDecl(_, _, initializer, _):
+            return visit(initializer)
+        case let .forDestructuringExpr(_, iterable, body, _):
+            return visit(iterable) || visit(body)
+        case let .objectLiteral(_, declID, _):
+            guard let declID,
+                  let decl = ctx.ast.arena.decl(declID),
+                  case let .objectDecl(objectDecl) = decl
+            else {
+                return false
+            }
+            return objectDecl.memberProperties.contains { propertyID in
+                guard let property = ctx.ast.arena.decl(propertyID),
+                      case let .propertyDecl(propertyDecl) = property,
+                      let initializer = propertyDecl.initializer
+                else { return false }
+                return visit(initializer)
+            }
+        case let .localNominalDecl(declID, _):
+            // KUU-555: an implicit `it` can only reach a local nominal through
+            // expressions evaluated in the enclosing scope — supertype ctor
+            // args for a local `object`, plus member property initializers
+            // for both kinds.
+            guard let decl = ctx.ast.arena.decl(declID) else {
+                return false
+            }
+            let rootExprs: [ExprID]
+            switch decl {
+            case let .objectDecl(objectDecl):
+                rootExprs = objectDecl.superTypeConstructorArgs.map(\.expr)
+                    + objectDecl.memberProperties.compactMap { propertyID in
+                        guard let property = ctx.ast.arena.decl(propertyID),
+                              case let .propertyDecl(propertyDecl) = property
+                        else { return nil }
+                        return propertyDecl.initializer
+                    }
+            case let .classDecl(classDecl):
+                rootExprs = classDecl.superTypeEntries
+                    .flatMap(\.constructorArgs).map(\.expr)
+                    + classDecl.memberProperties.compactMap { propertyID in
+                        guard let property = ctx.ast.arena.decl(propertyID),
+                              case let .propertyDecl(propertyDecl) = property
+                        else { return nil }
+                        return propertyDecl.initializer
+                    }
+            default:
+                rootExprs = []
+            }
+            return rootExprs.contains(where: visit)
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral,
+             .stringLiteral, .breakExpr, .continueExpr,
+             .superRef, .thisRef:
+            return false
+        }
+    }
+
+    private func ambiguousCallResult(
+        range: SourceRange,
+        candidateSymbols: [SymbolID],
+        sema: SemaModule
+    ) -> ResolvedCall {
         ResolvedCall(
             chosenCallee: nil,
             substitutedTypeArguments: [:],
@@ -743,8 +1742,9 @@ extension CallTypeChecker {
                 code: "KSWIFTK-SEMA-0003",
                 message: "Ambiguous overload resolution.",
                 primaryRange: range,
-                secondaryRanges: []
+                secondaryRanges: sema.symbols.sortedDeclSites(of: candidateSymbols)
             )
         )
     }
 }
+

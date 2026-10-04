@@ -9,13 +9,16 @@ import Testing
 /// `readLines`, `read`, `ready`, and `close` members so the `.use { }`
 /// closeable pattern works.
 ///
-/// Runtime link names involved: `kk_input_stream_bufferedReader`,
-/// `kk_buffered_reader_readLine`, `kk_buffered_reader_close`.
+/// Runtime link names involved: `__kk_input_stream_bufferedReader`,
+/// `__kk_buffered_reader_readLine`, `__kk_buffered_reader_close`.
 @Suite
 struct InputStreamBufferedReaderFunctionTests {
 
-    @Test func testInputStreamBufferedReaderResolvesWithDefaultCharset() throws {
-        let ctx = makeContextFromSource("""
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import java.io.ByteArrayInputStream
         import java.io.BufferedReader
         import java.io.InputStream
@@ -27,17 +30,9 @@ struct InputStreamBufferedReaderFunctionTests {
             reader.close()
             return firstLine
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "InputStream.bufferedReader() with default charset should type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-
-    @Test func testInputStreamBufferedReaderResolvesWithExplicitCharset() throws {
-        let ctx = makeContextFromSource("""
+        """,
+        """
+        package sample1
         import java.io.ByteArrayInputStream
         import java.io.BufferedReader
         import java.io.InputStream
@@ -48,8 +43,41 @@ struct InputStreamBufferedReaderFunctionTests {
             val reader: BufferedReader = stream.bufferedReader(Charsets.UTF_8)
             return reader.readLines()
         }
-        """)
-        try runSema(ctx)
+        """,
+        """
+        package sample2
+        fun probe() {}
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
+    @Test func testInputStreamBufferedReaderResolvesWithDefaultCharset() throws {
+
+        let ctx = try sharedCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "InputStream.bufferedReader() with default charset should type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    @Test func testInputStreamBufferedReaderResolvesWithExplicitCharset() throws {
+
+        let ctx = try sharedCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
@@ -58,11 +86,8 @@ struct InputStreamBufferedReaderFunctionTests {
     }
 
     @Test func testInputStreamBufferedReaderSignatureIsExtensionOnInputStream() throws {
-        let ctx = makeContextFromSource("""
-        fun probe() {}
-        """)
-        try runSema(ctx)
 
+        let ctx = try sharedCtx()
         guard let sema = ctx.sema else {
             Issue.record("Sema module unavailable after runSema")
             return
@@ -120,8 +145,8 @@ struct InputStreamBufferedReaderFunctionTests {
         }
 
         #expect(
-            symbols.externalLinkName(for: functionSymbol) == "kk_input_stream_bufferedReader",
-            "InputStream.bufferedReader must link to kk_input_stream_bufferedReader"
+            symbols.externalLinkName(for: functionSymbol) == "__kk_input_stream_bufferedReader",
+            "InputStream.bufferedReader must link to __kk_input_stream_bufferedReader"
         )
 
         guard let signature = symbols.functionSignature(for: functionSymbol) else {

@@ -2,10 +2,59 @@ import Foundation
 
 // ANNO-001: @Deprecated annotation checking helpers.
 
+private struct KotlinCompilerVersion: Comparable {
+    let major: Int
+    let minor: Int
+    let patch: Int
+
+    static func < (lhs: KotlinCompilerVersion, rhs: KotlinCompilerVersion) -> Bool {
+        if lhs.major != rhs.major {
+            return lhs.major < rhs.major
+        }
+        if lhs.minor != rhs.minor {
+            return lhs.minor < rhs.minor
+        }
+        return lhs.patch < rhs.patch
+    }
+
+    init?(rawValue: String) {
+        let components = rawValue.split(separator: ".", omittingEmptySubsequences: false)
+        guard components.count == 2 || components.count == 3,
+              let major = Int(components[0]),
+              let minor = Int(components[1]) else {
+            return nil
+        }
+        let patch = components.count == 3 ? Int(components[2]) : 0
+        guard let patch, major >= 0, minor >= 0, patch >= 0 else {
+            return nil
+        }
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+    }
+
+    init(major: Int, minor: Int, patch: Int) {
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+    }
+}
+
+// @DeprecatedSinceKotlin thresholds are evaluated against the compiler's
+// default -api-version, not its build version. kotlinc 2.3.10 (the reference
+// compiler pinned by CI, see KOTLIN_VERSION in ci.yml) still defaults to
+// apiVersion 2.2: confirmed empirically via Scripts/diff_kotlinc.sh — it
+// emits no diagnostic for `Number.toChar()` (errorSince = "2.3") at the call
+// site, while `StringBuilder.appendln()` (errorSince = "2.1") matches this
+// compiler's error diagnostic. Keep in sync if the pinned kotlinc's default
+// api-version changes.
+private let kotlinApiVersion = KotlinCompilerVersion(major: 2, minor: 2, patch: 0)
+
 extension TypeCheckHelpers {
     private enum DeprecatedLevel {
         case warning
         case error
+        case hidden
     }
 
     private struct DeprecatedArguments {
@@ -14,11 +63,20 @@ extension TypeCheckHelpers {
         let replaceWith: String?
     }
 
+    private struct DeprecatedSinceKotlinArguments {
+        let warningSince: KotlinCompilerVersion?
+        let errorSince: KotlinCompilerVersion?
+        let hiddenSince: KotlinCompilerVersion?
+    }
+
     /// Checks whether `symbol` has a `@Deprecated` annotation and emits an appropriate
     /// diagnostic at `range` (the call/reference site).
     ///
     /// - `@Deprecated("msg")` or `@Deprecated("msg", level = WARNING)` -> warning
     /// - `@Deprecated("msg", level = ERROR)` -> error
+    /// - `@Deprecated("msg", level = HIDDEN)` -> error; the declaration still
+    ///   resolves (lookup hiding is not modelled), so the deprecated diagnostic
+    ///   stands in for kotlinc's "unresolved reference".
     func checkDeprecation(
         for symbolID: SymbolID,
         sema: SemaModule,
@@ -27,43 +85,76 @@ extension TypeCheckHelpers {
         diagnostics: DiagnosticEngine
     ) {
         let annotations = sema.symbols.annotations(for: symbolID)
-        for ann in annotations
-            where KnownCompilerAnnotation.deprecated.matches(ann.annotationFQName)
-        {
-            let symbolName = if let sym = sema.symbols.symbol(symbolID) {
-                sym.fqName.map { interner.resolve($0) }.joined(separator: ".")
-            } else {
-                "<unknown>"
-            }
-            let parsed = parseDeprecatedArguments(ann.arguments)
-            var deprecationMessage = parsed.message.isEmpty
-                ? "'\(symbolName)' is deprecated."
-                : "'\(symbolName)' is deprecated. \(parsed.message)"
-            let codeActions: [DiagnosticCodeAction]
-            if let replaceWith = parsed.replaceWith, !replaceWith.isEmpty {
-                deprecationMessage += " Replace with: \(replaceWith)"
-                codeActions = [DiagnosticCodeAction(title: "Replace with '\(replaceWith)'")]
-            } else {
-                codeActions = []
-            }
-
-            if parsed.level == .error {
-                diagnostics.error(
-                    "KSWIFTK-SEMA-DEPRECATED",
-                    deprecationMessage,
-                    range: range,
-                    codeActions: codeActions
-                )
-            } else {
-                diagnostics.warning(
-                    "KSWIFTK-SEMA-DEPRECATED",
-                    deprecationMessage,
-                    range: range,
-                    codeActions: codeActions
-                )
-            }
-            return // Only emit one deprecation diagnostic per symbol reference.
+        guard let deprecatedAnnotation = annotations.first(where: {
+            KnownCompilerAnnotation.deprecated.matches($0.annotationFQName)
+        }) else {
+            return
         }
+
+        let symbolName = if let sym = sema.symbols.symbol(symbolID) {
+            sym.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        } else {
+            "<unknown>"
+        }
+        let stringValue = { (raw: String) in
+            normalizeAnnotationStringArgument(
+                raw,
+                annotatedSymbol: symbolID,
+                sema: sema,
+                interner: interner
+            )
+        }
+        let parsed = parseDeprecatedArguments(deprecatedAnnotation.arguments, stringValue: stringValue)
+        let sinceArguments = annotations.first(where: {
+            KnownCompilerAnnotation.deprecatedSinceKotlin.matches($0.annotationFQName)
+        }).map { parseDeprecatedSinceKotlinArguments($0.arguments, stringValue: stringValue) }
+
+        // An explicit @Deprecated(level = ERROR/HIDDEN) remains authoritative.
+        // The SinceKotlin metadata only refines the default warning level used
+        // by the stdlib as the target compiler version advances.
+        let severity: DeprecatedSeverity = switch parsed.level {
+        case .error:
+            .error
+        case .hidden:
+            .hidden
+        case .warning:
+            if let sinceArguments {
+                deprecatedSeverity(for: sinceArguments)
+            } else {
+                .warning
+            }
+        }
+        guard severity != .none else {
+            return
+        }
+
+        var deprecationMessage = parsed.message.isEmpty
+            ? "'\(symbolName)' is deprecated."
+            : "'\(symbolName)' is deprecated. \(parsed.message)"
+        let codeActions: [DiagnosticCodeAction]
+        if let replaceWith = parsed.replaceWith, !replaceWith.isEmpty {
+            deprecationMessage += " Replace with: \(replaceWith)"
+            codeActions = [DiagnosticCodeAction(title: "Replace with '\(replaceWith)'")]
+        } else {
+            codeActions = []
+        }
+
+        if severity == .error || severity == .hidden {
+            diagnostics.error(
+                "KSWIFTK-SEMA-DEPRECATED",
+                deprecationMessage,
+                range: range,
+                codeActions: codeActions
+            )
+        } else {
+            diagnostics.warning(
+                "KSWIFTK-SEMA-DEPRECATED",
+                deprecationMessage,
+                range: range,
+                codeActions: codeActions
+            )
+        }
+        return // Only emit one deprecation diagnostic per symbol reference.
     }
 
     func checkBuiltinDeprecation(
@@ -80,13 +171,10 @@ extension TypeCheckHelpers {
         }
 
         let receiver = sema.types.makeNonNullable(receiverType)
+        // No unsigned type has a real `toChar()` member.
         let deprecatedReceiverTypes: Set<TypeID> = [
             sema.types.intType,
             sema.types.longType,
-            sema.types.uintType,
-            sema.types.ulongType,
-            sema.types.ubyteType,
-            sema.types.ushortType,
         ]
         guard deprecatedReceiverTypes.contains(receiver) else {
             return
@@ -111,7 +199,10 @@ extension TypeCheckHelpers {
         )
     }
 
-    private func parseDeprecatedArguments(_ arguments: [String]) -> DeprecatedArguments {
+    private func parseDeprecatedArguments(
+        _ arguments: [String],
+        stringValue: (String) -> String
+    ) -> DeprecatedArguments {
         var namedArgs: [String: String] = [:]
         var positionalArgs: [String] = []
 
@@ -128,15 +219,81 @@ extension TypeCheckHelpers {
         }
 
         let messageCandidate = namedArgs["message"] ?? positionalArgs.first
-        let message = messageCandidate.map(normalizeAnnotationStringLiteral) ?? ""
+        let message = messageCandidate.map(stringValue) ?? ""
 
         let levelCandidate = namedArgs["level"] ?? positionalArgs.first(where: { parseDeprecatedLevel($0) != nil })
         let level = parseDeprecatedLevel(levelCandidate) ?? .warning
         let replaceWithCandidate = namedArgs["replacewith"]
             ?? positionalArgs.first(where: { isReplaceWithExpression($0) })
-        let replaceWith = parseReplaceWithExpression(replaceWithCandidate)
+        let replaceWith = parseReplaceWithExpression(replaceWithCandidate, stringValue: stringValue)
 
         return DeprecatedArguments(message: message, level: level, replaceWith: replaceWith)
+    }
+
+    private enum DeprecatedSeverity {
+        case none
+        case warning
+        case error
+        case hidden
+    }
+
+    private func parseDeprecatedSinceKotlinArguments(
+        _ arguments: [String],
+        stringValue: (String) -> String
+    ) -> DeprecatedSinceKotlinArguments {
+        var namedArgs: [String: String] = [:]
+        var positionalArgs: [String] = []
+
+        for raw in arguments {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                continue
+            }
+            if let (name, value) = splitNamedArgument(trimmed) {
+                namedArgs[name.lowercased()] = value
+            } else {
+                positionalArgs.append(trimmed)
+            }
+        }
+
+        func parseVersion(_ raw: String?) -> KotlinCompilerVersion? {
+            guard let raw else {
+                return nil
+            }
+            let normalized = stringValue(raw)
+            guard !normalized.isEmpty else {
+                return nil
+            }
+            return KotlinCompilerVersion(rawValue: normalized)
+        }
+
+        func positional(_ index: Int) -> String? {
+            positionalArgs.indices.contains(index) ? positionalArgs[index] : nil
+        }
+
+        return DeprecatedSinceKotlinArguments(
+            warningSince: parseVersion(namedArgs["warningsince"] ?? positional(0)),
+            errorSince: parseVersion(namedArgs["errorsince"] ?? positional(1)),
+            hiddenSince: parseVersion(namedArgs["hiddensince"] ?? positional(2))
+        )
+    }
+
+    private func deprecatedSeverity(for arguments: DeprecatedSinceKotlinArguments) -> DeprecatedSeverity {
+        if let hiddenSince = arguments.hiddenSince, kotlinApiVersion >= hiddenSince {
+            return .hidden
+        }
+        if let errorSince = arguments.errorSince, kotlinApiVersion >= errorSince {
+            return .error
+        }
+        if let warningSince = arguments.warningSince, kotlinApiVersion >= warningSince {
+            return .warning
+        }
+        // A SinceKotlin annotation keeps the declaration available without a
+        // deprecation diagnostic until its first visible threshold is reached.
+        if arguments.warningSince != nil || arguments.errorSince != nil || arguments.hiddenSince != nil {
+            return .none
+        }
+        return .warning
     }
 
     private func splitNamedArgument(_ argument: String) -> (String, String)? {
@@ -160,10 +317,12 @@ extension TypeCheckHelpers {
         let normalized = raw.replacingOccurrences(of: " ", with: "")
         let levelName = normalized.split(separator: ".").last.map(String.init)?.uppercased() ?? normalized.uppercased()
         return switch levelName {
+        case "WARNING":
+            .warning
         case "ERROR":
             .error
-        case "WARNING", "HIDDEN":
-            .warning
+        case "HIDDEN":
+            .hidden
         default:
             nil
         }
@@ -175,7 +334,10 @@ extension TypeCheckHelpers {
             || normalized.hasPrefix(KnownCompilerAnnotation.replaceWith.qualifiedName + "(")
     }
 
-    private func parseReplaceWithExpression(_ raw: String?) -> String? {
+    private func parseReplaceWithExpression(
+        _ raw: String?,
+        stringValue: (String) -> String
+    ) -> String? {
         guard let raw else {
             return nil
         }
@@ -202,7 +364,7 @@ extension TypeCheckHelpers {
         }
 
         let expressionCandidate = namedArgs["expression"] ?? positionalArgs.first
-        let expression = expressionCandidate.map(normalizeAnnotationStringLiteral) ?? ""
+        let expression = expressionCandidate.map(stringValue) ?? ""
         return expression.isEmpty ? nil : expression
     }
 
@@ -322,14 +484,146 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    private func normalizeAnnotationStringLiteral(_ raw: String) -> String {
-        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        while value.hasPrefix("\"") || value.hasPrefix("'") {
-            value.removeFirst()
+    /// Resolves a string-valued annotation argument (`message`, the
+    /// `ReplaceWith` expression, `@DeprecatedSinceKotlin` versions, ...).
+    /// Annotation arguments reach here as raw source text, so a `const val`
+    /// reference like `@Deprecated(MSG)` arrives unevaluated as the bare
+    /// identifier; when it resolves to a `const val` holding a string
+    /// literal, the constant's value is used for the diagnostic.
+    private func normalizeAnnotationStringArgument(
+        _ raw: String,
+        annotatedSymbol symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String {
+        if let resolved = resolveStringConstantReference(
+            raw,
+            annotatedSymbol: symbolID,
+            sema: sema,
+            interner: interner
+        ) {
+            return resolved
         }
-        while value.hasSuffix("\"") || value.hasSuffix("'") {
-            value.removeLast()
-        }
-        return value
+        return normalizeAnnotationStringLiteral(raw)
     }
+
+    /// Resolves an identifier path (`MSG`, `Outer.MSG`, `pkg.Outer.MSG`) to the
+    /// string literal stored by a `const val`. The argument is looked up in the
+    /// lexical scope of the annotated declaration: the declaration's innermost
+    /// container first, then outward through its package to the root.
+    private func resolveStringConstantReference(
+        _ raw: String,
+        annotatedSymbol symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // String literals are handled by normalizeAnnotationStringLiteral.
+        guard extractKotlinStringLiteralContent(value) == nil else {
+            return nil
+        }
+        let components = value.split(separator: ".").map(String.init)
+        guard !components.isEmpty,
+              components.joined(separator: ".") == value,
+              components.allSatisfy(isSimpleKotlinIdentifier),
+              let annotated = sema.symbols.symbol(symbolID)
+        else {
+            return nil
+        }
+
+        let annotatedFileID = sema.symbols.sourceFileID(for: symbolID)
+        let path = components.map { interner.intern($0) }
+        var container = Array(annotated.fqName.dropLast())
+        while true {
+            if let resolved = lookupStringConstant(
+                fqName: container + path,
+                annotatedFileID: annotatedFileID,
+                sema: sema,
+                interner: interner
+            ) {
+                return resolved
+            }
+            if container.isEmpty {
+                return nil
+            }
+            container.removeLast()
+        }
+    }
+
+    private func lookupStringConstant(
+        fqName: [InternedString],
+        annotatedFileID: FileID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        var fallback: String?
+        for candidateID in sema.symbols.lookupAll(fqName: fqName) {
+            guard let candidate = sema.symbols.symbol(candidateID),
+                  case let .stringLiteral(literal)? = sema.symbols.constValueExprKind(for: candidateID)
+            else {
+                continue
+            }
+            // A `private` top-level const is file-scoped, so it can only be
+            // referenced from the same file as the annotated declaration;
+            // same-file candidates are also preferred when the FQName is
+            // shared by declarations in several files.
+            let sameFile = sema.symbols.sourceFileID(for: candidateID) == annotatedFileID
+            if candidate.visibility == .private && !sameFile {
+                continue
+            }
+            if sameFile {
+                return interner.resolve(literal)
+            }
+            if fallback == nil {
+                fallback = interner.resolve(literal)
+            }
+        }
+        return fallback
+    }
+
+    private func isSimpleKotlinIdentifier(_ component: String) -> Bool {
+        guard let first = component.first, first.isLetter || first == "_" else {
+            return false
+        }
+        return component.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
+    }
+
+    private func normalizeAnnotationStringLiteral(_ raw: String) -> String {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Annotation arguments are rebuilt from raw tokens. Determine whether
+        // the value is a string literal (regular or raw, with optional
+        // multi-dollar prefix) and extract its content. Raw strings must not
+        // be escape-decoded; regular strings are decoded like any other
+        // Kotlin string literal.
+        if let extraction = extractKotlinStringLiteralContent(value) {
+            return extraction.isRaw ? extraction.content : decodeKotlinStringEscapes(extraction.content)
+        }
+
+        return decodeKotlinStringEscapes(value)
+    }
+}
+
+/// Hidden declarations remain in metadata for binary compatibility, but must
+/// not participate in source overload resolution (including factory/constructor
+/// pairs with the same signature in the Native standard library).
+func isHiddenByDeprecatedAnnotation(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+    guard let annotation = symbols.annotations(for: symbol).first(where: {
+        KnownCompilerAnnotation.deprecated.matches($0.annotationFQName)
+    }) else { return false }
+    for (index, argument) in annotation.arguments.enumerated() {
+        let pieces = argument.split(separator: "=", maxSplits: 1).map(String.init)
+        let value: String
+        if pieces.count == 2 {
+            guard pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == "level" else { continue }
+            value = pieces[1]
+        } else {
+            guard index == 2 else { continue }
+            value = argument
+        }
+        let level = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ".").last.map(String.init)
+        if level == "HIDDEN" { return true }
+    }
+    return false
 }

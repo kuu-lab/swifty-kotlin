@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 // STDLIB-004: Codegen coverage for primitive array factory calls and
@@ -8,300 +7,498 @@ import Testing
 // that any regression in the array-creation code path is caught early.
 extension BuildKIRRegressionTests {
 
-    // MARK: - Factory functions → kk_array_of
-
-    /// `intArrayOf(1, 2, 3)` must lower to `kk_array_of`, the same vararg-
-    /// preserving runtime helper used by all `*ArrayOf` factories.
-    @Test func testIntArrayOfFactoryLowersToKkArrayOf() throws {
-        let source = """
-        fun make() = intArrayOf(1, 2, 3)
-        fun main(): Int {
-            val arr = make()
-            return arr.size
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
-
-            #expect(
-                callNames.contains("kk_array_of"),
-                "intArrayOf must lower to kk_array_of; got: \(callNames)"
-            )
-            #expect(
-                !(callNames.contains("intArrayOf")),
-                "intArrayOf call should have been rewritten; got: \(callNames)"
-            )
-        }
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedPrimitiveArrayCtx = Result<CompilationContext, any Error> {
+        let sources: [String] = [
+            """
+            package sample0
+            fun make0() = intArrayOf(1, 2, 3)
+            fun main0(): Int {
+                val arr = make0()
+                return arr.size
+            }
+            """,
+            """
+            package sample1
+            fun make1() = byteArrayOf(1.toByte(), 127.toByte())
+            fun main1(): Int {
+                val arr = make1()
+                return arr.size
+            }
+            """,
+            """
+            package sample2
+            fun make2() = charArrayOf('a', 'b', 'c')
+            fun main2(): Int {
+                val arr = make2()
+                return arr.size
+            }
+            """,
+            """
+            package sample3
+            fun make3() = IntArray(3) { it * 2 }
+            fun main3(): Int {
+                val arr = make3()
+                return arr.size
+            }
+            """,
+            """
+            package sample4
+            fun make4() = ByteArray(4) { (it + 1).toByte() }
+            fun main4(): Int {
+                val arr = make4()
+                return arr.size
+            }
+            """,
+            """
+            package sample5
+            fun make5() = ByteArray(8)
+            fun main5(): Int {
+                val arr = make5()
+                return arr.size
+            }
+            """,
+            """
+            package sample6
+            fun make6() = IntArray(3)
+            fun main6(): Int {
+                val arr = make6()
+                return arr.size
+            }
+            """,
+            """
+            package sample7
+            fun make7(list: List<Int>) = list.toIntArray()
+            fun main7(): Int {
+                val arr = make7(listOf(10, 20, 30))
+                return arr.size
+            }
+            """,
+            """
+            package sample8
+            fun make8(list: List<UInt>) = list.toUIntArray()
+            fun main8(): Int {
+                val arr = make8(listOf(1u, 4000000000u))
+                return arr.size
+            }
+            """,
+            """
+            package sample9
+            fun make9(arr: IntArray) = arr.toList()
+            fun main9(): Int {
+                val list = make9(intArrayOf(1, 2))
+                return list.size
+            }
+            """,
+            """
+            package sample10
+            fun make10() = UIntArray(3)
+            fun main10(): Int {
+                val arr = make10()
+                return arr.size
+            }
+            """,
+            """
+            package sample11
+            fun make11() = ULongArray(3)
+            fun main11(): Int {
+                val arr = make11()
+                return arr.size
+            }
+            """,
+            """
+            package sample12
+            fun make12() = BooleanArray(4) { it % 2 == 0 }
+            fun main12(): Int {
+                val arr = make12()
+                return arr.size
+            }
+            """,
+            """
+            package sample13
+            fun make13() = DoubleArray(4) { it.toDouble() + 0.5 }
+            fun main13(): Int {
+                val arr = make13()
+                return arr.size
+            }
+            """,
+            """
+            package sample14
+            fun make14() = DoubleArray(3)
+            fun main14(): Int {
+                val arr = make14()
+                return arr.size
+            }
+            """,
+            """
+            package sample15
+            fun make15() = uintArrayOf(1u, 4000000000u)
+            """
+        ]
+        let ctx = makeContextFromSources(sources)
+        try runToLowering(ctx)
+        return ctx
     }
 
-    /// `byteArrayOf(1.toByte(), 2.toByte())` must also lower to `kk_array_of`.
-    @Test func testByteArrayOfFactoryLowersToKkArrayOf() throws {
-        let source = """
-        fun make() = byteArrayOf(1.toByte(), 127.toByte())
-        fun main(): Int {
-            val arr = make()
-            return arr.size
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
-
-            #expect(
-                callNames.contains("kk_array_of"),
-                "byteArrayOf must lower to kk_array_of; got: \(callNames)"
-            )
-        }
+    private func sharedPrimitiveArrayCtx() throws -> CompilationContext {
+        try Self._sharedPrimitiveArrayCtx.get()
     }
 
-    /// `charArrayOf('a', 'b', 'c')` must lower to `kk_array_of`.
-    @Test func testCharArrayOfFactoryLowersToKkArrayOf() throws {
-        let source = """
-        fun make() = charArrayOf('a', 'b', 'c')
-        fun main(): Int {
-            val arr = make()
-            return arr.size
-        }
-        """
+    @Test
+    func testIntArrayOfFactoryLowersToKkArrayOf() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make0", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
-
-            #expect(
-                callNames.contains("kk_array_of"),
-                "charArrayOf must lower to kk_array_of; got: \(callNames)"
-            )
-        }
+        #expect(
+            callNames.contains("kk_array_of"),
+            "intArrayOf must lower to kk_array_of; got: \(callNames)"
+        )
+        #expect(
+            !(callNames.contains("intArrayOf")),
+            "intArrayOf call should have been rewritten; got: \(callNames)"
+        )
     }
 
-    // MARK: - Lambda constructors → kk_array_new_checked + kk_array_set
+    @Test
+    func testByteArrayOfFactoryLowersToKkArrayOf() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make1", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-    /// `IntArray(3) { it * 2 }` must lower to a `kk_array_new_checked` call
-    /// (which validates the size and throws `NegativeArraySizeException` for
-    /// negative sizes) followed by a loop that fills elements via `kk_array_set`.
-    @Test func testIntArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
-        let source = """
-        fun make() = IntArray(3) { it * 2 }
-        fun main(): Int {
-            val arr = make()
-            return arr.size
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
-
-            #expect(
-                callNames.contains("kk_array_new_checked"),
-                "IntArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
-            )
-            #expect(
-                callNames.contains("kk_array_set"),
-                "IntArray(n) { init } must emit kk_array_set in the fill loop; got: \(callNames)"
-            )
-
-            let throwFlags = extractThrowFlags(from: makeBody, interner: ctx.interner)
-            #expect(
-                throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true,
-                "kk_array_new_checked inside constructor must be throwing (NegativeArraySizeException)"
-            )
-        }
+        #expect(
+            callNames.contains("kk_array_of"),
+            "byteArrayOf must lower to kk_array_of; got: \(callNames)"
+        )
     }
 
-    /// `ByteArray(4) { (it + 1).toByte() }` exercises the same loop-based
-    /// constructor path for the byte-width primitive type.
-    @Test func testByteArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
-        let source = """
-        fun make() = ByteArray(4) { (it + 1).toByte() }
-        fun main(): Int {
-            val arr = make()
-            return arr.size
-        }
-        """
+    @Test
+    func testCharArrayOfFactoryUsesSourceBackedInlinePath() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make2", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
-
-            #expect(
-                callNames.contains("kk_array_new_checked"),
-                "ByteArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
-            )
-            #expect(
-                callNames.contains("kk_array_set"),
-                "ByteArray(n) { init } must emit kk_array_set; got: \(callNames)"
-            )
-        }
+        #expect(
+            callNames.contains("kk_array_new"),
+            "source-backed charArrayOf must allocate a primitive array; got: \(callNames)"
+        )
+        #expect(
+            callNames.filter { $0 == "kk_array_set" }.count == 3,
+            "source-backed charArrayOf must store each Char element; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_of"),
+            "source-backed charArrayOf must not lower to kk_array_of; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("charArrayOf"),
+            "inline charArrayOf should not remain as a call in KIR; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_box_char"),
+            "primitive Char elements should not be boxed; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_toList") && !callNames.contains("__kk_array_toList"),
+            "inline charArrayOf should not route through List varargs; got: \(callNames)"
+        )
     }
 
-    // MARK: - Size-only constructors → kk_array_new_checked (no init loop)
+    @Test
+    func testIntArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make3", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-    /// `ByteArray(8)` (no init lambda) must lower to a bare `kk_array_new_checked`
-    /// call with no fill loop, and must never fall through to a call named
-    /// after the array type itself (the array type name is not a linkable
-    /// symbol, which previously caused an undefined-symbol link error).
-    @Test func testByteArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
-        let source = """
-        fun make() = ByteArray(8)
-        fun main(): Int {
-            val arr = make()
-            return arr.size
-        }
-        """
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "IntArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            callNames.contains("kk_array_set"),
+            "IntArray(n) { init } must emit kk_array_set in the fill loop; got: \(callNames)"
+        )
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
-
-            #expect(
-                callNames.contains("kk_array_new_checked"),
-                "ByteArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
-            )
-            #expect(
-                !callNames.contains("kk_array_set"),
-                "ByteArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
-            )
-            #expect(
-                !callNames.contains("ByteArray"),
-                "ByteArray(n) (size-only) must not fall through to an unresolved 'ByteArray' call; got: \(callNames)"
-            )
-        }
+        let throwFlags = extractThrowFlags(from: makeBody, interner: ctx.interner)
+        #expect(
+            throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true,
+            "kk_array_new_checked inside constructor must be throwing (NegativeArraySizeException)"
+        )
     }
 
-    /// `IntArray(3)` (no init lambda) exercises the same size-only path for
-    /// a different primitive width, guarding against per-type regressions.
-    @Test func testIntArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
-        let source = """
-        fun make() = IntArray(3)
-        fun main(): Int {
-            val arr = make()
-            return arr.size
-        }
-        """
+    @Test
+    func testByteArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make4", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
-
-            #expect(
-                callNames.contains("kk_array_new_checked"),
-                "IntArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
-            )
-            #expect(
-                !callNames.contains("kk_array_set"),
-                "IntArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
-            )
-            #expect(
-                !callNames.contains("IntArray"),
-                "IntArray(n) (size-only) must not fall through to an unresolved 'IntArray' call; got: \(callNames)"
-            )
-        }
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "ByteArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            callNames.contains("kk_array_set"),
+            "ByteArray(n) { init } must emit kk_array_set; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("ByteArray"),
+            "source-backed ByteArray(n) { init } must not remain as a direct call; got: \(callNames)"
+        )
     }
 
-    // MARK: - List.toIntArray / List.toByteArray conversion lowering
+    @Test
+    func testByteArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make5", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-    /// `list.toIntArray()` must lower to the dedicated `kk_list_toIntArray`
-    /// runtime call rather than the generic `toIntArray` symbol.
-    @Test func testListToIntArrayLowersToRuntimeCall() throws {
-        let source = """
-        fun convert(list: List<Int>) = list.toIntArray()
-        fun main(): Int {
-            val arr = convert(listOf(10, 20, 30))
-            return arr.size
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let convertBody = try findKIRFunctionBody(named: "convert", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: convertBody, interner: ctx.interner)
-
-            #expect(
-                callNames.contains("kk_list_toIntArray"),
-                "List<Int>.toIntArray() must lower to kk_list_toIntArray; got: \(callNames)"
-            )
-            #expect(
-                !(callNames.contains("toIntArray")),
-                "toIntArray must be fully rewritten; got: \(callNames)"
-            )
-        }
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "ByteArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_set"),
+            "ByteArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("ByteArray"),
+            "ByteArray(n) (size-only) must not fall through to an unresolved 'ByteArray' call; got: \(callNames)"
+        )
     }
 
-    /// `intArray.toList()` must lower to a runtime `kk_*_toList` call.
-    /// The method resolver currently selects the generic `Array<T>.toList()` path
-    /// (`kk_array_toList`) rather than the IntArray-specific stub.
-    @Test func testIntArrayToListLowersToRuntimeCall() throws {
-        let source = """
-        fun convert(arr: IntArray) = arr.toList()
-        fun main(): Int {
-            val list = convert(intArrayOf(1, 2))
-            return list.size
-        }
-        """
+    @Test
+    func testIntArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make6", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "IntArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_set"),
+            "IntArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("IntArray"),
+            "IntArray(n) (size-only) must not fall through to an unresolved 'IntArray' call; got: \(callNames)"
+        )
+    }
 
-            let module = try #require(ctx.kir)
-            let convertBody = try findKIRFunctionBody(named: "convert", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: convertBody, interner: ctx.interner)
+    @Test
+    func testUIntArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make10", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-            let resolved = callNames.contains("kk_intArray_toList") || callNames.contains("kk_array_toList")
-            #expect(
-                resolved,
-                "IntArray.toList() must lower to a runtime toList call; got: \(callNames)"
-            )
-            #expect(
-                !(callNames.contains("toList")),
-                "toList must be fully rewritten to a runtime call; got: \(callNames)"
-            )
-        }
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "UIntArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_set"),
+            "UIntArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("UIntArray"),
+            "UIntArray(n) (size-only) must not fall through to an unresolved 'UIntArray' call; got: \(callNames)"
+        )
+    }
+
+    @Test
+    func testULongArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make11", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "ULongArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_set"),
+            "ULongArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("ULongArray"),
+            "ULongArray(n) (size-only) must not fall through to an unresolved 'ULongArray' call; got: \(callNames)"
+        )
+    }
+
+    @Test
+    func testBooleanArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make12", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "BooleanArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            callNames.contains("kk_array_set"),
+            "BooleanArray(n) { init } must emit kk_array_set in the fill loop; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("BooleanArray"),
+            "BooleanArray(n) { init } must not remain as an unresolved call; got: \(callNames)"
+        )
+
+        let throwFlags = extractThrowFlags(from: makeBody, interner: ctx.interner)
+        #expect(
+            throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true,
+            "kk_array_new_checked inside BooleanArray constructor must be throwing (NegativeArraySizeException)"
+        )
+    }
+
+    @Test
+    func testDoubleArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make13", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "DoubleArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            callNames.contains("kk_array_set"),
+            "DoubleArray(n) { init } must emit kk_array_set; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("DoubleArray"),
+            "source-backed DoubleArray(n) { init } must not remain an unresolved call; got: \(callNames)"
+        )
+    }
+
+    @Test
+    func testDoubleArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make14", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "DoubleArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_set"),
+            "DoubleArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("DoubleArray"),
+            "DoubleArray(n) (size-only) must not fall through to an unresolved call; got: \(callNames)"
+        )
+    }
+
+    @Test
+    func testUIntArrayOfFactoryLowersToSourceBackedPrimitiveArrayPath() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make15", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+        #expect(callNames.contains("kk_array_new"), "source-backed uintArrayOf must allocate a primitive array; got: \(callNames)")
+        #expect(
+            callNames.filter { $0 == "kk_array_set" }.count == 2,
+            "source-backed uintArrayOf must store each UInt element; got: \(callNames)"
+        )
+        #expect(!callNames.contains("kk_array_of"), "source-backed uintArrayOf must not use the generic array bridge; got: \(callNames)")
+        #expect(!callNames.contains("uintArrayOf"), "inline uintArrayOf should not remain as a call in KIR; got: \(callNames)")
+        #expect(!callNames.contains("kk_box_int"), "primitive UInt elements should not be boxed; got: \(callNames)")
+    }
+
+    @Test
+    func testListToIntArrayLowersToSourceBackedCall() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let convertBody = try findKIRFunctionBody(named: "make7", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: convertBody, interner: ctx.interner)
+
+        #expect(
+            !callNames.contains("kk_list_toIntArray"),
+            "List<Int>.toIntArray() must no longer use the removed kk_list_toIntArray bridge; got: \(callNames)"
+        )
+        #expect(
+            callNames == ["toIntArray"],
+            "List<Int>.toIntArray() must lower to a single call of the bundled declaration; got: \(callNames)"
+        )
+
+        // The call must carry a resolved declaration symbol (bundled stdlib),
+        // not an unresolved name that would only be matched at link time.
+        let calleeSymbol = try #require(convertBody.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "toIntArray"
+            else { return nil }
+            return symbol
+        }.first)
+        #expect(ctx.sema?.symbols.externalLinkName(for: calleeSymbol) == nil)
+    }
+
+    @Test
+    func testListToUIntArrayLowersToSourceBackedCall() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let convertBody = try findKIRFunctionBody(named: "make8", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: convertBody, interner: ctx.interner)
+
+        #expect(
+            !callNames.contains("kk_list_toUIntArray"),
+            "List<UInt>.toUIntArray() must no longer use the removed kk_list_toUIntArray bridge; got: \(callNames)"
+        )
+        #expect(
+            callNames == ["toUIntArray"],
+            "List<UInt>.toUIntArray() must lower to a single call of the bundled declaration; got: \(callNames)"
+        )
+
+        let calleeSymbol = try #require(convertBody.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "toUIntArray"
+            else { return nil }
+            return symbol
+        }.first)
+        #expect(ctx.sema?.symbols.externalLinkName(for: calleeSymbol) == nil)
+    }
+
+    @Test
+    func testIntArrayToListLowersToSourceBackedCall() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let convertBody = try findKIRFunctionBody(named: "make9", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: convertBody, interner: ctx.interner)
+
+        #expect(
+            callNames == ["toList"],
+            "IntArray.toList() must remain a call to the bundled source declaration; got: \(callNames)"
+        )
+        #expect(
+            convertBody.compactMap { instruction -> SymbolID? in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "toList"
+                else { return nil }
+                return symbol
+            }.contains(where: { symbol in
+                ctx.sema?.symbols.isSourceBackedSymbol(symbol) == true
+                    && ctx.sema?.symbols.externalLinkName(for: symbol) == nil
+            }),
+            "IntArray.toList() must resolve to source-backed Kotlin code; got: \(callNames)"
+        )
     }
 }
 #endif

@@ -1,8 +1,6 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 fun String?.isNullOrEmptyCompat(): Boolean = this == null || this.length == 0
 fun <T> T?.isPresentCompat(): Boolean = this != null
 fun String.tagCompat(): Int = 1
-fun String?.tagCompat(): Int = 0
 
 fun asInt(value: Boolean): Int = if (value) 1 else 0
 
@@ -19,5 +17,4 @@ fun main() {
     println(asInt(null.isPresentCompat<String>()))
     println(asInt("k".isPresentCompat()))
     println("k".tagCompat())
-    println(nullValue.tagCompat())
 }

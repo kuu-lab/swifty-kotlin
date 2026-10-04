@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "experimental_markers_empty_multidollar_regular_message.kt",
+      "range": {
+        "start": { "line": 8, "character": 47 },
+        "end": { "line": 8, "character": 89 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OPT-IN",
+      "source": "kswiftk",
+      "message": "'golden.diagnostics.EmptyMultiDollarRegularMessageMarker' requires opt-in. Annotate the usage with '@golden.diagnostics.EmptyMultiDollarRegularMessageMarker' or '@OptIn(golden.diagnostics.EmptyMultiDollarRegularMessageMarker::class)'.",
+      "codeActions": []
+    }
+  ]
+}

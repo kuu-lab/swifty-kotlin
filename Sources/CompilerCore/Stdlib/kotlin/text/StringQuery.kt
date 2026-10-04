@@ -1,5 +1,31 @@
 package kotlin.text
 
+import kotlin.internal.KsSymbolName
+
+// Source-level private bridges for the String-only fast paths. The public
+// declarations below remain bundled Kotlin APIs; keeping these links private
+// prevents the compiler from manufacturing public synthetic members for them.
+@KsSymbolName("__kk_string_first_flat")
+private external fun String.__kk_string_first(): Char
+
+@KsSymbolName("__kk_string_last_flat")
+private external fun String.__kk_string_last(): Char
+
+@KsSymbolName("__kk_string_single_flat")
+private external fun String.__kk_string_single(): Char
+
+@KsSymbolName("__kk_string_firstOrNull_flat")
+private external fun String.__kk_string_firstOrNull(): Char?
+
+@KsSymbolName("__kk_string_lastOrNull_flat")
+private external fun String.__kk_string_lastOrNull(): Char?
+
+@KsSymbolName("__kk_string_singleOrNull_flat")
+private external fun String.__kk_string_singleOrNull(): Char?
+
+@KsSymbolName("__kk_string_getOrNull_flat")
+private external fun String.__kk_string_getOrNull(index: Int): Char?
+
 // KSP-402
 // String query helpers migrated from Swift runtime entry points.
 
@@ -71,6 +97,91 @@ public fun String.lastOrNull(predicate: (Char) -> Boolean): Char? {
     }
     if (foundIndex >= 0) return this[foundIndex]
     return null
+}
+
+// KSP-1384: CharSequence last-family APIs are source-backed. Keep the
+// String-specific bridge overloads above because unrelated String callers
+// still use their runtime-backed no-predicate implementations.
+public fun CharSequence.last(): Char {
+    if (isEmpty())
+        throw NoSuchElementException("Char sequence is empty.")
+    return this[length - 1]
+}
+
+public inline fun CharSequence.last(predicate: (Char) -> Boolean): Char {
+    var index = length - 1
+    while (index >= 0) {
+        val element = this[index]
+        if (predicate(element)) return element
+        index--
+    }
+    throw NoSuchElementException("Char sequence contains no character matching the predicate.")
+}
+
+public val CharSequence.lastIndex: Int
+    get() = this.length - 1
+
+public fun CharSequence.lastOrNull(): Char? {
+    return if (isEmpty()) null else this[length - 1]
+}
+
+public inline fun CharSequence.lastOrNull(predicate: (Char) -> Boolean): Char? {
+    var index = length - 1
+    while (index >= 0) {
+        val element = this[index]
+        if (predicate(element)) return element
+        index--
+    }
+    return null
+}
+
+// KSP-1399: keep the CharSequence single-family implementation on direct
+// length/indexed-get dispatch so custom receivers retain Kotlin UTF-16 behavior.
+public fun CharSequence.single(): Char {
+    return when (length) {
+        0 -> throw NoSuchElementException("Char sequence is empty.")
+        1 -> this[0]
+        else -> throw IllegalArgumentException("Char sequence has more than one element.")
+    }
+}
+
+public inline fun CharSequence.single(predicate: (Char) -> Boolean): Char {
+    var single: Char? = null
+    var found = false
+    var index = 0
+    while (index < length) {
+        val element = this[index]
+        if (predicate(element)) {
+            if (found) throw IllegalArgumentException("Char sequence contains more than one matching element.")
+            single = element
+            found = true
+        }
+        index++
+    }
+    if (!found) throw NoSuchElementException("Char sequence contains no character matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return single as Char
+}
+
+public fun CharSequence.singleOrNull(): Char? {
+    return if (length == 1) this[0] else null
+}
+
+public inline fun CharSequence.singleOrNull(predicate: (Char) -> Boolean): Char? {
+    var single: Char? = null
+    var found = false
+    var index = 0
+    while (index < length) {
+        val element = this[index]
+        if (predicate(element)) {
+            if (found) return null
+            single = element
+            found = true
+        }
+        index++
+    }
+    if (!found) return null
+    return single
 }
 
 public fun String.single(): Char {

@@ -350,5 +350,61 @@ extension MetadataSerializerTests {
         #expect(records[0].kind == .typeAlias)
         #expect(records[0].typeSignature == "I")
     }
+
+    // MARK: - const val initializer values (KSP-635)
+
+    @Test func testSerializeConstValueLiteral() {
+        let encoder = MetadataEncoder()
+        let record = MetadataRecord(
+            kind: .property,
+            mangledName: "_KK_test__PI__P__D",
+            fqName: "test.PI",
+            typeSignature: "D",
+            constValueLiteral: "d:\(Double.pi.bitPattern)"
+        )
+        let output = encoder.serialize([record])
+        #expect(output.contains("const=d:\(Double.pi.bitPattern)"))
+    }
+
+    @Test func testDecodePropertyWithConstValue() {
+        let decoder = MetadataDecoder()
+        let content = "symbols=1\nproperty _KK fq=test.PI schema=v1 sig=D const=d:\(Double.pi.bitPattern)\n"
+        let records = decoder.decode(content)
+        #expect(records.count == 1)
+        #expect(records[0].constValueLiteral == "d:\(Double.pi.bitPattern)")
+    }
+
+    @Test func testConstValueCoderRoundTripsLiteralKinds() {
+        let interner = StringInterner()
+        let kinds: [KIRExprKind] = [
+            .intLiteral(-42),
+            .longLiteral(Int64.min),
+            .uintLiteral(UInt64(UInt32.max)),
+            .ulongLiteral(UInt64.max),
+            .floatLiteral(-1.5),
+            .doubleLiteral(Double.pi),
+            .charLiteral(0x1F600),
+            .boolLiteral(true),
+            .boolLiteral(false),
+            .stringLiteral(interner.intern("hello world")),
+        ]
+        for kind in kinds {
+            guard let encoded = MetadataConstValueCoder.encode(kind, resolver: { interner.resolve($0) }) else {
+                Issue.record("failed to encode \(kind)")
+                continue
+            }
+            #expect(!encoded.contains(" "))
+            let decoded = MetadataConstValueCoder.decode(encoded, interner: { interner.intern($0) })
+            #expect(decoded == kind)
+        }
+    }
+
+    @Test func testConstValueCoderRejectsNonLiteralAndMalformedInput() {
+        let interner = StringInterner()
+        #expect(MetadataConstValueCoder.encode(.unit, resolver: { interner.resolve($0) }) == nil)
+        #expect(MetadataConstValueCoder.decode("d", interner: { interner.intern($0) }) == nil)
+        #expect(MetadataConstValueCoder.decode("z:1", interner: { interner.intern($0) }) == nil)
+        #expect(MetadataConstValueCoder.decode("i:abc", interner: { interner.intern($0) }) == nil)
+    }
 }
 #endif

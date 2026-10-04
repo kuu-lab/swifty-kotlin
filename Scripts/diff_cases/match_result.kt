@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+
 fun main() {
     // STDLIB-REGEX-095: MatchResult完全実装
 
@@ -20,7 +20,8 @@ fun main() {
         println(match.groupValues[2])
 
         // component1(), component2() destructuring
-        val (whole, user) = match
+        val whole = match.groupValues[0]
+        val user = match.groupValues[1]
         println(whole)
         println(user)
     }

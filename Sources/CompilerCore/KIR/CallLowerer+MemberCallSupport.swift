@@ -7,15 +7,19 @@ struct MemberCallReceiver {
 /// Tag scheme shared by every `kk_any_to_string`/`kk_any_hashCode`/`kk_any_equals`
 /// call site (Any-fallback member calls, string concatenation/interpolation,
 /// data class `toString()` synthesis, `println(dataClass)` rewriting, ...):
-/// 1=default (Int/Long/erased Any), 2=Boolean, 3=String, 4=Char, 5=Float,
-/// 6=Double, 7=ULong. ULong spans the full 64 bits, so kk_any_to_string must
-/// reinterpret it as unsigned (tag 1 would print the signed reinterpretation,
-/// or even "null" for values whose bit pattern equals Int.min). UInt/UByte/
-/// UShort stay on the default tag: they are always zero-extended into this
-/// container, so tag 1's signed decimal rendering already matches their
-/// unsigned value. This is a free function (not a `CallLowerer` method) so
-/// every lowering pass that stringifies an arbitrary Any-typed value can
-/// share the exact same tag computation instead of drifting out of sync.
+/// 1=default (Int/erased Any), 2=Boolean, 3=String, 4=Char, 5=Float,
+/// 6=Double, 7=ULong, 8=Long, 9=UInt, 10=UByte, 11=UShort. ULong spans the
+/// full 64 bits, so `kk_any_to_string` must reinterpret it as unsigned (tag 1
+/// would print the signed
+/// reinterpretation, or even "null" for values whose bit pattern equals
+/// Int.min). UInt/UByte/UShort are zero-extended into this container, so their
+/// dedicated tags let `kk_any_hashCode` reinterpret the low 32/8/16 bits as
+/// Kotlin's signed backing value. `kk_any_to_string` and `kk_any_equals` treat
+/// tags 8 through 11 like tag 1, preserving their existing rendering and
+/// comparison behavior. This is a free function
+/// (not a `CallLowerer` method) so every lowering pass that stringifies an
+/// arbitrary Any-typed value can share the exact same tag computation instead
+/// of drifting out of sync.
 func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
     switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
     case .primitive(.boolean, _):
@@ -30,9 +34,226 @@ func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
         6
     case .primitive(.ulong, _):
         7
+    case .primitive(.long, _):
+        8
+    case .primitive(.uint, _):
+        9
+    case .primitive(.ubyte, _):
+        10
+    case .primitive(.ushort, _):
+        11
     default:
         1
     }
+}
+
+/// Boxes a statically non-null Long, ULong, or Double before generic hash
+/// dispatch. Their raw 64-bit representations can equal the runtime null
+/// sentinel, so passing them directly to `kk_any_hashCode` would turn a
+/// legitimate value into the null hash. `boxValueForAnySlot` selects the
+/// `_nonnull` callee variants for these types while leaving nullable sources
+/// on their existing sentinel-preserving path.
+func boxSentinelProneHashCodeReceiver(
+    _ value: KIRExprID,
+    sourceType: TypeID,
+    sema: SemaModule,
+    interner: StringInterner,
+    arena: KIRArena,
+    into instructions: inout [KIRInstruction]
+) -> KIRExprID {
+    switch sema.types.kind(of: sourceType) {
+    case .primitive(.long, .nonNull),
+         .primitive(.ulong, .nonNull),
+         .primitive(.double, .nonNull):
+        return boxValueForAnySlot(
+            value,
+            sourceType: sourceType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            resultType: sema.types.anyType,
+            requireNonNull: true,
+            into: &instructions
+        )
+    default:
+        return value
+    }
+}
+
+/// The `$enumOrdinalToName$<encodedFqName>(ordinal): String` helper for `type`,
+/// when `type` is a non-null enum class that has one.
+///
+/// `.synthetic` enum classes (Platform.OsFamily, RegexOption, …) are
+/// header-only symbols with no source declSite, so
+/// DataEnumSealedSynthesisPass never synthesizes their helper — see
+/// `emitBoxCallWithValueClassTag`, which skips them for the same reason.
+/// A nullable enum is excluded too: its null sentinel would be fed to the
+/// helper as an ordinal.
+///
+/// A free function (not a `CallLowerer` method) so `DataEnumSealedSynthesisPass`
+/// can share it too: its data-class `toString()` synthesis stringifies each
+/// property with this same enum/class resolution, but it runs as a standalone
+/// KIR rewrite with no `KIRLoweringDriver` to construct a `CallLowerer`.
+func resolveEnumOrdinalToNameCallee(
+    for type: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> (callee: InternedString, symbol: SymbolID?)? {
+    guard case let .classType(classType) = sema.types.kind(of: type),
+          classType.nullability == .nonNull,
+          let symbol = sema.symbols.symbol(classType.classSymbol),
+          symbol.kind == .enumClass,
+          !symbol.flags.contains(.synthetic)
+    else {
+        return nil
+    }
+    // BUG-A/BUG-Planet: a user `toString()` override takes precedence over
+    // the default bare-name rendering, so string interpolation on an
+    // enum-typed value (`"${Op.MUL}"`) matches an explicit `.toString()`
+    // call instead of always printing the entry name.
+    if let override = enumToStringOverrideHelper(for: symbol, symbols: sema.symbols, interner: interner) {
+        return (override.name, override.symbol)
+    }
+    let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
+    let helperSymbol = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).first { id in
+        sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+    }
+    return (helperName, helperSymbol)
+}
+
+/// Resolves the nearest class-declared `toString()` symbol — user-defined, or
+/// synthesized by `DataEnumSealedSynthesisPass` for a data class — while
+/// walking the class inheritance chain. The synthetic `kotlin.Any.toString()`
+/// placeholder every class inherits by default is excluded.
+func resolveClassToStringSymbol(
+    for classSymbolID: SymbolID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID? {
+    let toStringName = interner.intern("toString")
+    var currentSymbolID = classSymbolID
+    var visited: Set<SymbolID> = []
+
+    while visited.insert(currentSymbolID).inserted {
+        guard let classSymbol = sema.symbols.symbol(currentSymbolID) else {
+            break
+        }
+        let candidate = sema.symbols.lookupAll(
+            fqName: classSymbol.fqName + [toStringName]
+        ).first { id in
+            guard let symbol = sema.symbols.symbol(id), symbol.kind == .function else {
+                return false
+            }
+            return sema.symbols.functionSignature(for: id)?.parameterTypes.isEmpty ?? true
+        }
+        if let candidate,
+           let symbol = sema.symbols.symbol(candidate),
+           !isSyntheticAnyToStringSymbol(symbol, interner: interner)
+        {
+            return candidate
+        }
+
+        guard let superclass = sema.symbols.directSupertypes(for: currentSymbolID).first(where: { id in
+            sema.symbols.symbol(id)?.kind == .class
+        }) else {
+            break
+        }
+        currentSymbolID = superclass
+    }
+    return nil
+}
+
+/// Resolves `type`'s class-declared `toString()` symbol — user-defined, or
+/// synthesized by `DataEnumSealedSynthesisPass` for a data class — when one
+/// exists and is not the `kotlin.Any.toString()` placeholder every class
+/// inherits by default. The class hierarchy is searched from the static class
+/// type toward its direct superclass.
+/// `type` may be nullable: the class symbol is resolved from its non-null
+/// form, but callers passing a nullable `type` are responsible for
+/// null-guarding the receiver before invoking the returned callee (calling a
+/// member function on a null receiver crashes) — see the null-guard scaffold
+/// in `CallLowerer.emitAnyToStringWithNullGuard` for the pattern.
+///
+/// Shared by every pass that must call a class-typed value's own toString()
+/// directly instead of falling back to the generic `kk_any_to_string`
+/// Any-fallback tag path, which cannot distinguish a class's own fields from
+/// an ordinary heap pointer, or — for a value class — from its raw unboxed
+/// primitive representation: `CallLowerer.emitAnyToStringWithNullGuard`
+/// (string template interpolation, `+`/`+=` string concatenation) and
+/// `DataEnumSealedSynthesisPass`'s per-property data class `toString()`
+/// synthesis. Mirrors (but does not replace) the equivalent resolution in
+/// `ConsolePrintLoweringPass.classToStringExpression`, which additionally
+/// special-cases object/enum receivers for `println`/`print`.
+func resolveClassOwnToStringCallee(
+    for type: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> (callee: InternedString, symbol: SymbolID)? {
+    let toStringName = interner.intern("toString")
+    let toStringSymbolID: SymbolID?
+    if case .unit = sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        // Unit has the builtin value representation, so it has no classType
+        // symbol to resolve. Its source-backed object member is still the
+        // authoritative implementation for direct and statically-known calls.
+        guard let unitClassSymbol = sema.types.unitClassSymbol,
+              let unitSymbol = sema.symbols.symbol(unitClassSymbol)
+        else {
+            return nil
+        }
+        let toStringFQName = unitSymbol.fqName + [toStringName]
+        toStringSymbolID = sema.symbols.lookupAll(fqName: toStringFQName).first { id in
+            guard let symbol = sema.symbols.symbol(id), symbol.kind == .function else {
+                return false
+            }
+            return sema.symbols.functionSignature(for: id)?.parameterTypes.isEmpty ?? true
+        }
+    } else {
+        guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return nil
+        }
+        // HashSet, ULongRange, and ULongProgression are source-backed for
+        // their nominal APIs, but their runtime representations do not carry
+        // Kotlin vtables. Fall back to the generic Any path, whose runtime
+        // formatter understands these boxes.
+        let knownNames = KnownCompilerNames(interner: interner)
+        let isRuntimeBackedULongRange = ["ULongRange", "ULongProgression"].contains { name in
+            classSymbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern(name),
+            ]
+        }
+        guard classSymbol.fqName != knownNames.kotlinCollectionsHashSetFQName,
+              !isRuntimeBackedULongRange
+        else {
+            return nil
+        }
+        toStringSymbolID = resolveClassToStringSymbol(
+            for: classSymbol.id,
+            sema: sema,
+            interner: interner
+        )
+    }
+    guard let toStringSymbolID,
+          let toStringSymbol = sema.symbols.symbol(toStringSymbolID),
+          !isSyntheticAnyToStringSymbol(toStringSymbol, interner: interner)
+    else {
+        return nil
+    }
+    let externalLinkName = sema.symbols.externalLinkName(for: toStringSymbolID)
+    let callee: InternedString = if let externalLinkName, !externalLinkName.isEmpty {
+        interner.intern(externalLinkName)
+    } else {
+        toStringName
+    }
+    return (callee, toStringSymbolID)
+}
+
+func isSyntheticAnyToStringSymbol(_ sym: SemanticSymbol, interner: StringInterner) -> Bool {
+    guard sym.flags.contains(.synthetic) else { return false }
+    let anyToStringFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Any"), interner.intern("toString")]
+    return sym.fqName == anyToStringFQName
 }
 
 extension CallLowerer {
@@ -41,7 +262,18 @@ extension CallLowerer {
         "cancel", "complete", "completeExceptionally",
         "isActive", "isCompleted", "isCancelled"
     ]
-    static let unresolvedChannelMemberNames: Set<String> = ["send", "receive", "close", "isClosedForReceive", "isClosedForSend"]
+    // KSP-678: close / isClosedForReceive / isClosedForSend migrated to bundled
+    // Kotlin source; only the suspension core send / receive remain here.
+    static let unresolvedChannelMemberNames: Set<String> = ["send", "receive"]
+    // Flow operators beyond map/filter/take/collect (already covered by
+    // unresolvedCollectionMemberNames because those names also exist on
+    // collections). These names are Flow-specific, so a Flow receiver with an
+    // unresolved chosenCallee still needs its receiver argument inserted here.
+    static let unresolvedFlowMemberNames: Set<String> = [
+        "buffer", "conflate", "collectLatest", "debounce", "sample", "delayEach", "flowOn",
+        "transform", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
+        "catch", "retry", "retryWhen", "onErrorReturn", "onErrorResume", "single",
+    ]
 
     enum PrimitiveCompareABIKind: Int32 {
         case int = 0
@@ -81,6 +313,39 @@ extension CallLowerer {
         computeAnyFallbackTag(for: type, sema: sema)
     }
 
+    /// Target kind for `kk_number_to_primitive` (KSP-1540). Mirrors the
+    /// Runtime-side `RuntimeNumberConversionTargetKind` by raw value — the two
+    /// enums live in separate modules linked only through the C ABI, so they
+    /// must be kept in sync manually.
+    enum NumberConversionTargetKind: Int32 {
+        case double = 0
+        case float = 1
+        case long = 2
+        case int = 3
+        case short = 4
+        case byte = 5
+    }
+
+    func numberConversionTargetKind(for calleeName: InternedString, interner: StringInterner) -> NumberConversionTargetKind? {
+        switch interner.resolve(calleeName) {
+        case "toDouble": return .double
+        case "toFloat": return .float
+        case "toLong": return .long
+        case "toInt": return .int
+        case "toShort": return .short
+        case "toByte": return .byte
+        default: return nil
+        }
+    }
+
+    func enumOrdinalToNameCallee(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (callee: InternedString, symbol: SymbolID?)? {
+        resolveEnumOrdinalToNameCallee(for: type, sema: sema, interner: interner)
+    }
+
     /// Converts `valueID` (of static type `valueType`) to a `String` via
     /// `kk_any_to_string`, using `anyFallbackTag`'s tag for `valueType` and
     /// guarding against the null-sentinel collision for nullable
@@ -103,8 +368,128 @@ extension CallLowerer {
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
+        // A nullable flat String carries a null data pointer, while the flat
+        // concat ABI intentionally treats that pointer as an empty string.
+        // Kotlin's Any? conversion used by String.plus must render a null
+        // receiver/argument as the literal "null" instead. Materialize that
+        // spelling before callers pass the value to __kk_string_concat_flat.
+        if sema.types.makeNonNullable(valueType) == stringType,
+           sema.types.nullability(of: valueType) != .nonNull
+        {
+            let converted = arena.appendTemporary(type: stringType)
+            let nullString = interner.intern("null")
+            let nullStringID = arena.appendExpr(.stringLiteral(nullString), type: stringType)
+            instructions.append(.constValue(result: nullStringID, value: .stringLiteral(nullString)))
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: valueID, target: nonNullLabel))
+            instructions.append(.copy(from: nullStringID, to: converted))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            instructions.append(.copy(from: valueID, to: converted))
+            instructions.append(.label(endLabel))
+            return converted
+        }
         let isNullable = sema.types.makeNonNullable(valueType) != valueType
-        let tag = anyFallbackTag(for: valueType, sema: sema)
+        let isUnit: Bool = if case .unit = sema.types.kind(of: sema.types.makeNonNullable(valueType)) {
+            true
+        } else {
+            false
+        }
+        // Unit has no nullable TypeKind variant, but a safe call returning Unit
+        // still carries the null sentinel at runtime. Keep the null guard for
+        // Unit values so string interpolation does not invoke Unit.toString()
+        // on that sentinel.
+        let needsNullGuard = isNullable || isUnit
+        // A statically enum-typed value is represented as its bare ordinal, so
+        // `kk_any_to_string` would render the number. The enum class's
+        // `$enumOrdinalToName$<encodedFqName>` helper maps it back to the entry name —
+        // the same helper `emitBoxCallWithValueClassTag` uses when an enum crosses
+        // an Any-erased boundary.
+        if let nameHelper = enumOrdinalToNameCallee(for: valueType, sema: sema, interner: interner) {
+            let name = arena.appendTemporary(type: stringType)
+            instructions.append(.call(
+                symbol: nameHelper.symbol,
+                callee: nameHelper.callee,
+                arguments: [valueID],
+                result: name,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return name
+        }
+        // A statically class-typed value (data class, ordinary class, or value
+        // class) is represented at runtime as a heap pointer or — for a
+        // non-nullable value class — its raw unboxed underlying primitive.
+        // Neither representation carries enough information for the generic
+        // kk_any_to_string tag path below to recover the class's own
+        // toString(). Use the shared resolver so data-class synthesis and this
+        // string-conversion funnel agree on the selected symbol. When the
+        // receiver is open/interface-typed, preserve virtual dispatch so a
+        // derived override is selected at runtime.
+        if let classToString = resolveClassOwnToStringCallee(for: valueType, sema: sema, interner: interner) {
+            let converted = arena.appendTemporary(type: stringType)
+            func emitToStringCall(into result: KIRExprID) -> KIRInstruction {
+                tryEmitVirtualDispatch(
+                    chosenCallee: classToString.symbol,
+                    calleeName: classToString.callee,
+                    receiverExpr: nil,
+                    loweredReceiverID: valueID,
+                    isSuperCall: false,
+                    finalArguments: [],
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner
+                ) ?? .call(
+                    symbol: classToString.symbol,
+                    callee: classToString.callee,
+                    arguments: [valueID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            }
+            guard needsNullGuard else {
+                instructions.append(emitToStringCall(into: converted))
+                return converted
+            }
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            let nullStr = interner.intern("null")
+            let nullStrID = arena.appendExpr(.stringLiteral(nullStr), type: stringType)
+            instructions.append(.constValue(result: nullStrID, value: .stringLiteral(nullStr)))
+            instructions.append(.jumpIfNotNull(value: valueID, target: nonNullLabel))
+            instructions.append(.copy(from: nullStrID, to: converted))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            let innerConverted = arena.appendTemporary(type: stringType)
+            instructions.append(emitToStringCall(into: innerConverted))
+            instructions.append(.copy(from: innerConverted, to: converted))
+            instructions.append(.label(endLabel))
+            return converted
+        }
+        // Long.MIN_VALUE has the same bits as the null sentinel. Preserve a
+        // statically non-null Long by boxing it before the generic renderer
+        // checks for null; nullable Long values keep their existing sentinel
+        // representation and tag.
+        let isNonNullLong: Bool = if case .primitive(.long, .nonNull) = sema.types.kind(of: valueType) {
+            true
+        } else {
+            false
+        }
+        let renderedValue = isNonNullLong ? boxValueForAnySlot(
+            valueID,
+            sourceType: valueType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            resultType: sema.types.anyType,
+            requireNonNull: true,
+            into: &instructions
+        ) : valueID
+        let tag = isNonNullLong ? Int64(1) : anyFallbackTag(for: valueType, sema: sema)
         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
         instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
         let converted = arena.appendTemporary(type: stringType)
@@ -112,7 +497,7 @@ extension CallLowerer {
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_any_to_string"),
-                arguments: [valueID, tagID],
+                arguments: [renderedValue, tagID],
                 result: converted,
                 canThrow: false,
                 thrownResult: nil
@@ -166,6 +551,22 @@ extension CallLowerer {
         return knownNames.isChannelSymbol(symbol)
     }
 
+    func isFlowReceiverType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (classType, _) = resolveClassTypeSymbol(receiverType, sema: sema),
+              let flowSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlinx"), interner.intern("coroutines"),
+                  interner.intern("flow"), interner.intern("Flow"),
+              ])
+        else {
+            return false
+        }
+        return classType.classSymbol == flowSymbol
+    }
+
     func isCoroutineContextReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -207,16 +608,17 @@ extension CallLowerer {
         "maxBy", "minBy", "max", "min", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull", "maxOrNull", "minOrNull",
         "plus", "plusElement", "minus", "minusElement",
         "asSequence", "asIterable", "toList", "toSet", "toMap", "toCollection", "toMutableList", "toMutableSet", "toSortedSet", "toTypedArray",
+        // Kept for non-List receivers (Set / Iterable): List receivers are
+        // source-backed since KSP-628 and no longer reach this path.
         "toBooleanArray", "toCharArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray",
         "take", "takeWhile", "takeLast", "drop", "reversed", "asReversed", "sorted", "distinct", "flatten", "chunked", "windowed", "collect", "subList",
         "sortedDescending", "sortedByDescending", "sortedWith", "partition",
-        "sortedArrayWith",
         "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
         "maxOf", "minOf",
         "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
         "sort", "sortWith", "sortBy", "sortByDescending",
         "onEach", "onEachIndexed",
-        "copyOf", "copyOfRange", "fill", "replaceAll", "removeIf",
+        "fill",
         "firstOrNull", "lastOrNull", "singleOrNull",
         "addAll", "removeAll", "retainAll",
         "intersect", "union", "subtract",
@@ -224,7 +626,6 @@ extension CallLowerer {
         "containsAll", "binarySearch", "average",
         "addFirst", "addLast",
         "sum", "sumOf", "sumBy", "sumByDouble",
-        "to", // FUNC-002
     ]
 
 }

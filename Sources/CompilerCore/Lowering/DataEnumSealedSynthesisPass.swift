@@ -1,12 +1,14 @@
 
 final class DataEnumSealedSynthesisPass: LoweringPass {
     static let name = "DataEnumSealedSynthesis"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         module.arena.transformFunctions { function in
             var updated = function
             if updated.body.isEmpty {
-                updated.replaceBody([.nop, .returnUnit])
+                updated.replaceBody([.nop, .returnUnit], locations: [nil, nil])
             }
             return updated
         }
@@ -15,6 +17,12 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             module.recordLowering(Self.name)
             return
         }
+
+        appendReferencedBundledEnumNominalsIfNeeded(
+            module: module,
+            sema: sema,
+            interner: ctx.interner
+        )
 
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let existingFunctionSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
@@ -93,10 +101,19 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     ))
                 }
                 var updated = function
+                let initLocations = Array(repeating: SourceRange?.none, count: initInstructions.count)
                 if let first = updated.body.first, case .beginBlock = first {
-                    updated.replaceBody([first] + initInstructions + updated.body.dropFirst())
+                    updated.replaceBody(
+                        [first] + initInstructions + updated.body.dropFirst(),
+                        locations: Array(updated.instructionLocations.prefix(1))
+                            + initLocations
+                            + updated.instructionLocations.dropFirst()
+                    )
                 } else {
-                    updated.replaceBody(initInstructions + updated.body)
+                    updated.replaceBody(
+                        initInstructions + updated.body,
+                        locations: initLocations + updated.instructionLocations
+                    )
                 }
                 return updated
             }
@@ -111,6 +128,159 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         module.recordLowering(Self.name)
     }
 
+    /// Describes a bundled enum nominal that is appended to consumer KIR only
+    /// when referenced: where it lives in the bundled sources and which
+    /// generated members count as a reference.
+    private struct BundledEnumSpec {
+        let pathSegments: [String]
+        let requiresSourceBacked: Bool
+        /// Member names looked up directly under the enum's fqName.
+        let ownMemberNames: [String]
+        /// Member names looked up under the companion object's fqName.
+        let companionMemberNames: [String]
+        /// Whether a typed expression of this enum type also counts as a reference.
+        let checksExprTypes: Bool
+    }
+
+    /// A bundled enum resolved against `sema.symbols`, ready for membership
+    /// checks during the combined binding scan.
+    private struct BundledEnumProbe {
+        let classSymbol: SymbolID
+        let memberSymbols: Set<SymbolID>
+        let checksExprTypes: Bool
+    }
+
+    /// Makes referenced bundled coroutine, native, and reflection
+    /// enum nominals visible to the shared enum synthesis pass when a consumer
+    /// KIR references one of their generated APIs or the enum type itself.
+    /// Bundled source declarations are omitted from consumer KIR, but their
+    /// source-backed nominal identity is still required by enum helper bodies.
+    /// A single combined pass over the binding maps records which enums are
+    /// referenced instead of rescanning each map once per enum.
+    private func appendReferencedBundledEnumNominalsIfNeeded(
+        module: KIRModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) {
+        let specs: [BundledEnumSpec] = [
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "coroutines", "intrinsics", "CoroutineSingletons"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "native", "MemoryModel"],
+                requiresSourceBacked: false,
+                ownMemberNames: ["entries", "valueOf", "values"],
+                companionMemberNames: [],
+                checksExprTypes: false
+            ),
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "native", "OsFamily"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "reflect", "KVariance"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "native", "CpuArchitecture"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+        ]
+
+        var probes: [BundledEnumProbe] = []
+        for spec in specs {
+            let enumFQName = spec.pathSegments.map { interner.intern($0) }
+            guard let classSymbol = sema.symbols.lookup(fqName: enumFQName),
+                  let classInfo = sema.symbols.symbol(classSymbol),
+                  classInfo.kind == .enumClass,
+                  !spec.requiresSourceBacked || sema.symbols.isSourceBackedSymbol(classSymbol)
+            else {
+                continue
+            }
+
+            var memberSymbols = Set(spec.ownMemberNames.flatMap { name in
+                sema.symbols.lookupAll(fqName: enumFQName + [interner.intern(name)])
+            })
+            if let companionSymbol = sema.symbols.companionObjectSymbol(for: classSymbol),
+               let companion = sema.symbols.symbol(companionSymbol)
+            {
+                memberSymbols.formUnion(spec.companionMemberNames.flatMap { name in
+                    sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern(name)])
+                })
+            }
+            guard !memberSymbols.isEmpty else {
+                continue
+            }
+            probes.append(BundledEnumProbe(
+                classSymbol: classSymbol,
+                memberSymbols: memberSymbols,
+                checksExprTypes: spec.checksExprTypes
+            ))
+        }
+        guard !probes.isEmpty else {
+            return
+        }
+
+        var memberToProbes: [SymbolID: [Int]] = [:]
+        for (index, probe) in probes.enumerated() {
+            for member in probe.memberSymbols {
+                memberToProbes[member, default: []].append(index)
+            }
+        }
+        var classToProbes: [SymbolID: [Int]] = [:]
+        for (index, probe) in probes.enumerated() where probe.checksExprTypes {
+            classToProbes[probe.classSymbol, default: []].append(index)
+        }
+
+        var isReferenced = [Bool](repeating: false, count: probes.count)
+        for symbol in sema.bindings.identifierSymbols.values {
+            for index in memberToProbes[symbol] ?? [] {
+                isReferenced[index] = true
+            }
+        }
+        for binding in sema.bindings.callBindings.values {
+            for index in memberToProbes[binding.chosenCallee] ?? [] {
+                isReferenced[index] = true
+            }
+        }
+        if !classToProbes.isEmpty {
+            for type in sema.bindings.exprTypes.values {
+                guard case let .classType(classType) = sema.types.kind(of: type) else {
+                    continue
+                }
+                for index in classToProbes[classType.classSymbol] ?? [] {
+                    isReferenced[index] = true
+                }
+            }
+        }
+
+        let declaredNominalSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .nominalType(nominal) = declaration else {
+                return nil
+            }
+            return nominal.symbol
+        })
+        for (index, probe) in probes.enumerated() where isReferenced[index] {
+            guard !declaredNominalSymbols.contains(probe.classSymbol) else {
+                continue
+            }
+            _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: probe.classSymbol)))
+        }
+    }
+
     /// Replaces `constValue(result: r, value: .symbolRef(sym))` where `sym`
     /// is a synthetic field owned by a synthetic enum class with
     /// `constValue(result: r, value: .intLiteral(ordinal))` followed by a
@@ -119,32 +289,43 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         module: KIRModule,
         sema: SemaModule
     ) {
-        // Build a lookup: syntheticEnumEntrySymbol -> ordinal
-        var syntheticEntryOrdinal: [SymbolID: Int] = [:]
+        // Build a lookup: syntheticEnumEntrySymbol -> ordinal.
+        // Use `isSourceBackedSymbol` rather than the `synthetic` flag so that
+        // real source-backed enum entries (including those imported from a
+        // precompiled .kklib) keep their global-object symbolRef; only
+        // compiler-synthesised enum entries (e.g. RegexOption.DOT_MATCHES_ALL)
+        // are inlined as raw ordinals.
+        var syntheticEntriesByParent: [[InternedString]: [SymbolID]] = [:]
         for sym in sema.symbols.allSymbols() {
             guard sym.kind == .field,
-                  sym.flags.contains(.synthetic),
+                  !sema.symbols.isSourceBackedSymbol(sym.id),
                   sym.fqName.count >= 2
             else {
                 continue
             }
-            let parentFQ = Array(sym.fqName.dropLast())
+            syntheticEntriesByParent[Array(sym.fqName.dropLast()), default: []].append(sym.id)
+        }
+
+        var syntheticEntryOrdinal: [SymbolID: Int] = [:]
+        for (parentFQ, entryIDs) in syntheticEntriesByParent {
             guard let parentSymbol = sema.symbols.lookup(fqName: parentFQ),
                   let parentInfo = sema.symbols.symbol(parentSymbol),
                   parentInfo.kind == .enumClass,
-                  parentInfo.flags.contains(.synthetic)
+                  !sema.symbols.isSourceBackedSymbol(parentSymbol)
             else {
                 continue
             }
             // Ordinal = index among all field children of the parent enum.
+            // The sorted sibling list is computed once per enum, not per entry.
             let siblings = sema.symbols.children(ofFQName: parentFQ)
                 .filter { id in
                     guard let s = sema.symbols.symbol(id) else { return false }
                     return s.kind == .field
                 }
                 .sorted(by: { $0.rawValue < $1.rawValue })
-            if let ordinal = siblings.firstIndex(of: sym.id) {
-                syntheticEntryOrdinal[sym.id] = ordinal
+            let entrySet = Set(entryIDs)
+            for (ordinal, sibling) in siblings.enumerated() where entrySet.contains(sibling) {
+                syntheticEntryOrdinal[sibling] = ordinal
             }
         }
         guard !syntheticEntryOrdinal.isEmpty else { return }
@@ -166,7 +347,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
             if changed {
                 var updated = function
-                updated.replaceBody(newBody)
+                updated.replaceBody(newBody, locations: function.instructionLocations)
                 return updated
             }
             return function
@@ -190,16 +371,15 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         )
         let stringType = sema.types.stringType
         for (ordinal, entry) in entries.enumerated() {
-            let entryName = ctx.interner.resolve(entry.name)
             appendSyntheticCountFunctionIfNeeded(
-                name: ctx.interner.intern("\(entryName)$enumOrdinal"),
+                name: NameMangler.enumEntryOrdinalHelperName(for: entry, interner: ctx.interner),
                 owner: nominalSymbol, value: Int64(ordinal),
                 returnType: intType, module: module, sema: sema,
                 existingFunctionSymbols: existingFunctionSymbols
             )
             appendSyntheticStringFunctionIfNeeded(
-                name: ctx.interner.intern("\(entryName)$enumName"),
-                owner: nominalSymbol, value: ctx.interner.intern(entryName),
+                name: NameMangler.enumEntryNameHelperName(for: entry, interner: ctx.interner),
+                owner: nominalSymbol, value: entry.name,
                 returnType: stringType, module: module, sema: sema,
                 existingFunctionSymbols: existingFunctionSymbols
             )
@@ -211,6 +391,14 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             interner: ctx.interner
         )
         appendSyntheticEnumOrdinalToNameIfNeeded(
+            owner: nominalSymbol,
+            entries: entries,
+            module: module,
+            sema: sema,
+            existingFunctionSymbols: existingFunctionSymbols,
+            interner: ctx.interner
+        )
+        appendSyntheticEnumEntryDispatchesIfNeeded(
             owner: nominalSymbol,
             entries: entries,
             module: module,
@@ -238,7 +426,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         appendSyntheticEnumValueOfIfNeeded(
             name: ctx.interner.intern("valueOf"),
             owner: valueOfOwner,
-            enumName: nominalSymbol.name,
+            enumName: nominalSymbol.fqName.map(ctx.interner.resolve).joined(separator: "."),
             enumType: sema.types.make(.classType(ClassType(
                 classSymbol: nominalSymbol.id,
                 args: [],
@@ -349,7 +537,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
     }
 
     /// Returns the primary-constructor data properties of a data class, sorted by constructor order.
-    private func dataClassPropertySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
+    func dataClassPropertySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
         let primaryConstructorParamNames: [InternedString] = primaryConstructorSymbol(owner: owner, symbols: symbols)
             .flatMap { constructor in
                 symbols.functionSignature(for: constructor.id)?.valueParameterSymbols.compactMap { paramSymbol in
@@ -574,17 +762,26 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
     }
 
     private func enumEntrySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
-        symbols.children(ofFQName: owner.fqName)
+        let fieldOffsets = symbols.nominalLayout(for: owner.id)?.fieldOffsets ?? [:]
+        return symbols.children(ofFQName: owner.fqName)
             .compactMap { symbols.symbol($0) }
             .filter { $0.kind == .field }
             .sorted(by: {
-                // Sort by source declaration offset first (Kotlin guarantees
-                // enum entry order matches declaration order).  Fall back to
-                // symbol ID which is monotonically assigned in parse order.
-                let lhsOffset = $0.declSite?.start.offset ?? Int.max
-                let rhsOffset = $1.declSite?.start.offset ?? Int.max
-                if lhsOffset != rhsOffset {
-                    return lhsOffset < rhsOffset
+                // Source-backed entries have precise declaration ranges.
+                let lhsDeclOffset = $0.declSite?.start.offset
+                let rhsDeclOffset = $1.declSite?.start.offset
+                if let lhsDeclOffset, let rhsDeclOffset, lhsDeclOffset != rhsDeclOffset {
+                    return lhsDeclOffset < rhsDeclOffset
+                }
+                if (lhsDeclOffset == nil) != (rhsDeclOffset == nil) {
+                    return lhsDeclOffset != nil
+                }
+                // Imported library entries have no source declaration range;
+                // their metadata field offsets preserve declaration order.
+                let lhsFieldOffset = fieldOffsets[$0.id] ?? Int.max
+                let rhsFieldOffset = fieldOffsets[$1.id] ?? Int.max
+                if lhsFieldOffset != rhsFieldOffset {
+                    return lhsFieldOffset < rhsFieldOffset
                 }
                 return $0.id.rawValue < $1.id.rawValue
             })
@@ -656,13 +853,39 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         params: [KIRParameter],
         body: [KIRInstruction]
     ) {
-        sema.symbols.setFunctionSignature(signature, for: functionSymbol)
+        // Preserve the generic receiver contract collected for source-backed data
+        // class members when the lowering body is synthesized with erased KIR types.
+        let effectiveSignature: FunctionSignature = if
+            signature.classTypeParameterCount == 0,
+            let existingSignature = sema.symbols.functionSignature(for: functionSymbol),
+            existingSignature.classTypeParameterCount > 0
+        {
+            FunctionSignature(
+                receiverType: existingSignature.receiverType,
+                parameterTypes: signature.parameterTypes,
+                returnType: existingSignature.returnType,
+                isSuspend: signature.isSuspend,
+                canThrow: signature.canThrow,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                typeParameterSymbols: existingSignature.typeParameterSymbols,
+                reifiedTypeParameterIndices: existingSignature.reifiedTypeParameterIndices,
+                typeParameterUpperBounds: existingSignature.typeParameterUpperBounds,
+                typeParameterUpperBoundsList: existingSignature.typeParameterUpperBoundsList,
+                classTypeParameterCount: existingSignature.classTypeParameterCount
+            )
+        } else {
+            signature
+        }
+        sema.symbols.setFunctionSignature(effectiveSignature, for: functionSymbol)
         _ = module.arena.appendDecl(.function(
             KIRFunction(
                 symbol: functionSymbol,
                 name: name,
                 params: params,
-                returnType: signature.returnType,
+                returnType: effectiveSignature.returnType,
                 body: body,
                 isSuspend: false,
                 isInline: false
@@ -699,6 +922,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             visibility: .public,
             flags: [.synthetic, .static]
         )
+        sema.symbols.setParentSymbol(owner.id, for: functionSymbol)
         if existingFunctionSymbols.contains(functionSymbol) {
             return
         }
@@ -715,6 +939,9 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 valueParameterIsVararg: signature.valueParameterIsVararg.isEmpty
                     ? params.map { _ in false }
                     : signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn.isEmpty
+                    ? params.map { _ in true }
+                    : signature.valueParameterAllowsNonLocalReturn,
                 typeParameterSymbols: []
             ),
             for: functionSymbol

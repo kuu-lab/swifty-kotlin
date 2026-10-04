@@ -9,7 +9,7 @@ fun main() {
     println(a.subtract(c))
 
     // subtract with empty set
-    println(a.subtract(emptySet()))
+    println(a.subtract(emptySet<Int>()))
 
     // subtract where all elements removed
     println(a.subtract(a))

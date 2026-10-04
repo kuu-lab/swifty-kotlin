@@ -1,6 +1,7 @@
 import Dispatch
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private final class RuntimeMutexTestState: @unchecked Sendable {
     private let lock = NSLock()
@@ -41,73 +42,64 @@ private var runtimeMutexTestState: RuntimeMutexTestState {
     }
 }
 
-private let runtimeMutexWithLockObservedLockedInsideLock = NSLock()
-nonisolated(unsafe) private var _runtimeMutexWithLockObservedLockedInside = false
-
-private var runtimeMutexWithLockObservedLockedInside: Bool {
-    get {
-        runtimeMutexWithLockObservedLockedInsideLock.lock()
-        defer { runtimeMutexWithLockObservedLockedInsideLock.unlock() }
-        return _runtimeMutexWithLockObservedLockedInside
-    }
-    set {
-        runtimeMutexWithLockObservedLockedInsideLock.lock()
-        defer { runtimeMutexWithLockObservedLockedInsideLock.unlock() }
-        _runtimeMutexWithLockObservedLockedInside = newValue
-    }
+private func resetRuntimeMutexTestState() {
+    runtimeMutexTestState.reset()
 }
 
-@_cdecl("runtime_mutex_with_lock_action")
-private func runtime_mutex_with_lock_action(_ envRaw: Int) -> Int {
-    runtimeMutexWithLockObservedLockedInside = kk_mutex_isLocked(envRaw) != 0
-    return 77
-}
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeMutexTestState))
+struct RuntimeMutexTests {
+    // KSP-677: Mutex.withLock is Kotlin source composing the c-soft lock()/unlock()
+    // kernel primitives, so its runtime coverage is the lock/tryLock/unlock path below.
+    @Test func mutexBasicLockTryLockUnlock() {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
 
-final class RuntimeMutexTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        runtimeMutexTestState.reset()
-        runtimeMutexWithLockObservedLockedInside = false
+        #expect(__kk_mutex_isLocked(handle) == 0)
+        #expect(kk_mutex_lock(handle, 0) == 0)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+        #expect(__kk_mutex_tryLock(handle) == 0)
+        #expect(kk_mutex_unlock(handle) == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+        #expect(__kk_mutex_tryLock(handle) == 1)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+        #expect(kk_mutex_unlock(handle) == 0)
     }
 
-    func testMutexBasicLockTryLockUnlockAndWithLock() {
-        let handle = kk_mutex_create()
-        XCTAssertNotEqual(handle, 0)
+    @Test func mutexUnlockOnUnlockedMutexThrowsIllegalStateException() throws {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
 
-        XCTAssertEqual(kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(kk_mutex_lock(handle, 0), 0)
-        XCTAssertEqual(kk_mutex_isLocked(handle), 1)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 0)
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
-        XCTAssertEqual(kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 1)
-        XCTAssertEqual(kk_mutex_isLocked(handle), 1)
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
+        var thrown = 0
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(box.message == "This mutex is not locked")
+        #expect(__kk_mutex_isLocked(handle) == 0)
 
-        let actionFn = unsafeBitCast(
-            runtime_mutex_with_lock_action as @convention(c) (Int) -> Int,
-            to: Int.self
-        )
-        let withLockResult = kk_mutex_withLock(handle, actionFn, handle, 0)
-        XCTAssertEqual(withLockResult, 77)
-        XCTAssertTrue(runtimeMutexWithLockObservedLockedInside)
-        XCTAssertEqual(kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 1)
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
+        thrown = 0
+        #expect(kk_mutex_lock(handle, 0) == 0)
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+
+        thrown = 0
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        let secondBox = try requireThrownBox(thrown)
+        #expect(secondBox.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(secondBox.message == "This mutex is not locked")
     }
 
     // NOTE: pthread_mutex_t does not guarantee FIFO wake-up order on Linux, so
     // this test verifies only that multiple waiters can all acquire and release
     // the mutex without deadlock.  A strict ordering assertion would be flaky on
     // CI runners using Linux's nptl mutex implementation.
-    func testMutexLockWaitersAreServedInFIFOOrder() {
-        let handle = kk_mutex_create()
-        XCTAssertNotEqual(handle, 0)
+    @Test func mutexLockWaitersAreServedInFIFOOrder() {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
 
-        XCTAssertEqual(kk_mutex_lock(handle, 0), 0)
+        #expect(kk_mutex_lock(handle, 0) == 0)
         runtimeMutexTestState.record("main-acquired")
-        XCTAssertEqual(kk_mutex_isLocked(handle), 1)
+        #expect(__kk_mutex_isLocked(handle) == 1)
 
         let waiter1Done = DispatchSemaphore(value: 0)
         let waiter2Done = DispatchSemaphore(value: 0)
@@ -131,32 +123,43 @@ final class RuntimeMutexTests: IsolatedRuntimeXCTestCase {
         }
 
         Thread.sleep(forTimeInterval: 0.05)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 0)
+        #expect(__kk_mutex_tryLock(handle) == 0)
 
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
+        #expect(kk_mutex_unlock(handle) == 0)
 
-        XCTAssertEqual(waiter1Done.wait(timeout: .now() + .seconds(2)), .success)
-        XCTAssertEqual(waiter2Done.wait(timeout: .now() + .seconds(2)), .success)
+        #expect(waiter1Done.wait(timeout: .now() + .seconds(2)) == .success)
+        #expect(waiter2Done.wait(timeout: .now() + .seconds(2)) == .success)
 
-        XCTAssertEqual(kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 1)
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+        #expect(__kk_mutex_tryLock(handle) == 1)
+        #expect(kk_mutex_unlock(handle) == 0)
 
         // Verify that all expected events were recorded (order is platform-dependent).
         let events = runtimeMutexTestState.snapshot()
-        XCTAssertTrue(events.contains("main-acquired"), "main-acquired must be recorded")
-        XCTAssertTrue(events.contains("waiter-1-acquired"), "waiter-1-acquired must be recorded")
-        XCTAssertTrue(events.contains("waiter-1-released"), "waiter-1-released must be recorded")
-        XCTAssertTrue(events.contains("waiter-2-acquired"), "waiter-2-acquired must be recorded")
-        XCTAssertTrue(events.contains("waiter-2-released"), "waiter-2-released must be recorded")
+        #expect(events.contains("main-acquired"), "main-acquired must be recorded")
+        #expect(events.contains("waiter-1-acquired"), "waiter-1-acquired must be recorded")
+        #expect(events.contains("waiter-1-released"), "waiter-1-released must be recorded")
+        #expect(events.contains("waiter-2-acquired"), "waiter-2-acquired must be recorded")
+        #expect(events.contains("waiter-2-released"), "waiter-2-released must be recorded")
         // Each waiter must release after it acquires.
         if let a1 = events.firstIndex(of: "waiter-1-acquired"),
            let r1 = events.firstIndex(of: "waiter-1-released") {
-            XCTAssertLessThan(a1, r1, "waiter-1 must release after acquiring")
+            #expect(a1 < r1, "waiter-1 must release after acquiring")
         }
         if let a2 = events.firstIndex(of: "waiter-2-acquired"),
            let r2 = events.firstIndex(of: "waiter-2-released") {
-            XCTAssertLessThan(a2, r2, "waiter-2 must release after acquiring")
+            #expect(a2 < r2, "waiter-2 must release after acquiring")
         }
     }
+}
+
+private func requireThrownBox(_ thrown: Int) throws -> RuntimeThrowableBox {
+    let ptr = try #require(
+        UnsafeMutableRawPointer(bitPattern: thrown),
+        "thrown channel value is not a valid pointer"
+    )
+    return try #require(
+        tryCast(ptr, to: RuntimeThrowableBox.self),
+        "thrown value must be a RuntimeThrowableBox"
+    )
 }

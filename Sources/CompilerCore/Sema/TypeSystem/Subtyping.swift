@@ -1,11 +1,10 @@
 extension TypeSystem {
     public func isSubtype(_ subtype: TypeID, _ supertype: TypeID) -> Bool {
+        let (subtype, lhs) = normalizedBuiltinDisguisedClassTypeAndKind(subtype)
+        let (supertype, rhs) = normalizedBuiltinDisguisedClassTypeAndKind(supertype)
         if subtype == supertype {
             return true
         }
-
-        let lhs = kind(of: subtype)
-        let rhs = kind(of: supertype)
 
         if case .nothing(.nonNull) = lhs {
             return true
@@ -137,6 +136,24 @@ extension TypeSystem {
             return true
         }
 
+        // primitive / String <: Comparable<*>: the star projection erases the
+        // type argument, so every Comparable<Self> primitive satisfies it.
+        if case let .classType(rightClass) = rhs,
+           let comparableSym = comparableInterfaceSymbol,
+           rightClass.classSymbol == comparableSym,
+           rightClass.args.count == 1,
+           case .star = rightClass.args[0]
+        {
+            switch lhs {
+            case let .primitive(_, leftNullability):
+                if nullabilitySubtype(leftNullability, rightClass.nullability) { return true }
+            case let .stringStruct(leftNullability):
+                if nullabilitySubtype(leftNullability, rightClass.nullability) { return true }
+            default:
+                break
+            }
+        }
+
         // Support for invariant Comparable bounds (backward compatibility)
         if case let .primitive(_, leftNullability) = lhs,
            case let .classType(rightClass) = rhs,
@@ -162,7 +179,9 @@ extension TypeSystem {
             switch rightClass.args[0] {
             case let .in(argType), let .invariant(argType):
                 return argType == subtype
-            case .out, .star:
+            case .star:
+                return true
+            case .out:
                 return false
             }
         }
@@ -174,7 +193,7 @@ extension TypeSystem {
            rightClass.classSymbol == numberSym
         {
             switch leftPrimitive {
-            case .int, .long, .float, .double, .ubyte, .ushort:
+            case .int, .long, .float, .double, .byte, .short:
                 return nullabilitySubtype(leftNullability, rightClass.nullability)
             default:
                 break
@@ -285,10 +304,10 @@ extension TypeSystem {
             return isSubtype(leftFunction.returnType, rightFunction.returnType)
 
         case let (.functionType(leftFunction), .classType(rightClass)):
-            // STDLIB-REFLECT-063: A function type (e.g. (String) -> String) is a subtype of
-            // KFunction<R> so that `val f: KFunction<String> = ::greet` compiles.
-            guard let kFuncSym = kFunctionInterfaceSymbol,
-                  rightClass.classSymbol == kFuncSym
+            // Function types are subtypes of the common `kotlin.Function<R>`
+            // interface as well as `kotlin.reflect.KFunction<R>`.
+            guard rightClass.classSymbol == functionInterfaceSymbol
+                || rightClass.classSymbol == kFunctionInterfaceSymbol
             else {
                 return false
             }
@@ -399,9 +418,63 @@ extension TypeSystem {
                 return false
             }
 
+        case let (.classType(leftClass), .kClassType(rightKClass)):
+            guard let kClassSymbol = kClassInterfaceSymbol,
+                  nullabilitySubtype(leftClass.nullability, rightKClass.nullability)
+            else {
+                return false
+            }
+            if leftClass.classSymbol == kClassSymbol {
+                if leftClass.args.isEmpty { return isSubtype(anyType, rightKClass.argument) }
+                guard leftClass.args.count == 1 else { return false }
+                switch leftClass.args[0] {
+                case .star:
+                    return isSubtype(anyType, rightKClass.argument)
+                case let .out(type), let .invariant(type):
+                    return isSubtype(type, rightKClass.argument)
+                case let .in(type):
+                    return isSubtype(type, rightKClass.argument)
+                }
+            }
+            return false
+
         default:
             return false
         }
+    }
+
+    /// Normalizes a `.classType` wrapping one of the synthetic `kotlin.<Name>`
+    /// disguise symbols (`stringClassSymbol`/`charClassSymbol`/`anyClassSymbol`
+    /// — see their doc comments on `TypeSystem`) back to the canonical builtin
+    /// `TypeID`, preserving nullability, and returns its (already-known) kind
+    /// alongside it — `isSubtype` needs both anyway, and computing the kind
+    /// directly here instead of via a second `kind(of:)` call keeps this at
+    /// exactly one lookup per input, same as before this normalization
+    /// existed. A no-op for every other type.
+    ///
+    /// Without this, `String::class`'s `classRefTargetType` (which resolves to
+    /// the disguised nominal form via scope lookup — see `inferClassRefExpr`)
+    /// compares as unrelated to the canonical `stringType` that an ordinary
+    /// `is String` check uses, so e.g. inferring `KClass<T>.cast(): T` with a
+    /// `String::class` receiver against an explicit `String`-typed call site
+    /// reports "Conflicting bounds for type variable" even though both bounds
+    /// mean the same type.
+    private func normalizedBuiltinDisguisedClassTypeAndKind(_ type: TypeID) -> (TypeID, TypeKind) {
+        let kind = kind(of: type)
+        guard case let .classType(classType) = kind else {
+            return (type, kind)
+        }
+        let nullability = classType.nullability
+        if let stringClassSymbol, classType.classSymbol == stringClassSymbol {
+            return (withNullability(nullability, for: stringType), .stringStruct(nullability))
+        }
+        if let charClassSymbol, classType.classSymbol == charClassSymbol {
+            return (withNullability(nullability, for: charType), .primitive(.char, nullability))
+        }
+        if let anyClassSymbol, classType.classSymbol == anyClassSymbol {
+            return (withNullability(nullability, for: anyType), .any(nullability))
+        }
+        return (type, kind)
     }
 
     public func lub(_ types: [TypeID]) -> TypeID {
@@ -414,15 +487,19 @@ extension TypeSystem {
         }
         let result: TypeID = if filtered.dropFirst().allSatisfy({ $0 == first }) {
             first
+        } else if case .typeParam = kind(of: first),
+                  filtered.dropFirst().allSatisfy({ isSubtype($0, first) }) {
+            // Preserve a declared common supertype such as `R` when a
+            // self-type extension combines it with a bounded receiver `C`.
+            first
         } else if let kClassLub = lubKClassTypes(filtered) {
             kClassLub
-        } else if filtered.allSatisfy({ isSubtype($0, anyType) }) {
-            // All types are non-null subtypes of Any — prefer non-null LUB.
-            anyType
-        } else if filtered.allSatisfy({ isSubtype($0, nullableAnyType) }) {
-            nullableAnyType
         } else {
-            anyType
+            // Separate the nullability dimension from the underlying type:
+            // compute the LUB over the non-null projections and re-apply
+            // nullability when any input was nullable. This keeps
+            // `lub(T, T?) == T?` instead of widening all the way to `Any?`.
+            lubReapplyingNullability(filtered)
         }
         // If any input was Nothing? (null literal), the result must be nullable
         if hasNullableNothing {
@@ -439,6 +516,45 @@ extension TypeSystem {
             return nullable
         }
         return result
+    }
+
+    /// Retains a common `Comparable<*>` while inferring from lower bounds.
+    ///
+    /// `lub` intentionally keeps its conservative `Any` fallback for callers
+    /// that need the existing nominal-only behavior. This is deliberately not
+    /// a general common-supertype search: generic argument inference only
+    /// retains the platform-neutral built-in interface needed for mixed
+    /// comparable values. Other nominal LUB work remains with `lub`.
+    func inferenceLubRetainingCommonComparable(_ types: [TypeID]) -> TypeID {
+        let fallback = lub(types)
+        guard fallback == anyType || fallback == nullableAnyType else {
+            return fallback
+        }
+
+        let filtered = types.filter {
+            kind(of: $0) != .error
+                && kind(of: $0) != .nothing(.nonNull)
+                && kind(of: $0) != .nothing(.nullable)
+        }
+        guard filtered.count > 1 else {
+            return fallback
+        }
+
+        let resultNullability: Nullability = types.contains { nullability(of: $0) == .nullable }
+            ? .nullable
+            : .nonNull
+        guard let comparableSymbol = comparableInterfaceSymbol else {
+            return fallback
+        }
+        let comparable = make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: resultNullability
+        )))
+        guard filtered.allSatisfy({ isSubtype($0, comparable) }) else {
+            return fallback
+        }
+        return comparable
     }
 
     public func glb(_ types: [TypeID]) -> TypeID {
@@ -571,6 +687,196 @@ extension TypeSystem {
             return isSubtype(la, ra)
         case let (.in(la), .in(ra)):
             return isSubtype(ra, la)
+        default:
+            return false
+        }
+    }
+
+    /// Computes the LUB over the non-null projections of `filtered` and
+    /// re-applies nullability if any input was nullable. When the non-null
+    /// projections share a single underlying type (e.g. `String` and
+    /// `String?`), the result is that type made nullable (`String?`) rather
+    /// than being widened to `Any?`.
+    private func lubReapplyingNullability(_ filtered: [TypeID]) -> TypeID {
+        let anyNullable = filtered.contains { nullability(of: $0) == .nullable }
+        let nonNull = filtered.map { makeNonNullable($0) }
+        let base: TypeID
+        if let firstNonNull = nonNull.first, nonNull.dropFirst().allSatisfy({ $0 == firstNonNull }) {
+            base = firstNonNull
+        } else if let kClassLub = lubKClassTypes(nonNull) {
+            base = kClassLub
+        } else if let commonSupertype = nearestCommonSupertype(nonNull) {
+            base = commonSupertype
+        } else {
+            base = anyType
+        }
+        return anyNullable ? makeNullable(base) : base
+    }
+
+    /// Finds a supertype of every element of `types` that is more specific
+    /// than `Any`, without a full generic-hierarchy walk (the special-cased
+    /// `isSubtype` rules for primitives don't expose a generic "supertypes
+    /// of" query). Covers three shapes seen in practice:
+    ///
+    /// - One input is already a common supertype of the rest, e.g.
+    ///   `lub(Int, Number) == Number`, even when `Number` only appears as
+    ///   the *upper* bound context and never lands in this lower-bound pool
+    ///   by itself (unlike the narrower, `.typeParam`-only check in `lub()`,
+    ///   this accepts a dominating candidate of any kind).
+    /// - All inputs are numeric primitives (`Int`, `Long`, `Float`,
+    ///   `Double`, `Byte`, `Short`), whose only common ancestor besides
+    ///   `Any` is `kotlin.Number` — e.g. `lub(Int, Long) == Number`, matching
+    ///   kotlinc (`pick(1, 2L)` assigned to a `Number`-typed val).
+    /// - All inputs are user/library class types whose nominal supertype
+    ///   graphs share a class or interface other than `Any`, e.g.
+    ///   `lub(X, Y) == I` for `class X : I` / `class Y : I`
+    ///   (see `nearestCommonNominalSupertype`).
+    ///
+    /// Returns `nil` when none of the shapes apply, leaving the caller to fall
+    /// back to `Any`.
+    private func nearestCommonSupertype(_ types: [TypeID]) -> TypeID? {
+        if let dominating = types.first(where: { candidate in types.allSatisfy { isSubtype($0, candidate) } }) {
+            return dominating
+        }
+        if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
+            return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
+        }
+        // Prefer the strict result (unique most-specific ancestor with agreeing type
+        // arguments); fall back to the BFS approximation when several incomparable
+        // candidates remain.
+        return commonNominalSupertype(types) ?? nearestCommonNominalSupertype(types)
+    }
+
+    /// Finds the most specific nominal supertype (other than `Any`) shared by
+    /// every non-null class type in `types`.
+    ///
+    /// Candidates are the ancestors of the first input, visited breadth-first
+    /// over `directNominalSupertypes` (an explicit worklist with a visited set,
+    /// so a cyclic or attacker-shaped `.kklib` supertype graph cannot recurse
+    /// or loop -- see KUU-809). Each candidate is instantiated with the type
+    /// arguments the first input lifts to (`liftedNominalSupertypeArgs`) and is
+    /// kept only if *every* input is a subtype of that instantiation, which
+    /// rejects generic mismatches such as `Comparable<X>` vs `Comparable<Y>`.
+    /// Among the survivors, candidates that are strict supertypes of another
+    /// survivor are dropped, and a superclass is preferred over an interface.
+    ///
+    /// Kotlin infers an intersection type when several incomparable candidates
+    /// remain (e.g. two classes implementing both `I` and `J`). This compiler
+    /// has no denotable intersection for inferred variables, so it
+    /// approximates with the first surviving candidate in breadth-first order
+    /// (nominal supertypes are stored sorted by symbol ID, so the
+    /// choice is deterministic). Members of the other candidates are not
+    /// visible on the result.
+    private func nearestCommonNominalSupertype(_ types: [TypeID]) -> TypeID? {
+        guard types.count > 1 else { return nil }
+        var classTypes: [ClassType] = []
+        for type in types {
+            guard case let .classType(classType) = kind(of: type), classType.nullability == .nonNull else {
+                return nil
+            }
+            classTypes.append(classType)
+        }
+        let first = classTypes[0]
+
+        var ancestors: [SymbolID] = []
+        var visited: Set<SymbolID> = [first.classSymbol]
+        var worklist = directNominalSupertypes(for: first.classSymbol)
+        var head = 0
+        while head < worklist.count {
+            let ancestor = worklist[head]
+            head += 1
+            guard visited.insert(ancestor).inserted else { continue }
+            ancestors.append(ancestor)
+            worklist.append(contentsOf: directNominalSupertypes(for: ancestor))
+        }
+
+        var survivors: [TypeID] = []
+        for ancestor in ancestors {
+            let args = liftedNominalSupertypeArgs(
+                from: first.classSymbol,
+                childArgs: first.args,
+                to: ancestor
+            ) ?? []
+            let candidate = make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull)))
+            if normalizedBuiltinDisguisedClassTypeAndKind(candidate).0 == anyType {
+                continue
+            }
+            if types.allSatisfy({ isSubtype($0, candidate) }) {
+                survivors.append(candidate)
+            }
+        }
+
+        let mostSpecific = survivors.filter { candidate in
+            !survivors.contains { other in other != candidate && isSubtype(other, candidate) }
+        }
+        let isInterface: (TypeID) -> Bool = { [self] candidate in
+            guard case let .classType(classType) = kind(of: candidate) else { return false }
+            return symbolTable?.symbol(classType.classSymbol)?.kind == .interface
+        }
+        return mostSpecific.first(where: { !isInterface($0) }) ?? mostSpecific.first
+    }
+
+    /// Nominal hierarchy walk for inputs that are all nominal class types
+    /// where no input dominates the rest — e.g.
+    /// `lub(EmptyCoroutineContext, Element) == CoroutineContext`: neither
+    /// input is a supertype of the other, but they share
+    /// `CoroutineContext` above them. Collects the ancestor symbols
+    /// reachable from every input, keeps those whose substituted type args
+    /// agree across all inputs, and returns the single most specific
+    /// candidate (a subtype of every other candidate). Returns `nil` for
+    /// non-class inputs, disagreeing args, or ambiguity — the caller then
+    /// falls back to `Any`, so this can only tighten results that would
+    /// otherwise widen to `Any`.
+    private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
+        var ancestorSets: [Set<SymbolID>] = []
+        for input in types {
+            guard case let .classType(classType) = kind(of: input) else { return nil }
+            var ancestors: Set<SymbolID> = [classType.classSymbol]
+            var queue = directNominalSupertypes(for: classType.classSymbol)
+            while let symbol = queue.popLast() {
+                if ancestors.insert(symbol).inserted {
+                    queue.append(contentsOf: directNominalSupertypes(for: symbol))
+                }
+            }
+            ancestorSets.append(ancestors)
+        }
+        guard var common = ancestorSets.first else { return nil }
+        for rest in ancestorSets.dropFirst() {
+            common.formIntersection(rest)
+        }
+        var candidates: [TypeID] = []
+        for ancestor in common {
+            var args: [TypeArg]?
+            var agrees = true
+            for input in types {
+                guard case let .classType(classType) = kind(of: input),
+                      let lifted = liftedNominalSupertypeArgs(
+                          from: classType.classSymbol,
+                          childArgs: classType.args,
+                          to: ancestor
+                      )
+                else {
+                    agrees = false
+                    break
+                }
+                if let prev = args, prev != lifted {
+                    agrees = false
+                    break
+                }
+                args = args ?? lifted
+            }
+            guard agrees, let args else { continue }
+            candidates.append(make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull))))
+        }
+        let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
+        return best.count == 1 ? best.first : nil
+    }
+
+    private func isNumericPrimitiveType(_ type: TypeID) -> Bool {
+        guard case let .primitive(primitive, _) = kind(of: type) else { return false }
+        switch primitive {
+        case .int, .long, .float, .double, .byte, .short:
+            return true
         default:
             return false
         }

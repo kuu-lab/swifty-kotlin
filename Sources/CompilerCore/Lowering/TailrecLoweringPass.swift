@@ -5,6 +5,8 @@ let tailrecLoopLabelBase: Int32 = 9000
 
 final class TailrecLoweringPass: LoweringPass {
     static let name = "TailrecLowering"
+    static let requiredStage: KIRStage = .raw
+    static let producedStage: KIRStage = .tailrecLowered
 
     private struct TailrecFunctionIdentity {
         let symbol: SymbolID
@@ -35,21 +37,20 @@ final class TailrecLoweringPass: LoweringPass {
                 symbol: function.symbol
             )
             var updated = function
-            updated.replaceBody(rewriteTailCalls(
+            let rewrittenBody = rewriteTailCalls(
                 body: function.body,
                 functionIdentity: functionIdentity,
                 params: function.params,
                 loopLabel: loopLabel,
                 arena: module.arena
-            ))
-            // Reset instructionLocations to match the new body length.
+            )
             // The rewrite changes instruction count, so the old parallel
             // array is stale.  Use the function-level sourceRange as a
             // conservative location for every synthesised instruction.
-            updated.replaceInstructionLocations(Array(
-                repeating: function.sourceRange,
-                count: updated.body.count
-            ))
+            updated.replaceBody(
+                rewrittenBody,
+                locations: Array(repeating: function.sourceRange, count: rewrittenBody.count)
+            )
             return updated
         }
 
@@ -102,8 +103,8 @@ final class TailrecLoweringPass: LoweringPass {
         loopLabel: Int32,
         arena: KIRArena
     ) -> [KIRInstruction] {
-        var result: [KIRInstruction] = []
-        result.reserveCapacity(body.count + 2)
+        var result = KIRLoweringEmitContext()
+        result.instructions.reserveCapacity(body.count + 2)
         let loopInsertIndex = loopEntryIndex(body: body, params: params)
         let canonicalParamExprs = canonicalParameterExprs(
             body: Array(body[..<loopInsertIndex]),
@@ -139,11 +140,12 @@ final class TailrecLoweringPass: LoweringPass {
                 continue
             }
 
-            // --- Value-returning tail call: call(self, args) -> result, then returnValue(result) ---
-            if case let .call(symbol, _, arguments, callResult?, _, _, _, _) = instruction,
+            // --- Tail call: call(self, args) [-> result] followed, possibly through the
+            // `copy(result) -> jump/label` chain that if/when/elvis expression bodies
+            // lower to, by `returnValue(result)` (or `returnUnit`). ---
+            if case let .call(symbol, _, arguments, callResult, _, _, _, _) = instruction,
                isSelfRecursiveCall(symbol: symbol, functionIdentity: functionIdentity),
-               instructionIndex + 1 < body.count,
-               isReturnOfResult(body[instructionIndex + 1], callResult: callResult)
+               tailReturnIndex(body: body, callIndex: instructionIndex, callResult: callResult) != nil
             {
                 let check = canOptimizeDefaultStubCall(
                     symbol: symbol, functionIdentity: functionIdentity,
@@ -166,38 +168,22 @@ final class TailrecLoweringPass: LoweringPass {
                 )
                 result.append(.jump(loopLabel))
                 emittedTailJump = true
-                instructionIndex += 2
-                continue
-            }
-
-            // --- Unit-returning tail call: call(self, args, nil), then returnUnit ---
-            if case let .call(symbol, _, arguments, nil, _, _, _, _) = instruction,
-               isSelfRecursiveCall(symbol: symbol, functionIdentity: functionIdentity),
-               instructionIndex + 1 < body.count,
-               isReturnUnitInstruction(body[instructionIndex + 1])
-            {
-                let check = canOptimizeDefaultStubCall(
-                    symbol: symbol, functionIdentity: functionIdentity,
-                    arguments: arguments, body: body,
-                    callIndex: instructionIndex, arena: arena
-                )
-                guard check.canOptimize else {
-                    result.append(instruction)
-                    instructionIndex += 1
-                    continue
+                // The straight-line run behind the call (result copies, the
+                // jump to the join label, or the return itself) is now
+                // unreachable and would read the call result that no longer
+                // exists, so drop it. Everything from the next label on is kept:
+                // other branches may still reach it.
+                instructionIndex += 1
+                while instructionIndex < body.count {
+                    switch body[instructionIndex] {
+                    case .label, .beginBlock, .endBlock:
+                        break
+                    default:
+                        instructionIndex += 1
+                        continue
+                    }
+                    break
                 }
-                emitParameterReassignment(
-                    arguments: arguments,
-                    params: params,
-                    canonicalParamExprs: canonicalParamExprs,
-                    defaultMask: check.defaultMask,
-                    receiverOffset: receiverOffset,
-                    arena: arena,
-                    result: &result
-                )
-                result.append(.jump(loopLabel))
-                emittedTailJump = true
-                instructionIndex += 2
                 continue
             }
 
@@ -212,7 +198,66 @@ final class TailrecLoweringPass: LoweringPass {
             return body
         }
 
-        return result
+        return emittedTailJump ? pruneUnreachableJoins(result.instructions) : result.instructions
+    }
+
+    /// When every branch of an `if`/`when` expression body ended in a rewritten
+    /// tail call, the join label (and the `returnValue` behind it) is no longer
+    /// reachable. Left in place it would read a join temporary nothing defines,
+    /// so drop any label that no jump targets and that follows a terminator,
+    /// together with the straight-line run up to the next label.
+    private func pruneUnreachableJoins(_ instructions: [KIRInstruction]) -> [KIRInstruction] {
+        var current = instructions
+        var changed = true
+        while changed {
+            changed = false
+            var targets: Set<Int32> = []
+            for instruction in current {
+                switch instruction {
+                case let .jump(target), let .jumpIfEqual(_, _, target), let .jumpIfNotNull(_, target):
+                    targets.insert(target)
+                default:
+                    break
+                }
+            }
+            var pruned: [KIRInstruction] = []
+            pruned.reserveCapacity(current.count)
+            var index = 0
+            while index < current.count {
+                if case let .label(id) = current[index],
+                   !targets.contains(id),
+                   let previous = pruned.last,
+                   isTerminator(previous)
+                {
+                    index += 1
+                    while index < current.count {
+                        switch current[index] {
+                        case .label, .beginBlock, .endBlock:
+                            break
+                        default:
+                            index += 1
+                            continue
+                        }
+                        break
+                    }
+                    changed = true
+                    continue
+                }
+                pruned.append(current[index])
+                index += 1
+            }
+            current = pruned
+        }
+        return current
+    }
+
+    private func isTerminator(_ instruction: KIRInstruction) -> Bool {
+        switch instruction {
+        case .jump, .returnValue, .returnUnit, .rethrow, .nonLocalReturn:
+            true
+        default:
+            false
+        }
     }
 
     /// Check if a call instruction targets the function being optimized.
@@ -289,23 +334,52 @@ final class TailrecLoweringPass: LoweringPass {
         return nil
     }
 
-    /// Check if the next instruction is `returnValue(r)` where `r` matches
-    /// the call result.
-    private func isReturnOfResult(
-        _ instruction: KIRInstruction, callResult: KIRExprID?
-    ) -> Bool {
-        guard let callResult else { return false }
-        if case let .returnValue(value) = instruction, value == callResult {
-            return true
+    /// Follows the straight-line continuation of a self-call and returns the
+    /// index of the `returnValue`/`returnUnit` it ends in, or `nil` when the
+    /// call is not in tail position.
+    ///
+    /// Expression bodies (`= if (c) acc else f(..)`, `= when { .. }`) lower to
+    /// `call -> copy(callResult, joinTemp) -> jump/label ... -> returnValue(joinTemp)`,
+    /// so only `label`, `jump`, and `copy` of the call result (or of a value
+    /// already aliasing it) may sit between the call and the return. Any other
+    /// instruction (a store, a call, a conditional jump, exception plumbing of
+    /// `try`/`finally`) means work remains after the call and the call is not a
+    /// tail call.
+    private func tailReturnIndex(
+        body: [KIRInstruction],
+        callIndex: Int,
+        callResult: KIRExprID?
+    ) -> Int? {
+        var aliases: Set<KIRExprID> = []
+        if let callResult { aliases.insert(callResult) }
+        var visited: Set<Int> = []
+        var index = callIndex + 1
+        while index < body.count, visited.insert(index).inserted {
+            switch body[index] {
+            case .label, .beginBlock, .endBlock:
+                index += 1
+            case let .jump(target):
+                guard let targetIndex = body.firstIndex(where: {
+                    if case let .label(id) = $0 { return id == target }
+                    return false
+                }) else { return nil }
+                index = targetIndex
+            case let .copy(from, to):
+                guard aliases.contains(from) else { return nil }
+                aliases.insert(to)
+                index += 1
+            case let .returnValue(value):
+                return aliases.contains(value) ? index : nil
+            case .returnUnit:
+                // A self-call followed by `returnUnit` can only sit in a
+                // Unit function; its (Unit) result, if materialized by an
+                // `if` statement's join copy, carries no value to preserve.
+                return index
+            default:
+                return nil
+            }
         }
-        return false
-    }
-
-    private func isReturnUnitInstruction(_ instruction: KIRInstruction) -> Bool {
-        if case .returnUnit = instruction {
-            return true
-        }
-        return false
+        return nil
     }
 
     /// Emit `copy` instructions to reassign the function parameters from
@@ -334,7 +408,7 @@ final class TailrecLoweringPass: LoweringPass {
         defaultMask: Int64? = nil,
         receiverOffset: Int,
         arena: KIRArena,
-        result: inout [KIRInstruction]
+        result: inout KIRLoweringEmitContext
     ) {
         // Only copy the first `params.count` arguments; $default calls
         // carry trailing reified-type tokens and a mask that must not

@@ -4,10 +4,24 @@ import Testing
 
 @Suite
 struct ListWindowChunkSourceMigrationTests {
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
     @Test
     func migratedListWindowChunkFunctionsAreBundledSourceDefinitions() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let packageFQName = ["kotlin", "collections"].map(ctx.interner.intern)
         let expectedArities: [String: Set<Int>] = [
@@ -15,7 +29,6 @@ struct ListWindowChunkSourceMigrationTests {
             "windowed": [3, 4],
             "zip": [1, 2],
             "zipWithNext": [0, 1],
-            "withIndex": [0],
         ]
 
         for (name, arities) in expectedArities {
@@ -51,8 +64,7 @@ struct ListWindowChunkSourceMigrationTests {
 
     @Test
     func migratedListWindowChunkFunctionsDoNotKeepPublicRuntimeLinkedMembers() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let listFQName = ["kotlin", "collections", "List"].map(ctx.interner.intern)
         let iterableFQName = ["kotlin", "collections", "Iterable"].map(ctx.interner.intern)
@@ -84,6 +96,63 @@ struct ListWindowChunkSourceMigrationTests {
                 leakedLinks.isEmpty,
                 "Expected \(name) to be served by bundled source, but found public member links \(leakedLinks)"
             )
+        }
+    }
+
+    @Test
+    func windowedTransformPropagatesItsListResultTypeToFollowingMembers() throws {
+        let source = """
+        fun probe(xs: List<Int>): Int = xs.windowed(2) { it.sum() }.size
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Expected windowed transform chain to type-check")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let userWindowedCall = try #require(
+                ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                    let exprID = ExprID(rawValue: Int32(index))
+                    guard isUserSourceExpr(exprID, in: ctx),
+                          case let .memberCall(_, callee, _, args, _) = ast.arena.expr(exprID),
+                          ctx.interner.resolve(callee) == "windowed",
+                          args.count == 2
+                    else {
+                        return nil
+                    }
+                    return exprID
+                }.first
+            )
+            let listSymbol = try #require(sema.symbols.lookup(fqName: [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("List"),
+            ]))
+            let expectedListOfInt = sema.types.make(.classType(ClassType(
+                classSymbol: listSymbol,
+                args: [.out(sema.types.intType)],
+                nullability: .nonNull
+            )))
+            #expect(sema.bindings.exprType(for: userWindowedCall) == expectedListOfInt)
+
+            let userSizeCall = try #require(
+                ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                    let exprID = ExprID(rawValue: Int32(index))
+                    guard isUserSourceExpr(exprID, in: ctx),
+                          case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID),
+                          ctx.interner.resolve(callee) == "size"
+                    else {
+                        return nil
+                    }
+                    return exprID
+                }.first
+            )
+            #expect(sema.bindings.exprType(for: userSizeCall) == sema.types.intType)
+            let sizeSymbol = try #require(sema.bindings.identifierSymbol(for: userSizeCall))
+            #expect(sema.symbols.symbol(sizeSymbol)?.kind == .property)
         }
     }
 }

@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 fun main() {
     val nums = listOf(231, 114, 123, 212, 111, 223, 214)
 
@@ -35,10 +34,10 @@ fun main() {
     val nullableNums = listOf(14, null, 3, null, 25, 17, 4)
 
     println("-- nullsFirst --")
-    println(nullableNums.sortedWith(compareBy<Int?> { it }.nullsFirst()))
+    println(nullableNums.sortedWith(nullsFirst(compareBy<Int> { it })))
 
     println("-- nullsLast --")
-    println(nullableNums.sortedWith(compareBy<Int?> { it }.nullsLast()))
+    println(nullableNums.sortedWith(nullsLast(compareBy<Int> { it })))
 
     println("-- naturalOrder + reverseOrder --")
     val words = listOf("pear", "apple", "orange", "fig")

@@ -1,28 +1,8 @@
 
 final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ABILowering"
-
-    static let primitiveBoxingCalleeNamesByPrimitive = BoxingCalleeTable.primitiveBoxingCalleeNamesByPrimitive
-    static let primitiveUnboxingCalleeNamesByPrimitive = BoxingCalleeTable.primitiveUnboxingCalleeNamesByPrimitive
-
-    static let primitiveBoxingCalleeNames = BoxingCalleeTable.primitiveBoxingCalleeNames
-    static let primitiveUnboxingCalleeNames = BoxingCalleeTable.primitiveUnboxingCalleeNames
-
-    static func primitiveBoxingCalleeName(for primitive: PrimitiveType) -> String? {
-        BoxingCalleeTable.boxCalleeName(for: primitive)
-    }
-
-    static func primitiveUnboxingCalleeName(for primitive: PrimitiveType) -> String? {
-        BoxingCalleeTable.unboxCalleeName(for: primitive)
-    }
-
-    static func primitiveBoxingCalleeName(for kind: TypeKind) -> String? {
-        BoxingCalleeTable.boxCalleeName(for: kind)
-    }
-
-    static func primitiveUnboxingCalleeName(for kind: TypeKind) -> String? {
-        BoxingCalleeTable.unboxCalleeName(for: kind)
-    }
+    static let requiredStage: KIRStage = .integerNarrowed
+    static let producedStage: KIRStage = .abiLowered
 
     static func primitiveBoxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
         guard let callee = BoxingCalleeTable(interner: interner).boxCallee(for: primitive) else {
@@ -38,10 +18,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         return callee
     }
 
-    static func primitiveBoxingCallee(for kind: TypeKind, interner: StringInterner) -> InternedString? {
-        BoxingCalleeTable(interner: interner).boxCallee(for: kind, requireNonNull: false)
-    }
-
     static func primitiveUnboxingCallee(for kind: TypeKind, interner: StringInterner) -> InternedString? {
         BoxingCalleeTable(interner: interner).unboxCallee(for: kind, requireNonNull: false)
     }
@@ -49,6 +25,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     func run(module: KIRModule, ctx: KIRContext) throws {
         let nonThrowingCalleeSet = nonThrowingCallees(interner: ctx.interner)
         let boxingCalleeTable = BoxingCalleeTable(interner: ctx.interner)
+        let intNarrowingCallee = ctx.interner.intern("kk_int_narrow")
 
         let types = ctx.sema?.types
         let symbols = ctx.sema?.symbols
@@ -131,18 +108,40 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
 
-        // kk_op_rangeUntil backs the `until` infix function (registered in
+        // `kk_array_get` reads an element out of both generic `Array<T>` (boxed
+        // elements) and the primitive arrays (raw elements), so it needs the
+        // same unboxing as the accessors above only for the generic receiver;
+        // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
+        let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
+        let arrayClassName = ctx.interner.intern("Array")
+
+        // `kk_array_is_empty` returns a boxed Boolean but is emitted for both
+        // generic and primitive arrays without a Sema function signature. Keep
+        // its result on the same ABI normalization path as other erased
+        // collection results so conditions compare the unboxed Boolean.
+        let boxedBooleanReturnCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_array_is_empty"),
+        ]
+
+        // The typed rangeUntil bridges back the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
-        // used for range operators) but always returns a boxed RuntimeRangeBox
-        // reference at runtime (see kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
+        // used for range operators) but always return boxed RuntimeRangeBox
+        // references at runtime (see the typed rangeUntil bridges in Runtime).
         // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
         // resolved Sema symbol, so resolveUnboxForCall would otherwise see a
         // Long/Int-typed return and insert an erroneous kk_unbox_long/kk_unbox_int
         // on the range object itself.
         let boxedReturnRangeCallees: Set<InternedString> = [
-            ctx.interner.intern("kk_op_rangeUntil"),
+            ctx.interner.intern("__kk_op_rangeUntil"),
+            ctx.interner.intern("__kk_long_rangeUntil"),
+            ctx.interner.intern("__kk_char_rangeUntil"),
+            ctx.interner.intern("__kk_uint_rangeUntil"),
         ]
+
+        let unboxSkipCallees = boxedReturnRangeCallees.union(
+            rawBooleanReturnCallees(interner: ctx.interner)
+        )
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
@@ -154,15 +153,63 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             }
         }
 
+        // ABI-002: An inline body imported from a library artifact records only
+        // the link name for a callee whose declaration is synthetic in this
+        // compilation, so the call arrives with no symbol and no KIR
+        // declaration to recover a signature from (LibraryInlineImport resolves
+        // `linkB64` against imported bindings only). Without the declared
+        // parameter types the boxing rules below cannot see the erased
+        // type-parameter slots of the boundary bridges, and `map[k] = v` — the
+        // bundled inline `kotlin.collections.set` forwarding to `put` — stores a
+        // raw Double/Float/Char/Boolean word that later renders as its bit
+        // pattern. Only the documented boundary bridges are recovered here, and
+        // boxing still follows their declared parameter types, so a bridge's raw
+        // Int parameter (e.g. the index of `__kk_mutable_list_add_at`) stays raw.
+        var boundaryBridgeSignatureByLinkName: [InternedString: FunctionSignature] = [:]
+        if let symbols {
+            var ambiguousBoundaryBridges: Set<InternedString> = []
+            for symbol in symbols.allSymbols() where symbol.kind == .function {
+                guard let linkName = symbols.externalLinkName(for: symbol.id),
+                      Self.typeParamBoxingBoundaryCallees.contains(linkName),
+                      let signature = symbols.functionSignature(for: symbol.id)
+                else {
+                    continue
+                }
+                let key = ctx.interner.intern(linkName)
+                guard !ambiguousBoundaryBridges.contains(key) else { continue }
+                if let existing = boundaryBridgeSignatureByLinkName[key] {
+                    // Two declarations claiming one bridge name give no basis to
+                    // pick a parameter list; leave the call unboxed rather than
+                    // guessing. The comparison is on raw TypeIDs, so distinct
+                    // type parameters (`MutableMap.V` vs a future overrider's
+                    // own `V`) count as a conflict and disable recovery for that
+                    // bridge — the conservative direction, but it means boxing
+                    // can stop for a bridge that gains a second declaration.
+                    if existing.parameterTypes != signature.parameterTypes
+                        || existing.receiverType != signature.receiverType
+                    {
+                        boundaryBridgeSignatureByLinkName.removeValue(forKey: key)
+                        ambiguousBoundaryBridges.insert(key)
+                    }
+                    continue
+                }
+                boundaryBridgeSignatureByLinkName[key] = signature
+            }
+        }
+
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
-            var newBody: [KIRInstruction] = []
-            newBody.reserveCapacity(function.body.count)
+            var newBody = KIRLoweringEmitContext()
+            newBody.instructions.reserveCapacity(function.body.count)
+            var nullableGenericResults: Set<KIRExprID> = []
 
             let functionReturnKind: TypeKind? = types.map { $0.kind(of: function.returnType) }
 
             var idx = 0
             while idx < function.body.count {
+                newBody.currentSourceRange = idx < function.instructionLocations.count
+                    ? function.instructionLocations[idx]
+                    : nil
                 let instruction = function.body[idx]
                 if case let .virtualCall(vcSymbol, vcCallee, vcReceiver, vcArguments, vcResult, _, vcThrownResult, vcDispatch) = instruction {
                     let vcIsClosureRelated = module.nonThrowingClosureCallees.contains(vcCallee)
@@ -186,6 +233,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             boxingCalleeTable: boxingCalleeTable,
                             callee: vcCallee,
                             interner: ctx.interner,
+                            boxTypeParamArguments: isKotlinSourceCallee(vcSymbol, symbols: symbols),
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
                             newBody: &newBody
                         )
                     } else {
@@ -194,13 +244,16 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     let vcUnbox = resolveUnboxForCall(
                         callSymbol: vcSymbol,
                         callee: vcCallee,
+                        arguments: vcArguments,
+                        receiver: vcReceiver,
                         result: vcResult,
                         signatureByName: signatureByName,
                         module: module,
                         types: types,
                         symbols: symbols,
                         boxingCalleeTable: boxingCalleeTable,
-                        boxedReturnCallees: boxedReturnRangeCallees
+                        nullableGenericResults: &nullableGenericResults,
+                        boxedReturnCallees: unboxSkipCallees
                     )
                     if let (vcUnboxCallee, vcReturnType) = vcUnbox, let vcResult {
                         let tempResult = module.arena.appendTemporary(type: vcReturnType
@@ -267,13 +320,31 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
+                // Narrowing produces a raw Int. Unboxing it again can mistake a
+                // positive arithmetic result for a live box address on non-PIE Linux.
+                // Require the adjacent producer and non-null Int types on both sides;
+                // copies into nullable or erased slots still need the normal boxing.
+                if case let .copy(from, to) = instruction, idx > 0,
+                   case let .call(_, callee, _, result, _, _, _, _) = function.body[idx - 1],
+                   callee == intNarrowingCallee, result == from,
+                   let types,
+                   module.arena.exprType(from) == types.intType,
+                   module.arena.exprType(to) == types.intType
+                {
+                    newBody.append(instruction)
+                    idx += 1
+                    continue
+                }
+
                 // Handle copy: insert boxing/unboxing at type boundaries
                 if case let .copy(from, to) = instruction, let types,
                    let rewritten = rewriteCopyBoxingOrUnboxing(
                        from: from, to: to,
                        module: module, types: types, symbols: symbols,
                        interner: ctx.interner,
-                       boxingCalleeTable: boxingCalleeTable
+                       boxingCalleeTable: boxingCalleeTable,
+                       sema: ctx.sema,
+                       cache: ctx.nominalDispatchCache
                    )
                 {
                     newBody.append(contentsOf: rewritten)
@@ -310,16 +381,26 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Synthetic property accessor symbols are always non-throwing.
-                // Preserve historical classification via SyntheticSymbolScheme.
+                // Most synthetic property accessors are field/property plumbing
+                // and historically have no throwing ABI. Delegated properties
+                // are different: their accessor invokes delegate getValue or
+                // setValue, which can throw (e.g. Delegates.notNull()).
                 let isSyntheticAccessor: Bool = {
                     guard let s = callSymbol else { return false }
                     return SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(s)
                 }()
+                let isDelegatedAccessor: Bool = {
+                    guard isSyntheticAccessor,
+                          let s = callSymbol,
+                          let syms = symbols
+                    else { return false }
+                    let propertySymbol = SyntheticSymbolScheme.originalPropertySymbolFromAccessor(s)
+                    return syms.delegateStorageSymbol(for: propertySymbol) != nil
+                }()
                 // ABI-001: For synthetic setter accessor calls whose callee is still
                 // "set", derive the actual runtime store function name from the getter
                 // link registered on the original property symbol (e.g.
-                // kk_atomic_bool_load → kk_atomic_bool_store).
+                // __kk_atomic_bool_load → __kk_atomic_bool_store).
                 let rewrittenCallee: InternedString? = {
                     guard isSyntheticAccessor,
                           let s = callSymbol,
@@ -334,14 +415,48 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     let storeLinkName = String(getterLink.dropLast("_load".count)) + "_store"
                     return ctx.interner.intern(storeLinkName)
                 }()
-                let effectiveCallee = rewrittenCallee ?? callee
+                var effectiveCallee = rewrittenCallee ?? callee
+                if let firstArgument = arguments.first,
+                   nullableGenericResults.contains(firstArgument)
+                {
+                    switch ctx.interner.resolve(effectiveCallee) {
+                    case "kk_box_double_nonnull":
+                        effectiveCallee = ctx.interner.intern("kk_box_double")
+                    case "kk_box_double_nonnull_static":
+                        effectiveCallee = ctx.interner.intern("kk_box_double_static")
+                    case "kk_box_long_nonnull":
+                        effectiveCallee = ctx.interner.intern("kk_box_long")
+                    case "kk_box_long_nonnull_static":
+                        effectiveCallee = ctx.interner.intern("kk_box_long_static")
+                    default:
+                        break
+                    }
+                }
                 let effectiveCallSymbol: SymbolID? = rewrittenCallee != nil ? nil : callSymbol
-                // Stubs explicitly marked .throwingFunction (e.g. BigInteger.divide,
-                // BigInteger(String)) must always emit the outThrown channel regardless
-                // of whether their callee name appears in nonThrowingCallees.
+                // Stubs explicitly marked .throwingFunction must always emit the
+                // outThrown channel regardless of whether their callee name appears
+                // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
+                    if isSyntheticAccessor, let s = callSymbol,
+                       symbols?.functionSignature(for: s)?.canThrow == true {
+                        return true
+                    }
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)
+                }()
+                // Source-backed bridge calls keep the Kotlin declaration name in
+                // KIR (for example, `__kk_duration_parseOrNull`) while the ABI
+                // throwing contract is keyed by the external runtime link name
+                // (`kk_duration_parseOrNull`). Consult both names so a
+                // non-throwing bridge does not acquire an outThrown parameter
+                // merely because its source name is absent from the runtime set.
+                let isNonThrowingExternalLink: Bool = {
+                    guard let s = effectiveCallSymbol,
+                          let linkName = symbols?.externalLinkName(for: s)
+                    else {
+                        return false
+                    }
+                    return nonThrowingCalleeSet.contains(ctx.interner.intern(linkName))
                 }()
                 // Closure-related callees (kk_closure_invoke_* wrappers and their
                 // internal kk_lambda_* targets) are registered as non-throwing by
@@ -349,9 +464,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // This avoids brittle string-prefix coupling between passes.
                 let isClosureRelatedCallee = module.nonThrowingClosureCallees.contains(effectiveCallee)
                 let canThrow = isExplicitlyThrowing
+                    || isDelegatedAccessor
                     || (!isSyntheticAccessor
                         && !isClosureRelatedCallee
-                        && !nonThrowingCalleeSet.contains(effectiveCallee))
+                        && !nonThrowingCalleeSet.contains(effectiveCallee)
+                        && !isNonThrowingExternalLink)
 
                 var signature: FunctionSignature?
                 if let symbols, let effectiveCallSymbol {
@@ -360,9 +477,27 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 if signature == nil {
                     signature = signatureByName[effectiveCallee]
                 }
+                // ABI-002: see boundaryBridgeSignatureByLinkName above.
+                if signature == nil, effectiveCallSymbol == nil {
+                    signature = boundaryBridgeSignatureByLinkName[effectiveCallee]
+                }
                 var boxedArguments: [KIRExprID]
                 if let signature, let types {
-                    let receiverOffset = signature.receiverType != nil ? 1 : 0
+                    // A constructor bridged to an allocating runtime entry
+                    // (`Pair`'s `__kk_pair_new`) is called without the allocated-object
+                    // argument that an ordinary `<init>` receives, so its value
+                    // arguments start at index 0. Using the signature's receiver
+                    // unconditionally would shift every parameter by one and box each
+                    // argument against its neighbour's declared type.
+                    let receiverOffset: Int = {
+                        guard signature.receiverType != nil else { return 0 }
+                        if symbols?.symbol(effectiveCallSymbol ?? .invalid)?.kind == .constructor,
+                           arguments.count == signature.parameterTypes.count
+                        {
+                            return 0
+                        }
+                        return 1
+                    }()
                     boxedArguments = applyArgumentBoxing(
                         arguments: arguments,
                         signature: signature,
@@ -373,10 +508,38 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         boxingCalleeTable: boxingCalleeTable,
                         callee: effectiveCallee,
                         interner: ctx.interner,
+                        boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols),
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
                         newBody: &newBody
                     )
                 } else {
                     boxedArguments = arguments
+                }
+
+                // `generateSequence` reaches this private runtime bridge after
+                // its generic source wrapper is expanded. The bridge stores the
+                // seed in an erased sequence element slot, so a raw primitive or
+                // enum ordinal must be boxed here; otherwise enum ordinal zero
+                // loses its entry name and prints as `0`.
+                let generateSequenceBridgeLink = effectiveCallSymbol.flatMap { symbol in
+                    symbols?.externalLinkName(for: symbol)
+                }
+                if (effectiveCallee == ctx.interner.intern("__kk_sequence_generate")
+                    || generateSequenceBridgeLink == "__kk_sequence_generate"),
+                   let types,
+                   let seed = boxedArguments.first,
+                   let seedType = intrinsicArgType(seed, arena: module.arena, types: types)
+                {
+                    boxedArguments[0] = boxValueForAnySlot(
+                        seed,
+                        sourceType: seedType,
+                        types: types,
+                        symbols: symbols,
+                        interner: ctx.interner,
+                        arena: module.arena,
+                        into: &newBody
+                    )
                 }
 
                 // Unbox Any/reference-typed arguments for inline arithmetic
@@ -425,55 +588,92 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                 }
                 // Box the "value" operand of kk_op_is/kk_op_cast/kk_op_safe_cast
-                // whenever it is a concrete primitive. See typeCheckValueCallees above.
+                // whenever it is a concrete primitive or a non-null enum. See
+                // typeCheckValueCallees above. Enum values resolve to Int for their
+                // unboxed representation, but must retain their nominal class ID when
+                // boxed so nominal and interface checks can recognize them.
                 if signature == nil, let types,
                    typeCheckValueCallees.contains(effectiveCallee),
                    let firstArg = boxedArguments.first
                 {
                     let argType = intrinsicArgType(firstArg, arena: module.arena, types: types)
-                    let argKind = argType.map {
-                        resolveValueClassKind(types.kind(of: $0), types: types, symbols: symbols)
+                    let rawArgKind = argType.map { types.kind(of: $0) }
+                    let argKind = rawArgKind.map {
+                        resolveValueClassKind($0, types: types, symbols: symbols)
                     }
                     if let argKind,
-                       let boxCallee = boxCalleeForPrimitive(argKind, boxingCalleeTable: boxingCalleeTable)
+                       let boxCallee = boxCalleeForPrimitive(
+                           argKind,
+                           boxingCalleeTable: boxingCalleeTable,
+                           preferStaticPrimitive: true
+                       )
                     {
-                        boxedArguments[0] = emitNonThrowingCall(
-                            callee: boxCallee,
-                            arg: firstArg,
+                        let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                        emitBoxCallWithValueClassTag(
+                            boxCallee: boxCallee,
+                            value: firstArg,
+                            rawSourceKind: rawArgKind ?? argKind,
+                            result: boxedResult,
                             resultType: types.anyType,
+                            types: types,
+                            symbols: symbols,
+                            interner: ctx.interner,
                             arena: module.arena,
                             into: &newBody
                         )
+                        boxedArguments[0] = boxedResult
                     }
                 }
 
                 let resolvedUnbox = resolveUnboxForCall(
                     callSymbol: effectiveCallSymbol,
                     callee: effectiveCallee,
+                    arguments: arguments,
                     result: result,
                     signatureByName: signatureByName,
                     module: module,
                     types: types,
                     symbols: symbols,
                     boxingCalleeTable: boxingCalleeTable,
-                    boxedReturnCallees: boxedReturnRangeCallees
+                    nullableGenericResults: &nullableGenericResults,
+                    boxedReturnCallees: unboxSkipCallees
                 )
 
                 // Fallback: collection element accessors may return a boxed primitive.
                 // resolveUnboxForCall cannot handle these because they have no
                 // FunctionSignature entry. Unbox using the KIR result type as the target.
                 var effectiveUnbox: (InternedString, TypeID)? = resolvedUnbox
+                let needsErasedResultUnbox =
+                    collectionElementAccessorCallees.contains(effectiveCallee)
+                    || (effectiveCallee == genericArrayGetCallee
+                        && isGenericArrayReceiver(
+                            boxedArguments.first,
+                            module: module,
+                            types: types,
+                            symbols: symbols,
+                            arrayName: arrayClassName
+                        ))
+                    || boxedBooleanReturnCallees.contains(effectiveCallee)
                 if effectiveUnbox == nil,
-                   collectionElementAccessorCallees.contains(effectiveCallee),
+                   needsErasedResultUnbox,
                    let result, let types,
                    let resultType = module.arena.exprType(result)
                 {
                     let resultKind = resolveValueClassKind(
                         types.kind(of: resultType), types: types, symbols: symbols
                     )
-                    if let unboxCallee = unboxingCallee(
+                    // Strings stored in generic arrays/collections are represented as
+                    // raw object handles at runtime; the backend already bridges that
+                    // raw handle to a flat string aggregate when the result type is
+                    // String. Inserting an explicit kk_string_to_flat here would
+                    // unbox a flat aggregate as if it were a raw handle, causing a
+                    // double conversion crash.
+                    if case .stringStruct = resultKind {
+                        // Leave string unboxing to the backend bridge.
+                    } else if let unboxCallee = unboxingCallee(
                         sourceKind: TypeKind.any(.nullable), targetKind: resultKind,
-                        boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
+                        boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
+                        preferStaticPrimitive: true
                     ) {
                         effectiveUnbox = (unboxCallee, resultType)
                     }
@@ -538,17 +738,25 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         boxingCalleeTable: BoxingCalleeTable
     ) -> [KIRInstruction]? {
         guard let functionReturnKind,
-              isAnyOrNullableAny(functionReturnKind) || isNonValueClassReference(functionReturnKind, symbols: symbols),
               let valueType = intrinsicArgType(value, arena: module.arena, types: types)
         else {
             return nil
         }
         let rawValueKind = types.kind(of: valueType)
         let resolvedValueKind = resolveValueClassKind(rawValueKind, types: types, symbols: symbols)
-        guard let boxCallee = boxCalleeForPrimitive(
-            resolvedValueKind,
-            boxingCalleeTable: boxingCalleeTable
-        ) else {
+        // A non-null primitive returned from a `P?`-typed function must be
+        // boxed — not passed through verbatim — because a `P?` slot holds
+        // box-or-sentinel and a raw sentinel-equal scalar (Long.MIN_VALUE,
+        // ULong 2^63, -0.0) would read as `null` at every call site (KUU-854).
+        guard isAnyOrNullableAny(functionReturnKind)
+            || isNonValueClassReference(functionReturnKind, symbols: symbols)
+            || needsBoxingForCopy(sourceKind: resolvedValueKind, targetKind: functionReturnKind),
+              let boxCallee = boxCalleeForPrimitive(
+                  resolvedValueKind,
+                  boxingCalleeTable: boxingCalleeTable,
+                  preferStaticPrimitive: true
+              )
+        else {
             return nil
         }
         var instructions: [KIRInstruction] = []
@@ -575,7 +783,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         types: TypeSystem,
         symbols: SymbolTable?,
         interner: StringInterner,
-        boxingCalleeTable: BoxingCalleeTable
+        boxingCalleeTable: BoxingCalleeTable,
+        sema: SemaModule?,
+        cache: KIRNominalDispatchCache?
     ) -> [KIRInstruction]? {
         guard let fromType = intrinsicArgType(from, arena: module.arena, types: types),
               let toType = module.arena.exprType(to)
@@ -586,11 +796,30 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         let fromKind = resolveValueClassKind(rawFromKind, types: types, symbols: symbols)
         let rawToKind = types.kind(of: toType)
         let toKind = resolveValueClassKind(rawToKind, types: types, symbols: symbols)
-        if isAnyOrNullableAny(toKind) || needsBoxingForCopy(sourceKind: fromKind, targetKind: toKind)
+        // A non-null enum local is stored as its raw ordinal. Keep copies between
+        // values of the same enum class verbatim; otherwise resolving both sides
+        // to Int below would add an unnecessary kk_unbox_int and corrupt the
+        // ordinal before a later .name/.ordinal read.
+        let isDirectNonNullEnumCopy: Bool = {
+            guard case let .classType(sourceClass) = rawFromKind,
+                  case let .classType(targetClass) = rawToKind,
+                  sourceClass.nullability == .nonNull,
+                  targetClass.nullability == .nonNull,
+                  sourceClass.classSymbol == targetClass.classSymbol,
+                  let symbols,
+                  let sym = symbols.symbol(targetClass.classSymbol)
+            else {
+                return false
+            }
+            return sym.kind == .enumClass
+        }()
+        if !isDirectNonNullEnumCopy,
+           isAnyOrNullableAny(toKind) || needsBoxingForCopy(sourceKind: fromKind, targetKind: toKind)
             || isNonValueClassReference(rawToKind, symbols: symbols),
             let boxCallee = boxCalleeForPrimitive(
                 fromKind,
-                boxingCalleeTable: boxingCalleeTable
+                boxingCalleeTable: boxingCalleeTable,
+                preferStaticPrimitive: true
             )
         {
             var instructions: [KIRInstruction] = []
@@ -604,15 +833,19 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 symbols: symbols,
                 interner: interner,
                 arena: module.arena,
+                sema: sema,
+                cache: cache,
                 into: &instructions
             )
             return instructions
         }
-        if needsUnboxing(sourceKind: fromKind, targetKind: toKind, symbols: symbols),
+        if !isDirectNonNullEnumCopy,
+           needsUnboxing(sourceKind: fromKind, targetKind: toKind, symbols: symbols),
            let unboxCallee = unboxingCallee(
                sourceKind: fromKind, targetKind: toKind,
                boxingCalleeTable: boxingCalleeTable,
-               types: types, symbols: symbols
+               types: types, symbols: symbols,
+               preferStaticPrimitive: true
            )
         {
             return [.call(symbol: nil, callee: unboxCallee, arguments: [from],

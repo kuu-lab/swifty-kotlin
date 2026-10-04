@@ -1,0 +1,1747 @@
+package kotlin.text
+
+import kotlin.collections.CharIterator
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
+import kotlin.comparisons.minOf as comparisonMinOf
+import kotlin.random.Random
+
+private external fun kk_max_float(a: Float, b: Float): Float
+private external fun kk_max_double(a: Double, b: Double): Double
+
+// MIGRATION-TEXT-008 / KSP-410
+// String higher-order functions migrated from Swift runtime (RuntimeStringHOF.swift).
+//
+// BUG-174 is fixed (PR #5442, #5636): named labels in function-type parameters are
+// now parsed correctly, so the upstream stdlib's documentation-only labels
+// (`acc:`, `index:`) are restored below.
+//
+// BUG-175: none of the functions here return a bare, unbounded generic `R`
+// inferred from a nullable-returning (`R?`) lambda body shaped like
+// `{ x -> if (cond) y else null }` without an explicit type argument or
+// expected type at the call site — mapNotNull/firstNotNullOf/
+// firstNotNullOfOrNull hit "Type constraint could not be satisfied" with
+// that exact (very common) call shape and stay Swift-side too. The
+// already-shipped `List<T>.mapNotNull` (two type parameters, `T` fixed from
+// the receiver) is unaffected, so this looks specific to inferring a *lone*
+// type parameter purely from a nullable lambda return. See TODO.md BUG-175
+// for the minimal repro.
+//
+// BUG-176: map/mapIndexed stay Swift-side (RuntimeStringHOF.swift) — NOT
+// because of BUG-174, but because a bundled function of shape
+// `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns the WRONG
+// VALUES (raw unboxed scalars instead of boxed elements, e.g.
+// `"abc".map { it }` prints `[97, 98, 99]` instead of `[a, b, c]`) whenever
+// `R` resolves concretely to `Char` or `Boolean` (confirmed both by
+// inference and by explicit `<Char>` type argument; `<Any>` at the same
+// call site is unaffected). The bug reproduces with ANY receiver type
+// (String, CharArray — not String-specific) and is isolated to storing the
+// transform's result into a `List<R>`: the identical accumulator shape
+// (`fold`/`reduce`, where `R` is returned bare rather than stored in a
+// list) is unaffected. This is silent data corruption, not a compile/link
+// failure, so unlike BUG-174 it cannot be avoided by a source-level
+// workaround in this file (the bad unbox is baked into the lambda's own
+// compiled body by ABI lowering, before `map` ever sees the value). See
+// TODO.md BUG-176 for the minimal repro.
+//
+// CharSequence-receiver functions read the interface property directly. The
+// compiler preserves the receiver's runtime representation at the interface
+// boundary and dispatches `length` through the CharSequence itable, so the
+// length reads in these loops work for String, StringBuilder, and user-defined
+// CharSequence classes. Other CharSequence operations retain their own
+// runtime/itable contracts.
+
+/**
+ * Returns the range of valid character indices for this char sequence.
+ */
+public val CharSequence.indices: IntRange
+    get() = 0..length - 1
+
+private class CharSequenceCharIterator(
+    private val source: CharSequence
+) : CharIterator() {
+    private var index = 0
+
+    override fun hasNext(): Boolean = index < source.length
+
+    override fun nextChar(): Char {
+        val result = source[index]
+        index++
+        return result
+    }
+}
+
+/**
+ * Returns an iterator over the characters of this char sequence.
+ */
+public operator fun CharSequence.iterator(): CharIterator = CharSequenceCharIterator(this)
+
+// KSP-1395: Regex's runtime bridge currently accepts String input. Materialize
+// CharSequence values through indexed UTF-16 units so custom implementations do
+// not lose their contents by returning a display-only toString() value.
+@PublishedApi
+internal fun charSequenceRegexInputForReplace(value: CharSequence): String {
+    if (value is String) return value.toString()
+    val length = value.length
+    val chars = CharArray(length)
+    var index = 0
+    while (index < length) {
+        chars[index] = value[index]
+        index++
+    }
+    return StringBuilder().append(chars).toString()
+}
+
+/**
+ * Returns a new string obtained by replacing all matches of [regex] in this
+ * char sequence with [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replace(regex: Regex, replacement: String): String =
+    regex.replace(charSequenceRegexInputForReplace(this), replacement)
+
+/**
+ * Returns a new string obtained by replacing all matches of [regex] in this
+ * char sequence with the value returned by [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replace(
+    regex: Regex,
+    noinline replacement: (MatchResult) -> CharSequence
+): String {
+    val input = charSequenceRegexInputForReplace(this)
+    val result = StringBuilder()
+    var lastEnd = 0
+    for (match in regex.findAll(input)) {
+        val start = match.range.first
+        if (start > lastEnd) {
+            result.append(input.substring(lastEnd, start))
+        }
+        result.append(charSequenceRegexInputForReplace(replacement(match)))
+        lastEnd = match.range.last + 1
+    }
+    if (lastEnd < input.length) {
+        result.append(input.substring(lastEnd, input.length))
+    }
+    return result.toString()
+}
+
+/**
+ * Returns a new string with the first match of [regex] replaced by
+ * [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replaceFirst(regex: Regex, replacement: String): String =
+    regex.replaceFirst(charSequenceRegexInputForReplace(this), replacement)
+
+/**
+ * Returns a copy of this char sequence with the specified index range
+ * replaced by [replacement]. The end index is exclusive.
+ */
+public fun CharSequence.replaceRange(
+    startIndex: Int,
+    endIndex: Int,
+    replacement: CharSequence
+): CharSequence {
+    val length = this.length
+    if (startIndex < 0 || startIndex > length ||
+        endIndex < 0 || endIndex > length || startIndex > endIndex
+    ) {
+        throw IndexOutOfBoundsException(
+            "start=$startIndex, end=$endIndex, length=$length"
+        )
+    }
+
+    val result = StringBuilder()
+    result.append(charSequenceRegexInputForReplace(this.subSequence(0, startIndex)))
+    result.append(charSequenceRegexInputForReplace(replacement))
+    result.append(charSequenceRegexInputForReplace(this.subSequence(endIndex, length)))
+    return result
+}
+
+/**
+ * Returns a copy of this char sequence with the specified inclusive range
+ * replaced by [replacement].
+ */
+public fun CharSequence.replaceRange(range: IntRange, replacement: CharSequence): CharSequence =
+    replaceRange(range.start, range.endInclusive + 1, replacement)
+
+public fun String.filter(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+public fun String.filterNot(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = length
+    while (i < sz) {
+        val c = this[i]
+        if (!predicate(c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+public inline fun CharSequence.filter(predicate: (Char) -> Boolean): CharSequence {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+public inline fun CharSequence.filterIndexed(predicate: (index: Int, Char) -> Boolean): CharSequence {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(i, c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+public inline fun String.filterIndexed(predicate: (index: Int, Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(i, c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+@IgnorableReturnValue
+public inline fun <C : Appendable> CharSequence.filterIndexedTo(
+    destination: C,
+    predicate: (index: Int, Char) -> Boolean
+): C {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(i, c)) destination.append(c)
+        i++
+    }
+    return destination
+}
+
+public inline fun CharSequence.filterNot(predicate: (Char) -> Boolean): CharSequence {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val c = this[i]
+        if (!predicate(c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+@IgnorableReturnValue
+public inline fun <C : Appendable> CharSequence.filterNotTo(
+    destination: C,
+    predicate: (Char) -> Boolean
+): C {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val c = this[i]
+        if (!predicate(c)) destination.append(c)
+        i++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <C : Appendable> CharSequence.filterTo(
+    destination: C,
+    predicate: (Char) -> Boolean
+): C {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(c)) destination.append(c)
+        i++
+    }
+    return destination
+}
+
+public fun <R> CharSequence.map(transform: (Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        result.add(transform(this[i]))
+        i++
+    }
+    return result
+}
+
+public fun <R> CharSequence.mapIndexed(transform: (Int, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        result.add(transform(i, this[i]))
+        i++
+    }
+    return result
+}
+
+public inline fun <R : Any> CharSequence.mapIndexedNotNull(transform: (index: Int, Char) -> R?): List<R> {
+    return mapIndexedNotNullTo(ArrayList<R>(), transform)
+}
+
+@IgnorableReturnValue
+public inline fun <R : Any, C : MutableCollection<in R>> CharSequence.mapIndexedNotNullTo(
+    destination: C,
+    transform: (index: Int, Char) -> R?
+): C {
+    var index = 0
+    while (index < this.length) {
+        val transformed = transform(index, this[index])
+        if (transformed != null) destination.add(transformed)
+        index++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <R, C : MutableCollection<in R>> CharSequence.mapIndexedTo(
+    destination: C,
+    transform: (index: Int, Char) -> R
+): C {
+    var index = 0
+    while (index < this.length) {
+        destination.add(transform(index, this[index]))
+        index++
+    }
+    return destination
+}
+
+public fun <R : Any> CharSequence.mapNotNull(transform: (Char) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val transformed = transform(this[i])
+        if (transformed != null) result.add(transformed)
+        i++
+    }
+    return result
+}
+
+@IgnorableReturnValue
+public inline fun <R : Any, C : MutableCollection<in R>> CharSequence.mapNotNullTo(
+    destination: C,
+    transform: (Char) -> R?
+): C {
+    var index = 0
+    while (index < this.length) {
+        val transformed = transform(this[index])
+        if (transformed != null) destination.add(transformed)
+        index++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <R, C : MutableCollection<in R>> CharSequence.mapTo(
+    destination: C,
+    transform: (Char) -> R
+): C {
+    var index = 0
+    while (index < this.length) {
+        destination.add(transform(this[index]))
+        index++
+    }
+    return destination
+}
+
+/**
+ * Returns a single list of all elements yielded from results of [transform] function being invoked on each character of original char sequence.
+ */
+public inline fun <R> CharSequence.flatMap(transform: (Char) -> Iterable<R>): List<R> {
+    return flatMapTo(ArrayList<R>(), transform)
+}
+
+/**
+ * Returns a single list of all elements yielded from results of [transform] function being invoked on each character
+ * and its index in the original char sequence.
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterable")
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.flatMapIndexed(transform: (index: Int, Char) -> Iterable<R>): List<R> {
+    return flatMapIndexedTo(ArrayList<R>(), transform)
+}
+
+/**
+ * Appends all elements yielded from results of [transform] function being invoked on each character
+ * and its index in the original char sequence, to the given [destination].
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterableTo")
+@IgnorableReturnValue
+@kotlin.internal.InlineOnly
+public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapIndexedTo(
+    destination: C,
+    transform: (index: Int, Char) -> Iterable<R>
+): C {
+    var index = 0
+    while (index < this.length) {
+        val list = transform(index, this[index])
+        index++
+        val resultIterator = list.iterator()
+        while (resultIterator.hasNext()) destination.add(resultIterator.next())
+    }
+    return destination
+}
+
+/**
+ * Appends all elements yielded from results of [transform] function being invoked on each character of original char sequence, to the given [destination].
+ */
+@IgnorableReturnValue
+public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapTo(
+    destination: C,
+    transform: (Char) -> Iterable<R>
+): C {
+    var index = 0
+    while (index < this.length) {
+        val list = transform(this[index])
+        index++
+        val resultIterator = list.iterator()
+        while (resultIterator.hasNext()) destination.add(resultIterator.next())
+    }
+    return destination
+}
+
+// KSP-1378: CharSequence indexed default accessors are source-backed. Keep
+// the bounds check and indexed interface dispatch in the inline body so
+// custom CharSequence implementations observe the Kotlin contract.
+@kotlin.internal.InlineOnly
+@OptIn(ExperimentalContracts::class)
+public inline fun CharSequence.getOrElse(index: Int, defaultValue: (Int) -> Char): Char {
+    contract { callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE) }
+    return if (index >= 0 && index < length) get(index) else defaultValue(index)
+}
+
+public fun CharSequence.getOrNull(index: Int): Char? =
+    if (index >= 0 && index < length) get(index) else null
+
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.elementAt(index: Int): Char = get(index)
+
+@kotlin.internal.InlineOnly
+@OptIn(kotlin.contracts.ExperimentalContracts::class)
+public inline fun CharSequence.elementAtOrElse(index: Int, defaultValue: (Int) -> Char): Char {
+    contract {
+        callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE)
+    }
+    return if (index >= 0 && index < length) get(index) else defaultValue(index)
+}
+
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.elementAtOrNull(index: Int): Char? =
+    if (index >= 0 && index < length) get(index) else null
+
+public fun <R : Any> CharSequence.firstNotNullOf(transform: (Char) -> R?): R {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val transformed = transform(this[i])
+        if (transformed != null) return transformed
+        i++
+    }
+    throw NoSuchElementException("No element of the char sequence was transformed to a non-null value.")
+}
+
+public fun CharSequence.first(): Char {
+    if (isEmpty())
+        throw NoSuchElementException("Char sequence is empty.")
+    return this[0]
+}
+
+public inline fun CharSequence.first(predicate: (Char) -> Boolean): Char {
+    var index = 0
+    while (index < length) {
+        val element = this[index]
+        if (predicate(element)) return element
+        index++
+    }
+    throw NoSuchElementException("Char sequence contains no character matching the predicate.")
+}
+
+public fun <R : Any> CharSequence.firstNotNullOfOrNull(transform: (Char) -> R?): R? {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val transformed = transform(this[i])
+        if (transformed != null) return transformed
+        i++
+    }
+    return null
+}
+
+public fun CharSequence.firstOrNull(): Char? {
+    return if (isEmpty()) null else this[0]
+}
+
+public inline fun CharSequence.firstOrNull(predicate: (Char) -> Boolean): Char? {
+    var index = 0
+    while (index < length) {
+        val element = this[index]
+        if (predicate(element)) return element
+        index++
+    }
+    return null
+}
+
+public fun CharSequence.any(): Boolean {
+    return !isEmpty()
+}
+
+@SinceKotlin("1.3")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.random(): Char {
+    if (isEmpty()) throw NoSuchElementException("Char sequence is empty.")
+    return get(Random.nextInt(length))
+}
+
+@SinceKotlin("1.3")
+public fun CharSequence.random(random: Random): Char {
+    if (isEmpty()) throw NoSuchElementException("Char sequence is empty.")
+    return get(random.nextInt(length))
+}
+
+@SinceKotlin("1.4")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.randomOrNull(): Char? {
+    if (isEmpty()) return null
+    return get(Random.nextInt(length))
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.randomOrNull(random: Random): Char? {
+    if (isEmpty()) return null
+    return get(random.nextInt(length))
+}
+
+public fun CharSequence.any(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        if (predicate(this[i])) return true
+        i++
+    }
+    return false
+}
+
+public fun CharSequence.all(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        if (!predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+public fun CharSequence.none(): Boolean {
+    return isEmpty()
+}
+
+public fun CharSequence.none(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        if (predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+/**
+ * Returns the length of this char sequence.
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.count(): Int {
+    return length
+}
+
+public fun CharSequence.count(predicate: (Char) -> Boolean): Int {
+    var count = 0
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        if (predicate(this[i])) count++
+        i++
+    }
+    return count
+}
+
+public fun CharSequence.find(predicate: (Char) -> Boolean): Char? {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(c)) return c
+        i++
+    }
+    return null
+}
+
+public fun CharSequence.findLast(predicate: (Char) -> Boolean): Char? {
+    var i = this.length - 1
+    while (i >= 0) {
+        val c = this[i]
+        if (predicate(c)) return c
+        i--
+    }
+    return null
+}
+
+public inline fun <S : CharSequence> S.onEach(action: (Char) -> Unit): S {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        action(this[i])
+        i++
+    }
+    return this
+}
+
+public fun CharSequence.partition(predicate: (Char) -> Boolean): Pair<String, String> {
+    val matched = StringBuilder()
+    val unmatched = StringBuilder()
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(c)) matched.append(c) else unmatched.append(c)
+        i++
+    }
+    return Pair(matched.toString(), unmatched.toString())
+}
+
+@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
+public fun CharSequence.sumBy(selector: (Char) -> Int): Int {
+    var sum = 0
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
+public fun CharSequence.sumByDouble(selector: (Char) -> Double): Double {
+    var sum = 0.0
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("sumOfDouble")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> Double): Double {
+    var sum: Double = 0.toDouble()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.4")
+@kotlin.jvm.JvmName("sumOfInt")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> Int): Int {
+    var sum: Int = 0.toInt()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("sumOfLong")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> Long): Long {
+    var sum: Long = 0.toLong()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.5")
+@kotlin.jvm.JvmName("sumOfUInt")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> UInt): UInt {
+    var sum: UInt = 0.toUInt()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.5")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("sumOfULong")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> ULong): ULong {
+    var sum: ULong = 0.toULong()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+public inline fun <S : CharSequence> S.onEachIndexed(action: (index: Int, Char) -> Unit): S {
+    var i = 0
+    val sz = this.length
+    while (i < sz) {
+        action(i, this[i])
+        i++
+    }
+    return this
+}
+
+public fun CharSequence.reduce(operation: (acc: Char, Char) -> Char): Char {
+    val sz = this.length
+    if (sz == 0) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var accumulator = this[0]
+    var i = 1
+    while (i < sz) {
+        accumulator = operation(accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceOrNull(operation: (acc: Char, Char) -> Char): Char? {
+    val sz = this.length
+    if (sz == 0) return null
+    var accumulator = this[0]
+    var i = 1
+    while (i < sz) {
+        accumulator = operation(accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceIndexed(operation: (index: Int, acc: Char, Char) -> Char): Char {
+    val sz = this.length
+    if (sz == 0) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var accumulator = this[0]
+    var i = 1
+    while (i < sz) {
+        accumulator = operation(i, accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceIndexedOrNull(operation: (index: Int, acc: Char, Char) -> Char): Char? {
+    val sz = this.length
+    if (sz == 0) return null
+    var accumulator = this[0]
+    var i = 1
+    while (i < sz) {
+        accumulator = operation(i, accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceRight(operation: (Char, acc: Char) -> Char): Char {
+    var i = this.length - 1
+    if (i < 0) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var accumulator = this[i]
+    i--
+    while (i >= 0) {
+        accumulator = operation(this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceRightOrNull(operation: (Char, acc: Char) -> Char): Char? {
+    var i = this.length - 1
+    if (i < 0) return null
+    var accumulator = this[i]
+    i--
+    while (i >= 0) {
+        accumulator = operation(this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceRightIndexed(operation: (index: Int, Char, acc: Char) -> Char): Char {
+    var i = this.length - 1
+    if (i < 0) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var accumulator = this[i]
+    i--
+    while (i >= 0) {
+        accumulator = operation(i, this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceRightIndexedOrNull(operation: (index: Int, Char, acc: Char) -> Char): Char? {
+    var i = this.length - 1
+    if (i < 0) return null
+    var accumulator = this[i]
+    i--
+    while (i >= 0) {
+        accumulator = operation(i, this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public inline fun <R> CharSequence.fold(initial: R, operation: (acc: R, Char) -> R): R {
+    var accumulator = initial
+    var i = 0
+    while (i < this.length) {
+        accumulator = operation(accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public inline fun <R> CharSequence.foldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): R {
+    var accumulator = initial
+    var i = 0
+    while (i < this.length) {
+        accumulator = operation(i, accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public inline fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R): R {
+    var accumulator = initial
+    var i = this.length - 1
+    while (i >= 0) {
+        accumulator = operation(this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public inline fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int, Char, acc: R) -> R): R {
+    var accumulator = initial
+    var i = this.length - 1
+    while (i >= 0) {
+        accumulator = operation(i, this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+// KSP-1387: CharSequence max-family APIs are source-backed. Keep the
+// floating-point overloads on the shared numeric helpers so NaN and signed-zero
+// ordering stays aligned with Kotlin's maxOf semantics.
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun CharSequence.max(): Char {
+    if (isEmpty()) throw NoSuchElementException()
+    var max = this[0]
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        if (max < e) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxByOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <R : Comparable<R>> CharSequence.maxBy(selector: (Char) -> R): Char {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxElem = this[0]
+    val lastIndex = this.length - 1
+    if (lastIndex == 0) return maxElem
+    var maxValue = selector(maxElem)
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        val v = selector(e)
+        if (maxValue < v) {
+            maxElem = e
+            maxValue = v
+        }
+    }
+    return maxElem
+}
+
+@SinceKotlin("1.4")
+public inline fun <R : Comparable<R>> CharSequence.maxByOrNull(selector: (Char) -> R): Char? {
+    if (isEmpty()) return null
+    var maxElem = this[0]
+    val lastIndex = this.length - 1
+    if (lastIndex == 0) return maxElem
+    var maxValue = selector(maxElem)
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        val v = selector(e)
+        if (maxValue < v) {
+            maxElem = e
+            maxValue = v
+        }
+    }
+    return maxElem
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.maxOf(selector: (Char) -> Double): Double {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        maxValue = kk_max_double(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.maxOf(selector: (Char) -> Float): Float {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        maxValue = kk_max_float(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R : Comparable<R>> CharSequence.maxOf(selector: (Char) -> R): R {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        if (maxValue < v) {
+            maxValue = v
+        }
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.maxOfOrNull(selector: (Char) -> Double): Double? {
+    if (isEmpty()) return null
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        maxValue = kk_max_double(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.maxOfOrNull(selector: (Char) -> Float): Float? {
+    if (isEmpty()) return null
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        maxValue = kk_max_float(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R : Comparable<R>> CharSequence.maxOfOrNull(selector: (Char) -> R): R? {
+    if (isEmpty()) return null
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        if (maxValue < v) {
+            maxValue = v
+        }
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.maxOfWith(comparator: Comparator<in R>, selector: (Char) -> R): R {
+    if (isEmpty()) throw NoSuchElementException()
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        if (comparator.compare(maxValue, v) < 0) {
+            maxValue = v
+        }
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.maxOfWithOrNull(comparator: Comparator<in R>, selector: (Char) -> R): R? {
+    if (isEmpty()) return null
+    var maxValue = selector(this[0])
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val v = selector(this[i])
+        if (comparator.compare(maxValue, v) < 0) {
+            maxValue = v
+        }
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.maxOrNull(): Char? {
+    if (isEmpty()) return null
+    var max = this[0]
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        if (max < e) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxWithOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun CharSequence.maxWith(comparator: Comparator<in Char>): Char {
+    if (isEmpty()) throw NoSuchElementException()
+    var max = this[0]
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        if (comparator.compare(max, e) < 0) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.maxWithOrNull(comparator: Comparator<in Char>): Char? {
+    if (isEmpty()) return null
+    var max = this[0]
+    val lastIndex = this.length - 1
+    for (i in 1..lastIndex) {
+        val e = this[i]
+        if (comparator.compare(max, e) < 0) max = e
+    }
+    return max
+}
+
+public inline fun CharSequence.forEach(action: (Char) -> Unit): Unit {
+    // Read length and get through the CharSequence interface on every iteration.
+    var index = 0
+    while (index < this.length) {
+        action(this[index])
+        index++
+    }
+}
+
+public inline fun CharSequence.forEachIndexed(action: (index: Int, Char) -> Unit): Unit {
+    var index = 0
+    while (index < this.length) {
+        action(index, this[index])
+        index++
+    }
+}
+
+// KSP-1388: CharSequence min-family APIs are source-backed. Keep the indexed
+// walk in Kotlin so String, StringBuilder, and user-defined CharSequence
+// implementations use the interface's length/get contract.
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun CharSequence.min(): Char {
+    if (this.length == 0) throw NoSuchElementException()
+    var min = this[0]
+    var i = 1
+    while (i < this.length) {
+        val value = this[i]
+        if (min > value) min = value
+        i++
+    }
+    return min
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minByOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <R : Comparable<R>> CharSequence.minBy(selector: (Char) -> R): Char {
+    if (this.length == 0) throw NoSuchElementException()
+    var minElement = this[0]
+    val lastIndex = this.length - 1
+    if (lastIndex == 0) return minElement
+    var minValue = selector(minElement)
+    var i = 1
+    while (i <= lastIndex) {
+        val value = this[i]
+        val key = selector(value)
+        if (minValue > key) {
+            minElement = value
+            minValue = key
+        }
+        i++
+    }
+    return minElement
+}
+
+@SinceKotlin("1.4")
+public inline fun <R : Comparable<R>> CharSequence.minByOrNull(selector: (Char) -> R): Char? {
+    if (this.length == 0) return null
+    var minElement = this[0]
+    val lastIndex = this.length - 1
+    if (lastIndex == 0) return minElement
+    var minValue = selector(minElement)
+    var i = 1
+    while (i <= lastIndex) {
+        val value = this[i]
+        val key = selector(value)
+        if (minValue > key) {
+            minElement = value
+            minValue = key
+        }
+        i++
+    }
+    return minElement
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.minOf(selector: (Char) -> Double): Double {
+    if (this.length == 0) throw NoSuchElementException()
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        minValue = comparisonMinOf(minValue, selector(this[i]))
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.minOf(selector: (Char) -> Float): Float {
+    if (this.length == 0) throw NoSuchElementException()
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        minValue = comparisonMinOf(minValue, selector(this[i]))
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R : Comparable<R>> CharSequence.minOf(selector: (Char) -> R): R {
+    if (this.length == 0) throw NoSuchElementException()
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        val value = selector(this[i])
+        if (minValue > value) minValue = value
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.minOfOrNull(selector: (Char) -> Double): Double? {
+    if (this.length == 0) return null
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        minValue = comparisonMinOf(minValue, selector(this[i]))
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.minOfOrNull(selector: (Char) -> Float): Float? {
+    if (this.length == 0) return null
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        minValue = comparisonMinOf(minValue, selector(this[i]))
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R : Comparable<R>> CharSequence.minOfOrNull(selector: (Char) -> R): R? {
+    if (this.length == 0) return null
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        val value = selector(this[i])
+        if (minValue > value) minValue = value
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.minOfWith(
+    comparator: Comparator<in R>,
+    selector: (Char) -> R
+): R {
+    if (this.length == 0) throw NoSuchElementException()
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        val value = selector(this[i])
+        if (comparator.compare(minValue, value) > 0) minValue = value
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.minOfWithOrNull(
+    comparator: Comparator<in R>,
+    selector: (Char) -> R
+): R? {
+    if (this.length == 0) return null
+    var minValue = selector(this[0])
+    var i = 1
+    while (i < this.length) {
+        val value = selector(this[i])
+        if (comparator.compare(minValue, value) > 0) minValue = value
+        i++
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.minOrNull(): Char? {
+    if (this.length == 0) return null
+    var min = this[0]
+    var i = 1
+    while (i < this.length) {
+        val value = this[i]
+        if (min > value) min = value
+        i++
+    }
+    return min
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minWithOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun CharSequence.minWith(comparator: Comparator<in Char>): Char {
+    if (this.length == 0) throw NoSuchElementException()
+    var min = this[0]
+    var i = 1
+    while (i < this.length) {
+        val value = this[i]
+        if (comparator.compare(min, value) > 0) min = value
+        i++
+    }
+    return min
+}
+
+@SinceKotlin("1.4")
+public fun CharSequence.minWithOrNull(comparator: Comparator<in Char>): Char? {
+    if (this.length == 0) return null
+    var min = this[0]
+    var i = 1
+    while (i < this.length) {
+        val value = this[i]
+        if (comparator.compare(min, value) > 0) min = value
+        i++
+    }
+    return min
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <R> CharSequence.runningFold(initial: R, operation: (acc: R, Char) -> R): List<R> {
+    if (this.length == 0) return listOf(initial)
+    // Box primitive accumulators before crossing the generic List element boundary.
+    val result = ArrayList<Any?>(this.length + 1)
+    result.add(initial)
+    var accumulator = initial
+    var index = 0
+    while (index < this.length) {
+        accumulator = operation(accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result as List<R>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <R> CharSequence.runningFoldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): List<R> {
+    if (this.length == 0) return listOf(initial)
+    // Box primitive accumulators before crossing the generic List element boundary.
+    val result = ArrayList<Any?>(this.length + 1)
+    result.add(initial)
+    var accumulator = initial
+    var index = 0
+    val end = this.length
+    while (index < end) {
+        accumulator = operation(index, accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result as List<R>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun CharSequence.runningReduce(operation: (acc: Char, Char) -> Char): List<Char> {
+    if (this.length == 0) return emptyList()
+    var accumulator = this[0]
+    // Box primitive values before crossing the generic List element boundary.
+    val result = ArrayList<Any?>(this.length)
+    result.add(accumulator)
+    var index = 1
+    val end = this.length
+    while (index < end) {
+        accumulator = operation(accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result as List<Char>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun CharSequence.runningReduceIndexed(operation: (index: Int, acc: Char, Char) -> Char): List<Char> {
+    if (this.length == 0) return emptyList()
+    var accumulator = this[0]
+    // Box primitive values before crossing the generic List element boundary.
+    val result = ArrayList<Any?>(this.length)
+    result.add(accumulator)
+    var index = 1
+    val end = this.length
+    while (index < end) {
+        accumulator = operation(index, accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result as List<Char>
+}
+
+public inline fun <R> CharSequence.scan(initial: R, operation: (acc: R, Char) -> R): List<R> {
+    return runningFold(initial, operation)
+}
+
+public inline fun <R> CharSequence.scanIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): List<R> {
+    return runningFoldIndexed(initial, operation)
+}
+
+// KSP-1366: CharSequence association functions are source-backed. The
+// explicit index walk keeps CharSequence receiver dispatch and the source
+// implementation visible to the compiler while matching the standard map
+// capacity and dynamic length behavior.
+@Suppress("UNCHECKED_CAST")
+public inline fun <K, V> CharSequence.associate(transform: (Char) -> Pair<K, V>): Map<K, V> {
+    val result = LinkedHashMap<K, V>(mapCapacity(this.length).coerceAtLeast(16))
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        val pair = transform(e)
+        result[pair.first] = pair.second
+        i++
+    }
+    return result as Map<K, V>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <K> CharSequence.associateBy(keySelector: (Char) -> K): Map<K, Char> {
+    val result = LinkedHashMap<K, Char>(mapCapacity(this.length).coerceAtLeast(16))
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        result[keySelector(e)] = e
+        i++
+    }
+    return result as Map<K, Char>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <K, V> CharSequence.associateBy(
+    keySelector: (Char) -> K,
+    valueTransform: (Char) -> V
+): Map<K, V> {
+    val result = LinkedHashMap<K, V>(mapCapacity(this.length).coerceAtLeast(16))
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        result[keySelector(e)] = valueTransform(e)
+        i++
+    }
+    return result as Map<K, V>
+}
+
+@IgnorableReturnValue
+public inline fun <K, M : MutableMap<in K, in Char>> CharSequence.associateByTo(
+    destination: M,
+    keySelector: (Char) -> K
+): M {
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        destination.put(keySelector(e), e)
+        i++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <K, V, M : MutableMap<in K, in V>> CharSequence.associateByTo(
+    destination: M,
+    keySelector: (Char) -> K,
+    valueTransform: (Char) -> V
+): M {
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        destination.put(keySelector(e), valueTransform(e))
+        i++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <K, V, M : MutableMap<in K, in V>> CharSequence.associateTo(
+    destination: M,
+    transform: (Char) -> Pair<K, V>
+): M {
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        val pair = transform(e)
+        destination.put(pair.first, pair.second)
+        i++
+    }
+    return destination
+}
+
+@SinceKotlin("1.3")
+@Suppress("UNCHECKED_CAST")
+public inline fun <V> CharSequence.associateWith(valueSelector: (Char) -> V): Map<Char, V> {
+    val result = LinkedHashMap<Char, V>(
+        mapCapacity(this.length.coerceAtMost(128)).coerceAtLeast(16)
+    )
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        result[e] = valueSelector(e)
+        i++
+    }
+    return result as Map<Char, V>
+}
+
+@SinceKotlin("1.3")
+@IgnorableReturnValue
+public inline fun <V, M : MutableMap<in Char, in V>> CharSequence.associateWithTo(
+    destination: M,
+    valueSelector: (Char) -> V
+): M {
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        destination.put(e, valueSelector(e))
+        i++
+    }
+    return destination
+}
+
+// KSP-1379: CharSequence grouping functions are source-backed. The explicit
+// index walk preserves the source receiver contract while avoiding iterator
+// inference gaps in the bundled compiler.
+@Suppress("UNCHECKED_CAST")
+public inline fun <K> CharSequence.groupBy(keySelector: (Char) -> K): Map<K, List<Char>> {
+    val result = mutableMapOf<K, MutableList<Char>>()
+    var i = 0
+    while (i < this.length) {
+        val element: Char = this[i]
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<Char>()
+            result[key] = bucket
+            bucket.add(element)
+        } else {
+            existing.add(element)
+        }
+        i++
+    }
+    return result as Map<K, List<Char>>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <K, V> CharSequence.groupBy(
+    keySelector: (Char) -> K,
+    valueTransform: (Char) -> V
+): Map<K, List<V>> {
+    val result = mutableMapOf<K, MutableList<V>>()
+    var i = 0
+    while (i < this.length) {
+        val element: Char = this[i]
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            result[key] = bucket
+            bucket.add(valueTransform(element))
+        } else {
+            existing.add(valueTransform(element))
+        }
+        i++
+    }
+    return result as Map<K, List<V>>
+}
+
+@IgnorableReturnValue
+public inline fun <K, M : MutableMap<in K, MutableList<Char>>> CharSequence.groupByTo(
+    destination: M,
+    keySelector: (Char) -> K
+): M {
+    var i = 0
+    while (i < this.length) {
+        val element: Char = this[i]
+        val key = keySelector(element)
+        val existing = destination[key]
+        if (existing == null) {
+            val bucket = mutableListOf<Char>()
+            destination[key] = bucket
+            bucket.add(element)
+        } else {
+            existing.add(element)
+        }
+        i++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <K, V, M : MutableMap<in K, MutableList<V>>> CharSequence.groupByTo(
+    destination: M,
+    keySelector: (Char) -> K,
+    valueTransform: (Char) -> V
+): M {
+    var i = 0
+    while (i < this.length) {
+        val element: Char = this[i]
+        val key = keySelector(element)
+        val existing = destination[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            destination[key] = bucket
+            bucket.add(valueTransform(element))
+        } else {
+            existing.add(valueTransform(element))
+        }
+        i++
+    }
+    return destination
+}
+
+// KSP-1380: CharSequence.groupingBy is source-backed. Mirrors the upstream
+// object-expression Grouping adapter over CharSequence.iterator().
+@SinceKotlin("1.1")
+public inline fun <K> CharSequence.groupingBy(crossinline keySelector: (Char) -> K): Grouping<Char, K> {
+    val source = this
+    return object : Grouping<Char, K> {
+        override fun sourceIterator(): Iterator<Char> = source.iterator()
+        override fun keyOf(element: Char): K = keySelector(element)
+    }
+}
+
+public fun CharSequence.drop(n: Int): CharSequence {
+    require(n >= 0) { "Requested character count $n is less than zero." }
+    return this.subSequence(n.coerceAtMost(length), length)
+}
+
+public fun CharSequence.dropLast(n: Int): CharSequence {
+    require(n >= 0) { "Requested character count $n is less than zero." }
+    val count = (length - n).coerceAtLeast(0)
+    return this.subSequence(0, count.coerceAtMost(length))
+}
+
+public inline fun CharSequence.dropLastWhile(predicate: (Char) -> Boolean): CharSequence {
+    var index = this.length - 1
+    while (index >= 0) {
+        val shouldDrop = predicate(this[index])
+        if (shouldDrop == false) {
+            return this.subSequence(0, index + 1)
+        }
+        index--
+    }
+    return ""
+}
+
+public inline fun CharSequence.dropWhile(predicate: (Char) -> Boolean): CharSequence {
+    var index = 0
+    val endIndex = this.length
+    while (index < endIndex) {
+        val shouldDrop = predicate(this[index])
+        if (shouldDrop == false) {
+            return this.subSequence(index, this.length)
+        }
+        index++
+    }
+    return ""
+}
+
+public fun CharSequence.take(n: Int): CharSequence {
+    require(n >= 0) { "Requested character count $n is less than zero." }
+    return this.subSequence(0, n.coerceAtMost(length))
+}
+
+public fun CharSequence.takeLast(n: Int): CharSequence {
+    require(n >= 0) { "Requested character count $n is less than zero." }
+    val length = this.length
+    return this.subSequence(length - n.coerceAtMost(length), length)
+}
+
+public inline fun CharSequence.takeLastWhile(predicate: (Char) -> Boolean): CharSequence {
+    var index = this.length - 1
+    while (index >= 0) {
+        if (predicate(this[index]) == false) {
+            return this.subSequence(index + 1, this.length)
+        }
+        index--
+    }
+    return this.subSequence(0, this.length)
+}
+
+public inline fun CharSequence.takeWhile(predicate: (Char) -> Boolean): CharSequence {
+    var index = 0
+    val endIndex = this.length
+    while (index < endIndex) {
+        if (predicate(this[index]) == false) {
+            return this.subSequence(0, index)
+        }
+        index++
+    }
+    return this.subSequence(0, this.length)
+}
+
+public fun CharSequence.padStart(length: Int, padChar: Char = ' '): CharSequence {
+    if (length < 0)
+        throw IllegalArgumentException("Desired length $length is less than zero.")
+    if (length <= this.length)
+        return this.subSequence(0, this.length)
+    val sb = StringBuilder(length)
+    for (i in 1..(length - this.length))
+        sb.append(padChar)
+    sb.append(this)
+    return sb
+}
+
+public fun CharSequence.padEnd(length: Int, padChar: Char = ' '): CharSequence {
+    if (length < 0)
+        throw IllegalArgumentException("Desired length $length is less than zero.")
+    if (length <= this.length)
+        return this.subSequence(0, this.length)
+    val sb = StringBuilder(length)
+    sb.append(this)
+    for (i in 1..(length - this.length))
+        sb.append(padChar)
+    return sb
+}
+

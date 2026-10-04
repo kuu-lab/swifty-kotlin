@@ -12,10 +12,8 @@
 //   - kotlin.math.PI, kotlin.math.E  (top-level math package constants)
 //   - Double companion object constants: POSITIVE_INFINITY, NEGATIVE_INFINITY,
 //     NaN, MAX_VALUE, MIN_VALUE
-//   - Int companion object constants:  MAX_VALUE, MIN_VALUE
-//   - Long companion object constants: MAX_VALUE, MIN_VALUE
 //
-// Most companion-object constants (Int/Long/Double bounds, infinities, NaN) are
+// Most companion-object constants (infinities, NaN) are
 // resolved at compile time as inline literals in CallTypeChecker+MemberCallInference.swift
 // and never require a runtime call. The functions below serve as fallback runtime
 // entry points and explicit documentation of all constant values.
@@ -55,73 +53,4 @@ public func kk_double_max_value() -> Int {
 @_cdecl("kk_double_min_value")
 public func kk_double_min_value() -> Int {
     kk_double_to_bits(Double.leastNonzeroMagnitude)
-}
-
-// MARK: - Float special-value constants
-
-/// Returns the Float representation of positive infinity.
-/// Kotlin: Float.POSITIVE_INFINITY
-@_cdecl("kk_float_positive_infinity")
-public func kk_float_positive_infinity() -> Int {
-    kk_float_to_bits(Float.infinity)
-}
-
-/// Returns the Float representation of negative infinity.
-/// Kotlin: Float.NEGATIVE_INFINITY
-@_cdecl("kk_float_negative_infinity")
-public func kk_float_negative_infinity() -> Int {
-    kk_float_to_bits(-Float.infinity)
-}
-
-/// Returns the Float representation of Not-a-Number.
-/// Kotlin: Float.NaN
-@_cdecl("kk_float_nan")
-public func kk_float_nan() -> Int {
-    kk_float_to_bits(Float.nan)
-}
-
-/// Returns the largest finite Float value (approximately 3.4028235e+38).
-/// Kotlin: Float.MAX_VALUE
-@_cdecl("kk_float_max_value")
-public func kk_float_max_value() -> Int {
-    kk_float_to_bits(Float.greatestFiniteMagnitude)
-}
-
-/// Returns the smallest positive non-zero Float value (approximately 1.4e-45).
-/// Kotlin: Float.MIN_VALUE  (Kotlin MIN_VALUE = leastNonzeroMagnitude)
-@_cdecl("kk_float_min_value")
-public func kk_float_min_value() -> Int {
-    kk_float_to_bits(Float.leastNonzeroMagnitude)
-}
-
-// MARK: - Int companion constants
-
-/// Returns Int.MAX_VALUE (2^31 - 1 = 2147483647).
-/// Kotlin: Int.MAX_VALUE
-@_cdecl("kk_int_max_value")
-public func kk_int_max_value() -> Int {
-    return Int(Int32.max)
-}
-
-/// Returns Int.MIN_VALUE (-2^31 = -2147483648).
-/// Kotlin: Int.MIN_VALUE
-@_cdecl("kk_int_min_value")
-public func kk_int_min_value() -> Int {
-    return Int(Int32.min)
-}
-
-// MARK: - Long companion constants
-
-/// Returns Long.MAX_VALUE (2^63 - 1 = 9223372036854775807).
-/// Kotlin: Long.MAX_VALUE
-@_cdecl("kk_long_max_value")
-public func kk_long_max_value() -> Int {
-    return Int(Int64.max)
-}
-
-/// Returns Long.MIN_VALUE (-2^63 = -9223372036854775808).
-/// Kotlin: Long.MIN_VALUE
-@_cdecl("kk_long_min_value")
-public func kk_long_min_value() -> Int {
-    return Int(truncatingIfNeeded: Int64.min)
 }

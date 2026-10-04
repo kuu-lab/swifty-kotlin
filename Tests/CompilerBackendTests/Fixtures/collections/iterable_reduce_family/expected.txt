@@ -1,0 +1,18 @@
+10
+21
+null
+null
+empty reduce
+empty reduceIndexed
+42
+42
+42
+0
+42
+0
+x
+10
+16
+stopped
+1
+3

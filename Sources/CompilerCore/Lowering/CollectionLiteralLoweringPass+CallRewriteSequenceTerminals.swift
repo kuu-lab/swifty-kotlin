@@ -1,6 +1,7 @@
 /// Sequence terminal conversions plus list/range transform rewrites.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequenceTerminalCall(
+        symbol: SymbolID?,
         callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
@@ -10,15 +11,18 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        let uintType = ctx.sema?.types.uintType
-
-        func isUIntRangeExpr(_ expr: KIRExprID) -> Bool {
-            guard let uintType else { return false }
-            return module.arena.exprType(expr) == uintType
+        // STDLIB-pipeline §5 / KSP-441〜447: Bundled Kotlin source implementations
+        // (e.g. flatten, toSet) take priority over runtime shortcuts. Only a
+        // confirmed RuntimeSequenceBox may use the `kk_*` helper; source objects,
+        // non-Sequence receivers, and unknown provenance stay on the source
+        // iterator path.
+        if isSourceBacked(symbol: symbol, ctx: ctx),
+           let receiverID = arguments.first,
+           state.sequenceRuntimeRepresentation(of: receiverID) != .runtimeBox {
+            return false
         }
-
     // toSet() on sequence → kk_sequence_toSet (STDLIB-470)
     if callee == lookup.toSetName, arguments.count == 1 {
         let receiverID = arguments[0]
@@ -48,52 +52,19 @@ extension CollectionLiteralConstructionLoweringPass {
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             let toMapResult = module.arena.appendTemporary(type: nil
             )
+            let thrownExpr = thrownResult ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkSequenceToMapName,
                 arguments: [receiverID],
                 result: toMapResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: true,
+                thrownResult: thrownExpr
             ))
             if let result {
                 state.mapExprIDs.insert(result.rawValue)
                 state.mapExprIDs.insert(toMapResult.rawValue)
                 loweredBody.append(.copy(from: toMapResult, to: result))
-            }
-            return true
-        }
-    }
-
-    // groupBy on sequence → kk_sequence_groupBy (STDLIB-470)
-    if callee == lookup.groupByName,
-       arguments.count == 2 || arguments.count == 3
-    {
-        let receiverID = arguments[0]
-        if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            let lambdaID = arguments[1]
-            let closureRawID: KIRExprID
-            if arguments.count == 3 {
-                closureRawID = arguments[2]
-            } else {
-                let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                closureRawID = zeroExpr
-            }
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequenceGroupByName,
-                arguments: [receiverID, lambdaID, closureRawID],
-                result: hofResult,
-                canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if let result {
-                state.mapExprIDs.insert(result.rawValue)
-                state.mapExprIDs.insert(hofResult.rawValue)
-                loweredBody.append(.copy(from: hofResult, to: result))
             }
             return true
         }
@@ -147,55 +118,19 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    if callee == lookup.dropName, arguments.count == 2 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListDropName,
-                arguments: arguments,
-                result: transformResult,
-                canThrow: true,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
     if callee == lookup.reversedName || callee == lookup.asReversedName, arguments.count == 1 {
         let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: callee == lookup.asReversedName ? lookup.kkListAsReversedName : lookup.kkListReversedName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
         if callee == lookup.reversedName, state.rangeExprIDs.contains(receiverID.rawValue) {
-            let isUIntRange = isUIntRangeExpr(receiverID)
+            if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                // ULongRange.reversed() is bundled Kotlin source.
+                return false
+            }
+            // KSP-1523: UIntRange never reaches this branch — its
+            // constructing callee is never added to state.rangeExprIDs
+            // during PreScan, so the old isUIntRange arm was unreachable.
             let transformResult = module.arena.appendTemporary(type: nil
             )
-            let reversedName = state.ulongRangeExprIDs.contains(receiverID.rawValue)
-                ? lookup.kkULongRangeReversedName
-                : (isUIntRange ? ctx.interner.intern("kk_uint_range_reversed") : lookup.kkRangeReversedName)
+            let reversedName = lookup.kkRangeReversedName
             loweredBody.append(.call(
                 symbol: nil,
                 callee: reversedName,
@@ -211,68 +146,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     state.ulongRangeExprIDs.insert(transformResult.rawValue)
                     state.ulongRangeExprIDs.insert(result.rawValue)
                 }
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
-    if callee == lookup.sortedName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListSortedName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-        if state.setExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSetSortedName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-    }
-
-    if callee == lookup.distinctName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListDistinctName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(transformResult.rawValue)
                 loweredBody.append(.copy(from: transformResult, to: result))
             }
             return true
@@ -302,24 +175,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             return true
         }
-        if state.mapExprIDs.contains(receiverID.rawValue) {
-            let toListResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkMapToListName,
-                arguments: [receiverID],
-                result: toListResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(toListResult.rawValue)
-                loweredBody.append(.copy(from: toListResult, to: result))
-            }
-            return true
-        }
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             let toListResult = module.arena.appendTemporary(type: nil
             )
@@ -339,16 +194,17 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
         if state.rangeExprIDs.contains(receiverID.rawValue) {
+            if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                // ULongRange.toList() is bundled Kotlin source.
+                return false
+            }
             let toListResult = module.arena.appendTemporary(type: nil
             )
-            // Use char/ULong range variant if applicable (STDLIB-290, STDLIB-524)
+            // Use the char range variant if applicable (STDLIB-290).
+            // KSP-1523/1524: unsigned range toList() is bundled Kotlin source.
             let rangeToListCallee: InternedString
             if state.charRangeExprIDs.contains(receiverID.rawValue) {
                 rangeToListCallee = lookup.kkCharRangeToListName
-            } else if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
-                rangeToListCallee = lookup.kkULongRangeToListName
-            } else if isUIntRangeExpr(receiverID) {
-                rangeToListCallee = ctx.interner.intern("kk_uint_range_toList")
             } else {
                 rangeToListCallee = lookup.kkRangeToListName
             }

@@ -19,7 +19,7 @@ extension CallTypeChecker {
         let calleeName = request.calleeName
         let args = request.args
 
-        if ["firstNotNullOf", "firstNotNullOfOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull", "reduceOrNull", "sumBy", "sumByDouble", "takeLastWhile", "onEachIndexed"]
+        if ["firstNotNullOf", "firstNotNullOfOrNull", "takeLastWhile"]
             .contains(interner.resolve(calleeName)),
             args.count == 1,
             let lambdaExpr = ast.arena.expr(args[0].expr),
@@ -27,6 +27,24 @@ extension CallTypeChecker {
         {
             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
         }
+    }
+
+    func markRegexReplaceLambdaIfNeeded(
+        chosenCallee: SymbolID,
+        args: [CallArgument],
+        ctx: TypeInferenceContext
+    ) {
+        guard ctx.sema.symbols.externalLinkName(for: chosenCallee) == "__kk_regex_replace_lambda",
+              args.count == 2,
+              let lambdaExpr = ctx.ast.arena.expr(args[1].expr),
+              lambdaExpr.isLambdaOrCallableRef
+        else {
+            return
+        }
+        // KUU-600: Regex.replace invokes this transform through the native
+        // collection-HOF callback ABI, which requires a closure-aware lambda
+        // entry point even when the lambda does not capture values.
+        ctx.sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
     }
 
     func tryInferMemberCallWithoutReceiverSpecials(
@@ -65,6 +83,159 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// Resolves a property or classifier reached through a package-qualified
+    /// path before receiver inference tries to interpret the leading package
+    /// name as a value. Examples include `kotlin.math.PI` and the
+    /// `kotlin.Int` classifier in `kotlin.Int.MAX_VALUE`.
+    func tryInferFQNQualifiedValue(
+        _ request: MemberCallInferenceRequest,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let id = request.id
+        let ctx = request.ctx
+        let sema = ctx.sema
+        let ast = ctx.ast
+        let interner = ctx.interner
+
+        guard request.args.isEmpty,
+              request.explicitTypeArgs.isEmpty,
+              !request.safeCall,
+              !ast.arena.isExplicitCall(id),
+              let receiverPath = qualifiedCalleePath(for: request.receiverID, ast: ast),
+              !receiverPath.isEmpty,
+              locals[receiverPath[0]] == nil
+        else {
+            return nil
+        }
+
+        let qualifiedPath = receiverPath + [request.calleeName]
+        let propertyCandidates = sema.symbols.lookupAll(fqName: qualifiedPath).filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .property,
+                  sema.symbols.extensionPropertyReceiverType(for: candidate) == nil
+            else {
+                return false
+            }
+            let parentKind = sema.symbols.parentSymbol(for: candidate)
+                .flatMap { sema.symbols.symbol($0) }?.kind
+            // A package-qualified object member such as
+            // `kotlin.text.Charsets.UTF_8` has the object as its symbol
+            // parent, even though the receiver path is still a namespace-only
+            // FQN. Resolve it here so receiver inference does not treat the
+            // leading `kotlin` segment as a runtime value. Keep source object
+            // members on the regular receiver path so their object instance
+            // and custom getter are preserved during lowering.
+            let isStaticObjectProperty = parentKind == .object
+                && (symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary))
+            return parentKind == nil || parentKind == .package || isStaticObjectProperty
+        }
+        if !propertyCandidates.isEmpty {
+            let visibility = ctx.filterByVisibility(propertyCandidates)
+            guard let property = visibility.visible.first else {
+                if let inaccessible = visibility.invisible.first {
+                    driver.helpers.emitVisibilityError(
+                        for: inaccessible,
+                        name: interner.resolve(request.calleeName),
+                        range: request.range,
+                        diagnostics: ctx.semaCtx.diagnostics
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                return nil
+            }
+            guard let propertyType = sema.symbols.propertyType(for: property) else {
+                return nil
+            }
+            driver.helpers.checkDeprecation(
+                for: property,
+                sema: sema,
+                interner: interner,
+                range: request.range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: property,
+                ctx: ctx,
+                range: request.range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            sema.bindings.bindIdentifier(id, symbol: property)
+            if let propertySymbol = sema.symbols.symbol(property),
+               propertySymbol.flags.contains(.constValue),
+               let constant = sema.symbols.constValueExprKind(for: property)
+            {
+                sema.bindings.bindConstExprValue(id, value: constant)
+            }
+            sema.bindings.markFQNQualifiedValueExpr(id)
+            sema.bindings.bindExprType(id, type: propertyType)
+            return propertyType
+        }
+
+        let receiverIsClassifier = sema.symbols.lookupAll(fqName: receiverPath).contains { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                return true
+            default:
+                return false
+            }
+        }
+        if receiverIsClassifier {
+            return nil
+        }
+
+        guard let classifier = sema.symbols.lookupAll(fqName: qualifiedPath).first(where: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            switch symbol.kind {
+            case .object, .annotationClass:
+                return true
+            case .class, .interface, .enumClass:
+                return sema.symbols.companionObjectSymbol(for: candidate) != nil
+            default:
+                return false
+            }
+        }),
+            let classifierSymbol = ctx.cachedSymbol(classifier)
+        else {
+            return nil
+        }
+        guard ctx.visibilityChecker.isAccessible(
+            classifierSymbol,
+            fromFile: ctx.currentFileID,
+            enclosingClass: ctx.enclosingClassSymbol
+        ) else {
+            driver.helpers.emitVisibilityError(
+                for: classifierSymbol,
+                name: interner.resolve(request.calleeName),
+                range: request.range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
+        driver.helpers.checkDeprecation(
+            for: classifier,
+            sema: sema,
+            interner: interner,
+            range: request.range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        driver.helpers.checkOptIn(
+            for: classifier,
+            ctx: ctx,
+            range: request.range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        let classifierType = sema.types.make(.classType(ClassType(
+            classSymbol: classifier,
+            args: [],
+            nullability: .nonNull
+        )))
+        sema.bindings.bindIdentifier(id, symbol: classifier)
+        sema.bindings.markFQNQualifiedValueExpr(id)
+        sema.bindings.bindExprType(id, type: classifierType)
+        return classifierType
+    }
+
     /// FQN package-qualified top-level function call: e.g. kotlin.math.abs(x).
     /// Fires before receiver inference to avoid SEMA-0022 on unresolvable package identifiers.
     func tryInferFQNPackageTopLevelCall(
@@ -80,18 +251,98 @@ extension CallTypeChecker {
         let explicitTypeArgs = request.explicitTypeArgs
         let sema = ctx.sema
         let ast = ctx.ast
+        let interner = ctx.interner
 
         guard let receiverPath = qualifiedCalleePath(for: receiverID, ast: ast),
               !receiverPath.isEmpty,
               locals[receiverPath[0]] == nil
         else { return nil }
 
+        // A receiver path that itself names a declared class/interface/object/
+        // enum (e.g. a singleton `object`, or a class with a companion) is a
+        // type-qualified member access, not a package-qualified top-level
+        // function reference like `kotlin.math.abs`. Its member functions
+        // happen to be registered under the same owner-FQName + member-name
+        // scheme as genuine top-level functions, so without this check a call
+        // like `SomeObject.update(x) { ... }` would be misidentified as an FQN
+        // top-level call below, which infers every argument eagerly and
+        // leaves trailing lambda parameters without an expected type. Bail
+        // out here so the regular member-call path (which defers lambda
+        // inference until overload resolution picks a signature) handles it.
+        if let receiverSymbolID = sema.symbols.lookup(fqName: receiverPath),
+           let receiverSymbol = ctx.cachedSymbol(receiverSymbolID)
+        {
+            switch receiverSymbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                return nil
+            default:
+                break
+            }
+        }
+
         let fqnPath = receiverPath + [calleeName]
-        let fqnCandidates = sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in
+        var fqnCandidates = sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .function || symbol.kind == .constructor
         }
-        guard !fqnCandidates.isEmpty else { return nil }
+        if fqnCandidates.isEmpty {
+            // fqnPath may itself name a class rather than a top-level function
+            // (e.g. `kotlin.text.StringBuilder` in `kotlin.text.StringBuilder()`,
+            // or `kotlin.Pair` in `kotlin.Pair(1, 2)`): the class's own
+            // declaration symbol lives at fqnPath, while its constructor(s)
+            // live one level deeper at fqnPath + ["<init>"] (see
+            // HeaderCollection's constructor registration). Mirrors the
+            // unqualified-name constructor fallback in CallTypeChecker.swift,
+            // minus `.object`: a singleton `object` is never callable as
+            // `Obj()` in real Kotlin (verified against kotlinc), unlike a
+            // bare class/enum-class/annotation-class reference.
+            guard let classSymbolID = sema.symbols.lookup(fqName: fqnPath),
+                  let classSymbol = ctx.cachedSymbol(classSymbolID)
+            else { return nil }
+            switch classSymbol.kind {
+            case .class, .enumClass, .annotationClass:
+                break
+            default:
+                return nil
+            }
+            // A class qualifier and a zero-argument constructor call share the
+            // same `.memberCall` shape. The AST arena records whether parentheses
+            // were written, so a parenthesis-less class/enum/annotation reference
+            // must remain a classifier for further nested access (for example,
+            // `HexFormat.Builder`); an explicit call must continue through
+            // constructor resolution.
+            if args.isEmpty, !ast.arena.isExplicitCall(id) {
+                switch classSymbol.kind {
+                case .class, .enumClass, .annotationClass:
+                    break
+                default:
+                    return nil
+                }
+                let classifierType = sema.types.make(.classType(ClassType(
+                    classSymbol: classSymbolID,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                sema.bindings.bindIdentifier(id, symbol: classSymbolID)
+                sema.bindings.bindExprType(id, type: classifierType)
+                return classifierType
+            }
+            if classSymbol.flags.contains(.abstractType) {
+                let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-ABSTRACT",
+                    "Cannot create an instance of abstract class '\(className)'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            let ctorFQName = fqnPath + [interner.intern("<init>")]
+            fqnCandidates = sema.symbols.lookupAll(fqName: ctorFQName).filter { candidate in
+                ctx.cachedSymbol(candidate)?.kind == .constructor
+            }
+            guard !fqnCandidates.isEmpty else { return nil }
+        }
 
         let (vis, _) = ctx.filterByVisibility(fqnCandidates)
         guard !vis.isEmpty else { return nil }
@@ -129,6 +380,18 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        // The receiver chain (e.g. `kotlin.math`, `kotlin.text`) is a bare
+        // namespace path, never type-checked above, so KIR lowering must not
+        // treat it as a real value — see tryLowerFQNTopLevelResolvedCall.
+        sema.bindings.markFQNTopLevelCallExpr(id)
+        // KSP-1323: fully-qualified `kotlin.reflect.typeOf<T>()` expands
+        // through the same intrinsic as the unqualified spelling instead of
+        // calling the bundled declaration body.
+        if args.isEmpty,
+           sema.wellKnownSymbols.reflectIntrinsic(for: chosen) == .typeOf
+        {
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: .typeOf)
+        }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let resultType = sema.types.substituteTypeParameters(
             in: signature.returnType,
@@ -137,27 +400,5 @@ extension CallTypeChecker {
         )
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
-    }
-
-    func recoveredMemberCallReceiverType(
-        receiverID: ExprID,
-        receiverType: TypeID,
-        ctx: TypeInferenceContext,
-        locals: LocalBindings
-    ) -> TypeID? {
-        let ast = ctx.ast
-        let sema = ctx.sema
-        if case .any = sema.types.kind(of: sema.types.makeNonNullable(receiverType)) {
-            if let symbol = sema.bindings.identifierSymbol(for: receiverID),
-               let propertyType = sema.symbols.propertyType(for: symbol)
-            {
-                return propertyType
-            } else if case let .nameRef(receiverName, _) = ast.arena.expr(receiverID),
-                      let local = locals[receiverName]
-            {
-                return sema.symbols.propertyType(for: local.symbol) ?? local.type
-            }
-        }
-        return nil
     }
 }

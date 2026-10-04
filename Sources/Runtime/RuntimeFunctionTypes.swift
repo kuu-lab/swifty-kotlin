@@ -1,33 +1,6 @@
 
 // MARK: - ランタイム関数型操作
 
-@_silgen_name("kk_function_andThen")
-public func kk_function_andThen<T, R, NewR>(
-    _ f: @escaping (T) -> R,
-    _ g: @escaping (R) -> NewR
-) -> (T) -> NewR {
-    return { g(f($0)) }
-}
-
-@_silgen_name("kk_function_compose")
-public func kk_function_compose<NewT, T, R>(
-    _ f: @escaping (T) -> R,
-    _ g: @escaping (NewT) -> T
-) -> (NewT) -> R {
-    return { f(g($0)) }
-}
-
-@_silgen_name("kk_function_curried")
-public func kk_function_curried<P1, P2, R>(
-    _ f: @escaping (P1, P2) -> R
-) -> (P1) -> (P2) -> R {
-    return { p1 in
-        return { p2 in
-            f(p1, p2)
-        }
-    }
-}
-
 func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
@@ -39,6 +12,21 @@ func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
         return nil
     }
     return tryCast(ptr, to: RuntimeFunctionValueBox.self)
+}
+
+/// Resolves `fnPtr`/`closureRaw` regardless of whether the caller arrived as
+/// a raw (fnPtr, closureRaw) pair or as a `kk_function_create_N`-wrapped
+/// function-value handle in `fnPtr` (with `closureRaw` then unused/0). Native
+/// bridges that must defer invocation — e.g. queue a job onto another thread
+/// instead of calling it inline — should resolve the pair with this *before*
+/// capturing it into the deferred closure, so that closure only ever holds a
+/// raw pair with no lingering dependency on the wrapper box's lifetime.
+@inline(__always)
+func resolveFunctionValuePair(fnPtr: Int, closureRaw: Int) -> (fnPtr: Int, closureRaw: Int) {
+    guard let box = runtimeFunctionValueBox(from: fnPtr) else {
+        return (fnPtr, closureRaw)
+    }
+    return (box.fnPtr, box.closureRaw)
 }
 
 private func runtimeFunctionInvokeInvalidArity(expected: Int, actual: Int) -> Int {
@@ -119,12 +107,61 @@ public func kk_function_invoke_3(
     return function(arg1, arg2, arg3, outThrown)
 }
 
+@_cdecl("kk_function_invoke_4")
+public func kk_function_invoke_4(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let box = runtimeFunctionValueBox(from: functionRaw) {
+        guard box.arity == 4 else {
+            outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: 4, actual: box.arity)
+            return 0
+        }
+        let function = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint4.self)
+        return function(box.closureRaw, arg1, arg2, arg3, arg4, outThrown)
+    }
+    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint4.self)
+    return function(arg1, arg2, arg3, arg4, outThrown)
+}
+
+@_cdecl("kk_function_invoke_5")
+public func kk_function_invoke_5(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let box = runtimeFunctionValueBox(from: functionRaw) {
+        guard box.arity == 5 else {
+            outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: 5, actual: box.arity)
+            return 0
+        }
+        let function = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint5.self)
+        return function(box.closureRaw, arg1, arg2, arg3, arg4, arg5, outThrown)
+    }
+    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint5.self)
+    return function(arg1, arg2, arg3, arg4, arg5, outThrown)
+}
+
 @_cdecl("kk_function_create_0")
 public func kk_function_create_0(
     _ bodyRaw: Int,
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    // A function-valued parameter may already be boxed when it is captured by
+    // another lambda. Keep boxing idempotent so the outer closure does not
+    // turn the inner function object into a function pointer.
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 0 {
+        return bodyRaw
+    }
     guard bodyRaw != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
         return 0
@@ -138,11 +175,34 @@ public func kk_function_create_1(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 1 {
+        return bodyRaw
+    }
     guard bodyRaw != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
         return 0
     }
     return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 1))
+}
+
+// A callable value forwarded as an ordinary argument (e.g. a bundled
+// Kotlin-source HOF like `Sequence.chunked(size, transform)` receiving its
+// trailing lambda) arrives boxed via kk_function_create_1/2/... rather than
+// as a raw (fnPtr, closureRaw) pair, because the lowering that produced it
+// didn't know the callee would eventually need the raw C-ABI closure
+// convention (see CallLowerer+MemberCallEmission.splitCallableLambdaArgument,
+// whose compile-time-only fallback can't inspect closure shape). These two
+// accessors let call sites recover the pair at runtime regardless of which
+// shape the value turns out to have — mirrors kk_function_invoke's existing
+// box-or-raw branch, minus the actual invocation.
+@_cdecl("kk_function_value_fn_ptr")
+public func kk_function_value_fn_ptr(_ functionRaw: Int) -> Int {
+    runtimeFunctionValueBox(from: functionRaw)?.fnPtr ?? functionRaw
+}
+
+@_cdecl("kk_function_value_closure_raw")
+public func kk_function_value_closure_raw(_ functionRaw: Int) -> Int {
+    runtimeFunctionValueBox(from: functionRaw)?.closureRaw ?? 0
 }
 
 @_cdecl("kk_function_create_2")
@@ -151,9 +211,60 @@ public func kk_function_create_2(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 2 {
+        return bodyRaw
+    }
     guard bodyRaw != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
         return 0
     }
     return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 2))
+}
+
+@_cdecl("kk_function_create_3")
+public func kk_function_create_3(
+    _ bodyRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 3 {
+        return bodyRaw
+    }
+    guard bodyRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
+        return 0
+    }
+    return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 3))
+}
+
+@_cdecl("kk_function_create_4")
+public func kk_function_create_4(
+    _ bodyRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 4 {
+        return bodyRaw
+    }
+    guard bodyRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
+        return 0
+    }
+    return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 4))
+}
+
+@_cdecl("kk_function_create_5")
+public func kk_function_create_5(
+    _ bodyRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let existing = runtimeFunctionValueBox(from: bodyRaw), existing.arity == 5 {
+        return bodyRaw
+    }
+    guard bodyRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
+        return 0
+    }
+    return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 5))
 }

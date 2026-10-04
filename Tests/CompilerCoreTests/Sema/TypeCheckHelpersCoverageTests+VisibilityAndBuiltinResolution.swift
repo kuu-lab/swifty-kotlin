@@ -137,7 +137,7 @@ extension TypeCheckHelpersCoverageTests {
         )
         #expect(
             helpers.kxMiniCoroutineBuiltinReturnType(
-                calleeName: fixture.interner.intern("kk_list_get"),
+                calleeName: fixture.interner.intern("__kk_list_get"),
                 argumentCount: 2,
                 sema: fixture.sema,
                 interner: fixture.interner

@@ -1,0 +1,32 @@
+symbol fq=probeContains.$0.collection[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=probeContains.$0.list[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=probeContains.$0.nullable[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=probeContains.$0.set[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=probeContains.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=probeContains[kind=fun;params=kotlin.collections.Iterable<Int>,kotlin.collections.Iterable<String?>,kotlin.collections.List<Int>,kotlin.collections.Collection<Int>,kotlin.collections.Set<Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Iterable<Int>,kotlin.collections.Iterable<String?>,kotlin.collections.List<Int>,kotlin.collections.Collection<Int>,kotlin.collections.Set<Int>] ret=Unit
+file fstdlib_kotlin_collections_Iterable_contains package=_
+  decl probeContains[kind=fun;params=kotlin.collections.Iterable<Int>,kotlin.collections.Iterable<String?>,kotlin.collections.List<Int>,kotlin.collections.Collection<Int>,kotlin.collections.Set<Int>] fun probeContains sym=probeContains[kind=fun;params=kotlin.collections.Iterable<Int>,kotlin.collections.Iterable<String?>,kotlin.collections.List<Int>,kotlin.collections.Collection<Int>,kotlin.collections.Set<Int>]
+expr e@8:5 name(values) type=kotlin.collections.Iterable<Int> ref=probeContains.$0.values[kind=vparam]
+expr e@8:21 int(2) type=Int
+expr e@8:5#1 memberCall recv=e@8:5 callee=contains args=[_:e@8:21] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;gen=1] targs=[Int]
+expr e@9:5 int(2) type=Int
+expr e@9:10 name(values) type=kotlin.collections.Iterable<Int> ref=probeContains.$0.values[kind=vparam]
+expr e@9:5#1 inExpr lhs=e@9:5 rhs=e@9:10 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;gen=1] targs=[Int]
+expr e@10:5 int(4) type=Int
+expr e@10:11 name(values) type=kotlin.collections.Iterable<Int> ref=probeContains.$0.values[kind=vparam]
+expr e@10:5#1 notInExpr lhs=e@10:5 rhs=e@10:11 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;gen=1] targs=[Int]
+expr e@11:5 name(nullable) type=kotlin.collections.Iterable<String?> ref=probeContains.$0.nullable[kind=vparam]
+expr e@11:23 name(null) type=Nothing?
+expr e@11:5#1 memberCall recv=e@11:5 callee=contains args=[_:e@11:23] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;gen=1] targs=[String?]
+expr e@12:5 name(null) type=Nothing?
+expr e@12:13 name(nullable) type=kotlin.collections.Iterable<String?> ref=probeContains.$0.nullable[kind=vparam]
+expr e@12:5#1 inExpr lhs=e@12:5 rhs=e@12:13 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;gen=1] targs=[String?]
+expr e@13:5 name(list) type=kotlin.collections.List<Int> ref=probeContains.$0.list[kind=vparam]
+expr e@13:19 int(2) type=Int
+expr e@13:5#1 memberCall recv=e@13:5 callee=contains args=[_:e@13:19] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.List<T0>;params=T0;gen=1] targs=[Int]
+expr e@14:5 name(collection) type=kotlin.collections.Collection<Int> ref=probeContains.$0.collection[kind=vparam]
+expr e@14:25 int(2) type=Int
+expr e@14:5#1 memberCall recv=e@14:5 callee=contains args=[_:e@14:25] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;gen=1]
+expr e@15:5 name(set) type=kotlin.collections.Set<Int> ref=probeContains.$0.set[kind=vparam]
+expr e@15:18 int(2) type=Int
+expr e@15:5#1 memberCall recv=e@15:5 callee=contains args=[_:e@15:18] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;gen=1]

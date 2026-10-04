@@ -1,0 +1,47 @@
+name: Setup LLVM
+description: Install LLVM libraries and export runtime dlopen environment for Linux CI runners.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup LLVM on Linux
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if ! command -v llvm-config >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y llvm-dev
+        fi
+
+        llvm_config="$(command -v llvm-config)"
+        include_dir="$("$llvm_config" --includedir)"
+        lib_dir="$("$llvm_config" --libdir)"
+
+        dylib=""
+        for candidate in "$lib_dir/libLLVM.so" "$lib_dir"/libLLVM-*.so; do
+          if [[ -e "$candidate" ]]; then
+            dylib="$candidate"
+            break
+          fi
+        done
+
+        if [[ -z "$dylib" ]]; then
+          dylib="$(find "$lib_dir" -maxdepth 1 \( -name 'libLLVM*.so' -o -name 'libLLVM*.so.*' \) -print | sort -V | tail -n 1)"
+        fi
+
+        if [[ -z "$dylib" || ! -e "$dylib" ]]; then
+          echo "Unable to locate libLLVM under $lib_dir" >&2
+          exit 1
+        fi
+
+        dylib="$(readlink -f "$dylib")"
+        {
+          echo "C_INCLUDE_PATH=$include_dir"
+          echo "LIBRARY_PATH=$lib_dir"
+          echo "LD_LIBRARY_PATH=$lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          echo "KSWIFTK_LLVM_DYLIB=$dylib"
+        } >> "$GITHUB_ENV"
+
+        echo "LLVM $(llvm-config --version) include=$include_dir lib=$lib_dir dylib=$dylib"

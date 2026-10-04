@@ -40,6 +40,17 @@ extension BuildASTPhase {
                 tokenIndex += 1
                 continue
             }
+            if token.kind == .symbol(.at),
+               let annotation = AnnotationParsingSupport.parseAnnotation(
+                   from: tokens,
+                   start: tokenIndex,
+                   interner: interner,
+                   allowUseSiteTarget: false
+               )
+            {
+                tokenIndex = annotation.nextIndex
+                continue
+            }
             if handleVarianceToken(token.kind, pendingVariance: &pendingVariance, pendingReified: &pendingReified) {
                 tokenIndex += 1
                 continue
@@ -50,15 +61,12 @@ extension BuildASTPhase {
                 tokenIndex += 1
                 continue
             }
-            if case let .keyword(keyword) = token.kind, isLeadingDeclarationKeyword(keyword) {
-                tokenIndex += 1
-                continue
-            }
             tokenIndex += 1
             let upperBound = parseInlineUpperBound(tokens: tokens, tokenIndex: &tokenIndex,
                                                    interner: interner, astArena: astArena)
             result.append(TypeParamDecl(
-                name: name, variance: pendingVariance, isReified: pendingReified, upperBound: upperBound
+                name: name, variance: pendingVariance, isReified: pendingReified,
+                upperBounds: upperBound.map { [$0] } ?? []
             ))
             pendingVariance = .invariant
             pendingReified = false

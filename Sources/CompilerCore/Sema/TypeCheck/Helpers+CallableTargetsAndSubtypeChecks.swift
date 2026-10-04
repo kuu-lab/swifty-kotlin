@@ -43,18 +43,40 @@ extension TypeCheckHelpers {
         return .localValue(symbol)
     }
 
+    /// `boundReceiver` carries the member symbol and the (possibly generic)
+    /// type of a bound `value::member` reference. The member's signature is
+    /// declared in terms of its owner's type parameters (`Transformer<A, B>.apply:
+    /// (A) -> B`), so they are substituted with the receiver's type arguments
+    /// (`Transformer<Int, Int>` -> `(Int) -> Int`) before the function type is built.
     func callableFunctionType(
         for signature: FunctionSignature,
         bindReceiver: Bool,
+        boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
         sema: SemaModule
     ) -> TypeID {
         var params = signature.parameterTypes
+        var returnType = signature.returnType
+        if let boundReceiver,
+           let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol),
+           sema.symbols.symbol(owner)?.kind == .class || sema.symbols.symbol(owner)?.kind == .interface
+        {
+            func specialize(_ type: TypeID) -> TypeID {
+                resolveMemberPropertyType(
+                    type,
+                    receiverType: boundReceiver.receiverType,
+                    ownerSymbol: owner,
+                    sema: sema
+                )
+            }
+            params = params.map(specialize)
+            returnType = specialize(returnType)
+        }
         if !bindReceiver, let receiverType = signature.receiverType {
             params.insert(receiverType, at: 0)
         }
         return sema.types.make(.functionType(FunctionType(
             params: params,
-            returnType: signature.returnType,
+            returnType: returnType,
             isSuspend: signature.isSuspend,
             nullability: .nonNull
         )))
@@ -64,6 +86,7 @@ extension TypeCheckHelpers {
         from candidates: [SymbolID],
         expectedType: TypeID?,
         bindReceiver: Bool,
+        boundReceiverType: TypeID? = nil,
         sema: SemaModule
     ) -> SymbolID? {
         let sorted = candidates.sorted(by: { $0.rawValue < $1.rawValue })
@@ -73,7 +96,15 @@ extension TypeCheckHelpers {
         guard let expectedType else {
             return sorted.first
         }
-        guard case .functionType = sema.types.kind(of: expectedType) else {
+
+        let expectedFunctionType: TypeID? = if case .functionType = sema.types.kind(of: expectedType) {
+            expectedType
+        } else if let samFT = samFunctionType(for: expectedType, sema: sema) {
+            sema.types.make(.functionType(samFT))
+        } else {
+            nil
+        }
+        guard let expectedFunctionType else {
             return sorted.first
         }
         if let matched = sorted.first(where: { symbolID in
@@ -83,9 +114,10 @@ extension TypeCheckHelpers {
             let inferredType = callableFunctionType(
                 for: signature,
                 bindReceiver: bindReceiver,
+                boundReceiver: boundReceiverType.map { (symbolID, $0) },
                 sema: sema
             )
-            return sema.types.isSubtype(inferredType, expectedType)
+            return sema.types.isSubtype(inferredType, expectedFunctionType)
         }) {
             return matched
         }

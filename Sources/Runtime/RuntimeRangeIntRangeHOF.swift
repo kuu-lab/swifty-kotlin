@@ -144,16 +144,16 @@ public func kk_range_firstOrNull(_ rangeRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_range_randomOrNull")
-public func kk_range_randomOrNull(_ rangeRaw: Int) -> Int {
+@_cdecl("__kk_range_randomOrNull")
+public func __kk_range_randomOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, randomRaw: nil,
-                                  functionName: "kk_range_randomOrNull")
+                                  functionName: "__kk_range_randomOrNull")
 }
 
-@_cdecl("kk_range_randomOrNull_random")
-public func kk_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
+@_cdecl("__kk_range_randomOrNull_random")
+public func __kk_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, randomRaw: randomRaw,
-                                  functionName: "kk_range_randomOrNull_random")
+                                  functionName: "__kk_range_randomOrNull_random")
 }
 
 @_cdecl("kk_range_last_predicate")
@@ -179,22 +179,22 @@ public func kk_range_lastOrNull(_ rangeRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_range_random")
-public func kk_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_range_random")
+public func __kk_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeRandomEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, 0, outThrown,
-                            functionName: "kk_range_random")
+                            functionName: "__kk_range_random")
 }
 
-@_cdecl("kk_range_random_random")
-public func kk_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_range_random_random")
+public func __kk_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeRandomEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, randomRaw, outThrown,
-                            functionName: "kk_range_random_random")
+                            functionName: "__kk_range_random_random")
 }
 
-@_cdecl("kk_random_nextInt_rangeObject")
-public func kk_random_nextInt_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_random_nextInt_rangeObject")
+public func __kk_random_nextInt_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_random_nextInt_rangeObject") { range in
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "__kk_random_nextInt_rangeObject") { range in
         let isEmpty = RuntimeSignedRangeHOFKind.isEmpty(range)
         if isEmpty {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(
@@ -233,15 +233,29 @@ public func kk_range_none(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 // MARK: - IntRange Partitioning HOFs (STDLIB-RANGE-038)
 
 @_cdecl("kk_range_chunked")
-public func kk_range_chunked(_ rangeRaw: Int, _ size: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_chunked") { range in
+public func kk_range_chunked(_ rangeRaw: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if size <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size \(size) must be greater than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_chunked") { range in
         RuntimeSignedRangeHOFKind.chunked(range, size)
     }
 }
 
 @_cdecl("kk_range_windowed")
-public func kk_range_windowed(_ rangeRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_windowed") { range in
+public func kk_range_windowed(_ rangeRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if size <= 0 || step <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Both size \(size) and step \(step) must be greater than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_windowed") { range in
         RuntimeSignedRangeHOFKind.windowed(range, size, step, partialWindows)
     }
 }

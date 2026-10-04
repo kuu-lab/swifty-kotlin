@@ -6,7 +6,7 @@ import Testing
 /// runtime link name `kk_string_indexOfLast`, and returns `Int`.
 @Suite
 struct StringIndexOfLastFunctionTests {
-    @Test func testIndexOfLastWithPredicateResolvesInSource() throws {
+    @Test func testIndexOfLastResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun findLastDigit(s: String): Int {
             return s.indexOfLast { it.isDigit() }
@@ -19,55 +19,26 @@ struct StringIndexOfLastFunctionTests {
         fun findLastEqualsX(s: String): Int {
             return s.indexOfLast { ch -> ch == 'x' }
         }
+
+        fun emptyIndexOfLast(): Int {
+            return "".indexOfLast { it == 'a' }
+        }
+
+        fun usesIndexResult(s: String): Boolean {
+            val idx: Int = s.indexOfLast { it == 'z' }
+            return idx >= 0
+        }
+
+        fun findLastInCharSequence(cs: CharSequence): Int {
+            return cs.indexOfLast { it.isLetter() }
+        }
         """)
+
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "Expected indexOfLast(predicate) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-
-    @Test func testIndexOfLastOnEmptyStringLiteral() throws {
-        let ctx = makeContextFromSource("""
-        fun emptyIndexOfLast(): Int {
-            return "".indexOfLast { it == 'a' }
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected indexOfLast on empty literal to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-
-    @Test func testIndexOfLastResultIsInt() throws {
-        let ctx = makeContextFromSource("""
-        fun usesIndexResult(s: String): Boolean {
-            val idx: Int = s.indexOfLast { it == 'z' }
-            return idx >= 0
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected indexOfLast result assignable to Int, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
-
-    @Test func testIndexOfLastOnCharSequenceReceiver() throws {
-        let ctx = makeContextFromSource("""
-        fun findLastInCharSequence(cs: CharSequence): Int {
-            return cs.indexOfLast { it.isLetter() }
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected indexOfLast on CharSequence to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }

@@ -1,8 +1,11 @@
 import kotlinx.coroutines.*
 
 fun main() = runBlocking {
+    // The inner delay must dwarf the timeout: with a 10ms delay a loaded runner can
+    // schedule the block late enough that even kotlinc completes it before observing
+    // the 1ms deadline, printing `1` instead of `null`.
     val timeoutResult = withTimeoutOrNull(1L) {
-        delay(10)
+        delay(1000)
         1
     }
     println(timeoutResult)

@@ -1,6 +1,15 @@
-fun processLinkedMap(map: LinkedHashMap<String, Int>) {
-    println(map.size)
-}
+// `LinkedHashMap<K, V>` is a real `HashMap<K, V>` subclass (KUU-556;
+// Sources/CompilerCore/Stdlib/kotlin/collections/LinkedHashMap.kt), matching
+// the diff oracle (kotlinc-jvm: java.util.LinkedHashMap extends
+// java.util.HashMap). This case verifies constructor type-argument inference
+// and parameter / return / property types, including the upcast to
+// MutableMap/HashMap. The rejected direction (a MutableMap-typed value is not
+// necessarily a LinkedHashMap) is covered by the Diagnostics golden case
+// linkedhashmap_mutablemap_argument_rejected.kt. Updates, lookups, entries
+// HOFs, iteration and the `is HashMap`/`is LinkedHashMap` runtime identity are
+// executed by Scripts/diff_cases/linkedhashmap_alias.kt and map_entries_hof.kt.
+
+fun processLinkedMap(map: LinkedHashMap<String, Int>) {}
 
 fun createLinkedMap(): LinkedHashMap<Int, String> {
     return LinkedHashMap<Int, String>()
@@ -12,69 +21,26 @@ class OrderedMapHolder {
 }
 
 fun main() {
-    val lhm: MutableMap<String, Int> = LinkedHashMap()
-    lhm["z"] = 26
-    lhm["a"] = 1
-    lhm["m"] = 13
-    println(lhm)
-    println(lhm.keys.toList())
-    println(lhm.values.toList())
-    println(lhm.entries.map { "${it.key}=${it.value}" })
-    lhm["z"] = 99
-    println(lhm)
-    lhm.remove("a")
-    println(lhm.size)
-    println(lhm.containsKey("m"))
-    println(lhm.containsValue(99))
+    // Constructor inference from explicit type arguments alone: no expected
+    // type here, so the inferred type is checked by the assignment and the
+    // argument below instead.
+    val explicit = LinkedHashMap<String, Int>()
+    val explicitAsMutable: MutableMap<String, Int> = explicit
+    val explicitAsHash: HashMap<String, Int> = explicit
+    processLinkedMap(explicit)
 
-    val lhm2: LinkedHashMap<String, String> = LinkedHashMap()
-    lhm2["key1"] = "value1"
-    lhm2["key2"] = "value2"
-    println(lhm2)
+    // Type-argument inference from the expected type, through MutableMap and
+    // HashMap (both real supertypes now, not an alias target).
+    val fromAlias: LinkedHashMap<Double, Boolean> = LinkedHashMap()
+    val fromMutable: MutableMap<Int, String> = LinkedHashMap()
+    val fromHash: HashMap<Int, String> = LinkedHashMap()
 
-    // MutableMap operations through type alias
-    val mutable: MutableMap<Int, String> = LinkedHashMap()
-    mutable[1] = "one"
-    mutable[2] = "two"
-    mutable[3] = "three"
-    println(mutable)
-
-    // putAll operation
-    mutable.putAll(mapOf(4 to "four", 5 to "five"))
-    println(mutable)
-    println(mutable.size)
-
-    // get operations
-    println(mutable[1])
-    println(mutable[99])
-
-    // Collection operations
-    println(mutable.keys)
-    println(mutable.values)
-    println(mutable.entries)
-
-    val generic: LinkedHashMap<Double, Boolean> = LinkedHashMap()
-    generic[1.5] = true
-    generic[2.7] = false
-    println(generic)
-
-    // Empty LinkedHashMap
-    val empty: MutableMap<String, Int> = LinkedHashMap()
-    println(empty.size)
-    println(empty.isEmpty())
-
-    // Iterator operations
-    for ((key, value) in mutable) {
-        println("$key=$value")
-    }
-
-    processLinkedMap(lhm2)
-
+    // Return type propagation.
     val created = createLinkedMap()
-    created[1] = "one"
-    println(created.size)
+    val createdAsMutable: MutableMap<Int, String> = created
 
+    // Property type propagation.
     val holder = OrderedMapHolder()
-    holder.scores["alice"] = 100
-    println(holder.scores.size)
+    val scores: MutableMap<String, Int> = holder.scores
+    val labels: LinkedHashMap<Int, String> = holder.labels
 }

@@ -9,6 +9,35 @@ import Glibc
 public struct GoldenHarnessCase: Sendable {
     public let sourcePath: String
     public let basename: String
+    /// Parsed `<name>.golden-spec` when present (RF-GOLDEN-011/012). Nil when
+    /// the case has no spec — or when the spec failed to parse, in which case
+    /// `specErrorDescription` carries the reason so verification can fail
+    /// loudly instead of silently rendering legacy output.
+    public let spec: GoldenHarnessCaseSpec?
+    public let specErrorDescription: String?
+}
+
+public struct GoldenHarnessBatchResult: Codable, Sendable {
+    public let sourcePath: String
+    /// The `stdlib-profile` the case's spec pinned for this render
+    /// (RF-GOLDEN-012), so the test side can verify the intended mode was
+    /// actually used rather than silently falling back. Nil for spec-free
+    /// cases (legacy implicit behavior).
+    public let resolvedProfile: String?
+    public let output: String?
+    public let errorDescription: String?
+
+    public init(
+        sourcePath: String,
+        resolvedProfile: String? = nil,
+        output: String?,
+        errorDescription: String?
+    ) {
+        self.sourcePath = sourcePath
+        self.resolvedProfile = resolvedProfile
+        self.output = output
+        self.errorDescription = errorDescription
+    }
 }
 
 enum GoldenHarnessAPIError: Error, CustomStringConvertible {
@@ -16,6 +45,8 @@ enum GoldenHarnessAPIError: Error, CustomStringConvertible {
     case workerExecutableNotFound(String)
     case workerFailed(Int32, String)
     case workerTimedOut(String)
+    case invalidWorkerOutput(String)
+    case invalidCaseSpec(String)
 
     var description: String {
         switch self {
@@ -29,6 +60,10 @@ enum GoldenHarnessAPIError: Error, CustomStringConvertible {
         case let .workerTimedOut(details):
             let suffix = details.isEmpty ? "" : "\n\(details)"
             return "Golden worker timed out\(suffix)"
+        case let .invalidWorkerOutput(details):
+            return "Golden worker returned invalid output: \(details)"
+        case let .invalidCaseSpec(details):
+            return details
         }
     }
 }
@@ -39,30 +74,173 @@ public enum GoldenHarness {
     private static let sigkillGracePeriodSeconds: TimeInterval = 1.0
     private static let processPollIntervalSeconds: TimeInterval = 0.05
 
+    /// Environment variable carrying a prebuilt stdlib `.kklib` path into the
+    /// worker process. When set, each dump compiles the case against the
+    /// artifact's serialized metadata instead of re-running the bundled-stdlib
+    /// source pipeline for every case.
+    static let stdlibLibraryEnvironmentKey = "KSWIFTK_GOLDEN_STDLIB_LIBRARY"
+
     public static func loadCasesOrCrash(suiteName: String) -> [GoldenHarnessCase] {
         do {
             return try GoldenHarnessCaseDiscovery.loadCases(suite: try suite(named: suiteName)).map {
-                GoldenHarnessCase(sourcePath: $0.sourcePath, basename: $0.basename)
+                GoldenHarnessCase(
+                    sourcePath: $0.sourcePath,
+                    basename: $0.basename,
+                    spec: $0.spec,
+                    specErrorDescription: $0.specLoadError
+                )
             }
         } catch {
             preconditionFailure("GoldenHarness case discovery failed for \(suiteName): \(error)")
         }
     }
 
+    /// Renders and normalizes suite output for one source file. Normalizing here
+    /// (rather than only at comparison/persistence time) means every caller —
+    /// including a `GoldenHarnessWorker` invocation run directly from the
+    /// command line — gets output that is already a fixed point of
+    /// `normalizedForComparison`, so a `.golden` file can never be committed
+    /// with process-local ordinals (symbol namespace counters, expression
+    /// occurrence indices) baked in.
     public static func render(suiteName: String, sourcePath: String) throws -> String {
-        switch try suite(named: suiteName) {
+        let resolvedSuite = try suite(named: suiteName)
+        let caseFile = caseFile(sourcePath: sourcePath)
+        do {
+            try GoldenHarnessCaseDiscovery.validateCaseFile(
+                caseFile,
+                suite: resolvedSuite,
+                requireExpectedGolden: false
+            )
+        } catch {
+            throw GoldenHarnessAPIError.invalidCaseSpec(String(describing: error))
+        }
+        let spec = try validatedCaseSpec(caseFile, suite: resolvedSuite)
+        let stdlibLibraryPath = ProcessInfo.processInfo.environment[stdlibLibraryEnvironmentKey]
+        if stdlibLibraryPath == nil, resolvedSuite == .sema || resolvedSuite == .diagnostics {
+            warnAboutMissingStdlibLibraryPath(suite: resolvedSuite, sourcePath: sourcePath, caseSpec: spec)
+        }
+        let raw: String = switch resolvedSuite {
         case .lexer:
             try GoldenHarnessDump.dumpLexer(sourcePath: sourcePath)
         case .parser:
             try GoldenHarnessDump.dumpParser(sourcePath: sourcePath)
         case .sema:
-            try GoldenHarnessDump.dumpSema(sourcePath: sourcePath)
+            try GoldenHarnessDump.dumpSema(sourcePath: sourcePath, stdlibLibraryPath: stdlibLibraryPath, caseSpec: spec)
         case .diagnostics:
-            try GoldenHarnessDump.dumpDiagnostics(sourcePath: sourcePath)
+            try GoldenHarnessDump.dumpDiagnostics(sourcePath: sourcePath, stdlibLibraryPath: stdlibLibraryPath, caseSpec: spec)
         }
+        return normalizedForComparison(suite: resolvedSuite, output: raw)
     }
 
-    public static func renderInSubprocess(suiteName: String, sourcePath: String) throws -> String {
+    /// The `stdlib-profile` a case's spec pins, resolved from the same
+    /// adjacent `.golden-spec` `render` reads. The batch worker reports this
+    /// per case so the test side can verify the intended profile actually
+    /// ran (RF-GOLDEN-012).
+    public static func resolvedStdlibProfile(forSourcePath sourcePath: String) -> GoldenStdlibProfile? {
+        caseFile(sourcePath: sourcePath).spec?.stdlibProfile
+    }
+
+    /// A spec that fails to parse, or that carries `target=` outside the Sema
+    /// suite, must fail the case rather than silently degrade to legacy
+    /// output — that is exactly how a broken spec would otherwise mask the
+    /// coverage it was added to provide.
+    private static func validatedCaseSpec(
+        _ caseFile: GoldenHarnessCaseFile,
+        suite: GoldenHarnessGoldenSuite
+    ) throws -> GoldenHarnessCaseSpec? {
+        if let specLoadError = caseFile.specLoadError {
+            throw GoldenHarnessAPIError.invalidCaseSpec(specLoadError)
+        }
+        guard let spec = caseFile.spec else {
+            return nil
+        }
+        if !spec.targets.isEmpty, suite != .sema {
+            throw GoldenHarnessAPIError.invalidCaseSpec(
+                "\(caseFile.sourcePath): 'target' directives are only valid for the Sema suite, not \(suite.rawValue)"
+            )
+        }
+        return spec
+    }
+
+    /// Bundled-source fallback (no artifact) compiles the stdlib `.kt` sources
+    /// into the *same module* as `sourcePath`, unlike the artifact path where
+    /// they are a separate imported module — so `internal` stdlib
+    /// declarations that should be invisible across that module boundary
+    /// resolve successfully instead, and RF-GOLDEN-002 symbol-origin
+    /// classification sees different declSite metadata. This silently
+    /// produces output that looks plausible but does not match what CI (which
+    /// always sets `KSWIFTK_GOLDEN_STDLIB_LIBRARY`) renders — see
+    /// `stdlibLibraryEnvironmentKey`'s doc comment. A prior investigation lost
+    /// real time to exactly this when invoking `GoldenHarnessWorker` directly
+    /// from a shell without the env var, so flag it instead of failing silent.
+    /// Spec-carrying cases pin their profile explicitly: `.artifact` fails in
+    /// the dump when the path is missing, and `source`/`no-stdlib` intend the
+    /// non-artifact mode, so only spec-free (legacy implicit) cases warn.
+    private static func warnAboutMissingStdlibLibraryPath(
+        suite: GoldenHarnessGoldenSuite,
+        sourcePath: String,
+        caseSpec: GoldenHarnessCaseSpec?
+    ) {
+        guard caseSpec?.stdlibProfile == nil else {
+            return
+        }
+        let message = """
+        warning: \(stdlibLibraryEnvironmentKey) is not set; rendering \(suite.rawValue) for \
+        \(sourcePath) via bundled-source stdlib compilation. This does not match CI's \
+        artifact-based output for internal-visibility checks or symbol-origin classification \
+        (RF-GOLDEN-002) — do not use this output to update a committed .golden file.\n
+        """
+        FileHandle.standardError.write(Data(message.utf8))
+    }
+
+    public static func renderInSubprocess(
+        suiteName: String,
+        sourcePath: String,
+        stdlibLibraryPath: String? = nil
+    ) throws -> String {
+        let stdoutData = try runWorker(
+            arguments: [suiteName, sourcePath],
+            timeout: subprocessTimeout,
+            stdlibLibraryPath: stdlibLibraryPath
+        )
+        return String(decoding: stdoutData, as: UTF8.self)
+    }
+
+    public static func renderBatchInSubprocess(
+        suiteName: String,
+        sourcePaths: [String],
+        stdlibLibraryPath: String? = nil
+    ) throws -> [GoldenHarnessBatchResult] {
+        guard !sourcePaths.isEmpty else {
+            return []
+        }
+
+        let stdoutData = try runWorker(
+            arguments: ["--batch", suiteName] + sourcePaths,
+            timeout: subprocessTimeout * TimeInterval(sourcePaths.count),
+            stdlibLibraryPath: stdlibLibraryPath
+        )
+        let results: [GoldenHarnessBatchResult]
+        do {
+            results = try JSONDecoder().decode([GoldenHarnessBatchResult].self, from: stdoutData)
+        } catch {
+            throw GoldenHarnessAPIError.invalidWorkerOutput(
+                "could not decode batch response: \(error)"
+            )
+        }
+        guard results.map(\.sourcePath) == sourcePaths else {
+            throw GoldenHarnessAPIError.invalidWorkerOutput(
+                "batch response paths did not match the requested paths"
+            )
+        }
+        return results
+    }
+
+    private static func runWorker(
+        arguments: [String],
+        timeout: TimeInterval,
+        stdlibLibraryPath: String? = nil
+    ) throws -> Data {
         let process = Process()
         let stdout = Pipe(), stderr = Pipe()
         let stdoutAccumulator = DataAccumulator()
@@ -73,8 +251,12 @@ public enum GoldenHarness {
         let stderrWriteHandle = stderr.fileHandleForWriting
 
         process.executableURL = try workerExecutableURL()
-        process.arguments = [suiteName, sourcePath]
-        process.environment = ProcessInfo.processInfo.environment
+        process.arguments = arguments
+        var environment = ProcessInfo.processInfo.environment
+        if let stdlibLibraryPath {
+            environment[stdlibLibraryEnvironmentKey] = stdlibLibraryPath
+        }
+        process.environment = environment
         process.standardOutput = stdout
         process.standardError = stderr
 
@@ -111,7 +293,7 @@ public enum GoldenHarness {
         }
         stdoutWriteHandle.closeFile()
         stderrWriteHandle.closeFile()
-        if terminatedSemaphore.wait(timeout: .now() + subprocessTimeout) == .timedOut {
+        if terminatedSemaphore.wait(timeout: .now() + timeout) == .timedOut {
             process.terminate()
             // Wait for process to exit after terminate to avoid zombie processes
             let terminateDeadline = Date().addingTimeInterval(terminationGracePeriodSeconds)
@@ -153,7 +335,7 @@ public enum GoldenHarness {
             let stderrText = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             throw GoldenHarnessAPIError.workerFailed(process.terminationStatus, stderrText)
         }
-        return String(decoding: stdoutData, as: UTF8.self)
+        return stdoutData
     }
 
     @discardableResult
@@ -177,15 +359,30 @@ public enum GoldenHarness {
         actual: String,
         updateMode: Bool
     ) throws -> Bool {
-        try GoldenHarnessGoldenFileIO.persistIfUpdating(
-            caseFile: caseFile(sourcePath: sourcePath),
+        let resolvedSuite = try suite(named: suiteName)
+        let caseFile = caseFile(sourcePath: sourcePath)
+        // Validate before normalizing or opening the output path. In
+        // particular, an invalid/deleted spec must not be interpreted as a
+        // spec-free case and overwrite the legacy `<name>.golden`.
+        try GoldenHarnessCaseDiscovery.validateCaseFile(
+            caseFile,
+            suite: resolvedSuite,
+            requireExpectedGolden: false
+        )
+        return try GoldenHarnessGoldenFileIO.persistIfUpdating(
+            caseFile: caseFile,
             actual: stableOutputForPersistence(suiteName: suiteName, output: actual),
             updateMode: updateMode
         )
     }
 
     public static func loadExpectedGolden(sourcePath: String) throws -> String {
-        try GoldenHarnessGoldenFileIO.loadExpectedGolden(caseFile: caseFile(sourcePath: sourcePath))
+        let caseFile = caseFile(sourcePath: sourcePath)
+        try GoldenHarnessCaseDiscovery.validateCaseFile(
+            caseFile,
+            requireExpectedGolden: true
+        )
+        return try GoldenHarnessGoldenFileIO.loadExpectedGolden(caseFile: caseFile)
     }
 
     /// Normalizes suite output before comparison so the checked-in golden can stay
@@ -349,6 +546,21 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     private static let classScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$class)(\\d+)(?=\\.)")
     // swiftlint:disable:next force_try
     private static let tpScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$tp)(\\d+)(?=\\.)")
+    // Multi-type-parameter variant of tpScopeOrdinalRegex: registerSyntheticNativeTopLevelFunction
+    // discriminates value-parameter FQNames with all of a function's reified type-parameter raw
+    // symbol IDs joined by "_" (e.g. `.$tp123_456.`) once it has 2+ type parameters. Each
+    // underscore-separated number is its own process-local ID and is renumbered independently.
+    // swiftlint:disable:next force_try
+    private static let tpMultiValueScopeOrdinalRegex = try! NSRegularExpression(
+        pattern: "(\\.\\$tp)((?:\\d+_)+\\d+)(?=\\.)"
+    )
+    // swiftlint:disable:next force_try
+    private static let ifaceScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$iface)(\\d+)(?=\\.)")
+    // Secondary-constructor local namespace: `$sec<ctorIndex>_<rawValue>`. ctorIndex is a stable,
+    // source-order position (not process-local) and is kept as part of the literal prefix; only the
+    // trailing rawValue is renumbered.
+    // swiftlint:disable:next force_try
+    private static let secScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$sec\\d+_)(\\d+)(?=\\.)")
     // swiftlint:disable:next force_try
     private static let localNameOrdinalRegex = try! NSRegularExpression(pattern: "(__local_)(\\d+)")
     // swiftlint:disable:next force_try
@@ -364,6 +576,8 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     // swiftlint:disable:next force_try
     private static let localFunOrdinalRegex = try! NSRegularExpression(pattern: "(__localfun_)(\\d+)")
     // swiftlint:disable:next force_try
+    private static let importedInlineOrdinalRegex = try! NSRegularExpression(pattern: "(__imported_inline_)(\\d+)")
+    // swiftlint:disable:next force_try
     private static let fileOrdinalRegex = try! NSRegularExpression(pattern: "(file f)(\\d+)(?= package=)")
     // swiftlint:disable:next force_try
     private static let objectLiteralOrdinalRegex = try! NSRegularExpression(pattern: "(__ObjectLiteral_)(\\d+)(?=_)")
@@ -376,6 +590,9 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         normalized = rewriteOrdinalMatches(in: normalized, regex: semaFileIDRegex)
         // Scope prefix ordinals
         normalized = rewriteOrdinalMatches(in: normalized, regex: classScopeOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: ifaceScopeOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: secScopeOrdinalRegex)
+        normalized = rewriteMultiValueOrdinalMatches(in: normalized, regex: tpMultiValueScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: tpScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: syntheticScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: objectLiteralOrdinalRegex)
@@ -386,6 +603,7 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         normalized = rewriteOrdinalMatches(in: normalized, regex: tryOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: whenOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: localFunOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: importedInlineOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: negativeSymbolReferenceRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: fileOrdinalRegex)
         return normalized
@@ -474,6 +692,54 @@ private enum GoldenHarnessSemaComparisonNormalizer {
             }
             let prefix = nsText.substring(with: prefixRange)
             mutable.replaceCharacters(in: match.range, with: "\(prefix)\(newID)")
+        }
+        return mutable as String
+    }
+
+    /// Multi-value variant of `rewriteOrdinalMatches` for patterns where group 2 holds several
+    /// underscore-joined process-local IDs (e.g. `$tp123_456`) instead of a single one. Every
+    /// number shares one ordinal counter across all matches of `regex`, so the same raw ID always
+    /// renumbers to the same small value wherever it appears.
+    private static func rewriteMultiValueOrdinalMatches(
+        in text: String,
+        regex: NSRegularExpression
+    ) -> String {
+        let nsText = text as NSString
+        let range = NSRange(location: 0, length: nsText.length)
+        let matches = regex.matches(in: text, range: range)
+        guard !matches.isEmpty else {
+            return text
+        }
+
+        var remappedIDs: [Int: Int] = [:]
+        for match in matches {
+            let valuesRange = match.range(at: 2)
+            guard valuesRange.location != NSNotFound else { continue }
+            for rawValue in nsText.substring(with: valuesRange).split(separator: "_") {
+                guard let oldID = Int(rawValue) else { continue }
+                if remappedIDs[oldID] == nil {
+                    remappedIDs[oldID] = remappedIDs.count
+                }
+            }
+        }
+
+        let mutable = NSMutableString(string: text)
+        for match in matches.reversed() {
+            let prefixRange = match.range(at: 1)
+            let valuesRange = match.range(at: 2)
+            guard prefixRange.location != NSNotFound,
+                  valuesRange.location != NSNotFound
+            else {
+                continue
+            }
+            let rawValues = nsText.substring(with: valuesRange).split(separator: "_")
+            let newValues = rawValues.compactMap { rawValue -> String? in
+                guard let oldID = Int(rawValue), let newID = remappedIDs[oldID] else { return nil }
+                return String(newID)
+            }
+            guard newValues.count == rawValues.count else { continue }
+            let prefix = nsText.substring(with: prefixRange)
+            mutable.replaceCharacters(in: match.range, with: "\(prefix)\(newValues.joined(separator: "_"))")
         }
         return mutable as String
     }

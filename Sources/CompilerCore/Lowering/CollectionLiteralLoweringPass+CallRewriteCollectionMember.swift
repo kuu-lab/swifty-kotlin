@@ -12,44 +12,16 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        let uintType = ctx.sema?.types.uintType
-
-        func isUIntRangeExpr(_ expr: KIRExprID) -> Bool {
-            guard let uintType else { return false }
-            return module.arena.exprType(expr) == uintType
-        }
-
         // --- Rewrite collection member calls ---
-        // Member calls are lowered as call(callee=memberName, args=[receiver, ...])
-        // any()/none()/first()/last() with no predicate: args=[receiver], pass fnPtr=0, closure=0
-        if callee == lookup.anyName || callee == lookup.noneName
-            || callee == lookup.firstName || callee == lookup.lastName
+        // Range first()/last()/endExclusive do not use the Kotlin stdlib source and
+        // continue to go through their runtime helpers.
+        if callee == lookup.firstName || callee == lookup.lastName
             || callee == lookup.endExclusiveName
         {
             if arguments.count == 1 {
                 let receiverID = arguments[0]
-                if state.listExprIDs.contains(receiverID.rawValue) {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    let kkName: InternedString = switch callee {
-                    case lookup.anyName: lookup.kkListAnyName
-                    case lookup.noneName: lookup.kkListNoneName
-                    case lookup.firstName: lookup.kkListFirstName
-                    case lookup.lastName: lookup.kkListLastName
-                    default: callee
-                    }
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: kkName,
-                        arguments: [receiverID, zeroExpr, zeroExpr],
-                        result: result,
-                        canThrow: callee == lookup.firstName || callee == lookup.lastName,
-                        thrownResult: thrownResult
-                    ))
-                    return true
-                }
                 if state.rangeExprIDs.contains(receiverID.rawValue),
                    callee == lookup.firstName || callee == lookup.lastName || callee == lookup.endExclusiveName
                 {
@@ -64,8 +36,8 @@ extension CollectionLiteralConstructionLoweringPass {
                         callee: kkName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: callee == lookup.endExclusiveName,
+                        thrownResult: callee == lookup.endExclusiveName ? thrownResult : nil
                     ))
                     return true
                 }
@@ -120,17 +92,18 @@ extension CollectionLiteralConstructionLoweringPass {
                     return true
                 }
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
-                    let countCallee: InternedString
                     if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
-                        countCallee = lookup.kkULongRangeCountName
-                    } else if isUIntRangeExpr(receiverID) {
-                        countCallee = ctx.interner.intern("kk_uint_range_count")
-                    } else {
-                        countCallee = lookup.kkRangeCountName
+                        // ULongRange.count() is bundled Kotlin source.
+                        return false
                     }
+                    // KSP-1523: UIntRange never reaches this branch — its
+                    // constructing callee (e.g. __kk_uint_rangeTo) is never
+                    // added to state.rangeExprIDs during PreScan, so the old
+                    // isUIntRangeExpr arm was unreachable regardless of that
+                    // local helper's own always-false type comparison.
                     loweredBody.append(.call(
                         symbol: nil,
-                        callee: countCallee,
+                        callee: lookup.kkRangeCountName,
                         arguments: [receiverID],
                         result: result,
                         canThrow: false,
@@ -172,83 +145,10 @@ extension CollectionLiteralConstructionLoweringPass {
         if callee == lookup.containsName {
             if arguments.count == 2 {
                 let receiverID = arguments[0]
-                if state.listExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkListContainsName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
                 if state.setExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkSetContainsName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
-            }
-        }
-
-        if callee == lookup.containsAllName {
-            if arguments.count == 2 {
-                let receiverID = arguments[0]
-                if state.listExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkListContainsAllName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
-                if state.setExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkSetContainsAllName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
-            }
-        }
-
-        if callee == lookup.containsKeyName {
-            if arguments.count == 2 {
-                let receiverID = arguments[0]
-                if state.mapExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkMapContainsKeyName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
-            }
-        }
-
-        if callee == lookup.containsValueName {
-            if arguments.count == 2 {
-                let receiverID = arguments[0]
-                if state.mapExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkMapContainsValueName,
                         arguments: arguments,
                         result: result,
                         canThrow: false,
@@ -331,13 +231,14 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 // STDLIB-637: UIntRange/ULongRange isEmpty
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
-                    let isUIntRange = isUIntRangeExpr(receiverID)
-                    let isEmptyName = state.ulongRangeExprIDs.contains(receiverID.rawValue)
-                        ? lookup.kkULongRangeIsEmptyName
-                        : (isUIntRange ? ctx.interner.intern("kk_uint_range_isEmpty") : lookup.kkRangeIsEmptyName)
+                    if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                        // ULongRange.isEmpty() is bundled Kotlin source.
+                        return false
+                    }
+                    // KSP-1523: see the count() branch above — same unreachable arm.
                     loweredBody.append(.call(
                         symbol: nil,
-                        callee: isEmptyName,
+                        callee: lookup.kkRangeIsEmptyName,
                         arguments: [receiverID],
                         result: result,
                         canThrow: false,
@@ -353,21 +254,14 @@ extension CollectionLiteralConstructionLoweringPass {
             if arguments.count == 1 {
                 let receiverID = arguments[0]
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
-                    let isUIntRange = isUIntRangeExpr(receiverID)
+                    if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
+                        // ULongRange.sum() is bundled Kotlin source.
+                        return false
+                    }
+                    // KSP-1523: see the count() branch above — same unreachable arm.
                     loweredBody.append(.call(
                         symbol: nil,
-                        callee: isUIntRange ? ctx.interner.intern("kk_uint_range_sum") : lookup.kkRangeSumName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
-                if state.listExprIDs.contains(receiverID.rawValue) || state.arrayExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkListSumName,
+                        callee: lookup.kkRangeSumName,
                         arguments: [receiverID],
                         result: result,
                         canThrow: false,

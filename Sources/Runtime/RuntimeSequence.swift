@@ -1,4 +1,3 @@
-
 // MARK: - Sequence Functions (STDLIB-003)
 
 func runtimeSequenceBox(from rawValue: Int) -> RuntimeSequenceBox? {
@@ -9,6 +8,291 @@ func runtimeSequenceBuilderBox(from rawValue: Int) -> RuntimeSequenceBuilderBox?
     resolveRuntimeHandle(rawValue, as: RuntimeSequenceBuilderBox.self)
 }
 
+private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
+private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+
+/// Runtime box that materializes a `RuntimeSequenceBox` on first use and then
+/// serves elements one-by-one. This lets source-implemented `Sequence<T>` and
+/// `Iterator<T>` wrappers chain with runtime-backed lazy sequences through the
+/// normal `Sequence`/`Iterator` itable dispatch path.
+final class RuntimeSequenceIteratorBox {
+    let seq: RuntimeSequenceBox
+    fileprivate var elements: [Int] = []
+    fileprivate var index: Int = 0
+    fileprivate var materialized: Bool = false
+    fileprivate var generatorCursor: RuntimeSequenceGeneratorIteratorCursor?
+
+    init(seq: RuntimeSequenceBox) {
+        self.seq = seq
+        if let firstStep = seq.steps.first {
+            switch firstStep {
+            case let .generator(seed, fnPtr, closureRaw):
+                generatorCursor = RuntimeSequenceGeneratorIteratorCursor(
+                    seq: seq,
+                    source: .seeded(seed: seed, fnPtr: fnPtr, closureRaw: closureRaw)
+                )
+            case let .nullableGenerator(fnPtr, closureRaw):
+                generatorCursor = RuntimeSequenceGeneratorIteratorCursor(
+                    seq: seq,
+                    source: .nullable(fnPtr: fnPtr, closureRaw: closureRaw)
+                )
+            default:
+                break
+            }
+        }
+    }
+
+    func materialize(outThrown: UnsafeMutablePointer<Int>?) {
+        guard !materialized else { return }
+        guard generatorCursor == nil else { return }
+        elements = evaluateSequence(seq, outThrown: outThrown, markConsumption: true)
+        materialized = true
+    }
+
+    func hasNext(outThrown: UnsafeMutablePointer<Int>?) -> Bool {
+        if let generatorCursor {
+            return generatorCursor.hasNext(outThrown: outThrown)
+        }
+        materialize(outThrown: outThrown)
+        return index < elements.count
+    }
+
+    func next(outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        if let generatorCursor {
+            return generatorCursor.next(outThrown: outThrown)
+        }
+        materialize(outThrown: outThrown)
+        guard index < elements.count else { return 0 }
+        let value = elements[index]
+        index += 1
+        return value
+    }
+}
+
+/// Pulls generator-backed sequence elements on demand for Iterator.hasNext()/next().
+/// The sequence transform pipeline is applied to each generated element before
+/// another generator step is requested, preserving short-circuit laziness.
+fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
+    fileprivate enum Source {
+        case seeded(seed: Int, fnPtr: Int, closureRaw: Int)
+        case nullable(fnPtr: Int, closureRaw: Int)
+    }
+
+    private let seq: RuntimeSequenceBox
+    private let source: Source
+    private let transformSteps: [SequenceStepKind]
+    private let state = SequenceTraversalState()
+    private var seededPending = true
+    private var current: Int?
+    private var generatedCount = 0
+    private var bufferedElements: [Int] = []
+    private var bufferedIndex = 0
+    private var exhausted = false
+    private var started = false
+
+    init(seq: RuntimeSequenceBox, source: Source) {
+        self.seq = seq
+        self.source = source
+        transformSteps = seq.steps.filter {
+            switch $0 {
+            case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
+                false
+            default:
+                true
+            }
+        }
+    }
+
+    func hasNext(outThrown: UnsafeMutablePointer<Int>?) -> Bool {
+        if bufferedIndex < bufferedElements.count { return true }
+        guard !exhausted else { return false }
+        if !started {
+            started = true
+            guard runtimeSequenceBeginTraversal(seq, outThrown: outThrown) else {
+                exhausted = true
+                return false
+            }
+        }
+
+        while bufferedIndex >= bufferedElements.count, !exhausted, !state.stop {
+            bufferedElements.removeAll(keepingCapacity: true)
+            bufferedIndex = 0
+            guard let element = nextSourceElement(outThrown: outThrown) else {
+                exhausted = true
+                break
+            }
+            runtimeSequenceTransformElement(
+                element,
+                steps: transformSteps,
+                stepIndex: 0,
+                state: state,
+                outThrown: outThrown,
+                yield: { [weak self] value in
+                    self?.bufferedElements.append(value)
+                    return true
+                }
+            )
+            if (outThrown?.pointee ?? 0) != 0 {
+                exhausted = true
+                return false
+            }
+        }
+        return bufferedIndex < bufferedElements.count
+    }
+
+    func next(outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        guard hasNext(outThrown: outThrown), bufferedIndex < bufferedElements.count else { return 0 }
+        let value = bufferedElements[bufferedIndex]
+        bufferedIndex += 1
+        return value
+    }
+
+    private func nextSourceElement(outThrown: UnsafeMutablePointer<Int>?) -> Int? {
+        switch source {
+        case let .seeded(seed, fnPtr, closureRaw):
+            if seededPending {
+                seededPending = false
+                current = seed
+                generatedCount = 1
+                return seed
+            }
+            guard generatedCount < kSequenceGeneratorHardLimit, let previous = current else {
+                exhausted = true
+                return nil
+            }
+            let nextFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 0
+            let nextValue = nextFn(closureRaw, previous, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                exhausted = true
+                return nil
+            }
+            guard nextValue != runtimeNullSentinelInt else {
+                exhausted = true
+                return nil
+            }
+            current = nextValue
+            generatedCount += 1
+            return nextValue
+        case let .nullable(fnPtr, closureRaw):
+            guard generatedCount < kSequenceGeneratorHardLimit else {
+                exhausted = true
+                return nil
+            }
+            let nextFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 0
+            let nextValue = nextFn(closureRaw, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                exhausted = true
+                return nil
+            }
+            guard nextValue != runtimeNullSentinelInt else {
+                exhausted = true
+                return nil
+            }
+            generatedCount += 1
+            return nextValue
+        }
+    }
+}
+
+func runtimeSequenceIteratorBox(from rawValue: Int) -> RuntimeSequenceIteratorBox? {
+    resolveRuntimeHandle(rawValue, as: RuntimeSequenceIteratorBox.self)
+}
+
+
+/// Dispatches an `Iterator` method on a source-implemented `Iterator` object by
+/// looking up the `kotlin.collections.Iterator` itable dynamically.
+private func runtimeIteratorMethodCall(
+    _ iterRaw: Int,
+    methodSlot: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let fnPtr = kk_itable_lookup_dynamic(iterRaw, Int(runtimeIteratorInterfaceTypeID), methodSlot)
+    guard fnPtr != 0 else {
+        return 0
+    }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(iterRaw, outThrown)
+}
+
+/// Iterates a source-implemented `Sequence` object (created by Kotlin `object`
+/// expressions implementing `kotlin.sequences.Sequence`) by dispatching through
+/// the Sequence itable to obtain an `Iterator`, then driving that iterator with
+/// the `Iterator` itable directly so thrown exceptions can be propagated.
+/// Returns `true` if `rawValue` is a source `Sequence` and was iterated (or an
+/// exception was recorded in `outThrown`). Returns `false` if it is not a source
+/// `Sequence` so callers can fall back to runtime box handling.
+private func runtimeTraverseSourceSequenceObject(
+    _ rawValue: Int,
+    outThrown: UnsafeMutablePointer<Int>?,
+    iterator: ((Int) -> Void)? = nil,
+    yield: (Int) -> Bool
+) -> Bool {
+    let iteratorFnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeSequenceInterfaceTypeID), 0)
+    guard iteratorFnPtr != 0 else {
+        return false
+    }
+    let iteratorFn = unsafeBitCast(
+        iteratorFnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown: Int = 0
+    let iterRaw = iteratorFn(rawValue, &thrown)
+    iterator?(iterRaw)
+    if thrown != 0 {
+        if let outThrown {
+            outThrown.pointee = thrown
+        } else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: source Sequence iterator() threw an exception")
+        }
+        return true
+    }
+    while true {
+        var hasNextThrown: Int = 0
+        let hasNext = runtimeIteratorMethodCall(iterRaw, methodSlot: 0, outThrown: &hasNextThrown)
+        if hasNextThrown != 0 {
+            if let outThrown {
+                outThrown.pointee = hasNextThrown
+            } else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: source Sequence Iterator.hasNext() threw an exception")
+            }
+            return true
+        }
+        if hasNext == 0 { break }
+        var nextThrown: Int = 0
+        let element = runtimeIteratorMethodCall(iterRaw, methodSlot: 1, outThrown: &nextThrown)
+        if nextThrown != 0 {
+            if let outThrown {
+                outThrown.pointee = nextThrown
+            } else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: source Sequence Iterator.next() threw an exception")
+            }
+            return true
+        }
+        if !yield(element) { break }
+    }
+    return true
+}
+
+private func runtimeObjectBox(from rawValue: Int) -> RuntimeObjectBox? {
+    resolveRuntimeHandle(rawValue, as: RuntimeObjectBox.self)
+}
+
+func runtimeArrayBoxExcludingObjects(from rawValue: Int) -> RuntimeArrayBox? {
+    guard let array = runtimeArrayBox(from: rawValue),
+          type(of: array) == RuntimeArrayBox.self
+    else {
+        return nil
+    }
+    return array
+}
+
 func runtimeSequenceSourceElements(from rawValue: Int) -> [Int]? {
     if let seq = runtimeSequenceBox(from: rawValue) {
         return evaluateSequence(seq)
@@ -16,11 +300,21 @@ func runtimeSequenceSourceElements(from rawValue: Int) -> [Int]? {
     if let list = runtimeListBox(from: rawValue) {
         return list.elements
     }
-    if let array = runtimeArrayBox(from: rawValue) {
-        return array.elements
-    }
     if let set = runtimeSetBox(from: rawValue) {
         return set.elements
+    }
+    if runtimeObjectBox(from: rawValue) != nil {
+        var elements: [Int] = []
+        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: nil, yield: { elem in
+            elements.append(elem)
+            return true
+        }) {
+            return elements
+        }
+        return nil
+    }
+    if let array = runtimeArrayBoxExcludingObjects(from: rawValue) {
+        return array.elements
     }
     return nil
 }
@@ -32,11 +326,27 @@ func runtimeSequenceSourceValues(from rawValue: Int) -> [RuntimeValue]? {
     if let list = runtimeListBox(from: rawValue) {
         return list.values
     }
-    if let array = runtimeArrayBox(from: rawValue) {
-        return array.values
-    }
     if let set = runtimeSetBox(from: rawValue) {
         return set.values
+    }
+    if runtimeObjectBox(from: rawValue) != nil {
+        var values: [RuntimeValue] = []
+        var iteratorRaw = 0
+        if runtimeTraverseSourceSequenceObject(
+            rawValue,
+            outThrown: nil,
+            iterator: { iteratorRaw = $0 },
+            yield: { elem in
+                values.append(runtimeSourceIteratorValue(elem, iteratorRaw: iteratorRaw))
+                return true
+            }
+        ) {
+            return values
+        }
+        return nil
+    }
+    if let array = runtimeArrayBoxExcludingObjects(from: rawValue) {
+        return array.values
     }
     return nil
 }
@@ -56,7 +366,19 @@ private func runtimeSequenceSourceElementsOrThrow(
     if let list = runtimeListBox(from: rawValue) {
         return list.elements
     }
-    if let array = runtimeArrayBox(from: rawValue) {
+    if let set = runtimeSetBox(from: rawValue) {
+        return set.elements
+    }
+    if runtimeObjectBox(from: rawValue) != nil {
+        var elements: [Int] = []
+        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: { elem in
+            elements.append(elem)
+            return true
+        }) {
+            return elements
+        }
+    }
+    if let array = runtimeArrayBoxExcludingObjects(from: rawValue) {
         return array.elements
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid sequence handle")
@@ -77,7 +399,25 @@ private func runtimeSequenceSourceValuesOrThrow(
     if let list = runtimeListBox(from: rawValue) {
         return list.values
     }
-    if let array = runtimeArrayBox(from: rawValue) {
+    if let set = runtimeSetBox(from: rawValue) {
+        return set.values
+    }
+    if runtimeObjectBox(from: rawValue) != nil {
+        var values: [RuntimeValue] = []
+        var iteratorRaw = 0
+        if runtimeTraverseSourceSequenceObject(
+            rawValue,
+            outThrown: outThrown,
+            iterator: { iteratorRaw = $0 },
+            yield: { elem in
+                values.append(runtimeSourceIteratorValue(elem, iteratorRaw: iteratorRaw))
+                return true
+            }
+        ) {
+            return values
+        }
+    }
+    if let array = runtimeArrayBoxExcludingObjects(from: rawValue) {
         return array.values
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid sequence handle")
@@ -106,8 +446,8 @@ final class SequenceTraversalState {
     var limitReached = false
     var takeCounts: [Int: Int] = [:]
     var dropCounts: [Int: Int] = [:]
-    var distinctSeen: [Int: [Int]] = [:]
-    var distinctBySeen: [Int: [Int]] = [:]
+    var distinctSeen: [Int: Set<RuntimeElementKey>] = [:]
+    var distinctBySeen: [Int: Set<RuntimeElementKey>] = [:]
     var zipIndices: [Int: Int] = [:]
     var chunkedBuffers: [Int: [Int]] = [:]
 }
@@ -180,8 +520,9 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
-            maybeUnbox(mapped),
+            mapped,
             steps: steps,
             stepIndex: stepIndex + 1,
             state: state,
@@ -267,12 +608,13 @@ private func runtimeSequenceTransformElement(
             yield: yield
         )
     case .distinctStep:
-        var seen = state.distinctSeen[stepIndex] ?? []
-        if seen.contains(where: { runtimeValuesEqual($0, element) }) {
+        // Mutating through the dictionary subscript avoids a COW copy of the
+        // stored set on every element.
+        guard state.distinctSeen[stepIndex, default: []]
+            .insert(RuntimeElementKey(value: element)).inserted
+        else {
             return
         }
-        seen.append(element)
-        state.distinctSeen[stepIndex] = seen
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -290,12 +632,11 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        var seen = state.distinctBySeen[stepIndex] ?? []
-        if seen.contains(where: { runtimeValuesEqual($0, key) }) {
+        guard state.distinctBySeen[stepIndex, default: []]
+            .insert(RuntimeElementKey(value: key)).inserted
+        else {
             return
         }
-        seen.append(key)
-        state.distinctBySeen[stepIndex] = seen
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -438,17 +779,6 @@ private func runtimeSequenceTransformElement(
                 yield: yield
             )
         }
-    case let .filterIsInstanceStep(typeToken):
-        if kk_op_is(element, typeToken) != 0 {
-            runtimeSequenceTransformElement(
-                element,
-                steps: steps,
-                stepIndex: stepIndex + 1,
-                state: state,
-                outThrown: outThrown,
-                yield: yield
-            )
-        }
     case .requireNoNullsStep:
         if runtimeNormalizeNullableCollectionValue(element) == nil {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: kSequenceRequireNoNullsFoundNull)
@@ -474,8 +804,9 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
+        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
-            maybeUnbox(mapped),
+            mapped,
             steps: steps,
             stepIndex: stepIndex + 1,
             state: state,
@@ -544,31 +875,20 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // Handle the sub-collection/sequence
-        if let subList = runtimeListBox(from: subRaw) {
-            for subElem in subList.elements {
-                runtimeSequenceTransformElement(
-                    subElem,
-                    steps: steps,
-                    stepIndex: stepIndex + 1,
-                    state: state,
-                    outThrown: outThrown,
-                    yield: yield
-                )
-                if state.stop { return }
-            }
-        } else if let subSeq = runtimeSequenceBox(from: subRaw) {
-            runtimeTraverseSequence(subSeq, outThrown: outThrown) { subElem in
-                runtimeSequenceTransformElement(
-                    subElem,
-                    steps: steps,
-                    stepIndex: stepIndex + 1,
-                    state: state,
-                    outThrown: outThrown,
-                    yield: yield
-                )
-                return !state.stop
-            }
+        // Handle the sub-collection/sequence, including source-implemented Sequences.
+        guard let subElements = runtimeSequenceSourceElementsOrThrow(from: subRaw, caller: #function, outThrown: outThrown) else {
+            return
+        }
+        for subElem in subElements {
+            runtimeSequenceTransformElement(
+                subElem,
+                steps: steps,
+                stepIndex: stepIndex + 1,
+                state: state,
+                outThrown: outThrown,
+                yield: yield
+            )
+            if state.stop { return }
         }
     case let .flatMapIndexedStep(fnPtr, closureRaw):
         let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
@@ -581,34 +901,24 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        if let subElements = runtimeCollectionElements(from: subRaw) {
-            for subElem in subElements {
-                runtimeSequenceTransformElement(
-                    subElem,
-                    steps: steps,
-                    stepIndex: stepIndex + 1,
-                    state: state,
-                    outThrown: outThrown,
-                    yield: yield
-                )
-                if state.stop { return }
-            }
-        } else if let subSeq = runtimeSequenceBox(from: subRaw) {
-            runtimeTraverseSequence(subSeq, outThrown: outThrown) { subElem in
-                runtimeSequenceTransformElement(
-                    subElem,
-                    steps: steps,
-                    stepIndex: stepIndex + 1,
-                    state: state,
-                    outThrown: outThrown,
-                    yield: yield
-                )
-                return !state.stop
-            }
+        // Handle the sub-collection/sequence, including source-implemented Sequences.
+        guard let subElements = runtimeSequenceSourceElementsOrThrow(from: subRaw, caller: #function, outThrown: outThrown) else {
+            return
+        }
+        for subElem in subElements {
+            runtimeSequenceTransformElement(
+                subElem,
+                steps: steps,
+                stepIndex: stepIndex + 1,
+                state: state,
+                outThrown: outThrown,
+                yield: yield
+            )
+            if state.stop { return }
         }
     case .shuffledStep:
         return
-    case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+    case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -630,7 +940,7 @@ private func runtimeSequenceTransformElement(
         let chunk = RuntimeListBox(elements: buffer)
         let chunkRaw = registerRuntimeObject(chunk)
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: chunkRaw,
@@ -668,7 +978,7 @@ private func runtimeSequenceFlushChunkedTransforms(
         let chunk = RuntimeListBox(elements: buffer)
         let chunkRaw = registerRuntimeObject(chunk)
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: chunkRaw,
@@ -729,7 +1039,7 @@ func runtimeTraverseSequenceWithState(
     }
     let transformSteps = seq.steps.filter {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             false
         default:
             true
@@ -776,6 +1086,25 @@ func runtimeTraverseSequenceWithState(
                 )
             }
             return
+        case let .pullSource(produce):
+            // Lazy pull-source (e.g. `useLines` lines from a live reader):
+            // draw one element at a time so short-circuiting operations only
+            // pull what they need and memory stays bounded.
+            while true {
+                if state.stop { break }
+                guard let element = produce() else { break }
+                emit(element)
+                if state.stop { break }
+            }
+            if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
+                runtimeSequenceFlushChunkedTransforms(
+                    transformSteps,
+                    state: state,
+                    outThrown: outThrown,
+                    yield: yield
+                )
+            }
+            return
         case let .lazyBuilder(coroutine):
             // STDLIB-563: Lazy element-by-element iteration.
             // Request one element at a time from the coroutine so that
@@ -810,7 +1139,7 @@ func runtimeTraverseSequenceWithState(
             // which do not fit in a Kotlin Char. We iterate utf16 code units instead to
             // match Kotlin's Char semantics correctly. Supplementary characters are split
             // into two surrogate code units, which is the expected Kotlin behaviour.
-            for codeUnit in source.utf16 {
+            for codeUnit in runtimeKotlinStringUTF16CodeUnits(source) {
                 emit(Int(codeUnit))
                 if state.stop { break }
             }
@@ -838,10 +1167,17 @@ func runtimeTraverseSequenceWithState(
                     state.stop = true
                     return
                 }
-                let unboxed = maybeUnbox(next)
-                if unboxed == runtimeNullSentinelInt { break }
-                emit(unboxed)
-                current = unboxed
+                // KSP-500: don't unbox here. The compiler wraps nextFunction in
+                // a boxing adapter (CallLowerer+ClosureAdapters.swift's
+                // makeGenerateSequenceBoxingAdapter) whenever the element type
+                // is a primitive, so `next` already comes back boxed — the
+                // element must stay boxed to be distinguishable by later
+                // `is`/filterIsInstance checks on a Sequence<Any>. The callee
+                // unboxes `current` itself on entry (kk_unbox_int et al. are
+                // idempotent), so feeding a boxed value back in is safe.
+                if next == runtimeNullSentinelInt { break }
+                emit(next)
+                current = next
                 generatedCount += 1
             }
             if generatedCount >= kSequenceGeneratorHardLimit, !state.stop {
@@ -869,9 +1205,11 @@ func runtimeTraverseSequenceWithState(
                     state.stop = true
                     return
                 }
-                let unboxed = maybeUnbox(next)
-                if unboxed == runtimeNullSentinelInt { break }
-                emit(unboxed)
+                // KSP-500: see the .generator case above — the compiler's
+                // boxing adapter already boxed this closure's return value, so
+                // don't strip that here.
+                if next == runtimeNullSentinelInt { break }
+                emit(next)
                 generatedCount += 1
             }
             if generatedCount >= kSequenceGeneratorHardLimit, !state.stop {
@@ -889,7 +1227,7 @@ func runtimeTraverseSequenceWithState(
             return
         case .mapStep, .filterStep, .filterNotStep, .takeStep, .dropStep, .distinctStep,
              .distinctByStep, .zipStep, .takeWhileStep, .dropWhileStep, .onEachStep,
-             .onEachIndexedStep, .mapNotNullStep, .filterNotNullStep, .filterIsInstanceStep,
+             .onEachIndexedStep, .mapNotNullStep, .filterNotNullStep,
              .filterIndexedStep, .requireNoNullsStep, .mapIndexedStep, .mapIndexedNotNullStep, .withIndexStep, .flatMapStep,
              .flatMapIndexedStep, .chunkedTransformStep, .shuffledStep:
             continue
@@ -926,6 +1264,9 @@ func runtimeTraverseSequenceSource(
         runtimeTraverseSequenceWithState(seq, state: state, outThrown: outThrown, yield: yield)
         return state
     }
+    if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: yield) {
+        return nil
+    }
     for elem in runtimeSequenceSourceElementsOrPanic(from: rawValue, caller: caller) {
         // swiftlint:disable:next for_where
         if !yield(elem) { break }
@@ -947,6 +1288,12 @@ private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
     case let .lazyBuilder(coroutine):
         // STDLIB-563: Materialize the lazy coroutine into an element array.
         return coroutine.materializeAll()
+    case let .pullSource(produce):
+        var elements: [Int] = []
+        while let element = produce() {
+            elements.append(element)
+        }
+        return elements
     default:
         return nil
     }
@@ -1093,12 +1440,12 @@ private func applyChunkedTransformStep(
     guard !elements.isEmpty else { return [] }
 
     let chunkSize = max(1, size)
-    let expectedChunkCount = (elements.count + chunkSize - 1) / chunkSize
+    let expectedChunkCount = elements.count / chunkSize + (elements.count % chunkSize == 0 ? 0 : 1)
     var result: [Int] = []
     result.reserveCapacity(expectedChunkCount)
 
     var buffer: [Int] = []
-    buffer.reserveCapacity(chunkSize)
+    buffer.reserveCapacity(min(chunkSize, elements.count))
 
     for element in elements {
         buffer.append(element)
@@ -1107,7 +1454,7 @@ private func applyChunkedTransformStep(
         let chunk = RuntimeListBox(elements: buffer)
         let chunkRaw = registerRuntimeObject(chunk)
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: chunkRaw,
@@ -1127,7 +1474,7 @@ private func applyChunkedTransformStep(
         let chunk = RuntimeListBox(elements: buffer)
         let chunkRaw = registerRuntimeObject(chunk)
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: chunkRaw,
@@ -1173,7 +1520,7 @@ private func evaluateSequence(
 
     let hasTransformSteps = seq.steps.contains {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             return false
         default:
             return true
@@ -1209,35 +1556,37 @@ private func evaluateSequence(
             // Use utf16 code units (not unicodeScalars) so that supplementary characters
             // (emoji, etc. with scalar value > 0xFFFF) are represented as surrogate pairs,
             // matching Kotlin's UTF-16 Char semantics.
-            elements = source.utf16.map { Int($0) }
+            elements = runtimeKotlinStringUTF16CodeUnits(source).map { Int($0) }
             break
         }
         if case let .generator(seed, fnPtr, closureRaw) = step {
+            // KSP-500: don't unbox `next` — see runtimeTraverseSequenceWithState's
+            // .generator case for why the closure's boxed return must survive.
             var current = seed
             var generated: [Int] = [current]
             while generated.count < kSequenceGeneratorHardLimit {
                 var thrown = 0
                 let next = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: current, outThrown: &thrown)
                 if thrown != 0 { break }
-                let unboxed = maybeUnbox(next)
-                if unboxed == runtimeNullSentinelInt { break }
-                generated.append(unboxed)
-                current = unboxed
+                if next == runtimeNullSentinelInt { break }
+                generated.append(next)
+                current = next
             }
             elements = generated
             break
         }
         if case let .nullableGenerator(fnPtr, closureRaw) = step {
             // STDLIB-SEQ-002: 1-arg form — no seed, call no-arg function until null.
+            // KSP-500: don't unbox `next` — see runtimeTraverseSequenceWithState's
+            // .nullableGenerator case for why the closure's boxed return must survive.
             let noArgFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
             var generated: [Int] = []
             while generated.count < kSequenceGeneratorHardLimit {
                 var thrown = 0
                 let next = noArgFn(closureRaw, &thrown)
                 if thrown != 0 { break }
-                let unboxed = maybeUnbox(next)
-                if unboxed == runtimeNullSentinelInt { break }
-                generated.append(unboxed)
+                if next == runtimeNullSentinelInt { break }
+                generated.append(next)
             }
             elements = generated
             break
@@ -1247,7 +1596,7 @@ private func evaluateSequence(
     // Apply transformation steps in order
     for step in seq.steps {
         switch step {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             break
         case let .mapStep(fnPtr, closureRaw):
             elements = applyMapStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: nil)
@@ -1317,8 +1666,6 @@ private func evaluateSequence(
             elements = applyMapNotNullStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
         case .filterNotNullStep:
             elements = applyFilterNotNullStep(elements)
-        case let .filterIsInstanceStep(typeToken):
-            elements = applyFilterIsInstanceStep(elements, typeToken: typeToken)
         case .requireNoNullsStep:
             elements = applyRequireNoNullsStep(elements, outThrown: outThrown)
         case let .mapIndexedStep(fnPtr, closureRaw):
@@ -1355,7 +1702,7 @@ private func evaluateSequenceValues(
 
     let hasTransformSteps = seq.steps.contains {
         switch $0 {
-        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
             return false
         default:
             return true
@@ -1370,7 +1717,7 @@ private func evaluateSequenceValues(
         case let .valueSource(values):
             return values
         case let .stringSource(source):
-            return source.utf16.map { RuntimeValue(charScalar: Int($0)) }
+            return runtimeKotlinStringUTF16CodeUnits(source).map { RuntimeValue(charScalar: Int($0)) }
         case .generator, .nullableGenerator:
             return evaluateSequence(seq, outThrown: outThrown, markConsumption: false).map { RuntimeValue(raw: $0) }
         default:
@@ -1397,18 +1744,10 @@ public func kk_sequence_from_list(_ listRaw: Int) -> Int {
 
 // MARK: - emptySequence (STDLIB-277)
 
-@_cdecl("kk_empty_sequence")
-public func kk_empty_sequence() -> Int {
+@_cdecl("__kk_empty_sequence")
+public func __kk_empty_sequence() -> Int {
     let seq = RuntimeSequenceBox(steps: [.source(elements: [])])
     return registerRuntimeObject(seq)
-}
-
-@_cdecl("kk_sequence_orEmpty")
-public func kk_sequence_orEmpty(_ seqRaw: Int) -> Int {
-    if seqRaw == runtimeNullSentinelInt || seqRaw == 0 {
-        return kk_empty_sequence()
-    }
-    return seqRaw
 }
 
 // MARK: - Sequence.ifEmpty (STDLIB-277)
@@ -1434,12 +1773,19 @@ public func kk_sequence_ifEmpty(
     return seqRaw
 }
 
-@_cdecl("kk_sequence_of")
-public func kk_sequence_of(_ arrayRaw: Int) -> Int {
-    guard let arr = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_of expected RuntimeArrayBox")
+@_cdecl("__kk_sequence_of")
+public func __kk_sequence_of(_ arrayRaw: Int) -> Int {
+    let elements: [Int]
+    if let arr = runtimeArrayBox(from: arrayRaw) {
+        elements = Array(arr.elements)
+    } else if let list = runtimeListBox(from: arrayRaw) {
+        // Source-backed vararg functions are normalized to a list at their
+        // public call boundary; accept that representation while preserving
+        // the packed-array ABI used by direct bridge calls.
+        elements = Array(list.elements)
+    } else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_of expected RuntimeArrayBox or RuntimeListBox")
     }
-    let elements = Array(arr.elements)
     let seq = RuntimeSequenceBox(steps: [.source(elements: elements)])
     return registerRuntimeObject(seq)
 }
@@ -1454,16 +1800,16 @@ public func kk_sequence_of_single(_ element: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-@_cdecl("kk_sequence_generate")
-public func kk_sequence_generate(_ seed: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_sequence_generate")
+public func __kk_sequence_generate(_ seed: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     let seq = RuntimeSequenceBox(steps: [.generator(seed: seed, fnPtr: fnPtr, closureRaw: closureRaw)])
     return registerRuntimeObject(seq)
 }
 
 /// STDLIB-SEQ-002: 1-arg form `generateSequence(nextFunction: () -> T?)`.
 /// Calls `nextFunction` (no-arg closure) repeatedly; stops when null is returned.
-@_cdecl("kk_sequence_generate_noarg")
-public func kk_sequence_generate_noarg(_ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_sequence_generate_noarg")
+public func __kk_sequence_generate_noarg(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     let seq = RuntimeSequenceBox(steps: [.nullableGenerator(fnPtr: fnPtr, closureRaw: closureRaw)])
     return registerRuntimeObject(seq)
 }
@@ -1513,7 +1859,6 @@ public func kk_sequence_filter(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_take")
 public func kk_sequence_take(_ seqRaw: Int, _ count: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1550,7 +1895,6 @@ public func kk_sequence_takeLast(_ seqRaw: Int, _ count: Int, _ outThrown: Unsaf
     return registerRuntimeObject(RuntimeListBox(elements: Array(elements.suffix(clamped))))
 }
 
-@_cdecl("kk_sequence_drop")
 public func kk_sequence_drop(_ seqRaw: Int, _ count: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1566,7 +1910,6 @@ public func kk_sequence_drop(_ seqRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_distinct")
 public func kk_sequence_distinct(_ seqRaw: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1582,7 +1925,6 @@ public func kk_sequence_distinct(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_distinctBy")
 public func kk_sequence_distinctBy(
     _ seqRaw: Int,
     _ fnPtr: Int,
@@ -1603,7 +1945,6 @@ public func kk_sequence_distinctBy(
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_zip")
 public func kk_sequence_zip(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     let otherElements = runtimeSequenceSourceElementsOrPanic(from: otherRaw, caller: #function)
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
@@ -1620,7 +1961,6 @@ public func kk_sequence_zip(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_zip_transform")
 public func kk_sequence_zip_transform(
     _ seqRaw: Int,
     _ otherRaw: Int,
@@ -1658,7 +1998,6 @@ public func kk_sequence_zip_transform(
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
 }
 
-@_cdecl("kk_sequence_takeWhile")
 public func kk_sequence_takeWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1719,7 +2058,6 @@ public func kk_sequence_filterNot(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_dropWhile")
 public func kk_sequence_dropWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -1855,22 +2193,6 @@ public func kk_sequence_filterNotNull(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_filterIsInstance")
-public func kk_sequence_filterIsInstance(_ seqRaw: Int, _ typeToken: Int) -> Int {
-    guard let seq = runtimeSequenceBox(from: seqRaw) else {
-        let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-        let newSeq = RuntimeSequenceBox(steps: [
-            .source(elements: sourceElements),
-            .filterIsInstanceStep(typeToken: typeToken),
-        ])
-        return registerRuntimeObject(newSeq)
-    }
-    var newSteps = seq.steps
-    newSteps.append(.filterIsInstanceStep(typeToken: typeToken))
-    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainOnceState: seq.constrainOnceState)
-    return registerRuntimeObject(newSeq)
-}
-
 @_cdecl("kk_sequence_requireNoNulls")
 public func kk_sequence_requireNoNulls(_ seqRaw: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
@@ -1996,53 +2318,8 @@ public func kk_sequence_withIndex(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-// MARK: - Sequence Terminal Operations
-
-@_cdecl("kk_sequence_forEach")
-public func kk_sequence_forEach(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: nil) { elem in
-            var thrown = 0
-            _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-            if thrown != 0 {
-                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
-            }
-            return true
-        }
-    } else {
-        let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-        for elem in elements {
-            var thrown = 0
-            _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-            if thrown != 0 {
-                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
-            }
-        }
-    }
-    return 0
-}
-
-@_cdecl("kk_sequence_forEachIndexed")
-public func kk_sequence_forEachIndexed(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
-    let elements: [Int]
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        elements = evaluateSequence(seq)
-    } else {
-        elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    }
-    for (idx, elem) in elements.enumerated() {
-        var thrown = 0
-        _ = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: idx, rhs: elem, outThrown: &thrown)
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence forEachIndexed lambda threw but no outThrown available")
-        }
-    }
-    return 0
-}
-
 // MARK: - kk_sequence_zipWithNext (STDLIB: Sequence.zipWithNext)
 
-@_cdecl("kk_sequence_zipWithNext")
 public func kk_sequence_zipWithNext(_ seqRaw: Int) -> Int {
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
     guard values.count >= 2 else {
@@ -2056,7 +2333,6 @@ public func kk_sequence_zipWithNext(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(values: pairs))
 }
 
-@_cdecl("kk_sequence_zipWithNextTransform")
 public func kk_sequence_zipWithNextTransform(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let elements: [Int]
     if let seq = runtimeSequenceBox(from: seqRaw) {
@@ -2181,38 +2457,6 @@ public func kk_sequence_sortedBy(
     return registerRuntimeObject(seq)
 }
 
-@_cdecl("kk_sequence_sortedWith")
-public func kk_sequence_sortedWith(
-    _ seqRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: fnPtr, closureRaw: closureRaw)
-    var hadThrow = false
-    var indexed = elements.enumerated().map { ($0.offset, $0.element) }
-    indexed.sort { lhs, rhs in
-        guard !hadThrow else { return false }
-        var thrown = 0
-        let result = comparatorInvoke(lhs.1, rhs.1, &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            hadThrow = true
-            return false
-        }
-        if result != 0 {
-            return result < 0
-        }
-        return lhs.0 < rhs.0
-    }
-    if hadThrow {
-        return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
-    }
-    let seq = RuntimeSequenceBox(steps: [.source(elements: indexed.map { $0.1 })])
-    return registerRuntimeObject(seq)
-}
-
 @_cdecl("kk_sequence_sortedByDescending")
 public func kk_sequence_sortedByDescending(
     _ seqRaw: Int,
@@ -2305,10 +2549,10 @@ public func kk_sequence_first(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<I
             return false
         }
     } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        if let first = elements.first {
-            result = first
+        _ = runtimeTraverseSourceSequenceObject(seqRaw, outThrown: outThrown) { elem in
+            result = elem
             found = true
+            return false
         }
     }
     if let outThrown, outThrown.pointee != 0 { return 0 }
@@ -2330,10 +2574,10 @@ public func kk_sequence_firstOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePoi
             return false
         }
     } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        if let first = elements.first {
-            result = first
+        _ = runtimeTraverseSourceSequenceObject(seqRaw, outThrown: outThrown) { elem in
+            result = elem
             found = true
+            return false
         }
     }
     if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
@@ -2402,110 +2646,6 @@ public func kk_sequence_last(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<In
         return 0
     }
     return result
-}
-
-@_cdecl("kk_sequence_find")
-public func kk_sequence_find(
-    _ seqRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var found = false
-    var result = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let predicateResult = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
-            }
-            if maybeUnbox(predicateResult) != 0 {
-                found = true
-                result = elem
-                return false
-            }
-            return true
-        }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let predicateResult = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return runtimeNullSentinelInt
-            }
-            if maybeUnbox(predicateResult) != 0 {
-                found = true
-                result = elem
-                break
-            }
-        }
-    }
-    if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
-    return found ? result : runtimeNullSentinelInt
-}
-
-@_cdecl("kk_sequence_findLast")
-public func kk_sequence_findLast(
-    _ seqRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var found = runtimeNullSentinelInt
-    var hasMatch = false
-    var traversalState: SequenceTraversalState?
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        let state = SequenceTraversalState()
-        traversalState = state
-        runtimeTraverseSequenceWithState(seq, state: state, outThrown: outThrown) { elem in
-            var thrown = 0
-            let predicateResult = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
-            }
-            if maybeUnbox(predicateResult) != 0 {
-                found = elem
-                hasMatch = true
-            }
-            return true
-        }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let predicateResult = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return runtimeNullSentinelInt
-            }
-            if maybeUnbox(predicateResult) != 0 {
-                found = elem
-                hasMatch = true
-            }
-        }
-    }
-    if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
-    if let traversalState, traversalState.limitReached {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
-        return runtimeNullSentinelInt
-    }
-    return hasMatch ? found : runtimeNullSentinelInt
-}
-
-@_cdecl("kk_sequence_asIterable")
-public func kk_sequence_asIterable(_ seqRaw: Int) -> Int {
-    // Sequence is already an Iterable, so return the same handle
-    return seqRaw
-}
-
-@_cdecl("kk_sequence_asSequence")
-public func kk_sequence_asSequence(_ seqRaw: Int) -> Int {
-    return seqRaw
 }
 
 @_cdecl("kk_sequence_lastOrNull")
@@ -2599,10 +2739,15 @@ public func kk_sequence_single(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<
         return 0
     }
     guard count == 1 else {
-        let message = count == 0
-            ? kEmptySequenceNoSuchElement
-            : "NoSuchElementException: Sequence has more than one element."
-        outThrown?.pointee = runtimeAllocateThrowable(message: message)
+        if count == 0 {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(
+                message: kEmptySequenceNoSuchElement
+            )
+        } else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Sequence has more than one element."
+            )
+        }
         return 0
     }
     return result
@@ -2648,7 +2793,7 @@ public func kk_sequence_contains(_ seqRaw: Int, _ element: Int) -> Int {
         let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
         found = elements.contains { runtimeValuesEqual($0, element) }
     }
-    return kk_box_bool(found ? 1 : 0)
+    return found ? 1 : 0
 }
 
 @_cdecl("kk_sequence_indexOf")
@@ -2834,7 +2979,7 @@ public func kk_sequence_elementAtOrNull(_ seqRaw: Int, _ index: Int) -> Int {
 public func kk_sequence_elementAt(_ seqRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     guard elements.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "Sequence index \(index) out of bounds for length \(elements.count)."
         )
         return runtimeNullSentinelInt
@@ -2867,13 +3012,18 @@ public func kk_sequence_elementAtOrElse(
 @_cdecl("kk_sequence_sum")
 public func kk_sequence_sum(_ seqRaw: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return kk_list_sum(registerRuntimeObject(RuntimeListBox(elements: elements)))
+    var total = 0
+    for element in elements { total &+= maybeUnbox(element) }
+    return total
 }
 
 @_cdecl("kk_sequence_average")
 public func kk_sequence_average(_ seqRaw: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return kk_list_average(registerRuntimeObject(RuntimeListBox(elements: elements)))
+    guard !elements.isEmpty else { return kk_double_to_bits(Double.nan) }
+    var total = 0.0
+    for element in elements { total += Double(maybeUnbox(element)) }
+    return kk_double_to_bits(total / Double(elements.count))
 }
 
 @_cdecl("kk_sequence_toMutableList")
@@ -2882,16 +3032,25 @@ public func kk_sequence_toMutableList(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(values: values))
 }
 
+// BUG-254: keep these on the same nominal tags as the Iterable terminals
+// (`__kk_iterable_toMutableSet` / `__kk_iterable_toHashSet`) so the declared
+// return type answers `is` the same way on both receivers.
 @_cdecl("kk_sequence_toMutableSet")
 public func kk_sequence_toMutableSet(_ seqRaw: Int) -> Int {
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
-    return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)))
+    return registerRuntimeObject(
+        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)),
+        typeID: linkedHashSetRuntimeTypeID
+    )
 }
 
 @_cdecl("kk_sequence_toHashSet")
 public func kk_sequence_toHashSet(_ seqRaw: Int) -> Int {
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
-    return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)))
+    return registerRuntimeObject(
+        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)),
+        typeID: hashSetRuntimeTypeID
+    )
 }
 
 @_cdecl("kk_sequence_toCollection")
@@ -2931,7 +3090,7 @@ public func kk_sequence_unzip(_ seqRaw: Int) -> Int {
     )
 }
 
-// MARK: - Sequence Terminal Operations: any/all/none/fold/reduce (STDLIB-274)
+// MARK: - Sequence Terminal Operations: any/all/none/reduce (STDLIB-274)
 
 @_cdecl("kk_sequence_any")
 public func kk_sequence_any(
@@ -3062,33 +3221,6 @@ public func kk_sequence_none(
         return kk_box_bool(1)
     }
     return kk_box_bool(foundMatch ? 0 : 1)
-}
-
-@_cdecl("kk_sequence_fold")
-public func kk_sequence_fold(
-    _ seqRaw: Int,
-    _ initial: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    var acc = initial
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-            if step.thrown != 0 { return false }
-            acc = step.accumulator
-            return true
-        }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-            if step.thrown != 0 { return initial }
-            acc = step.accumulator
-        }
-    }
-    if let outThrown, outThrown.pointee != 0 { return initial }
-    return acc
 }
 
 @_cdecl("kk_sequence_reduce")
@@ -3273,7 +3405,6 @@ public func kk_sequence_reduceRightIndexed(
 
 // MARK: - Sequence Operations: chunked/windowed/onEach (STDLIB-276)
 
-@_cdecl("kk_sequence_chunked")
 public func kk_sequence_chunked(_ seqRaw: Int, _ size: Int) -> Int {
     let chunkSize = max(1, size)
     // Lazily traverse upstream to build chunks on the fly
@@ -3308,7 +3439,6 @@ public func kk_sequence_chunked(_ seqRaw: Int, _ size: Int) -> Int {
     return registerRuntimeObject(resultSeq)
 }
 
-@_cdecl("kk_sequence_chunked_transform")
 public func kk_sequence_chunked_transform(
     _ seqRaw: Int,
     _ size: Int,
@@ -3329,7 +3459,6 @@ public func kk_sequence_chunked_transform(
     return registerRuntimeObject(resultSeq)
 }
 
-@_cdecl("kk_sequence_windowed")
 public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
     let clampedSize = max(1, size)
     let clampedStep = max(1, step)
@@ -3344,11 +3473,12 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
             buffer.append(elem)
             elementIndex += 1
             // Emit windows whose start position we've passed
-            while nextWindowStart + clampedSize <= elementIndex {
+            while nextWindowStart <= elementIndex - clampedSize {
                 let window = Array(buffer[nextWindowStart..<(nextWindowStart + clampedSize)])
                 let windowList = RuntimeListBox(elements: window)
                 windows.append(registerRuntimeObject(windowList))
-                nextWindowStart += clampedStep
+                let (advancedStart, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+                nextWindowStart = overflow ? Int.max : advancedStart
             }
             return true
         }
@@ -3356,28 +3486,29 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
         let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
         buffer = elements
         elementIndex = elements.count
-        while nextWindowStart + clampedSize <= elementIndex {
+        while nextWindowStart <= elementIndex - clampedSize {
             let window = Array(buffer[nextWindowStart..<(nextWindowStart + clampedSize)])
             let windowList = RuntimeListBox(elements: window)
             windows.append(registerRuntimeObject(windowList))
-            nextWindowStart += clampedStep
+            let (advancedStart, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+            nextWindowStart = overflow ? Int.max : advancedStart
         }
     }
     // Handle partial windows at the end
     if includePartial {
         while nextWindowStart < elementIndex {
-            let end = min(nextWindowStart + clampedSize, elementIndex)
+            let end = nextWindowStart + min(clampedSize, elementIndex - nextWindowStart)
             let window = Array(buffer[nextWindowStart..<end])
             let windowList = RuntimeListBox(elements: window)
             windows.append(registerRuntimeObject(windowList))
-            nextWindowStart += clampedStep
+            let (advancedStart, overflow) = nextWindowStart.addingReportingOverflow(clampedStep)
+            nextWindowStart = overflow ? Int.max : advancedStart
         }
     }
     let resultSeq = RuntimeSequenceBox(steps: [.source(elements: windows)])
     return registerRuntimeObject(resultSeq)
 }
 
-@_cdecl("kk_sequence_windowed_transform")
 public func kk_sequence_windowed_transform(
     _ seqRaw: Int,
     _ size: Int,
@@ -3393,7 +3524,7 @@ public func kk_sequence_windowed_transform(
     results.reserveCapacity(windows.count)
     for windowRaw in windows {
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: windowRaw,
@@ -3452,15 +3583,13 @@ public func kk_sequence_toSortedSet(_ seqRaw: Int) -> Int {
 }
 
 @_cdecl("kk_sequence_toMap")
-public func kk_sequence_toMap(_ seqRaw: Int) -> Int {
-    var collected: [Int] = []
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: nil) { elem in
-            collected.append(elem)
-            return true
-        }
-    } else {
-        collected = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+public func kk_sequence_toMap(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let collected = runtimeSequenceSourceElementsOrThrow(
+        from: seqRaw,
+        caller: #function,
+        outThrown: outThrown
+    ) else {
+        return runtimeNullSentinelInt
     }
     var keys: [Int] = []
     var values: [Int] = []
@@ -3681,26 +3810,8 @@ public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
 
 @_cdecl("kk_sequence_plus")
 public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
-    let lhsElements: [Int]
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        lhsElements = evaluateSequence(seq)
-    } else if let list = runtimeListBox(from: seqRaw) {
-        lhsElements = list.elements
-    } else if let array = runtimeArrayBox(from: seqRaw) {
-        lhsElements = array.elements
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_plus received invalid LHS collection handle")
-    }
-    let rhsElements: [Int]
-    if let seq = runtimeSequenceBox(from: otherRaw) {
-        rhsElements = evaluateSequence(seq)
-    } else if let list = runtimeListBox(from: otherRaw) {
-        rhsElements = list.elements
-    } else if let array = runtimeArrayBox(from: otherRaw) {
-        rhsElements = array.elements
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_plus received invalid RHS collection handle (the compiler must wrap single elements via kk_sequence_of_single)")
-    }
+    let lhsElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    let rhsElements = runtimeSequenceSourceElementsOrPanic(from: otherRaw, caller: #function)
     // Single-allocation concatenation: create an array with the exact
     // final capacity up front so there are no intermediate reallocations
     // or copy-on-write copies.
@@ -3723,16 +3834,7 @@ public func kk_sequence_plus_element(_ seqRaw: Int, _ element: Int) -> Int {
 
 @_cdecl("kk_sequence_minus")
 public func kk_sequence_minus(_ seqRaw: Int, _ element: Int) -> Int {
-    let elements: [Int]
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        elements = evaluateSequence(seq)
-    } else if let list = runtimeListBox(from: seqRaw) {
-        elements = list.elements
-    } else if let array = runtimeArrayBox(from: seqRaw) {
-        elements = array.elements
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_minus received invalid LHS collection handle")
-    }
+    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     var result = elements
     // NOTE: runtimeValuesEqual compares primitives (Int, String, Bool, etc.)
     // by value but falls back to pointer identity for collection types
@@ -3768,4 +3870,61 @@ public func kk_sequence_subtract(_ seqRaw: Int, _ otherRaw: Int) -> Int {
         !otherKeys.contains(RuntimeElementKey(value: elem))
     }
     return registerRuntimeObject(RuntimeSetBox(elements: result))
+}
+
+// MARK: - Runtime-backed Sequence/Iterator itable support
+
+/// `Sequence.iterator()` implementation for `RuntimeSequenceBox`.
+/// Returns a `RuntimeSequenceIteratorBox` handle registered with the
+/// `kotlin.collections.Iterator` itable so source `Sequence` wrappers can call
+/// `hasNext()` / `next()` through normal interface dispatch.
+@_cdecl("kk_sequence_box_iterator")
+public func kk_sequence_box_iterator(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let seq = runtimeSequenceBox(from: seqRaw) else {
+        return 0
+    }
+    let iterator = RuntimeSequenceIteratorBox(seq: seq)
+    let raw = registerRuntimeObject(iterator as AnyObject)
+    _ = kk_object_register_itable_iface(raw, Int(runtimeIteratorInterfaceTypeID), 0)
+    let hasNextPtr = unsafeBitCast(
+        kk_sequence_iterator_hasNext as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    _ = kk_object_register_itable_method(raw, 0, 0, hasNextPtr)
+    let nextPtr = unsafeBitCast(
+        kk_sequence_iterator_next as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
+    return raw
+}
+
+@_cdecl("kk_sequence_iterator_hasNext")
+public func kk_sequence_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let iter = runtimeSequenceIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    return iter.hasNext(outThrown: outThrown) ? 1 : 0
+}
+
+@_cdecl("kk_sequence_iterator_next")
+public func kk_sequence_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let iter = runtimeSequenceIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    return iter.next(outThrown: outThrown)
+}
+
+func registerRuntimeObject(_ box: RuntimeSequenceBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    _ = kk_object_register_itable_iface(raw, Int(runtimeSequenceInterfaceTypeID), 0)
+    let iteratorPtr = unsafeBitCast(
+        kk_sequence_box_iterator as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    _ = kk_object_register_itable_method(raw, 0, 0, iteratorPtr)
+    return raw
 }

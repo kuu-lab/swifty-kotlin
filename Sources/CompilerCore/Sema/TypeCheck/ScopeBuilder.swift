@@ -11,16 +11,21 @@ struct TypeCheckScopeBuilder {
             topLevelSymbolsByPackage[packagePath, default: []].append(contentsOf: symbols)
         }
         let defaultImportPackages = makeDefaultImportPackages(interner: interner)
+        // Default imports are identical for every file in this compilation.
+        // Populate this shared parent once; file-specific bindings stay in
+        // the child scopes and never mutate the default-import scope.
+        let defaultImportScope = ImportScope(parent: nil, symbols: sema.symbols)
+        for packagePath in defaultImportPackages {
+            for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
+                if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
+                    continue
+                }
+                defaultImportScope.insert(importedSymbol)
+            }
+        }
         var fileScopes: [Int32: FileScope] = [:]
 
         for file in ast.sortedFiles {
-            let defaultImportScope = ImportScope(parent: nil, symbols: sema.symbols)
-            for packagePath in defaultImportPackages {
-                for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
-                    defaultImportScope.insert(importedSymbol)
-                }
-            }
-
             let wildcardImportScope = ImportScope(parent: defaultImportScope, symbols: sema.symbols)
             let explicitImportScope = ImportScope(parent: wildcardImportScope, symbols: sema.symbols)
             populateImportScopes(
@@ -35,6 +40,18 @@ struct TypeCheckScopeBuilder {
 
             let packageScope = PackageScope(parent: explicitImportScope, symbols: sema.symbols)
             for packageSymbol in topLevelSymbolsByPackage[file.packageFQName] ?? [] {
+                // KSP-1150: the coroutine registry retains a root-level
+                // CancellationException compatibility class. An explicit
+                // import of the source-backed class must take precedence over
+                // that residual alias in the root package.
+                if shouldSkipRootCancellationCompatibilityAlias(
+                    packageSymbol,
+                    file: file,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    continue
+                }
                 packageScope.insert(packageSymbol)
             }
 
@@ -43,6 +60,39 @@ struct TypeCheckScopeBuilder {
         }
 
         return fileScopes
+    }
+
+    private func shouldSkipRootCancellationCompatibilityAlias(
+        _ symbolID: SymbolID,
+        file: ASTFile,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard file.packageFQName.isEmpty,
+              let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .class,
+              symbol.flags.contains(.synthetic),
+              symbol.fqName.count == 1,
+              symbol.name == interner.intern("CancellationException")
+        else {
+            return false
+        }
+
+        return file.imports.contains { importDecl in
+            guard importDecl.alias == nil,
+                  importDecl.path.last == symbol.name
+            else {
+                return false
+            }
+            return sema.symbols.lookupAll(fqName: importDecl.path).contains { importedID in
+                guard let imported = sema.symbols.symbol(importedID) else {
+                    return false
+                }
+                return (imported.kind == .class || imported.kind == .typeAlias)
+                    && imported.fqName.count > 1
+                    && importedID != symbolID
+            }
+        }
     }
 
     func collectTopLevelSymbolsByPackage(
@@ -131,6 +181,9 @@ struct TypeCheckScopeBuilder {
                 let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
                 if !packageSymbols.isEmpty {
                     for packageSymbol in packageSymbols {
+                        if shouldSkipDefaultImport(packageSymbol, sema: sema, interner: interner) {
+                            continue
+                        }
                         wildcardImportScope.insert(packageSymbol)
                     }
                 }
@@ -160,6 +213,9 @@ struct TypeCheckScopeBuilder {
 
             if hasPackageImport {
                 for importedSymbol in topLevelSymbolsByPackage[importDecl.path] ?? [] {
+                    if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
+                        continue
+                    }
                     wildcardImportScope.insert(importedSymbol)
                 }
             }
@@ -184,14 +240,9 @@ struct TypeCheckScopeBuilder {
             else {
                 continue
             }
-            // Skip extension functions (those with a receiverType) -- they are
-            // resolved via member-call inference, not top-level scope lookup.
-            if symbol.kind == .function,
-               let sig = sema.symbols.functionSignature(for: symbol.id),
-               sig.receiverType != nil
-            {
-                continue
-            }
+            // Library extension functions are intentionally included in the package
+            // mapping so default/wildcard imports make them visible for member-style
+            // call resolution. Direct calls still filter them by requiring no receiver.
             let candidatePackage: [InternedString] = if symbol.kind == .property,
                 sema.symbols.extensionPropertyReceiverType(for: symbol.id) != nil,
                 let companionSymbol = sema.symbols.parentSymbol(for: symbol.id),
@@ -200,7 +251,8 @@ struct TypeCheckScopeBuilder {
                 companionInfo.name == interner.intern("Companion"),
                 let ownerSymbol = sema.symbols.parentSymbol(for: companionSymbol),
                 let ownerInfo = sema.symbols.symbol(ownerSymbol),
-                !ownerInfo.fqName.isEmpty
+                !ownerInfo.fqName.isEmpty,
+                !sema.symbols.isSourceBackedSymbol(symbol.id)
             {
                 Array(ownerInfo.fqName.dropLast())
             } else if symbol.fqName.count == 1 {
@@ -214,9 +266,59 @@ struct TypeCheckScopeBuilder {
             {
                 continue
             }
+            // STDLIB-SHARED-009: Keep synthetic operator extensions (e.g. String.get)
+            // out of the library package mapping. Source-backed operator extensions
+            // remain so they are visible to other bundled source in the same package.
+            if isSyntheticOperatorExtensionToExclude(symbol.id, sema: sema, interner: interner) {
+                continue
+            }
             mapping[candidatePackage, default: []].append(symbol.id)
         }
         return mapping
+    }
+
+    /// Returns true for synthetic operator extension functions that must not be
+    /// entered into package/default-import scope mappings. These would shadow
+    /// source-backed member implementations in implicit-receiver calls.
+    /// Member-style and operator syntax still resolve them through CallTypeChecker
+    /// fallback paths.
+    private func isSyntheticOperatorExtensionToExclude(
+        _ symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .function,
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              signature.receiverType != nil,
+              symbol.flags.contains(.operatorFunction),
+              symbol.flags.contains(.synthetic),
+              !sema.symbols.isSourceBackedSymbol(symbolID)
+        else {
+            return false
+        }
+
+        // STDLIB-SHARED-009: Keep synthetic operator extensions (e.g. String.get)
+        // out of scope mappings. They are reachable through
+        // CallTypeChecker fallback paths when needed.
+        return true
+    }
+
+    /// Returns true for symbols that should not be inserted into the
+    /// default-import or wildcard-import scopes. This includes the synthetic
+    /// operator extensions covered by STDLIB-SHARED-009. Member-style and
+    /// operator syntax (e.g. `cs[0]`) resolve source-backed interface members
+    /// normally.
+    private func shouldSkipDefaultImport(
+        _ symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        if isSyntheticOperatorExtensionToExclude(symbolID, sema: sema, interner: interner) {
+            return true
+        }
+
+        return false
     }
 
     func makeDefaultImportPackages(interner: StringInterner) -> [[InternedString]] {
@@ -231,6 +333,7 @@ struct TypeCheckScopeBuilder {
             // member resolution for java.security.Signature.sign vs kotlin.math.sign.
             ["kotlin", "io"],
             ["kotlin", "ranges"],
+            ["kotlin", "reflect"],
             ["kotlin", "sequences"],
             ["kotlin", "text"],
             ["kotlin", "time"],

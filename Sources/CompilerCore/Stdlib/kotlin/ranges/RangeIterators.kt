@@ -1,40 +1,126 @@
 package kotlin.ranges
 
 // MIGRATION-RANGE-001
-// iterator() for IntRange, LongRange, CharRange, IntProgression, LongProgression,
-// CharProgression.
+// iterator() for IntRange, LongRange, CharRange, UIntRange, ULongRange,
+// IntProgression, LongProgression, CharProgression, UIntProgression, and
+// ULongProgression.
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
 //   (kk_range_iterator, kk_range_hasNext, kk_range_next)
-//   Sources/Runtime/RuntimeRangeLongRange.swift (kk_long_range_iterator)
+//   Sources/Runtime/RuntimeRangeLongRange.swift (__kk_long_range_iterator,
+//   __kk_ulong_range_iterator, __kk_ulong_range_hasNext, __kk_ulong_range_next)
+//   Sources/Runtime/RuntimeRangeUIntULongRange.swift
+//   (__kk_uint_range_iterator, __kk_uint_range_hasNext, __kk_uint_range_next)
+//   Sources/Runtime/RuntimeRangeLongRange.swift
+//   (__kk_ulong_range_iterator, __kk_ulong_range_hasNext, __kk_ulong_range_next)
 // See RangeMembership.kt for the contains()/isEmpty() half of this migration.
 //
-// NOTE: KSP-312 wires explicit `range.iterator()` calls through bundled stdlib
-// source. `for (x in range)` does not go through `.iterator()` yet: it is still
-// special-cased in ExprLowerer+ControlFlowAndBlocks.swift straight to the
-// kk_*range_iterator/kk_iterator_hasNext/kk_iterator_next runtime calls. That
-// lowering cleanup is intentionally left to KSP-452.
+// KSP-452 removed the `for (x in range)` lowering special case, so plain range
+// loops now go through these operators like every other iterable.
 //
-// Implementation note — why this delegates through toList() instead of a
-// hand-written lazy iterator: a user-defined class that implements the
-// built-in kotlin.collections.Iterator<T> compiles, but the compiler currently
-// rejects using it *polymorphically* as Iterator<T> (assigning it to an
-// Iterator<T>-typed val, returning it from a function declared to return
-// Iterator<T>, etc. all fail with "No viable overload found for call"; this
-// reproduces the same way for both primitive and reference element types, so
-// it isn't specific to these six classes). Confirmed working today: iterators
-// obtained from already-native sources — e.g. List<T>.iterator() — behave
-// correctly as Iterator<T>. toList() is itself a real (if not-yet-wired)
-// member on all six classes (see HeaderHelpers+SyntheticTypedRangeStubs.swift /
-// HeaderHelpers+SyntheticRangeProgressionStubs.swift), so this is written in
-// terms of another already-Kotlin-visible member rather than a native bridge.
-// Once custom Iterator<T> implementors work polymorphically, the right
-// long-term shape is a lazy per-family iterator class (mirroring upstream
-// Kotlin's IntProgressionIterator/LongProgressionIterator/
-// CharProgressionIterator) instead of eagerly materialising every element.
+// The iterators below step lazily instead of materialising every element (the
+// earlier toList()-based shape was O(n) memory and made large loops unusable).
+// hasNext is recomputed from the *next* value rather than compared against
+// `last`, so a progression whose `last` was not snapped onto the step grid
+// (e.g. 1..9 step 3) still stops at the final in-range element, and the
+// monotonicity check keeps the step past the final element from wrapping around
+// at Int/Long boundaries.
+//
+// A zero step means "empty": the runtime range representation marks an empty
+// `a until b` (b <= a) with step 0 rather than with first/last bounds that
+// exclude each other (__kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
 
-public operator fun IntRange.iterator(): Iterator<Int> = this.toList().iterator()
-public operator fun IntProgression.iterator(): Iterator<Int> = this.toList().iterator()
-public operator fun LongRange.iterator(): Iterator<Long> = this.toList().iterator()
-public operator fun LongProgression.iterator(): Iterator<Long> = this.toList().iterator()
-public operator fun CharRange.iterator(): Iterator<Char> = this.toList().iterator()
-public operator fun CharProgression.iterator(): Iterator<Char> = this.toList().iterator()
+internal class IntProgressionIterator(first: Int, last: Int, private val step: Int) : Iterator<Int> {
+    private val finalElement: Int = last
+    private var nextValue: Int = first
+    private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
+
+    override fun hasNext(): Boolean = hasNextValue
+
+    override fun next(): Int {
+        if (!hasNextValue) throw NoSuchElementException()
+        val value = nextValue
+        val candidate = value + step
+        hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
+        nextValue = candidate
+        return value
+    }
+}
+
+internal class LongProgressionIterator(first: Long, last: Long, private val step: Long) : LongIterator() {
+    private val finalElement: Long = last
+    private var nextValue: Long = first
+    private var hasNextValue: Boolean = if (step > 0L) first <= last else if (step < 0L) first >= last else false
+
+    override fun hasNext(): Boolean = hasNextValue
+
+    override fun nextLong(): Long {
+        if (!hasNextValue) throw NoSuchElementException()
+        val value = nextValue
+        val candidate = value + step
+        hasNextValue = if (step > 0L) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
+        nextValue = candidate
+        return value
+    }
+}
+
+internal class CharProgressionIterator(first: Char, last: Char, private val step: Int) : Iterator<Char> {
+    private val finalElement: Char = last
+    private var nextValue: Char = first
+    private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
+
+    override fun hasNext(): Boolean = hasNextValue
+
+    override fun next(): Char {
+        if (!hasNextValue) throw NoSuchElementException()
+        val value = nextValue
+        val candidate = value + step
+        hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
+        nextValue = candidate
+        return value
+    }
+}
+
+public operator fun IntRange.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
+public operator fun IntProgression.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
+public operator fun LongRange.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step)
+public operator fun CharRange.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
+public operator fun CharProgression.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
+
+internal class UIntProgressionIterator(first: UInt, last: UInt, private val step: Int) : Iterator<UInt> {
+    private val finalElement: UInt = last
+    private var nextValue: UInt = first
+    private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
+
+    override fun hasNext(): Boolean = hasNextValue
+
+    override fun next(): UInt {
+        if (!hasNextValue) throw NoSuchElementException()
+        val value = nextValue
+        val candidate = value + step.toUInt()
+        hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
+        nextValue = candidate
+        return value
+    }
+}
+
+internal class ULongProgressionIterator(first: ULong, last: ULong, private val step: Long) : Iterator<ULong> {
+    private val finalElement: ULong = last
+    private var nextValue: ULong = first
+    private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
+
+    override fun hasNext(): Boolean = hasNextValue
+
+    override fun next(): ULong {
+        if (!hasNextValue) throw NoSuchElementException()
+        val value = nextValue
+        val candidate = value + step.toULong()
+        hasNextValue = if (step > 0) candidate > value && candidate <= finalElement else candidate < value && candidate >= finalElement
+        nextValue = candidate
+        return value
+    }
+}
+
+public operator fun UIntRange.iterator(): Iterator<UInt> = UIntProgressionIterator(this.first, this.last, this.step)
+public operator fun UIntProgression.iterator(): Iterator<UInt> = UIntProgressionIterator(this.first, this.last, this.step)
+public operator fun ULongRange.iterator(): Iterator<ULong> = ULongProgressionIterator(this.first, this.last, this.step)
+public operator fun ULongProgression.iterator(): Iterator<ULong> = ULongProgressionIterator(this.first, this.last, this.step)

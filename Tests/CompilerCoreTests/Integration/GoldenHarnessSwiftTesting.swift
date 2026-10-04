@@ -1,49 +1,218 @@
 #if canImport(Testing)
+import CompilerCore
 import Foundation
 import GoldenHarnessSupport
 import Testing
+import TestStdlibCache
+
+struct GoldenHarnessCaseBatch: Sendable, CustomTestStringConvertible {
+    let cases: [GoldenHarnessCase]
+
+    var testDescription: String {
+        guard let first = cases.first else {
+            return "empty"
+        }
+        guard let last = cases.last, last.basename != first.basename else {
+            return first.basename
+        }
+        return "\(first.basename)...\(last.basename) (\(cases.count) cases)"
+    }
+}
+
+private struct GoldenHarnessShard: Equatable {
+    private static let indexKey = "KSWIFTK_GOLDEN_SHARD_INDEX"
+    private static let countKey = "KSWIFTK_GOLDEN_SHARD_COUNT"
+
+    let index: Int
+    let count: Int
+
+    static func fromEnvironment(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> GoldenHarnessShard? {
+        let rawIndex = environment[indexKey]
+        let rawCount = environment[countKey]
+
+        guard rawIndex != nil || rawCount != nil else {
+            return nil
+        }
+        guard
+            let rawIndex,
+            let rawCount,
+            let index = Int(rawIndex),
+            let count = Int(rawCount),
+            count > 0,
+            index >= 0,
+            index < count
+        else {
+            fatalError(
+                "\(indexKey) and \(countKey) must be integers satisfying 0 <= index < count"
+            )
+        }
+        return GoldenHarnessShard(index: index, count: count)
+    }
+
+    func select<T>(_ values: [T]) -> [T] {
+        values.enumerated().compactMap { offset, value in
+            offset % count == index ? value : nil
+        }
+    }
+}
 
 private enum GoldenHarnessStaticCases {
-    static let lexer = GoldenHarness.loadCasesOrCrash(suiteName: "Lexer")
-    static let parser = GoldenHarness.loadCasesOrCrash(suiteName: "Parser")
-    static let sema = GoldenHarness.loadCasesOrCrash(suiteName: "Sema")
-    static let diagnostics = GoldenHarness.loadCasesOrCrash(suiteName: "Diagnostics")
+    private static let batchSize = 8
+
+    /// Every golden shard performs the same cheap filesystem/ownership
+    /// preflight before selecting its batches. The cross-suite audit is kept
+    /// outside the selected batch so a duplicate target cannot hide in a
+    /// different shard.
+    private static let inventory: GoldenHarnessCaseInventory = {
+        do {
+            let inventory = try GoldenHarnessCaseDiscovery.preflightAllSuites()
+            print(
+                "GoldenHarness inventory: cases=\(inventory.caseCount) "
+                    + "suites=\(inventory.caseCountBySuite) "
+                    + "profiles=\(inventory.caseCountByProfile) "
+                    + "targeted=\(inventory.targetedCaseKeys.count) "
+                    + "target-contracts=\(inventory.targetContracts.count)"
+            )
+            return inventory
+        } catch {
+            preconditionFailure("GoldenHarness inventory preflight failed: \(error)")
+        }
+    }()
+
+    static let lexer = batches(suiteName: "Lexer")
+    static let parser = batches(suiteName: "Parser")
+    static let sema = batches(suiteName: "Sema")
+    static let diagnostics = batches(suiteName: "Diagnostics")
+
+    private static func batches(suiteName: String) -> [GoldenHarnessCaseBatch] {
+        _ = inventory
+        let cases = GoldenHarness.loadCasesOrCrash(suiteName: suiteName)
+        let allBatches = stride(from: 0, to: cases.count, by: batchSize).map { startIndex in
+            let endIndex = min(startIndex + batchSize, cases.count)
+            return GoldenHarnessCaseBatch(cases: Array(cases[startIndex ..< endIndex]))
+        }
+
+        guard let shard = GoldenHarnessShard.fromEnvironment() else {
+            return allBatches
+        }
+        let selectedBatches = shard.select(allBatches)
+        print(
+            "GoldenHarness: \(suiteName) shard \(shard.index)/\(shard.count) "
+                + "selected \(selectedBatches.count) of \(allBatches.count) batches"
+        )
+        return selectedBatches
+    }
+}
+
+@Suite
+struct GoldenHarnessShardingTests {
+    @Test
+    func disabledWithoutEnvironment() {
+        #expect(GoldenHarnessShard.fromEnvironment([:]) == nil)
+    }
+
+    @Test
+    func selectsInterleavedValues() throws {
+        let shard = try #require(
+            GoldenHarnessShard.fromEnvironment([
+                "KSWIFTK_GOLDEN_SHARD_INDEX": "1",
+                "KSWIFTK_GOLDEN_SHARD_COUNT": "6",
+            ])
+        )
+        #expect(shard.select(Array(0 ..< 8)) == [1, 7])
+    }
 }
 
 @Suite("Golden.Lexer")
 struct GoldenLexerGoldenTests {
     @Test(arguments: GoldenHarnessStaticCases.lexer)
-    func matchesGolden(caseFile: GoldenHarnessCase) throws {
-        try runGoldenTest(suiteName: "Lexer", caseFile: caseFile)
+    func matchesGolden(batch: GoldenHarnessCaseBatch) throws {
+        try runGoldenTests(suiteName: "Lexer", batch: batch)
     }
 }
 
 @Suite("Golden.Parser")
 struct GoldenParserGoldenTests {
     @Test(arguments: GoldenHarnessStaticCases.parser)
-    func matchesGolden(caseFile: GoldenHarnessCase) throws {
-        try runGoldenTest(suiteName: "Parser", caseFile: caseFile)
+    func matchesGolden(batch: GoldenHarnessCaseBatch) throws {
+        try runGoldenTests(suiteName: "Parser", batch: batch)
     }
 }
 
 @Suite("Golden.Sema")
 struct GoldenSemaGoldenTests {
     @Test(arguments: GoldenHarnessStaticCases.sema)
-    func matchesGolden(caseFile: GoldenHarnessCase) throws {
-        try runGoldenTest(suiteName: "Sema", caseFile: caseFile)
+    func matchesGolden(batch: GoldenHarnessCaseBatch) throws {
+        try runGoldenTests(suiteName: "Sema", batch: batch)
     }
 }
 
 @Suite("Golden.Diagnostics")
 struct GoldenDiagnosticsGoldenTests {
     @Test(arguments: GoldenHarnessStaticCases.diagnostics)
-    func matchesGolden(caseFile: GoldenHarnessCase) throws {
-        try runGoldenTest(suiteName: "Diagnostics", caseFile: caseFile)
+    func matchesGolden(batch: GoldenHarnessCaseBatch) throws {
+        try runGoldenTests(suiteName: "Diagnostics", batch: batch)
     }
 }
 
-private func runGoldenTest(suiteName: String, caseFile: GoldenHarnessCase) throws {
-    let renderedActual = try GoldenHarness.renderInSubprocess(suiteName: suiteName, sourcePath: caseFile.sourcePath)
+/// Path of the shared prebuilt stdlib `.kklib`, prepared once per test
+/// process. Feeding it to each golden worker makes every case resolve stdlib
+/// symbols from serialized metadata instead of re-running the bundled-stdlib
+/// source pipeline (the dominant per-case cost). `nil` keeps the historical
+/// source-injection behavior, e.g. when the artifact cannot be built locally.
+private func goldenStdlibLibraryPath() -> String? {
+    TestStdlibCache.shared.prepare()
+    return CompilerOptions.defaultStdlibLibraryPath
+}
+
+private func runGoldenTests(suiteName: String, batch: GoldenHarnessCaseBatch) throws {
+    let results = try GoldenHarness.renderBatchInSubprocess(
+        suiteName: suiteName,
+        sourcePaths: batch.cases.map(\.sourcePath),
+        stdlibLibraryPath: goldenStdlibLibraryPath()
+    )
+
+    for (caseFile, result) in zip(batch.cases, results) {
+        if let specErrorDescription = caseFile.specErrorDescription {
+            Issue.record("Invalid .golden-spec for \(caseFile.basename): \(specErrorDescription)")
+            continue
+        }
+        // RF-GOLDEN-012: the profile a spec pins must be the profile the
+        // worker actually ran with — a silent downgrade would verify the
+        // golden against a different stdlib surface than the spec records.
+        let expectedProfile = caseFile.spec?.stdlibProfile?.rawValue
+        if result.resolvedProfile != expectedProfile {
+            let specProfile = expectedProfile ?? "implicit"
+            let workerProfile = result.resolvedProfile ?? "implicit"
+            Issue.record(
+                "Resolved stdlib profile mismatch for \(caseFile.basename): spec expects \(specProfile), worker ran \(workerProfile)"
+            )
+            continue
+        }
+        if let errorDescription = result.errorDescription {
+            Issue.record("Golden worker failed for \(caseFile.basename): \(errorDescription)")
+            continue
+        }
+        guard let renderedActual = result.output else {
+            Issue.record("Golden worker returned no output for \(caseFile.basename)")
+            continue
+        }
+
+        do {
+            try verifyGolden(suiteName: suiteName, caseFile: caseFile, renderedActual: renderedActual)
+        } catch {
+            Issue.record("Golden verification failed for \(caseFile.basename): \(error)")
+        }
+    }
+}
+
+private func verifyGolden(
+    suiteName: String,
+    caseFile: GoldenHarnessCase,
+    renderedActual: String
+) throws {
     if try GoldenHarness.persistIfUpdating(suiteName: suiteName, sourcePath: caseFile.sourcePath, actual: renderedActual) {
         return
     }

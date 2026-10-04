@@ -1,6 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-006): List<Double> iteration boxes elements; when the loop variable is passed
-// to round()/roundToInt()/etc, kswiftc currently forwards the boxed pointer as Double
-// bits instead of unboxing, which rounds to 0. Unrelated to the math API surface itself.
 import kotlin.math.*
 
 fun main() {

@@ -9,13 +9,15 @@ enum CLIParseError: Error, Equatable {
     case unsupportedDiagnosticsFormat(String)
     case unknownOption(String)
     case noInputFiles
+    case incompatibleStdlibOptions(String)
+    case stdlibOnlyRequiresLibraryEmit
 }
 
 enum CLIParser {
     static let usageText = """
     Usage: kswiftc [options] <input files>
       -o <path>              Output path
-      --emit <mode>          executable|object|llvm|kir
+      --emit <mode>          executable|object|llvm|kir|library
       -O0|-O1|-O2|-O3        Optimization level
       -m <name>              Module name
       -I <path>              Search path
@@ -34,6 +36,9 @@ enum CLIParser {
       -Xdiagnostics <format> Diagnostic output format (text|json)
       --stdlib               Include stdlib search paths (default)
       --no-stdlib            Disable automatic stdlib inclusion
+      --stdlib-only          Compile bundled stdlib only as a .kklib (implies --emit library)
+      --stdlib-library <path> Use <path>.kklib as the stdlib instead of source injection
+      --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
       -g                     Emit debug info
     """
 
@@ -42,6 +47,7 @@ enum CLIParser {
         var outputPath = "./a.out"
         var moduleName = "Main"
         var emitMode: EmitMode = .executable
+        var explicitEmitMode: EmitMode?
         var searchPaths: [String] = []
         var libraryPaths: [String] = []
         var linkLibraries: [String] = []
@@ -52,6 +58,10 @@ enum CLIParser {
         var runtimeFlags: [String] = []
         var diagnosticsFormat: DiagnosticsFormat = .text
         var includeStdlib: Bool = true
+        var stdlibOnly: Bool = false
+        var stdlibLibraryPath: String? = nil
+        var allowDefaultStdlibLibrary = true
+        var explicitIncludeStdlib: Bool? = nil
         var target = TargetTriple.hostDefault()
 
         if args.isEmpty {
@@ -75,6 +85,7 @@ enum CLIParser {
                     throw CLIParseError.unsupportedEmitMode(value)
                 }
                 emitMode = mode
+                explicitEmitMode = mode
             case "-O0", "-O1", "-O2", "-O3":
                 if let level = parseOptimizationLevel(String(arg.dropFirst())) {
                     optLevel = level
@@ -123,8 +134,21 @@ enum CLIParser {
                 try linkLibraries.append(requireValue(option: arg, args: args, index: &index))
             case "--stdlib":
                 includeStdlib = true
+                explicitIncludeStdlib = true
             case "--no-stdlib":
                 includeStdlib = false
+                explicitIncludeStdlib = false
+            case "--stdlib-only":
+                stdlibOnly = true
+                includeStdlib = true
+            case "--stdlib-library":
+                let path = try requireValue(option: arg, args: args, index: &index)
+                stdlibLibraryPath = path
+                includeStdlib = false
+            case "--stdlib-from-source":
+                allowDefaultStdlibLibrary = false
+                includeStdlib = true
+                explicitIncludeStdlib = true
             case "-g":
                 debugInfo = true
             default:
@@ -137,7 +161,36 @@ enum CLIParser {
             index += 1
         }
 
-        if inputPaths.isEmpty {
+        if stdlibOnly {
+            if !inputPaths.isEmpty {
+                throw CLIParseError.incompatibleStdlibOptions("--stdlib-only cannot be combined with input files")
+            }
+            if stdlibLibraryPath != nil {
+                throw CLIParseError.incompatibleStdlibOptions("--stdlib-only cannot be combined with --stdlib-library")
+            }
+            if let explicitEmitMode, explicitEmitMode != .library {
+                throw CLIParseError.stdlibOnlyRequiresLibraryEmit
+            }
+            emitMode = .library
+            if moduleName == "Main" {
+                moduleName = "KSwiftKStdlib"
+            }
+            // stdlib-only is defined as the bundled/residual stdlib build;
+            // keep a trailing --no-stdlib from silently producing an empty
+            // artifact.
+            includeStdlib = true
+        }
+
+        if stdlibLibraryPath != nil && !allowDefaultStdlibLibrary {
+            throw CLIParseError.incompatibleStdlibOptions(
+                "--stdlib-library cannot be combined with --stdlib-from-source"
+            )
+        }
+        if stdlibLibraryPath != nil && explicitIncludeStdlib == true {
+            throw CLIParseError.incompatibleStdlibOptions("--stdlib-library cannot be combined with --stdlib")
+        }
+
+        if inputPaths.isEmpty && !stdlibOnly {
             throw CLIParseError.noInputFiles
         }
 
@@ -157,7 +210,10 @@ enum CLIParser {
             runtimeFlags: runtimeFlags,
             stdlibSearchPaths: CompilerOptions.defaultStdlibSearchPaths(),
             includeStdlib: includeStdlib,
-            diagnosticsFormat: diagnosticsFormat
+            diagnosticsFormat: diagnosticsFormat,
+            stdlibOnly: stdlibOnly,
+            stdlibLibraryPath: stdlibLibraryPath,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 

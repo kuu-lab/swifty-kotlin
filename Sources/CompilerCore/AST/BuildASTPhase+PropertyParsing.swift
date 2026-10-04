@@ -43,7 +43,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        let tokens = propertyHeadTokens(from: nodeID, in: arena, includingTrailingLambdaTokens: true)
         guard !tokens.isEmpty else {
             return nil
         }
@@ -68,11 +68,13 @@ extension BuildASTPhase {
         guard start < tokens.count else {
             return nil
         }
-        let exprTokens = tokens[start...].filter { $0.kind != .symbol(.semicolon) }
+        let exprTokens = filterTopLevelSemicolons(tokens[start...])
         guard !exprTokens.isEmpty else {
             return nil
         }
-        let parser = ExpressionParser(tokens: exprTokens[...], interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: exprTokens[...], interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         return parser.parse()
     }
 
@@ -94,17 +96,37 @@ extension BuildASTPhase {
             }
             return childID
         }).first {
-            for child in arena.children(of: accessorBlockID) {
-                processAccessorChild(
-                    child,
-                    in: arena,
-                    interner: interner,
-                    astArena: astArena,
-                    getter: &getter,
-                    setter: &setter
-                )
+            // An inline `get() { ... }` may leave the accessor header on the
+            // property and its body as a sibling block. It is not a property
+            // accessor container in that case.
+            let directTokens = collectDirectTokens(from: nodeID, in: arena)
+            if let accessorStart = inlineAccessorStartIndex(in: directTokens, bodyIsSiblingBlock: true) {
+                let headerTokens = Array(directTokens[accessorStart...])
+                if case .softKeyword(.get) = headerTokens[0].kind {
+                    getter = PropertyAccessorDecl(
+                        range: arena.node(nodeID).range,
+                        kind: .getter,
+                        parameterName: nil,
+                        body: accessorBody(
+                            statementID: nodeID, headerTokens: headerTokens,
+                            in: arena, interner: interner, astArena: astArena
+                        )
+                    )
+                }
             }
-            return (getter, setter)
+            if getter == nil {
+                for child in arena.children(of: accessorBlockID) {
+                    processAccessorChild(
+                        child,
+                        in: arena,
+                        interner: interner,
+                        astArena: astArena,
+                        getter: &getter,
+                        setter: &setter
+                    )
+                }
+                return (getter, setter)
+            }
         }
 
         // Check for propertyAccessor nodes (structured inline accessor syntax).
@@ -148,6 +170,23 @@ extension BuildASTPhase {
             }
         }
         if hasAccessorNode {
+            // A semicolon can split accessors asymmetrically: the first inline
+            // accessor remains as direct tokens on the property node while a
+            // following accessor is wrapped in its own `.propertyAccessor`
+            // child. Parse that direct-token prefix as well, otherwise a
+            // `var` with `get() ...; set(...) ...` loses its getter entirely.
+            let directTokens = collectDirectTokens(from: nodeID, in: arena)
+            if let accessorStart = inlineAccessorStartIndex(in: directTokens) {
+                let directAccessorTokens = Array(directTokens[accessorStart...])
+                let directResult = parseInlineAccessors(
+                    from: directAccessorTokens,
+                    nodeRange: arena.node(nodeID).range,
+                    interner: interner,
+                    astArena: astArena
+                )
+                if getter == nil { getter = directResult.getter }
+                if setter == nil { setter = directResult.setter }
+            }
             if !accessorTokens.isEmpty {
                 let inlineResult = parseInlineAccessors(from: accessorTokens, nodeRange: arena.node(nodeID).range, interner: interner, astArena: astArena)
                 if getter == nil { getter = inlineResult.getter }
@@ -159,13 +198,18 @@ extension BuildASTPhase {
         // Fallback: detect inline accessor syntax from flat tokens.
         // Handles `val x: T get() = expr` where get()/set() appear as flat
         // tokens of the property node without a wrapping block.
+        if getter != nil {
+            return (getter, setter)
+        }
         let allTokens = collectTokens(from: nodeID, in: arena)
         return parseInlineAccessors(from: allTokens, nodeRange: arena.node(nodeID).range, interner: interner, astArena: astArena)
     }
 
     /// Find the index where an inline `get`/`set` accessor keyword starts in
     /// a flat token list.  Returns `nil` when no accessor keyword is present.
-    func inlineAccessorStartIndex(in tokens: [Token]) -> Int? {
+    /// - Parameter bodyIsSiblingBlock: the accessor's `{ ... }` body is a separate
+    ///   block node, so the direct tokens legitimately end after the header.
+    func inlineAccessorStartIndex(in tokens: [Token], bodyIsSiblingBlock: Bool = false) -> Int? {
         for (index, token) in tokens.enumerated() {
             let isAccessorKeyword = switch token.kind {
             case .softKeyword(.get), .softKeyword(.set):
@@ -175,10 +219,62 @@ extension BuildASTPhase {
             }
             guard isAccessorKeyword else { continue }
             // Require `(` immediately after to distinguish from identifiers.
-            if index + 1 < tokens.count,
-               tokens[index + 1].kind == .symbol(.lParen)
-            {
+            guard index + 1 < tokens.count,
+                  tokens[index + 1].kind == .symbol(.lParen)
+            else {
+                continue
+            }
+            // A member call such as `lookup.get(...)` or `lookup?.set(...)`
+            // uses the same soft-keyword spelling as an inline accessor.
+            if index > 0 {
+                switch tokens[index - 1].kind {
+                case .symbol(.dot), .symbol(.questionDot):
+                    continue
+                default:
+                    break
+                }
+            }
+            // Inline accessors have a declaration body after their parameter
+            // list. An accessor may optionally declare its return type before
+            // the body, as in `get(): Int = value`.
+            let afterClose = skipBalancedBracket(
+                in: tokens,
+                from: index + 1,
+                open: .symbol(.lParen),
+                close: .symbol(.rParen)
+            )
+            guard afterClose > index + 1 else {
+                continue
+            }
+            var bodyStart = afterClose
+            if bodyStart < tokens.count, tokens[bodyStart].kind == .symbol(.colon) {
+                bodyStart += 1
+                var typeDepth = BracketDepth()
+                while bodyStart < tokens.count {
+                    if typeDepth.isAtTopLevel {
+                        switch tokens[bodyStart].kind {
+                        case .symbol(.assign), .symbol(.lBrace):
+                            break
+                        default:
+                            typeDepth.track(tokens[bodyStart].kind)
+                            bodyStart += 1
+                            continue
+                        }
+                        break
+                    }
+                    typeDepth.track(tokens[bodyStart].kind)
+                    bodyStart += 1
+                }
+            }
+            guard bodyStart < tokens.count else {
+                if bodyIsSiblingBlock { return index }
+                continue
+            }
+            switch tokens[bodyStart].kind {
+            case .symbol(.assign), .symbol(.lBrace):
                 return index
+            default:
+                continue
             }
         }
         return nil
@@ -247,8 +343,30 @@ extension BuildASTPhase {
                 parameterName = nil
             }
 
-            // Determine accessor body: either `= expr` or `{ block }`.
-            let afterParen = closeParenIdx + 1
+            // Determine accessor body: either `= expr` or `{ block }`, with
+            // an optional explicit return type between `)` and the body.
+            var afterParen = closeParenIdx + 1
+            if afterParen < remaining.endIndex,
+               remaining[afterParen].kind == .symbol(.colon)
+            {
+                afterParen += 1
+                var typeDepth = BracketDepth()
+                while afterParen < remaining.endIndex {
+                    if typeDepth.isAtTopLevel {
+                        switch remaining[afterParen].kind {
+                        case .symbol(.assign), .symbol(.lBrace):
+                            break
+                        default:
+                            typeDepth.track(remaining[afterParen].kind)
+                            afterParen += 1
+                            continue
+                        }
+                        break
+                    }
+                    typeDepth.track(remaining[afterParen].kind)
+                    afterParen += 1
+                }
+            }
             let body: FunctionBody
             if afterParen < remaining.endIndex,
                remaining[afterParen].kind == .symbol(.assign)
@@ -272,7 +390,10 @@ extension BuildASTPhase {
                 }
                 let exprTokens = remaining[exprStart ..< exprEnd].filter { $0.kind != .symbol(.semicolon) }
                 if !exprTokens.isEmpty {
-                    let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+                    let parser = ExpressionParser(
+                        tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena,
+                        diagnostics: diagnostics
+                    )
                     if let exprID = parser.parse(),
                        let range = astArena.exprRange(exprID)
                     {
@@ -299,7 +420,8 @@ extension BuildASTPhase {
                     .filter { $0.kind != .symbol(.semicolon) }
                 if !bodyTokens.isEmpty {
                     let parser = ExpressionParser(
-                        tokens: ArraySlice(bodyTokens), interner: interner, astArena: astArena
+                        tokens: ArraySlice(bodyTokens), interner: interner, astArena: astArena,
+                        diagnostics: diagnostics
                     )
                     if let exprID = parser.parse(),
                        let range = astArena.exprRange(exprID)
@@ -440,7 +562,7 @@ extension BuildASTPhase {
                 break
             }
             if let name = internedIdentifier(from: token, interner: interner),
-               TypeRefParserCore.isTypeLikeNameToken(token.kind)
+               TypeRefParserCore.isDeclarationNameToken(token.kind)
             {
                 return name
             }
@@ -455,6 +577,27 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> FunctionBody {
+        // A block following `get() = call { ... }` is the call's trailing
+        // lambda, not a block-bodied getter. Parse it with the expression.
+        if let assignIndex = headerTokens.firstIndex(where: { $0.kind == .symbol(.assign) }) {
+            var exprTokens = Array(headerTokens[(assignIndex + 1)...])
+            if let trailingBlock = arena.children(of: statementID).compactMap({ child -> NodeID? in
+                guard case let .node(nodeID) = child,
+                      arena.node(nodeID).kind == .block else { return nil }
+                return nodeID
+            }).first {
+                exprTokens.append(contentsOf: collectTokens(from: trailingBlock, in: arena))
+            }
+            exprTokens.removeAll { $0.kind == .symbol(.semicolon) }
+            if let exprID = ExpressionParser(
+                tokens: ArraySlice(exprTokens), interner: interner,
+                astArena: astArena, diagnostics: diagnostics
+            ).parse(), let range = astArena.exprRange(exprID) {
+                return .expr(exprID, range)
+            }
+            return .unit
+        }
+
         if let nestedBlockID = arena.children(of: statementID).compactMap({ child -> NodeID? in
             guard case let .node(nodeID) = child,
                   arena.node(nodeID).kind == .block
@@ -472,22 +615,7 @@ extension BuildASTPhase {
             return .block(exprs, arena.node(nestedBlockID).range)
         }
 
-        guard let assignIndex = headerTokens.firstIndex(where: { $0.kind == .symbol(.assign) }) else {
-            return .unit
-        }
-        let exprTokens = headerTokens[(assignIndex + 1)...].filter { token in
-            token.kind != .symbol(.semicolon)
-        }
-        guard !exprTokens.isEmpty else {
-            return .unit
-        }
-        let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
-        guard let exprID = parser.parse(),
-              let range = astArena.exprRange(exprID)
-        else {
-            return .unit
-        }
-        return .expr(exprID, range)
+        return .unit
     }
 
     // MARK: - Explicit Backing Field (Kotlin 2.0)
@@ -576,7 +704,9 @@ extension BuildASTPhase {
         // Parse initializer expression
         let exprTokens = tokens[index...].filter { $0.kind != .symbol(.semicolon) }
         guard !exprTokens.isEmpty else { return nil }
-        let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let initExpr = parser.parse() else { return nil }
 
         return ExplicitBackingField(type: fieldType, initializer: initExpr)

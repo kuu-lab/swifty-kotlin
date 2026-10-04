@@ -7,10 +7,7 @@ extension CallTypeChecker {
     ) -> Bool {
                 if let externalLinkName = sema.symbols.externalLinkName(for: candidate) {
                     switch externalLinkName {
-            case "kk_list_contains", "kk_list_containsAll", "kk_list_indexOf", "kk_list_lastIndexOf",
-                 "kk_list_getOrElse", "kk_list_elementAtOrElse",
-                 "kk_list_binarySearch",
-                 "kk_list_reduceIndexedOrNull",
+            case "kk_list_reduceIndexedOrNull",
                  "kk_list_foldRight", "kk_list_foldRightIndexed", "kk_list_reduceRight", "kk_list_reduceRightIndexed", "kk_list_reduceRightIndexedOrNull", "kk_list_reduceRightOrNull",
                  "kk_list_runningFoldIndexed", "kk_list_runningReduceIndexed", "kk_list_scanIndexed",
                  "kk_list_takeWhile", "kk_list_dropLastWhile",
@@ -24,18 +21,14 @@ extension CallTypeChecker {
                  "kk_list_maxOfWith", "kk_list_maxOfWithOrNull",
                  "kk_list_minOfWith", "kk_list_minOfWithOrNull",
                  "kk_list_chunked_transform",
-                 "kk_list_minus_element",
                  "kk_list_zip_transform",
                  "kk_sequence_firstNotNullOf", "kk_sequence_firstNotNullOfOrNull",
                  "kk_sequence_contains", "kk_sequence_indexOf",
-                "kk_sequence_chunked_transform",
-                "kk_sequence_windowed_transform",
-                "kk_sequence_plus_element", "kk_sequence_minus",
-                 "kk_array_binarySearch_compare", "kk_array_binarySearch",
-                 "kk_list_intersect", "kk_list_union", "kk_list_subtract",
-                 "kk_set_contains", "kk_set_containsAll", "kk_set_intersect", "kk_set_union", "kk_set_subtract",
-                 "kk_map_get", "kk_map_contains_key", "kk_map_contains_value",
-                 "kk_map_getValue", "kk_map_getOrDefault", "kk_map_getOrElse":
+                 "kk_sequence_plus_element", "kk_sequence_minus",
+                 "kk_list_windowed_transform",
+                 "kk_array_joinToString_transform",
+                 "__kk_set_contains",
+                 "__kk_map_get":
                 return true
             default:
                 break
@@ -84,11 +77,7 @@ extension CallTypeChecker {
              (knownNames.kotlinCollectionsListFQName, interner.intern("minOfWith")),
              (knownNames.kotlinCollectionsListFQName, interner.intern("minOfWithOrNull")),
              (knownNames.kotlinCollectionsListFQName, interner.intern("windowed")),
-             (knownNames.kotlinCollectionsListFQName, interner.intern("intersect")),
-             (knownNames.kotlinCollectionsListFQName, interner.intern("union")),
-             (knownNames.kotlinCollectionsListFQName, interner.intern("subtract")),
              (knownNames.kotlinCollectionsListFQName, knownNames.isEmpty),
-             ([interner.intern("kotlin"), interner.intern("Array")], interner.intern("binarySearch")),
              (knownNames.kotlinCollectionsSetFQName, interner.intern("contains")),
              (knownNames.kotlinCollectionsSetFQName, interner.intern("containsAll")),
              (knownNames.kotlinCollectionsSetFQName, interner.intern("intersect")),
@@ -160,7 +149,11 @@ extension CallTypeChecker {
             return nil
         }
 
-        let renderedParamType = sema.types.renderType(violatingParamType)
+        let renderedParamType = sema.types.displayName(
+            of: violatingParamType,
+            symbols: sema.symbols,
+            interner: interner
+        )
         return Diagnostic(
             severity: .error,
             code: "KSWIFTK-SEMA-VAR-OUT",

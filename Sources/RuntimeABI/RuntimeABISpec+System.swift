@@ -4,7 +4,7 @@
 public extension RuntimeABISpec {
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_system_exitProcess",
+            name: "__kk_system_exitProcess",
             parameters: [
                 RuntimeABIParameter(name: "status", type: .intptr),
             ],
@@ -13,76 +13,46 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_currentTimeMillis",
+            name: "__kk_system_currentTimeMillis",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_nanoTime",
+            name: "__kk_system_nanoTime",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_getTimeMicros",
+            name: "__kk_system_getTimeMicros",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_getTimeMillis",
+            name: "__kk_system_getTimeMillis",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_getTimeNanos",
+            name: "__kk_system_getTimeNanos",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_process_start_nanos",
+            name: "__kk_system_process_start_nanos",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_system_measureTimeMillis",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_system_measureTimeMicros",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_system_measureNanoTime",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "System"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_platform_canAccessUnaligned",
@@ -92,16 +62,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "System",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sys_write",
-            parameters: [
-                RuntimeABIParameter(name: "fd", type: .int32),
-                RuntimeABIParameter(name: "buffer", type: .constRawPointer),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_platform_isLittleEndian",
@@ -140,35 +100,72 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_system_gc",
+            name: "kk_platform_programName",
+            parameters: [
+                RuntimeABIParameter(name: "platformRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_platform_isMemoryLeakCheckerActive_load",
+            parameters: [
+                RuntimeABIParameter(name: "platformRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_platform_isMemoryLeakCheckerActive_store",
+            parameters: [
+                RuntimeABIParameter(name: "platformRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_platform_getAvailableProcessorsEnv",
+            parameters: [
+                RuntimeABIParameter(name: "platformRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_system_gc",
             parameters: [],
             returnType: .void,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_runtime_getRuntime",
+            name: "__kk_runtime_getRuntime",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_runtime_totalMemory",
+            name: "__kk_runtime_totalMemory",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_runtime_freeMemory",
+            name: "__kk_runtime_freeMemory",
             parameters: [],
             returnType: .intptr,
             section: "System",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_runtime_maxMemory",
+            name: "__kk_runtime_maxMemory",
             parameters: [],
             returnType: .intptr,
             section: "System",
@@ -189,14 +186,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "System",
             isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_instant_to_java_instant",
-            parameters: [
-                RuntimeABIParameter(name: "instantRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",

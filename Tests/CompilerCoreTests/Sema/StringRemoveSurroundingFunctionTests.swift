@@ -1,18 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-/// STDLIB-TEXT-FN-053: Validates that both overloads of `kotlin.text.removeSurrounding`
-/// resolve through Sema for `String` receivers and dispatch to the correct runtime
-/// link names:
-///   - `removeSurrounding(delimiter)` → `kk_string_removeSurrounding`
-///   - `removeSurrounding(prefix, suffix)` → `kk_string_removeSurrounding_pair`
-///
-/// Synthetic stubs are registered in `HeaderHelpers+SyntheticStringStubs.swift`.
-/// Runtime implementations live in `RuntimeStringStdlib.swift`.
-final class StringRemoveSurroundingFunctionTests: XCTestCase {
-    // MARK: - Type-check tests
-
-    func testRemoveSurroundingDelimiterResolvesInSource() throws {
+/// STDLIB-TEXT-FN-053 / KSP-404: Validates that both overloads of
+/// `kotlin.text.removeSurrounding` resolve through Sema for `String` receivers.
+/// Both overloads are bundled Kotlin source
+/// (`Stdlib/kotlin/text/StringPrefixSuffix.kt`) and carry no runtime external link.
+@Suite
+struct StringRemoveSurroundingFunctionTests {
+    @Test func testRemoveSurroundingResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripBrackets(s: String): String {
             return s.removeSurrounding("[")
@@ -26,24 +22,14 @@ final class StringRemoveSurroundingFunctionTests: XCTestCase {
             return "ab".removeSurrounding("ab")
         }
 
-        fun stripNoMatch(): String {
+        fun stripNoMatchSingle(s: String): String {
             return "abc".removeSurrounding("ab")
         }
 
         fun stripChained(s: String): String {
             return s.removeSurrounding("(").removeSurrounding(")")
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
-            errors.isEmpty,
-            "Expected removeSurrounding(delimiter) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    func testRemoveSurroundingPairResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun stripDiv(s: String): String {
             return s.removeSurrounding("<div>", "</div>")
         }
@@ -52,7 +38,7 @@ final class StringRemoveSurroundingFunctionTests: XCTestCase {
             return "[item]".removeSurrounding("[", "]")
         }
 
-        fun stripNoMatch(): String {
+        fun stripNoMatchPair(): String {
             return "no-match".removeSurrounding("<", ">")
         }
 
@@ -60,65 +46,35 @@ final class StringRemoveSurroundingFunctionTests: XCTestCase {
             return value.toString().removeSurrounding("(", ")")
         }
         """)
+
         try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
-            errors.isEmpty,
-            "Expected removeSurrounding(prefix, suffix) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let fq = ["kotlin", "text", "removeSurrounding"].map { ctx.interner.intern($0) }
+        let symbols = sema.symbols.lookupAll(fqName: fq)
+
+        let oneArgSymbol = try #require(symbols.first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == sema.types.stringType
+                && signature.parameterTypes.count == 1
+                && signature.returnType == sema.types.stringType
+        })
+        #expect(
+            sema.symbols.externalLinkName(for: oneArgSymbol) == nil,
+            "String.removeSurrounding(delimiter) should be source-backed after KSP-404"
+        )
+
+        let twoArgSymbol = try #require(symbols.first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == sema.types.stringType
+                && signature.parameterTypes.count == 2
+                && signature.returnType == sema.types.stringType
+        })
+        #expect(
+            sema.symbols.externalLinkName(for: twoArgSymbol) == nil,
+            "String.removeSurrounding(prefix, suffix) should be source-backed after KSP-404"
         )
     }
-
-    // MARK: - Runtime link-name tests
-
-    func testRemoveSurroundingDelimiterResolvesToRuntimeLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            let fq = ["kotlin", "text", "removeSurrounding"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes == [sema.types.stringType]
-            })
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: symbol),
-                "kk_string_removeSurrounding_flat",
-                "Single-delimiter overload must map to kk_string_removeSurrounding_flat"
-            )
-            XCTAssertEqual(
-                sema.symbols.functionSignature(for: symbol)?.returnType,
-                sema.types.stringType,
-                "String.removeSurrounding(delimiter) should return String"
-            )
-        }
-    }
-
-    func testRemoveSurroundingPairResolvesToRuntimeLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            let fq = ["kotlin", "text", "removeSurrounding"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes == [sema.types.stringType, sema.types.stringType]
-            })
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: symbol),
-                "kk_string_removeSurrounding_pair_flat",
-                "Two-argument overload must map to kk_string_removeSurrounding_pair_flat"
-            )
-            XCTAssertEqual(
-                sema.symbols.functionSignature(for: symbol)?.returnType,
-                sema.types.stringType,
-                "String.removeSurrounding(prefix, suffix) should return String"
-            )
-        }
-    }
 }
+#endif

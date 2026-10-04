@@ -1,5 +1,5 @@
 @testable import Runtime
-import XCTest
+import Testing
 
 // STDLIB-NATIVE-REF-001: Inventory of kotlin.native.ref / kotlin.native.runtime APIs.
 //
@@ -8,11 +8,11 @@ import XCTest
 //
 // RUNTIME IMPLEMENTED (tested here and in RuntimeNativeRefRuntimeABITests):
 //   kotlin.native.runtime namespace (via java.lang / System shims):
-//     - System.gc()              -> kk_system_gc()     (calls kk_gc_collect internally)
-//     - Runtime.getRuntime()     -> kk_runtime_getRuntime()
-//     - Runtime.totalMemory()    -> kk_runtime_totalMemory()
-//     - Runtime.freeMemory()     -> kk_runtime_freeMemory()
-//     - Runtime.maxMemory()      -> kk_runtime_maxMemory()
+//     - System.gc()              -> __kk_system_gc()     (calls kk_gc_collect internally)
+//     - Runtime.getRuntime()     -> __kk_runtime_getRuntime()
+//     - Runtime.totalMemory()    -> __kk_runtime_totalMemory()
+//     - Runtime.freeMemory()     -> __kk_runtime_freeMemory()
+//     - Runtime.maxMemory()      -> __kk_runtime_maxMemory()
 //
 //   kotlin.native.ref shim (via kk_pin / kk_freeze):
 //     - Pinned<T> (pin / unpin / get) -> kk_pin_object / kk_unpin_object / kk_pinned_get
@@ -27,69 +27,75 @@ import XCTest
 //     - GC.targetHeapUtilization   -> kk_gc_target_heap_utilization()
 //     - GC.maxHeapBytes            -> kk_gc_max_heap_bytes()
 //
-//   kotlin.native.runtime.Debugging (via kk_assertions_* entry points):
-//     - Debugging.areAssertionsEnabled    -> kk_assertions_enabled()
+//   kotlin.native.runtime.Debugging (source-backed, KSP-1260; see Stdlib/kotlin/native/runtime/Debugging.kt):
+//     - Debugging.areAssertionsEnabled    -> __kk_assertions_enabled() (kk_assertions_* shim, unrelated to Debugging.kt)
 //     - Debugging.setAssertionsEnabled()  -> kk_assertions_set_enabled()
-//     - Debugging.isThreadStateRunnable   -> kk_debugging_is_thread_state_runnable()
-//     - Debugging.gcSuspendCount          -> kk_debugging_gc_suspend_count()
-//     - Debugging.threadCount             -> kk_debugging_thread_count()
-//     - Debugging.globalObjectCount       -> kk_debugging_global_object_count()
+//     - Debugging.isThreadStateRunnable   -> __kk_debugging_is_thread_state_runnable()
+//     - Debugging.forceCheckedShutdown    -> __kk_debugging_force_checked_shutdown_get/_set()
+//     - Debugging.dumpMemory(fd)          -> __kk_debugging_dump_memory()
 //
-// SEMA EXPOSED (compile-time stubs, covered by NativeRefRuntimeSemaTests):
+//   Retained as raw Swift test instrumentation only (no longer exposed on the
+//   Kotlin Debugging surface; kk_debugging_gc_suspend_count/kk_debugging_thread_count
+//   are not part of the real kotlinc 2.3.10 API):
+//     - kk_debugging_gc_suspend_count()
+//     - kk_debugging_thread_count()
+//     - kk_debugging_global_object_count()
+//
+// SEMA EXPOSED (compile-time stubs):
 //   - kotlin.native.ref.WeakReference<T>
 //   - kotlin.native.ref.WeakReference.get()
 //   - kotlin.native.ref.WeakReference.clear()
 //   - kotlin.native.ref.createCleaner(value, block)
-//   - kotlin.native.runtime.GC.collect()
-//   - kotlin.native.runtime.GC.schedule()
-//   - kotlin.native.runtime.GC.targetHeapBytes
-//   - kotlin.native.runtime.GC.targetHeapUtilization
-//   - kotlin.native.runtime.GC.maxHeapBytes
+//   - kotlin.native.runtime.GC (source-backed: see GC.kt)
 //   - kotlin.native.runtime.GCInfo
 //   - kotlin.native.runtime.GCInfo.* timing / summary properties
-//   - kotlin.native.runtime.MemoryUsage
-//   - kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes
 //   - kotlin.native.runtime.RootSetStatistics
 //   - kotlin.native.runtime.RootSetStatistics.* root count properties
+//   - kotlin.native.runtime.NativeRuntimeApi
+//
+// SOURCE-BACKED (Stdlib/kotlin/native/runtime/Debugging.kt, KSP-1260):
+//   - kotlin.native.runtime.Debugging
+//   - kotlin.native.runtime.Debugging.isThreadStateRunnable
+//   - kotlin.native.runtime.Debugging.forceCheckedShutdown
+//   - kotlin.native.runtime.Debugging.dumpMemory(fd)
+//
+// SOURCE-BACKED (Stdlib/kotlin/native/runtime/GCInfo.kt, KSP-1266/1267/1272):
+//   - kotlin.native.runtime.MemoryUsage
+//   - kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes
 //   - kotlin.native.runtime.SweepStatistics
 //   - kotlin.native.runtime.SweepStatistics.sweptCount / keptCount
-//   - kotlin.native.runtime.NativeRuntimeApi
-//   - kotlin.native.runtime.Debugging.isThreadStateRunnable
-//   - kotlin.native.runtime.Debugging.gcSuspendCount
-//   - kotlin.native.runtime.Debugging.threadCount
-//   - kotlin.native.runtime.Debugging.globalObjectCount
 
-final class RuntimeNativeRefGCTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNativeRefGCTests {
     // MARK: - GC.collect() (kk_gc_collect)
 
-    func testGCCollectIsCallableWithoutCrashing() {
+    @Test func gcCollectIsCallableWithoutCrashing() {
         // Calling kk_gc_collect must not crash; it returns void.
         kk_gc_collect()
     }
 
-    func testGCCollectMultipleTimesIsIdempotent() {
+    @Test func gcCollectMultipleTimesIsIdempotent() {
         // Repeated collects must leave the heap in the same state each time.
         let before = kk_runtime_heap_object_count()
         for _ in 0 ..< 3 {
             kk_gc_collect()
         }
-        XCTAssertEqual(kk_runtime_heap_object_count(), before,
-                       "heap object count should be unchanged after repeated collects on an empty heap")
+        #expect(
+            kk_runtime_heap_object_count() == before,
+            "heap object count should be unchanged after repeated collects on an empty heap"
+        )
     }
 
-    func testSystemGCIsCallableWithoutCrashing() {
-        // kk_system_gc() is the Kotlin-facing alias; must be callable without crash.
-        kk_system_gc()
+    @Test func systemGCIsCallableWithoutCrashing() {
+        // __kk_system_gc() is the Kotlin-facing bridge; it must be callable without crash.
+        __kk_system_gc()
     }
 
-    func testGCCollectOnEmptyHeapIsNoOp() {
+    @Test func gcCollectOnEmptyHeapIsNoOp() {
         // When no heap objects exist, collect should succeed immediately.
-        XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+        #expect(kk_runtime_heap_object_count() == 0)
         kk_gc_collect()
-        XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+        #expect(kk_runtime_heap_object_count() == 0)
     }
 }
 

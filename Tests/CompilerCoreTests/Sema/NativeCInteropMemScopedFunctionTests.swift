@@ -4,14 +4,25 @@ import Testing
 
 @Suite
 struct NativeCInteropMemScopedFunctionTests {
-    @Test func testMemScopedFunctionSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
+    @Test func testMemScopedFunction() throws {
+        let source = """
+        import kotlinx.cinterop.memScoped
+
+        fun scopedValue(): Int {
+            return memScoped<Int> {
+                42
+            }
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        #expect(!(ctx.diagnostics.hasError), "Expected memScoped surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+
+        #expect(!(ctx.diagnostics.hasError), "Expected memScoped to resolve, got: \(ctx.diagnostics.diagnostics)")
+
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
-
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
                 let found = sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) })
             return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
@@ -26,7 +37,6 @@ struct NativeCInteropMemScopedFunctionTests {
                 nullability: .nonNull
             )))
         }
-
         let memScopeType = try cinteropType("MemScope")
         let memScopedFQName = cinteropPkg + [interner.intern("memScoped")]
         let memScopedSymbol = try #require(sema.symbols.lookupAll(fqName: memScopedFQName).first { symbolID in
@@ -50,7 +60,6 @@ struct NativeCInteropMemScopedFunctionTests {
         )))
         let blockParameter = try #require(signature.valueParameterSymbols.first)
         let flags = try #require(sema.symbols.symbol(memScopedSymbol)?.flags)
-
         #expect(flags.isSuperset(of: [.synthetic, .inlineFunction]))
         #expect(signature.parameterTypes == [expectedBlockType])
         #expect(signature.returnType == typeParameterType)
@@ -61,19 +70,5 @@ struct NativeCInteropMemScopedFunctionTests {
         #expect(sema.symbols.parentSymbol(for: memScopedSymbol) == sema.symbols.lookup(fqName: cinteropPkg))
     }
 
-    @Test func testMemScopedFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.memScoped
-
-        fun scopedValue(): Int {
-            return memScoped<Int> {
-                42
-            }
-        }
-        """)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.hasError), "Expected memScoped to resolve, got: \(ctx.diagnostics.diagnostics)")
-    }
 }
 #endif

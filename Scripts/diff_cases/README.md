@@ -17,9 +17,13 @@ bash Scripts/diff_kotlinc.sh \
 
 Cases:
 
+The list below is representative rather than exhaustive. The runner discovers
+all `*.kt` files under `Scripts/diff_cases` automatically.
+
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
 - `boolean_when.kt`: `when` with `Boolean` subject
+- `when_statement_no_else.kt`: subject-less `when` used as a statement (value discarded) without an `else` branch — exhaustiveness is not required in statement position
 - `if_expr.kt`: expression-body `if` function
 - `named_default.kt`: named argument + default parameter補完
 - `extension_receiver.kt`: extension receiver 呼び出しと `this` 束縛
@@ -50,7 +54,8 @@ Cases:
 - `interface_default_method.kt`: interface default method（body あり fun）の default 実装呼び出しと concrete override の共存 parity
 - `abstract_class.kt`: abstract class / abstract member の制約と override 強制（abstract fun, multi-level inheritance chain）
 - `tailrec_fun.kt`: `tailrec` 関数の再帰実行 parity
-- `builder_dsl.kt`: `buildString` DSL builder の正常系 parity
+- `collection_builders.kt`: `buildString` / `buildList` / `buildSet` / `buildMap` DSL builder の正常系 parity
+- `ksp950_build_family.kt`: KSP-950 の capacity、重複排除・キー上書き、負capacity、read-only返却、例外伝播 parity
 - `builder_dsl_invalid_arg.kt`: builder への不正引数（非 lambda）を compile error として扱う parity
 - `builder_dsl_shadowing.kt`: user-defined `buildString` / `buildList` / `buildMap` が DSL 特別扱いに奪われないことの parity
 - `value_classes.kt`: `@JvmInline` / `inline class` / `value class` の value class 基本動作 parity
@@ -65,17 +70,28 @@ Cases:
 - `digital_signature.kt`: `Signature` / `CertificateFactory` / `CertPathValidator` parity for signing and certificate validation
 - `parallel_processing.kt`: `Dispatchers.Default` 上での並列 `async` / `awaitAll` を使った並列処理 parity
 - `flow_cold.kt`: `Flow<T>` cold stream chain（`flow { emit(...) }.map { ... }.collect { ... }`）の parity（kotlinx classpath 必須）
+- `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` の bundled Kotlin source 移行後の candidate-only 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと異なるため `SKIP-DIFF`、kotlinx classpath 必須）
+- `ksp687_map_not_null.kt`: primitive array `mapNotNull` の bundled Kotlin source candidate-only coverage（JVM kotlinc に primitive-array API がないため `SKIP-DIFF`、KIR回帰テストがsource dispatchを検証）
 - `mutex_basic.kt`: `Mutex` の基本ロック、`tryLock`、`withLock` の parity（kotlinx classpath 必須）
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）
 - `deprecated_error.kt`: `@Deprecated(level = DeprecationLevel.ERROR)` 呼び出しの compile-error parity
 - `property_based_test.kt`: seeded samples, shrinking, statistics report を持つ property-based style parity
-- `test_framework_basic.kt`: `kotlin.test` の `@Test` / `@Before` / `@After` と `assertEquals` / `assertTrue` / `assertNull` の基本 parity（JVM reference には `kotlin-test.jar` classpath 注入が必要）
 - `assertions.kt`: stdlib `assert(...)` / `assert(...) { ... }` の基本 parity
-- `uuid_put_uuid.kt`: `ByteArray.putUuid(at, uuid)` / `ByteArray.uuid(at)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
+- `uuid_put_uuid.kt`: `java.nio.ByteBuffer.putUuid(index, uuid)` / `ByteBuffer.getUuid(index)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
+- `custom_getter_setter_var.kt`: KUU-595 の `var` に custom getter と setter を同居させた場合も、読み取りが getter を呼び、setter と対称な計算値を返す parity
 - `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、および getter 本体内での `field = ...` 書き込み（lazy caching パターン）が実インスタンスストレージに反映される parity
 - `class_body_property_init.kt`: クラス本体で宣言されたストアドプロパティのインライン初期化子（`var a: Int = 10` の形）が実際に per-instance field へ書き込まれ、読み出せることの parity。primary constructor パラメータ併存クラス・型無注釈プロパティ・`object` singleton・`init` ブロックと交互配置された複数プロパティの組み合わせをカバー
 - `class_property_compound_assign.kt`: クラスインスタンスの自プロパティに対する複合代入（`+=`/`-=`/`*=`/後置`++`）が implicit `this` 経由でメソッド・`init` ブロックから正しくインスタンスフィールドを更新する parity
+- `array_for_loop.kt`: `for (x in array)` による ByteArray / IntArray / `Array<String>` の直接イテレーション（DEBT-KIR-005）、空配列での 0 回実行、`continue`/`break` との組み合わせの parity
+- `class_and_function_same_name.kt`: クラスと同名のトップレベル関数の共存（`class Point` + `fun Point(value: Int)` / `fun Point(pair: Pair<Int, Int>)`、kotlin-stdlib の `Random(seed)` ファクトリ関数と同型パターン）と、コンストラクタ・関数オーバーロードを跨いだ引数型による呼び出し解決の parity（KSP-CAP-006）
+- `random_xorwow_parity.kt`: `Random(seed)` の Int/Long factory、XorWow の warm-up、`nextInt`/`nextInt(until)`/`nextLong`/`nextBits`/`nextDouble` の固定 seed ビット列 parity（KSP-685）
+- `object_literal_local_capture.kt`: object 式のメンバ関数本体からの外側ローカル変数/パラメータキャプチャ（KSP-CAP-001）。`val` パラメータ・`var` local の複数回呼び出しをまたぐミューテーション・自プロパティによる同名 outer local の shadowing・関数型パラメータ（`() -> Int`）キャプチャの parity
+- `object_literal_primary_constructor_property_capture.kt`: object 式のメンバ関数本体から、外側クラスの primary constructor の immutable property を読むキャプチャ（BUG-243）の parity
+- `contextual_keyword_parameter_names.kt`: コンストラクタ/関数パラメータ名が `inner`/`sealed`/`operator`/`override`/`vararg` 等の modifier keyword と一致する場合の parity。これらは modifier 位置以外では通常の識別子として有効だが、パーサーがパラメータごと無条件に drop していたバグの回帰
+- `vararg_explicit_type_arg_upcast.kt`: 明示的型引数（`mapOf<Any?, Number?>(...)` 等）を伴う vararg 呼び出しで、各要素の実際の型が型引数への upcast を要する場合の parity。型変数の等価制約（明示的型引数由来）を他の下限/上限境界と同じ lub/glb プールに混在させていたため、`Int`/`Nothing?` 等の下限が絡むと lub が `Any?` に暴走し `Conflicting bounds` を誤検出していたバグの回帰
+
+- `callsinplace_definite_assignment.kt`: `contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE / AT_LEAST_ONCE) }` を持つ呼び出し（自作関数、および `run`/`with`/`let`/`apply`/`also`）のラムダ引数内で行う outer `var` への代入を、呼び出し元の definite assignment 解析が初期化済みとして扱う parity
 
 The set intentionally includes both successful programs and compile-error cases.

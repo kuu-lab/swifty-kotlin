@@ -32,8 +32,8 @@ struct SequenceCountFunctionTests {
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
         #expect(
-            links.contains("kk_sequence_count"),
-            Comment(rawValue: "Expected kk_sequence_count link to be registered, got: \(links)")
+            links.isEmpty,
+            Comment(rawValue: "Expected Sequence.count to be backed by source, got synthetic links: \(links)")
         )
     }
 }

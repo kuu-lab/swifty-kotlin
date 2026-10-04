@@ -1,8 +1,20 @@
+/*
+ * Portions of this file (the generateV7()/generateV7NonMonotonicAt() UUID
+ * version 7 generation algorithm) are derived from kotlin-stdlib
+ * <commonMain/kotlin/uuid/Uuid.kt> (UuidV7Generator), Copyright 2010-2024
+ * JetBrains s.r.o. and Kotlin Programming Language contributors, licensed
+ * under the Apache License, Version 2.0.
+ */
 package kotlin.uuid
 
 @file:OptIn(ExperimentalUuidApi::class)
 
+import java.nio.ByteBuffer
 import kotlin.internal.KsSymbolName
+import kotlin.time.Instant
+import kotlin.time.epochSeconds
+import kotlin.time.nanosecondsOfSecond
+import kotlin.time.now
 
 private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
 
@@ -11,18 +23,25 @@ private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
  */
 @ExperimentalUuidApi
 public class Uuid private constructor(
-    public val mostSignificantBits: Long,
-    public val leastSignificantBits: Long,
+    msb: Long,
+    lsb: Long,
 ) : Comparable<Uuid> {
+    @PublishedApi internal val mostSignificantBits: Long = msb
+    @PublishedApi internal val leastSignificantBits: Long = lsb
     public companion object {
         public const val SIZE_BITS: Int = 128
         public const val SIZE_BYTES: Int = 16
 
         public val NIL: Uuid = fromLongs(0L, 0L)
 
+        // kotlin-stdlib raises LEXICAL_ORDER's deprecation to ERROR at
+        // api-version 2.4 via @DeprecatedSinceKotlin; this compiler pins
+        // api-version 2.2, so the level is pinned explicitly instead of being
+        // reached through the version gate.
         @Deprecated(
             "Use naturalOrder<Uuid>() instead",
-            ReplaceWith("naturalOrder<Uuid>()", imports = ["kotlin.comparisons.naturalOrder"])
+            ReplaceWith("naturalOrder<Uuid>()", imports = ["kotlin.comparisons.naturalOrder"]),
+            DeprecationLevel.ERROR
         )
         @DeprecatedSinceKotlin(warningSince = "2.1", errorSince = "2.4")
         public val LEXICAL_ORDER: Comparator<Uuid> = __kk_uuid_lexicalOrder()
@@ -64,6 +83,9 @@ public class Uuid private constructor(
         public fun fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid =
             __kk_uuid_fromLongs(mostSignificantBits, leastSignificantBits)
 
+        public fun fromULongs(mostSignificantBits: ULong, leastSignificantBits: ULong): Uuid =
+            fromLongs(mostSignificantBits.toLong(), leastSignificantBits.toLong())
+
         public fun fromByteArray(byteArray: ByteArray): Uuid {
             if (byteArray.size != SIZE_BYTES) {
                 throw IllegalArgumentException("byteArray.size must be 16, was ${byteArray.size}")
@@ -80,6 +102,84 @@ public class Uuid private constructor(
                 i += 1
             }
             return Uuid(msb, lsb)
+        }
+
+        public fun fromUByteArray(ubyteArray: UByteArray): Uuid {
+            if (ubyteArray.size != SIZE_BYTES) {
+                throw IllegalArgumentException("ubyteArray.size must be 16, was ${ubyteArray.size}")
+            }
+            var msb = 0L
+            var lsb = 0L
+            var i = 0
+            while (i < 8) {
+                msb = (msb shl 8) or (ubyteArray[i].toLong() and 0xffL)
+                i += 1
+            }
+            while (i < 16) {
+                lsb = (lsb shl 8) or (ubyteArray[i].toLong() and 0xffL)
+                i += 1
+            }
+            return Uuid(msb, lsb)
+        }
+
+        public fun generateV4(): Uuid = random()
+
+        // Ported from kotlin-stdlib's UuidV7Generator (see file header for
+        // attribution). Bit layout per RFC 9562 section-4.2:
+        //   msb = unix_ts_ms(48) | ver(4)=0111 | rand_a/counter(12)
+        //   lsb = var(2)=10 | rand_b(62)
+        // Randomness is drawn from random()'s existing secure entropy bridge
+        // (__kk_uuid_random) rather than a new bridge; only the fixed
+        // version/variant bit positions of that v4 source are avoided when
+        // slicing bits out, so the reused entropy stays uniformly random.
+        //
+        // Deviation from upstream (tracked in docs/stdlib-pipeline.md §13-8):
+        // upstream uses a CAS loop over an AtomicLong for thread-safe
+        // monotonicity; this port uses a plain var since kswiftc's
+        // diff/golden harness is single-threaded. Resolution condition:
+        // adopt kotlin.concurrent.atomics.AtomicLong once its load()/
+        // compareAndSet() are verified working end-to-end.
+        private val v7State: UuidV7MonotonicState = UuidV7MonotonicState()
+
+        public fun generateV7(): Uuid {
+            val entropy = random()
+            val seedCounter = ((entropy.mostSignificantBits ushr 53).toInt() and 0x7FF) or 0x7000
+            val nowMillis = run {
+                val now = Instant.now()
+                now.epochSeconds * 1000L + (now.nanosecondsOfSecond / 1_000_000).toLong()
+            }
+            val previous = v7State.timestampAndCounter
+            val previousMillis = previous ushr 16
+            val updated = if (previousMillis < nowMillis) {
+                (nowMillis shl 16) or seedCounter.toLong()
+            } else {
+                val incremented = previous + 1L
+                if ((incremented and 0x8000L) != 0L) {
+                    ((previousMillis + 1L) shl 16) or seedCounter.toLong()
+                } else {
+                    incremented
+                }
+            }
+            v7State.timestampAndCounter = updated
+
+            val randB = entropy.leastSignificantBits and ((1L shl 62) - 1L)
+            val variantAndRandB = (0x2L shl 62) or randB
+            return fromLongs(updated, variantAndRandB)
+        }
+
+        // See generateV7() above for bit-layout and entropy-reuse notes.
+        // Unlike generateV7(), this is a pure function of [timestamp] with no
+        // shared state, so repeated calls with the same timestamp are not
+        // guaranteed to sort in call order (hence "NonMonotonic").
+        public fun generateV7NonMonotonicAt(timestamp: Instant): Uuid {
+            val entropy = random()
+            val randA = (entropy.mostSignificantBits ushr 52).toInt() and 0xFFF
+            val unixTsMs = timestamp.epochSeconds * 1000L + (timestamp.nanosecondsOfSecond / 1_000_000).toLong()
+            val tsVerAndRandA = (unixTsMs shl 16) or (0x7000L or randA.toLong())
+
+            val randB = entropy.leastSignificantBits and ((1L shl 62) - 1L)
+            val variantAndRandB = (0x2L shl 62) or randB
+            return fromLongs(tsVerAndRandA, variantAndRandB)
         }
 
         private fun parseStringOrNull(uuidString: String): Uuid? {
@@ -163,8 +263,13 @@ public class Uuid private constructor(
         return sb.toString()
     }
 
+    public fun toHexDashString(): String = toString()
+
     public inline fun <T> toLongs(action: (Long, Long) -> T): T =
         action(mostSignificantBits, leastSignificantBits)
+
+    public inline fun <T> toULongs(action: (ULong, ULong) -> T): T =
+        action(mostSignificantBits.toULong(), leastSignificantBits.toULong())
 
     public fun toByteArray(): ByteArray {
         val bytes = ByteArray(SIZE_BYTES) { 0 }
@@ -182,6 +287,16 @@ public class Uuid private constructor(
         return bytes
     }
 
+    public fun toUByteArray(): UByteArray {
+        val msb = mostSignificantBits
+        val lsb = leastSignificantBits
+        return UByteArray(SIZE_BYTES) { i ->
+            val shift = 56 - (if (i < 8) i else i - 8) * 8
+            val value = if (i < 8) (msb ushr shift) and 0xffL else (lsb ushr shift) and 0xffL
+            value.toUByte()
+        }
+    }
+
     public override fun compareTo(other: Uuid): Int {
         val msbSelf = mostSignificantBits.toULong()
         val msbOther = other.mostSignificantBits.toULong()
@@ -192,6 +307,19 @@ public class Uuid private constructor(
         return 0
     }
 
+    public override fun equals(other: Any?): Boolean {
+        if (other !is Uuid) return false
+        // Explicit re-cast: `is`-checks do not smart-cast in bundled source yet.
+        val that = other as Uuid
+        return mostSignificantBits == that.mostSignificantBits &&
+            leastSignificantBits == that.leastSignificantBits
+    }
+
+    public override fun hashCode(): Int {
+        val hilo = mostSignificantBits xor leastSignificantBits
+        return ((hilo ushr 32) xor hilo).toInt()
+    }
+
     private fun appendHex(sb: StringBuilder, value: Long, digits: Int) {
         var shift = (digits - 1) * 4
         while (shift >= 0) {
@@ -200,6 +328,14 @@ public class Uuid private constructor(
             shift -= 4
         }
     }
+}
+
+// Holds Uuid.Companion's monotonic generateV7() state: the last-used
+// (timestamp << 16 | version | counter) value, packed identically to a v7
+// uuid's own msb so it can be reused as one directly. See generateV7()'s
+// doc comment for why this is a plain var rather than an AtomicLong.
+internal class UuidV7MonotonicState {
+    var timestampAndCounter: Long = 0L
 }
 
 @KsSymbolName("__kk_uuid_random")
@@ -217,53 +353,76 @@ private external fun __kk_uuid_lexicalOrder(): Comparator<Uuid>
 @KsSymbolName("__kk_uuid_toKotlinUuid")
 private external fun __kk_uuid_toKotlinUuid(receiver: java.util.UUID): Uuid
 
-private fun readUuidFromBytes(array: ByteArray, offset: Int): Uuid {
-    if (offset < 0 || offset + 16 > array.size) {
+@kotlin.uuid.ExperimentalUuidApi
+public fun java.util.UUID.toKotlinUuid(): Uuid = __kk_uuid_toKotlinUuid(this)
+
+private fun readUuidFromByteBuffer(buffer: ByteBuffer, offset: Int): Uuid {
+    if (offset < 0 || offset + 15 >= buffer.limit()) {
         throw IndexOutOfBoundsException(
-            "offset $offset is out of bounds for array of size ${array.size}"
+            "offset $offset is out of bounds for buffer of limit ${buffer.limit()}"
         )
     }
     var msb = 0L
     var i = 0
     while (i < 8) {
-        msb = (msb shl 8) or (array[offset + i].toLong() and 0xFFL)
+        msb = (msb shl 8) or (buffer.get(offset + i).toLong() and 0xFFL)
         i += 1
     }
     var lsb = 0L
     i = 8
     while (i < 16) {
-        lsb = (lsb shl 8) or (array[offset + i].toLong() and 0xFFL)
+        lsb = (lsb shl 8) or (buffer.get(offset + i).toLong() and 0xFFL)
         i += 1
     }
     return Uuid.fromLongs(msb, lsb)
 }
 
-@kotlin.uuid.ExperimentalUuidApi
-public fun java.util.UUID.toKotlinUuid(): Uuid = __kk_uuid_toKotlinUuid(this)
-
-@kotlin.uuid.ExperimentalUuidApi
-public fun ByteArray.getUuid(offset: Int): Uuid = readUuidFromBytes(this, offset)
-
-@kotlin.uuid.ExperimentalUuidApi
-public fun ByteArray.uuid(at: Int): Uuid = readUuidFromBytes(this, at)
-
-@kotlin.uuid.ExperimentalUuidApi
-public fun ByteArray.putUuid(at: Int, uuid: Uuid) {
-    if (at < 0 || at + 16 > this.size) {
-        throw IndexOutOfBoundsException(
-            "at $at is out of bounds for array of size ${this.size}"
-        )
-    }
+private fun writeUuidToByteBuffer(buffer: ByteBuffer, offset: Int, uuid: Uuid) {
     val msb = uuid.mostSignificantBits
     val lsb = uuid.leastSignificantBits
     var i = 0
     while (i < 8) {
-        this[at + i] = ((msb ushr (56 - i * 8)) and 0xFFL).toByte()
+        buffer.put(offset + i, ((msb ushr (56 - i * 8)) and 0xFFL).toByte())
         i += 1
     }
     i = 0
     while (i < 8) {
-        this[at + 8 + i] = ((lsb ushr (56 - i * 8)) and 0xFFL).toByte()
+        buffer.put(offset + 8 + i, ((lsb ushr (56 - i * 8)) and 0xFFL).toByte())
         i += 1
     }
+}
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteBuffer.getUuid(): Uuid {
+    val p = position()
+    if (p + 15 >= limit()) {
+        throw IndexOutOfBoundsException(
+            "position $p is out of bounds for buffer of limit ${limit()}"
+        )
+    }
+    val uuid = readUuidFromByteBuffer(this, p)
+    position(p + 16)
+    return uuid
+}
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteBuffer.getUuid(index: Int): Uuid = readUuidFromByteBuffer(this, index)
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteBuffer.putUuid(uuid: Uuid): ByteBuffer {
+    val p = position()
+    if (p + 15 >= limit()) {
+        throw IndexOutOfBoundsException(
+            "position $p is out of bounds for buffer of limit ${limit()}"
+        )
+    }
+    writeUuidToByteBuffer(this, p, uuid)
+    position(p + 16)
+    return this
+}
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteBuffer.putUuid(index: Int, uuid: Uuid): ByteBuffer {
+    writeUuidToByteBuffer(this, index, uuid)
+    return this
 }

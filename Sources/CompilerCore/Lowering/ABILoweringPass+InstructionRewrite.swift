@@ -10,7 +10,10 @@ extension ABILoweringPass {
         boxingCalleeTable: BoxingCalleeTable,
         callee: InternedString?,
         interner: StringInterner,
-        newBody: inout [KIRInstruction]
+        boxTypeParamArguments: Bool = false,
+        sema: SemaModule? = nil,
+        cache: KIRNominalDispatchCache? = nil,
+        newBody: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         var boxedArguments = arguments
         let parameterTypes = signature.parameterTypes
@@ -35,7 +38,9 @@ extension ABILoweringPass {
                 types: types,
                 interner: interner,
                 boxingCalleeTable: boxingCalleeTable,
-                symbols: symbols
+                symbols: symbols,
+                boxTypeParamBoundary: boxTypeParamArguments,
+                preferStaticPrimitive: true
             ) {
                 let boxedResult = module.arena.appendTemporary(type: paramType)
                 emitBoxCallWithValueClassTag(
@@ -48,6 +53,8 @@ extension ABILoweringPass {
                     symbols: symbols,
                     interner: interner,
                     arena: module.arena,
+                    sema: sema,
+                    cache: cache,
                     into: &newBody
                 )
                 boxedArguments[argIndex] = boxedResult
@@ -59,12 +66,15 @@ extension ABILoweringPass {
     func resolveUnboxForCall(
         callSymbol: SymbolID?,
         callee: InternedString,
+        arguments: [KIRExprID],
+        receiver: KIRExprID? = nil,
         result: KIRExprID?,
         signatureByName: [InternedString: FunctionSignature],
         module: KIRModule,
         types: TypeSystem?,
         symbols: SymbolTable?,
         boxingCalleeTable: BoxingCalleeTable,
+        nullableGenericResults: inout Set<KIRExprID>,
         boxedReturnCallees: Set<InternedString> = []
     ) -> (InternedString, TypeID)? {
         guard !boxedReturnCallees.contains(callee) else { return nil }
@@ -81,6 +91,32 @@ extension ABILoweringPass {
         let resultType = module.arena.exprType(result)
         guard let resultType else { return nil }
         let resultKind = resolveValueClassKind(types.kind(of: resultType), types: types, symbols: symbols)
+
+        if case let .typeParam(returnTypeParam) = types.kind(of: returnType),
+           let inferredReturnType = inferFunctionTypeParameter(
+               returnTypeParam.symbol,
+               callSymbol: callSymbol,
+               arguments: arguments,
+               receiver: receiver,
+               module: module,
+               types: types,
+               symbols: symbols
+           )
+        {
+            let concreteReturnType: TypeID = switch returnTypeParam.nullability {
+            case .nonNull: inferredReturnType
+            case .nullable, .platformType: types.makeNullable(inferredReturnType)
+            }
+            if types.nullability(of: concreteReturnType) == .nullable {
+                // Generic return types are erased in the callee signature. Recover
+                // nullable specializations from their actual generic arguments so
+                // the result keeps its nullable representation across the call.
+                module.arena.setExprType(concreteReturnType, for: result)
+                nullableGenericResults.insert(result)
+                return nil
+            }
+        }
+
         guard needsUnboxing(sourceKind: returnKind, targetKind: resultKind, symbols: symbols) else {
             return nil
         }
@@ -89,11 +125,111 @@ extension ABILoweringPass {
             targetKind: resultKind,
             boxingCalleeTable: boxingCalleeTable,
             types: types,
-            symbols: symbols
+            symbols: symbols,
+            preferStaticPrimitive: true
         ) else {
             return nil
         }
         return (unboxCallee, returnType)
+    }
+
+    private func inferFunctionTypeParameter(
+        _ targetSymbol: SymbolID,
+        callSymbol: SymbolID?,
+        arguments: [KIRExprID],
+        receiver: KIRExprID?,
+        module: KIRModule,
+        types: TypeSystem,
+        symbols: SymbolTable?
+    ) -> TypeID? {
+        guard let callSymbol,
+              let symbols,
+              let signature = symbols.functionSignature(for: callSymbol),
+              signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).contains(targetSymbol)
+        else {
+            return nil
+        }
+
+        var actualTypes: [(formal: TypeID, actual: TypeID)] = []
+        let receiverArgumentCount = signature.receiverType != nil && arguments.count == signature.parameterTypes.count + 1
+            ? 1
+            : 0
+        if let formalReceiverType = signature.receiverType {
+            if receiverArgumentCount == 1,
+               let actualReceiverType = module.arena.exprType(arguments[0])
+            {
+                actualTypes.append((formalReceiverType, actualReceiverType))
+            } else if let receiver,
+                      let actualReceiverType = module.arena.exprType(receiver)
+            {
+                actualTypes.append((formalReceiverType, actualReceiverType))
+            }
+        }
+        for (formalType, argument) in zip(signature.parameterTypes, arguments.dropFirst(receiverArgumentCount)) {
+            guard let actualType = module.arena.exprType(argument) else { continue }
+            actualTypes.append((formalType, actualType))
+        }
+
+        var inferred: [SymbolID: TypeID] = [:]
+        var conflictingBindings: Set<SymbolID> = []
+        let functionTypeParameters = Set(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+        for (formalType, actualType) in actualTypes {
+            collectFunctionTypeParameterBindings(
+                formal: formalType,
+                actual: actualType,
+                typeParameters: functionTypeParameters,
+                types: types,
+                conflictingBindings: &conflictingBindings,
+                into: &inferred
+            )
+        }
+        return conflictingBindings.contains(targetSymbol) ? nil : inferred[targetSymbol]
+    }
+
+    private func collectFunctionTypeParameterBindings(
+        formal: TypeID,
+        actual: TypeID,
+        typeParameters: Set<SymbolID>,
+        types: TypeSystem,
+        conflictingBindings: inout Set<SymbolID>,
+        into inferred: inout [SymbolID: TypeID]
+    ) {
+        switch (types.kind(of: formal), types.kind(of: actual)) {
+        case let (.typeParam(formalParam), _)
+            where typeParameters.contains(formalParam.symbol):
+            if let previous = inferred[formalParam.symbol], previous != actual {
+                conflictingBindings.insert(formalParam.symbol)
+            } else {
+                inferred[formalParam.symbol] = actual
+            }
+        case let (.classType(formalClass), .classType(actualClass))
+            where formalClass.classSymbol == actualClass.classSymbol
+                && formalClass.args.count == actualClass.args.count:
+            for (formalArg, actualArg) in zip(formalClass.args, actualClass.args) {
+                guard let formalInner = typeArgumentType(formalArg),
+                      let actualInner = typeArgumentType(actualArg)
+                else {
+                    continue
+                }
+                collectFunctionTypeParameterBindings(
+                    formal: formalInner,
+                    actual: actualInner,
+                    typeParameters: typeParameters,
+                    types: types,
+                    conflictingBindings: &conflictingBindings,
+                    into: &inferred
+                )
+            }
+        default:
+            break
+        }
+    }
+
+    private func typeArgumentType(_ argument: TypeArg) -> TypeID? {
+        switch argument {
+        case let .invariant(type), let .out(type), let .in(type): type
+        case .star: nil
+        }
     }
 
     func returnTypeForCall(
@@ -103,6 +239,17 @@ extension ABILoweringPass {
         guard let callSymbol, let symbols else {
             return nil
         }
-        return symbols.functionSignature(for: callSymbol)?.returnType
+        if let returnType = symbols.functionSignature(for: callSymbol)?.returnType {
+            return returnType
+        }
+        // An interface property's dynamic getter has a synthetic ID even
+        // when its declaration was imported from a library. The declaration
+        // still carries the erased T return type needed to unbox Double and
+        // other concrete values after dispatch.
+        if let accessor = SyntheticSymbolScheme.decodedPropertyAccessor(callSymbol),
+           accessor.kind == .getter {
+            return symbols.propertyType(for: accessor.property)
+        }
+        return nil
     }
 }

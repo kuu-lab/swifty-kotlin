@@ -41,7 +41,47 @@ private func collectPerFileResultsInParallel<Result: Sendable>(
 }
 
 private func isBundledStdlibFile(_ fileID: FileID, sourceManager: SourceManager) -> Bool {
-    sourceManager.path(of: fileID).hasPrefix("__bundled_")
+    sourceManager.origin(of: fileID)?.isBundledStdlib == true
+}
+
+private func remapTokenKind(
+    _ kind: TokenKind,
+    localToShared: [InternedString]
+) -> TokenKind {
+    func remap(_ value: InternedString) -> InternedString {
+        let index = Int(value.rawValue)
+        precondition(index >= 0 && index < localToShared.count, "Invalid lexer-local interned string ID.")
+        return localToShared[index]
+    }
+
+    switch kind {
+    case let .identifier(value):
+        return .identifier(remap(value))
+    case let .backtickedIdentifier(value):
+        return .backtickedIdentifier(remap(value))
+    case let .stringSegment(value):
+        return .stringSegment(remap(value))
+    case let .missing(expected):
+        return .missing(expected: remapTokenKind(expected, localToShared: localToShared))
+    default:
+        return kind
+    }
+}
+
+private func remapTokens(
+    _ tokens: [Token],
+    localStrings: [String],
+    into sharedInterner: StringInterner
+) -> [Token] {
+    let localToShared = localStrings.map(sharedInterner.intern)
+    return tokens.map { token in
+        Token(
+            kind: remapTokenKind(token.kind, localToShared: localToShared),
+            range: token.range,
+            leadingTrivia: token.leadingTrivia,
+            trailingTrivia: token.trailingTrivia
+        )
+    }
 }
 
 private func collectPerFileResultsWithBundledStdlibTiming<Result: Sendable>(
@@ -76,13 +116,13 @@ private func collectPerFileResultsWithBundledStdlibTiming<Result: Sendable>(
     return (bundledResults + otherResults).sorted(by: { $0.0.rawValue < $1.0.rawValue })
 }
 
-final class LoadSourcesPhase: CompilerPhase {
-    static let name = "LoadSources"
+public final class LoadSourcesPhase: CompilerPhase {
+    public static let name = "LoadSources"
 
-    init() {}
+    public init() {}
 
-    func run(_ ctx: CompilationContext) throws {
-        if ctx.options.inputs.isEmpty {
+    public func run(_ ctx: CompilationContext) throws {
+        if ctx.options.inputs.isEmpty && !ctx.options.stdlibOnly {
             ctx.diagnostics.error(
                 "KSWIFTK-SOURCE-0001",
                 "No input files were specified.",
@@ -91,7 +131,13 @@ final class LoadSourcesPhase: CompilerPhase {
             throw CompilerPipelineError.loadError
         }
 
-        injectBundledStdlib(into: ctx.sourceManager)
+        if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
+            try validateStdlibLibraryPath(stdlibLibraryPath, ctx: ctx)
+        }
+
+        if ctx.options.includeStdlib {
+            try injectBundledStdlib(into: ctx)
+        }
 
         for path in ctx.options.inputs {
             if ctx.sourceManager.containsFile(path: path) { continue }
@@ -108,63 +154,65 @@ final class LoadSourcesPhase: CompilerPhase {
         }
     }
 
-    private static let excludedBundledStdlibFiles: Set<String> = [
-        "kotlin/ResultExtensions",
-        "kotlin/collections/CollectionFactories",
-        "kotlin/comparisons/Comparators",
-        "kotlin/logging/AdvancedLogger",
-        "kotlin/ranges/RangeIterators",
-        "kotlin/reflect/KClassAnnotationRegistration",
-        "kotlin/text/StringBuilder",
-    ]
-
-    private func injectBundledStdlib(into sourceManager: SourceManager) {
-        guard let resourcePath = Bundle.module.resourcePath else { return }
-        let stdlibDir = (resourcePath as NSString).appendingPathComponent("Stdlib")
-        let fm = FileManager.default
-        guard let enumerator = fm.enumerator(atPath: stdlibDir) else { return }
-
-        var relativePaths: [String] = []
-        while let path = enumerator.nextObject() as? String {
-            if path.hasSuffix(".kt") {
-                relativePaths.append(String(path.dropLast(3)))
+    internal func injectBundledStdlib(
+        into ctx: CompilationContext,
+        resourcePath: String? = Bundle.module.resourcePath
+    ) throws {
+        do {
+            let sources = try BundledStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
+            for source in sources {
+                guard !ctx.sourceManager.containsFile(path: source.path) else { continue }
+                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents, origin: .bundledStdlib)
             }
+        } catch let error as BundledStdlib.LoadError {
+            switch error {
+            case .resourcePathMissing, .resourceDirectoryMissing:
+                ctx.diagnostics.error(
+                    "KSWIFTK-SOURCE-0101",
+                    error.description,
+                    range: nil
+                )
+            case .enumerationFailed, .readFailed:
+                ctx.diagnostics.error(
+                    "KSWIFTK-SOURCE-0102",
+                    error.description,
+                    range: nil
+                )
+            }
+            throw CompilerPipelineError.loadError
         }
-        relativePaths.sort()
+    }
 
-        var bundledSources: [(path: String, contents: Data)] = []
-        for relativePath in relativePaths {
-            guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
-            let bundledPath = "__bundled_\(relativePath).kt"
-            guard !sourceManager.containsFile(path: bundledPath) else { continue }
-            let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
-            guard let data = fm.contents(atPath: fullPath) else { continue }
-            bundledSources.append((path: bundledPath, contents: data))
+    private func validateStdlibLibraryPath(_ path: String, ctx: CompilationContext) throws {
+        let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            ctx.diagnostics.error(
+                "KSWIFTK-SOURCE-0103",
+                "Stdlib library path does not exist or is not a directory: \(path)",
+                range: nil
+            )
+            throw CompilerPipelineError.loadError
         }
-
-        let residualSources: [(path: String, source: String)] = [
-            ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
-            ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
-            ("__bundled_kotlin_sequences_stdlib.kt", BundledKotlinStdlib.kotlinSequencesSource),
-        ]
-        for (path, source) in residualSources {
-            guard !sourceManager.containsFile(path: path) else { continue }
-            bundledSources.append((path: path, contents: Data(source.utf8)))
-        }
-
-        for source in bundledSources.sorted(by: { $0.path < $1.path }) {
-            _ = sourceManager.addFile(path: source.path, contents: source.contents)
+        let manifestPath = (path as NSString).appendingPathComponent("manifest.json")
+        guard fm.fileExists(atPath: manifestPath) else {
+            ctx.diagnostics.error(
+                "KSWIFTK-SOURCE-0103",
+                "Stdlib library is missing manifest.json: \(path)",
+                range: nil
+            )
+            throw CompilerPipelineError.loadError
         }
     }
 
 }
 
-final class LexPhase: CompilerPhase {
-    static let name = "Lex"
+public final class LexPhase: CompilerPhase {
+    public static let name = "Lex"
 
-    init() {}
+    public init() {}
 
-    func run(_ ctx: CompilationContext) throws {
+    public func run(_ ctx: CompilationContext) throws {
         let fileIDs = ctx.sourceManager.fileIDs()
             .filter { ctx.needsRecompilation(fileID: $0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
@@ -172,19 +220,32 @@ final class LexPhase: CompilerPhase {
         let diagnostics = ctx.diagnostics
         let sourceManager = ctx.sourceManager
 
-        let tokensByFile = collectPerFileResultsWithBundledStdlibTiming(
+        // Each lexer uses a private interner so worker scheduling cannot assign
+        // process-visible IDs. Merge into the shared interner below in file order.
+        let lexedByFile = collectPerFileResultsWithBundledStdlibTiming(
             fileIDs: fileIDs,
             sourceManager: sourceManager,
             phaseTimer: ctx.phaseTimer
         ) { fileID in
+            let localInterner = StringInterner()
             let contents = sourceManager.contents(of: fileID)
             let lexer = KotlinLexer(
                 file: fileID,
                 source: contents,
-                interner: interner,
+                interner: localInterner,
                 diagnostics: diagnostics
             )
-            return lexer.lexAll()
+            return (tokens: lexer.lexAll(), localStrings: localInterner.snapshotValues())
+        }
+        let tokensByFile = lexedByFile.map { fileID, lexed in
+            (
+                fileID,
+                remapTokens(
+                    lexed.tokens,
+                    localStrings: lexed.localStrings,
+                    into: interner
+                )
+            )
         }
 
         var allTokens: [Token] = []
@@ -201,12 +262,12 @@ final class LexPhase: CompilerPhase {
     }
 }
 
-final class ParsePhase: CompilerPhase {
-    static let name = "Parse"
+public final class ParsePhase: CompilerPhase {
+    public static let name = "Parse"
 
-    init() {}
+    public init() {}
 
-    func run(_ ctx: CompilationContext) throws {
+    public func run(_ ctx: CompilationContext) throws {
         let interner = ctx.interner
         let diagnostics = ctx.diagnostics
         let tokensByFile = Dictionary(uniqueKeysWithValues: ctx.tokensByFile.map { ($0.0, $0.1) })
@@ -234,8 +295,8 @@ final class ParsePhase: CompilerPhase {
     }
 }
 
-final class BuildASTPhase: CompilerPhase {
-    static let name = "BuildAST"
+public final class BuildASTPhase: CompilerPhase {
+    public static let name = "BuildAST"
 
     struct PerFileASTResult {
         let fileRawID: Int32
@@ -254,11 +315,11 @@ final class BuildASTPhase: CompilerPhase {
 
     let diagnostics: DiagnosticEngine?
 
-    init(diagnostics: DiagnosticEngine? = nil) {
+    public init(diagnostics: DiagnosticEngine? = nil) {
         self.diagnostics = diagnostics
     }
 
-    func run(_ ctx: CompilationContext) throws {
+    public func run(_ ctx: CompilationContext) throws {
         if ctx.syntaxTrees.isEmpty {
             if let cst = ctx.syntaxTree {
                 let fileID: FileID = if let firstToken = ctx.tokens.first, firstToken.range.start.file != FileID.invalid {
@@ -386,6 +447,10 @@ final class BuildASTPhase: CompilerPhase {
         var imports: [ImportDecl] = []
         var topLevelDecls: [DeclID] = []
         var scriptBody: [ExprID] = []
+        // Top-level declarations materialized as real file-scope decls below;
+        // passed to `blockExpressions` so script mode doesn't also nest them
+        // as shadowing local decls inside the synthesized `main()` body.
+        var materializedDeclNodeIDs: Set<NodeID> = []
         let rootNode = cst.node(root)
         let fileAnnotations = declarationAnnotations(from: root, in: cst, interner: interner)
             .filter { $0.useSiteTarget == "file" }
@@ -403,7 +468,13 @@ final class BuildASTPhase: CompilerPhase {
             case .importHeader:
                 let path = extractQualifiedPath(from: nodeID, in: cst, interner: interner, isPackageHeader: false)
                 let alias = extractImportAlias(from: nodeID, in: cst, interner: interner)
-                imports.append(ImportDecl(range: node.range, path: path, alias: alias))
+                let isWildcard = collectTokens(from: nodeID, in: cst).contains { token in
+                    if case .symbol(.star) = token.kind {
+                        return true
+                    }
+                    return false
+                }
+                imports.append(ImportDecl(range: node.range, path: path, alias: alias, isWildcard: isWildcard))
 
             case .importList:
                 for importChild in cst.children(of: nodeID) {
@@ -412,12 +483,19 @@ final class BuildASTPhase: CompilerPhase {
                     guard importNode.kind == .importHeader else { continue }
                     let path = extractQualifiedPath(from: importNodeID, in: cst, interner: interner, isPackageHeader: false)
                     let alias = extractImportAlias(from: importNodeID, in: cst, interner: interner)
-                    imports.append(ImportDecl(range: importNode.range, path: path, alias: alias))
+                    let isWildcard = collectTokens(from: importNodeID, in: cst).contains { token in
+                        if case .symbol(.star) = token.kind {
+                            return true
+                        }
+                        return false
+                    }
+                    imports.append(ImportDecl(range: importNode.range, path: path, alias: alias, isWildcard: isWildcard))
                 }
 
             case .classDecl:
                 let decl = Decl.classDecl(makeClassDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .interfaceDecl:
                 let decl = Decl.interfaceDecl(makeInterfaceDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
@@ -426,10 +504,12 @@ final class BuildASTPhase: CompilerPhase {
             case .objectDecl:
                 let decl = Decl.objectDecl(makeObjectDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .funDecl:
                 let decl = Decl.funDecl(makeFunDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .propertyDecl where !isScript:
                 let decl = Decl.propertyDecl(makePropertyDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
@@ -443,7 +523,8 @@ final class BuildASTPhase: CompilerPhase {
                 let decl = Decl.enumEntryDecl(EnumEntryDecl(
                     range: node.range,
                     name: declarationName(from: nodeID, in: cst, interner: interner),
-                    annotations: declarationAnnotations(from: nodeID, in: cst, interner: interner)
+                    annotations: declarationAnnotations(from: nodeID, in: cst, interner: interner),
+                    constructorArgs: []
                 ))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
 
@@ -457,7 +538,8 @@ final class BuildASTPhase: CompilerPhase {
                 from: root,
                 in: cst,
                 interner: interner,
-                astArena: arena
+                astArena: arena,
+                excludingNodeIDs: materializedDeclNodeIDs
             )
             scriptBody = scriptExprs
 
@@ -615,11 +697,12 @@ final class BuildASTPhase: CompilerPhase {
         var activeDeclsByFile = state.activeDeclsByFileRawID
         var tokenCountsByFile = state.tokenCountsByFileRawID
 
+        let tokenCountByFileID = Dictionary(uniqueKeysWithValues: ctx.tokensByFile.map { ($0.0, $0.1.count) })
         let changedFiles: [ASTFile] = changedRawIDs.sorted().map { rawID in
             activeDeclsByFile[rawID] = allDeclsByFile[rawID] ?? []
             let fileID = FileID(rawValue: rawID)
-            if let tokens = ctx.tokensByFile.first(where: { $0.0 == fileID })?.1 {
-                tokenCountsByFile[rawID] = tokens.count
+            if let tokenCount = tokenCountByFileID[fileID] {
+                tokenCountsByFile[rawID] = tokenCount
             }
             return ASTFile(
                 fileID: fileID,

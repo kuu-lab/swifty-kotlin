@@ -1,17 +1,23 @@
-/// Inference for KClass-receiver member-call expressions:
-/// - `T::class.simpleName / .qualifiedName / .isInstance(...) / .cast(...) /
-///   .safeCast(...) / .isFinal / .isOpen / .isAbstract / .visibility / ...`
-/// - Runtime `kotlin.reflect.KClass<T>` receiver expressions.
+/// Inference for the KClass-receiver member-call expressions that remain
+/// compiler special cases after KSP-496:
+/// - `T::class.java / .js / .javaClass` platform interop properties, and
+/// - `T::class.findAnnotation<A>() / .findAssociatedObject<A>()`, which take
+///   a reified type argument this compiler only supports via a small
+///   compiler-side allowlist (like `typeOf<T>()`).
+///
+/// `simpleName`/`qualifiedName`/`isInstance`/`cast`/`safeCast`/the 12 boolean
+/// class-kind flags now resolve as ordinary Kotlin extension declarations
+/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
+/// through normal overload resolution.
 ///
 /// Split out from `CallTypeChecker+MemberCallInference.swift`.
 extension CallTypeChecker {
-    /// Handles `T::class.simpleName / .qualifiedName / .isInstance(...) / .cast(...) /
-    /// .safeCast(...) / .isFinal / .isOpen / .isAbstract / .visibility /
-    /// .{members,constructors,properties,...} / .findAnnotation<T>() /
-    /// .findAssociatedObject<T>()` when the receiver is a compile-time class
-    /// reference (callableRef with member "class").
+    /// Handles `T::class.java / .js / .javaClass / .findAnnotation<A>() /
+    /// .findAssociatedObject<A>()` when the receiver is a compile-time class
+    /// reference (callableRef with
+    /// member "class").
     /// Returns the inferred type, or `nil` when the receiver isn't a class-ref
-    /// or the calleeName doesn't match any handled KClass member.
+    /// or the calleeName doesn't match any handled member.
     func tryInferClassRefMemberCall(
         _ id: ExprID,
         receiverID: ExprID,
@@ -77,72 +83,11 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
-        // NOTE: Kotlin source exists at Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
-        if calleeName == knownNames.simpleName || calleeName == knownNames.qualifiedName {
-            _ = args.map { driver.inferExpr($0.expr, ctx: ctx, locals: &locals) }
-            let nullableStringType = sema.types.makeNullable(
-                sema.types.stringType
-            )
-            sema.bindings.bindExprType(id, type: nullableStringType)
-            return nullableStringType
-        }
-        // NOTE: Kotlin source exists at Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
-        if calleeName == knownNames.isInstanceName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let boolType = sema.types.booleanType
-            sema.bindings.bindExprType(id, type: boolType)
-            return boolType
-        }
-        if calleeName == knownNames.kClassCastName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let targetType = sema.bindings.classRefTargetType(for: receiverID) ?? sema.types.anyType
-            let returnType = kClassCastReturnType(from: targetType, sema: sema, interner: interner)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-        if calleeName == knownNames.kClassSafeCastName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let targetType = sema.bindings.classRefTargetType(for: receiverID) ?? sema.types.anyType
-            let returnType = kClassSafeCastReturnType(from: targetType, sema: sema, interner: interner)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-        // STDLIB-REFLECT-060: KClass boolean properties (isFinal, isOpen, isAbstract)
-        // STDLIB-REFLECT-067: KClass kind/modifier + type-kind booleans
-        // (isData/isSealed/isValue/isEnum/isInterface/isObject/isInner/isCompanion/isFun)
-        // NOTE: Kotlin source for isFinal/isAbstract/isSealed exists at
-        // Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
-        let kclassBooleanCallees: Set<InternedString> = [
-            knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
-            knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
-            knownNames.isEnumName, knownNames.isInterfaceName, knownNames.isObjectName,
-            knownNames.isInnerName, knownNames.isCompanionName, knownNames.isFunName,
-        ]
-        if kclassBooleanCallees.contains(calleeName), args.isEmpty {
-            let boolType = sema.types.booleanType
-            sema.bindings.bindExprType(id, type: boolType)
-            return boolType
-        }
-        // STDLIB-REFLECT-060: KClass.visibility -> String?
-        if calleeName == knownNames.visibilityName, args.isEmpty {
-            let nullableStringType = sema.types.makeNullable(
-                sema.types.stringType
-            )
-            sema.bindings.bindExprType(id, type: nullableStringType)
-            return nullableStringType
-        }
-        // STDLIB-REFLECT-065 / 060 / MIGRATION-REFLECT-002: KClass collection-shaped properties.
-        let kclassMemberCollectionCallees: Set<InternedString> = [
-            knownNames.membersName, knownNames.constructorsName,
-            knownNames.nestedClassesName,
-            knownNames.propertiesName, knownNames.memberPropertiesName,
-            knownNames.declaredMemberPropertiesName,
-            knownNames.functionsName, knownNames.memberFunctionsName,
-            knownNames.declaredMemberFunctionsName,
-            knownNames.typeParametersName, knownNames.supertypesName,
-            knownNames.annotationsName,
-        ]
-        if kclassMemberCollectionCallees.contains(calleeName), args.isEmpty {
+        // KSP-496: `properties` (unlike memberProperties/declaredMemberProperties)
+        // stays a compiler special case — it isn't a real kotlin-stdlib name, and
+        // Scripts/diff_cases/kclass_interface_handles.kt relies on freely shadowing
+        // it with a real user-declared extension for kotlinc portability.
+        if calleeName == knownNames.propertiesName, args.isEmpty {
             let listType = makeSyntheticListType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -178,9 +123,10 @@ extension CallTypeChecker {
     }
 
     /// Handles KClass member access when the receiver is a runtime KClass<T>
-    /// expression (variable / property whose type is `kotlin.reflect.KClass<…>`).
+    /// expression (variable / property whose type is `kotlin.reflect.KClass<…>`):
+    /// `.java / .js / .javaClass / .findAnnotation<A>() / .findAssociatedObject<A>()`.
     /// Returns the inferred type, or `nil` when the receiver isn't a runtime
-    /// KClass or the calleeName doesn't match any handled KClass member.
+    /// KClass or the calleeName doesn't match any handled member.
     func tryInferKClassReceiverMemberCall(
         _ id: ExprID,
         receiverType: TypeID,
@@ -223,61 +169,9 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
-        // NOTE: Kotlin source exists at Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
-        if calleeName == knownNames.isInstanceName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let boolType = sema.types.booleanType
-            sema.bindings.bindExprType(id, type: boolType)
-            return boolType
-        }
-        if calleeName == knownNames.kClassCastName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let returnType = kClassCastReturnType(from: kClassArgumentType, sema: sema, interner: interner)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-        if calleeName == knownNames.kClassSafeCastName, args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let returnType = kClassSafeCastReturnType(from: kClassArgumentType, sema: sema, interner: interner)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
-        }
-        // STDLIB-REFLECT-060: KClass boolean properties via variable receiver
-        // STDLIB-REFLECT-067: KClass kind/modifier + type-kind booleans
-        // (isData/isSealed/isValue/isEnum/isInterface/isObject/isInner/isCompanion/isFun)
-        // NOTE: Kotlin source for isFinal/isAbstract/isSealed exists at
-        // Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
-        let kclassVarBooleanCallees: Set<InternedString> = [
-            knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
-            knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
-            knownNames.isEnumName, knownNames.isInterfaceName, knownNames.isObjectName,
-            knownNames.isInnerName, knownNames.isCompanionName, knownNames.isFunName,
-        ]
-        if kclassVarBooleanCallees.contains(calleeName), args.isEmpty {
-            let boolType = sema.types.booleanType
-            sema.bindings.bindExprType(id, type: boolType)
-            return boolType
-        }
-        // STDLIB-REFLECT-060: KClass.visibility via variable receiver -> String?
-        if calleeName == knownNames.visibilityName, args.isEmpty {
-            let nullableStringType = sema.types.makeNullable(
-                sema.types.stringType
-            )
-            sema.bindings.bindExprType(id, type: nullableStringType)
-            return nullableStringType
-        }
-        // STDLIB-REFLECT-065 / 060 / MIGRATION-REFLECT-002: KClass collection-shaped properties (via variable receiver).
-        let kclassVarMemberCollectionCallees: Set<InternedString> = [
-            knownNames.membersName, knownNames.constructorsName,
-            knownNames.nestedClassesName,
-            knownNames.propertiesName, knownNames.memberPropertiesName,
-            knownNames.declaredMemberPropertiesName,
-            knownNames.functionsName, knownNames.memberFunctionsName,
-            knownNames.declaredMemberFunctionsName,
-            knownNames.typeParametersName, knownNames.supertypesName,
-            knownNames.annotationsName,
-        ]
-        if kclassVarMemberCollectionCallees.contains(calleeName), args.isEmpty {
+        // KSP-496: `properties` (via variable receiver) stays a compiler special
+        // case for the same reason as above — see tryInferClassRefMemberCall.
+        if calleeName == knownNames.propertiesName, args.isEmpty {
             let listType = makeSyntheticListType(
                 symbols: sema.symbols,
                 types: sema.types,

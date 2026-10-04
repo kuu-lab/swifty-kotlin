@@ -6,7 +6,8 @@ extension DataFlowSemaPhase {
     func registerSyntheticCoroutineStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         if symbols.lookup(fqName: kotlinPkg) == nil {
@@ -52,19 +53,39 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let restrictsSuspensionSymbol = ensureAnnotationClassSymbol(
-            named: "RestrictsSuspension",
-            in: kotlinCoroutinesPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let kotlinCoroutinesPkgSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
-            symbols.setParentSymbol(kotlinCoroutinesPkgSymbol, for: restrictsSuspensionSymbol)
+        let restrictsSuspensionFQName = kotlinCoroutinesPkg + [interner.intern("RestrictsSuspension")]
+        // The bundled declaration owns this annotation and its implicit constructor.
+        // Retain the residual registration only for --no-stdlib compilations.
+        if !bundledIndex.containsNominal(fqName: restrictsSuspensionFQName) {
+            let restrictsSuspensionSymbol = ensureAnnotationClassSymbol(
+                named: "RestrictsSuspension",
+                in: kotlinCoroutinesPkg,
+                symbols: symbols,
+                interner: interner
+            )
+            if let kotlinCoroutinesPkgSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
+                symbols.setParentSymbol(kotlinCoroutinesPkgSymbol, for: restrictsSuspensionSymbol)
+            }
+            attachRestrictsSuspensionAnnotationMetadata(
+                to: restrictsSuspensionSymbol,
+                symbols: symbols
+            )
+            registerSyntheticConstructorStubs(
+                [SyntheticConstructorStubSpec()],
+                ownerType: .classType(
+                    fqName: ["kotlin", "coroutines", "RestrictsSuspension"],
+                    args: [],
+                    nullability: .nonNull
+                ),
+                context: SyntheticStubRegistrationContext(
+                    ownerFQName: restrictsSuspensionFQName,
+                    parentSymbol: restrictsSuspensionSymbol
+                ),
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
         }
-        attachRestrictsSuspensionAnnotationMetadata(
-            to: restrictsSuspensionSymbol,
-            symbols: symbols
-        )
         let channelsPkg = ensureSyntheticCoroutinePackage(
             coroutinesPkg + [interner.intern("channels")],
             symbols: symbols,
@@ -267,6 +288,18 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        // STDLIB-CORO-076: `CoroutineScope` is registered as an empty marker
+        // interface so extension functions declared as `fun CoroutineScope.foo()`
+        // (a common pattern for user-defined producer/consumer helpers) type-check.
+        // Builder blocks (runBlocking/launch/coroutineScope/...) do not yet carry
+        // this as their lambda receiver type, so such extensions only resolve when
+        // called with an explicit receiver.
+        _ = ensureInterfaceSymbol(
+            named: "CoroutineScope",
+            in: coroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
         let jobSymbol = ensureClassSymbol(
             named: "Job",
             in: coroutinesPkg,
@@ -291,38 +324,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let sharedFlowSymbol = ensureInterfaceSymbol(
-            named: "SharedFlow",
-            in: flowPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let stateFlowSymbol = ensureInterfaceSymbol(
-            named: "StateFlow",
-            in: flowPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let mutableSharedFlowSymbol = ensureClassSymbol(
-            named: "MutableSharedFlow",
-            in: flowPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let mutableStateFlowSymbol = ensureClassSymbol(
-            named: "MutableStateFlow",
-            in: flowPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // KSP-499 Stage 2: give the Flow family real generic type parameters
+        // KSP-675: SharedFlow / MutableSharedFlow are declared by bundled Kotlin
+        // source (Sources/CompilerCore/Stdlib/kotlinx/coroutines/flow/SharedFlow.kt),
+        // so no synthetic symbols are registered for them here.
+        // KSP-676: StateFlow / MutableStateFlow are also bundled Kotlin source
+        // (StateFlow.kt), so no synthetic symbols are registered for them either.
+        // KSP-499 Stage 2: give the Flow interface a real generic type parameter
         // (previously `args: []` on every ClassType use, with the element type
         // tracked only in the Sema side-tables `flowElementTypesByExpr`/`BySymbol`
-        // — see SemanticsModels.swift). Flow/SharedFlow/StateFlow are read-only
-        // and covariant (`Flow<out T>` in kotlinx.coroutines); MutableSharedFlow/
-        // MutableStateFlow expose mutation (`emit`, `value =`) and are invariant.
+        // — see SemanticsModels.swift). Flow is read-only and covariant
+        // (`Flow<out T>` in kotlinx.coroutines).
         // Pattern mirrors `registerSyntheticIterableStub` in
-        // HeaderHelpers+SyntheticIterableRegistry.swift.
+        // HeaderHelpers+SyntheticCollectionTypeFallbacks.swift.
         func declareFlowFamilyTypeParameter(
             owner: SymbolID,
             ownerFQName: [InternedString],
@@ -351,26 +364,6 @@ extension DataFlowSemaPhase {
             ownerFQName: flowPkg + [interner.intern("Flow")],
             variance: .out
         )
-        let sharedFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
-            owner: sharedFlowSymbol,
-            ownerFQName: flowPkg + [interner.intern("SharedFlow")],
-            variance: .out
-        )
-        let stateFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
-            owner: stateFlowSymbol,
-            ownerFQName: flowPkg + [interner.intern("StateFlow")],
-            variance: .out
-        )
-        let mutableSharedFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
-            owner: mutableSharedFlowSymbol,
-            ownerFQName: flowPkg + [interner.intern("MutableSharedFlow")],
-            variance: .invariant
-        )
-        let mutableStateFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
-            owner: mutableStateFlowSymbol,
-            ownerFQName: flowPkg + [interner.intern("MutableStateFlow")],
-            variance: .invariant
-        )
         let dispatcherSymbol = ensureClassSymbol(
             named: "CoroutineDispatcher",
             in: coroutinesPkg,
@@ -383,13 +376,63 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let cancellationName = interner.intern("CancellationException")
+        // KSP-1573: `Channel.Factory` companion anchor. The bundled
+        // RENDEZVOUS / UNLIMITED / CONFLATED / BUFFERED / OPTIONAL_CHANNEL
+        // constants in Stdlib/kotlinx/coroutines/channels/Channel.kt are
+        // extension properties on this companion, so `Channel.X` and
+        // `Channel.Factory.X` both resolve.
+        if symbols.companionObjectSymbol(for: channelSymbol) == nil {
+            let factoryName = interner.intern("Factory")
+            let factoryFQName = channelsPkg
+                + [interner.intern("Channel"), factoryName]
+            if let existing = symbols.lookupAll(fqName: factoryFQName).first(where: { symbolID in
+                guard let symbol = symbols.symbol(symbolID) else { return false }
+                return symbol.kind == .object || symbol.kind == .class || symbol.kind == .interface
+            }) {
+                symbols.setParentSymbol(channelSymbol, for: existing)
+                symbols.setCompanionObjectSymbol(existing, for: channelSymbol)
+            } else {
+                let factorySymbol = symbols.define(
+                    kind: .object,
+                    name: factoryName,
+                    fqName: factoryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(channelSymbol, for: factorySymbol)
+                symbols.setCompanionObjectSymbol(factorySymbol, for: channelSymbol)
+            }
+        }
+        // KSP-678: `ChannelIterator<T>` is the runtime handle returned by
+        // `Channel<T>.iterator()`. Registered as a synthetic handle type (like
+        // Channel itself) so the bundled Kotlin iterator/hasNext/next extension
+        // operators in Channels.kt can bridge to the residual
+        // kk_channel_iterator{,_hasNext,_next} runtime entry points.
+        let channelIteratorSymbol = ensureClassSymbol(
+            named: "ChannelIterator",
+            in: channelsPkg,
+            symbols: symbols,
+            interner: interner
+        )
         let cancellationSymbol = ensureClassSymbol(
             named: "CancellationException",
             in: kotlinCoroutinesCancellationPkg,
             symbols: symbols,
             interner: interner
         )
+        let cancellationIsSourceBacked = !(symbols.symbol(cancellationSymbol)?.flags.contains(.synthetic) ?? true)
+        let illegalStateExceptionSymbol: SymbolID?
+        if cancellationIsSourceBacked {
+            illegalStateExceptionSymbol = nil
+        } else {
+            illegalStateExceptionSymbol = ensureClassSymbol(
+                named: "IllegalStateException",
+                in: kotlinPkg,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         let rootCancellationSymbol: SymbolID = if let existing = symbols.lookup(fqName: [interner.intern("CancellationException")]) {
             existing
         } else {
@@ -419,7 +462,7 @@ extension DataFlowSemaPhase {
         )))
         // KSP-499 Stage 2: use each class's own type parameter as the receiver
         // "self type" (matching `iterableReceiverType` in
-        // HeaderHelpers+SyntheticIterableRegistry.swift) instead of a raw,
+        // HeaderHelpers+SyntheticCollectionTypeFallbacks.swift) instead of a raw,
         // argument-less ClassType. This is the generic *declaration* shape used
         // as an owner/receiver/return type placeholder throughout this file —
         // callers substitute concrete element types at actual call sites.
@@ -428,33 +471,47 @@ extension DataFlowSemaPhase {
             args: [.out(types.make(.typeParam(TypeParamType(symbol: flowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
-        let sharedFlowRawType = types.make(.classType(ClassType(
-            classSymbol: sharedFlowSymbol,
-            args: [.out(types.make(.typeParam(TypeParamType(symbol: sharedFlowTypeParamSymbol, nullability: .nonNull))))],
-            nullability: .nonNull
-        )))
-        let stateFlowRawType = types.make(.classType(ClassType(
-            classSymbol: stateFlowSymbol,
-            args: [.out(types.make(.typeParam(TypeParamType(symbol: stateFlowTypeParamSymbol, nullability: .nonNull))))],
-            nullability: .nonNull
-        )))
-        let mutableSharedFlowType = types.make(.classType(ClassType(
-            classSymbol: mutableSharedFlowSymbol,
-            args: [.invariant(types.make(.typeParam(TypeParamType(symbol: mutableSharedFlowTypeParamSymbol, nullability: .nonNull))))],
-            nullability: .nonNull
-        )))
-        let mutableStateFlowType = types.make(.classType(ClassType(
-            classSymbol: mutableStateFlowSymbol,
-            args: [.invariant(types.make(.typeParam(TypeParamType(symbol: mutableStateFlowTypeParamSymbol, nullability: .nonNull))))],
-            nullability: .nonNull
-        )))
         let dispatcherType = types.make(.classType(ClassType(
             classSymbol: dispatcherSymbol,
             args: [],
             nullability: .nonNull
         )))
+        // STDLIB-CORO-001: CoroutineStart enum for launch(start:) overload.
+        let coroutineStartSymbol = ensureEnumClassSymbol(
+            named: "CoroutineStart",
+            in: coroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let coroutineStartType = types.make(.classType(ClassType(
+            classSymbol: coroutineStartSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let coroutineStartFQName = coroutinesPkg + [interner.intern("CoroutineStart")]
+        for entryName in ["DEFAULT", "LAZY", "ATOMIC", "UNDISPATCHED"] {
+            let entryInterned = interner.intern(entryName)
+            let entryFQName = coroutineStartFQName + [entryInterned]
+            if symbols.lookup(fqName: entryFQName) == nil {
+                let entrySymbol = symbols.define(
+                    kind: .field,
+                    name: entryInterned,
+                    fqName: entryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(coroutineStartSymbol, for: entrySymbol)
+                symbols.setPropertyType(coroutineStartType, for: entrySymbol)
+            }
+        }
         let channelType = types.make(.classType(ClassType(
             classSymbol: channelSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let channelIteratorType = types.make(.classType(ClassType(
+            classSymbol: channelIteratorSymbol,
             args: [],
             nullability: .nonNull
         )))
@@ -519,15 +576,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticObjectProperty(
-            ownerSymbol: continuationSymbol,
-            ownerType: continuationType,
-            name: "context",
-            propertyType: kotlinCoroutineContextType,
-            externalLinkName: "kk_coroutine_continuation_context",
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("context"),
+            arity: 0
+        ) {
+            registerSyntheticObjectProperty(
+                ownerSymbol: continuationSymbol,
+                ownerType: continuationType,
+                name: "context",
+                propertyType: kotlinCoroutineContextType,
+                externalLinkName: "kk_coroutine_continuation_context",
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineTopLevelProperty(
             named: "coroutineContext",
             packageFQName: kotlinCoroutinesPkg,
@@ -549,55 +612,73 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "resume",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: continuationType,
-            externalLinkName: "kk_coroutine_continuation_resume",
-            returnType: types.unitType,
-            parameters: [(
-                name: "value",
-                type: continuationTType
-            )],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "resumeWithException",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: continuationType,
-            externalLinkName: "kk_coroutine_continuation_resume_with_exception",
-            returnType: types.unitType,
-            parameters: [(
-                name: "exception",
-                type: exceptionType
-            )],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("resume"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineExtensionFunction(
+                named: "resume",
+                packageFQName: kotlinCoroutinesPkg,
+                receiverType: continuationType,
+                externalLinkName: "kk_coroutine_continuation_resume",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "value",
+                    type: continuationTType
+                )],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("resumeWithException"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineExtensionFunction(
+                named: "resumeWithException",
+                packageFQName: kotlinCoroutinesPkg,
+                receiverType: continuationType,
+                externalLinkName: "kk_coroutine_continuation_resume_with_exception",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "exception",
+                    type: exceptionType
+                )],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         let resultOfContinuationTType = types.make(.classType(ClassType(
             classSymbol: kotlinResultSymbol,
             args: [.invariant(continuationTType)],
             nullability: .nonNull
         )))
-        registerSyntheticCoroutineMember(
-            ownerSymbol: continuationSymbol,
-            ownerType: continuationType,
-            name: "resumeWith",
-            externalLinkName: "kk_coroutine_continuation_resume_with",
-            returnType: types.unitType,
-            parameters: [(
-                name: "result",
-                type: resultOfContinuationTType
-            )],
-            typeParameterSymbols: [continuationTypeParameterSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesPkg + [interner.intern("Continuation")],
+            name: interner.intern("resumeWith"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: continuationSymbol,
+                ownerType: continuationType,
+                name: "resumeWith",
+                externalLinkName: "kk_coroutine_continuation_resume_with",
+                returnType: types.unitType,
+                parameters: [(
+                    name: "result",
+                    type: resultOfContinuationTType
+                )],
+                typeParameterSymbols: [continuationTypeParameterSymbol],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         let continuationOfUnitType = types.make(.classType(ClassType(
             classSymbol: continuationSymbol,
             args: [.in(types.unitType)],
@@ -619,25 +700,64 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(deferredType, for: deferredSymbol)
         symbols.setPropertyType(dispatchersType, for: dispatchersSymbol)
         symbols.setPropertyType(flowRawType, for: flowInterfaceSymbol)
-        symbols.setPropertyType(sharedFlowRawType, for: sharedFlowSymbol)
-        symbols.setPropertyType(stateFlowRawType, for: stateFlowSymbol)
-        symbols.setPropertyType(mutableSharedFlowType, for: mutableSharedFlowSymbol)
-        symbols.setPropertyType(mutableStateFlowType, for: mutableStateFlowSymbol)
         symbols.setPropertyType(dispatcherType, for: dispatcherSymbol)
+        symbols.setPropertyType(coroutineStartType, for: coroutineStartSymbol)
         symbols.setPropertyType(channelType, for: channelSymbol)
+        symbols.setPropertyType(channelIteratorType, for: channelIteratorSymbol)
         symbols.setPropertyType(cancellationType, for: cancellationSymbol)
         symbols.setPropertyType(continuationType, for: continuationSymbol)
         symbols.setPropertyType(continuationInterceptorType, for: continuationInterceptorSymbol)
         symbols.setPropertyType(rootCancellationType, for: rootCancellationSymbol)
-        symbols.setDirectSupertypes([exceptionSymbol], for: cancellationSymbol)
+        if !cancellationIsSourceBacked, let illegalStateExceptionSymbol {
+            symbols.setDirectSupertypes([illegalStateExceptionSymbol], for: cancellationSymbol)
+            types.setNominalDirectSupertypes([illegalStateExceptionSymbol], for: cancellationSymbol)
+        }
         symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
-        symbols.setDirectSupertypes([flowInterfaceSymbol], for: sharedFlowSymbol)
-        symbols.setDirectSupertypes([sharedFlowSymbol], for: stateFlowSymbol)
-        symbols.setDirectSupertypes([sharedFlowSymbol], for: mutableSharedFlowSymbol)
-        symbols.setDirectSupertypes([stateFlowSymbol, mutableSharedFlowSymbol], for: mutableStateFlowSymbol)
+        // Preserve the declaration-site `in` variance once Continuation has
+        // been reused from bundled Kotlin source. The synthetic fallback
+        // remains invariant when no source declaration is available.
+        if !symbols.isSourceBackedSymbol(continuationSymbol) {
+            types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+        }
+
+        // KSP-499: Flow's cold core remains a compiler/runtime bridge. Keep
+        // `collect` and `collectLatest` as synthetic source-visible members so
+        // bundled operator bodies lower them to the retained kk_flow_* ABI
+        // instead of emitting the parameter name as a native symbol.
+        let flowElementType = types.make(.typeParam(TypeParamType(
+            symbol: flowTypeParamSymbol,
+            nullability: .nonNull
+        )))
+        let flowCollectorType = types.make(.functionType(FunctionType(
+            params: [flowElementType],
+            returnType: types.unitType,
+            isSuspend: true,
+            nullability: .nonNull
+        )))
+        registerSyntheticCoroutineMember(
+            ownerSymbol: flowInterfaceSymbol,
+            ownerType: flowRawType,
+            name: "collect",
+            externalLinkName: "kk_flow_collect",
+            returnType: types.unitType,
+            parameters: [(name: "collector", type: flowCollectorType)],
+            isSuspend: true,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineMember(
+            ownerSymbol: flowInterfaceSymbol,
+            ownerType: flowRawType,
+            name: "collectLatest",
+            externalLinkName: "__kk_flow_collectLatest",
+            returnType: types.unitType,
+            parameters: [(name: "collector", type: flowCollectorType)],
+            isSuspend: true,
+            symbols: symbols,
+            interner: interner
+        )
 
         registerSyntheticCoroutineMember(
             ownerSymbol: flowInterfaceSymbol,
@@ -662,7 +782,12 @@ extension DataFlowSemaPhase {
 
         let suspendIntrinsicName = interner.intern("suspendCoroutineUninterceptedOrReturn")
         let suspendIntrinsicFQName = kotlinCoroutinesIntrinsicsPkg + [suspendIntrinsicName]
-        if symbols.lookup(fqName: suspendIntrinsicFQName) == nil {
+        let hasBundledSuspendIntrinsic = BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesIntrinsicsPkg,
+            name: suspendIntrinsicName,
+            arity: 1
+        )
+        if !hasBundledSuspendIntrinsic, symbols.lookup(fqName: suspendIntrinsicFQName) == nil {
             let suspendIntrinsicSymbol = symbols.define(
                 kind: .function,
                 name: suspendIntrinsicName,
@@ -723,39 +848,32 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticExceptionConstructors(
-            ownerSymbol: cancellationSymbol,
-            ownerType: cancellationType,
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            includeMessageOverload: true,
-            throwableSymbol: throwableSymbol
-        )
-        let nullableThrowableType = types.make(.classType(ClassType(
-            classSymbol: throwableSymbol,
-            args: [],
-            nullability: .nullable
-        )))
-        registerSyntheticExceptionConstructor(
-            ownerSymbol: cancellationSymbol,
-            ownerType: cancellationType,
-            parameters: [("cause", nullableThrowableType)],
-            externalLinkName: "kk_throwable_new_cause",
-            symbols: symbols,
-            interner: interner
-        )
-
-        if symbols.lookup(fqName: coroutinesPkg + [cancellationName]) == nil {
-            let kotlinxCancellationSymbol = symbols.define(
-                kind: .typeAlias,
-                name: cancellationName,
-                fqName: coroutinesPkg + [cancellationName],
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
+        if !cancellationIsSourceBacked {
+            registerSyntheticPlatformExceptionConstructors(
+                ownerSymbol: cancellationSymbol,
+                ownerType: cancellationType,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                includeMessageOverload: true,
+                throwableSymbol: throwableSymbol,
+                noArgLinkName: "__kk_cancellation_exception_new",
+                messageLinkName: "__kk_cancellation_exception_new_message",
+                messageCauseLinkName: "__kk_cancellation_exception_new_message_cause"
             )
-            symbols.setTypeAliasUnderlyingType(cancellationType, for: kotlinxCancellationSymbol)
+            let nullableThrowableType = types.make(.classType(ClassType(
+                classSymbol: throwableSymbol,
+                args: [],
+                nullability: .nullable
+            )))
+            registerSyntheticPlatformExceptionConstructor(
+                ownerSymbol: cancellationSymbol,
+                ownerType: cancellationType,
+                parameters: [("cause", nullableThrowableType)],
+                externalLinkName: "__kk_cancellation_exception_new_cause",
+                symbols: symbols,
+                interner: interner
+            )
         }
 
         registerSyntheticCoroutineTopLevelFunction(
@@ -803,6 +921,27 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // STDLIB-CORO-001: launch(start: CoroutineStart, block:) overload.
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "launch",
+            packageFQName: coroutinesPkg,
+            parameters: [
+                (name: "start", type: coroutineStartType),
+                (name: "block", type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.unitType,
+                    isSuspend: true,
+                    nullability: .nonNull
+                )))),
+            ],
+            returnType: jobType,
+            symbols: symbols,
+            interner: interner
+        )
+        // STDLIB-CORO-001: CoroutineStart enum and launch(start:, block:) overload.
+        // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
+        // first argument's type: CoroutineDispatcher goes to the dispatcher-
+        // aware runtime, CoroutineStart goes to the lazy-start runtime.
         registerSyntheticCoroutineExtensionFunction(
             named: "intercepted",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
@@ -841,10 +980,9 @@ extension DataFlowSemaPhase {
             symbol: createCoroutineTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let createCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: createCoroutineTypeParameterType,
-            isSuspend: true,
+        let createCoroutineCompletionType = types.make(.classType(ClassType(
+            classSymbol: continuationSymbol,
+            args: [.invariant(createCoroutineTypeParameterType)],
             nullability: .nonNull
         )))
         let createCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
@@ -884,12 +1022,6 @@ extension DataFlowSemaPhase {
         let startCoroutineContinuationType = types.make(.classType(ClassType(
             classSymbol: continuationSymbol,
             args: [.invariant(startCoroutineTypeParameterType)],
-            nullability: .nonNull
-        )))
-        let startCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: startCoroutineTypeParameterType,
-            isSuspend: true,
             nullability: .nonNull
         )))
         let startCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
@@ -1041,17 +1173,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "startCoroutineUninterceptedOrReturn",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: startCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: startCoroutineContinuationType)],
-            returnType: types.nullableAnyType,
-            flags: [.synthetic, .inlineFunction],
-            typeParameterSymbols: [startCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
+        // The no-receiver overload is source-backed in SuspendFunction0.kt.
         registerSyntheticCoroutineExtensionFunction(
             named: "startCoroutineUninterceptedOrReturn",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
@@ -1066,23 +1188,15 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "createCoroutineUnintercepted",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: createCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: continuationType)],
-            returnType: continuationOfUnitType,
-            typeParameterSymbols: [createCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
+
+        // The no-receiver overload is source-backed in SuspendFunction0.kt.
         registerSyntheticCoroutineExtensionFunction(
             named: "createCoroutineUnintercepted",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
             receiverType: createCoroutineWithReceiverFunctionType,
             parameters: [
                 (name: "receiver", type: createCoroutineReceiverTypeParameterType),
-                (name: "completion", type: continuationType),
+                (name: "completion", type: createCoroutineCompletionType),
             ],
             returnType: continuationOfUnitType,
             typeParameterSymbols: [createCoroutineReceiverTypeParameterSymbol, createCoroutineTypeParameterSymbol],
@@ -1114,11 +1228,46 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // STDLIB-CORO-001: async(start: CoroutineStart, block:) overload.
+        // Mirrors the launch(start:, block:) registration above. Lowering reads
+        // the CoroutineStart value and routes the call to the async runtime
+        // entry point implementing that mode (see rewriteStartModeLauncherCall).
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "async",
+            packageFQName: coroutinesPkg,
+            parameters: [
+                (name: "start", type: coroutineStartType),
+                (name: "block", type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: true,
+                    nullability: .nonNull
+                )))),
+            ],
+            returnType: deferredType,
+            symbols: symbols,
+            interner: interner
+        )
         // STDLIB-CORO-075: `produce { ... }` returns a `Channel<T>` and runs the
         // block with a `Channel<T>` receiver so channel sends resolve correctly.
+        // KSP-1573: the bundled `CoroutineScope.produce` extension
+        // (Stdlib/kotlinx/coroutines/channels/Produce.kt) supersedes this
+        // stub; keep the synthetic only for configurations without that
+        // source. The bundled index keys extensions on the receiver's owner
+        // fqName, so the check keys off CoroutineScope.
+        let coroutineScopeMemberOwner = coroutinesPkg + [interner.intern("CoroutineScope")]
         let functionName = interner.intern("produce")
+        let hasSourceBackedProduce = bundledIndex.contains(
+            ownerFQName: coroutineScopeMemberOwner,
+            name: functionName,
+            arity: 1
+        ) || bundledIndex.contains(
+            ownerFQName: coroutineScopeMemberOwner,
+            name: functionName,
+            arity: 2
+        )
         let functionFQName = channelsPkg + [functionName]
-        if symbols.lookup(fqName: functionFQName) == nil {
+        if !hasSourceBackedProduce, symbols.lookup(fqName: functionFQName) == nil {
             let typeParamName = interner.intern("T")
             let typeParamSymbol = symbols.define(
                 kind: .typeParameter,
@@ -1180,34 +1329,9 @@ extension DataFlowSemaPhase {
                 for: functionSymbol
             )
         }
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "coroutineScope",
-            packageFQName: coroutinesPkg,
-            parameterName: "block",
-            parameterType: types.make(.functionType(FunctionType(
-                params: [],
-                returnType: types.anyType,
-                isSuspend: true,
-                nullability: .nonNull
-            ))),
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "supervisorScope",
-            packageFQName: coroutinesPkg,
-            parameterName: "block",
-            parameterType: types.make(.functionType(FunctionType(
-                params: [],
-                returnType: types.anyType,
-                isSuspend: true,
-                nullability: .nonNull
-            ))),
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-679: `coroutineScope` / `supervisorScope` are now real suspend
+        // functions in bundled Kotlin (Stdlib/kotlinx/coroutines/
+        // CoroutineScope.kt), delegating to the residual (c) scope primitives.
         registerSyntheticCoroutineTopLevelFunction(
             named: "delay",
             packageFQName: coroutinesPkg,
@@ -1321,7 +1445,7 @@ extension DataFlowSemaPhase {
             in: coroutineContextFQName,
             symbols: symbols,
             interner: interner,
-            visibility: .internal
+            visibility: .public
         )
         symbols.setParentSymbol(coroutineContextSymbol, for: coroutineContextElementSymbol)
         let coroutineContextElementType = types.make(.classType(ClassType(
@@ -1374,7 +1498,7 @@ extension DataFlowSemaPhase {
             in: coroutineContextFQName,
             symbols: symbols,
             interner: interner,
-            visibility: .internal
+            visibility: .public
         )
         symbols.setParentSymbol(coroutineContextSymbol, for: coroutineContextKeySymbol)
         let coroutineContextKeyTypeParamName = interner.intern("E")
@@ -1387,6 +1511,8 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(coroutineContextKeySymbol, for: coroutineContextKeyTypeParamSymbol)
+        types.setNominalTypeParameterSymbols([coroutineContextKeyTypeParamSymbol], for: coroutineContextKeySymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: coroutineContextKeySymbol)
         let coroutineContextKeyTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: coroutineContextKeyTypeParamSymbol,
             nullability: .nonNull
@@ -1807,56 +1933,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "channelFlow",
-            packageFQName: flowPkg,
-            parameters: [(name: "block", type: flowBuilderLambdaType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_create",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "callbackFlow",
-            packageFQName: flowPkg,
-            parameters: [(name: "block", type: flowBuilderLambdaType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_create",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "flowOf",
-            packageFQName: flowPkg,
-            parameters: [(name: "values", type: types.anyType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_of",
-            syntheticTypeParameterNames: ["T"],
-            syntheticVarargParameterIndices: [0],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "emptyFlow",
-            packageFQName: flowPkg,
-            parameters: [],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_empty",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "asFlow",
-            externalLinkName: "kk_flow_as_flow",
-            returnType: flowRawType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-674: flowOf / emptyFlow / Iterable.asFlow are now Kotlin source
+        // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
+        // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.
 
         // withContext overload accepting CoroutineContext (not just dispatcher)
         registerSyntheticCoroutineTopLevelFunction(
@@ -1876,17 +1955,25 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticCoroutineTopLevelProperty(
-            named: "COROUTINE_SUSPENDED",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            returnType: coroutineSuspendedType,
-            externalLinkName: "kk_coroutine_suspended",
-            symbols: symbols,
-            interner: interner
+        let coroutineSuspendedName = interner.intern("COROUTINE_SUSPENDED")
+        let hasBundledCoroutineSuspended = BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesIntrinsicsPkg,
+            name: coroutineSuspendedName,
+            arity: 0
         )
+        if !hasBundledCoroutineSuspended {
+            registerSyntheticCoroutineTopLevelProperty(
+                named: "COROUTINE_SUSPENDED",
+                packageFQName: kotlinCoroutinesIntrinsicsPkg,
+                returnType: coroutineSuspendedType,
+                externalLinkName: "kk_coroutine_suspended",
+                symbols: symbols,
+                interner: interner
+            )
+        }
         let suspendCoroutineName = interner.intern("suspendCoroutineUninterceptedOrReturn")
         let suspendCoroutineFQName = kotlinCoroutinesIntrinsicsPkg + [suspendCoroutineName]
-        if symbols.lookup(fqName: suspendCoroutineFQName) == nil {
+        if !hasBundledSuspendIntrinsic, symbols.lookup(fqName: suspendCoroutineFQName) == nil {
             let suspendCoroutineTypeParamName = interner.intern("T")
             let suspendCoroutineTypeParamFQName = suspendCoroutineFQName + [suspendCoroutineTypeParamName]
             let suspendCoroutineTypeParamSymbol = symbols.define(
@@ -2031,28 +2118,50 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticCoroutineConstructor(
-            ownerSymbol: channelSymbol,
-            ownerType: channelType,
-            externalLinkName: "kk_channel_create",
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticChannelFactoryBridge(
-            packageFQName: channelsPkg,
-            channelSymbol: channelSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticChannelFactoryBridgeWithCapacity(
-            packageFQName: channelsPkg,
-            channelSymbol: channelSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-678: the `Channel()` / `Channel(capacity)` factories are now
+        // provided by bundled Kotlin source
+        // (Sources/CompilerCore/Stdlib/kotlin/coroutines/channels/Channels.kt),
+        // which bridges to the residual kk_channel_create runtime entry point via
+        // @KsSymbolName. No synthetic constructor or factory bridges are
+        // registered here.
+
+        // STDLIB-CORO-078: `ReceiveChannel<T>` is the read-only view of `Channel<T>`
+        // that `produce { }` returns in real kotlinx.coroutines. Registered as a
+        // type alias (rather than a separate interface) so send/receive/close/
+        // isClosedForReceive/for-loop iteration resolve through the same Channel
+        // member lookup instead of duplicating it for a second symbol.
+        let receiveChannelName = interner.intern("ReceiveChannel")
+        let receiveChannelFQName = channelsPkg + [receiveChannelName]
+        if symbols.lookup(fqName: receiveChannelFQName) == nil {
+            let receiveChannelAliasSymbol = symbols.define(
+                kind: .typeAlias,
+                name: receiveChannelName,
+                fqName: receiveChannelFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            let receiveChannelTypeParamName = interner.intern("T")
+            let receiveChannelTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: receiveChannelTypeParamName,
+                fqName: receiveChannelFQName + [receiveChannelTypeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            symbols.setTypeAliasTypeParameters([receiveChannelTypeParamSymbol], for: receiveChannelAliasSymbol)
+            let receiveChannelTypeParamType = types.make(.typeParam(TypeParamType(
+                symbol: receiveChannelTypeParamSymbol,
+                nullability: .nonNull
+            )))
+            let receiveChannelUnderlyingType = types.make(.classType(ClassType(
+                classSymbol: channelSymbol,
+                args: [.invariant(receiveChannelTypeParamType)],
+                nullability: .nonNull
+            )))
+            symbols.setTypeAliasUnderlyingType(receiveChannelUnderlyingType, for: receiveChannelAliasSymbol)
+        }
 
         registerSyntheticObjectProperty(
             ownerSymbol: dispatchersSymbol,
@@ -2137,6 +2246,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-CORO-BUG-04: bare `isActive` reference (no explicit
+        // CoroutineScope receiver) inside a coroutine builder body, e.g.
+        // `launch { if (isActive) { ... } }`.
+        registerSyntheticCoroutineTopLevelProperty(
+            named: "isActive",
+            packageFQName: coroutinesPkg,
+            returnType: types.booleanType,
+            externalLinkName: "kk_coroutine_current_is_active",
+            symbols: symbols,
+            interner: interner
+        )
         // STDLIB-CORO-070: Job state properties
         registerSyntheticObjectProperty(
             ownerSymbol: jobSymbol,
@@ -2268,128 +2388,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let listAnyType: TypeID = if let listSymbol = symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]) {
-            types.make(.classType(ClassType(
-                classSymbol: listSymbol,
-                args: [.out(types.anyType)],
-                nullability: .nonNull
-            )))
-        } else {
-            types.anyType
-        }
-        registerSyntheticCoroutineConstructor(
-            ownerSymbol: mutableSharedFlowSymbol,
-            ownerType: mutableSharedFlowType,
-            externalLinkName: "kk_mutable_shared_flow_create",
-            parameters: [(name: "replay", type: types.intType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineConstructor(
-            ownerSymbol: mutableStateFlowSymbol,
-            ownerType: mutableStateFlowType,
-            externalLinkName: "kk_mutable_state_flow_create",
-            parameters: [(name: "initialValue", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "shareIn",
-            externalLinkName: "kk_flow_share_in",
-            returnType: sharedFlowRawType,
-            parameters: [(name: "replay", type: types.intType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "stateIn",
-            externalLinkName: "kk_flow_state_in",
-            returnType: stateFlowRawType,
-            parameters: [(name: "initialValue", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: sharedFlowSymbol,
-            ownerType: sharedFlowRawType,
-            name: "collect",
-            externalLinkName: "kk_shared_flow_collect",
-            returnType: types.unitType,
-            parameters: [(name: "collector", type: types.make(.functionType(FunctionType(
-                params: [types.anyType],
-                returnType: types.unitType,
-                isSuspend: false,
-                nullability: .nonNull
-            ))))],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: sharedFlowSymbol,
-            ownerType: sharedFlowRawType,
-            name: "replayCache",
-            propertyType: listAnyType,
-            externalLinkName: "kk_shared_flow_replay_cache",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: stateFlowSymbol,
-            ownerType: stateFlowRawType,
-            name: "value",
-            propertyType: types.anyType,
-            externalLinkName: "kk_state_flow_value",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutableSharedFlowSymbol,
-            ownerType: mutableSharedFlowType,
-            name: "emit",
-            externalLinkName: "kk_mutable_shared_flow_emit",
-            returnType: types.unitType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutableSharedFlowSymbol,
-            ownerType: mutableSharedFlowType,
-            name: "tryEmit",
-            externalLinkName: "kk_mutable_shared_flow_try_emit",
-            returnType: types.booleanType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutableStateFlowSymbol,
-            ownerType: mutableStateFlowType,
-            name: "emit",
-            externalLinkName: "kk_mutable_state_flow_emit",
-            returnType: types.unitType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutableStateFlowSymbol,
-            ownerType: mutableStateFlowType,
-            name: "tryEmit",
-            externalLinkName: "kk_mutable_state_flow_try_emit",
-            returnType: types.booleanType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-676: StateFlow / MutableStateFlow and Flow.stateIn are bundled
+        // Kotlin source (StateFlow.kt), so no synthetic constructor or member
+        // stubs are registered here.
         registerSyntheticCoroutineMember(
             ownerSymbol: channelSymbol,
             ownerType: channelType,
@@ -2409,73 +2410,39 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: channelSymbol,
-            ownerType: channelType,
-            name: "close",
-            externalLinkName: "kk_channel_close",
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-        // Channel.isClosedForReceive: Boolean (CORO-075)
-        registerSyntheticObjectProperty(
-            ownerSymbol: channelSymbol,
-            ownerType: channelType,
-            name: "isClosedForReceive",
-            propertyType: types.booleanType,
-            externalLinkName: "kk_channel_is_closed_for_receive",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-678: Channel.close / isClosedForSend / isClosedForReceive are now
+        // provided by bundled Kotlin source
+        // (Sources/CompilerCore/Stdlib/kotlin/coroutines/channels/Channels.kt),
+        // which bridges to the residual kk_channel_close /
+        // kk_channel_is_closed_for_send / kk_channel_is_closed_for_receive
+        // runtime entry points via @KsSymbolName. No synthetic stubs are
+        // registered for them here.
 
-        // Channel.isClosedForSend: Boolean (CORO-075)
-        registerSyntheticObjectProperty(
-            ownerSymbol: channelSymbol,
-            ownerType: channelType,
-            name: "isClosedForSend",
-            propertyType: types.booleanType,
-            externalLinkName: "kk_channel_is_closed_for_send",
-            symbols: symbols,
-            interner: interner
+        // KSP-1145: the public object and its six members are bundled Kotlin
+        // source. Keep the synthetic object only for configurations that do
+        // not inject/import that source.
+        let emptyCoroutineContextFQName = kotlinCoroutinesPkg + [interner.intern("EmptyCoroutineContext")]
+        let hasSourceBackedEmptyCoroutineContext = bundledIndex.contains(
+            ownerFQName: emptyCoroutineContextFQName,
+            name: interner.intern("fold"),
+            arity: 2
         )
-
-        // Channel.isClosedForReceive: Boolean (CORO-075)
-        registerSyntheticObjectProperty(
-            ownerSymbol: channelSymbol,
-            ownerType: channelType,
-            name: "isClosedForReceive",
-            propertyType: types.booleanType,
-            externalLinkName: "kk_channel_is_closed_for_receive",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Channel.isClosedForSend: Boolean (CORO-075)
-        registerSyntheticObjectProperty(
-            ownerSymbol: channelSymbol,
-            ownerType: channelType,
-            name: "isClosedForSend",
-            propertyType: types.booleanType,
-            externalLinkName: "kk_channel_is_closed_for_send",
-            symbols: symbols,
-            interner: interner
-        )
-
-        let emptyCoroutineContextSymbol = ensureSyntheticObjectSymbol(
-            named: "EmptyCoroutineContext",
-            in: kotlinCoroutinesPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let emptyCoroutineContextType = types.make(.classType(ClassType(
-            classSymbol: emptyCoroutineContextSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(emptyCoroutineContextType, for: emptyCoroutineContextSymbol)
-        symbols.setDirectSupertypes([kotlinCoroutineContextSymbol], for: emptyCoroutineContextSymbol)
-        types.setNominalDirectSupertypes([kotlinCoroutineContextSymbol], for: emptyCoroutineContextSymbol)
+        if !hasSourceBackedEmptyCoroutineContext {
+            let emptyCoroutineContextSymbol = ensureSyntheticObjectSymbol(
+                named: "EmptyCoroutineContext",
+                in: kotlinCoroutinesPkg,
+                symbols: symbols,
+                interner: interner
+            )
+            let emptyCoroutineContextType = types.make(.classType(ClassType(
+                classSymbol: emptyCoroutineContextSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            symbols.setPropertyType(emptyCoroutineContextType, for: emptyCoroutineContextSymbol)
+            symbols.setDirectSupertypes([kotlinCoroutineContextSymbol], for: emptyCoroutineContextSymbol)
+            types.setNominalDirectSupertypes([kotlinCoroutineContextSymbol], for: emptyCoroutineContextSymbol)
+        }
 
         // Mutex (kotlinx.coroutines.sync.Mutex)
         let syncPkg = ensureSyntheticCoroutinePackage(
@@ -2496,16 +2463,9 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(mutexType, for: mutexSymbol)
 
-        // Mutex() factory function
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "Mutex",
-            packageFQName: syncPkg,
-            parameters: [],
-            returnType: mutexType,
-            externalLinkName: "kk_mutex_create",
-            symbols: symbols,
-            interner: interner
-        )
+        // Mutex() factory is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_mutex_create bridge.
 
         // Mutex.lock() suspend
         registerSyntheticCoroutineMember(
@@ -2514,6 +2474,7 @@ extension DataFlowSemaPhase {
             name: "lock",
             externalLinkName: "kk_mutex_lock",
             returnType: types.unitType,
+            isSuspend: true,
             symbols: symbols,
             interner: interner
         )
@@ -2529,48 +2490,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Mutex.tryLock(): Boolean
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "tryLock",
-            externalLinkName: "kk_mutex_tryLock",
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
+        // Mutex.tryLock is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_mutex_tryLock bridge.
 
-        // Mutex.isLocked property
-        registerSyntheticObjectProperty(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "isLocked",
-            propertyType: types.booleanType,
-            externalLinkName: "kk_mutex_isLocked",
-            symbols: symbols,
-            interner: interner
-        )
+        // Mutex.isLocked is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_mutex_isLocked bridge.
 
-        // Mutex.withLock(action: () -> T): T
-        // Suspend-style helper that acquires the lock, runs action, then releases.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "withLock",
-            externalLinkName: "kk_mutex_withLock",
-            returnType: types.anyType,
-            parameters: [(
-                name: "action",
-                type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            )],
-            symbols: symbols,
-            interner: interner
-        )
+        // Mutex.withLock is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) as a suspend
+        // extension that composes lock()/unlock(); no synthetic stub remains.
 
         // Semaphore (kotlinx.coroutines.sync.Semaphore)
         let semaphoreSymbol = ensureInterfaceSymbol(
@@ -2586,16 +2516,9 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(semaphoreType, for: semaphoreSymbol)
 
-        // Semaphore(permits) factory function
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "Semaphore",
-            packageFQName: syncPkg,
-            parameters: [(name: "permits", type: types.intType)],
-            returnType: semaphoreType,
-            externalLinkName: "kk_semaphore_create",
-            symbols: symbols,
-            interner: interner
-        )
+        // Semaphore(permits) factory is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_semaphore_create bridge.
 
         // Semaphore.acquire() suspend
         registerSyntheticCoroutineMember(
@@ -2604,6 +2527,7 @@ extension DataFlowSemaPhase {
             name: "acquire",
             externalLinkName: "kk_semaphore_acquire",
             returnType: types.unitType,
+            isSuspend: true,
             symbols: symbols,
             interner: interner
         )
@@ -2619,48 +2543,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Semaphore.tryAcquire(): Boolean
-        registerSyntheticCoroutineMember(
-            ownerSymbol: semaphoreSymbol,
-            ownerType: semaphoreType,
-            name: "tryAcquire",
-            externalLinkName: "kk_semaphore_tryAcquire",
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
+        // Semaphore.tryAcquire is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_semaphore_tryAcquire bridge.
 
-        // Semaphore.availablePermits property
-        registerSyntheticObjectProperty(
-            ownerSymbol: semaphoreSymbol,
-            ownerType: semaphoreType,
-            name: "availablePermits",
-            propertyType: types.intType,
-            externalLinkName: "kk_semaphore_availablePermits",
-            symbols: symbols,
-            interner: interner
-        )
+        // Semaphore.availablePermits is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_semaphore_availablePermits bridge.
 
-        // Semaphore.withPermit(action: () -> T): T
-        // Suspend-style helper that acquires a permit, runs action, then releases it.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: semaphoreSymbol,
-            ownerType: semaphoreType,
-            name: "withPermit",
-            externalLinkName: "kk_semaphore_withPermit",
-            returnType: types.anyType,
-            parameters: [(
-                name: "action",
-                type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            )],
-            symbols: symbols,
-            interner: interner
-        )
+        // Semaphore.withPermit is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) as a suspend
+        // extension that composes acquire()/release(); no synthetic stub remains.
 
         registerSyntheticCoroutineExtensionFunction(
             named: "cancel",
@@ -2676,371 +2569,6 @@ extension DataFlowSemaPhase {
     }
 
 }
-// STDLIB-CORO-ABI-001: Synthetic stubs for AbstractCoroutineContextElement,
-// AbstractCoroutineContextKey, and supplementary CoroutineContext ABI members.
-//
-// kotlin.coroutines.CoroutineContext (interface) with get/fold/minusKey/plus,
-// nested Element (interface : CoroutineContext) + Key<E> (phantom-typed interface),
-// and the two abstract base classes that user-defined context elements extend:
-//
-//   abstract class AbstractCoroutineContextElement(val key: Key<*>) : CoroutineContext.Element
-//   abstract class AbstractCoroutineContextKey<B : Element, E : B>(
-//       baseKey: Key<B>, safeCast: (Element) -> E?)
-//       : Key<E>
-
-extension DataFlowSemaPhase {
-    func registerSyntheticCoroutinesABIStubs(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        // ── Package tree ────────────────────────────────────────────────────
-        let kotlinCoroutinesPkg = ensurePackage(
-            path: ["kotlin", "coroutines"],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // ── Resolve already-registered CoroutineContext & nested types ──────
-        let coroutineContextFQName = kotlinCoroutinesPkg + [interner.intern("CoroutineContext")]
-
-        let coroutineContextSymbol: SymbolID = if let existing = symbols.lookup(fqName: coroutineContextFQName) {
-            existing
-        } else {
-            ensureInterfaceSymbol(
-                named: "CoroutineContext",
-                in: kotlinCoroutinesPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        let coroutineContextType = types.make(.classType(ClassType(
-            classSymbol: coroutineContextSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        // Element (nested interface) ─────────────────────────────────────────
-        let elementFQName = coroutineContextFQName + [interner.intern("Element")]
-        let coroutineContextElementSymbol: SymbolID = if let existing = symbols.lookup(fqName: elementFQName) {
-            existing
-        } else {
-            ensureInterfaceSymbol(
-                named: "Element",
-                in: coroutineContextFQName,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        let coroutineContextElementType = types.make(.classType(ClassType(
-            classSymbol: coroutineContextElementSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
-        types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
-
-        // Key<E : Element> (nested interface) ────────────────────────────────
-        let keyFQName = coroutineContextFQName + [interner.intern("Key")]
-        let coroutineContextKeySymbol: SymbolID = if let existing = symbols.lookup(fqName: keyFQName) {
-            existing
-        } else {
-            ensureInterfaceSymbol(
-                named: "Key",
-                in: coroutineContextFQName,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // Resolve or create the Key type-parameter <E : Element>
-        let keyTypeParamName = interner.intern("E")
-        let keyTypeParamFQName = keyFQName + [interner.intern("$synthetic"), keyTypeParamName]
-        let keyTypeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: keyTypeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: keyTypeParamName,
-                fqName: keyTypeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(coroutineContextKeySymbol, for: keyTypeParamSymbol)
-        let keyTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: keyTypeParamSymbol,
-            nullability: .nonNull
-        )))
-        symbols.setTypeParameterUpperBounds([coroutineContextElementType], for: keyTypeParamSymbol)
-        types.setNominalTypeParameterSymbols([keyTypeParamSymbol], for: coroutineContextKeySymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: coroutineContextKeySymbol)
-        let coroutineContextKeyType = types.make(.classType(ClassType(
-            classSymbol: coroutineContextKeySymbol,
-            args: [.invariant(keyTypeParamType)],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(coroutineContextKeyType, for: coroutineContextKeySymbol)
-
-        // ── AbstractCoroutineContextElement ───────────────────────────────────
-        //
-        //   abstract class AbstractCoroutineContextElement(val key: Key<*>) : Element
-        //
-        let aceFQName = kotlinCoroutinesPkg + [interner.intern("AbstractCoroutineContextElement")]
-        let aceSymbol: SymbolID = if let existing = symbols.lookup(fqName: aceFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .class,
-                name: interner.intern("AbstractCoroutineContextElement"),
-                fqName: aceFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .abstractType]
-            )
-        }
-        let aceType = types.make(.classType(ClassType(
-            classSymbol: aceSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(aceType, for: aceSymbol)
-        symbols.setDirectSupertypes([coroutineContextElementSymbol], for: aceSymbol)
-        types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: aceSymbol)
-
-        // Primary constructor: AbstractCoroutineContextElement(key: Key<*>)
-        let aceCtorFQName = aceFQName + [interner.intern("<init>")]
-        if symbols.lookup(fqName: aceCtorFQName) == nil {
-            let ctorSymbol = symbols.define(
-                kind: .constructor,
-                name: interner.intern("<init>"),
-                fqName: aceCtorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(aceSymbol, for: ctorSymbol)
-            let keyStarType = types.make(.classType(ClassType(
-                classSymbol: coroutineContextKeySymbol,
-                args: [.star],
-                nullability: .nonNull
-            )))
-            let keyParamName = interner.intern("key")
-            let keyParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: keyParamName,
-                fqName: aceCtorFQName + [keyParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(ctorSymbol, for: keyParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: aceType,
-                    parameterTypes: [keyStarType],
-                    returnType: aceType,
-                    isSuspend: false,
-                    valueParameterSymbols: [keyParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: []
-                ),
-                for: ctorSymbol
-            )
-        }
-
-        // Synthetic `key` property on AbstractCoroutineContextElement
-        let aceKeyPropFQName = aceFQName + [interner.intern("key")]
-        if symbols.lookup(fqName: aceKeyPropFQName) == nil {
-            let keyPropSymbol = symbols.define(
-                kind: .property,
-                name: interner.intern("key"),
-                fqName: aceKeyPropFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(aceSymbol, for: keyPropSymbol)
-            let keyStarType = types.make(.classType(ClassType(
-                classSymbol: coroutineContextKeySymbol,
-                args: [.star],
-                nullability: .nonNull
-            )))
-            symbols.setPropertyType(keyStarType, for: keyPropSymbol)
-        }
-
-        // ── AbstractCoroutineContextKey<B : Element, E : B> ──────────────────
-        //
-        //   abstract class AbstractCoroutineContextKey<B : Element, E : B>(
-        //       baseKey: Key<B>,
-        //       safeCast: (Element) -> E?
-        //   ) : Key<E>
-        //
-        let ackFQName = kotlinCoroutinesPkg + [interner.intern("AbstractCoroutineContextKey")]
-        let ackSymbol: SymbolID = if let existing = symbols.lookup(fqName: ackFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .class,
-                name: interner.intern("AbstractCoroutineContextKey"),
-                fqName: ackFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .abstractType]
-            )
-        }
-
-        // Type parameters B : Element, E : B
-        let ackBName = interner.intern("B")
-        let ackBFQName = ackFQName + [interner.intern("$synthetic"), ackBName]
-        let ackBSymbol: SymbolID = if let existing = symbols.lookup(fqName: ackBFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: ackBName,
-                fqName: ackBFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ackSymbol, for: ackBSymbol)
-        symbols.setTypeParameterUpperBounds([coroutineContextElementType], for: ackBSymbol)
-        let ackBType = types.make(.typeParam(TypeParamType(symbol: ackBSymbol, nullability: .nonNull)))
-
-        let ackEName = interner.intern("E")
-        let ackEFQName = ackFQName + [interner.intern("$synthetic"), ackEName]
-        let ackESymbol: SymbolID = if let existing = symbols.lookup(fqName: ackEFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: ackEName,
-                fqName: ackEFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ackSymbol, for: ackESymbol)
-        symbols.setTypeParameterUpperBounds([ackBType], for: ackESymbol)
-        let ackEType = types.make(.typeParam(TypeParamType(symbol: ackESymbol, nullability: .nonNull)))
-
-        types.setNominalTypeParameterSymbols([ackBSymbol, ackESymbol], for: ackSymbol)
-        types.setNominalTypeParameterVariances([.invariant, .invariant], for: ackSymbol)
-
-        let ackType = types.make(.classType(ClassType(
-            classSymbol: ackSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(ackType, for: ackSymbol)
-        // AbstractCoroutineContextKey<B,E> : Key<E>
-        symbols.setDirectSupertypes([coroutineContextKeySymbol], for: ackSymbol)
-        types.setNominalDirectSupertypes([coroutineContextKeySymbol], for: ackSymbol)
-
-        // Primary constructor: AbstractCoroutineContextKey(baseKey: Key<B>, safeCast: (Element) -> E?)
-        let ackCtorFQName = ackFQName + [interner.intern("<init>")]
-        if symbols.lookup(fqName: ackCtorFQName) == nil {
-            let ctorSymbol = symbols.define(
-                kind: .constructor,
-                name: interner.intern("<init>"),
-                fqName: ackCtorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(ackSymbol, for: ctorSymbol)
-            let baseKeyType = types.make(.classType(ClassType(
-                classSymbol: coroutineContextKeySymbol,
-                args: [.invariant(ackBType)],
-                nullability: .nonNull
-            )))
-            let safeCastType = types.make(.functionType(FunctionType(
-                params: [coroutineContextElementType],
-                returnType: types.makeNullable(ackEType),
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let baseKeyParamName = interner.intern("baseKey")
-            let baseKeyParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: baseKeyParamName,
-                fqName: ackCtorFQName + [baseKeyParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            let safeCastParamName = interner.intern("safeCast")
-            let safeCastParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: safeCastParamName,
-                fqName: ackCtorFQName + [safeCastParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(ctorSymbol, for: baseKeyParamSymbol)
-            symbols.setParentSymbol(ctorSymbol, for: safeCastParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: ackType,
-                    parameterTypes: [baseKeyType, safeCastType],
-                    returnType: ackType,
-                    isSuspend: false,
-                    valueParameterSymbols: [baseKeyParamSymbol, safeCastParamSymbol],
-                    valueParameterHasDefaultValues: [false, false],
-                    valueParameterIsVararg: [false, false],
-                    typeParameterSymbols: [ackBSymbol, ackESymbol]
-                ),
-                for: ctorSymbol
-            )
-        }
-
-        // ── CoroutineContext.plus operator ────────────────────────────────────
-        //   operator fun CoroutineContext.plus(context: CoroutineContext): CoroutineContext
-        let plusFQName = coroutineContextFQName + [interner.intern("plus")]
-        if symbols.lookup(fqName: plusFQName) == nil {
-            let plusSymbol = symbols.define(
-                kind: .function,
-                name: interner.intern("plus"),
-                fqName: plusFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .operatorFunction]
-            )
-            symbols.setParentSymbol(coroutineContextSymbol, for: plusSymbol)
-            let contextParamName = interner.intern("context")
-            let contextParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: contextParamName,
-                fqName: plusFQName + [contextParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(plusSymbol, for: contextParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: coroutineContextType,
-                    parameterTypes: [coroutineContextType],
-                    returnType: coroutineContextType,
-                    isSuspend: false,
-                    valueParameterSymbols: [contextParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: []
-                ),
-                for: plusSymbol
-            )
-            symbols.setExternalLinkName("kk_context_plus", for: plusSymbol)
-        }
-    }
-}
-// jscpd:ignore-start
 /// `registerSyntheticCoroutineCancellationStubs` and the private
 /// helpers used by the synthetic Coroutine stub registration
 /// (top-level functions, extension functions, members, constructors,
@@ -3048,40 +2576,17 @@ extension DataFlowSemaPhase {
 ///
 /// Consolidated here with the coroutine package registry for RF-STUB-005.
 extension DataFlowSemaPhase {
+    // STDLIB-CORO-BUG-04: this used to also register a `Job.cancel()`
+    // extension function under kotlin.coroutines.cancellation, duplicating
+    // the member declared in registerSyntheticCoroutineStubs (same receiver,
+    // arity, and external link name) and making `job.cancel()` ambiguous.
+    // Removed; kept as a no-op since the SyntheticStubRegistryEntry bucket
+    // table references this function by name.
     func registerSyntheticCoroutineCancellationStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
-    ) {
-        let jobFQName: [InternedString] = [interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("Job")]
-        guard let jobSymbol = symbols.lookup(fqName: jobFQName) else {
-            return
-        }
-        let jobType = types.make(.classType(ClassType(
-            classSymbol: jobSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let cancellationPkg = ensureSyntheticCoroutinePackage(
-            ensurePackage(
-                path: ["kotlin", "coroutines", "cancellation"],
-                symbols: symbols,
-                interner: interner
-            ),
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticCoroutineExtensionFunction(
-            named: "cancel",
-            packageFQName: cancellationPkg,
-            receiverType: jobType,
-            externalLinkName: "kk_job_cancel",
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-    }
+    ) {}
 
     func registerSyntheticCoroutineTopLevelFunction(
         named name: String,
@@ -3395,6 +2900,7 @@ extension DataFlowSemaPhase {
         flags: SymbolFlags = [.synthetic],
         typeParameterSymbols: [SymbolID] = [],
         classTypeParameterCount: Int = 0,
+        isSuspend: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -3437,7 +2943,7 @@ extension DataFlowSemaPhase {
                 receiverType: ownerType,
                 parameterTypes: parameters.map(\.type),
                 returnType: returnType,
-                isSuspend: false,
+                isSuspend: isSuspend,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
                 valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
@@ -3605,131 +3111,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerSyntheticChannelFactoryBridge(
-        packageFQName: [InternedString],
-        channelSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern("Channel")
-        let functionFQName = packageFQName + [functionName]
-        guard symbols.lookup(fqName: functionFQName) == nil else {
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName("kk_channel_create", for: functionSymbol)
-
-        let typeParamName = interner.intern("T")
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: functionFQName + [interner.intern("$synthetic"), typeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: channelSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [],
-                returnType: returnType,
-                typeParameterSymbols: [typeParamSymbol]
-            ),
-            for: functionSymbol
-        )
-    }
-
-    /// Registers a synthetic `Channel(capacity: Int)` factory function that maps
-    /// to `kk_channel_create` for buffered channel construction.
-    func registerSyntheticChannelFactoryBridgeWithCapacity(
-        packageFQName: [InternedString],
-        channelSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern("Channel")
-        // Use a unique synthetic suffix to distinguish from the no-arg overload.
-        let overloadFQName = packageFQName + [interner.intern("Channel$capacity")]
-        guard symbols.lookup(fqName: overloadFQName) == nil else {
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: overloadFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName("kk_channel_create", for: functionSymbol)
-
-        let typeParamName = interner.intern("T")
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: overloadFQName + [interner.intern("$synthetic"), typeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: channelSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-        let capacityParamName = interner.intern("capacity")
-        let capacityParamSymbol = symbols.define(
-            kind: .valueParameter,
-            name: capacityParamName,
-            fqName: overloadFQName + [capacityParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(functionSymbol, for: capacityParamSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [types.intType],
-                returnType: returnType,
-                valueParameterSymbols: [capacityParamSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParamSymbol]
-            ),
-            for: functionSymbol
-        )
-    }
 
     func ensureSyntheticCoroutinePackage(
         _ fqName: [InternedString],
@@ -3765,14 +3146,22 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelProperty(
-            named: "COROUTINE_SUSPENDED",
-            packageFQName: intrinsicsPkg,
-            returnType: types.nullableAnyType,
-            externalLinkName: "kk_coroutine_suspended",
-            symbols: symbols,
-            interner: interner
+        let coroutineSuspendedName = interner.intern("COROUTINE_SUSPENDED")
+        let hasBundledCoroutineSuspended = BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: intrinsicsPkg,
+            name: coroutineSuspendedName,
+            arity: 0
         )
+        if !hasBundledCoroutineSuspended {
+            registerSyntheticCoroutineTopLevelProperty(
+                named: "COROUTINE_SUSPENDED",
+                packageFQName: intrinsicsPkg,
+                returnType: types.nullableAnyType,
+                externalLinkName: "kk_coroutine_suspended",
+                symbols: symbols,
+                interner: interner
+            )
+        }
     }
 
     func attachRestrictsSuspensionAnnotationMetadata(
@@ -3783,9 +3172,17 @@ extension DataFlowSemaPhase {
             annotationFQName: "kotlin.annotation.Target",
             arguments: ["AnnotationTarget.CLASS"]
         )
+        let retentionRecord = MetadataAnnotationRecord(
+            annotationFQName: "kotlin.annotation.Retention",
+            arguments: ["AnnotationRetention.BINARY"]
+        )
+        let sinceKotlinRecord = MetadataAnnotationRecord(
+            annotationFQName: "kotlin.SinceKotlin",
+            arguments: ["1.3"]
+        )
         var annotations = symbols.annotations(for: symbol)
-        if !annotations.contains(targetRecord) {
-            annotations.append(targetRecord)
+        for record in [targetRecord, retentionRecord, sinceKotlinRecord] where !annotations.contains(record) {
+            annotations.append(record)
         }
         symbols.setAnnotations(annotations, for: symbol)
     }

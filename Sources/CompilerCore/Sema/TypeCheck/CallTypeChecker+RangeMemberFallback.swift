@@ -1,6 +1,53 @@
 
+import Foundation
+
 extension CallTypeChecker {
-    // MARK: - IntRange member fallback (STDLIB-090/091/092/093)
+    // MARK: - Range member fallback (STDLIB-090/091/092/093)
+
+    /// IntRange/IntProgression members with bundled Kotlin source
+    /// implementations (KSP-453) — see `isIntRangeSourceBackedHOF`.
+    private static let intRangeSourceBackedHOFNames: Set<String> = [
+        "toList", "average", "sorted",
+        "forEach", "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "reduce", "reduceIndexed", "fold", "foldIndexed",
+        "find", "findLast",
+        "firstOrNull", "lastOrNull",
+        "any", "all", "none",
+        "chunked", "windowed",
+        "take", "drop",
+        "random", "randomOrNull",
+    ]
+
+    /// UIntRange/ULongRange members with bundled Kotlin source
+    /// implementations — see `isUnsignedRangeSourceBackedHOF`.
+    private static let unsignedRangeSourceBackedHOFNames: Set<String> = [
+        "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "forEach",
+        "reduce", "reduceIndexed", "fold", "foldIndexed",
+        "find", "findLast",
+        "firstOrNull", "lastOrNull",
+        "any", "all", "none",
+        "chunked", "windowed", "take", "drop",
+        "isEmpty", "toList", "count", "sum", "reversed",
+        "sorted",
+    ]
+
+    /// Members the legacy range fallback binds a result type for — see
+    /// `isSupportedRangeMember`.
+    private static let supportedRangeMemberNames: Set<String> = [
+        "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
+        "toList", "forEach", "map", "mapIndexed", "mapNotNull",
+        "filter", "filterIndexed", "filterNot",
+        "reduce", "reduceIndexed", "fold", "foldIndexed",
+        "find", "findLast", "firstOrNull", "lastOrNull", "randomOrNull",
+        "any", "all", "none",
+        "chunked", "windowed",
+        "reversed", "step", "sum",
+        "random",
+        "take", "drop", "sorted",
+    ]
 
     func tryRangeMemberFallback(
         _ id: ExprID,
@@ -14,14 +61,133 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
+        let memberName = interner.resolve(calleeName)
+        let isRangeIteratorMigrationMember = [
+            "iterator", "step", "take", "drop", "chunked", "windowed",
+        ].contains(memberName)
 
+        // An unqualified member call inside an extension body has no receiver
+        // expression to bind. Use the extension receiver carried by the type
+        // inference context in that case.
+        let receiverType = sema.bindings.exprType(for: receiverID) ?? ctx.implicitReceiverType
+        let isOpenEndRangeReceiver = receiverType.map {
+            driver.helpers.isOpenEndRangeType($0, sema: sema, interner: interner)
+        } ?? false
+
+        let isTypedUIntRangeReceiver: Bool = {
+            guard let receiverType,
+                  let receiverKind = MemberRuntimeDispatch.rangeReceiverKind(
+                      receiverExpr: receiverID,
+                      receiverType: receiverType,
+                      sema: sema,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return receiverKind == .uintRange || receiverKind == .uintProgression
+        }()
+        let isTypedULongProgressionReceiver: Bool = {
+            guard let receiverType,
+                  let receiverKind = MemberRuntimeDispatch.rangeReceiverKind(
+                      receiverExpr: receiverID,
+                      receiverType: receiverType,
+                      sema: sema,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return receiverKind == .ulongProgression
+        }()
+        let isTypedIntRangeReceiver: Bool = {
+            guard let receiverType,
+                  let receiverKind = MemberRuntimeDispatch.rangeReceiverKind(
+                      receiverExpr: receiverID,
+                      receiverType: receiverType,
+                      sema: sema,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return receiverKind == .intRange
+        }()
+        let isTypedLongRangeReceiver: Bool = {
+            guard let receiverType,
+                  let receiverKind = MemberRuntimeDispatch.rangeReceiverKind(
+                      receiverExpr: receiverID,
+                      receiverType: receiverType,
+                      sema: sema,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return receiverKind == .longRange
+        }()
+        let isTypedULongRangeReceiver: Bool = {
+            guard let receiverType,
+                  let receiverKind = MemberRuntimeDispatch.rangeReceiverKind(
+                      receiverExpr: receiverID,
+                      receiverType: receiverType,
+                      sema: sema,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return receiverKind == .ulongRange
+        }()
+        let isSyntacticRangeExpression = ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ctx.ast)
         guard !isClassNameReceiver,
-              sema.bindings.isRangeExpr(receiverID)
+              (sema.bindings.isRangeExpr(receiverID)
+                  || isOpenEndRangeReceiver
+                  || isSyntacticRangeExpression
+                  || (isTypedUIntRangeReceiver && isRangeIteratorMigrationMember)
+                  || (isTypedULongProgressionReceiver
+                      && (isRangeIteratorMigrationMember
+                          || isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count)))
+                  || (isTypedIntRangeReceiver
+                      && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
+                  || (isTypedLongRangeReceiver
+                      && isLongRangeSourceBackedHOF(memberName, argCount: args.count))
+                  || (isTypedULongRangeReceiver
+                      && (isRangeIteratorMigrationMember
+                          || isUnsignedRangeSourceBackedHOF(memberName, argCount: args.count))))
         else {
             return nil
         }
 
-        let memberName = interner.resolve(calleeName)
+        // Let normal overload resolution report invalid labels instead of
+        // accepting them through the legacy range fallback. The source-backed
+        // contains overloads all use Kotlin's `value` parameter name.
+        if (isTypedIntRangeReceiver || isTypedLongRangeReceiver || isTypedUIntRangeReceiver),
+           memberName == "contains",
+           args.contains(where: { argument in
+               guard let label = argument.label else { return false }
+               return interner.resolve(label) != "value"
+           })
+        {
+            return nil
+        }
+
+        // KSP-453: IntRange/IntProgression HOFs now have bundled Kotlin source
+        // implementations; prefer source-backed resolution instead of the legacy
+        // hardcoded range-member fallback.
+        if let sourceType = bindSourceRangeHOFCall(
+            id,
+            memberName: memberName,
+            calleeName: calleeName,
+            receiverID: receiverID,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+        ) {
+            return sourceType
+        }
+
         if sema.bindings.isFloatingPointRangeExpr(receiverID),
            let floatingPointResult = tryRangeMembershipFallback(
             memberName: memberName,
@@ -34,8 +200,19 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: floatingPointResult)
             return floatingPointResult
         }
-        if let receiverType = sema.bindings.exprType(for: receiverID),
-           driver.helpers.isOpenEndRangeType(receiverType, sema: sema, interner: interner),
+        if isOpenEndRangeReceiver,
+           let sourceType = bindSourceOpenEndRangeContainsCall(
+            id,
+            receiverID: receiverID,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+           )
+        {
+            return sourceType
+        }
+        if isOpenEndRangeReceiver,
            let openEndResult = tryRangeMembershipFallback(
             memberName: memberName,
             args: args,
@@ -53,7 +230,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        let receiverType = sema.bindings.exprType(for: receiverID)
         let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverID,
             receiverType: receiverType ?? sema.types.anyType,
@@ -77,7 +253,7 @@ extension CallTypeChecker {
         // bit-pattern reinterpretation and may produce incorrect iteration order
         // or comparison results. This is a known limitation; full ULong support
         // would require unsigned comparison helpers in the runtime.
-        // Only CharRange needs separate helpers (kk_char_range_*) due to box/unbox.
+        // Only CharRange needs separate helpers (__kk_char_range_*) due to box/unbox.
         let isUIntRange = rangeKind.isUIntRangeLike
         let isULongRange = rangeKind.isULongRangeLike
 
@@ -172,6 +348,87 @@ extension CallTypeChecker {
         return finalType
     }
 
+    private func bindSourceOpenEndRangeContainsCall(
+        _ id: ExprID,
+        receiverID: ExprID,
+        args: [CallArgument],
+        safeCall: Bool,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        guard args.count == 1 else { return nil }
+
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let receiverType = sema.bindings.exprType(for: receiverID) ?? ctx.implicitReceiverType,
+              let receiverElementType = driver.helpers.rangeLikeDeclaredElementType(
+                  for: receiverType,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+        let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+
+        let candidates = sema.symbols.lookupByShortName(interner.intern("contains")).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType,
+                  signature.parameterTypes.count == 1,
+                  signature.parameterTypes[0] == sema.types.makeNonNullable(argumentType),
+                  let declaredElementType = driver.helpers.rangeLikeDeclaredElementType(
+                      for: declaredReceiver,
+                      sema: sema,
+                      interner: interner
+                  ),
+                  declaredElementType == receiverElementType,
+                  driver.helpers.isOpenEndRangeType(
+                      declaredReceiver,
+                      sema: sema,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+
+        guard let chosen = candidates.first,
+              let signature = sema.symbols.functionSignature(for: chosen)
+        else {
+            return nil
+        }
+
+        _ = driver.inferExpr(
+            args[0].expr,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: signature.parameterTypes[0]
+        )
+        let returnType = bindCallAndResolveReturnType(
+            id,
+            chosen: chosen,
+            resolved: ResolvedCall(
+                chosenCallee: chosen,
+                substitutedTypeArguments: [:],
+                parameterMapping: [0: 0],
+                diagnostic: nil
+            ),
+            sema: sema
+        )
+        let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+        sema.bindings.bindExprType(id, type: finalType)
+        return finalType
+    }
+
     private func tryRangeMembershipFallback(
         memberName: String,
         args: [CallArgument],
@@ -192,25 +449,832 @@ extension CallTypeChecker {
         return safeCall ? ctx.sema.types.makeNullable(resultType) : resultType
     }
 
-    private func isSupportedRangeMember(_ memberName: String) -> Bool {
-        let rangeMembers: Set = [
-            "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
-            "toList", "toIntArray", "toLongArray", "toUIntArray", "toULongArray", "forEach", "map", "mapIndexed", "mapNotNull",
+    private func isIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        if memberName == "contains" {
+            return argCount == 1
+        }
+        if memberName == "first" || memberName == "last" {
+            return argCount == 0 || argCount == 1
+        }
+        return Self.intRangeSourceBackedHOFNames.contains(memberName)
+    }
+
+    private func isCharProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        guard argCount == 0 else { return false }
+        return memberName == "first"
+            || memberName == "firstOrNull"
+            || memberName == "last"
+            || memberName == "lastOrNull"
+    }
+
+    private func isLongProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        guard argCount == 0 else { return false }
+        return memberName == "first"
+            || memberName == "firstOrNull"
+            || memberName == "last"
+            || memberName == "lastOrNull"
+    }
+
+    private func isUnsignedProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        if memberName == "iterator" {
+            return argCount == 0
+        }
+        if memberName == "step" {
+            return argCount == 1
+        }
+        if memberName == "first" || memberName == "firstOrNull"
+            || memberName == "last" || memberName == "lastOrNull"
+        {
+            return memberName == "first" || memberName == "last"
+                ? argCount == 0
+                : argCount == 0 || argCount == 1
+        }
+        if memberName == "windowed" {
+            return (1...3).contains(argCount)
+        }
+        if ["isEmpty", "toList", "count", "sum", "reversed"].contains(memberName) {
+            return argCount == 0
+        }
+        guard argCount == 1 else { return false }
+        return [
+            "map", "mapIndexed", "mapNotNull",
             "filter", "filterIndexed", "filterNot",
-            "reduce", "reduceIndexed", "fold", "foldIndexed",
-            "find", "findLast", "firstOrNull", "lastOrNull", "randomOrNull",
-            "any", "all", "none",
-            "chunked", "windowed",
-            "reversed", "step", "sum",
-            "random",
-            "take", "drop", "average", "sorted",
+            "chunked", "take", "drop",
+            "contains", "isEmpty", "toList", "count", "sum", "reversed",
+        ].contains(memberName)
+    }
+
+    private func isLongRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        memberName == "contains" && argCount == 1
+    }
+
+    private func isLongRangeCrossTypeContains(
+        _ argumentTypes: [TypeID]?,
+        sema: SemaModule
+    ) -> Bool {
+        guard let argumentTypes, argumentTypes.count == 1 else {
+            return false
+        }
+        let argumentType = sema.types.makeNonNullable(argumentTypes[0])
+        return argumentType == sema.types.byteType
+            || argumentType == sema.types.intType
+            || argumentType == sema.types.shortType
+    }
+
+    private func isUnsignedRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        if memberName == "contains" {
+            return argCount == 1
+        }
+        if memberName == "iterator" {
+            return argCount == 0
+        }
+        if memberName == "step" {
+            return argCount == 1
+        }
+        if memberName == "first" || memberName == "last"
+            || memberName == "firstOrNull" || memberName == "lastOrNull"
+        {
+            return memberName == "first" || memberName == "last"
+                ? argCount > 0
+                : argCount == 0 || argCount == 1
+        }
+        if Self.unsignedRangeSourceBackedHOFNames.contains(memberName) {
+            if ["isEmpty", "toList", "count", "sum", "reversed", "sorted"].contains(memberName) {
+                return argCount == 0
+            }
+            if memberName == "fold" || memberName == "foldIndexed" {
+                return argCount == 2
+            }
+            return memberName == "windowed" ? (1...3).contains(argCount) : argCount == 1
+        }
+        return false
+    }
+
+    private func isULongRangeCrossTypeContains(
+        _ argumentTypes: [TypeID]?,
+        sema: SemaModule
+    ) -> Bool {
+        guard let argumentTypes, argumentTypes.count == 1 else {
+            return false
+        }
+        let argumentType = sema.types.makeNonNullable(argumentTypes[0])
+        return argumentType == sema.types.ubyteType
+            || argumentType == sema.types.uintType
+            || argumentType == sema.types.ushortType
+    }
+
+    /// Returns true for a bare signed integer literal that Kotlin can
+    /// contextualize to a range element type. Unary +/- is kept in the same
+    /// category because the parser represents it as a wrapper expression.
+    func isContextualizableIntegerLiteral(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let expr = ast.arena.expr(exprID) else { return false }
+        switch expr {
+        case .intLiteral:
+            return true
+        case let .unaryExpr(op, operand, _):
+            guard op == .unaryPlus || op == .unaryMinus else { return false }
+            if case .intLiteral = ast.arena.expr(operand) {
+                return true
+            }
+            return false
+        default:
+            return false
+        }
+    }
+
+    /// Kotlin contextualizes a suffixed unsigned literal to ULong when the
+    /// ULongRange.contains(ULong) member is the applicable overload. Keep the
+    /// literal form distinguishable from an explicitly typed UInt so the
+    /// source-backed UInt bridge cannot steal member priority.
+    func isContextualizableUnsignedIntegerLiteral(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let expr = ast.arena.expr(exprID) else { return false }
+        if case .uintLiteral = expr {
+            return true
+        }
+        return false
+    }
+
+    func longRangeContainsMemberSymbol(
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let containsName = interner.intern("contains")
+        let longRangeFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern("LongRange"),
         ]
-        return rangeMembers.contains(memberName)
+        let matches: (SymbolID) -> Bool = { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  sema.types.makeNonNullable(signature.parameterTypes[0]) == sema.types.longType,
+                  let declaredReceiver = signature.receiverType,
+                  let receiverSymbol = self.driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(declaredReceiver),
+                      types: sema.types
+                  ),
+                  let receiverInfo = sema.symbols.symbol(receiverSymbol)
+            else {
+                return false
+            }
+            return receiverInfo.fqName == longRangeFQName
+        }
+
+        let candidates = driver.helpers.collectMemberFunctionCandidates(
+            named: containsName,
+            receiverType: sema.types.makeNonNullable(receiverType),
+            sema: sema,
+            interner: interner
+        )
+        if let candidate = candidates.first(where: matches) {
+            return candidate
+        }
+        return sema.symbols.lookupAll(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            containsName,
+        ]).first(where: matches)
+    }
+
+    func ulongRangeContainsMemberSymbol(
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let containsName = interner.intern("contains")
+        let ulongRangeFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern("ULongRange"),
+        ]
+        let matches: (SymbolID) -> Bool = { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  sema.types.makeNonNullable(signature.parameterTypes[0]) == sema.types.ulongType,
+                  let declaredReceiver = signature.receiverType,
+                  let receiverSymbol = self.driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(declaredReceiver),
+                      types: sema.types
+                  ),
+                  let receiverInfo = sema.symbols.symbol(receiverSymbol)
+            else {
+                return false
+            }
+            return receiverInfo.fqName == ulongRangeFQName
+        }
+
+        let candidates = driver.helpers.collectMemberFunctionCandidates(
+            named: containsName,
+            receiverType: sema.types.makeNonNullable(receiverType),
+            sema: sema,
+            interner: interner
+        )
+        if let candidate = candidates.first(where: matches) {
+            return candidate
+        }
+        return sema.symbols.lookupAll(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            containsName,
+        ]).first(where: matches)
+    }
+
+    func bindSourceRangeHOFCall(
+        _ id: ExprID,
+        memberName: String,
+        calleeName: InternedString,
+        receiverID: ExprID,
+        args: [CallArgument],
+        safeCall: Bool,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let receiverType = sema.bindings.exprType(for: receiverID),
+              let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
+                  receiverExpr: receiverID,
+                  receiverType: receiverType,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+
+        let argumentTypesForSourceLookup: [TypeID]? = if memberName == "contains" {
+            args.map { argument in
+                if rangeKind == .longRange,
+                   isContextualizableIntegerLiteral(argument.expr, ast: ctx.ast)
+                {
+                    // Kotlin gives an unsuffixed literal the Long context of
+                    // LongRange.contains(Long), even when an Int extension is
+                    // also visible at the call site.
+                    return driver.inferExpr(
+                        argument.expr,
+                        ctx: ctx,
+                        locals: &locals,
+                        expectedType: sema.types.longType
+                    )
+                }
+                if rangeKind == .ulongRange,
+                   isContextualizableUnsignedIntegerLiteral(argument.expr, ast: ctx.ast)
+                {
+                    return driver.inferExpr(
+                        argument.expr,
+                        ctx: ctx,
+                        locals: &locals,
+                        expectedType: sema.types.ulongType
+                    )
+                }
+                return driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            }
+        } else {
+            nil
+        }
+        let argumentLabelsForSourceLookup: [InternedString?]? = if memberName == "contains" {
+            args.map(\.label)
+        } else {
+            nil
+        }
+
+        let isSourceBackedRangeCall =
+            ((rangeKind == .intRange || rangeKind == .intProgression)
+                && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
+            || (rangeKind == .uintRange
+                && isUnsignedRangeSourceBackedHOF(memberName, argCount: args.count))
+            || ((rangeKind == .uintProgression || rangeKind == .ulongProgression)
+                && isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count))
+            || (rangeKind == .charProgression
+                && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
+            || (rangeKind == .longProgression
+                && isLongProgressionSourceBackedHOF(memberName, argCount: args.count))
+            || (rangeKind == .longRange
+                && isLongRangeSourceBackedHOF(memberName, argCount: args.count)
+                && isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema))
+            || (rangeKind == .ulongRange
+                && isUnsignedRangeSourceBackedHOF(memberName, argCount: args.count)
+                && (memberName != "contains"
+                    || isULongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)))
+            || ((memberName == "random" || memberName == "randomOrNull")
+                && (rangeKind == .longRange || rangeKind == .charRange
+                    || rangeKind == .uintRange || rangeKind == .ulongRange))
+
+        let sourceLookupReceiverType = sourceLevelRangeMemberLookupType(
+            receiverExpr: receiverID,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ) ?? receiverType
+        if rangeKind == .longRange,
+           memberName == "contains",
+           argumentTypesForSourceLookup?.count == 1,
+           argumentTypesForSourceLookup?[0] == sema.types.longType,
+           let member = longRangeContainsMemberSymbol(
+               receiverType: sourceLookupReceiverType,
+               sema: sema,
+               interner: interner
+           ),
+           let signature = sema.symbols.functionSignature(for: member)
+        {
+            for (index, argument) in args.enumerated() {
+                let expectedType = index < signature.parameterTypes.count
+                    ? signature.parameterTypes[index]
+                    : nil
+                _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            }
+            let resolved = ResolvedCall(
+                chosenCallee: member,
+                substitutedTypeArguments: [:],
+                parameterMapping: [0: 0],
+                diagnostic: nil
+            )
+            let returnType = bindCallAndResolveReturnType(id, chosen: member, resolved: resolved, sema: sema)
+            let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
+        if rangeKind == .ulongRange,
+           memberName == "contains",
+           argumentTypesForSourceLookup?.count == 1,
+           argumentTypesForSourceLookup?[0] == sema.types.ulongType,
+           let member = ulongRangeContainsMemberSymbol(
+               receiverType: sourceLookupReceiverType,
+               sema: sema,
+               interner: interner
+           ),
+           let signature = sema.symbols.functionSignature(for: member)
+        {
+            for (index, argument) in args.enumerated() {
+                let expectedType = index < signature.parameterTypes.count
+                    ? signature.parameterTypes[index]
+                    : nil
+                _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            }
+            let resolved = ResolvedCall(
+                chosenCallee: member,
+                substitutedTypeArguments: [:],
+                parameterMapping: [0: 0],
+                diagnostic: nil
+            )
+            let returnType = bindCallAndResolveReturnType(id, chosen: member, resolved: resolved, sema: sema)
+            let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
+        let isLongRangeLiteralArgument = rangeKind == .longRange
+            && args.count == 1
+            && args.first.map { argument in
+                isContextualizableIntegerLiteral(argument.expr, ast: ctx.ast)
+            } == true
+        let isULongUnsignedLiteralArgument = rangeKind == .ulongRange
+            && args.count == 1
+            && args.first.map { argument in
+                isContextualizableUnsignedIntegerLiteral(argument.expr, ast: ctx.ast)
+            } == true
+        let scopedRangeUserCandidates: [SymbolID] = if memberName == "contains", rangeKind == .intRange {
+            collectScopedRangeUserExtensionCandidates(
+                named: calleeName,
+                receiverType: sourceLookupReceiverType,
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ).filter {
+                isIntRangeCrossTypeContainsCandidate($0, sema: sema)
+            }
+        } else if memberName == "contains", rangeKind == .uintRange {
+            collectScopedRangeUserExtensionCandidates(
+                named: calleeName,
+                receiverType: sourceLookupReceiverType,
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ).filter {
+                isUIntRangeCrossTypeContainsCandidate($0, sema: sema)
+            }
+        } else if memberName == "contains",
+                  rangeKind == .longRange,
+                  !isLongRangeLiteralArgument
+        {
+            collectScopedRangeUserExtensionCandidates(
+                named: calleeName,
+                receiverType: sourceLookupReceiverType,
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ).filter { candidate in
+                guard args.count == 1,
+                      argumentTypesForSourceLookup?.count == 1,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1,
+                      signature.parameterTypes[0] == argumentTypesForSourceLookup?[0],
+                      isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)
+                else {
+                    return false
+                }
+                guard let label = args[0].label else { return true }
+                guard signature.valueParameterSymbols.count == 1,
+                      let parameter = sema.symbols.symbol(signature.valueParameterSymbols[0])
+                else {
+                    return false
+                }
+                return parameter.name == label
+            }
+        } else if memberName == "contains",
+                  rangeKind == .ulongRange,
+                  !isULongUnsignedLiteralArgument
+        {
+            collectScopedRangeUserExtensionCandidates(
+                named: calleeName,
+                receiverType: sourceLookupReceiverType,
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ).filter { candidate in
+                guard args.count == 1,
+                      argumentTypesForSourceLookup?.count == 1,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1,
+                      signature.parameterTypes[0] == argumentTypesForSourceLookup?[0],
+                      [sema.types.ubyteType, sema.types.uintType, sema.types.ushortType]
+                          .contains(signature.parameterTypes[0])
+                else {
+                    return false
+                }
+                guard let label = args[0].label else { return true }
+                guard signature.valueParameterSymbols.count == 1,
+                      let parameter = sema.symbols.symbol(signature.valueParameterSymbols[0])
+                else {
+                    return false
+                }
+                return parameter.name == label
+            }
+        } else {
+            []
+        }
+        if ((rangeKind == .longRange && !isLongRangeLiteralArgument)
+                || (rangeKind == .ulongRange && !isULongUnsignedLiteralArgument)),
+           let argumentTypesForSourceLookup,
+           !scopedRangeUserCandidates.isEmpty
+        {
+            let callArgs = zip(args, argumentTypesForSourceLookup).map { argument, type in
+                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            }
+            guard let callRange = ctx.ast.arena.exprRange(id) ?? ctx.ast.arena.exprRange(receiverID) else {
+                return nil
+            }
+            let resolved = ctx.resolver.resolveCall(
+                candidates: scopedRangeUserCandidates,
+                call: CallExpr(
+                    range: callRange,
+                    calleeName: calleeName,
+                    args: callArgs
+                ),
+                expectedType: nil,
+                implicitReceiverType: sourceLookupReceiverType,
+                ctx: ctx.sema
+            )
+            guard let chosen = resolved.chosenCallee,
+                  let signature = sema.symbols.functionSignature(for: chosen)
+            else {
+                return nil
+            }
+            for (index, argument) in args.enumerated() {
+                let parameterIndex = resolved.parameterMapping[index] ?? index
+                let expectedType = parameterIndex < signature.parameterTypes.count
+                    ? signature.parameterTypes[parameterIndex]
+                    : nil
+                _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            }
+            let returnType = bindCallAndResolveReturnType(
+                id,
+                chosen: chosen,
+                resolved: resolved,
+                sema: sema
+            )
+            let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
+        guard isSourceBackedRangeCall,
+              let sourceSymbol = sourceRangeHOFSymbol(
+                  memberName: memberName,
+                  rangeKind: rangeKind,
+                  argCount: args.count,
+                  argumentTypes: argumentTypesForSourceLookup,
+                  argumentLabels: argumentLabelsForSourceLookup,
+                  preferredCandidates: Set(scopedRangeUserCandidates),
+                  sema: sema,
+                  interner: interner
+              ),
+              let signature = sema.symbols.functionSignature(for: sourceSymbol)
+        else {
+            return nil
+        }
+
+        let lambdaExpectation = rangeMemberLambdaExpectation(
+            memberName: memberName,
+            argCount: args.count,
+            sema: sema,
+            isCharRange: rangeKind.isCharRangeLike,
+            isLongRange: rangeKind.isLongRangeLike,
+            isUIntRange: rangeKind.isUIntRangeLike,
+            isULongRange: rangeKind.isULongRangeLike
+        )
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var rConcrete: TypeID?
+
+        for (index, arg) in args.enumerated() {
+            let isLambda = ctx.ast.arena.expr(arg.expr)?.isLambdaOrCallableRef == true
+            if isLambda {
+                let expectedType: TypeID
+                if (memberName == "fold" || memberName == "foldIndexed"), index == 1, let rConcrete,
+                   let baseExpected = lambdaExpectation?.expectedType,
+                   case let .functionType(fnType) = sema.types.kind(of: baseExpected) {
+                    let params: [TypeID]
+                    if memberName == "fold" {
+                        params = [rConcrete] + Array(fnType.params.dropFirst())
+                    } else {
+                        var mutableParams = fnType.params
+                        if mutableParams.count >= 2 {
+                            mutableParams[1] = rConcrete
+                        }
+                        params = mutableParams
+                    }
+                    expectedType = sema.types.make(.functionType(FunctionType(
+                        params: params,
+                        returnType: rConcrete
+                    )))
+                } else if let baseExpected = lambdaExpectation?.expectedType {
+                    expectedType = baseExpected
+                } else {
+                    expectedType = sema.types.anyType
+                }
+
+                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+                if ctx.ast.arena.expr(arg.expr)?.isLambdaOrCallableRef == true {
+                    sema.bindings.markCollectionHOFLambdaExpr(arg.expr)
+                }
+
+                if rConcrete == nil,
+                   let lambdaExpr = ctx.ast.arena.expr(arg.expr),
+                   case let .lambdaLiteral(_, bodyExpr, _, _) = lambdaExpr {
+                    let bodyType = sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType
+                    switch memberName {
+                    case "map", "mapIndexed":
+                        rConcrete = bodyType
+                    case "mapNotNull":
+                        rConcrete = sema.types.makeNonNullable(bodyType)
+                    default:
+                        break
+                    }
+                }
+            } else {
+                let expectedType: TypeID?
+                if memberName == "fold" || memberName == "foldIndexed" {
+                    expectedType = nil
+                } else if memberName == "windowed" {
+                    expectedType = (index == 1 ? sema.types.intType : (index == 2 ? sema.types.booleanType : nil))
+                } else if memberName == "chunked" || memberName == "take" || memberName == "drop" {
+                    expectedType = sema.types.intType
+                } else {
+                    expectedType = nil
+                }
+
+                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+                if (memberName == "fold" || memberName == "foldIndexed"), index == 0, rConcrete == nil {
+                    rConcrete = sema.bindings.exprType(for: arg.expr) ?? sema.types.anyType
+                }
+            }
+        }
+
+        let concreteR = rConcrete ?? sema.types.anyType
+        var substitutions: [TypeVarID: TypeID] = [:]
+        for (_, typeVar) in typeVarBySymbol {
+            substitutions[typeVar] = concreteR
+        }
+
+        var parameterMapping: [Int: Int] = [:]
+        for index in args.indices {
+            parameterMapping[index] = index
+        }
+
+        let resolved = ResolvedCall(
+            chosenCallee: sourceSymbol,
+            substitutedTypeArguments: substitutions,
+            parameterMapping: parameterMapping,
+            diagnostic: nil
+        )
+
+        let returnType = bindCallAndResolveReturnType(id, chosen: sourceSymbol, resolved: resolved, sema: sema)
+        if isRangeMemberReturningCollection(memberName) {
+            sema.bindings.markCollectionExpr(id)
+        }
+        let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+        sema.bindings.bindExprType(id, type: finalType)
+        return finalType
+    }
+
+    func hasIntRangeSourceBackedContainsCandidate(
+        receiverType: TypeID,
+        argumentType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        collectRangeSourceExtensionCandidates(
+            named: interner.intern("contains"),
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ).contains { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1
+            else {
+                return false
+            }
+            return signature.parameterTypes[0] == argumentType
+        }
+    }
+
+    func isIntRangeCrossTypeContainsCandidate(_ candidate: SymbolID, sema: SemaModule) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: candidate),
+              signature.parameterTypes.count == 1
+        else {
+            return false
+        }
+        return [sema.types.byteType, sema.types.longType, sema.types.shortType]
+            .contains(signature.parameterTypes[0])
+    }
+
+    func hasUIntRangeSourceBackedContainsCandidate(
+        receiverType: TypeID,
+        argumentType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        collectRangeSourceExtensionCandidates(
+            named: interner.intern("contains"),
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ).contains { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1
+            else {
+                return false
+            }
+            return signature.parameterTypes[0] == argumentType
+        }
+    }
+
+    func isUIntRangeCrossTypeContainsCandidate(_ candidate: SymbolID, sema: SemaModule) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: candidate),
+              signature.parameterTypes.count == 1
+        else {
+            return false
+        }
+        return [sema.types.ubyteType, sema.types.ulongType, sema.types.ushortType]
+            .contains(signature.parameterTypes[0])
+    }
+
+    func sourceRangeHOFSymbol(
+        memberName: String,
+        rangeKind: MemberDispatchReceiverKind,
+        argCount: Int,
+        argumentTypes: [TypeID]? = nil,
+        argumentLabels: [InternedString?]? = nil,
+        preferredCandidates: Set<SymbolID> = [],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let expectedReceiverFQ = expectedRangeClassFQ(rangeKind: rangeKind, interner: interner) else {
+            return nil
+        }
+
+        let candidates = sema.symbols.lookupByShortName(interner.intern(memberName)).filter { candidate in
+            guard let symbolInfo = sema.symbols.symbol(candidate),
+                  symbolInfo.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+
+            guard argCount <= signature.parameterTypes.count else { return false }
+            if let argumentTypes {
+                guard argumentTypes.count == signature.parameterTypes.count,
+                      zip(argumentTypes, signature.parameterTypes).allSatisfy({ $0 == $1 })
+                else {
+                    return false
+                }
+            }
+            if let argumentLabels {
+                guard argumentLabels.count == signature.parameterTypes.count,
+                      argumentLabels.indices.allSatisfy({ index in
+                          guard let label = argumentLabels[index] else { return true }
+                          guard index < signature.valueParameterSymbols.count,
+                                let parameter = sema.symbols.symbol(signature.valueParameterSymbols[index])
+                          else {
+                              return false
+                          }
+                          return parameter.name == label
+                      })
+                else {
+                    return false
+                }
+            }
+            for missingIndex in argCount..<signature.parameterTypes.count {
+                guard missingIndex < signature.valueParameterHasDefaultValues.count,
+                      signature.valueParameterHasDefaultValues[missingIndex]
+                else {
+                    return false
+                }
+            }
+
+            let declaredNonNull = sema.types.makeNonNullable(declaredReceiver)
+            guard case let .classType(classType) = sema.types.kind(of: declaredNonNull),
+                  let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return false
+            }
+
+            return receiverSymbol.fqName == expectedReceiverFQ
+        }
+
+        func hasLink(_ candidate: SymbolID) -> Bool {
+            guard let linkName = sema.symbols.externalLinkName(for: candidate) else { return false }
+            return !linkName.isEmpty
+        }
+
+        if let preferred = candidates.first(where: { preferredCandidates.contains($0) }) {
+            return preferred
+        }
+        return candidates.first { hasLink($0) } ?? candidates.first
+    }
+
+    private func expectedRangeClassFQ(
+        rangeKind: MemberDispatchReceiverKind,
+        interner: StringInterner
+    ) -> [InternedString]? {
+        let kotlin = interner.intern("kotlin")
+        let ranges = interner.intern("ranges")
+        switch rangeKind {
+        case .intRange:
+            return [kotlin, ranges, interner.intern("IntRange")]
+        case .intProgression:
+            return [kotlin, ranges, interner.intern("IntProgression")]
+        case .longProgression:
+            return [kotlin, ranges, interner.intern("LongProgression")]
+        case .ulongProgression:
+            return [kotlin, ranges, interner.intern("ULongProgression")]
+        case .charProgression:
+            return [kotlin, ranges, interner.intern("CharProgression")]
+        case .longRange:
+            return [kotlin, ranges, interner.intern("LongRange")]
+        case .charRange:
+            return [kotlin, ranges, interner.intern("CharRange")]
+        case .uintRange:
+            return [kotlin, ranges, interner.intern("UIntRange")]
+        case .uintProgression:
+            return [kotlin, ranges, interner.intern("UIntProgression")]
+        case .ulongRange:
+            return [kotlin, ranges, interner.intern("ULongRange")]
+        default:
+            return nil
+        }
+    }
+
+    private func isSupportedRangeMember(_ memberName: String) -> Bool {
+        // KSP-1523: `average`/`toUIntArray` were removed from this legacy
+        // allowlist — neither is a real UIntRange member in Kotlin
+        // (confirmed via diff_kotlinc.sh), and this fallback only binds a
+        // result *type* (see `rangeMemberResultType` below), never a callee
+        // symbol. With no bundled RangeHOF.kt declaration or Sema synthetic
+        // registration to resolve the actual call, keeping these names here
+        // let `(1u..5u).average()` type-check successfully and fall all the
+        // way through to a bare, unresolved `average` callee at link time
+        // (`Undefined symbols ... "_average"`) instead of being rejected at
+        // Sema, the way real kotlinc rejects it. `IntRange`/`LongRange`'s
+        // `average()` — genuine Kotlin members — do not depend on this
+        // allowlist entry: they resolve earlier via `bindSourceRangeHOFCall`
+        // (bundled Kotlin source); verified by probe that both still
+        // type-check and produce correct results with `average` absent from
+        // this set. `ULongRange.average()` also still compiles with `average`
+        // removed from this set, but only via its own, unrelated Sema
+        // KSP-1524 applies the same rejection rule to ULongRange.average().
+        // `toUIntArray` was never valid for any other range type's receiver,
+        // and neither are `toIntArray`/`toLongArray`/`toULongArray` for their
+        // signed/ULong counterparts (BUG-259/KSP-1524) -- none of the four
+        // belong in this allowlist.
+        return Self.supportedRangeMemberNames.contains(memberName)
     }
 
     private func isValidRangeMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "count", "start", "end", "endInclusive", "endExclusive", "toList", "toIntArray", "toLongArray", "toUIntArray", "toULongArray", "reversed", "sum", "average", "sorted":
+        case "count", "start", "end", "endInclusive", "endExclusive", "toList", "reversed", "sum", "sorted":
             argCount == 0
         case "random":
             argCount == 0 || argCount == 1
@@ -232,7 +1296,7 @@ extension CallTypeChecker {
         case "chunked":
             argCount == 1
         case "windowed":
-            argCount == 3
+            (1...3).contains(argCount)
         default:
             true
         }
@@ -301,14 +1365,6 @@ extension CallTypeChecker {
             return sema.types.unitType
         case "toList":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "toIntArray":
-            return rangeMemberIntArrayType(sema: sema, interner: interner)
-        case "toLongArray":
-            return rangeMemberLongArrayType(sema: sema, interner: interner)
-        case "toUIntArray":
-            return rangeMemberUIntArrayType(sema: sema, interner: interner)
-        case "toULongArray":
-            return rangeMemberULongArrayType(sema: sema, interner: interner)
         case "filter", "filterIndexed", "filterNot":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
         case "map":
@@ -327,8 +1383,6 @@ extension CallTypeChecker {
             )
         case "take", "drop", "sorted":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "average":
-            return sema.types.doubleType
         case "reversed":
             return rangeMemberRangeType(
                 receiverType: receiverType,
@@ -337,7 +1391,8 @@ extension CallTypeChecker {
                 interner: interner,
                 isLongRange: isLongRange,
                 isUIntRange: isUIntRange,
-                isULongRange: isULongRange
+                isULongRange: isULongRange,
+                isReversed: true
             )
         case "step":
             return argCount == 0 ? sema.types.intType : rangeMemberRangeType(
@@ -393,62 +1448,6 @@ extension CallTypeChecker {
         )))
     }
 
-    private func rangeMemberIntArrayType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let intArraySymbol = sema.symbols.lookupByShortName(interner.intern("IntArray")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: intArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    private func rangeMemberLongArrayType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let longArraySymbol = sema.symbols.lookupByShortName(interner.intern("LongArray")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: longArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    private func rangeMemberUIntArrayType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let uintArraySymbol = sema.symbols.lookupByShortName(interner.intern("UIntArray")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: uintArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    private func rangeMemberULongArrayType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let ulongArraySymbol = sema.symbols.lookupByShortName(interner.intern("ULongArray")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: ulongArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
     private func rangeMemberRangeType(
         receiverType: TypeID?,
         elementType: TypeID,
@@ -456,8 +1455,29 @@ extension CallTypeChecker {
         interner: StringInterner,
         isLongRange: Bool,
         isUIntRange: Bool,
-        isULongRange: Bool
+        isULongRange: Bool,
+        isReversed: Bool = false
     ) -> TypeID {
+        if isReversed,
+           elementType == sema.types.intType,
+           !isLongRange,
+           !isUIntRange,
+           !isULongRange
+        {
+            let intProgressionFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern("IntProgression"),
+            ]
+            if let intProgressionSymbol = sema.symbols.lookup(fqName: intProgressionFQName) {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: intProgressionSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            }
+        }
+
         if let receiverType,
            case .classType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
         {

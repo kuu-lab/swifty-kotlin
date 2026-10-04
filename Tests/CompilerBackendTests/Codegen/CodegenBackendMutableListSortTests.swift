@@ -1,0 +1,28 @@
+@testable import CompilerCore
+@testable import CompilerBackend
+import Foundation
+
+#if canImport(Testing)
+import Testing
+
+@Suite(.serialized)
+struct CodegenBackendMutableListSortTests {
+    @Test
+    func testCodegenMutableListSortMutatesPrimitiveAndObjectListsInPlace() throws {
+        let source = """
+        fun main() {
+            val ints = mutableListOf(5, 3, 8, 1, 4)
+            ints.sort()
+            println(ints)
+
+            val strings = mutableListOf("b", "a", "c")
+            strings.sort()
+            println(strings)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "MutableListSortRuntime", expected: "[1, 3, 4, 5, 8]\n[a, b, c]\n")
+    }
+
+}
+#endif

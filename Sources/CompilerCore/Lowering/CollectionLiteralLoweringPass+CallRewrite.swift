@@ -1,40 +1,26 @@
 extension CollectionLiteralConstructionLoweringPass {
-    private func shouldPreserveSourceBackedAggregateCall(
+    /// Keep resolved source declarations on the original call path unless the
+    /// receiver is a confirmed runtime Sequence box. Runtime-specific
+    /// collection intrinsics are emitted under their `kk_*` callee before this
+    /// gate and therefore do not need an API-name exception here.
+    private func shouldPreserveSourceBackedCall(
         symbol: SymbolID?,
-        callee: InternedString,
-        lookup: CollectionLiteralLookupTables,
+        arguments: [KIRExprID],
+        module: KIRModule,
+        state: CollectionRewriteState,
         ctx: KIRContext
     ) -> Bool {
-        guard callee == lookup.foldName
-            || callee == lookup.foldRightName
-            || callee == lookup.reduceName
-            || callee == lookup.reduceOrNullName
-            || callee == lookup.scanName
-            || callee == lookup.runningFoldName
-            || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.filterNotNullName
-            || callee == lookup.filterIndexedName
-            || callee == lookup.associateName
-            || callee == lookup.associateByName
-            || callee == lookup.groupByName
-            || callee == lookup.sumOfName
-            || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName
-            // STDLIB-pipeline §5: take/drop have real require() validation in
-            // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. A resolved call
-            // to that source declaration must not be short-circuited to the
-            // unchecked kk_sequence_take/drop runtime bridge.
-            || callee == lookup.takeName
-            || callee == lookup.dropName,
-            let symbol,
-            let sema = ctx.sema,
-            let semanticSymbol = sema.symbols.symbol(symbol),
-            semanticSymbol.declSite != nil
-        else {
-            return false
-        }
-        return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        sourceBackedPreservation.preserves(
+            resolution: SourceBackedCalleeResolution(symbol: symbol, sema: ctx.sema),
+            sequenceRuntimeRepresentation: sequenceRuntimeRepresentationForCall(
+                symbol: symbol,
+                receiver: arguments.first,
+                state: state,
+                module: module,
+                sema: ctx.sema,
+                interner: ctx.interner
+            )
+        )
     }
 
     func lowerCallInstruction(
@@ -46,13 +32,18 @@ extension CollectionLiteralConstructionLoweringPass {
         canThrow: Bool,
         thrownResult: KIRExprID?,
         function: KIRFunction,
-        builderLambdaKinds: [InternedString: InternedString],
         module: KIRModule,
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) {
+        // kk_sequence_requireNoNulls is emitted directly by CallLowerer when the
+        // bundled source declaration is absent. Track its result as a runtime
+        // Sequence handle so downstream take/drop rewrites still fire.
+        if callee == lookup.kkSequenceRequireNoNullsName, let result {
+            state.sequenceExprIDs.insert(result.rawValue)
+        }
         if rewriteFactoryAndBuilderCall(
             symbol: symbol,
             callee: callee,
@@ -60,14 +51,26 @@ extension CollectionLiteralConstructionLoweringPass {
             result: result,
             canThrow: canThrow,
             thrownResult: thrownResult,
-            function: function,
-            builderLambdaKinds: builderLambdaKinds,
             module: module,
             ctx: ctx,
             lookup: lookup,
             state: &state,
             loweredBody: &loweredBody
         ) {
+            // Concrete-class collection constructors (`LinkedHashSet()`,
+            // `HashMap()`, ...) are rewritten to runtime factories whose
+            // returned boxes never pass `kk_object_new`, so the
+            // constructor-site vtable registrations never ran for them.
+            // Register the nominal vtable implementations on the box so an
+            // open member dispatch (e.g. `LinkedHashSet.size`) resolves
+            // instead of trapping at `kk_vtable_lookup`. No-ops for
+            // interface-typed results.
+            appendFactoryResultVtableRegistrations(
+                result: result,
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
             return
         }
 
@@ -92,6 +95,8 @@ extension CollectionLiteralConstructionLoweringPass {
             callee: callee,
             arguments: arguments,
             result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
             module: module,
             ctx: ctx,
             lookup: lookup,
@@ -101,10 +106,11 @@ extension CollectionLiteralConstructionLoweringPass {
             return
         }
 
-        if shouldPreserveSourceBackedAggregateCall(
+        if shouldPreserveSourceBackedCall(
             symbol: symbol,
-            callee: callee,
-            lookup: lookup,
+            arguments: arguments,
+            module: module,
+            state: state,
             ctx: ctx
         ) {
             loweredBody.append(instruction)
@@ -149,7 +155,6 @@ extension CollectionLiteralConstructionLoweringPass {
             result: result,
             canThrow: canThrow,
             thrownResult: thrownResult,
-            function: function,
             module: module,
             ctx: ctx,
             lookup: lookup,

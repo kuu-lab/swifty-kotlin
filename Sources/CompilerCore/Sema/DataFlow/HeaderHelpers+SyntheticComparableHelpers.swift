@@ -1,10 +1,46 @@
 
-/// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
-/// Comparable<in T> sub-helpers (compareTo operator, primitive compatibility, null-safe extensions).
+/// Synthetic Comparable helpers retained after the KSP-697 nominal shell migration.
+/// Comparable<in T> sub-helpers for primitive compatibility.
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
 /// entries to this package.
 extension DataFlowSemaPhase {
+
+    /// Registers the `kotlin.Byte`/`kotlin.Long`/`kotlin.Short` nominal class
+    /// anchors and their synthetic Companion objects. These primitives are
+    /// represented directly by TypeSystem, so they have no source declaration
+    /// from which the Companion nominal can be collected; the anchors exist so
+    /// bundled Companion extensions (`Stdlib/kotlin/{Byte,Long,Short}/Companion/
+    /// Companion.kt`) resolve. The constants themselves are Kotlin source-backed.
+    ///
+    /// Residual (c) language-core surface moved from the deleted
+    /// `HeaderHelpers+SyntheticMathStubs.swift` (KUU-586). The `kotlin.math`
+    /// package ensure that file also carried is intentionally dropped: bundled
+    /// `Math.kt` defines the package via `definePackageSymbol`, and the
+    /// `--no-stdlib` fallback is covered by `registerSyntheticCoercionStubs`.
+    func registerSyntheticPrimitiveCompanionAnchors(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
+        for name in ["Byte", "Long", "Short"] {
+            let primitiveSymbol = ensureClassSymbol(
+                named: name,
+                in: kotlinPkg,
+                symbols: symbols,
+                interner: interner
+            )
+            if let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) {
+                symbols.setParentSymbol(kotlinPkgSymbol, for: primitiveSymbol)
+            }
+            ensureSyntheticPrimitiveCompanionSymbol(
+                ownerSymbol: primitiveSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
 
     /// Set up primitive types to implement Comparable<Self>
     func setupPrimitiveComparableImplementations(
@@ -31,138 +67,51 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([comparableSymbol], for: primitiveSymbol)
             symbols.setSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
             types.setNominalSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
+
+            // KSP-833/KSP-847/KSP-853/KSP-904/KSP-907/KSP-910/KSP-913: Double,
+            // Float, Int, UByte, UInt, ULong, and UShort are compiler
+            // primitives, so retain only the synthetic Companion anchors
+            // needed by source-backed extensions.
+            if typeName == "Double" || typeName == "Float" || typeName == "Int" || typeName == "UByte" || typeName == "UInt" || typeName == "ULong" || typeName == "UShort" {
+                ensureSyntheticPrimitiveCompanionSymbol(
+                    ownerSymbol: primitiveSymbol,
+                    symbols: symbols,
+                    interner: interner
+                )
+            }
         }
     }
 
-    /// Register `operator fun compareTo(other: T): Int` on the Comparable interface with null-safe comparison support.
-    func registerComparableCompareToOperator(
+    private func ensureSyntheticPrimitiveCompanionSymbol(
+        ownerSymbol: SymbolID,
         symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        comparableFQName: [InternedString],
-        comparableSymbol: SymbolID,
-        tParamSymbol: SymbolID,
-        tParamType: TypeID
+        interner: StringInterner
     ) {
-        let compareToName = interner.intern("compareTo")
-        let compareToFQName = comparableFQName + [compareToName]
-        guard symbols.lookup(fqName: compareToFQName) == nil else { return }
-        let receiverType = tParamType
-        let compareToSymbol = symbols.define(
-            kind: .function,
-            name: compareToName,
-            fqName: compareToFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(comparableSymbol, for: compareToSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [tParamType],
-                returnType: types.intType,
-                typeParameterSymbols: [tParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: compareToSymbol
-        )
-
-        registerNullSafeComparisonExtensions(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            comparableSymbol: comparableSymbol
-        )
-    }
-
-    /// Register null-safe comparison extensions for Comparable types.
-    private func registerNullSafeComparisonExtensions(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        comparableSymbol: SymbolID
-    ) {
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        let extensionsPkg = kotlinPkg + [interner.intern("comparisons")]
-
-        if symbols.lookup(fqName: extensionsPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("comparisons"),
-                fqName: extensionsPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
+        if symbols.companionObjectSymbol(for: ownerSymbol) != nil {
+            return
         }
-
-        registerNullSafeCompareTo(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            extensionsPkg: extensionsPkg,
-            comparableSymbol: comparableSymbol
-        )
-    }
-
-    /// Register null-safe compareTo extension for nullable Comparable types.
-    private func registerNullSafeCompareTo(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        extensionsPkg: [InternedString],
-        comparableSymbol: SymbolID
-    ) {
-        let functionName = interner.intern("compareToOrNull")
-        let functionFQName = extensionsPkg + [functionName]
-
-        guard symbols.lookup(fqName: functionFQName) == nil else { return }
-
-        let nullableIntType = types.makeNullable(types.intType)
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let companionName = interner.intern("Companion")
+        let companionFQName = ownerInfo.fqName + [companionName]
+        if let existing = symbols.lookupAll(fqName: companionFQName).first(where: { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else { return false }
+            return symbol.kind == .object || symbol.kind == .class || symbol.kind == .interface
+        }) {
+            symbols.setParentSymbol(ownerSymbol, for: existing)
+            symbols.setCompanionObjectSymbol(existing, for: ownerSymbol)
+            return
+        }
+        let companionSymbol = symbols.define(
+            kind: .object,
+            name: companionName,
+            fqName: companionFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: [.synthetic, .static]
         )
-
-        // Define type parameter T for the extension function
-        let tParamName = interner.intern("T")
-        let tParamFQName = functionFQName + [tParamName]
-        let tParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tParamName,
-            fqName: tParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let functionTParamType = types.make(.typeParam(TypeParamType(
-            symbol: tParamSymbol,
-            nullability: .nonNull
-        )))
-        let nullableFunctionTParamType = types.makeNullable(functionTParamType)
-
-        let comparableUpperBounds: [TypeID] = [types.make(.classType(ClassType(
-            classSymbol: comparableSymbol,
-            args: [.in(functionTParamType)],
-            nullability: .nonNull
-        )))]
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: nil,
-                parameterTypes: [nullableFunctionTParamType, nullableFunctionTParamType],
-                returnType: nullableIntType,
-                typeParameterSymbols: [tParamSymbol],
-                typeParameterUpperBoundsList: [comparableUpperBounds],
-                classTypeParameterCount: 0
-            ),
-            for: functionSymbol
-        )
+        symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
+        symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
     }
 }

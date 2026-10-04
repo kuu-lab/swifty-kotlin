@@ -3,7 +3,7 @@ package kotlin.collections
 // MIGRATION-COL-009
 // List window/chunk HOFs migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
-// Functions: chunked, windowed, zipWithNext, zip, withIndex
+// Functions: chunked, windowed, zipWithNext, zip
 
 private external fun <T> __kk_list_chunked(receiver: Iterable<T>, size: Int): List<List<T>>
 private external fun <T, R> __kk_list_chunked_transform(
@@ -98,19 +98,55 @@ public fun <T, R> Iterable<T>.zipWithNext(transform: (T, T) -> R): List<R> =
 // Result length equals the shorter of the two iterables, matching Kotlin
 // stdlib and the Swift ABI implementation (min(lhs.count, rhs.count)).
 
-public fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> =
-    __kk_list_zip(this, other)
-
-public fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V): List<V> =
-    __kk_list_zip_transform(this, other, transform)
-
-// ── withIndex ────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>>
-// Residual ABI counterpart: kk_list_withIndex
-//
-private external fun <T> kk_list_withIndex(receiver: Iterable<T>): Iterable<IndexedValue<T>>
-
-public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> {
-    return kk_list_withIndex(this)
+public fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> {
+    val first = iterator()
+    val second = other.iterator()
+    val result = mutableListOf<Pair<T, R>>()
+    while (first.hasNext() && second.hasNext()) {
+        result.add(Pair(first.next(), second.next()))
+    }
+    return result
 }
+
+public fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V): List<V> {
+    val first = iterator()
+    val second = other.iterator()
+    val result = mutableListOf<V>()
+    while (first.hasNext() && second.hasNext()) {
+        result.add(transform(first.next(), second.next()))
+    }
+    return result
+}
+
+// Kotlin stdlib: fun <T, R> Iterable<T>.zip(other: Array<out R>): List<Pair<T, R>>
+//
+// Keep the array overload on the source path. The shared iterable bridge
+// materializes both inputs instead of preserving the stdlib iterator order.
+public infix fun <T, R> Iterable<T>.zip(other: Array<out R>): List<Pair<T, R>> {
+    val arraySize = other.size
+    val result = mutableListOf<Pair<T, R>>()
+    var index = 0
+    for (element in this) {
+        if (index >= arraySize) break
+        result.add(Pair(element, other[index]))
+        index++
+    }
+    return result
+}
+
+public inline fun <T, R, V> Iterable<T>.zip(
+    other: Array<out R>,
+    transform: (a: T, b: R) -> V
+): List<V> {
+    val arraySize = other.size
+    val result = mutableListOf<V>()
+    var index = 0
+    for (element in this) {
+        if (index >= arraySize) break
+        result.add(transform(element, other[index]))
+        index++
+    }
+    return result
+}
+
+// withIndex lives in Iterators.kt (KSP-626).

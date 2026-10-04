@@ -19,9 +19,48 @@ struct RuntimeStringEqualsTests {
         kk_unbox_bool(raw) != 0
     }
 
+    private func withFlatStrings<T>(
+        _ lhs: String,
+        _ rhs: String,
+        _ body: (
+            UnsafePointer<UInt8>?, Int, Int, Int,
+            UnsafePointer<UInt8>?, Int, Int, Int
+        ) -> T
+    ) -> T {
+        let lhsBytes = Array(lhs.utf8)
+        let rhsBytes = Array(rhs.utf8)
+        return lhsBytes.withUnsafeBufferPointer { lhsBuffer in
+            rhsBytes.withUnsafeBufferPointer { rhsBuffer in
+                body(
+                    lhsBuffer.baseAddress,
+                    lhs.unicodeScalars.count,
+                    lhsBytes.count,
+                    0,
+                    rhsBuffer.baseAddress,
+                    rhs.unicodeScalars.count,
+                    rhsBytes.count,
+                    0
+                )
+            }
+        }
+    }
+
     @Test
     func testEqualsSameContent() {
         #expect(boolValue(kk_string_equals(runtimeString("hello"), runtimeString("hello"))))
+    }
+
+    @Test
+    func testFlatRoundTripPreservesStringHandleIdentity() {
+        let original = runtimeString("atomic-reference")
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let flatData = kk_string_to_flat(original, &length, &byteCount, &hash)
+        let roundTrip = kk_string_from_flat(flatData, length, byteCount, hash)
+
+        #expect(roundTrip == original)
+        #expect(roundTrip != runtimeString("atomic-reference"))
     }
 
     @Test
@@ -48,6 +87,27 @@ struct RuntimeStringEqualsTests {
     func testEqualsUnicode() {
         #expect(boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("こんにちは"))))
         #expect(!boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("さようなら"))))
+    }
+
+    @Test
+    func testEqualsUsesUTF16CodeUnitsInsteadOfCanonicalEquivalence() {
+        let composed = runtimeString("é")
+        let decomposed = runtimeString("e\u{301}")
+        #expect(!boolValue(kk_string_equals(composed, decomposed)))
+
+        withFlatStrings("Å", "Å") { lhsData, lhsLength, lhsByteCount, lhsHash,
+                                     rhsData, rhsLength, rhsByteCount, rhsHash in
+            #expect(__kk_string_equals_flat(
+                lhsData,
+                lhsLength,
+                lhsByteCount,
+                lhsHash,
+                rhsData,
+                rhsLength,
+                rhsByteCount,
+                rhsHash
+            ) == 0)
+        }
     }
 }
 #endif

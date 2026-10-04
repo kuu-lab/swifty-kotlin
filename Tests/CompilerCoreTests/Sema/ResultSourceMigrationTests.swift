@@ -22,7 +22,18 @@ struct ResultSourceMigrationTests {
             let resultInfo = try #require(sema.symbols.symbol(resultSymbol))
             #expect(resultInfo.kind == .class)
             #expect(!resultInfo.flags.contains(.synthetic), "kotlin.Result should be backed by bundled source")
-            #expect(sourcePath(for: resultSymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result.kt") == true)
+            #expect(sourcePath(for: resultSymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result/Stdlib.kt") == true)
+
+            let resultConstructorFQName = resultFQName + [ctx.interner.intern("<init>")]
+            let resultConstructor = try #require(sema.symbols.lookupAll(fqName: resultConstructorFQName).first { symbolID in
+                guard sema.symbols.symbol(symbolID)?.kind == .constructor,
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else { return false }
+                return signature.parameterTypes == [sema.types.nullableAnyType]
+            })
+            #expect(sema.symbols.symbol(resultConstructor)?.visibility == .internal)
+            #expect(sema.symbols.externalLinkName(for: resultConstructor) == "kk_runtime_result_success")
+            #expect(sema.symbols.symbol(resultConstructor)?.declSite != nil)
 
             let runCatchingFQName = ["kotlin", "runCatching"].map(ctx.interner.intern)
             let runCatchingSymbol = try #require(sema.symbols.lookupAll(fqName: runCatchingFQName).first { symbolID in
@@ -70,6 +81,37 @@ struct ResultSourceMigrationTests {
         }
     }
 
+    @Test func testResultConstructorResolvesToRuntimeSuccessBridge() throws {
+        let source = """
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+
+        fun construct(): Result<Int> = Result(1)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Expected direct Result construction to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let constructorCall = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      let calleeExpr = ast.arena.expr(callee),
+                      case let .nameRef(name, _) = calleeExpr
+                else { return false }
+                return ctx.interner.resolve(name) == "Result"
+            })
+            let chosenCallee = try #require(sema.bindings.callBinding(for: constructorCall)?.chosenCallee)
+            #expect(sema.symbols.symbol(chosenCallee)?.kind == .constructor)
+            #expect(sema.symbols.symbol(chosenCallee)?.visibility == .internal)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_runtime_result_success")
+        }
+    }
+
     @Test func testResultCallsResolveToBundledKotlinSourceSymbols() throws {
         let source = """
         fun failInt(): Int {
@@ -110,6 +152,7 @@ struct ResultSourceMigrationTests {
             try expectCallUsesBundledResultSource(
                 runCatchingCall,
                 expectedExternalLink: "kk_runtime_result_run_catching",
+                expectedSourcePath: "__bundled_kotlin/Result.kt",
                 sema: sema,
                 ctx: ctx
             )
@@ -132,6 +175,111 @@ struct ResultSourceMigrationTests {
                     sema: sema,
                     ctx: ctx
                 )
+            }
+        }
+    }
+
+    // KSP-613: `runCatching` no longer has a compiler name special case, so
+    // every call shape has to go through ordinary overload resolution against
+    // the bundled `kotlin.runCatching` declaration.
+    @Test func testRunCatchingCallShapesResolveThroughOrdinaryResolution() throws {
+        let source = """
+        fun answer(): Int = 42
+
+        fun useRunCatching(): Int {
+            val block: Result<Int> = runCatching { answer() }
+            val callableRef: Result<Int> = runCatching(::answer)
+            val explicit: Result<String> = runCatching<String> { "explicit" }
+            val nested: Result<Result<Int>> = runCatching { runCatching { 7 } }
+            return block.getOrDefault(0) + callableRef.getOrDefault(0) +
+                explicit.getOrDefault("").length + nested.getOrNull()?.getOrDefault(0)!!
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Expected every runCatching call shape to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
+
+            // Re-inferred lambda bodies leave duplicate call exprs in the
+            // arena, so group by source range and require one bound callee
+            // per written call site. Bundled stdlib implementations are in
+            // the same AST, so restrict this inventory to the test source.
+            var runCatchingCallSites: [SourceRange: [ExprID]] = [:]
+            for index in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(exprID),
+                      case let .call(callee, _, _, range) = expr,
+                      range.start.file == sourceFileID,
+                      let calleeExpr = ast.arena.expr(callee),
+                      case let .nameRef(name, _) = calleeExpr,
+                      ctx.interner.resolve(name) == "runCatching"
+                else { continue }
+                runCatchingCallSites[range, default: []].append(exprID)
+            }
+            #expect(runCatchingCallSites.count == 5)
+            for (range, exprIDs) in runCatchingCallSites {
+                let boundCall = exprIDs.first { sema.bindings.callBinding(for: $0) != nil }
+                let call = try #require(
+                    boundCall,
+                    "runCatching call at offset \(range.start.offset) must resolve through ordinary call resolution"
+                )
+                try expectCallUsesBundledResultSource(
+                    call,
+                    expectedExternalLink: "kk_runtime_result_run_catching",
+                    expectedSourcePath: "__bundled_kotlin/Result.kt",
+                    sema: sema,
+                    ctx: ctx
+                )
+            }
+        }
+    }
+
+    // KSP-613: `Result.fold` passes both callbacks as (fnPtr, closureRaw)
+    // pairs. Expanding them before parameter-mapping normalization dropped the
+    // onFailure pair, so the runtime received a null onFailure function
+    // pointer and crashed as soon as the folded Result was a failure.
+    @Test func testResultFoldLowersBothCallbackPairs() throws {
+        let source = """
+        fun boom(): Int = throw IllegalStateException("boom")
+
+        fun foldFailure(): String {
+            return runCatching { boom() }.fold({ value -> "v" + value }, { error -> "e" + error.message })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            let module = try #require(ctx.kir)
+
+            let foldCallArguments = try #require(findAllKIRFunctions(in: module)
+                .flatMap(\.body)
+                .compactMap { instruction -> [KIRExprID]? in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_runtime_result_fold"
+                    else { return nil }
+                    return arguments
+                }
+                .first)
+
+            // (resultRaw, successFnPtr, successClosureRaw, failureFnPtr, failureClosureRaw)
+            #expect(foldCallArguments.count == 5)
+            for (label, index) in [("onSuccess", 1), ("onFailure", 3)] {
+                let callbackKind = module.arena.expr(foldCallArguments[index])
+                guard case .symbolRef = callbackKind else {
+                    Issue.record("\(label) callback must be lowered to a function pointer, got \(String(describing: callbackKind))")
+                    continue
+                }
             }
         }
     }
@@ -165,7 +313,7 @@ struct ResultSourceMigrationTests {
                 })
                 let propertySymbol = try #require(sema.bindings.identifierSymbol(for: memberRead))
                 #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
-                #expect(sourcePath(for: propertySymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result.kt") == true)
+                #expect(sourcePath(for: propertySymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result/Stdlib.kt") == true)
             }
         }
     }
@@ -195,12 +343,13 @@ struct ResultSourceMigrationTests {
     private func expectCallUsesBundledResultSource(
         _ exprID: ExprID,
         expectedExternalLink: String?,
+        expectedSourcePath: String = "__bundled_kotlin/Result/Stdlib.kt",
         sema: SemaModule,
         ctx: CompilationContext
     ) throws {
         let chosenCallee = try #require(sema.bindings.callBinding(for: exprID)?.chosenCallee)
         #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink)
-        #expect(sourcePath(for: chosenCallee, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result.kt") == true)
+        #expect(sourcePath(for: chosenCallee, sema: sema, ctx: ctx)?.contains(expectedSourcePath) == true)
     }
 }
 #endif

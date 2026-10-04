@@ -58,6 +58,7 @@ public final class JSONRPCConnection {
 
     private let input: ByteInputStream
     private let output: ByteOutputStream
+    private let sendLock = NSLock()
     private var buffer = Data()
     private let maxBodyBytes: Int
     private let maxHeaderBytes: Int
@@ -143,6 +144,9 @@ public final class JSONRPCConnection {
         }
         var framed = Data("Content-Length: \(body.count)\r\n\r\n".utf8)
         framed.append(body)
+
+        sendLock.lock()
+        defer { sendLock.unlock() }
         output.write(framed)
     }
 

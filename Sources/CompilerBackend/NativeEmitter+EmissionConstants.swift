@@ -14,6 +14,10 @@ extension NativeEmitter {
         let context: LLVMCAPIBindings.LLVMContextRef?
         let module: LLVMCAPIBindings.LLVMModuleRef?
         let typeLowering: LLVMTypeLowering?
+        /// Entry block of the function being emitted, used to keep stack slots out
+        /// of loop bodies (see `LLVMCAPIBindings.buildEntryAlloca`).
+        let entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef?
+        let allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef?
 
         init(
             builder: LLVMCAPIBindings.LLVMBuilderRef,
@@ -21,7 +25,9 @@ extension NativeEmitter {
             zeroValue: LLVMCAPIBindings.LLVMValueRef,
             context: LLVMCAPIBindings.LLVMContextRef? = nil,
             module: LLVMCAPIBindings.LLVMModuleRef? = nil,
-            typeLowering: LLVMTypeLowering? = nil
+            typeLowering: LLVMTypeLowering? = nil,
+            entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef? = nil,
+            allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef? = nil
         ) {
             self.builder = builder
             self.int64Type = int64Type
@@ -29,6 +35,22 @@ extension NativeEmitter {
             self.context = context
             self.module = module
             self.typeLowering = typeLowering
+            self.entryBlock = entryBlock
+            self.allocaBuilder = allocaBuilder
+        }
+
+        /// Allocates an i64 stack slot in the entry block of the current function.
+        func buildEntrySlot(
+            _ bindings: LLVMCAPIBindings,
+            name: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            bindings.buildEntryAlloca(
+                type: int64Type,
+                name: name,
+                entryBlock: entryBlock,
+                allocaBuilder: allocaBuilder,
+                fallbackBuilder: builder
+            )
         }
     }
 
@@ -155,9 +177,9 @@ extension NativeEmitter {
         ) -> LLVMCAPIBindings.LLVMValueRef? {
             guard let typeLowering = state.typeLowering,
                   let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
-                  let lengthSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_length_\(suffix)"),
-                  let byteCountSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_bytes_\(suffix)"),
-                  let hashSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_hash_\(suffix)")
+                  let lengthSlot = state.buildEntrySlot(bindings, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = state.buildEntrySlot(bindings, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = state.buildEntrySlot(bindings, name: "string_bridge_hash_\(suffix)")
             else {
                 return nil
             }
@@ -256,9 +278,55 @@ extension NativeEmitter {
             return bindings.buildAShr(state.builder, lhs: widened, rhs: thirtyTwo, name: "\(name)_\(instructionIndex)")
         }
 
+        /// Emit a call to `__kk_string_equals_flat` when at least one operand is a
+        /// String aggregate. This is required for `==`/`!=` on generic `K` that
+        /// is instantiated with `String`, because the inlined function body ends
+        /// up comparing flat `{ i8*, i64, i64, i64 }` values and LLVM cannot
+        /// `icmp` a struct. Returns `nil` when neither operand is a String aggregate.
+        func emitStringAggregateEquality(
+            lhsValue: LLVMCAPIBindings.LLVMValueRef,
+            lhsType: TypeID?,
+            rhsValue: LLVMCAPIBindings.LLVMValueRef,
+            rhsType: TypeID?,
+            invert: Bool
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard isStringAggregateType(lhsType) || isStringAggregateType(rhsType),
+                  let lhsFields = stringAggregateFields(lhsValue, suffix: "eq_lhs_\(instructionIndex)"),
+                  let rhsFields = stringAggregateFields(rhsValue, suffix: "eq_rhs_\(instructionIndex)")
+            else {
+                return nil
+            }
+            let parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?] = [
+                state.typeLowering?.dataPointerType, state.int64Type, state.int64Type, state.int64Type,
+                state.typeLowering?.dataPointerType, state.int64Type, state.int64Type, state.int64Type,
+            ]
+            guard let equalsFunction = declareTypedExternalFunction(
+                named: "__kk_string_equals_flat",
+                parameterTypes: parameterTypes,
+                returnType: state.int64Type
+            ),
+                  let eqResult = bindings.buildCall(
+                      state.builder,
+                      functionType: equalsFunction.type,
+                      callee: equalsFunction.value,
+                      arguments: lhsFields + rhsFields,
+                      name: "string_eq_\(instructionIndex)"
+                  )
+            else {
+                return nil
+            }
+            guard invert else { return eqResult }
+            guard let one = bindings.constInt(state.int64Type, value: 1),
+                  let inverted = bindings.buildXor(state.builder, lhs: eqResult, rhs: one, name: "string_ne_\(instructionIndex)")
+            else {
+                return nil
+            }
+            return inverted
+        }
+
         let lowered: LLVMCAPIBindings.LLVMValueRef?
         switch calleeName {
-        case "__string_struct_get_length", "kk_string_struct_get_length", "length":
+        case "__kk_string_struct_get_length", "kk_string_struct_get_length", "length":
             guard argumentValues.count == 1,
                   state.typeLowering != nil
             else {
@@ -297,6 +365,8 @@ extension NativeEmitter {
             }
         case "kk_op_add":
             lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "add_\(instructionIndex)")
+        case "__kk_int_range_induction_add":
+            lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "range_induction_add_\(instructionIndex)")
         case "kk_op_sub":
             lowered = bindings.buildSub(state.builder, lhs: lhs, rhs: rhs, name: "sub_\(instructionIndex)")
         case "kk_op_mul":
@@ -336,13 +406,25 @@ extension NativeEmitter {
         // Sources/Runtime/RuntimeNumericCompat.swift implementations, exactly
         // like kk_op_div/kk_op_mod (which are likewise absent from this switch).
         case "kk_op_eq":
-            if let compared = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: rhs, name: "eq_\(instructionIndex)") {
+            if let stringEq = emitStringAggregateEquality(
+                lhsValue: lhs, lhsType: argumentTypes.indices.contains(0) ? argumentTypes[0] : nil,
+                rhsValue: rhs, rhsType: argumentTypes.indices.contains(1) ? argumentTypes[1] : nil,
+                invert: false
+            ) {
+                lowered = stringEq
+            } else if let compared = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: rhs, name: "eq_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "eq64_\(instructionIndex)")
             } else {
                 lowered = nil
             }
         case "kk_op_ne":
-            if let compared = bindings.buildICmpNotEqual(state.builder, lhs: lhs, rhs: rhs, name: "ne_\(instructionIndex)") {
+            if let stringNe = emitStringAggregateEquality(
+                lhsValue: lhs, lhsType: argumentTypes.indices.contains(0) ? argumentTypes[0] : nil,
+                rhsValue: rhs, rhsType: argumentTypes.indices.contains(1) ? argumentTypes[1] : nil,
+                invert: true
+            ) {
+                lowered = stringNe
+            } else if let compared = bindings.buildICmpNotEqual(state.builder, lhs: lhs, rhs: rhs, name: "ne_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "ne64_\(instructionIndex)")
             } else {
                 lowered = nil
@@ -356,6 +438,12 @@ extension NativeEmitter {
         case "kk_op_le":
             if let compared = bindings.buildICmpSignedLessOrEqual(state.builder, lhs: lhs, rhs: rhs, name: "le_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "le64_\(instructionIndex)")
+            } else {
+                lowered = nil
+            }
+        case "__kk_int_range_induction_le":
+            if let compared = bindings.buildICmpSignedLessOrEqual(state.builder, lhs: lhs, rhs: rhs, name: "range_induction_le_\(instructionIndex)") {
+                lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "range_induction_le64_\(instructionIndex)")
             } else {
                 lowered = nil
             }
@@ -596,13 +684,12 @@ extension NativeEmitter {
 
     func emitConstantValue(
         _ expression: KIRExprKind,
-        expressionRawID: Int32?,
         expectedType: TypeID? = nil,
         state: EmissionBuilderState,
         parameterValues: [SymbolID: LLVMCAPIBindings.LLVMValueRef],
         internalFunctions: [SymbolID: LLVMFunction],
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
-        generatedStringLiteralCount: inout Int32,
+        nameCounter: GeneratedNameCounter,
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
@@ -617,7 +704,59 @@ extension NativeEmitter {
             return buildNullStringAggregate(
                 builder: state.builder,
                 lowering: typeLowering,
-                name: "null_string_\(expressionRawID ?? 0)"
+                name: nameCounter.nextName("null_string_")
+            )
+        }
+
+        func bridgeRuntimeRawToStringAggregateIfNeeded(
+            _ raw: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let expectedType,
+                  let typeLowering = state.typeLowering,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: expectedType)
+            else {
+                return raw
+            }
+            guard let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
+                  let lengthSlot = state.buildEntrySlot(bindings, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = state.buildEntrySlot(bindings, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = state.buildEntrySlot(bindings, name: "string_bridge_hash_\(suffix)")
+            else {
+                return nil
+            }
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: lengthSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: byteCountSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: hashSlot)
+            guard let bridgeFunctionType = bindings.functionType(
+                    returnType: typeLowering.dataPointerType,
+                    parameters: [state.int64Type, pointerType, pointerType, pointerType],
+                    isVarArg: false
+                ),
+                  let bridgeFunctionValue = bindings.getNamedFunction(module: state.module, name: "kk_string_to_flat")
+                    ?? bindings.addFunction(module: state.module, name: "kk_string_to_flat", functionType: bridgeFunctionType),
+                  let data = bindings.buildCall(
+                      state.builder,
+                      functionType: bridgeFunctionType,
+                      callee: bridgeFunctionValue,
+                      arguments: [raw, lengthSlot, byteCountSlot, hashSlot],
+                      name: "string_bridge_data_\(suffix)"
+                  ),
+                  let length = bindings.buildLoad(state.builder, type: state.int64Type, pointer: lengthSlot, name: "string_bridge_length_val_\(suffix)"),
+                  let byteCount = bindings.buildLoad(state.builder, type: state.int64Type, pointer: byteCountSlot, name: "string_bridge_bytes_val_\(suffix)"),
+                  let hash = bindings.buildLoad(state.builder, type: state.int64Type, pointer: hashSlot, name: "string_bridge_hash_val_\(suffix)")
+            else {
+                return nil
+            }
+            return buildStringAggregate(
+                builder: state.builder,
+                lowering: typeLowering,
+                data: data,
+                length: length,
+                byteCount: byteCount,
+                hash: hash,
+                name: "string_bridge_\(suffix)"
             )
         }
 
@@ -651,63 +790,42 @@ extension NativeEmitter {
             return bindings.constInt(state.int64Type, value: value ? 1 : 0) ?? state.zeroValue
         case let .stringLiteral(interned):
             let text = interner.resolve(interned)
-            let literalID: Int32
-            if let expressionRawID {
-                literalID = expressionRawID
-            } else {
-                literalID = generatedStringLiteralCount
-                generatedStringLiteralCount += 1
-            }
+            let globalStringPointerName = nameCounter.nextName("str_lit_")
             guard let globalStringPointer = bindings.buildGlobalStringPtrNullSafe(
                 state.builder,
                 context: state.context,
                 module: state.module,
                 value: text,
-                name: "str_lit_\(literalID)"
+                name: globalStringPointerName
             ) else {
                 return state.zeroValue
-            }
-            if let expectedType,
-               let typeLowering = state.typeLowering,
-               let typeSystem,
-               case .stringStruct = typeSystem.kind(of: expectedType)
-            {
-                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
-                let byteCountValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
-                let hashValue = bindings.constInt(state.int64Type, value: 0) ?? state.zeroValue
-                return buildStringAggregate(
-                    builder: state.builder,
-                    lowering: typeLowering,
-                    data: globalStringPointer,
-                    length: lengthValue,
-                    byteCount: byteCountValue,
-                    hash: hashValue,
-                    name: "str_agg_\(literalID)"
-                ) ?? state.zeroValue
             }
             guard let pointerAsInt = bindings.buildPtrToInt(
                 state.builder,
                 value: globalStringPointer,
                 type: state.int64Type,
-                name: "str_ptr_\(literalID)"
+                name: nameCounter.nextName("str_ptr_")
             ) else {
                 return state.zeroValue
             }
             let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
             guard let stringFromUTF8 = declareExternalFunction(
-                "kk_string_from_utf8",
+                "__kk_string_literal_from_utf8",
                 2,
                 false
             ) else {
                 return state.zeroValue
             }
-            return bindings.buildCall(
+            let raw = bindings.buildCall(
                 state.builder,
                 functionType: stringFromUTF8.type,
                 callee: stringFromUTF8.value,
                 arguments: [pointerAsInt, lengthValue],
-                name: "str_from_utf8_\(literalID)"
+                name: nameCounter.nextName("str_literal_")
             ) ?? state.zeroValue
+            return bridgeRuntimeRawToStringAggregateIfNeeded(
+                raw, suffix: nameCounter.nextName("literal_")
+            ) ?? raw
         case let .externSymbolAddress(symbolName):
             let symbolStr = interner.resolve(symbolName)
             if let externFn = declareExternalFunction(symbolStr, 4, false) {
@@ -728,24 +846,53 @@ extension NativeEmitter {
                    state.builder,
                    value: internalFunction.value,
                    type: state.int64Type,
-                   name: "fn_ptr_\(symbol.rawValue)"
+                   name: nameCounter.nextName("fn_ptr_")
                )
             {
                 return functionPointer
             }
             // Load from LLVM global variable if this symbol refers to a global.
+            // Global slots always hold raw runtime handles (i64); bridge to the
+            // lowered aggregate representation only when the expected KIR type is
+            // the String struct.
             if let globalPtr = globalVariables[symbol] {
-                let loadType = loweredLLVMType(
-                    for: expectedType,
-                    lowering: state.typeLowering,
-                    defaultType: state.int64Type
-                )
-                return bindings.buildLoad(
+                guard let loaded = bindings.buildLoad(
                     state.builder,
-                    type: loadType,
+                    type: state.int64Type,
                     pointer: globalPtr,
-                    name: "global_load_\(symbol.rawValue)"
-                ) ?? state.zeroValue
+                    name: nameCounter.nextName("global_load_")
+                ) else {
+                    return state.zeroValue
+                }
+                return bridgeRuntimeRawToStringAggregateIfNeeded(
+                    loaded,
+                    suffix: nameCounter.nextName("global_")
+                ) ?? loaded
+            }
+            // Imported library artifact functions are not internal to the current module,
+            // but they may be referenced as function pointers (e.g. for vtable/itable
+            // registration). Resolve them by their external link name.
+            //
+            // Declarations are cached module-wide by name, so the thrown channel here must
+            // match the callee's real ABI; hardcoding `true` mis-sized non-throwing runtime
+            // callees (e.g. kk_list_iterator) for every other call site reached later.
+            if let symbols = self.symbols,
+               let signature = symbols.functionSignature(for: symbol),
+               let linkName = symbols.externalLinkName(for: symbol),
+               !linkName.isEmpty,
+               let externFn = declareExternalFunction(
+                   linkName,
+                   [signature.receiverType].compactMap { $0 }.count + signature.parameterTypes.count,
+                   Self.runtimeABIFunctionByName[linkName]?.isThrowing ?? true
+               ),
+               let functionPointer = bindings.buildPtrToInt(
+                   state.builder,
+                   value: externFn.value,
+                   type: state.int64Type,
+                   name: nameCounter.nextName("extern_fn_ptr_")
+               )
+            {
+                return functionPointer
             }
             return state.zeroValue
         case let .temporary(raw):

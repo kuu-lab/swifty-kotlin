@@ -1,30 +1,4 @@
 
-// MARK: - Pre-interned runtime names for delegate rewriting
-
-private struct DelegateRuntimeNames {
-    let getValueName: InternedString
-    let setValueName: InternedString
-    let lazyGetValue: InternedString
-    let observableGetValue: InternedString
-    let vetoableGetValue: InternedString
-    let notNullGetValue: InternedString
-    let observableSetValue: InternedString
-    let vetoableSetValue: InternedString
-    let notNullSetValue: InternedString
-
-    init(interner: StringInterner) {
-        getValueName = interner.intern("getValue")
-        setValueName = interner.intern("setValue")
-        lazyGetValue = interner.intern("kk_lazy_get_value")
-        observableGetValue = interner.intern("kk_observable_get_value")
-        vetoableGetValue = interner.intern("kk_vetoable_get_value")
-        notNullGetValue = interner.intern("kk_notNull_get_value")
-        observableSetValue = interner.intern("kk_observable_set_value")
-        vetoableSetValue = interner.intern("kk_vetoable_set_value")
-        notNullSetValue = interner.intern("kk_notNull_set_value")
-    }
-}
-
 extension KIRLoweringDriver {
     func postProcessTopLevelInitializersAndDelegates(
         ast: ASTModule,
@@ -39,23 +13,24 @@ extension KIRLoweringDriver {
         let interner = compilationCtx.interner
         let mainName = interner.intern("main")
 
-        let delegateKindByPropertySymbol = buildDelegateKindMap(ast: ast, sema: sema, interner: interner)
-        let names = DelegateRuntimeNames(interner: interner)
-
         arena.transformFunctions { function in
             var updated = function
 
             if function.name == mainName, !allTopLevelInitInstructions.isEmpty {
                 updated.replaceBody(injectTopLevelInits(
-                    body: function.body, inits: allTopLevelInitInstructions
+                    body: function.body,
+                    bodyLocations: function.instructionLocations,
+                    inits: allTopLevelInitInstructions
                 ))
             }
 
             if !delegateStorageSymbolByPropertySymbol.isEmpty {
                 updated.replaceBody(rewriteDelegateAccesses(
-                    body: updated.body, arena: arena, sema: sema,
-                    storageMap: delegateStorageSymbolByPropertySymbol,
-                    kindMap: delegateKindByPropertySymbol, names: names, interner: interner
+                    body: updated.body,
+                    bodyLocations: updated.instructionLocations,
+                    sema: sema,
+                    arena: arena,
+                    storageMap: delegateStorageSymbolByPropertySymbol, interner: interner
                 ))
             }
 
@@ -67,93 +42,54 @@ extension KIRLoweringDriver {
 
     private func injectTopLevelInits(
         body: [KIRInstruction],
+        bodyLocations: [SourceRange?],
         inits: KIRLoweringEmitContext
-    ) -> [KIRInstruction] {
-        var newBody: KIRLoweringEmitContext = []
+    ) -> KIRLoweringEmitContext {
+        // The initializers were lowered under their own function scopes, so
+        // their labels restart from the same base as `main`'s own body.
+        let relocatedInits = KIRLabelRelocation.relocatingLabels(
+            of: inits.instructions,
+            toAvoidCollisionsWith: body
+        )
+        var newBody = KIRLoweringEmitContext()
+        func appendAll(
+            _ instructions: some Sequence<KIRInstruction>,
+            locations: some Sequence<SourceRange?>
+        ) {
+            for (instruction, location) in zip(instructions, locations) {
+                newBody.currentSourceRange = location
+                newBody.append(instruction)
+            }
+        }
         if let first = body.first, case .beginBlock = first {
+            newBody.currentSourceRange = bodyLocations.first ?? nil
             newBody.append(first)
-            newBody.append(contentsOf: inits)
-            newBody.append(contentsOf: body.dropFirst())
+            appendAll(relocatedInits, locations: inits.instructionLocations)
+            appendAll(body.dropFirst(), locations: bodyLocations.dropFirst())
         } else {
-            newBody.append(contentsOf: inits)
-            newBody.append(contentsOf: body)
+            appendAll(relocatedInits, locations: inits.instructionLocations)
+            appendAll(body, locations: bodyLocations)
         }
-        return newBody.instructions
-    }
-
-    // MARK: - Delegate Kind Map
-
-    private func buildDelegateKindMap(
-        ast: ASTModule, sema: SemaModule, interner: StringInterner
-    ) -> [SymbolID: StdlibDelegateKind] {
-        var map: [SymbolID: StdlibDelegateKind] = [:]
-
-        func collect(from declID: DeclID) {
-            guard let decl = ast.arena.decl(declID) else { return }
-            switch decl {
-            case let .propertyDecl(prop):
-                guard let sym = sema.bindings.declSymbols[declID],
-                      prop.delegateExpression != nil
-                else { return }
-                map[sym] = StdlibDelegateKind.detect(
-                    delegateExpr: prop.delegateExpression,
-                    ast: ast,
-                    interner: interner
-                )
-            case let .classDecl(classDecl):
-                for memberProperty in classDecl.memberProperties {
-                    collect(from: memberProperty)
-                }
-                for nestedClass in classDecl.nestedClasses {
-                    collect(from: nestedClass)
-                }
-                for nestedObject in classDecl.nestedObjects {
-                    collect(from: nestedObject)
-                }
-            case let .objectDecl(objectDecl):
-                for memberProperty in objectDecl.memberProperties {
-                    collect(from: memberProperty)
-                }
-                for nestedClass in objectDecl.nestedClasses {
-                    collect(from: nestedClass)
-                }
-                for nestedObject in objectDecl.nestedObjects {
-                    collect(from: nestedObject)
-                }
-            case let .interfaceDecl(interfaceDecl):
-                for memberProperty in interfaceDecl.memberProperties {
-                    collect(from: memberProperty)
-                }
-                for nestedClass in interfaceDecl.nestedClasses {
-                    collect(from: nestedClass)
-                }
-                for nestedObject in interfaceDecl.nestedObjects {
-                    collect(from: nestedObject)
-                }
-            default:
-                return
-            }
-        }
-
-        for file in ast.sortedFiles {
-            for declID in file.topLevelDecls {
-                collect(from: declID)
-            }
-        }
-        return map
+        return newBody
     }
 
     // MARK: - Delegate Access Rewriting
 
+    /// Rewrites top-level delegated-property access sites (read/write, outside
+    /// the property's own module) to call the synthesized `get`/`set`
+    /// accessor functions instead of touching `$delegate_x`'s storage global
+    /// directly. Every delegate kind (`lazy`/`Delegates.observable/vetoable/
+    /// notNull`/custom) shares this path since KSP-491: they all resolve
+    /// `getValue`/`setValue` through the same operator convention and get the
+    /// same synthesized accessors (`emitDelegateAccessorsIfCustom`).
     private func rewriteDelegateAccesses(
         body: [KIRInstruction],
-        arena: KIRArena,
+        bodyLocations: [SourceRange?],
         sema: SemaModule,
+        arena: KIRArena,
         storageMap: [SymbolID: SymbolID],
-        kindMap: [SymbolID: StdlibDelegateKind],
-        names: DelegateRuntimeNames,
         interner: StringInterner
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         var fullStorageMap = storageMap
         for symbol in sema.symbols.allSymbols() where symbol.kind == .property {
             if let storageSymbol = sema.symbols.delegateStorageSymbol(for: symbol.id) {
@@ -164,6 +100,12 @@ extension KIRLoweringDriver {
         for (propertySymbol, storageSymbol) in fullStorageMap {
             propertyByStorageSymbol[storageSymbol] = propertySymbol
         }
+        let getValueName = interner.intern("getValue")
+        let setValueName = interner.intern("setValue")
+        let getAccessorName = interner.intern("get")
+        let setAccessorName = interner.intern("set")
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+
         // Pass 1: collect copy targets to distinguish getter vs setter paths.
         var copyTargetExprs: Set<KIRExprID> = []
         for instruction in body {
@@ -172,99 +114,98 @@ extension KIRLoweringDriver {
 
         // Pass 2: rewrite instructions.
         var targets: [KIRExprID: SymbolID] = [:]
-        var result: KIRLoweringEmitContext = []
-        result.reserveCapacity(body.count)
+        var result = KIRLoweringEmitContext()
+        result.instructions.reserveCapacity(body.count)
 
-        for instruction in body {
-            if case let .call(symbol, callee, arguments, callResult, _, _, _, _) = instruction,
+        // begin/endFinallyGuard regions delimit try bodies already wrapped by
+        // appendThrowAwareInstructions. A synthesized accessor call landing
+        // inside one must route its thrown value the same way, or the
+        // exception propagates out of the function instead of reaching the
+        // enclosing catch dispatch (KSWIFTK-LINK-0003 on a top-level
+        // `Delegates.notNull()` read wrapped in try/catch).
+        var guardStack: [FinallyGuardThrowContext?] = []
+
+        func appendAccessorCall(
+            symbol: SymbolID,
+            callee: InternedString,
+            arguments: [KIRExprID],
+            callResult: KIRExprID?
+        ) {
+            guard let context = guardStack.last ?? nil else {
+                result.append(.call(
+                    symbol: symbol, callee: callee, arguments: arguments,
+                    result: callResult, canThrow: false, thrownResult: nil
+                ))
+                return
+            }
+            result.append(.call(
+                symbol: symbol, callee: callee, arguments: arguments,
+                result: callResult, canThrow: true, thrownResult: context.exceptionSlot
+            ))
+            let unknownTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
+            result.append(.constValue(result: unknownTypeToken, value: .intLiteral(0)))
+            result.append(.copy(from: unknownTypeToken, to: context.exceptionTypeSlot))
+            result.append(.jumpIfNotNull(value: context.exceptionSlot, target: context.thrownTarget))
+        }
+
+        for (index, instruction) in body.enumerated() {
+            result.currentSourceRange = index < bodyLocations.count
+                ? bodyLocations[index]
+                : nil
+            switch instruction {
+            case .beginFinallyGuard:
+                guardStack.append(resolveGuardRegionThrowContext(body: body, beginIndex: index))
+                result.append(instruction)
+                continue
+            case .endFinallyGuard:
+                _ = guardStack.popLast()
+                result.append(instruction)
+                continue
+            default:
+                break
+            }
+
+            if case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
                let storageSymbol = symbol,
-               let propertySymbol = propertyByStorageSymbol[storageSymbol],
-               callee == names.getValueName || callee == names.setValueName
+               propertyByStorageSymbol[storageSymbol] != nil,
+               callee == getValueName || callee == setValueName
             {
-                if kindMap[propertySymbol] == .custom {
-                    result.append(instruction)
-                    continue
-                }
-                if callee == names.getValueName {
-                    emitGetValue(
-                        result: callResult ?? arena.appendTemporary(type: sema.types.anyType),
-                        storageSym: storageSymbol,
-                        propSym: propertySymbol,
-                        kindMap: kindMap,
-                        names: names,
-                        arena: arena,
-                        sema: sema,
-                        body: &result
-                    )
-                } else {
-                    let valueExpr = arguments.last ?? arena.appendExpr(.unit, type: sema.types.anyType)
-                    emitSetValue(
-                        fromExpr: valueExpr,
-                        storageSym: storageSymbol,
-                        kind: kindMap[propertySymbol],
-                        names: names,
-                        arena: arena,
-                        sema: sema,
-                        body: &result
-                    )
-                }
+                // Already a well-formed getValue/setValue call emitted by the
+                // delegate's own accessor function -- nothing to rewrite.
+                result.append(instruction)
                 continue
             }
 
             if case let .loadGlobal(res, sym) = instruction,
-               let storageSym = fullStorageMap[sym]
+               fullStorageMap[sym] != nil
             {
-                if kindMap[sym] == .custom {
-                    result.append(
-                        .call(
-                            symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
-                            callee: interner.intern("get"),
-                            arguments: [],
-                            result: res,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
-                    )
-                    continue
-                }
-                emitGetValue(
-                    result: res, storageSym: storageSym, propSym: sym,
-                    kindMap: kindMap, names: names,
-                    arena: arena, sema: sema, body: &result
+                appendAccessorCall(
+                    symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
+                    callee: getAccessorName,
+                    arguments: [],
+                    callResult: res
                 )
                 continue
             }
 
             if case let .constValue(res, value) = instruction,
                case let .symbolRef(sym) = value,
-               let storageSym = fullStorageMap[sym]
+               fullStorageMap[sym] != nil
             {
-                if kindMap[sym] == .custom {
-                    if copyTargetExprs.contains(res) {
-                        targets[res] = sym
-                        result.append(instruction)
-                    } else {
-                        result.append(
-                            .call(
-                                symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
-                                callee: interner.intern("get"),
-                                arguments: [],
-                                result: res,
-                                canThrow: false,
-                                thrownResult: nil
-                            )
-                        )
-                    }
-                    continue
-                }
                 if copyTargetExprs.contains(res) {
                     targets[res] = sym
-                    result.append(instruction)
+                    // This symbol reference is only the marker pairing the
+                    // assignment target with its following copy. The copy is
+                    // rewritten to the delegate setter below, so retaining
+                    // the marker would let PropertyLowering reinterpret it as
+                    // a getter read before the setter (notably breaking an
+                    // uninitialized `Delegates.notNull()` property).
                 } else {
-                    emitGetValue(
-                        result: res, storageSym: storageSym, propSym: sym,
-                        kindMap: kindMap, names: names,
-                        arena: arena, sema: sema, body: &result
+                    appendAccessorCall(
+                        symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
+                        callee: getAccessorName,
+                        arguments: [],
+                        callResult: res
                     )
                 }
                 continue
@@ -272,103 +213,157 @@ extension KIRLoweringDriver {
 
             if case let .copy(fromExpr, toExpr) = instruction,
                let propSym = targets.removeValue(forKey: toExpr),
-               let storageSym = fullStorageMap[propSym]
+               fullStorageMap[propSym] != nil
             {
-                if kindMap[propSym] == .custom {
-                    result.append(
-                        .call(
-                            symbol: SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propSym),
-                            callee: interner.intern("set"),
-                            arguments: [fromExpr],
-                            result: nil,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
-                    )
-                    continue
-                }
-                if kindMap[propSym] == .lazy {
-                    result.append(instruction)
-                    continue
-                }
-                emitSetValue(
-                    fromExpr: fromExpr, storageSym: storageSym,
-                    kind: kindMap[propSym],
-                    names: names, arena: arena, sema: sema, body: &result
+                appendAccessorCall(
+                    symbol: SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propSym),
+                    callee: setAccessorName,
+                    arguments: [fromExpr],
+                    callResult: nil
                 )
                 continue
             }
 
             result.append(instruction)
         }
-        return result.instructions
+        return result
     }
 
-    private func emitGetValue(
-        result: KIRExprID, storageSym: SymbolID, propSym: SymbolID,
-        kindMap: [SymbolID: StdlibDelegateKind], names: DelegateRuntimeNames,
-        arena: KIRArena, sema: SemaModule, body: inout KIRLoweringEmitContext
-    ) {
-        let handle = arena.appendTemporary(type: sema.types.anyType
-        )
-        body.append(.loadGlobal(result: handle, symbol: storageSym))
-        let name: InternedString = switch kindMap[propSym] {
-        case .lazy: names.lazyGetValue
-        case .observable: names.observableGetValue
-        case .vetoable: names.vetoableGetValue
-        case .notNull: names.notNullGetValue
-        case .custom:
-            preconditionFailure(
-                "'.custom' delegate property access must be redirected to the property's " +
-                    "own accessor symbol by rewriteDelegateAccesses before reaching emitGetValue"
-            )
-        case nil:
-            preconditionFailure("delegate kind must be resolved by buildDelegateKindMap before reaching emitGetValue")
-        }
-        body.append(.call(
-            symbol: nil,
-            callee: name,
-            arguments: [handle],
-            result: result, canThrow: false, thrownResult: nil
-        ))
+    /// The exception-routing channels of a `begin/endFinallyGuard` region:
+    /// the slot each throwing call writes into, the slot carrying the thrown
+    /// type token, and the catch/finally dispatch label.
+    private struct FinallyGuardThrowContext {
+        var exceptionSlot: KIRExprID
+        var exceptionTypeSlot: KIRExprID
+        var thrownTarget: Int32
     }
 
-    private func emitSetValue(
-        fromExpr: KIRExprID, storageSym: SymbolID, kind: StdlibDelegateKind?,
-        names: DelegateRuntimeNames,
-        arena: KIRArena, sema: SemaModule, body: inout KIRLoweringEmitContext
-    ) {
-        let handle = arena.appendTemporary(type: sema.types.anyType
-        )
-        body.append(.loadGlobal(result: handle, symbol: storageSym))
-        let name: InternedString = switch kind {
-        case .observable: names.observableSetValue
-        case .vetoable: names.vetoableSetValue
-        case .notNull: names.notNullSetValue
-        case .lazy: preconditionFailure("lazy delegate setValue is not supported")
-        case .custom:
-            preconditionFailure(
-                "'.custom' delegate property access must be redirected to the property's " +
-                    "own accessor symbol by rewriteDelegateAccesses before reaching emitSetValue"
-            )
-        case nil:
-            preconditionFailure("delegate kind must be resolved by buildDelegateKindMap before reaching emitSetValue")
+    /// Recovers the exception routing of the guard region opened at
+    /// `beginIndex`. `appendThrowAwareInstructions` tags every wrapped call
+    /// with `thrownResult: exceptionSlot` and the `copy(0 -> typeSlot)` +
+    /// `jumpIfNotNull(slot -> target)` follow-up, so a sibling call inside the
+    /// region exposes the routing directly. When the region holds no wired
+    /// call (the delegated access was its only throwing call), the slots are
+    /// recovered from the slot-init block the region's producer emitted just
+    /// before the guard and the dispatch label is the first label after the
+    /// region's matching end marker. Returns nil when neither holds — the
+    /// caller then leaves the exception to propagate.
+    private func resolveGuardRegionThrowContext(
+        body: [KIRInstruction],
+        beginIndex: Int
+    ) -> FinallyGuardThrowContext? {
+        var depth = 0
+        var matchingEnd = -1
+        var index = beginIndex + 1
+        while index < body.count {
+            switch body[index] {
+            case .beginFinallyGuard:
+                depth += 1
+            case .endFinallyGuard:
+                if depth == 0 {
+                    matchingEnd = index
+                } else {
+                    depth -= 1
+                }
+            case let .jumpIfNotNull(value, target) where depth == 0:
+                if index >= 2,
+                   case let .copy(from: token, to: typeSlot) = body[index - 1],
+                   case let .constValue(result: tokenDef, value: .intLiteral(0)) = body[index - 2],
+                   tokenDef == token
+                {
+                    return FinallyGuardThrowContext(
+                        exceptionSlot: value,
+                        exceptionTypeSlot: typeSlot,
+                        thrownTarget: target
+                    )
+                }
+            default:
+                break
+            }
+            if matchingEnd >= 0 { break }
+            index += 1
         }
-        let setResult = arena.appendTemporary(type: sema.types.anyType
+        guard matchingEnd >= 0 else { return nil }
+
+        // Init block the guard producers emit just before the region:
+        //   constValue(a, .null); constValue(b, .intLiteral(0));
+        //   copy(a -> exceptionSlot); copy(b -> exceptionTypeSlot)
+        var exceptionSlot: KIRExprID?
+        var exceptionTypeSlot: KIRExprID?
+        var cursor = beginIndex - 4
+        var remaining = 40
+        while cursor >= 0, remaining > 0 {
+            switch body[cursor] {
+            case .label, .jump, .jumpIfEqual, .jumpIfNotNull,
+                 .beginFinallyGuard, .endFinallyGuard,
+                 .beginBlock, .endBlock,
+                 .returnUnit, .returnValue, .rethrow:
+                remaining = 0
+            case let .constValue(result: nullConst, value: .null):
+                if cursor + 3 < body.count,
+                   case let .constValue(result: zeroConst, value: .intLiteral(0)) = body[cursor + 1],
+                   case let .copy(from: nullSrc, to: slot) = body[cursor + 2],
+                   case let .copy(from: zeroSrc, to: typeSlot) = body[cursor + 3],
+                   nullSrc == nullConst, zeroSrc == zeroConst
+                {
+                    exceptionSlot = slot
+                    exceptionTypeSlot = typeSlot
+                    remaining = 0
+                }
+            default:
+                break
+            }
+            cursor -= 1
+            remaining -= 1
+        }
+
+        var thrownTarget: Int32?
+        if exceptionSlot != nil {
+            var scan = matchingEnd + 1
+            while scan < body.count, scan <= matchingEnd + 8 {
+                if case let .label(labelID) = body[scan] {
+                    thrownTarget = labelID
+                    break
+                }
+                scan += 1
+            }
+        }
+
+        guard let exceptionSlot, let exceptionTypeSlot, let thrownTarget else {
+            return nil
+        }
+        return FinallyGuardThrowContext(
+            exceptionSlot: exceptionSlot,
+            exceptionTypeSlot: exceptionTypeSlot,
+            thrownTarget: thrownTarget
         )
-        body.append(.call(
-            symbol: nil,
-            callee: name,
-            arguments: [handle, fromExpr],
-            result: setResult, canThrow: false, thrownResult: nil
-        ))
     }
 }
 
 extension KIRLoweringDriver {
     /// Creates a lambda function from the delegate body.
+    ///
+    /// A class-member delegate body (`lazy { }`, `Delegates.observable(...) { }`)
+    /// may reference other instance fields by bare name (e.g. `initCount += 1`,
+    /// DEBT-KIR-008/BUG-170). The generated function is invoked later through
+    /// the delegate's stored function pointer (`LazyImpl`'s `initializer` for
+    /// `.lazy`, or the callback captured by the source-backed observable and
+    /// vetoable delegate objects). These callbacks cannot simply gain an extra
+    /// KIR parameter because the runtime side always invokes them through a
+    /// fixed dispatch entry point
+    /// (`kk_function_invoke_0` for `.lazy`, `kk_function_invoke_3` for
+    /// `.observable`/`.vetoable`) that already distinguishes a raw thunk
+    /// pointer from a boxed `Function0`/`Function3` closure value (BUG-151
+    /// made the latter dispatch safe for `.observable`/`.vetoable` too, by
+    /// unboxing through the same arity-tagged `RuntimeFunctionValueBox` the
+    /// general closure-invocation path uses). So a captured receiver is
+    /// threaded in by materializing a closure object instead, mirroring
+    /// `LambdaLowerer.materializeEscapingCallableValue`'s `(closureRaw) -> T`
+    /// adapter pattern.
     func lowerDelegateLambdaBody(
         delegateBody: FunctionBody?,
+        delegateBodyParams: [InternedString] = [],
+        valueType: TypeID? = nil,
         propertySymbol: SymbolID,
         paramCount: Int,
         shared: KIRLoweringSharedContext,
@@ -377,22 +372,74 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
+        // Top-level delegate properties have no enclosing receiver, so this is
+        // nil and the capture machinery below is a no-op for them.
+        let outerReceiver = ctx.activeImplicitReceiver()
+
+        let scopeSnapshot = ctx.saveScope()
+        defer { ctx.restoreScope(scopeSnapshot) }
+        ctx.resetScopeForFunction()
+
         let lambdaSymbol = ctx.allocateSyntheticGeneratedSymbol()
         let lambdaName = interner.intern("kk_delegate_lambda_\(propertySymbol.rawValue)")
 
-        var params: [KIRParameter] = []
+        var numberedParams: [KIRParameter] = []
         for i in 0 ..< paramCount {
-            let paramSymbol = SymbolID(
-                rawValue: -(propertySymbol.rawValue + Int32(i + 1) * 1000 + 50000)
+            let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
+                for: propertySymbol, at: i
             )
-            params.append(KIRParameter(symbol: paramSymbol, type: sema.types.anyType))
+            // `(property, oldValue, newValue)`: only the two value parameters
+            // carry the property's type; typing them keeps operations on them
+            // (comparisons, string templates) from treating the raw value as an
+            // untyped object handle.
+            let paramType = i == 0 ? sema.types.anyType : (valueType ?? sema.types.anyType)
+            numberedParams.append(KIRParameter(symbol: paramSymbol, type: paramType))
         }
+        let receiverParam: KIRParameter? = outerReceiver.map { receiver in
+            KIRParameter(
+                symbol: ctx.allocateSyntheticGeneratedSymbol(),
+                type: arena.exprType(receiver.exprID) ?? sema.types.anyType
+            )
+        }
+        let params = (receiverParam.map { [$0] } ?? []) + numberedParams
 
         var lambdaBody: KIRLoweringEmitContext = [.beginBlock]
-        for param in params {
+        if let receiverParam {
+            let receiverExpr = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverParam.type)
+            lambdaBody.append(.constValue(result: receiverExpr, value: .symbolRef(receiverParam.symbol)))
+            ctx.setLocalValue(receiverExpr, for: receiverParam.symbol)
+            // Bare-name instance-field references inside this body must resolve
+            // against the captured receiver, not the enclosing constructor's —
+            // this standalone function has no way to see that one.
+            ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverExpr)
+        }
+        // BUG-267: a delegate body on an object-literal member (e.g.
+        // `object { val x by lazy { outerLocal } }`) is lowered as its own KIR
+        // function, so outer locals it references must be reloaded from the
+        // capture fields materialized on the object instance — the same
+        // mechanism object-literal member functions use. No-op for named-class
+        // and top-level delegates (no objectLiteralCaptureSymbols registered).
+        objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody.instructions
+        )
+        // Names the callback lambda declared for its parameters
+        // (`{ property, old, new -> ... }`) must resolve to the synthetic
+        // parameters below while the body is lowered. `resetScopeForFunction`/
+        // `restoreScope` above already isolate this from the enclosing scope,
+        // so no manual save/restore of individual bindings is needed here.
+        let underscore = interner.intern("_")
+        for (index, param) in numberedParams.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             ctx.setLocalValue(paramExpr, for: param.symbol)
+            guard index < delegateBodyParams.count else { continue }
+            let name = delegateBodyParams[index]
+            guard name != underscore else { continue }
+            ctx.registerLambdaParam(symbol: param.symbol, forName: name)
         }
 
         switch delegateBody {
@@ -421,40 +468,263 @@ extension KIRLoweringDriver {
         )))
         ctx.appendGeneratedCallableDecl(lambdaDecl)
 
-        let lambdaRefExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.anyType)
-        instructions.append(.constValue(result: lambdaRefExpr, value: .symbolRef(lambdaSymbol)))
-        return lambdaRefExpr
+        guard let outerReceiver else {
+            // KSP-491: `lambdaSymbol` above was previously returned bare (a
+            // "raw thunk" `(numberedParams...) -> T` function pointer),
+            // relying on it only ever being invoked through
+            // kk_function_invoke_0/_3's raw-thunk branch. Passed instead to a
+            // real Kotlin closure-typed parameter (`LazyImpl`'s
+            // `initializer`, `ObservableProperty`'s callback, ...)
+            // and invoked there through ordinary closure-call syntax, the
+            // value must be a genuine boxed FunctionN -- but
+            // `kk_function_create_N` boxes a `(closureRaw, args..., outThrown)`-
+            // shaped pointer, one parameter more than `lambdaSymbol` has, so
+            // boxing it directly shifts every argument by one slot at
+            // invocation. Wrap it in a trivial closure-shaped adapter (an
+            // unused leading parameter, forwarding the rest) first, mirroring
+            // `materializeCapturingDelegateLambda` below minus the actual
+            // capture load this receiverless case has nothing to load.
+            let adapterSymbol = boxableDelegateLambdaAdapter(
+                innerLambdaSymbol: lambdaSymbol,
+                innerLambdaName: lambdaName,
+                numberedParams: numberedParams,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
+            let lambdaRefExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.anyType)
+            instructions.append(.constValue(result: lambdaRefExpr, value: .symbolRef(adapterSymbol)))
+            return boxDelegateLambdaAsClosure(
+                lambdaRefExpr: lambdaRefExpr,
+                paramCount: paramCount,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        return materializeCapturingDelegateLambda(
+            innerLambdaSymbol: lambdaSymbol,
+            innerLambdaName: lambdaName,
+            receiverExpr: outerReceiver.exprID,
+            numberedParams: numberedParams,
+            returnType: sema.types.anyType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
     }
 
-    /// Lowers the initial value argument from a delegate expression.
-    func lowerDelegateInitialValue(
-        delegateExpr: ExprID?,
-        shared: KIRLoweringSharedContext,
-        emit instructions: inout KIRLoweringEmitContext
+    /// Wraps `innerLambdaSymbol` (a plain `(numberedParams...) -> T` function,
+    /// no closure parameter) in a trivial adapter of shape
+    /// `(closureRaw, numberedParams...) -> T` that ignores `closureRaw` and
+    /// forwards the rest -- the shape `kk_function_create_N`'s boxed value
+    /// expects its `fnPtr` to already have (see `boxDelegateLambdaAsClosure`).
+    private func boxableDelegateLambdaAdapter(
+        innerLambdaSymbol: SymbolID,
+        innerLambdaName: InternedString,
+        numberedParams: [KIRParameter],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> SymbolID {
+        let adapterSymbol = ctx.allocateSyntheticGeneratedSymbol()
+        let adapterName = interner.intern("kk_delegate_lambda_noop_adapter_\(adapterSymbol.rawValue)")
+        let closureParam = KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.intType)
+        let adapterNumberedParams = numberedParams.map {
+            KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: $0.type)
+        }
+        let adapterParams = [closureParam] + adapterNumberedParams
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        var forwardedArgs: [KIRExprID] = []
+        for param in adapterNumberedParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            forwardedArgs.append(paramExpr)
+        }
+        let callResult = arena.appendTemporary(type: sema.types.anyType)
+        body.append(.call(
+            symbol: innerLambdaSymbol,
+            callee: innerLambdaName,
+            arguments: forwardedArgs,
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        body.append(.returnValue(callResult))
+        body.append(.endBlock)
+
+        let adapterDecl = arena.appendDecl(.function(KIRFunction(
+            symbol: adapterSymbol, name: adapterName, params: adapterParams,
+            returnType: sema.types.anyType, body: body, isSuspend: false, isInline: false
+        )))
+        ctx.appendGeneratedCallableDecl(adapterDecl)
+        return adapterSymbol
+    }
+
+    /// Boxes a raw delegate-lambda thunk reference (no outer receiver to
+    /// capture) into a genuine `FunctionN` closure value via
+    /// `kk_function_create_N` with an empty (`0`) closure environment, so
+    /// ordinary Kotlin closure-call syntax (`onChange(a, b, c)`) can invoke
+    /// it -- mirroring the tail of `materializeCapturingDelegateLambda`
+    /// below, minus the capture-loading adapter this receiverless case
+    /// doesn't need.
+    private func boxDelegateLambdaAsClosure(
+        lambdaRefExpr: KIRExprID,
+        paramCount: Int,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        let ast = shared.ast
-        let sema = shared.sema
-        let arena = shared.arena
-        guard let exprID = delegateExpr,
-              let expr = ast.arena.expr(exprID)
-        else {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.anyType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            return zeroExpr
+        let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
+        let createCallee: InternedString = switch paramCount {
+        case 0: interner.intern("kk_function_create_0")
+        case 1: interner.intern("kk_function_create_1")
+        case 2: interner.intern("kk_function_create_2")
+        case 3: interner.intern("kk_function_create_3")
+        case 4: interner.intern("kk_function_create_4")
+        case 5: interner.intern("kk_function_create_5")
+        default: preconditionFailure("Unsupported delegate callback arity: \(paramCount)")
         }
-
-        switch expr {
-        case let .call(_, _, args, _):
-            if let firstArg = args.first {
-                return lowerExpr(firstArg.expr, shared: shared, emit: &instructions)
-            }
-        case let .memberCall(_, _, _, args, _):
-            if let firstArg = args.first {
-                return lowerExpr(firstArg.expr, shared: shared, emit: &instructions)
-            }
-        default: break
-        }
-
-        return lowerExpr(exprID, shared: shared, emit: &instructions)
+        let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: createCallee,
+            arguments: [lambdaRefExpr, zeroClosureExpr],
+            result: materializedExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return materializedExpr
     }
+
+    /// Wraps `innerLambdaSymbol` (a `(receiver, [property, old, new]) -> T`
+    /// function) into a boxed `Function0`/`Function3` closure value carrying
+    /// `receiverExpr` as captured state, so it can be invoked through
+    /// `kk_function_invoke_0`'s (arity 0, `.lazy`) or `kk_function_invoke_3`'s
+    /// (arity 3, `.observable`/`.vetoable`) boxed-closure path with only the
+    /// numbered arguments (if any) at the call site — the receiver arrives via
+    /// the closure object, not as a visible argument. See
+    /// `lowerDelegateLambdaBody` for why this indirection (rather than a
+    /// plain extra KIR parameter on the inner lambda) is needed: the runtime
+    /// dispatch entry points invoke a fixed, arity-tagged function-pointer
+    /// shape that has no room for one.
+    private func materializeCapturingDelegateLambda(
+        innerLambdaSymbol: SymbolID,
+        innerLambdaName: InternedString,
+        receiverExpr: KIRExprID,
+        numberedParams: [KIRParameter],
+        returnType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let adapterSymbol = ctx.allocateSyntheticGeneratedSymbol()
+        let adapterName = interner.intern("kk_delegate_lambda_adapter_\(adapterSymbol.rawValue)")
+        let closureParam = KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.intType)
+        let captureOffset = Int64(2)
+        // The adapter needs its own parameter symbols for the numbered
+        // (property/old/new) arguments — KIR functions can't share parameter
+        // symbols with the inner lambda — but forwards the same values through
+        // unchanged, so the types match.
+        let adapterNumberedParams = numberedParams.map {
+            KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: $0.type)
+        }
+        let adapterParams = [closureParam] + adapterNumberedParams
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
+        body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
+
+        let receiverType = arena.exprType(receiverExpr) ?? sema.types.anyType
+        let loadOffsetExpr = arena.appendExpr(.intLiteral(captureOffset), type: sema.types.intType)
+        body.append(.constValue(result: loadOffsetExpr, value: .intLiteral(captureOffset)))
+        let loadedReceiver = arena.appendTemporary(type: receiverType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_get_inbounds"),
+            arguments: [closureExpr, loadOffsetExpr],
+            result: loadedReceiver,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        var forwardedArgs: [KIRExprID] = [loadedReceiver]
+        for param in adapterNumberedParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            forwardedArgs.append(paramExpr)
+        }
+
+        let callResult = arena.appendTemporary(type: returnType)
+        body.append(.call(
+            symbol: innerLambdaSymbol,
+            callee: innerLambdaName,
+            arguments: forwardedArgs,
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        body.append(.returnValue(callResult))
+        body.append(.endBlock)
+
+        let adapterDecl = arena.appendDecl(.function(KIRFunction(
+            symbol: adapterSymbol, name: adapterName, params: adapterParams,
+            returnType: returnType, body: body, isSuspend: false, isInline: false
+        )))
+        ctx.appendGeneratedCallableDecl(adapterDecl)
+
+        let slotCountExpr = arena.appendExpr(.intLiteral(3), type: sema.types.intType)
+        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(3)))
+        let classIDExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
+        let closureObj = arena.appendTemporary(type: sema.types.intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_object_new"),
+            arguments: [slotCountExpr, classIDExpr],
+            result: closureObj,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        let storeOffsetExpr = arena.appendExpr(.intLiteral(captureOffset), type: sema.types.intType)
+        instructions.append(.constValue(result: storeOffsetExpr, value: .intLiteral(captureOffset)))
+        let setResult = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_set"),
+            arguments: [closureObj, storeOffsetExpr, receiverExpr],
+            result: setResult,
+            canThrow: true,
+            thrownResult: nil
+        ))
+
+        let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
+        instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
+        let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
+        let createCallee: InternedString = switch adapterNumberedParams.count {
+        case 0: interner.intern("kk_function_create_0")
+        case 1: interner.intern("kk_function_create_1")
+        case 2: interner.intern("kk_function_create_2")
+        case 3: interner.intern("kk_function_create_3")
+        case 4: interner.intern("kk_function_create_4")
+        case 5: interner.intern("kk_function_create_5")
+        default: preconditionFailure("Unsupported delegate callback arity: \(adapterNumberedParams.count)")
+        }
+        instructions.append(.call(
+            symbol: nil,
+            callee: createCallee,
+            arguments: [adapterExpr, closureObj],
+            result: materializedExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return materializedExpr
+    }
+
 }

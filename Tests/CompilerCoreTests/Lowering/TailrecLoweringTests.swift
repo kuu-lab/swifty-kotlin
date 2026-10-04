@@ -8,27 +8,6 @@ struct TailrecLoweringTests {
 
     // MARK: - Test Helpers
 
-    /// Create a `KIRContext` with the given module name and a shared interner.
-    /// Avoids repeating `CompilerOptions` / `DiagnosticEngine` / temp-path
-    /// boilerplate across every test.
-    private func makeKIRContext(
-        moduleName: String,
-        interner: StringInterner
-    ) -> KIRContext {
-        KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: moduleName,
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
-    }
-
     /// Build a single-function `KIRModule`, run `TailrecLoweringPass`, and
     /// return the lowered function.
     @discardableResult
@@ -53,8 +32,6 @@ struct TailrecLoweringTests {
 
     // MARK: - Unit Tests (KIR level)
 
-    /// Verify that a tailrec function's self-recursive call + returnValue
-    /// is replaced by parameter copy + jump to loop head.
     @Test
     func testTailrecRewritesSelfRecursiveCallToLoop() throws {
         let interner = StringInterner()
@@ -110,7 +87,6 @@ struct TailrecLoweringTests {
             moduleName: "TailrecTest", interner: interner
         )
 
-        // The loop-head label should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction {
                 return id == tailrecLoopLabelBase
@@ -119,7 +95,6 @@ struct TailrecLoweringTests {
         }
         #expect(hasLoopLabel, "Expected loop-head label L\(tailrecLoopLabelBase)")
 
-        // The jump back to loop head should be present.
         let hasJumpBack = lowered.body.contains { instruction in
             if case let .jump(target) = instruction {
                 return target == tailrecLoopLabelBase
@@ -128,7 +103,6 @@ struct TailrecLoweringTests {
         }
         #expect(hasJumpBack, "Expected jump back to loop head")
 
-        // The self-recursive call should be gone.
         let hasSelfCall = lowered.body.contains { instruction in
             if case let .call(sym, _, _, _, _, _, _, _) = instruction, sym == fnSymbol {
                 return true
@@ -137,7 +111,6 @@ struct TailrecLoweringTests {
         }
         #expect(!hasSelfCall, "Self-recursive call should have been eliminated")
 
-        // There should be copy instructions for parameter reassignment.
         let copyCount = lowered.body.filter { instruction in
             if case .copy = instruction { return true }
             return false
@@ -211,7 +184,6 @@ struct TailrecLoweringTests {
         )
     }
 
-    /// Verify that non-tailrec functions are NOT rewritten.
     @Test
     func testNonTailrecFunctionIsNotModified() {
         let interner = StringInterner()
@@ -251,7 +223,6 @@ struct TailrecLoweringTests {
         )
         let ctx = makeKIRContext(moduleName: "NonTailrecTest", interner: interner)
 
-        // shouldRun should return false.
         #expect(!TailrecLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
@@ -415,7 +386,6 @@ struct TailrecLoweringTests {
         }
         #expect(!hasDefaultStubCall, "$default stub call with mask=0 should be eliminated by tailrec lowering")
 
-        // The loop-head label should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction {
                 return id >= tailrecLoopLabelBase
@@ -424,7 +394,6 @@ struct TailrecLoweringTests {
         }
         #expect(hasLoopLabel, "Expected loop-head label for mask=0 $default call")
 
-        // The jump back to loop head should be present.
         let hasJumpBack = lowered.body.contains { instruction in
             if case let .jump(target) = instruction {
                 return target >= tailrecLoopLabelBase
@@ -600,7 +569,6 @@ struct TailrecLoweringTests {
         }
         #expect(!hasDefaultStubCall, "$default stub call with mask=0 should be eliminated (slow-path mask test)")
 
-        // The loop-head label and jump should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction { return id >= tailrecLoopLabelBase }
             return false
@@ -616,8 +584,6 @@ struct TailrecLoweringTests {
 
     // MARK: - Sema warning test
 
-    /// Verify that KSWIFTK-SEMA-TAILREC warning is emitted when the last
-    /// expression is not a self-recursive call.
     @Test
     func testSemaTailrecWarningOnNonRecursiveBody() throws {
         let source = """
@@ -640,9 +606,6 @@ struct TailrecLoweringTests {
 
     // MARK: - E2E integration test
 
-    /// Compile a tailrec factorial function and verify that tailrec lowering
-    /// transforms the recursion into a loop in KIR (no self-recursive calls
-    /// remain and control flow uses a loop-head label with jump).
     @Test
     func testTailrecFactorialLoweredToLoop() throws {
         let source = """
@@ -655,8 +618,7 @@ struct TailrecLoweringTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "TailrecE2E", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
 
@@ -699,6 +661,132 @@ struct TailrecLoweringTests {
             // No errors in diagnostics.
             #expect(!ctx.diagnostics.hasError, "Compilation should succeed without errors")
         }
+    }
+
+    // MARK: - Expression bodies / omitted defaults (regressions)
+
+    /// Compiles `source` to the lowered KIR and returns `name`'s function plus
+    /// whether it still contains a direct or `$default` self-call, and whether
+    /// it received the tailrec loop jump.
+    private func lowerTailrecSource(
+        _ source: String, function name: String, module moduleName: String
+    ) throws -> (hasSelfCall: Bool, hasLoopJump: Bool, hasSemaTailrecWarning: Bool, hasError: Bool) {
+        var outcome = (hasSelfCall: false, hasLoopJump: false, hasSemaTailrecWarning: false, hasError: false)
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: moduleName, emit: .kirDump)
+            try runToLowering(ctx)
+            let module = try #require(ctx.kir)
+            let function = try findKIRFunction(named: name, in: module, interner: ctx.interner)
+            let selfName = ctx.interner.intern(name)
+            let stubName = ctx.interner.intern(name + "$default")
+            let hasSelfCall = function.body.contains { instruction in
+                if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                    return callee == selfName || callee == stubName
+                }
+                return false
+            }
+            let hasLoopJump = function.body.contains { instruction in
+                if case let .jump(target) = instruction { return target >= tailrecLoopLabelBase }
+                return false
+            }
+            let hasWarning = ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-TAILREC" }
+            outcome = (hasSelfCall, hasLoopJump, hasWarning, ctx.diagnostics.hasError)
+        }
+        return outcome
+    }
+
+    @Test
+    func testTailrecIfExpressionBodyIsLoweredToLoop() throws {
+        let result = try lowerTailrecSource(
+            """
+            tailrec fun sum(n: Long, acc: Long): Long = if (n == 0L) acc else sum(n - 1, acc + n)
+            fun main() { println(sum(10L, 0L)) }
+            """,
+            function: "sum", module: "TailrecIfExprBody"
+        )
+        #expect(!result.hasError)
+        #expect(!result.hasSemaTailrecWarning, "if-expression body has a tail call; no KSWIFTK-SEMA-TAILREC expected")
+        #expect(result.hasLoopJump, "Expected jump back to the loop head")
+        #expect(!result.hasSelfCall, "Self-call in the else branch should become a loop")
+    }
+
+    @Test
+    func testTailrecWhenExpressionBodyIsLoweredToLoop() throws {
+        let result = try lowerTailrecSource(
+            """
+            tailrec fun count(n: Int, acc: Int): Int = when {
+                n == 0 -> acc
+                else -> count(n - 1, acc + 1)
+            }
+            fun main() { println(count(10, 0)) }
+            """,
+            function: "count", module: "TailrecWhenExprBody"
+        )
+        #expect(!result.hasError)
+        #expect(!result.hasSemaTailrecWarning)
+        #expect(result.hasLoopJump)
+        #expect(!result.hasSelfCall)
+    }
+
+    @Test
+    func testTailrecNestedIfBranchesAllRewritten() throws {
+        let result = try lowerTailrecSource(
+            """
+            tailrec fun nested(n: Int, acc: Int): Int =
+                if (n <= 0) acc
+                else if (n % 2 == 0) nested(n - 1, acc + 2)
+                else nested(n - 1, acc + 1)
+            fun main() { println(nested(10, 0)) }
+            """,
+            function: "nested", module: "TailrecNestedIfBranches"
+        )
+        #expect(!result.hasError, "Join label of fully-rewritten branches must not leave undefined reads")
+        #expect(result.hasLoopJump)
+        #expect(!result.hasSelfCall)
+    }
+
+    @Test
+    func testTailrecCallFollowedByWorkIsNotRewritten() throws {
+        // `1 + f(..)` keeps work after the call: it is not a tail call and must stay recursive.
+        let result = try lowerTailrecSource(
+            """
+            tailrec fun notTail(n: Int): Int = if (n == 0) 0 else 1 + notTail(n - 1)
+            fun main() { println(notTail(3)) }
+            """,
+            function: "notTail", module: "TailrecNonTailCallKept"
+        )
+        #expect(result.hasSelfCall, "A call with pending work after it must not be turned into a loop")
+    }
+
+    @Test
+    func testTailrecOmittedDefaultArgumentIsLoweredToLoop() throws {
+        let result = try lowerTailrecSource(
+            """
+            tailrec fun down(n: Int, step: Int = 1): Int {
+                if (n <= 0) return n
+                return down(n - step)
+            }
+            fun main() { println(down(10)) }
+            """,
+            function: "down", module: "TailrecOmittedDefault"
+        )
+        #expect(!result.hasError)
+        #expect(result.hasLoopJump, "Self-call omitting a default must still become a loop")
+        #expect(!result.hasSelfCall, "No direct or $default self-call should remain")
+    }
+
+    @Test
+    func testTailrecUnitIfStatementIsLoweredToLoop() throws {
+        let result = try lowerTailrecSource(
+            """
+            tailrec fun unitLoop(n: Int) { if (n > 0) unitLoop(n - 1) }
+            fun main() { unitLoop(3) }
+            """,
+            function: "unitLoop", module: "TailrecUnitIfStatement"
+        )
+        #expect(!result.hasError)
+        #expect(result.hasLoopJump)
+        #expect(!result.hasSelfCall)
     }
 }
 #endif

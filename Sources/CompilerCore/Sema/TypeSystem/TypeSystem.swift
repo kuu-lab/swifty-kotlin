@@ -12,13 +12,20 @@ public final class TypeSystem {
     /// The symbol ID of the synthetic `kotlin.Annotation` interface, set during registration.
     public internal(set) var annotationInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the synthetic `kotlin.io.Closeable` interface, set during registration.
+    /// The symbol ID of the source-backed `kotlin.AutoCloseable` interface.
     public internal(set) var closeableInterfaceSymbol: SymbolID?
+
+    /// The symbol ID of the source-backed `kotlin.io.Closeable` interface.
+    /// Used to register synthetic IO nominals as subtypes of `Closeable` (which itself
+    /// extends `AutoCloseable`) so that user code can assign a stream/reader to a
+    /// `Closeable`-typed variable while `.use {}` lowering resolves `close()` from
+    /// the root `AutoCloseable` interface.
+    public internal(set) var ioCloseableInterfaceSymbol: SymbolID?
 
     /// The symbol ID of the synthetic `kotlin.CharSequence` interface, set during registration.
     public internal(set) var charSequenceInterfaceSymbol: SymbolID?
 
-    /// Cached TypeID for `kotlin.io.Closeable` (non-null), set alongside `closeableInterfaceSymbol`.
+    /// Cached TypeID for source-backed `kotlin.AutoCloseable` (non-null).
     /// Avoids repeated `make(...)` allocations on the hot path in `isCloseableReceiver`.
     public internal(set) var closeableTypeID: TypeID?
 
@@ -26,12 +33,39 @@ public final class TypeSystem {
     /// Used in subtyping to allow function types to be assigned to KFunction<R> variables.
     public internal(set) var kFunctionInterfaceSymbol: SymbolID?
 
+    /// The symbol of the bundled `kotlin.Function<R>` interface.
+    /// Function types are subtypes of this source-backed common function interface.
+    public internal(set) var functionInterfaceSymbol: SymbolID?
+
     /// The symbol ID of the synthetic `kotlin.reflect.KClass` interface.
     public internal(set) var kClassInterfaceSymbol: SymbolID?
 
     /// The symbol ID of the synthetic `kotlin.Number` abstract class, set during header registration.
     /// Used in subtyping to allow numeric primitives (Int, Long, …) to satisfy `Number` upper bounds.
     public internal(set) var numberClassSymbol: SymbolID?
+
+    /// The symbol ID of the synthetic `kotlin.String` `.class`-kind symbol registered by
+    /// `HeaderHelpers.ensureClassSymbol` purely to host member declarations (CharSequence
+    /// conformance, byte-array constructors). Scope-based lookup for `String::class` finds
+    /// this symbol before ever reaching the builtin-name fallback, so `classRefTargetType`
+    /// resolves to `.classType(ClassType(classSymbol: stringClassSymbol))` — a disguised
+    /// nominal type distinct from the canonical `stringType` (`.stringStruct`) that an
+    /// ordinary `is String` check resolves to. `isSubtype` normalizes the disguise back to
+    /// `stringType` so the two representations compare as equal.
+    public internal(set) var stringClassSymbol: SymbolID?
+
+    /// The symbol ID of the synthetic `kotlin.Char` `.class`-kind symbol (hosts companion
+    /// helpers). Same disguise-vs-canonical-`charType` situation as `stringClassSymbol`.
+    public internal(set) var charClassSymbol: SymbolID?
+
+    /// The symbol ID of the synthetic `kotlin.Any` `.class`-kind symbol (hosts toString/
+    /// hashCode/equals member declarations). Same disguise-vs-canonical-`anyType` situation
+    /// as `stringClassSymbol`.
+    public internal(set) var anyClassSymbol: SymbolID?
+
+    /// The source-backed `kotlin.Unit` object symbol used to resolve members on
+    /// the builtin Unit value representation.
+    public internal(set) var unitClassSymbol: SymbolID?
 
 
     /// Symbol table reference for SAM (fun interface) subtyping. Set during DataFlowSemaPhase.
@@ -54,6 +88,8 @@ public final class TypeSystem {
     public let ulongType: TypeID
     public let ubyteType: TypeID
     public let ushortType: TypeID
+    public let byteType: TypeID
+    public let shortType: TypeID
 
     public init() {
         errorType = TypeID(rawValue: 0)
@@ -73,6 +109,8 @@ public final class TypeSystem {
         ulongType = TypeID(rawValue: 14)
         ubyteType = TypeID(rawValue: 15)
         ushortType = TypeID(rawValue: 16)
+        byteType = TypeID(rawValue: 17)
+        shortType = TypeID(rawValue: 18)
 
         idToKind = [
             .error,
@@ -92,6 +130,8 @@ public final class TypeSystem {
             .primitive(.ulong, .nonNull),
             .primitive(.ubyte, .nonNull),
             .primitive(.ushort, .nonNull),
+            .primitive(.byte, .nonNull),
+            .primitive(.short, .nonNull),
         ]
         kindToID = [
             .error: errorType,
@@ -111,6 +151,8 @@ public final class TypeSystem {
             .primitive(.ulong, .nonNull): ulongType,
             .primitive(.ubyte, .nonNull): ubyteType,
             .primitive(.ushort, .nonNull): ushortType,
+            .primitive(.byte, .nonNull): byteType,
+            .primitive(.short, .nonNull): shortType,
         ]
     }
 
@@ -169,7 +211,7 @@ public final class TypeSystem {
 
     public func isSigned(_ type: TypeID) -> Bool {
         switch kind(of: type) {
-        case .primitive(.int, _), .primitive(.long, _):
+        case .primitive(.int, _), .primitive(.long, _), .primitive(.byte, _), .primitive(.short, _):
             true
         default:
             false
@@ -328,6 +370,41 @@ public final class TypeSystem {
         }
     }
 
+    /// Returns `true` when `type` structurally contains any type parameter
+    /// reference, i.e. it is not fully substituted with concrete types.
+    public func typeContainsAnyTypeParam(_ type: TypeID) -> Bool {
+        switch kind(of: type) {
+        case .typeParam:
+            return true
+        case let .classType(ct):
+            return ct.args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    typeContainsAnyTypeParam(inner)
+                case .star:
+                    false
+                }
+            }
+        case let .functionType(ft):
+            if ft.contextReceivers.contains(where: { typeContainsAnyTypeParam($0) }) {
+                return true
+            }
+            if let receiver = ft.receiver, typeContainsAnyTypeParam(receiver) {
+                return true
+            }
+            if ft.params.contains(where: { typeContainsAnyTypeParam($0) }) {
+                return true
+            }
+            return typeContainsAnyTypeParam(ft.returnType)
+        case let .kClassType(kc):
+            return typeContainsAnyTypeParam(kc.argument)
+        case let .intersection(parts):
+            return parts.contains { typeContainsAnyTypeParam($0) }
+        default:
+            return false
+        }
+    }
+
     public func setNominalSupertypeTypeArgs(_ args: [TypeArg], for child: SymbolID, supertype parent: SymbolID) {
         nominalSupertypeTypeArgsMap[child, default: [:]][parent] = args
     }
@@ -347,49 +424,89 @@ public final class TypeSystem {
         childArgs: [TypeArg],
         to parent: SymbolID
     ) -> [TypeArg]? {
+        // KUU-809: the direct-supertype graph is attacker-controlled when it
+        // comes from `.kklib` metadata, so this walk must not consume native
+        // call-stack frames per level. The explicit stack below performs the
+        // same DFS the recursive version did: `target` is checked before the
+        // visited mark, and children are explored left-to-right depth-first
+        // (reversed pushes keep the leftmost child on top of the stack).
         var visited: Set<SymbolID> = []
-        return liftedNominalSupertypeArgs(
-            from: child,
-            currentArgs: childArgs,
-            to: parent,
-            visited: &visited
-        )
+        var stack: [(symbol: SymbolID, args: [TypeArg])] = [(child, childArgs)]
+        while let (current, currentArgs) = stack.popLast() {
+            if current == parent {
+                return currentArgs
+            }
+            guard visited.insert(current).inserted else {
+                continue
+            }
+            for directSupertype in directNominalSupertypes(for: current).reversed() {
+                let directArgsTemplate = nominalSupertypeTypeArgs(for: current, supertype: directSupertype)
+                let substitutedDirectArgs = directArgsTemplate.map {
+                    substituteNominalTypeArg($0, owner: current, ownerArgs: currentArgs)
+                }
+                stack.append((directSupertype, substitutedDirectArgs))
+            }
+        }
+        return nil
     }
 
-    private func liftedNominalSupertypeArgs(
-        from current: SymbolID,
-        currentArgs: [TypeArg],
-        to target: SymbolID,
-        visited: inout Set<SymbolID>
+    /// Infers `subtype`'s own type arguments for a smart cast from a known
+    /// supertype instantiation, when `subtype` was checked for with no
+    /// explicit type arguments (`this is List`, not `this is List<Int>`).
+    ///
+    /// Kotlin's smart cast for this pattern is only sound because `subtype`'s
+    /// declared path to `supertype` passes each of `supertype`'s type
+    /// arguments straight through as one of `subtype`'s own bare type
+    /// parameters (e.g. `List<out E> : Collection<E>`, `Collection<E> :
+    /// Iterable<E>`, so a value known to be `Iterable<T>` that is also a
+    /// `List` must be a `List<T>`, never `List<*>`). This is checked
+    /// structurally: `subtype` is symbolically applied to its own type
+    /// parameters and lifted to `supertype` via `liftedNominalSupertypeArgs`;
+    /// any resulting position that isn't a bare reference back to one of
+    /// `subtype`'s own parameters (e.g. a declared path like `Foo<X> :
+    /// Bar<List<X>>`, which doesn't determine `X` from `Bar`'s argument
+    /// alone) is left unresolved (`.star`), matching today's conservative
+    /// behavior for that parameter.
+    public func narrowedSubtypeArgs(
+        forSubtype subtype: SymbolID,
+        givenSupertype supertype: SymbolID,
+        supertypeArgs: [TypeArg]
     ) -> [TypeArg]? {
-        if current == target {
-            return currentArgs
+        let subtypeParams = nominalTypeParameterSymbols(for: subtype)
+        guard !subtypeParams.isEmpty else { return nil }
+        let symbolicArgs: [TypeArg] = subtypeParams.map {
+            .invariant(make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
         }
-        guard visited.insert(current).inserted else {
+        guard let symbolicSupertypeArgs = liftedNominalSupertypeArgs(
+            from: subtype, childArgs: symbolicArgs, to: supertype
+        ), symbolicSupertypeArgs.count == supertypeArgs.count else {
             return nil
         }
-
-        for directSupertype in directNominalSupertypes(for: current) {
-            let directArgsTemplate = nominalSupertypeTypeArgs(for: current, supertype: directSupertype)
-            let substitutedDirectArgs = directArgsTemplate.map {
-                substituteNominalTypeArg($0, owner: current, ownerArgs: currentArgs)
+        var resolved: [SymbolID: TypeID] = [:]
+        for (symbolicArg, concreteArg) in zip(symbolicSupertypeArgs, supertypeArgs) {
+            let symbolicType: TypeID?
+            switch symbolicArg {
+            case let .invariant(t), let .out(t), let .in(t): symbolicType = t
+            case .star: symbolicType = nil
             }
-
-            if directSupertype == target {
-                return substitutedDirectArgs
+            guard let symbolicType,
+                  case let .typeParam(tp) = kind(of: symbolicType),
+                  subtypeParams.contains(tp.symbol)
+            else {
+                continue
             }
-
-            if let transitiveArgs = liftedNominalSupertypeArgs(
-                from: directSupertype,
-                currentArgs: substitutedDirectArgs,
-                to: target,
-                visited: &visited
-            ) {
-                return transitiveArgs
+            let concreteType: TypeID?
+            switch concreteArg {
+            case let .invariant(t), let .out(t), let .in(t): concreteType = t
+            case .star: concreteType = nil
             }
+            guard let concreteType else { continue }
+            resolved[tp.symbol] = concreteType
         }
-
-        return nil
+        guard !resolved.isEmpty else { return nil }
+        return subtypeParams.map { symbol in
+            resolved[symbol].map { TypeArg.invariant($0) } ?? .star
+        }
     }
 
     private func substituteNominalTypeArg(

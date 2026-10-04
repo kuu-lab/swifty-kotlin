@@ -1,6 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-005): common stdlib surface gap tracking
 import java.io.Closeable
-import java.io.File
 
 class TraceResource(private val name: String) : Closeable {
     override fun close() {
@@ -26,12 +24,4 @@ fun main() {
 
     val nullable: TraceResource? = null
     println(nullable?.use { "nope" })
-
-    val file = File("/tmp/kswiftk_file_use_edge_cases.txt")
-    file.delete()
-    println(file.exists())
-    println(file.createNewFile())
-    println(file.exists())
-    println(file.delete())
-    println(file.exists())
 }

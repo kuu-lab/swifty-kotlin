@@ -4,16 +4,6 @@
 public extension RuntimeABISpec {
     static let durationFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_measureTime",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_duration_inWholeNanoseconds",
             parameters: [
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),
@@ -44,7 +34,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_duration_parseIsoString",
@@ -61,7 +52,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_duration_zero",
@@ -72,16 +64,6 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_duration_infinite",
             parameters: [],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        // KSP-471: kept — CallLowerer+StdlibLoops.swift emits a direct call to this
-        // by name as the measureTime/measureTimedValue epilogue.
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_from_nanoseconds",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
             returnType: .intptr,
             section: "Duration"
         ),
@@ -157,65 +139,6 @@ public extension RuntimeABISpec {
             section: "Duration"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_duration_to_java_duration",
-            parameters: [
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_unit_to_time_unit",
-            parameters: [
-                RuntimeABIParameter(name: "unitOrdinal", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_time_unit_to_duration_unit",
-            parameters: [
-                RuntimeABIParameter(name: "timeUnitOrdinal", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_measureTimedValue",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_timedvalue_new",
-            parameters: [
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_timedvalue_value",
-            parameters: [
-                RuntimeABIParameter(name: "timedValueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_timedvalue_duration",
-            parameters: [
-                RuntimeABIParameter(name: "timedValueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_time_source_mark_now",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
@@ -233,8 +156,10 @@ public extension RuntimeABISpec {
             section: "Duration",
             isThrowing: false
         ),
+        // KSP-648: TimeMark operations live in kotlin/time/TimeMark.kt; only the
+        // reading bridges remain native.
         RuntimeABIFunctionSpec(
-            name: "kk_time_mark_elapsed_now",
+            name: "__kk_time_mark_reading_nanos",
             parameters: [
                 RuntimeABIParameter(name: "markRaw", type: .intptr),
             ],
@@ -243,94 +168,54 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_time_mark_has_passed_now",
-            parameters: [
-                RuntimeABIParameter(name: "markRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_time_mark_has_not_passed_now",
-            parameters: [
-                RuntimeABIParameter(name: "markRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_time_mark_plus_duration",
-            parameters: [
-                RuntimeABIParameter(name: "markRaw", type: .intptr),
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_time_mark_minus_duration",
-            parameters: [
-                RuntimeABIParameter(name: "markRaw", type: .intptr),
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_time_mark_minus_mark",
-            parameters: [
-                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
-                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_time_mark_compare",
-            parameters: [
-                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
-                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        // STDLIB-TIME-TYPE-009: TestTimeSource
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_new",
+            name: "__kk_time_mark_now_reading_nanos",
             parameters: [],
             returnType: .intptr,
             section: "Duration",
-            isThrowing: false,
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_plus_assign",
+            name: "__kk_time_mark_from_reading_nanos",
             parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
+                RuntimeABIParameter(name: "readingNanos", type: .intptr),
             ],
             returnType: .intptr,
             section: "Duration",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_mark_now",
+            name: "__kk_comparable_time_mark_from_reading_nanos",
             parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+                RuntimeABIParameter(name: "readingNanos", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration",
+            isThrowing: false
+        ),
+        // KSP-649: TimeSource / Monotonic reading bridges and Clock factory.
+        RuntimeABIFunctionSpec(
+            name: "__kk_time_source_mark_now",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
             section: "Duration",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_read",
+            name: "__kk_time_source_monotonic_mark_now",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_time_source_as_clock",
             parameters: [
                 RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+                RuntimeABIParameter(name: "originRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Duration",

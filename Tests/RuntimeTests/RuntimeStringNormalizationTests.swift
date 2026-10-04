@@ -1,7 +1,9 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
-final class RuntimeStringNormalizationTests: XCTestCase {
+@Suite
+struct RuntimeStringNormalizationTests {
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) throws -> T
@@ -39,33 +41,44 @@ final class RuntimeStringNormalizationTests: XCTestCase {
         }
     }
 
+    // KSP-717: form tags are the NormalizationForm.tag values assigned in
+    // Stdlib/kotlin/text/StringNormalize.kt (NFC=0, NFD=1, NFKC=2, NFKD=3);
+    // the __kk_normalization_form_nf* Swift wrappers that used to name them
+    // are gone now that NormalizationForms is a plain Kotlin object.
+    private static let nfcTag = 0
+    private static let nfdTag = 1
+    private static let nfkcTag = 2
+
+    @Test
     func testNormalizeNFCComposesDecomposedAccent() {
         let decomposed = "e\u{0301}"
-        XCTAssertEqual(normalizedFlatValue(decomposed, form: __kk_normalization_form_nfc()), "\u{00E9}")
+        #expect(normalizedFlatValue(decomposed, form: Self.nfcTag) == "\u{00E9}")
     }
 
+    @Test
     func testNormalizeNFDDecomposesPrecomposedAccent() {
         let precomposed = "\u{00E9}"
-        XCTAssertEqual(normalizedFlatValue(precomposed, form: __kk_normalization_form_nfd()), "e\u{0301}")
+        #expect(normalizedFlatValue(precomposed, form: Self.nfdTag) == "e\u{0301}")
     }
 
+    @Test
     func testNormalizeNFKCRewritesCompatibilityGlyph() {
         let source = "\u{FB01}"
-        XCTAssertEqual(normalizedFlatValue(source, form: __kk_normalization_form_nfkc()), "fi")
+        #expect(normalizedFlatValue(source, form: Self.nfkcTag) == "fi")
     }
 
+    @Test
     func testFlatIsNormalizedDetectsCanonicalForm() {
         withFlatString("e\u{0301}") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                __kk_string_isNormalized_flat(data, length, byteCount, hash, __kk_normalization_form_nfc()),
-                0
+            #expect(
+                __kk_string_isNormalized_flat(data, length, byteCount, hash, Self.nfcTag) == 0
             )
         }
         withFlatString("\u{00E9}") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                __kk_string_isNormalized_flat(data, length, byteCount, hash, __kk_normalization_form_nfc()),
-                1
+            #expect(
+                __kk_string_isNormalized_flat(data, length, byteCount, hash, Self.nfcTag) == 1
             )
         }
     }
 }
+#endif

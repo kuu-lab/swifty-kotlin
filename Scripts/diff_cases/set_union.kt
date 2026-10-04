@@ -51,6 +51,6 @@ fun main() {
     println(m.union(n))
 
     // Union with empty list
-    println(a.union(emptyList()))
+    println(a.union(emptyList<Int>()))
 
 }

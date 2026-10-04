@@ -550,10 +550,8 @@ extension DataEnumSealedSynthesisPass {
         )
         let receiverParam = KIRParameter(symbol: receiverParamSymbol, type: receiverType)
 
-        let propertySymbols = sema.symbols.children(ofFQName: owner.fqName)
-            .compactMap { sema.symbols.symbol($0) }
-            .filter { $0.kind == .property }
-            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+        // Kotlin's synthesized hashCode uses only primary-constructor properties, in declaration order.
+        let propertySymbols = dataClassPropertySymbols(owner: owner, symbols: sema.symbols)
 
         var body: [KIRInstruction] = []
 
@@ -602,13 +600,9 @@ extension DataEnumSealedSynthesisPass {
                     thrownResult: nil
                 ))
 
-                // Tag only disambiguates Boolean's JVM-matching 1231/1237 sentinel from a raw
-                // int/long/char bit pattern; pointer-shaped values (String/class instances) are
-                // dispatched by kk_any_hashCode via runtime type inspection regardless of tag.
-                let tagValue: Int64 = switch sema.types.kind(of: sema.types.makeNonNullable(propType)) {
-                case .primitive(.boolean, _): 2
-                default: 1
-                }
+                // Keep the synthetic hashCode tag in sync with every other
+                // Any-fallback call site, including the numeric raw-value tags.
+                let tagValue = computeAnyFallbackTag(for: propType, sema: sema)
                 let tagExpr = module.arena.appendTemporary(type: intType
                 )
                 body.append(.constValue(result: tagExpr, value: .intLiteral(tagValue)))
@@ -744,67 +738,25 @@ extension DataEnumSealedSynthesisPass {
             return nextLabel
         }
 
-        // STDLIB-DATA-014: If data class inherits from another class, start with super.toString()
-        let explicitSuperclass = dataClassExplicitSuperclass(owner: owner, sema: sema, interner: interner)
-        var builderExpr: KIRExprID
-        if let superSymbol = explicitSuperclass {
-            let receiverRef = module.arena.appendExpr(.symbolRef(parameterSymbol), type: receiverType)
-            body.append(.constValue(result: receiverRef, value: .symbolRef(parameterSymbol)))
-
-            let superToStringResult = module.arena.appendTemporary(type: stringType
-            )
-
-            // Find super.toString() method symbol
-            let toStringName = interner.intern("toString")
-            let superToStringFQName = superSymbol.fqName + [toStringName]
-            let superToStringSymbol = sema.symbols.lookupAll(fqName: superToStringFQName).first
-
-            // Call super.toString() if it exists, otherwise use default
-            if let superToStringSymbol = superToStringSymbol {
-                body.append(.call(
-                    symbol: superToStringSymbol,
-                    callee: interner.intern("toString"),
-                    arguments: [receiverRef],
-                    result: superToStringResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                // Fallback: use simple class name representation
-                let className = interner.resolve(superSymbol.name)
-                let fallbackStr = interner.intern("\(className)")
-                body.append(.constValue(result: superToStringResult, value: .stringLiteral(fallbackStr)))
-            }
-
-            // Create string builder from super.toString()
-            builderExpr = module.arena.appendTemporary(type: builderType
-            )
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string_flat"),
-                arguments: [superToStringResult],
-                result: builderExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        } else {
-            // Start with "ClassName(" for data class with no inheritance
-            let className = interner.resolve(owner.name)
-            let prefixStr = interner.intern("\(className)(")
-            let prefixExpr = module.arena.appendTemporary(type: stringType
-            )
-            body.append(.constValue(result: prefixExpr, value: .stringLiteral(prefixStr)))
-            builderExpr = module.arena.appendTemporary(type: builderType
-            )
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string_flat"),
-                arguments: [prefixExpr],
-                result: builderExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
+        // A data class always owns the generated toString() representation,
+        // including when it extends another class. The inherited class name
+        // must not leak into the data-class output (for example, A(n=5), not
+        // Sn=5).
+        let className = interner.resolve(owner.name)
+        let prefixStr = interner.intern("\(className)(")
+        let prefixExpr = module.arena.appendTemporary(type: stringType
+        )
+        body.append(.constValue(result: prefixExpr, value: .stringLiteral(prefixStr)))
+        let builderExpr = module.arena.appendTemporary(type: builderType
+        )
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_string_builder_new_from_string_flat"),
+            arguments: [prefixExpr],
+            result: builderExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
 
         for (index, property) in properties.enumerated() {
             let propName = interner.resolve(property.name)
@@ -817,7 +769,7 @@ extension DataEnumSealedSynthesisPass {
 
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_append_obj"),
+                callee: interner.intern("__kk_string_builder_append_obj"),
                 arguments: [builderExpr, labelExpr],
                 result: builderExpr,
                 canThrow: false,
@@ -859,57 +811,111 @@ extension DataEnumSealedSynthesisPass {
                 ))
             }
 
-            // Convert to string via kk_any_to_string using the same tag convention
-            // as Any.toString lowering.
-            let anyTag = computeAnyFallbackTag(for: propType, sema: sema)
-            let tagExpr = module.arena.appendTemporary(type: intType
-            )
-            body.append(.constValue(result: tagExpr, value: .intLiteral(anyTag)))
-
             let propStr = module.arena.appendTemporary(type: stringType
             )
-            // Nullable Float?/Double?/ULong? properties need an explicit null
-            // guard before kk_any_to_string: tags 5/6/7 are decoded before the
-            // null-sentinel check (their in-range values can share Int.min's
-            // bit pattern), so an actually-null property would otherwise
-            // render as -0.0/a large ULong instead of "null" (see
-            // CallLowerer.emitAnyToStringWithNullGuard for the full rationale).
             let propIsNullable = sema.types.makeNonNullable(propType) != propType
-            if propIsNullable, anyTag == 5 || anyTag == 6 || anyTag == 7 {
-                let nonNullLabel = allocateLabel()
-                let endLabel = allocateLabel()
-                let nullStr = interner.intern("null")
-                let nullStrExpr = module.arena.appendTemporary(type: stringType)
-                body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
-                body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
-                body.append(.copy(from: nullStrExpr, to: propStr))
-                body.append(.jump(endLabel))
-                body.append(.label(nonNullLabel))
-                let innerPropStr = module.arena.appendTemporary(type: stringType)
+
+            // A statically enum-typed property is stored as its bare ordinal
+            // and a statically class-typed property (including a value class)
+            // is stored as a heap pointer or raw unboxed primitive — neither
+            // representation is recoverable by the generic kk_any_to_string
+            // tag path below. Prefer the enum ordinal-to-name helper, then the
+            // property type's own toString(), before falling back to the tag
+            // path, mirroring CallLowerer.emitAnyToStringWithNullGuard (shared
+            // via resolveEnumOrdinalToNameCallee/resolveClassOwnToStringCallee
+            // since this pass runs standalone, with no KIRLoweringDriver to
+            // construct a CallLowerer).
+            if let nameHelper = resolveEnumOrdinalToNameCallee(for: propType, sema: sema, interner: interner) {
                 body.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [propValue, tagExpr],
-                    result: innerPropStr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                body.append(.copy(from: innerPropStr, to: propStr))
-                body.append(.label(endLabel))
-            } else {
-                body.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [propValue, tagExpr],
+                    symbol: nameHelper.symbol,
+                    callee: nameHelper.callee,
+                    arguments: [propValue],
                     result: propStr,
                     canThrow: false,
                     thrownResult: nil
                 ))
+            } else if let classToString = resolveClassOwnToStringCallee(for: propType, sema: sema, interner: interner) {
+                if propIsNullable {
+                    let nonNullLabel = allocateLabel()
+                    let endLabel = allocateLabel()
+                    let nullStr = interner.intern("null")
+                    let nullStrExpr = module.arena.appendTemporary(type: stringType)
+                    body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
+                    body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
+                    body.append(.copy(from: nullStrExpr, to: propStr))
+                    body.append(.jump(endLabel))
+                    body.append(.label(nonNullLabel))
+                    let innerPropStr = module.arena.appendTemporary(type: stringType)
+                    body.append(.call(
+                        symbol: classToString.symbol,
+                        callee: classToString.callee,
+                        arguments: [propValue],
+                        result: innerPropStr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    body.append(.copy(from: innerPropStr, to: propStr))
+                    body.append(.label(endLabel))
+                } else {
+                    body.append(.call(
+                        symbol: classToString.symbol,
+                        callee: classToString.callee,
+                        arguments: [propValue],
+                        result: propStr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
+            } else {
+                // Convert to string via kk_any_to_string using the same tag convention
+                // as Any.toString lowering.
+                let anyTag = computeAnyFallbackTag(for: propType, sema: sema)
+                let tagExpr = module.arena.appendTemporary(type: intType
+                )
+                body.append(.constValue(result: tagExpr, value: .intLiteral(anyTag)))
+
+                // Nullable Float?/Double?/ULong? properties need an explicit null
+                // guard before kk_any_to_string: tags 5/6/7 are decoded before the
+                // null-sentinel check (their in-range values can share Int.min's
+                // bit pattern), so an actually-null property would otherwise
+                // render as -0.0/a large ULong instead of "null" (see
+                // CallLowerer.emitAnyToStringWithNullGuard for the full rationale).
+                if propIsNullable, anyTag == 5 || anyTag == 6 || anyTag == 7 {
+                    let nonNullLabel = allocateLabel()
+                    let endLabel = allocateLabel()
+                    let nullStr = interner.intern("null")
+                    let nullStrExpr = module.arena.appendTemporary(type: stringType)
+                    body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
+                    body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
+                    body.append(.copy(from: nullStrExpr, to: propStr))
+                    body.append(.jump(endLabel))
+                    body.append(.label(nonNullLabel))
+                    let innerPropStr = module.arena.appendTemporary(type: stringType)
+                    body.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_any_to_string"),
+                        arguments: [propValue, tagExpr],
+                        result: innerPropStr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    body.append(.copy(from: innerPropStr, to: propStr))
+                    body.append(.label(endLabel))
+                } else {
+                    body.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_any_to_string"),
+                        arguments: [propValue, tagExpr],
+                        result: propStr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
             }
 
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_append_obj"),
+                callee: interner.intern("__kk_string_builder_append_obj"),
                 arguments: [builderExpr, propStr],
                 result: builderExpr,
                 canThrow: false,
@@ -917,30 +923,25 @@ extension DataEnumSealedSynthesisPass {
             ))
         }
 
-        // Append closing ")" only if not inheriting from another class
-        let shouldCloseParen = explicitSuperclass == nil
+        let suffixStr = interner.intern(")")
+        let suffixExpr = module.arena.appendTemporary(type: stringType
+        )
+        body.append(.constValue(result: suffixExpr, value: .stringLiteral(suffixStr)))
 
-        if shouldCloseParen {
-            let suffixStr = interner.intern(")")
-            let suffixExpr = module.arena.appendTemporary(type: stringType
-            )
-            body.append(.constValue(result: suffixExpr, value: .stringLiteral(suffixStr)))
-
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_string_builder_append_obj"),
-                arguments: [builderExpr, suffixExpr],
-                result: builderExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_string_builder_append_obj"),
+            arguments: [builderExpr, suffixExpr],
+            result: builderExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
 
         let resultExpr = module.arena.appendTemporary(type: stringType
         )
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_string_builder_toString"),
+            callee: interner.intern("__kk_string_builder_toString"),
             arguments: [builderExpr],
             result: resultExpr,
             canThrow: false,

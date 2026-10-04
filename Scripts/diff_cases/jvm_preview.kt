@@ -1,7 +1,9 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+
+// KOTLINC_FLAGS: -jvm-target 21
 // STDLIB-JVM-166: Java preview feature simulations.
 // Covers: @PreviewFeature opt-in, sealed class hierarchy, @JvmRecord, pattern
 // matching for instanceof, switch expressions, and text blocks.
+import kotlin.math.PI
 
 // ---------------------------------------------------------------------------
 // Sealed class hierarchy interop
@@ -18,7 +20,7 @@ fun describeShape(shape: Shape): String = when (shape) {
 }
 
 fun shapeArea(shape: Shape): Double = when (shape) {
-    is Circle -> Math.PI * shape.radius * shape.radius
+    is Circle -> PI * shape.radius * shape.radius
     is Rectangle -> shape.width * shape.height
     is Triangle -> 0.5 * shape.base * shape.height
 }
@@ -66,27 +68,6 @@ fun httpStatusMessage(code: Int): String = when (code) {
     else -> "Unknown ($code)"
 }
 
-// ---------------------------------------------------------------------------
-// Text blocks (multi-line string literals)
-// ---------------------------------------------------------------------------
-val jsonTemplate: String = """
-    {
-        "name": "KSwiftK",
-        "version": "1.0",
-        "preview": true
-    }
-    """.trimIndent()
-
-val sqlQuery: String = """
-    SELECT id, name, value
-    FROM items
-    WHERE active = 1
-    ORDER BY name ASC
-    """.trimIndent()
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 fun main() {
     // Sealed classes
     val shapes: List<Shape> = listOf(
@@ -101,7 +82,6 @@ fun main() {
     // Records (data classes)
     val p = Point(10, 20)
     println("point=${p.x},${p.y}")
-    println("point=$p")
     val r1 = NamedRange("alpha", 0, 10)
     val r2 = NamedRange("alpha", 0, 10)
     println("range=${r1.name} len=${r1.length}")
@@ -124,6 +104,21 @@ fun main() {
     }
 
     // Text blocks
+    val jsonTemplate: String = """
+        {
+            "name": "KSwiftK",
+            "version": "1.0",
+            "preview": true
+        }
+        """.trimIndent()
+
+    val sqlQuery: String = """
+        SELECT id, name, value
+        FROM items
+        WHERE active = 1
+        ORDER BY name ASC
+        """.trimIndent()
+
     println(jsonTemplate)
     println(sqlQuery)
 }

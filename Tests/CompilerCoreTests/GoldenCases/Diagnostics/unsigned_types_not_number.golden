@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "unsigned_types_not_number.kt",
+      "range": {
+        "start": { "line": 8, "character": 0 },
+        "end": { "line": 8, "character": 39 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_types_not_number.kt",
+      "range": {
+        "start": { "line": 9, "character": 0 },
+        "end": { "line": 9, "character": 41 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_types_not_number.kt",
+      "range": {
+        "start": { "line": 10, "character": 0 },
+        "end": { "line": 10, "character": 37 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_types_not_number.kt",
+      "range": {
+        "start": { "line": 11, "character": 0 },
+        "end": { "line": 11, "character": 39 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_types_not_number.kt",
+      "range": {
+        "start": { "line": 13, "character": 28 },
+        "end": { "line": 13, "character": 38 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toChar'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_types_not_number.kt",
+      "range": {
+        "start": { "line": 14, "character": 30 },
+        "end": { "line": 14, "character": 40 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toChar'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_types_not_number.kt",
+      "range": {
+        "start": { "line": 15, "character": 26 },
+        "end": { "line": 15, "character": 36 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toChar'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_types_not_number.kt",
+      "range": {
+        "start": { "line": 16, "character": 28 },
+        "end": { "line": 16, "character": 38 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toChar'.",
+      "codeActions": []
+    }
+  ]
+}

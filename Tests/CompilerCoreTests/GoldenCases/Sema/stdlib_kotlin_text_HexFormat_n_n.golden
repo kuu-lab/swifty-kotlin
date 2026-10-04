@@ -1,0 +1,8 @@
+symbol fq=golden.sema.hexFormatNestedTypes.$0.builder[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hexFormatNestedTypes.$0.bytes[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hexFormatNestedTypes.$0.companion[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hexFormatNestedTypes.$0.number[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hexFormatNestedTypes[kind=fun;params=kotlin.text.HexFormat.Builder?,kotlin.text.HexFormat.BytesHexFormat?,kotlin.text.HexFormat.Companion?,kotlin.text.HexFormat.NumberHexFormat?] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat.Builder?,kotlin.text.HexFormat.BytesHexFormat?,kotlin.text.HexFormat.Companion?,kotlin.text.HexFormat.NumberHexFormat?] ret=Any?
+file fstdlib_kotlin_text_HexFormat_n_n package=golden.sema
+  decl golden.sema.hexFormatNestedTypes[kind=fun;params=kotlin.text.HexFormat.Builder?,kotlin.text.HexFormat.BytesHexFormat?,kotlin.text.HexFormat.Companion?,kotlin.text.HexFormat.NumberHexFormat?] fun hexFormatNestedTypes sym=golden.sema.hexFormatNestedTypes[kind=fun;params=kotlin.text.HexFormat.Builder?,kotlin.text.HexFormat.BytesHexFormat?,kotlin.text.HexFormat.Companion?,kotlin.text.HexFormat.NumberHexFormat?]
+expr e@8:11 name(null) type=Nothing?

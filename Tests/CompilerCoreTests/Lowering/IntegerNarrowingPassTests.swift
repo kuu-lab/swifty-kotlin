@@ -3,52 +3,9 @@
 import Foundation
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct IntegerNarrowingPassTests {
-    private func makeKIRContext(interner: StringInterner, sema: SemaModule?) -> KIRContext {
-        let options = CompilerOptions(
-            moduleName: "IntNarrowTest",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        return KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: options,
-            interner: interner,
-            sema: sema
-        )
-    }
-
-    private func makeSema() -> SemaModule {
-        makeSemaModule(symbols: SymbolTable(), types: TypeSystem(), bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-    }
-
-    private func makeModule(
-        body: [KIRInstruction],
-        interner: StringInterner,
-        arena: KIRArena
-    ) -> (KIRModule, KIRDeclID) {
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: body,
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
-    }
-
-    private func body(_ declID: KIRDeclID, _ module: KIRModule) -> [KIRInstruction] {
-        guard case let .function(fn) = module.arena.decl(declID) else { return [] }
-        return fn.body
-    }
+    private static nonisolated(unsafe) let sharedSema: SemaModule = makeSemaModule().ctx
 
     // MARK: - Arithmetic narrowing
 
@@ -56,7 +13,7 @@ struct IntegerNarrowingPassTests {
     func testIntAdditionResultIsNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: intType)
@@ -75,7 +32,7 @@ struct IntegerNarrowingPassTests {
         #expect(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         // Expect: kk_op_add -> temp, then kk_int_narrow(temp) -> result.
         guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
             Issue.record("Expected arithmetic call to be preserved"); return
@@ -95,7 +52,7 @@ struct IntegerNarrowingPassTests {
     func testLongAdditionResultIsNotNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let longType = sema.types.make(.primitive(.long, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: longType)
@@ -113,7 +70,7 @@ struct IntegerNarrowingPassTests {
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         let narrowCount = lowered.filter { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
                 return interner.resolve(callee) == "kk_int_narrow"
@@ -128,13 +85,82 @@ struct IntegerNarrowingPassTests {
         #expect(addResult == result)
     }
 
+    // MARK: - Char / small-width arithmetic
+
+    @Test(arguments: ["kk_op_add", "kk_op_sub"])
+    func testCharPlusMinusIntResultIsWrappedToSixteenBits(calleeName: String) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+
+        let lhs = arena.appendExpr(.temporary(0), type: sema.types.charType)
+        let rhs = arena.appendExpr(.temporary(1), type: sema.types.intType)
+        let result = arena.appendExpr(.temporary(2), type: sema.types.charType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern(calleeName), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        guard case let .call(_, arithCallee, _, rawResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the Char arithmetic call to be preserved"); return
+        }
+        #expect(interner.resolve(arithCallee) == calleeName)
+        #expect(rawResult != result)
+        guard case let .call(_, wrapCallee, wrapArgs, wrapResult, _, _, _, _) = lowered[1] else {
+            Issue.record("Expected kk_int_to_char after Char arithmetic"); return
+        }
+        #expect(interner.resolve(wrapCallee) == "kk_int_to_char")
+        #expect(wrapArgs == [rawResult])
+        #expect(wrapResult == result)
+    }
+
+    @Test
+    func testUByteAdditionResultIsNotWrappedByThePass() throws {
+        // Sema types `UByte + UByte` as UByte although Kotlin yields UInt, so the pass must
+        // leave small unsigned arithmetic alone; `++` / `--` wrap at their own lowering site.
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+        let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
+
+        let lhs = arena.appendExpr(.temporary(0), type: ubyteType)
+        let rhs = arena.appendExpr(.temporary(1), type: ubyteType)
+        let result = arena.appendExpr(.temporary(2), type: ubyteType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        #expect(lowered.count == 2)
+        guard case let .call(_, _, _, addResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the UByte add call to be preserved"); return
+        }
+        #expect(addResult == result)
+    }
+
     // MARK: - Shift rewriting
 
     @Test
     func testIntShiftLeftIsRewrittenToWidthAwareVariant() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
         let value = arena.appendExpr(.temporary(0), type: intType)
@@ -152,7 +178,7 @@ struct IntegerNarrowingPassTests {
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         guard case let .call(_, callee, args, shiftResult, _, _, _, _) = lowered[0] else {
             Issue.record("Expected the shift call to be present"); return
         }
@@ -165,7 +191,7 @@ struct IntegerNarrowingPassTests {
     func testLongShiftLeftUsesSixBitMaskedVariantWithoutNarrowing() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let longType = sema.types.make(.primitive(.long, .nonNull))
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
@@ -184,7 +210,7 @@ struct IntegerNarrowingPassTests {
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         guard case let .call(_, callee, args, shiftResult, _, _, _, _) = lowered[0] else {
             Issue.record("Expected the shift call to be present"); return
         }
@@ -206,7 +232,7 @@ struct IntegerNarrowingPassTests {
     func testUIntAdditionResultIsNarrowedToUInt() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let uintType = sema.types.make(.primitive(.uint, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: uintType)
@@ -225,7 +251,7 @@ struct IntegerNarrowingPassTests {
         #expect(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
             Issue.record("Expected arithmetic call to be preserved"); return
         }
@@ -244,7 +270,7 @@ struct IntegerNarrowingPassTests {
     func testULongAdditionResultIsNotNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: ulongType)
@@ -262,7 +288,7 @@ struct IntegerNarrowingPassTests {
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         let narrowCount = lowered.filter { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
                 let name = interner.resolve(callee)
@@ -284,12 +310,12 @@ struct IntegerNarrowingPassTests {
     func testShouldRunReturnsFalseWithoutRelevantCallees() {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let v0 = arena.appendExpr(.temporary(0))
         let v1 = arena.appendExpr(.temporary(1))
         let (module, _) = makeModule(
             body: [
-                .call(symbol: nil, callee: interner.intern("kk_println_any"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("__kk_print_raw"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
                 .returnUnit,
             ],
             interner: interner,

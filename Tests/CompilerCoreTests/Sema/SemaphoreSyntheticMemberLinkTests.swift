@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct SemaphoreSyntheticMemberLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -12,7 +12,8 @@ struct SemaphoreSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        return semaResult
     }
 
     private func externalLinks(
@@ -25,14 +26,14 @@ struct SemaphoreSyntheticMemberLinkTests {
     }
 
     @Test func testSemaphoreMembersHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
+        // KSP-677: the wrapper layer (Semaphore factory, tryAcquire,
+        // availablePermits, withPermit) is Kotlin source; only the c-soft
+        // kernel primitives remain as synthetic members.
         let expectations: [(member: String, link: String)] = [
             ("acquire", "kk_semaphore_acquire"),
             ("release", "kk_semaphore_release"),
-            ("tryAcquire", "kk_semaphore_tryAcquire"),
-            ("availablePermits", "kk_semaphore_availablePermits"),
-            ("withPermit", "kk_semaphore_withPermit"),
         ]
 
         for expectation in expectations {

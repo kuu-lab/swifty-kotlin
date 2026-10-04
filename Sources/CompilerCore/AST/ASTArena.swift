@@ -6,19 +6,105 @@ public struct ASTArenaSnapshot: Codable {
     public let typeRefs: [TypeRef]
     public let loopLabels: [ExprID: InternedString]
     public let whenSubjectVarNames: [ExprID: InternedString]
+    public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
+    public let explicitCallExpressions: Set<ExprID>
+    public let incrementDecrementExpressions: Set<ExprID>
+
+    private enum CodingKeys: String, CodingKey {
+        case declarations
+        case expressions
+        case typeRefs
+        case loopLabels
+        case whenSubjectVarNames
+        case lambdaParamTypeRefs
+        case explicitCallExpressions
+        case incrementDecrementExpressions
+    }
 
     public init(
         declarations: [Decl],
         expressions: [Expr],
         typeRefs: [TypeRef],
         loopLabels: [ExprID: InternedString],
-        whenSubjectVarNames: [ExprID: InternedString]
+        whenSubjectVarNames: [ExprID: InternedString],
+        lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
+        explicitCallExpressions: Set<ExprID> = [],
+        incrementDecrementExpressions: Set<ExprID> = []
     ) {
         self.declarations = declarations
         self.expressions = expressions
         self.typeRefs = typeRefs
         self.loopLabels = loopLabels
         self.whenSubjectVarNames = whenSubjectVarNames
+        self.lambdaParamTypeRefs = lambdaParamTypeRefs
+        self.explicitCallExpressions = explicitCallExpressions
+        self.incrementDecrementExpressions = incrementDecrementExpressions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        declarations = try container.decode([Decl].self, forKey: .declarations)
+        expressions = try container.decode([Expr].self, forKey: .expressions)
+        typeRefs = try container.decode([TypeRef].self, forKey: .typeRefs)
+        loopLabels = try container.decode([ExprID: InternedString].self, forKey: .loopLabels)
+        whenSubjectVarNames = try container.decode([ExprID: InternedString].self, forKey: .whenSubjectVarNames)
+        lambdaParamTypeRefs = try container.decode([ExprID: [TypeRefID?]].self, forKey: .lambdaParamTypeRefs)
+        explicitCallExpressions = try container.decode(Set<ExprID>.self, forKey: .explicitCallExpressions)
+        incrementDecrementExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self,
+            forKey: .incrementDecrementExpressions
+        ) ?? []
+    }
+}
+
+/// Provides a read-only, file-local index of expression source ranges.
+fileprivate struct ASTExpressionRangeIndex: Sendable {
+    fileprivate struct Entry: Sendable {
+        let startOffset: Int
+        let endOffset: Int
+        let exprID: ExprID
+    }
+
+    private let entriesByFile: [FileID: [Entry]]
+
+    fileprivate init(entriesByFile: [FileID: [Entry]]) {
+        self.entriesByFile = entriesByFile
+    }
+
+    /// Returns the narrowest expression containing `offset` in `fileID`.
+    ///
+    /// The upper bound is found by binary-searching the position-sorted
+    /// entries. The remaining scan is limited to the requested file and
+    /// compares expression IDs explicitly so equal-width ties retain the
+    /// arena insertion-order behavior of the linear resolver.
+    fileprivate func innermostExpr(at offset: Int, in fileID: FileID) -> ExprID? {
+        guard let entries = entriesByFile[fileID], !entries.isEmpty else {
+            return nil
+        }
+
+        var low = 0
+        var high = entries.count
+        while low < high {
+            let middle = (low + high) >> 1
+            if entries[middle].startOffset <= offset {
+                low = middle + 1
+            } else {
+                high = middle
+            }
+        }
+
+        var best: ExprID?
+        var bestWidth = Int.max
+        for entry in entries[..<low].reversed() {
+            guard offset <= entry.endOffset else { continue }
+            let width = entry.endOffset - entry.startOffset
+            guard width <= bestWidth else { continue }
+            if width < bestWidth || best == nil || entry.exprID.rawValue < best!.rawValue {
+                bestWidth = width
+                best = entry.exprID
+            }
+        }
+        return best
     }
 }
 
@@ -27,10 +113,20 @@ public final class ASTArena: @unchecked Sendable {
     private var _decls: [Decl] = []
     private var _exprs: [Expr] = []
     private var _typeRefs: [TypeRef] = []
+    private var _expressionRangeIndex: ASTExpressionRangeIndex?
     /// Maps loop expression IDs (forExpr/whileExpr/doWhileExpr) to their user-defined label.
     private var _loopLabels: [ExprID: InternedString] = [:]
     /// Maps whenExpr IDs to their subject variable name for `when (val x = expr)` syntax.
     private var _whenSubjectVarNames: [ExprID: InternedString] = [:]
+    /// Maps lambdaLiteral expression IDs to their explicit parameter type
+    /// annotations (`{ a: Int, b: Int -> ... }`); nil entries are unannotated.
+    private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
+    /// Tracks member-call expressions written with parentheses so zero-argument
+    /// function calls remain distinct from bare property access in the AST.
+    private var _explicitCallExpressions: Set<ExprID> = []
+    /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
+    /// KIR can apply inc/dec semantics without changing the public AST shape.
+    private var _incrementDecrementExpressions: Set<ExprID> = []
 
     public var decls: [Decl] {
         lock.lock()
@@ -52,6 +148,9 @@ public final class ASTArena: @unchecked Sendable {
         _typeRefs = snapshot.typeRefs
         _loopLabels = snapshot.loopLabels
         _whenSubjectVarNames = snapshot.whenSubjectVarNames
+        _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
+        _explicitCallExpressions = snapshot.explicitCallExpressions
+        _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -62,7 +161,10 @@ public final class ASTArena: @unchecked Sendable {
             expressions: _exprs,
             typeRefs: _typeRefs,
             loopLabels: _loopLabels,
-            whenSubjectVarNames: _whenSubjectVarNames
+            whenSubjectVarNames: _whenSubjectVarNames,
+            lambdaParamTypeRefs: _lambdaParamTypeRefs,
+            explicitCallExpressions: _explicitCallExpressions,
+            incrementDecrementExpressions: _incrementDecrementExpressions
         )
     }
 
@@ -100,6 +202,7 @@ public final class ASTArena: @unchecked Sendable {
         defer { lock.unlock() }
         let id = ExprID(rawValue: Int32(_exprs.count))
         _exprs.append(expr)
+        _expressionRangeIndex = nil
         return id
     }
 
@@ -115,6 +218,57 @@ public final class ASTArena: @unchecked Sendable {
         guard let expr = expr(id) else {
             return nil
         }
+        return Self.expressionRange(of: expr)
+    }
+
+    /// Resolves a position through the cached range index while holding the
+    /// same lock that protects expression storage and index invalidation.
+    public func indexedInnermostExpr(at offset: Int, in fileID: FileID) -> ExprID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return expressionRangeIndexLocked().innermostExpr(at: offset, in: fileID)
+    }
+
+    fileprivate func prepareExpressionRangeIndex() {
+        lock.lock()
+        defer { lock.unlock() }
+        _ = expressionRangeIndexLocked()
+    }
+
+    private func expressionRangeIndexLocked() -> ASTExpressionRangeIndex {
+        if let _expressionRangeIndex {
+            return _expressionRangeIndex
+        }
+        var entriesByFile: [FileID: [ASTExpressionRangeIndex.Entry]] = [:]
+        for (index, expr) in _exprs.enumerated() {
+            guard let range = Self.expressionRange(of: expr) else { continue }
+            entriesByFile[range.start.file, default: []].append(
+                ASTExpressionRangeIndex.Entry(
+                    startOffset: range.start.offset,
+                    endOffset: range.end.offset,
+                    exprID: ExprID(rawValue: Int32(index))
+                )
+            )
+        }
+
+        for fileID in entriesByFile.keys {
+            entriesByFile[fileID]?.sort {
+                if $0.startOffset != $1.startOffset {
+                    return $0.startOffset < $1.startOffset
+                }
+                if $0.endOffset != $1.endOffset {
+                    return $0.endOffset < $1.endOffset
+                }
+                return $0.exprID.rawValue < $1.exprID.rawValue
+            }
+        }
+
+        let index = ASTExpressionRangeIndex(entriesByFile: entriesByFile)
+        _expressionRangeIndex = index
+        return index
+    }
+
+    private static func expressionRange(of expr: Expr) -> SourceRange? {
         switch expr {
         case let .intLiteral(_, range),
              let .longLiteral(_, range),
@@ -157,6 +311,7 @@ public final class ASTArena: @unchecked Sendable {
              let .objectLiteral(_, _, range),
              let .callableRef(_, _, range),
              let .localFunDecl(_, _, _, _, _, range),
+             let .localNominalDecl(_, range),
              let .blockExpr(_, _, range),
              let .superRef(_, range),
              let .thisRef(_, range),
@@ -167,8 +322,6 @@ public final class ASTArena: @unchecked Sendable {
             return range
         }
     }
-
-
 
     public func setLoopLabel(_ label: InternedString, for exprID: ExprID) {
         lock.lock()
@@ -192,6 +345,42 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _whenSubjectVarNames[exprID]
+    }
+
+    public func setLambdaParamTypeRefs(_ typeRefs: [TypeRefID?], for exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _lambdaParamTypeRefs[exprID] = typeRefs
+    }
+
+    public func lambdaParamTypeRefs(for exprID: ExprID) -> [TypeRefID?]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _lambdaParamTypeRefs[exprID]
+    }
+
+    public func markExplicitCall(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _explicitCallExpressions.insert(exprID)
+    }
+
+    public func isExplicitCall(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _explicitCallExpressions.contains(exprID)
+    }
+
+    public func markIncrementDecrement(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _incrementDecrementExpressions.insert(exprID)
+    }
+
+    public func isIncrementDecrement(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _incrementDecrementExpressions.contains(exprID)
     }
 
     public func appendTypeRef(_ typeRef: TypeRef) -> TypeRefID {
@@ -222,6 +411,11 @@ public final class ASTModule {
     /// All callers that previously used `sortedFiles` now use this directly.
     public let sortedFiles: [ASTFile]
 
+    /// Files indexed by fileID so resolving a declaration's owning file does
+    /// not scan the whole file list. `fileID` is unique per file, so a
+    /// dictionary hit is identical to `files.first { $0.fileID == fileID }`.
+    private let filesByID: [FileID: ASTFile]
+
     public init(
         files: [ASTFile],
         arena: ASTArena,
@@ -235,6 +429,20 @@ public final class ASTModule {
         self.tokenCount = tokenCount
         self.activeDeclsByFileRawID = activeDeclsByFileRawID
         sortedFiles = files.sorted(by: { $0.fileID.rawValue < $1.fileID.rawValue })
+        filesByID = Dictionary(
+            files.map { ($0.fileID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        // ASTModule is finalized after all expressions have been appended, so
+        // build the index before the first position-based query pays for it.
+        arena.prepareExpressionRangeIndex()
+    }
+
+    /// O(1) lookup of the file with `fileID`; identical result to a linear
+    /// `files.first { $0.fileID == fileID }` scan.
+    public func file(for fileID: FileID) -> ASTFile? {
+        filesByID[fileID]
     }
 
     public var activeDeclarationIDs: Set<DeclID> {

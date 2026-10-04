@@ -1,0 +1,32 @@
+symbol fq=__local_0.values[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=__local_1.sizes[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=golden.sema.bytesHexFormatProperties.$0.format[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.bytesHexFormatProperties[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat.BytesHexFormat] ret=String
+file fstdlib_kotlin_text_HexFormat_BytesHexFormat_BytesHexFormat_n package=golden.sema
+  decl golden.sema.bytesHexFormatProperties[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat] fun bytesHexFormatProperties sym=golden.sema.bytesHexFormatProperties[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat]
+expr e@4:18 name(format) type=kotlin.text.HexFormat.BytesHexFormat ref=golden.sema.bytesHexFormatProperties.$0.format[kind=vparam]
+expr e@4:18#1 memberCall recv=e@4:18 callee=bytePrefix args=[] type=String ref=kotlin.text.HexFormat.BytesHexFormat.bytePrefix[kind=prop]
+expr e@4:38 name(format) type=kotlin.text.HexFormat.BytesHexFormat ref=golden.sema.bytesHexFormatProperties.$0.format[kind=vparam]
+expr e@4:38#1 memberCall recv=e@4:38 callee=byteSeparator args=[] type=String ref=kotlin.text.HexFormat.BytesHexFormat.byteSeparator[kind=prop]
+expr e@4:18#2 binary(add) lhs=e@4:18#1 rhs=e@4:38#1 type=String
+expr e@4:61 name(format) type=kotlin.text.HexFormat.BytesHexFormat ref=golden.sema.bytesHexFormatProperties.$0.format[kind=vparam]
+expr e@4:61#1 memberCall recv=e@4:61 callee=byteSuffix args=[] type=String ref=kotlin.text.HexFormat.BytesHexFormat.byteSuffix[kind=prop]
+expr e@4:18#3 binary(add) lhs=e@4:18#2 rhs=e@4:61#1 type=String
+expr e@4:5 localDecl values mutable=0 type=_ init=e@4:18#3 type=Unit ref=__local_0.values[kind=local]
+expr e@5:17 name(format) type=kotlin.text.HexFormat.BytesHexFormat ref=golden.sema.bytesHexFormatProperties.$0.format[kind=vparam]
+expr e@5:17#1 memberCall recv=e@5:17 callee=bytesPerGroup args=[] type=Int ref=kotlin.text.HexFormat.BytesHexFormat.bytesPerGroup[kind=prop]
+expr e@5:40 name(format) type=kotlin.text.HexFormat.BytesHexFormat ref=golden.sema.bytesHexFormatProperties.$0.format[kind=vparam]
+expr e@5:40#1 memberCall recv=e@5:40 callee=bytesPerLine args=[] type=Int ref=kotlin.text.HexFormat.BytesHexFormat.bytesPerLine[kind=prop]
+expr e@5:17#2 binary(add) lhs=e@5:17#1 rhs=e@5:40#1 type=Int
+expr e@5:5 localDecl sizes mutable=0 type=_ init=e@5:17#2 type=Unit ref=__local_1.sizes[kind=local]
+expr e@6:12 name(values) type=String ref=__local_0.values[kind=local]
+expr e@6:21 name(format) type=kotlin.text.HexFormat.BytesHexFormat ref=golden.sema.bytesHexFormatProperties.$0.format[kind=vparam]
+expr e@6:21#1 memberCall recv=e@6:21 callee=groupSeparator args=[] type=String ref=kotlin.text.HexFormat.BytesHexFormat.groupSeparator[kind=prop]
+expr e@6:12#1 binary(add) lhs=e@6:12 rhs=e@6:21#1 type=String
+expr e@6:45 name(sizes) type=Int ref=__local_1.sizes[kind=local]
+expr e@6:45#1 memberCall recv=e@6:45 callee=toString args=[] type=String
+expr e@6:12#2 binary(add) lhs=e@6:12#1 rhs=e@6:45#1 type=String
+expr e@6:64 name(format) type=kotlin.text.HexFormat.BytesHexFormat ref=golden.sema.bytesHexFormatProperties.$0.format[kind=vparam]
+expr e@6:64#1 memberCall recv=e@6:64 callee=toString args=[] type=String call=kotlin.text.HexFormat.BytesHexFormat.toString[kind=fun;recv=kotlin.text.HexFormat.BytesHexFormat;params=]
+expr e@6:12#3 binary(add) lhs=e@6:12#2 rhs=e@6:64#1 type=String
+expr e@6:5 return value=e@6:12#3 type=Nothing

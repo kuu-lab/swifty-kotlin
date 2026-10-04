@@ -1,0 +1,257 @@
+#if canImport(Testing)
+@testable import CompilerCore
+@testable import CompilerBackend
+import Foundation
+import Testing
+
+@Suite
+struct CodegenBackendEncodingEdgeCasesTests {
+
+    private func runCodegenPipeline(
+        inputPath: String,
+        moduleName: String,
+        emit: EmitMode,
+        outputPath: String
+    ) throws -> CompilationContext {
+        let options = CompilerOptions(
+            moduleName: moduleName,
+            inputs: [inputPath],
+            outputPath: outputPath,
+            emit: emit,
+            target: defaultTargetTriple()
+        )
+        let ctx = CompilationContext(
+            options: options,
+            sourceManager: SourceManager(),
+            diagnostics: DiagnosticEngine(),
+            interner: StringInterner()
+        )
+        try runToKIR(ctx)
+        try LoweringPhase().run(ctx)
+        try CodegenPhase().run(ctx)
+        return ctx
+    }
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
+    func testCodegenCompilesEncodingEdgeCases() throws {
+        let source = """
+        @OptIn(ExperimentalStdlibApi::class)
+        fun main() {
+            val original = "こんにちは"
+            val encoded = original.encodeToByteArray()
+            println(encoded.decodeToString())
+
+            val ascii = "ABC".encodeToByteArray()
+            println(String(ascii, Charsets.US_ASCII))
+
+            val hex = 255.toHexString()
+            println(hex)
+            println(hex.hexToInt())
+            println("ffff".hexToShort())
+            println("ff".hexToUByte().toInt())
+            println("ffff".hexToUShort().toInt())
+            println("ff".toUByteOrNull(16)?.toInt() ?: -1)
+            println("100".toUByteOrNull(16)?.toInt() ?: -1)
+            println("ffff".toUShortOrNull(16)?.toInt() ?: -1)
+            println("10000".toUShortOrNull(16)?.toInt() ?: -1)
+            println("ffffffff".toUIntOrNull(16)?.toLong() ?: -1L)
+            println("100000000".toUIntOrNull(16)?.toLong() ?: -1L)
+            println("ffffffffffffffff".toULongOrNull(16) ?: 0uL)
+            println("10000000000000000".toULongOrNull(16) ?: 1uL)
+            println("ffffffff".hexToUInt())
+            println("ffffffffffffffff".hexToULong())
+            val ubytes = "00ff".hexToUByteArray()
+            println(ubytes.size)
+            println(ubytes[1])
+            try {
+                println("gg".hexToInt())
+            } catch (e: Throwable) {
+                println("caught")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EncodingEdgeCases",
+            expected:
+                """
+                こんにちは
+                ABC
+                000000ff
+                255
+                -1
+                255
+                65535
+                255
+                -1
+                65535
+                -1
+                4294967295
+                -1
+                18446744073709551615
+                1
+                4294967295
+                18446744073709551615
+                2
+                255
+                caught
+                """
+                + "\n"
+        )
+    }
+
+    /// KSP-481: HexFormat customization (byteSeparator/prefix/suffix/removeLeadingZeros)
+    /// is exercised through the ordinary named-argument constructor here, so this
+    /// scenario is pinned against a hardcoded expected output instead of a diff case.
+    @Test
+    func testCodegenCompilesHexFormatCustomization() throws {
+        let source = """
+        @OptIn(ExperimentalStdlibApi::class)
+        fun main() {
+            val fmt = HexFormat(upperCase = true, byteSeparator = ":", prefix = "0x", suffix = "h", removeLeadingZeros = true)
+            println(byteArrayOf(0xDE.toByte(), 0xAD.toByte(), 0xBE.toByte()).toHexString(fmt))
+            val encodedInt = 255.toHexString(fmt)
+            println(encodedInt)
+            println(encodedInt.hexToInt(fmt))
+            val encodedLong = 4096L.toHexString(fmt)
+            println(encodedLong)
+            println(encodedLong.hexToLong(fmt))
+            println(0.toHexString(HexFormat(removeLeadingZeros = true)))
+            try {
+                "ff".hexToInt(HexFormat(prefix = "0x"))
+            } catch (e: NumberFormatException) {
+                println("missing-prefix")
+            }
+            try {
+                "abc".hexToByteArray()
+            } catch (e: NumberFormatException) {
+                println("odd-length")
+            }
+            println(HexFormat.Default.upperCase)
+            println(HexFormat(byteSeparator = "-").bytes.byteSeparator)
+            val custom = HexFormat(prefix = "0x")
+            println(255.toHexString(custom))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "HexFormatCustomization",
+            expected:
+                """
+                DE:AD:BE
+                0xFFh
+                255
+                0x1000h
+                4096
+                0
+                missing-prefix
+                odd-length
+                false
+                -
+                0x000000ff
+                """
+                + "\n"
+        )
+    }
+
+    /// KSP-1420: HexFormat exposes the Kotlin stdlib nested values and its own string form.
+    @Test
+    func testCodegenCompilesHexFormatPropertiesAndDescription() throws {
+        let source = """
+        fun main() {
+            val format = HexFormat.Default
+            println(format.upperCase)
+            println(format.bytes.byteSeparator)
+            println(format.number.minLength)
+            println(format.toString())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "HexFormatPropertiesAndDescription",
+            expected:
+                """
+                false
+
+                1
+                HexFormat(
+                    upperCase = false,
+                    bytes = BytesHexFormat(
+                    bytesPerLine = 2147483647,
+                    bytesPerGroup = 2147483647,
+                    groupSeparator = "  ",
+                    byteSeparator = "",
+                    bytePrefix = "",
+                    byteSuffix = ""
+                ),
+                    number = NumberHexFormat(
+                    prefix = "",
+                    suffix = "",
+                    removeLeadingZeros = false,
+                    minLength = 1
+                )
+                )
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesDecodeToStringRangeEdgeCases() throws {
+        let source = """
+        fun main() {
+            val bytes = "abcdef".encodeToByteArray()
+            println(bytes.decodeToString(1, 4))
+            println(bytes.decodeToString(0, 6, true))
+
+            val malformed = byteArrayOf((-61).toByte(), 40.toByte())
+            println(malformed.decodeToString(0, 2, false).length > 0)
+            try {
+                println(malformed.decodeToString(0, 2, true))
+            } catch (e: Exception) {
+                println("caught: ${e.message}")
+                println(e is kotlin.text.CharacterCodingException)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "DecodeToStringRangeEdgeCases",
+            expected:
+                """
+                bcd
+                abcdef
+                true
+                caught: Input length = 1
+                true
+                """
+                + "\n"
+        )
+    }
+}
+#endif

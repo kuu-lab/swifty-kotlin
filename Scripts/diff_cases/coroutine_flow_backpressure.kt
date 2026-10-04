@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
+// Regression coverage for Flow collect context across emitter suspension.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 

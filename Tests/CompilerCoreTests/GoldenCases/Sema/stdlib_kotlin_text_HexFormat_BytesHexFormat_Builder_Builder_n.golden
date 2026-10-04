@@ -1,0 +1,24 @@
+symbol fq=golden.sema.configureBytesHexFormatBuilder.$0.builder[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.configureBytesHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat.Builder] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat.BytesHexFormat.Builder] ret=Any?
+file fstdlib_kotlin_text_HexFormat_BytesHexFormat_Builder_Builder_n package=golden.sema
+  decl golden.sema.configureBytesHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat.Builder] fun configureBytesHexFormatBuilder sym=golden.sema.configureBytesHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat.Builder]
+expr e@4:5 name(builder) type=kotlin.text.HexFormat.BytesHexFormat.Builder ref=golden.sema.configureBytesHexFormatBuilder.$0.builder[kind=vparam]
+expr e@4:26 string(0x) type=String
+expr e@4:5#1 memberAssign recv=e@4:5 callee=bytePrefix value=e@4:26 type=Unit ref=kotlin.text.HexFormat.BytesHexFormat.Builder.bytePrefix[kind=prop]
+expr e@5:5 name(builder) type=kotlin.text.HexFormat.BytesHexFormat.Builder ref=golden.sema.configureBytesHexFormatBuilder.$0.builder[kind=vparam]
+expr e@5:29 string(:) type=String
+expr e@5:5#1 memberAssign recv=e@5:5 callee=byteSeparator value=e@5:29 type=Unit ref=kotlin.text.HexFormat.BytesHexFormat.Builder.byteSeparator[kind=prop]
+expr e@6:5 name(builder) type=kotlin.text.HexFormat.BytesHexFormat.Builder ref=golden.sema.configureBytesHexFormatBuilder.$0.builder[kind=vparam]
+expr e@6:26 string(h) type=String
+expr e@6:5#1 memberAssign recv=e@6:5 callee=byteSuffix value=e@6:26 type=Unit ref=kotlin.text.HexFormat.BytesHexFormat.Builder.byteSuffix[kind=prop]
+expr e@7:5 name(builder) type=kotlin.text.HexFormat.BytesHexFormat.Builder ref=golden.sema.configureBytesHexFormatBuilder.$0.builder[kind=vparam]
+expr e@7:29 int(2) type=Int
+expr e@7:5#1 memberAssign recv=e@7:5 callee=bytesPerGroup value=e@7:29 type=Unit ref=kotlin.text.HexFormat.BytesHexFormat.Builder.bytesPerGroup[kind=prop]
+expr e@8:5 name(builder) type=kotlin.text.HexFormat.BytesHexFormat.Builder ref=golden.sema.configureBytesHexFormatBuilder.$0.builder[kind=vparam]
+expr e@8:28 int(8) type=Int
+expr e@8:5#1 memberAssign recv=e@8:5 callee=bytesPerLine value=e@8:28 type=Unit ref=kotlin.text.HexFormat.BytesHexFormat.Builder.bytesPerLine[kind=prop]
+expr e@9:5 name(builder) type=kotlin.text.HexFormat.BytesHexFormat.Builder ref=golden.sema.configureBytesHexFormatBuilder.$0.builder[kind=vparam]
+expr e@9:30 string(|) type=String
+expr e@9:5#1 memberAssign recv=e@9:5 callee=groupSeparator value=e@9:30 type=Unit ref=kotlin.text.HexFormat.BytesHexFormat.Builder.groupSeparator[kind=prop]
+expr e@10:12 name(builder) type=kotlin.text.HexFormat.BytesHexFormat.Builder ref=golden.sema.configureBytesHexFormatBuilder.$0.builder[kind=vparam]
+expr e@10:5 return value=e@10:12 type=Nothing

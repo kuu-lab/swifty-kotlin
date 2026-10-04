@@ -19,6 +19,8 @@ public enum PrimitiveType: String, Hashable, Sendable {
     case ulong
     case ubyte
     case ushort
+    case byte
+    case short
 }
 
 public extension PrimitiveType {
@@ -35,6 +37,24 @@ public extension PrimitiveType {
         case .ulong: "ULong"
         case .ubyte: "UByte"
         case .ushort: "UShort"
+        case .byte: "Byte"
+        case .short: "Short"
+        }
+    }
+
+    /// Primitives that can collide with `runtimeNullSentinelInt` inside a
+    /// `P?`-typed slot: `Long.MIN_VALUE`, `ULong` 2^63 and `-0.0` bit-equal
+    /// the sentinel directly, and `-0.0f` equals the sentinel's truncation
+    /// under the f32 comparison a `Float?` null check lowers to. A raw
+    /// scalar of one of these stored in a nullable slot is read as `null`
+    /// by every null check (KUU-854), so writes must keep the slot
+    /// box-or-sentinel.
+    var rawValueCollidesWithNullSentinel: Bool {
+        switch self {
+        case .long, .ulong, .double, .float:
+            true
+        case .boolean, .char, .int, .uint, .ubyte, .ushort, .byte, .short:
+            false
         }
     }
 }

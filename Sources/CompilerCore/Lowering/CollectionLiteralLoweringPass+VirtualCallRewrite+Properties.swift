@@ -8,14 +8,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
         arguments: [KIRExprID],
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
-        listExprIDs: Set<Int32>,
-        setExprIDs: Set<Int32>,
-        mapExprIDs: Set<Int32>,
-        arrayExprIDs: Set<Int32> = [],
-        loweredBody: inout [KIRInstruction]
+        state: CollectionRewriteState,
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         if callee == lookup.sizeName || callee == lookup.countName, arguments.isEmpty {
-            if listExprIDs.contains(receiver.rawValue) {
+            if state.contains(.list, receiver) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkListSizeName,
@@ -26,7 +23,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 ))
                 return true
             }
-            if setExprIDs.contains(receiver.rawValue) {
+            if state.contains(.set, receiver) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkSetSizeName,
@@ -37,7 +34,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 ))
                 return true
             }
-            if mapExprIDs.contains(receiver.rawValue) {
+            if state.contains(.map, receiver) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkMapSizeName,
@@ -48,7 +45,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 ))
                 return true
             }
-            if arrayExprIDs.contains(receiver.rawValue) {
+            if state.contains(.array, receiver) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkArraySizeName,
@@ -62,18 +59,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         if callee == lookup.containsName, arguments.count == 1 {
-            if listExprIDs.contains(receiver.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkListContainsName,
-                    arguments: [receiver] + arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-            if setExprIDs.contains(receiver.rawValue) {
+            if state.contains(.set, receiver) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkSetContainsName,
@@ -86,32 +72,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        if callee == lookup.indexOfName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListIndexOfName,
-                arguments: [receiver] + arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return true
-        }
-
-        if callee == lookup.lastIndexOfName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListLastIndexOfName,
-                arguments: [receiver] + arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return true
-        }
-
         if callee == lookup.isEmptyName, arguments.isEmpty {
-            if listExprIDs.contains(receiver.rawValue) {
+            if state.contains(.list, receiver) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkListIsEmptyName,
@@ -122,7 +84,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 ))
                 return true
             }
-            if setExprIDs.contains(receiver.rawValue) {
+            if state.contains(.set, receiver) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkSetIsEmptyName,
@@ -133,7 +95,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 ))
                 return true
             }
-            if mapExprIDs.contains(receiver.rawValue) {
+            if state.contains(.map, receiver) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkMapIsEmptyName,

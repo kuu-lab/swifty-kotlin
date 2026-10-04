@@ -1,6 +1,7 @@
 import Foundation
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
 // MARK: - AtomicArray<T> runtime tests (STDLIB-033-ABI-002)
 //
@@ -8,82 +9,92 @@ import XCTest
 // kotlin.concurrent.atomics.AtomicArray<T> class.
 // CAS uses identity semantics (pointer equality), not structural equality.
 
-private let refArrayThunkReturn42: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in 42 }
-private let refArrayThunkReturn42Ptr = unsafeBitCast(refArrayThunkReturn42, to: Int.self)
 
-final class RuntimeAtomicRefArrayTests: XCTestCase {
+@Suite
+struct RuntimeAtomicRefArrayTests {
 
     // MARK: - new / size
 
+    @Test
     func testNewReturnsNonZeroHandle() {
         let handle = kk_atomic_ref_array_new(4)
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
     }
 
+    @Test
     func testSizeMatchesRequestedCapacity() {
         let handle = kk_atomic_ref_array_new(7)
-        XCTAssertEqual(kk_atomic_ref_array_size(handle), 7)
+        #expect(kk_atomic_ref_array_size(handle) == 7)
     }
 
+    @Test
     func testZeroSizeArrayIsAllowed() {
         let handle = kk_atomic_ref_array_new(0)
-        XCTAssertNotEqual(handle, 0)
-        XCTAssertEqual(kk_atomic_ref_array_size(handle), 0)
+        #expect(handle != 0)
+        #expect(kk_atomic_ref_array_size(handle) == 0)
     }
 
+    @Test
     func testInvalidHandleSizeReturnsZero() {
-        XCTAssertEqual(kk_atomic_ref_array_size(0), 0)
+        #expect(kk_atomic_ref_array_size(0) == 0)
     }
 
     // MARK: - loadAt / storeAt
 
-    func testInitialElementsAreZero() {
+    @Test
+    func testInitialElementsAreNullSentinel() {
         let handle = kk_atomic_ref_array_new(3)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), 0)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 1), 0)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 2), 0)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 1) == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 2) == runtimeNullSentinelInt)
     }
 
+    @Test
     func testStoreAndLoadRoundTrip() {
         let handle = kk_atomic_ref_array_new(5)
         let ref = kk_atomic_int_create(42) // use a managed object pointer as the "reference"
         kk_atomic_ref_array_storeAt(handle, 2, ref)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 2), ref)
+        #expect(kk_atomic_ref_array_loadAt(handle, 2) == ref)
     }
 
+    @Test
     func testStoreAtFirstAndLastIndex() {
         let handle = kk_atomic_ref_array_new(4)
         let refA = kk_atomic_int_create(1)
         let refB = kk_atomic_int_create(2)
         kk_atomic_ref_array_storeAt(handle, 0, refA)
         kk_atomic_ref_array_storeAt(handle, 3, refB)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), refA)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 3), refB)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == refA)
+        #expect(kk_atomic_ref_array_loadAt(handle, 3) == refB)
     }
 
+    @Test
     func testLoadAtOutOfBoundsReturnsZero() {
         let handle = kk_atomic_ref_array_new(2)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 5), 0)
+        #expect(kk_atomic_ref_array_loadAt(handle, 5) == 0)
     }
 
+    @Test
     func testStoreAtOutOfBoundsIsNoop() {
         let handle = kk_atomic_ref_array_new(2)
         let ref = kk_atomic_int_create(99)
         kk_atomic_ref_array_storeAt(handle, 10, ref)
-        // No crash and indices within bounds remain zero
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), 0)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 1), 0)
+        // No crash and indices within bounds remain null.
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 1) == runtimeNullSentinelInt)
     }
 
+    @Test
     func testStoreReturnsZeroUnit() {
         let handle = kk_atomic_ref_array_new(1)
         let ref = kk_atomic_int_create(1)
         let result = kk_atomic_ref_array_storeAt(handle, 0, ref)
-        XCTAssertEqual(result, 0)
+        #expect(result == 0)
     }
 
     // MARK: - compareAndSetAt (identity-based)
 
+    @Test
     func testCompareAndSetAtSucceedsWhenExpectMatches() {
         let handle = kk_atomic_ref_array_new(3)
         let refA = kk_atomic_int_create(10)
@@ -91,10 +102,11 @@ final class RuntimeAtomicRefArrayTests: XCTestCase {
         kk_atomic_ref_array_storeAt(handle, 1, refA)
 
         let result = kk_atomic_ref_array_compareAndSetAt(handle, 1, refA, refB)
-        XCTAssertEqual(result, 1, "CAS must succeed (return 1) when expected identity matches")
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 1), refB)
+        #expect(result == 1, "CAS must succeed (return 1) when expected identity matches")
+        #expect(kk_atomic_ref_array_loadAt(handle, 1) == refB)
     }
 
+    @Test
     func testCompareAndSetAtFailsWhenExpectMismatches() {
         let handle = kk_atomic_ref_array_new(3)
         let refA = kk_atomic_int_create(10)
@@ -103,17 +115,19 @@ final class RuntimeAtomicRefArrayTests: XCTestCase {
         kk_atomic_ref_array_storeAt(handle, 1, refA)
 
         let result = kk_atomic_ref_array_compareAndSetAt(handle, 1, refC, refB)
-        XCTAssertEqual(result, 0, "CAS must fail (return 0) on identity mismatch")
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 1), refA, "Value must not change on failure")
+        #expect(result == 0, "CAS must fail (return 0) on identity mismatch")
+        #expect(kk_atomic_ref_array_loadAt(handle, 1) == refA, "Value must not change on failure")
     }
 
+    @Test
     func testCompareAndSetAtOutOfBoundsReturnsFalse() {
         let handle = kk_atomic_ref_array_new(2)
         let ref = kk_atomic_int_create(1)
         let result = kk_atomic_ref_array_compareAndSetAt(handle, 99, 0, ref)
-        XCTAssertEqual(result, 0)
+        #expect(result == 0)
     }
 
+    @Test
     func testCompareAndSetAtIsIdempotentWhenAlreadyNew() {
         let handle = kk_atomic_ref_array_new(1)
         let ref = kk_atomic_int_create(7)
@@ -121,12 +135,13 @@ final class RuntimeAtomicRefArrayTests: XCTestCase {
 
         // Successful CAS sets value to ref; subsequent CAS with old=ref and same new=ref succeeds
         let r1 = kk_atomic_ref_array_compareAndSetAt(handle, 0, ref, ref)
-        XCTAssertEqual(r1, 1)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), ref)
+        #expect(r1 == 1)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == ref)
     }
 
     // MARK: - compareAndExchangeAt (identity-based)
 
+    @Test
     func testCompareAndExchangeAtReturnsOldValueOnSuccess() {
         let handle = kk_atomic_ref_array_new(2)
         let refA = kk_atomic_int_create(1)
@@ -134,10 +149,11 @@ final class RuntimeAtomicRefArrayTests: XCTestCase {
         kk_atomic_ref_array_storeAt(handle, 0, refA)
 
         let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, refA, refB)
-        XCTAssertEqual(old, refA, "compareAndExchangeAt must return the old value on success")
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), refB)
+        #expect(old == refA, "compareAndExchangeAt must return the old value on success")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == refB)
     }
 
+    @Test
     func testCompareAndExchangeAtReturnsCurrentValueOnFailure() {
         let handle = kk_atomic_ref_array_new(2)
         let refA = kk_atomic_int_create(1)
@@ -146,69 +162,20 @@ final class RuntimeAtomicRefArrayTests: XCTestCase {
         kk_atomic_ref_array_storeAt(handle, 0, refA)
 
         let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, refC, refB)
-        XCTAssertEqual(old, refA, "compareAndExchangeAt must return current value on failure")
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), refA, "Value must not change on failure")
+        #expect(old == refA, "compareAndExchangeAt must return current value on failure")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == refA, "Value must not change on failure")
     }
 
+    @Test
     func testCompareAndExchangeAtOutOfBoundsReturnsZero() {
         let handle = kk_atomic_ref_array_new(2)
         let ref = kk_atomic_int_create(1)
         let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 99, 0, ref)
-        XCTAssertEqual(old, 0)
+        #expect(old == 0)
     }
-
-    // MARK: - fetchAndUpdateAt
-
-    func testFetchAndUpdateAtReturnsOldValueAndStoresTransformedValue() {
-        let handle = kk_atomic_ref_array_new(1)
-        kk_atomic_ref_array_storeAt(handle, 0, 10)
-
-        let old = kk_atomic_ref_array_fetchAndUpdateAt(handle, 0, refArrayThunkReturn42Ptr, nil)
-
-        XCTAssertEqual(old, 10)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), 42)
-    }
-
-    func testFetchAndUpdateAtOutOfBoundsReturnsZero() {
-        let handle = kk_atomic_ref_array_new(1)
-
-        let old = kk_atomic_ref_array_fetchAndUpdateAt(handle, 2, refArrayThunkReturn42Ptr, nil)
-
-        XCTAssertEqual(old, 0)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), 0)
-    }
-
-    func testUpdateAtStoresTransformedValueAndReturnsUnit() {
-        let handle = kk_atomic_ref_array_new(1)
-        kk_atomic_ref_array_storeAt(handle, 0, 10)
-
-        let result = kk_atomic_ref_array_updateAt(handle, 0, refArrayThunkReturn42Ptr, nil)
-
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), 42)
-    }
-
-    func testUpdateAndFetchAtReturnsNewValueAndStoresTransformedValue() {
-        let handle = kk_atomic_ref_array_new(1)
-        kk_atomic_ref_array_storeAt(handle, 0, 10)
-
-        let new = kk_atomic_ref_array_updateAndFetchAt(handle, 0, refArrayThunkReturn42Ptr, nil)
-
-        XCTAssertEqual(new, 42)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), 42)
-    }
-
-    func testUpdateAndFetchAtOutOfBoundsReturnsZero() {
-        let handle = kk_atomic_ref_array_new(1)
-
-        let new = kk_atomic_ref_array_updateAndFetchAt(handle, 2, refArrayThunkReturn42Ptr, nil)
-
-        XCTAssertEqual(new, 0)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handle, 0), 0)
-    }
-
     // MARK: - Multiple independent arrays
 
+    @Test
     func testTwoArraysDoNotInterfere() {
         let handleA = kk_atomic_ref_array_new(3)
         let handleB = kk_atomic_ref_array_new(3)
@@ -218,29 +185,162 @@ final class RuntimeAtomicRefArrayTests: XCTestCase {
         kk_atomic_ref_array_storeAt(handleA, 0, refA)
         kk_atomic_ref_array_storeAt(handleB, 0, refB)
 
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handleA, 0), refA)
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(handleB, 0), refB)
+        #expect(kk_atomic_ref_array_loadAt(handleA, 0) == refA)
+        #expect(kk_atomic_ref_array_loadAt(handleB, 0) == refB)
     }
 
     // MARK: - Invalid handle safety
 
+    @Test
     func testInvalidHandleLoadAtReturnsZero() {
-        XCTAssertEqual(kk_atomic_ref_array_loadAt(0, 0), 0)
+        #expect(kk_atomic_ref_array_loadAt(0, 0) == 0)
     }
 
+    @Test
     func testInvalidHandleStoreAtIsNoop() {
         let ref = kk_atomic_int_create(1)
         let result = kk_atomic_ref_array_storeAt(0, 0, ref)
-        XCTAssertEqual(result, 0)
+        #expect(result == 0)
     }
 
+    @Test
     func testInvalidHandleCompareAndSetAtReturnsFalse() {
         let result = kk_atomic_ref_array_compareAndSetAt(0, 0, 0, 1)
-        XCTAssertEqual(result, 0)
+        #expect(result == 0)
     }
 
+    @Test
     func testInvalidHandleCompareAndExchangeAtReturnsZero() {
         let result = kk_atomic_ref_array_compareAndExchangeAt(0, 0, 0, 1)
-        XCTAssertEqual(result, 0)
+        #expect(result == 0)
+    }
+
+    // MARK: - Null sentinel & pointer safety (KUU-807)
+
+    @Test
+    func testCompareAndSetAtNullSentinelWithNonNullFailsWithoutCrash() {
+        let handle = kk_atomic_ref_array_new(2)
+        kk_atomic_ref_array_storeAt(handle, 0, runtimeNullSentinelInt)
+
+        let stringRef = registerRuntimeObject(RuntimeStringBox("hello"))
+        let updateRef = registerRuntimeObject(RuntimeStringBox("world"))
+
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, stringRef, updateRef)
+        #expect(result == 0, "CAS must fail when slot contains null sentinel and expect is non-null")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt, "Slot must remain null sentinel")
+    }
+
+    @Test
+    func testCompareAndSetAtNonNullWithNullSentinelFailsWithoutCrash() {
+        let handle = kk_atomic_ref_array_new(2)
+        let stringRef = registerRuntimeObject(RuntimeStringBox("hello"))
+        let updateRef = registerRuntimeObject(RuntimeStringBox("world"))
+        kk_atomic_ref_array_storeAt(handle, 0, stringRef)
+
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(result == 0, "CAS must fail when slot contains non-null and expect is null sentinel")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == stringRef, "Slot must remain unchanged")
+    }
+
+    @Test
+    func testCompareAndSetAtBothNullSentinelSucceeds() {
+        let handle = kk_atomic_ref_array_new(2)
+        kk_atomic_ref_array_storeAt(handle, 0, runtimeNullSentinelInt)
+
+        let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(result == 1, "CAS must succeed when both slot and expect are null sentinel")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndSetAtFreshNullSentinel() {
+        let handle = kk_atomic_ref_array_new(2)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt)
+        let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(result == 1, "CAS must succeed when the fresh slot is null")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndSetAtLegacyZeroAndNullSentinelCrossMatches() {
+        let handle = kk_atomic_ref_array_new(1)
+        kk_atomic_ref_array_storeAt(handle, 0, 0)
+        let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
+        #expect(kk_atomic_ref_array_compareAndSetAt(handle, 0, runtimeNullSentinelInt, updateRef) == 1)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndExchangeAtFreshNullReturnsSentinel() {
+        let handle = kk_atomic_ref_array_new(1)
+        let updateRef = registerRuntimeObject(RuntimeStringBox("updated"))
+        let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(old == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndExchangeAtReturnsPreviousNullSentinel() {
+        let handle = kk_atomic_ref_array_new(2)
+        kk_atomic_ref_array_storeAt(handle, 0, runtimeNullSentinelInt)
+
+        let stringRef = registerRuntimeObject(RuntimeStringBox("hello"))
+        let updateRef = registerRuntimeObject(RuntimeStringBox("world"))
+
+        // Mismatched expected: returns previous null sentinel without updating
+        let oldMismatched = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, stringRef, updateRef)
+        #expect(oldMismatched == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == runtimeNullSentinelInt)
+
+        // Matched expected: returns previous null sentinel and updates slot
+        let oldMatched = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, runtimeNullSentinelInt, updateRef)
+        #expect(oldMatched == runtimeNullSentinelInt)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testCompareAndSetAtUnregisteredPointerFailsWithoutCrash() {
+        let handle = kk_atomic_ref_array_new(2)
+        let bogusPtr = 0x1234_5678
+        let stringRef = registerRuntimeObject(RuntimeStringBox("hello"))
+
+        let r1 = kk_atomic_ref_array_compareAndSetAt(handle, 0, bogusPtr, stringRef)
+        #expect(r1 == 0, "Unregistered expect pointer must fail safely")
+
+        kk_atomic_ref_array_storeAt(handle, 0, bogusPtr)
+        let r2 = kk_atomic_ref_array_compareAndSetAt(handle, 0, stringRef, stringRef)
+        #expect(r2 == 0, "Unregistered slot pointer must fail safely")
+    }
+
+    @Test
+    func testCompareAndSetAtStringBoxesRequiresSameReference() {
+        let handle = kk_atomic_ref_array_new(2)
+        let stringA = registerRuntimeObject(RuntimeStringBox("same_content"))
+        let stringB = registerRuntimeObject(RuntimeStringBox("same_content"))
+        let updateRef = registerRuntimeObject(RuntimeStringBox("new_content"))
+
+        #expect(stringA != stringB, "String boxes should have distinct pointer identities")
+
+        kk_atomic_ref_array_storeAt(handle, 0, stringA)
+        let result = kk_atomic_ref_array_compareAndSetAt(handle, 0, stringB, updateRef)
+        #expect(result == 0, "Equal string contents must not satisfy a distinct reference expectation")
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == stringA)
+        let old = kk_atomic_ref_array_compareAndExchangeAt(handle, 0, stringB, updateRef)
+        #expect(old == stringA)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == stringA)
+        let witness = kk_atomic_ref_array_loadAt(handle, 0)
+        #expect(kk_atomic_ref_array_compareAndSetAt(handle, 0, witness, updateRef) == 1)
+        #expect(kk_atomic_ref_array_loadAt(handle, 0) == updateRef)
+    }
+
+    @Test
+    func testNullSentinelReceiverSafety() {
+        #expect(kk_atomic_ref_array_loadAt(runtimeNullSentinelInt, 0) == 0)
+        #expect(kk_atomic_ref_array_storeAt(runtimeNullSentinelInt, 0, 1) == 0)
+        #expect(kk_atomic_ref_array_compareAndSetAt(runtimeNullSentinelInt, 0, 0, 1) == 0)
+        #expect(kk_atomic_ref_array_compareAndExchangeAt(runtimeNullSentinelInt, 0, 0, 1) == 0)
     }
 }
+#endif

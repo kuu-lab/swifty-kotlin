@@ -5,22 +5,23 @@ import Testing
 
 @Suite
 struct DurationUnitSyntheticSurfaceTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected DurationUnit surface source to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+    private static let fixture = SemaFixture(surface: "DurationUnit", diagnostics: .noDiagnostics)
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test func testDurationUnitEnumEntriesAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let durationUnitSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("time"),

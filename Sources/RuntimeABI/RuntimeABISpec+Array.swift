@@ -22,6 +22,16 @@ public extension RuntimeABISpec {
             section: "Array"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_array_tag_type",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "typeID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_array_of_nulls",
             parameters: [
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -35,6 +45,25 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "classId", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_runtime_register_data_class",
+            parameters: [
+                RuntimeABIParameter(name: "classID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_runtime_register_data_class_fields",
+            parameters: [
+                RuntimeABIParameter(name: "classID", type: .intptr),
+                RuntimeABIParameter(name: "mask", type: .intptr),
             ],
             returnType: .intptr,
             section: "Array",
@@ -81,18 +110,16 @@ public extension RuntimeABISpec {
             section: "Array"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_binarySearch_compare",
+            name: "kk_array_set_typed",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "fromIndex", type: .intptr),
-                RuntimeABIParameter(name: "toIndex", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "anyFallbackTag", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Array"
+            section: "Array",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_vararg_spread_concat",

@@ -58,4 +58,4 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 | [`docs/spec.md`](docs/spec.md) | フェーズ別実装仕様（Swift 型・API レベル） |
 | [`docs/debugging.md`](docs/debugging.md) | DWARF デバッグ情報の使い方（lldb セッション例） |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |
-| [`CLAUDE.md`](CLAUDE.md) | AI 向けクイックリファレンス |
+| [`AGENTS.md`](AGENTS.md) | AI 向けクイックリファレンス・Linux（Cursor Cloud）環境セットアップ |

@@ -5,5 +5,5 @@ class NameHolder {
 }
 
 fun main() {
-    println(42)
+    println(NameHolder().fullName)
 }

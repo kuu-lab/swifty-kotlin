@@ -20,3 +20,23 @@ func resolveRuntimeHandle<T: AnyObject>(_ rawValue: Int, as _: T.Type) -> T? {
     }
     return tryCast(ptr, to: T.self)
 }
+
+/// Resolve a raw integer handle to the registered runtime object it points to,
+/// taking the GC lock once for the `objectPointers` membership check.
+///
+/// A dispatcher testing one handle against several box types can cast the
+/// result with `as?`/`is` repeatedly without re-locking — equivalent to one
+/// `resolveRuntimeHandle` per type but with a single lock acquisition.
+func resolveRuntimeObjectHandle(_ rawValue: Int) -> AnyObject? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    let normalized = runtimePrimitiveBoxBasePointer(from: rawValue) ?? ptr
+    return Unmanaged<AnyObject>.fromOpaque(normalized).takeUnretainedValue()
+}

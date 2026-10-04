@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 import kotlin.math.*
 
 fun main() {
@@ -20,29 +19,29 @@ fun main() {
     val truncFNeg: Float = truncate(-3.7f)
     println(truncFNeg)
 
-    // IEEErem(Double, Double)
-    val remD: Double = IEEErem(7.0, 2.5)
+    // Double.IEEErem(Double)
+    val remD: Double = 7.0.IEEErem(2.5)
     println(remD)
 
-    // IEEErem(Float, Float)
-    val remF: Float = IEEErem(7.0f, 2.5f)
+    // Float.IEEErem(Float)
+    val remF: Float = 7.0f.IEEErem(2.5f)
     println(remF)
 
     // Double.withSign(Double)
-    val ws1: Double = withSign(3.0, -1.0)
+    val ws1: Double = 3.0.withSign(-1.0)
     println(ws1)
-    val ws2: Double = withSign(-3.0, 1.0)
+    val ws2: Double = (-3.0).withSign(1.0)
     println(ws2)
 
     // Float.withSign(Float)
-    val wsF: Float = withSign(3.0f, -1.0f)
+    val wsF: Float = 3.0f.withSign(-1.0f)
     println(wsF)
 
     // Double.withSign(Int)
-    val wsI: Double = withSign(3.0, -1)
+    val wsI: Double = 3.0.withSign(-1)
     println(wsI)
 
-    // nextTowards(Double, Double)
-    val nt: Double = nextTowards(1.0, 2.0)
+    // Double.nextTowards(Double)
+    val nt: Double = 1.0.nextTowards(2.0)
     println(nt)
 }

@@ -14,7 +14,9 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_collect",
-            parameters: [],
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+            ],
             returnType: .void,
             section: "Memory",
             isThrowing: false,

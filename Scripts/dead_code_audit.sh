@@ -9,6 +9,7 @@ cd "$ROOT_DIR"
 OUTPUT_DIR=""
 KEEP_TMP=0
 VERBOSE=0
+SELFTEST=0
 
 usage() {
   cat <<USAGE
@@ -16,17 +17,22 @@ Usage: $(basename "$0") [options]
 
 Dead-code audit for @_cdecl kk_* runtime symbols.
 
-Detects kk_* functions declared in Sources/Runtime that cannot be reached
-by compiled Kotlin programs. Uses identifier-frequency analysis across
-Sources/, Tests/, and *.kt files.
+Detects kk_*/__kk_* functions declared in Sources/Runtime that cannot be
+reached by compiled Kotlin programs. Uses identifier-frequency analysis
+across Sources/, Tests/, and *.kt files.
 
 Exclusion pipeline (reproduces docs/dead-code-audit.md):
-  1. Static emit      — CompilerCore kk_* identifier references
-  2. Dynamic emit     — string-interpolation prefixes ("kk_xxx_\(...)")
+  1. Static emit      — kk_* identifier references in CompilerCore,
+                        CompilerBackend, and bundled *.kt stdlib sources
+  2. Dynamic emit     — inline string-interpolation prefixes ("kk_xxx_\(...)")
+                        and two-stage `prefix: "kk_xxx"` + "\(prefix)_suffix"
   3. Table-driven     — StdlibSurfaceSpec collectionHOFRuntimeLinkName entries
                         (list / set / map / sequence HOF; array is separate)
-  4. Test references  — Tests/ direct calls (word-boundary match)
+  4. Test references  — Tests/ direct calls (word-boundary match), including
+                        Swift-name aliases where @_cdecl("__kk_x") is declared
+                        on `func kk_x(...)` and tests call the Swift name
   5. Runtime-internal — non-@_cdecl kk_* appearances inside Sources/Runtime
+                        (excluding fatalError(...) diagnostic-message text)
 
 Output categories:
   A: Completely unreachable — no path from compiler, tests, or runtime internals
@@ -36,6 +42,8 @@ Options:
   --output-dir <dir>   Write intermediate .txt files here (default: auto temp dir)
   --keep-tmp           Keep temp dir after exit (implied by --output-dir)
   --verbose, -v        Print step-by-step counts to stderr
+  --self-test          Assert known regression fixtures classify correctly
+                       (exit non-zero on regression); implies --verbose
   -h, --help           Show this help
 
 Examples:
@@ -61,6 +69,10 @@ while [[ $# -gt 0 ]]; do
     --verbose|-v)
       VERBOSE=1
       ;;
+    --self-test)
+      SELFTEST=1
+      VERBOSE=1
+      ;;
     -h|--help)
       usage
       exit 0
@@ -82,30 +94,45 @@ else
 fi
 mkdir -p "$WORK"
 
-if [[ $KEEP_TMP -eq 0 ]]; then
-  trap 'rm -rf "$WORK"' EXIT
-fi
+[[ $KEEP_TMP -eq 1 ]] || trap 'rm -rf "$WORK"' EXIT
 
 log() {
-  [[ $VERBOSE -eq 1 ]] && printf '%s\n' "$*" >&2 || true
+  [[ $VERBOSE -eq 1 ]] || return 0
+  printf '%s\n' "$*" >&2
 }
 
-# ── Step 1: Runtime の @_cdecl kk_* 宣言一覧 ──────────────────────────────
-grep -rhoE '@_cdecl\("kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include="*.swift" \
+count() {
+  wc -l < "$1" | tr -d ' '
+}
+
+# ── Step 1: Runtime の @_cdecl kk_*/__kk_* 宣言一覧 ───────────────────────
+# 先頭アンダースコア付き (__kk_*) も export 対象として拾う。
+grep -rhoE '@_cdecl\("_*kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include="*.swift" \
     | sed 's/@_cdecl("//;s/")//' \
     | LC_ALL=C sort -u > "$WORK/runtime_cdecl.txt"
-log "[1] Runtime @_cdecl declarations: $(wc -l < "$WORK/runtime_cdecl.txt" | tr -d ' ')"
+log "[1] Runtime @_cdecl declarations: $(count "$WORK/runtime_cdecl.txt")"
 
-# ── Step 2: CompilerCore の静的 kk_* 参照 ────────────────────────────────
-grep -rhoE 'kk_[a-zA-Z0-9_]+' Sources/CompilerCore --include="*.swift" \
-    | LC_ALL=C sort -u > "$WORK/kk_compilercore.txt"
-log "[2] CompilerCore static refs: $(wc -l < "$WORK/kk_compilercore.txt" | tr -d ' ')"
+# ── Step 2: 静的 kk_* 参照（CompilerCore + CompilerBackend + bundled .kt） ─
+# kk_print_string_flat のように CompilerBackend でのみ emit される名前や、
+# bundled stdlib (*.kt) が外部リンクする名前を取りこぼさないよう拡張する。
+{
+    grep -rhoE '_*kk_[a-zA-Z0-9_]+' Sources/CompilerCore Sources/CompilerBackend --include="*.swift"
+    grep -rhoE '_*kk_[a-zA-Z0-9_]+' Sources --include="*.kt"
+} | LC_ALL=C sort -u > "$WORK/kk_compilercore.txt"
+log "[2] Static refs (CompilerCore+Backend+kt): $(count "$WORK/kk_compilercore.txt")"
 
 # ── Step 3: 動的補間プレフィックス（前方一致除外用） ──────────────────────
-grep -rhoE '"kk_[a-zA-Z0-9_]*\\\(' Sources/CompilerCore --include="*.swift" \
-    | sed 's/^"//;s/\\($//' \
-    | LC_ALL=C sort -u > "$WORK/kk_dyn_prefixes.txt"
-log "[3] Dynamic interpolation prefixes: $(wc -l < "$WORK/kk_dyn_prefixes.txt" | tr -d ' ')"
+# (a) インライン補間 "kk_xxx_\(...)" のリテラル前半。
+# (b) 2 段階生成: `prefix: "kk_xxx"` / `externalLinkPrefix: "kk_xxx"` 等で
+#     変数へ束縛したのち "\(prefix)_suffix" で組み立てるケースの prefix リテラル。
+{
+    grep -rhoE '"_*kk_[a-zA-Z0-9_]*\\\(' Sources/CompilerCore Sources/CompilerBackend --include="*.swift" \
+        | sed 's/^"//;s/\\($//'
+    grep -rhoE '[Pp]refix[^"]*"_*kk_[a-zA-Z0-9_]+"' Sources/CompilerCore Sources/CompilerBackend --include="*.swift" \
+        | grep -oE '"_*kk_[a-zA-Z0-9_]+"' \
+        | tr -d '"'
+} | LC_ALL=C sort -u > "$WORK/kk_dyn_prefixes.txt"
+log "[3] Dynamic prefixes (inline + two-stage): $(count "$WORK/kk_dyn_prefixes.txt")"
 
 # ── Step 4: StdlibSurfaceSpec 表駆動 HOF リンク名 ─────────────────────────
 # list / set / map / sequence の HOF（array は RuntimeOnlyBridge で別管理のため対象外）
@@ -113,41 +140,105 @@ grep -rhoE '"kk_[a-zA-Z0-9_]+"' Sources/RuntimeABI \
     --include="StdlibSurfaceSpec+*.swift" \
     | sed 's/"//g' \
     | LC_ALL=C sort -u > "$WORK/kk_stdlib_surface.txt"
-log "[4] StdlibSurfaceSpec link names: $(wc -l < "$WORK/kk_stdlib_surface.txt" | tr -d ' ')"
+log "[4] StdlibSurfaceSpec link names: $(count "$WORK/kk_stdlib_surface.txt")"
 
 # ── Step 5: Tests からの参照（語境界一致） ────────────────────────────────
 # superstring 誤検知に注意: kk_http_client_post と kk_http_client_post_async は別物
-(grep -rhoE '\bkk_[a-zA-Z0-9_]+\b' Tests --include="*.swift" || true) \
+(grep -rhoE '\b_*kk_[a-zA-Z0-9_]+\b' Tests --include="*.swift" || true) \
     | LC_ALL=C sort -u > "$WORK/kk_tests.txt"
-log "[5] Test references: $(wc -l < "$WORK/kk_tests.txt" | tr -d ' ')"
+log "[5] Test references: $(count "$WORK/kk_tests.txt")"
+
+# ── Step 5b: cdecl/Swift function-name aliases used by Runtime tests ───────
+# `@_cdecl("__kk_x") public func kk_x(...)` exports a cdecl name that differs
+# from the Swift identifier imported by `@testable import Runtime` tests.
+# Include those aliases so a test-only bridge is not misclassified as A.
+find Sources/Runtime -name '*.swift' -print0 \
+    | xargs -0 awk '
+        /@_cdecl\("_*kk_[a-zA-Z0-9_]+"\)/ {
+            line = $0
+            sub(/.*@_cdecl\("/, "", line)
+            sub(/".*/, "", line)
+            cdecl = line
+            next
+        }
+        cdecl != "" {
+            if ($0 ~ /func[[:space:]]+[A-Za-z0-9_]+/) {
+                line = $0
+                sub(/.*func[[:space:]]+/, "", line)
+                sub(/[^A-Za-z0-9_].*/, "", line)
+                if (line != "" && line != cdecl) print cdecl "\t" line
+            }
+            cdecl = ""
+        }
+    ' | LC_ALL=C sort -u > "$WORK/cdecl_swift_alias.tsv"
+
+grep -rhoE '\b[A-Za-z_][A-Za-z0-9_]*\b' Tests --include='*.swift' \
+    | LC_ALL=C sort -u > "$WORK/test_identifiers.txt"
+awk 'NR == FNR { seen[$1] = 1; next } seen[$2] { print $1 }' \
+    "$WORK/test_identifiers.txt" "$WORK/cdecl_swift_alias.tsv" \
+    | LC_ALL=C sort -u > "$WORK/kk_tests_swiftname.txt"
+log "[5b] Test references via Swift-name alias: $(count "$WORK/kk_tests_swiftname.txt")"
+
+LC_ALL=C sort -u "$WORK/kk_tests.txt" "$WORK/kk_tests_swiftname.txt" -o "$WORK/kk_tests.txt"
 
 # ── Step 6: Runtime 内部参照（宣言行を除くコード行に現れる kk_*） ──────────
-# @_cdecl 行と func 定義行を除外することで、他の Runtime 関数からの実際の呼び出しを取得する
-(grep -rh 'kk_[a-zA-Z0-9_]' Sources/Runtime --include="*.swift" || true) \
+# Exclude @_cdecl and func definition lines to find calls from other Runtime functions.
+# Also exclude fatalError(...) lines because their diagnostics commonly repeat the
+# enclosing function's own kk_* name instead of calling that symbol.
+(grep -rh '_*kk_[a-zA-Z0-9_]' Sources/Runtime --include="*.swift" || true) \
     | grep -v '@_cdecl' \
-    | grep -v '\bfunc kk_' \
-    | grep -oE 'kk_[a-zA-Z0-9_]+' \
+    | grep -vE '\bfunc _*kk_' \
+    | grep -v 'fatalError(' \
+    | grep -oE '_*kk_[a-zA-Z0-9_]+' \
     | LC_ALL=C sort -u > "$WORK/kk_runtime_internal.txt" || true
-log "[6] Runtime-internal refs: $(wc -l < "$WORK/kk_runtime_internal.txt" | tr -d ' ')"
+log "[6] Runtime-internal refs: $(count "$WORK/kk_runtime_internal.txt")"
+
+# A cdecl export may again use a different Swift identifier.  For unique
+# `__kk_` exports, a call to the Swift name from another Runtime function is
+# an internal reachability edge.  Do not infer this for ambiguous pairs where
+# both `kk_x` and `__kk_x` are exported: the bare Swift name then identifies
+# only the exact `kk_x` declaration.
+awk '{ canonical = $0; sub(/^__kk_/, "kk_", canonical); count[canonical]++ }
+     END { for (canonical in count) if (count[canonical] > 1) print canonical }' \
+    "$WORK/runtime_cdecl.txt" | LC_ALL=C sort -u > "$WORK/ambiguous_cdecl_aliases.txt"
+awk 'NR == FNR { ambiguous[$1] = 1; next }
+     {
+         canonical = $1
+         sub(/^__kk_/, "kk_", canonical)
+         if (!(canonical in ambiguous)) aliases[$2] = $1
+     }
+     END { for (swiftName in aliases) print swiftName "\t" aliases[swiftName] }' \
+    "$WORK/ambiguous_cdecl_aliases.txt" "$WORK/cdecl_swift_alias.tsv" \
+    | LC_ALL=C sort -k1,1 > "$WORK/runtime_unique_swift_aliases.tsv"
+awk 'NR == FNR { aliases[$1] = $2; next } $0 in aliases { print aliases[$0] }' \
+    "$WORK/runtime_unique_swift_aliases.tsv" "$WORK/kk_runtime_internal.txt" \
+    | LC_ALL=C sort -u > "$WORK/kk_runtime_internal_swiftname.txt"
+LC_ALL=C sort -u "$WORK/kk_runtime_internal.txt" "$WORK/kk_runtime_internal_swiftname.txt" \
+    -o "$WORK/kk_runtime_internal.txt"
+log "[6b] Runtime-internal refs via Swift-name alias: $(count "$WORK/kk_runtime_internal_swiftname.txt")"
 
 # ── Step 7: 動的プレフィックスに前方一致する cdecl 名を抽出 ──────────────
-{
-  while IFS= read -r prefix; do
-    grep "^${prefix}" "$WORK/runtime_cdecl.txt" || true
-  done < "$WORK/kk_dyn_prefixes.txt"
-} | LC_ALL=C sort -u > "$WORK/kk_dyn_matched.txt"
-log "[7] Dynamic-prefix matched cdecl names: $(wc -l < "$WORK/kk_dyn_matched.txt" | tr -d ' ')"
+# プレフィックスごとに grep を fork する代わりに、全プレフィックスを1つの
+# パターンファイルにまとめて grep -f で一括照合する（プロセス生成コストを削減）。
+if [[ -s "$WORK/kk_dyn_prefixes.txt" ]]; then
+  sed 's/^/^/' "$WORK/kk_dyn_prefixes.txt" \
+      | grep -f - "$WORK/runtime_cdecl.txt" \
+      | LC_ALL=C sort -u > "$WORK/kk_dyn_matched.txt" || true
+else
+  : > "$WORK/kk_dyn_matched.txt"
+fi
+log "[7] Dynamic-prefix matched cdecl names: $(count "$WORK/kk_dyn_matched.txt")"
 
 # ── Step 8: コンパイラ到達可能集合（静的 + 動的 + 表駆動） ───────────────
 LC_ALL=C sort -u "$WORK/kk_compilercore.txt" \
                  "$WORK/kk_dyn_matched.txt" \
                  "$WORK/kk_stdlib_surface.txt" > "$WORK/kk_reachable.txt"
-log "[8] Compiler-reachable total: $(wc -l < "$WORK/kk_reachable.txt" | tr -d ' ')"
+log "[8] Compiler-reachable total: $(count "$WORK/kk_reachable.txt")"
 
 # ── Step 9: 候補 = cdecl − コンパイラ到達可能 ────────────────────────────
 comm -23 "$WORK/runtime_cdecl.txt" "$WORK/kk_reachable.txt" \
     > "$WORK/kk_candidates.txt"
-log "[9] Candidates (compiler-unreachable): $(wc -l < "$WORK/kk_candidates.txt" | tr -d ' ')"
+log "[9] Candidates (compiler-unreachable): $(count "$WORK/kk_candidates.txt")"
 
 # ── Step 10: A = 候補 − (tests ∪ runtime_internal) ───────────────────────
 LC_ALL=C sort -u "$WORK/kk_tests.txt" "$WORK/kk_runtime_internal.txt" \
@@ -162,10 +253,10 @@ comm -23 "$WORK/kk_candidates_in_tests.txt" "$WORK/kk_runtime_internal.txt" \
     > "$WORK/dead_B.txt"
 
 # ── 出力 ──────────────────────────────────────────────────────────────────
-COUNT_CDECL="$(wc -l < "$WORK/runtime_cdecl.txt" | tr -d ' ')"
-COUNT_CAND="$(wc -l < "$WORK/kk_candidates.txt" | tr -d ' ')"
-COUNT_A="$(wc -l < "$WORK/dead_A.txt" | tr -d ' ')"
-COUNT_B="$(wc -l < "$WORK/dead_B.txt" | tr -d ' ')"
+COUNT_CDECL="$(count "$WORK/runtime_cdecl.txt")"
+COUNT_CAND="$(count "$WORK/kk_candidates.txt")"
+COUNT_A="$(count "$WORK/dead_A.txt")"
+COUNT_B="$(count "$WORK/dead_B.txt")"
 
 echo "=== Dead Code Audit ==="
 echo "Runtime @_cdecl total  : $COUNT_CDECL"
@@ -180,4 +271,42 @@ cat "$WORK/dead_B.txt"
 if [[ -n "$OUTPUT_DIR" ]]; then
   echo ""
   echo "Intermediate files written to: $WORK"
+fi
+
+# ── Self-test: 既知の誤分類バグに対する回帰 fixture ──────────────────────────
+# Keep known classification regressions in one data-driven list.
+#   symbol|file|expected-state|reason
+FIXTURES=(
+  "kk_print_string_flat|dead_A.txt|absent|CompilerBackend-only static emit must not be classified as A"
+  "kk_atomic_ref_array_loadAt|dead_B.txt|absent|Two-stage prefix emit must not be classified as B"
+  "kk_http_response_errorMessage|dead_A.txt|present|Its only Runtime mention is self-referential fatalError diagnostic text"
+  "__kk_mutable_map_iterator_hasNext|dead_A.txt|absent|Runtime calls its unique Swift-name alias"
+)
+
+if [[ $SELFTEST -eq 1 ]]; then
+  echo ""
+  echo "=== Self-test (regression fixtures) ==="
+  selftest_failed=0
+
+  for fixture in "${FIXTURES[@]}"; do
+    IFS='|' read -r symbol file expected reason <<< "$fixture"
+    if grep -qx "$symbol" "$WORK/$file"; then
+      actual=present
+    else
+      actual=absent
+    fi
+
+    if [[ "$actual" == "$expected" ]]; then
+      echo "PASS: $symbol correctly classified as $actual in $file ($reason)"
+    else
+      echo "FAIL: $symbol expected $expected in $file, got $actual ($reason)" >&2
+      selftest_failed=1
+    fi
+  done
+
+  if [[ $selftest_failed -ne 0 ]]; then
+    echo "Self-test FAILED" >&2
+    exit 1
+  fi
+  echo "Self-test PASSED"
 fi

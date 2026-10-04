@@ -45,9 +45,10 @@ extension OverloadResolver {
         typeVarBySymbol: [SymbolID: TypeVarID],
         knownArgumentTypes: [Int: TypeID],
         typeSystem: TypeSystem,
-        blameRange: SourceRange? = nil
+        blameRange: SourceRange? = nil,
+        implicitReceiverType: TypeID? = nil
     ) -> [TypeVarID: TypeID] {
-        guard !typeVarBySymbol.isEmpty, !knownArgumentTypes.isEmpty else {
+        guard !typeVarBySymbol.isEmpty else {
             return [:]
         }
         var constraints: [VariableConstraint] = []
@@ -61,11 +62,96 @@ extension OverloadResolver {
                 blameRange: blameRange
             ))
         }
+        if let implicitReceiverType, let receiverType = signature.receiverType {
+            constraints.append(contentsOf: decomposeSubtypeConstraint(
+                subtype: implicitReceiverType,
+                supertype: receiverType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: typeSystem,
+                blameRange: blameRange
+            ))
+        }
         guard !constraints.isEmpty else { return [:] }
-        let varsToSolve = usedTypeVariables(from: constraints)
-        guard !varsToSolve.isEmpty else { return [:] }
-        let solution = ConstraintSolver().solve(vars: varsToSolve, constraints: constraints, typeSystem: typeSystem)
-        return solution.isSuccess ? solution.substitution : [:]
+        guard !usedTypeVariables(from: constraints).isEmpty else { return [:] }
+
+        // A known argument can determine a type parameter indirectly through
+        // another parameter's dependent upper bound. For example, a destination
+        // argument can infer `M` in `M : MutableMap<in K, S>`, which in turn
+        // determines `S` before the operation lambda is type-checked. Expand
+        // those bounds while the probe still has concrete argument types; the
+        // full call resolver performs the authoritative bound check later.
+        var solution = ConstraintSolver().solve(
+            vars: usedTypeVariables(from: constraints),
+            constraints: constraints,
+            typeSystem: typeSystem
+        )
+        guard solution.isSuccess else { return [:] }
+        let symbolTable = typeSystem.symbolTable
+        for _ in 0 ... max(1, signature.typeParameterSymbols.count) {
+            var addedDependentConstraint = false
+            for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+                guard let typeVar = typeVarBySymbol[typeParamSymbol],
+                      let substitutedType = solution.substitution[typeVar]
+                else {
+                    continue
+                }
+                let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                    ? signature.typeParameterUpperBoundsList[index]
+                    : []
+                let symbolBounds = symbolTable?.typeParameterUpperBounds(for: typeParamSymbol) ?? []
+                let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+                for upperBound in upperBounds {
+                    let substitutedBound = typeSystem.substituteTypeParameters(
+                        in: upperBound,
+                        substitution: solution.substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    guard containsTypeVariable(
+                        substitutedBound,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem
+                    ) else {
+                        continue
+                    }
+                    let dependentConstraints = decomposeSubtypeConstraint(
+                        subtype: substitutedType,
+                        supertype: substitutedBound,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: blameRange
+                    )
+                    guard !usedTypeVariables(from: dependentConstraints).isEmpty else {
+                        continue
+                    }
+                    constraints.append(contentsOf: dependentConstraints)
+                    addedDependentConstraint = true
+                }
+            }
+            guard addedDependentConstraint else { break }
+            solution = ConstraintSolver().solve(
+                vars: usedTypeVariables(from: constraints),
+                constraints: constraints,
+                typeSystem: typeSystem
+            )
+            guard solution.isSuccess else { return [:] }
+        }
+
+        // An upper bound alone is not a usable lambda context. For example,
+        // Comparator<Any> passed to Comparator<in R> only establishes R <: Any;
+        // the trailing selector still has to infer R from its return type. If
+        // this helper substituted Any eagerly, the selector would be checked as
+        // (T) -> Any and its concrete return type would be lost before the main
+        // call solver ran. Keep substitutions that have a concrete lower bound,
+        // while leaving upper-only variables unresolved for the lambda pass.
+        let lowerBoundedVariables: Set<TypeVarID> = Set(constraints.compactMap { constraint in
+            guard case .type = constraint.left,
+                  case let .variable(variable) = constraint.right
+            else {
+                return nil
+            }
+            return variable
+        })
+        return solution.substitution.filter { lowerBoundedVariables.contains($0.key) }
     }
 
     public func resolveCall(
@@ -198,6 +284,59 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
+        // A nominal member has no extension receiver in its function
+        // signature, but its leading type parameters still belong to the
+        // declaring class/interface. Constrain those parameters from the
+        // actual receiver before argument inference. Otherwise an inherited
+        // member such as OpenEndRange<T>.contains(T) can incorrectly infer T
+        // from a Byte/Long argument instead of Int from IntRange, making an
+        // inapplicable member steal the call from an exact user extension.
+        if !isConstructor,
+           signature.receiverType == nil,
+           signature.classTypeParameterCount > 0,
+           let implicitReceiverType,
+           isNominalMemberFunction(candidate, typeSystem: ctx.types),
+           let owner = ctx.symbols.parentSymbol(for: candidate)
+        {
+            let ownerArguments: [TypeArg] = signature.typeParameterSymbols
+                .prefix(signature.classTypeParameterCount)
+                .map { typeParameter in
+                    .invariant(ctx.types.make(.typeParam(TypeParamType(
+                        symbol: typeParameter,
+                        nullability: .nonNull
+                    ))))
+                }
+            let ownerType = ctx.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: ownerArguments,
+                nullability: .nonNull
+            )))
+            let receiverOwnerType: TypeID = {
+                let nonNullReceiverType = ctx.types.makeNonNullable(implicitReceiverType)
+                guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
+                      let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
+                          from: receiverClassType.classSymbol,
+                          childArgs: receiverClassType.args,
+                          to: owner
+                      )
+                else {
+                    return implicitReceiverType
+                }
+                return ctx.types.make(.classType(ClassType(
+                    classSymbol: owner,
+                    args: liftedArguments,
+                    nullability: .nonNull
+                )))
+            }()
+            constraints.append(contentsOf: decomposeSubtypeConstraint(
+                subtype: receiverOwnerType,
+                supertype: ownerType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: ctx.types,
+                blameRange: call.range
+            ))
+        }
+
         guard let parameterMapping = buildParameterMapping(
             signature: signature,
             callArgs: call.args,
@@ -214,7 +353,7 @@ extension OverloadResolver {
             signature: signature,
             typeVarBySymbol: typeVarBySymbol,
             ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
-            typeSystem: ctx.types
+            sema: ctx
         ) else {
             return .rejected
         }
@@ -234,6 +373,33 @@ extension OverloadResolver {
                         blameRange: call.range
                     )
                 )
+            }
+        }
+
+        // Upper bounds can relate two function type parameters (for example
+        // `where C : Collection<*>, C : R`). Add those relationships to the
+        // inference graph before solving so a receiver lower bound can widen
+        // the result type as required by Kotlin's self-type extensions.
+        for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+            guard index < signature.typeParameterUpperBoundsList.count else {
+                continue
+            }
+            let signatureBounds = signature.typeParameterUpperBoundsList[index]
+            let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: typeParamSymbol)
+            let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+            for upperBound in upperBounds {
+                guard case let .typeParam(boundTypeParam) = ctx.types.kind(of: upperBound),
+                      let typeParamVariable = typeVarBySymbol[typeParamSymbol],
+                      let boundTypeParamVariable = typeVarBySymbol[boundTypeParam.symbol]
+                else {
+                    continue
+                }
+                constraints.append(VariableConstraint(
+                    kind: .subtype,
+                    left: .variable(typeParamVariable),
+                    right: .variable(boundTypeParamVariable),
+                    blameRange: call.range
+                ))
             }
         }
 
@@ -308,9 +474,18 @@ extension OverloadResolver {
             return .rejected
         }
 
+        let instantiatedReceiverType = signature.receiverType.map {
+            ctx.types.substituteTypeParameters(
+                in: $0,
+                substitution: substitution,
+                typeVarBySymbol: typeVarBySymbol
+            )
+        }
+
         return .viable(ViableCandidate(
             symbol: candidate,
             signature: signature,
+            instantiatedReceiverType: instantiatedReceiverType,
             instantiatedParameterTypes: instantiatedParameterTypes,
             substitutedTypeArguments: substitution,
             parameterMapping: parameterMapping,
@@ -334,6 +509,43 @@ extension OverloadResolver {
         // Use decomposeSubtypeConstraint to properly extract type variables
         // from generic receiver types (e.g. Class<T>) so the solver can
         // infer type arguments from projected receivers (e.g. Class<out Any>).
+        // A receiver can itself be a type parameter with a non-recursive upper
+        // bound (for example `M : MutableMap<in K, in V>`). Resolve the member
+        // against that bound so calls such as `destination.put(key, value)`
+        // infer the member's class type parameters from the projected bound.
+        // Star-projected bounds erase those member type arguments, so preserve
+        // the direct receiver constraint instead of inferring them as Any?.
+        if case let .typeParam(typeParam) = typeSystem.kind(of: implicitReceiverType),
+           typeVarBySymbol[typeParam.symbol] == nil,
+           containsTypeVariable(receiverType, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem),
+           let symbols = typeSystem.symbolTable
+        {
+            let upperBounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
+            let matchingBounds = upperBounds.filter { upperBound in
+                guard !typeSystem.typeContainsTypeParam(upperBound, symbol: typeParam.symbol),
+                      !containsStarProjection(upperBound, typeSystem: typeSystem)
+                else {
+                    return false
+                }
+                return receiverBoundMatches(
+                    bound: upperBound,
+                    receiverType: receiverType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem
+                )
+            }
+            if !matchingBounds.isEmpty {
+                return matchingBounds.flatMap { upperBound in
+                    decomposeSubtypeConstraint(
+                        subtype: upperBound,
+                        supertype: receiverType,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: range
+                    )
+                }
+            }
+        }
         return decomposeSubtypeConstraint(
             subtype: implicitReceiverType,
             supertype: receiverType,
@@ -343,6 +555,61 @@ extension OverloadResolver {
         )
     }
 
+    private func receiverBoundMatches(
+        bound: TypeID,
+        receiverType: TypeID,
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        typeSystem: TypeSystem
+    ) -> Bool {
+        let nonNullBound = typeSystem.makeNonNullable(bound)
+        let nonNullReceiver = typeSystem.makeNonNullable(receiverType)
+        if case let .classType(superClass) = typeSystem.kind(of: nonNullReceiver) {
+            if case let .classType(subClass) = typeSystem.kind(of: nonNullBound) {
+                return subClass.classSymbol == superClass.classSymbol
+                    || typeSystem.isNominalSubtypeSymbol(subClass.classSymbol, of: superClass.classSymbol)
+            }
+            return false
+        }
+        if case let .functionType(superFunc) = typeSystem.kind(of: nonNullReceiver) {
+            if case let .functionType(subFunc) = typeSystem.kind(of: nonNullBound) {
+                return subFunc.params.count == superFunc.params.count
+            }
+            return false
+        }
+        if case let .typeParam(superParam) = typeSystem.kind(of: nonNullReceiver),
+           typeVarBySymbol[superParam.symbol] != nil
+        {
+            return true
+        }
+        return typeSystem.isSubtype(nonNullBound, nonNullReceiver)
+    }
+
+    private func containsStarProjection(_ type: TypeID, typeSystem: TypeSystem) -> Bool {
+        switch typeSystem.kind(of: type) {
+        case let .classType(classType):
+            classType.args.contains { argument in
+                switch argument {
+                case .star:
+                    true
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    containsStarProjection(inner, typeSystem: typeSystem)
+                }
+            }
+        case let .functionType(functionType):
+            functionType.contextReceivers.contains { containsStarProjection($0, typeSystem: typeSystem) }
+                || functionType.receiver.map { containsStarProjection($0, typeSystem: typeSystem) } == true
+                || functionType.params.contains { containsStarProjection($0, typeSystem: typeSystem) }
+                || containsStarProjection(functionType.returnType, typeSystem: typeSystem)
+                || functionType.throws.contains { containsStarProjection($0, typeSystem: typeSystem) }
+        case let .intersection(parts):
+            parts.contains { containsStarProjection($0, typeSystem: typeSystem) }
+        case let .kClassType(kClassType):
+            containsStarProjection(kClassType.argument, typeSystem: typeSystem)
+        default:
+            false
+        }
+    }
+
     private func appendArgumentConstraints(
         to constraints: inout [VariableConstraint],
         call: CallExpr,
@@ -350,8 +617,9 @@ extension OverloadResolver {
         signature: FunctionSignature,
         typeVarBySymbol: [SymbolID: TypeVarID],
         ignoredLambdaReturnTypeArgumentIndices: Set<Int>,
-        typeSystem: TypeSystem
+        sema: SemaModule
     ) -> Bool {
+        let typeSystem = sema.types
         let isVararg = normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
         var processedAll = true
         for argIndex in call.args.indices {
@@ -365,15 +633,27 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
-            let argType = arg.type
+            let argType = isVararg[paramIndex] && !arg.isSpread
+                ? (varargIntegerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
+                : arg.type
 
-            // When a spread argument (*array) is passed to a vararg parameter,
-            // the argument type is an array/collection type (e.g. Array<String>,
-            // IntArray) while the parameter type is the element type (String, Int).
-            // Skip the type constraint for spread arguments — the parameter mapping
-            // already verified this maps to a vararg param and the runtime handles
-            // the concatenation via kk_vararg_spread_concat.
+            // A spread argument contributes the element type of its array to
+            // the vararg parameter. Recover that type when possible so
+            // overloads such as `split(*arrayOf("..."))` and
+            // `split(*charArrayOf('...'))` are distinguished by the resolver.
+            // Keep the historical unconstrained fallback for synthetic or
+            // incomplete test types whose array shape cannot be recovered.
             if arg.isSpread, isVararg[paramIndex] {
+                if let elementType = spreadArgumentElementType(argType, sema: sema) {
+                    let decomposed = decomposeSubtypeConstraint(
+                        subtype: elementType,
+                        supertype: paramType,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: call.range
+                    )
+                    constraints.append(contentsOf: decomposed)
+                }
                 continue
             }
 
@@ -403,6 +683,85 @@ extension OverloadResolver {
             return !(constraints.isEmpty && !call.args.isEmpty)
         }
         return true
+    }
+
+    /// Infer a vararg element against this candidate, rather than treating an
+    /// unsuffixed literal's previously inferred Int as its only possible type.
+    private func varargIntegerLiteralType(
+        _ argument: CallArg,
+        parameterType: TypeID,
+        types: TypeSystem
+    ) -> TypeID? {
+        guard case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(parameterType)) else {
+            return nil
+        }
+        if let value = argument.signedIntegerLiteral {
+            switch primitive {
+            case .byte where (-128...127).contains(value): return types.byteType
+            case .short where (-32768...32767).contains(value): return types.shortType
+            case .long: return types.longType
+            default: return nil
+            }
+        }
+        if let value = argument.unsignedIntegerLiteral {
+            switch primitive {
+            case .ubyte where value <= UInt64(UInt8.max): return types.ubyteType
+            case .ushort where value <= UInt64(UInt16.max): return types.ushortType
+            case .ulong: return types.ulongType
+            default: return nil
+            }
+        }
+        return nil
+    }
+
+    /// Returns the source-level element type represented by a spread argument.
+    /// Generic `Array<T>`/collection types carry the element in their first type
+    /// argument; primitive arrays (notably `CharArray`) require the interner to
+    /// identify the nominal class.
+    private func spreadArgumentElementType(_ type: TypeID, sema: SemaModule) -> TypeID? {
+        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return nil
+        }
+        if let firstArgument = classType.args.first {
+            switch firstArgument {
+            case let .invariant(element), let .out(element), let .in(element):
+                return element
+            case .star:
+                return sema.types.nullableAnyType
+            }
+        }
+        guard let interner = sema.interner else {
+            return nil
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        switch symbol.name {
+        case knownNames.intArray:
+            return sema.types.intType
+        case knownNames.shortArray:
+            return sema.types.shortType
+        case knownNames.byteArray:
+            return sema.types.byteType
+        case knownNames.longArray:
+            return sema.types.longType
+        case knownNames.ubyteArray:
+            return sema.types.ubyteType
+        case knownNames.ushortArray:
+            return sema.types.ushortType
+        case knownNames.uintArray:
+            return sema.types.uintType
+        case knownNames.ulongArray:
+            return sema.types.ulongType
+        case knownNames.doubleArray:
+            return sema.types.doubleType
+        case knownNames.floatArray:
+            return sema.types.floatType
+        case knownNames.booleanArray:
+            return sema.types.booleanType
+        case knownNames.charArray:
+            return sema.types.charType
+        default:
+            return nil
+        }
     }
 
     private func appendLambdaInputConstraintsIgnoringReturn(
@@ -503,14 +862,75 @@ extension OverloadResolver {
         if let chosen = pickMostSpecific(viable, typeSystem: typeSystem) {
             return chosen.toResolvedCall()
         }
+        if let chosen = preferredIntegerLiteralVararg(viable, call: call, types: typeSystem) {
+            return chosen.toResolvedCall()
+        }
         return errorResult(
             code: "KSWIFTK-SEMA-0003",
             message: "Ambiguous overload resolution.",
-            range: call.range
+            range: call.range,
+            secondaryRanges: candidateDeclSites(viable, typeSystem: typeSystem)
         )
     }
 
-    private func errorResult(code: String, message: String, range: SourceRange) -> ResolvedCall {
+    /// Kotlin's integer-literal priority selects Int over other signed integer
+    /// overloads, and Short over Byte, when ordinary type subtyping cannot
+    /// distinguish otherwise-applicable vararg candidates.
+    private func preferredIntegerLiteralVararg(
+        _ candidates: [ViableCandidate],
+        call: CallExpr,
+        types: TypeSystem
+    ) -> ViableCandidate? {
+        guard !call.args.isEmpty,
+              call.args.allSatisfy({ $0.signedIntegerLiteral != nil && !$0.isSpread })
+        else { return nil }
+        var candidatesByPrimitive: [PrimitiveType: ViableCandidate] = [:]
+        for candidate in candidates {
+            let varargFlags = normalizeFlags(
+                candidate.signature.valueParameterIsVararg,
+                count: candidate.signature.parameterTypes.count
+            )
+            var primitiveForCandidate: PrimitiveType?
+            for (index, paramType) in candidate.instantiatedParameterTypes.enumerated() {
+                guard let paramIndex = candidate.parameterMapping[index],
+                      varargFlags.indices.contains(paramIndex), varargFlags[paramIndex],
+                      case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(paramType)),
+                      primitive == .int || primitive == .short || primitive == .byte || primitive == .long,
+                      primitiveForCandidate == nil || primitiveForCandidate == primitive
+                else { return nil }
+                primitiveForCandidate = primitive
+            }
+            guard let primitiveForCandidate,
+                  candidatesByPrimitive[primitiveForCandidate] == nil
+            else { return nil }
+            candidatesByPrimitive[primitiveForCandidate] = candidate
+        }
+        if let intCandidate = candidatesByPrimitive[.int] { return intCandidate }
+        if candidatesByPrimitive.count == 2,
+           let shortCandidate = candidatesByPrimitive[.short],
+           candidatesByPrimitive[.byte] != nil
+        {
+            return shortCandidate
+        }
+        return nil
+    }
+
+    /// ARCH-031: declaration sites of the ambiguous overload candidates,
+    /// deduplicated and sorted by source position so diagnostics stay
+    /// deterministic.
+    private func candidateDeclSites(
+        _ candidates: [ViableCandidate],
+        typeSystem: TypeSystem
+    ) -> [SourceRange] {
+        typeSystem.symbolTable?.sortedDeclSites(of: candidates.map(\.symbol)) ?? []
+    }
+
+    private func errorResult(
+        code: String,
+        message: String,
+        range: SourceRange,
+        secondaryRanges: [SourceRange] = []
+    ) -> ResolvedCall {
         ResolvedCall(
             chosenCallee: nil,
             substitutedTypeArguments: [:],
@@ -520,7 +940,7 @@ extension OverloadResolver {
                 code: code,
                 message: message,
                 primaryRange: range,
-                secondaryRanges: []
+                secondaryRanges: secondaryRanges
             )
         )
     }
@@ -528,6 +948,7 @@ extension OverloadResolver {
     private struct ViableCandidate {
         let symbol: SymbolID
         let signature: FunctionSignature
+        let instantiatedReceiverType: TypeID?
         let instantiatedParameterTypes: [TypeID]
         let substitutedTypeArguments: [TypeVarID: TypeID]
         let parameterMapping: [Int: Int]
@@ -574,12 +995,65 @@ extension OverloadResolver {
         if winners.count == 1 {
             return winners[0]
         }
+        // Candidates that tied on every specificity criterion (empty `winners`
+        // means no candidate was more specific than all the others). When they
+        // are all member functions with pairwise-equivalent instantiated
+        // signatures, the same Kotlin member was reached through multiple
+        // supertype paths — e.g. `IntRange` inherits `ClosedRange.contains` and
+        // `OpenEndRange.contains` — so collapse them to one deterministic
+        // winner instead of reporting the call as ambiguous. Scope extensions
+        // and mismatched-signature members stay genuinely ambiguous.
+        let tied = winners.isEmpty ? candidates : winners
+        if tied.count > 1,
+           tied.allSatisfy({ isNominalMemberFunction($0.symbol, typeSystem: typeSystem) }),
+           tied.allSatisfy({ lhs in
+               tied.allSatisfy { rhs in
+                   lhs.symbol == rhs.symbol
+                       || (lhs.instantiatedParameterTypes.count == rhs.instantiatedParameterTypes.count
+                           && zip(lhs.instantiatedParameterTypes, rhs.instantiatedParameterTypes).allSatisfy {
+                               typeSystem.isSubtype($0, $1) && typeSystem.isSubtype($1, $0)
+                           })
+               }
+           })
+        {
+            return tied.min { lhs, rhs in
+                let lhsSynthetic = typeSystem.symbolTable?.symbol(lhs.symbol)?.flags.contains(.synthetic) ?? false
+                let rhsSynthetic = typeSystem.symbolTable?.symbol(rhs.symbol)?.flags.contains(.synthetic) ?? false
+                if lhsSynthetic != rhsSynthetic {
+                    return !lhsSynthetic
+                }
+                return lhs.symbol.rawValue < rhs.symbol.rawValue
+            }
+        }
         return nil
+    }
+
+    /// True when `symbol` is a function declared directly inside a nominal
+    /// (class/interface/object) — as opposed to a package-scope extension or a
+    /// local function — so multiple copies reached via supertypes denote the
+    /// same unified Kotlin member.
+    private func isNominalMemberFunction(
+        _ symbol: SymbolID,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        guard let parent = typeSystem.symbolTable?.parentSymbol(for: symbol),
+              let parentKind = typeSystem.symbolTable?.symbol(parent)?.kind
+        else {
+            return false
+        }
+        return parentKind == .class
+            || parentKind == .interface
+            || parentKind == .object
+            || parentKind == .enumClass
+            || parentKind == .annotationClass
     }
 
     /// Returns true if `lhs` is at least as specific as `rhs`.
     /// First compares parameter types; if they are equivalent, falls back to
     /// receiver type: the more-derived receiver (override) wins over the base.
+    /// When counts differ because one candidate has additional unbound default
+    /// parameters, the candidate binding the same arguments to fewer parameters
+    /// is preferred (e.g. trailing-lambda overloads without optional prefix args).
     private func isMoreSpecificCandidate(
         _ lhs: ViableCandidate,
         than rhs: ViableCandidate,
@@ -588,6 +1062,48 @@ extension OverloadResolver {
         if isMoreSpecific(lhs.instantiatedParameterTypes, than: rhs.instantiatedParameterTypes, typeSystem: typeSystem) {
             return true
         }
+
+        // If parameter counts differ because one candidate supplied additional
+        // default arguments, the candidate with fewer parameters is more specific
+        // when every bound argument type is at least as specific.
+        let rhsBound = Set(rhs.parameterMapping.values)
+        var lhsBoundIsNoLessSpecific = true
+        for argIndex in lhs.instantiatedParameterTypes.indices {
+            guard argIndex < rhs.instantiatedParameterTypes.count else {
+                lhsBoundIsNoLessSpecific = false
+                break
+            }
+            if !typeSystem.isSubtype(lhs.instantiatedParameterTypes[argIndex], rhs.instantiatedParameterTypes[argIndex]) {
+                lhsBoundIsNoLessSpecific = false
+                break
+            }
+        }
+        if lhsBoundIsNoLessSpecific {
+            let lhsCount = lhs.signature.parameterTypes.count
+            let rhsCount = rhs.signature.parameterTypes.count
+            if lhsCount < rhsCount {
+                // The larger candidate is more specific only if its extra formal
+                // parameters are not supplied by the call and are optional (default
+                // or vararg). If every extra parameter is bound, the smaller
+                // candidate (e.g. a vararg overload) is not preferred.
+                let rhsDefaults = normalizeFlags(rhs.signature.valueParameterHasDefaultValues, count: rhsCount)
+                let rhsVarargs = normalizeFlags(rhs.signature.valueParameterIsVararg, count: rhsCount)
+                var unboundFound = false
+                var extraAreOptional = true
+                for p in 0..<rhsCount {
+                    if rhsBound.contains(p) { continue }
+                    unboundFound = true
+                    if rhsVarargs[p] { continue }
+                    if rhsDefaults[p] { continue }
+                    extraAreOptional = false
+                    break
+                }
+                if unboundFound && extraAreOptional {
+                    return true
+                }
+            }
+        }
+
         // If parameter types are not strictly more specific, check whether they
         // are pairwise equivalent and the receiver type is a subtype (override
         // wins over the base class/interface default method).
@@ -600,8 +1116,8 @@ extension OverloadResolver {
         guard paramsEqual else {
             return false
         }
-        if let lhsReceiver = lhs.signature.receiverType,
-           let rhsReceiver = rhs.signature.receiverType
+        if let lhsReceiver = lhs.instantiatedReceiverType,
+           let rhsReceiver = rhs.instantiatedReceiverType
         {
             let lhsReceiverSubRhs = typeSystem.isSubtype(lhsReceiver, rhsReceiver)
             let rhsReceiverSubLhs = typeSystem.isSubtype(rhsReceiver, lhsReceiver)
@@ -612,6 +1128,11 @@ extension OverloadResolver {
                 return false
             }
         }
+        let lhsHasTypeParameter = signatureContainsTypeParameter(lhs.signature, typeSystem: typeSystem)
+        let rhsHasTypeParameter = signatureContainsTypeParameter(rhs.signature, typeSystem: typeSystem)
+        if lhsHasTypeParameter != rhsHasTypeParameter {
+            return !lhsHasTypeParameter
+        }
         let lhsOwnTypeParamCount = lhs.signature.typeParameterSymbols.count - lhs.signature.classTypeParameterCount
         let rhsOwnTypeParamCount = rhs.signature.typeParameterSymbols.count - rhs.signature.classTypeParameterCount
         if lhsOwnTypeParamCount != rhsOwnTypeParamCount {
@@ -621,6 +1142,52 @@ extension OverloadResolver {
             return !lhs.usesVararg && rhs.usesVararg
         }
         return false
+    }
+
+    /// Returns `true` if `signature` declares any receiver or parameter type
+    /// that contains a type parameter (e.g. `fun <T> T.compareTo(T)`).
+    private func signatureContainsTypeParameter(
+        _ signature: FunctionSignature,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        var typesToCheck: [TypeID] = signature.parameterTypes
+        if let receiver = signature.receiverType {
+            typesToCheck.append(receiver)
+        }
+        return typesToCheck.contains { typeContainsTypeParameter($0, typeSystem: typeSystem) }
+    }
+
+    private func typeContainsTypeParameter(
+        _ type: TypeID,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        switch typeSystem.kind(of: type) {
+        case .typeParam:
+            return true
+        case let .classType(classType):
+            for arg in classType.args {
+                let argType: TypeID? = switch arg {
+                case let .invariant(t), let .out(t), let .in(t): t
+                case .star: nil
+                }
+                if let argType, typeContainsTypeParameter(argType, typeSystem: typeSystem) {
+                    return true
+                }
+            }
+            return false
+        case let .functionType(functionType):
+            let allTypes = functionType.contextReceivers
+                + (functionType.receiver.map { [$0] } ?? [])
+                + functionType.params
+                + [functionType.returnType]
+            return allTypes.contains { typeContainsTypeParameter($0, typeSystem: typeSystem) }
+        case let .kClassType(kClassType):
+            return typeContainsTypeParameter(kClassType.argument, typeSystem: typeSystem)
+        case let .intersection(parts):
+            return parts.contains { typeContainsTypeParameter($0, typeSystem: typeSystem) }
+        default:
+            return false
+        }
     }
 
     private func isMoreSpecific(

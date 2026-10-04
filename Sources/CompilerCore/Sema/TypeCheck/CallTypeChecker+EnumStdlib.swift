@@ -16,18 +16,26 @@ extension CallTypeChecker {
         sema: SemaModule,
         range: SourceRange
     ) -> EnumStdlibSpecialCallResult? {
-        let enumValuesName = interner.intern("enumValues")
-        let enumValueOfName = interner.intern("enumValueOf")
-        let enumEntriesName = interner.intern("enumEntries")
-        guard calleeName == enumValuesName || calleeName == enumValueOfName || calleeName == enumEntriesName else {
+        let (visibleCandidates, _) = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName))
+        guard let intrinsic = visibleCandidates.compactMap({
+            sema.wellKnownSymbols.enumIntrinsic(for: $0)
+        }).first,
+        let stubSymbol = visibleCandidates.first(where: {
+            sema.wellKnownSymbols.enumIntrinsic(for: $0) == intrinsic
+        }) else {
             return nil
         }
-        let (visibleCandidates, _) = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName))
         let hasNonSyntheticUserCandidate = visibleCandidates.contains { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else {
                 return false
             }
-            return !symbol.flags.contains(.synthetic)
+            if symbol.flags.contains(.synthetic) {
+                return false
+            }
+            // The well-known table identifies the bundled/imported declaration
+            // itself. Any other non-synthetic visible candidate is a user
+            // declaration and must shadow the intrinsic path.
+            return sema.wellKnownSymbols.enumIntrinsic(for: candidate) == nil
         }
         if locals[calleeName] != nil || hasNonSyntheticUserCandidate {
             return nil
@@ -60,7 +68,8 @@ extension CallTypeChecker {
             nullability: .nonNull
         )))
 
-        if calleeName == enumValuesName {
+        switch intrinsic {
+        case .enumValues:
             guard args.isEmpty else {
                 return nil
             }
@@ -76,31 +85,15 @@ extension CallTypeChecker {
                 args: [.invariant(enumType)],
                 nullability: .nonNull
             )))
-            let stubSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("enumValues"),
-            ])
-            guard let stubSymbol else {
-                return nil
-            }
             return .enumValues(enumType: enumType, arrayType: arrayType, stubSymbol: stubSymbol)
-        }
 
-        if calleeName == enumValueOfName {
+        case .enumValueOf:
             guard args.count == 1 else {
                 return nil
             }
-            let stubSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("enumValueOf"),
-            ])
-            guard let stubSymbol else {
-                return nil
-            }
             return .enumValueOf(enumType: enumType, stubSymbol: stubSymbol)
-        }
 
-        if calleeName == enumEntriesName {
+        case .enumEntries, .enumEntriesIntrinsic:
             guard args.isEmpty else {
                 return nil
             }
@@ -117,17 +110,7 @@ extension CallTypeChecker {
                 args: [.invariant(enumType)],
                 nullability: .nonNull
             )))
-            let stubSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("enums"),
-                interner.intern("enumEntries"),
-            ])
-            guard let stubSymbol else {
-                return nil
-            }
             return .enumEntries(enumType: enumType, entriesType: entriesType, stubSymbol: stubSymbol)
         }
-
-        return nil
     }
 }

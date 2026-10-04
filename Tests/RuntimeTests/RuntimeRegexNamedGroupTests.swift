@@ -1,17 +1,9 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeRegexNamedGroupTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+@Suite(.serialized)
+struct RuntimeRegexNamedGroupTests {
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
@@ -33,9 +25,17 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
         }
     }
 
-    private func group(_ groupsRaw: Int, named name: String) -> Int {
+    private func groupIndex(_ matchRaw: Int, named name: String) -> Int {
         withFlatString(name) { data, length, byteCount, hash in
-            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
+            __kk_match_result_group_index_of_name_flat(matchRaw, data, length, byteCount, hash)
+        }
+    }
+
+    private func hasNamedGroup(_ matchRaw: Int, named name: String) -> Bool {
+        Array(name.utf8).withUnsafeBufferPointer { buffer in
+            guard let baseAddress = buffer.baseAddress else { return false }
+            let nameRaw = Int(bitPattern: kk_string_from_utf8(baseAddress, Int32(name.utf8.count)))
+            return __kk_match_result_has_named_group(matchRaw, nameRaw) != 0
         }
     }
 
@@ -47,51 +47,103 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
         return box.value
     }
 
+    @Test
     func testNamedGroupsExposeValuesByName() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
-        let groupsRaw = kk_match_result_groups(matchRaw)
 
-        let lhsGroupRaw = group(groupsRaw, named: "lhs")
-        let rhsGroupRaw = group(groupsRaw, named: "rhs")
+        let lhsIndex = groupIndex(matchRaw, named: "lhs")
+        let rhsIndex = groupIndex(matchRaw, named: "rhs")
 
-        XCTAssertNotEqual(lhsGroupRaw, runtimeNullSentinelInt)
-        XCTAssertNotEqual(rhsGroupRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_group_value(lhsGroupRaw)), "ab")
-        XCTAssertEqual(runtimeString(kk_match_group_value(rhsGroupRaw)), "cd")
+        #expect(lhsIndex == 1)
+        #expect(rhsIndex == 2)
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, lhsIndex)) == "ab")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, rhsIndex)) == "cd")
     }
 
-    func testMissingNamedGroupReturnsNullSentinel() {
+    @Test
+    func testMissingNamedGroupReturnsNegativeIndex() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
-        let groupsRaw = kk_match_result_groups(matchRaw)
 
-        let missing = group(groupsRaw, named: "missing")
-        XCTAssertEqual(missing, runtimeNullSentinelInt)
+        #expect(groupIndex(matchRaw, named: "missing") == -1)
     }
 
-    func testGroupNamesReturnsAllNamedGroups() {
+    @Test
+    func testDeclaredUnmatchedNamedGroupIsDistinguishedFromMissingGroup() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+        let regexRaw = makeRegex("(?<optional>a)?")
+        let matchRaw = find(regexRaw: regexRaw, input: "")
+
+        #expect(hasNamedGroup(matchRaw, named: "optional"))
+        #expect(!hasNamedGroup(matchRaw, named: "missing"))
+        #expect(groupIndex(matchRaw, named: "optional") == -1)
+    }
+
+    @Test
+    func testNamedGroupIndicesForMultipleNames() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
-        let setRaw = kk_regex_group_names(regexRaw)
+        let matchRaw = find(regexRaw: regexRaw, input: "on 2024-05-06.")
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
-              let setBox = tryCast(ptr, to: RuntimeSetBox.self) else {
-            XCTFail("Expected RuntimeSetBox")
-            return
-        }
-        let names = Set(setBox.elements.map { runtimeString($0) })
-        XCTAssertEqual(names, ["year", "month", "day"])
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "year"))) == "2024")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "month"))) == "05")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, groupIndex(matchRaw, named: "day"))) == "06")
     }
 
-    func testGroupNamesEmptyForUnnamedPattern() {
+    @Test
+    func testPatternBridgeRoundTripsUnnamedPattern() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         let regexRaw = makeRegex("(\\d+)-(\\d+)")
-        let setRaw = kk_regex_group_names(regexRaw)
+        let matchRaw = find(regexRaw: regexRaw, input: "12-34")
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
-              let setBox = tryCast(ptr, to: RuntimeSetBox.self) else {
-            XCTFail("Expected RuntimeSetBox")
-            return
+        #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "(\\d+)-(\\d+)")
+        #expect(groupIndex(matchRaw, named: "year") == -1)
+    }
+
+    @Test
+    func testReplaceExpandsNamedGroupReferences() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+        let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})")
+        let resultRaw = kk_string_replace_regex(
+            makeStringRaw("2024-05"),
+            regexRaw,
+            makeStringRaw("${month}/${year}"),
+            nil
+        )
+        #expect(runtimeString(resultRaw) == "05/2024")
+
+        let numberedRaw = kk_string_replace_regex(
+            makeStringRaw("2024-05"),
+            regexRaw,
+            makeStringRaw("$2/$1"),
+            nil
+        )
+        #expect(runtimeString(numberedRaw) == "05/2024")
+
+        let firstRaw = kk_string_replaceFirst_regex(
+            makeStringRaw("2024-05 2025-06"),
+            regexRaw,
+            makeStringRaw("${year}"),
+            nil
+        )
+        #expect(runtimeString(firstRaw) == "2024 2025-06")
+    }
+
+    private func makeStringRaw(_ value: String) -> Int {
+        value.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
+                Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
+            }
         }
-        XCTAssertTrue(setBox.elements.isEmpty)
     }
 }
+#endif

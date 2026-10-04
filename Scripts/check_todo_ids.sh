@@ -10,8 +10,8 @@ Usage: $(basename "$0") [TODO-file]
 
 Detect duplicate task IDs in TODO.md.
 
-The check intentionally matches every task-like ID occurrence, not only
-checkbox lines, so cross-references must avoid repeating raw task IDs.
+The check only considers task-definition lines of the form
+\`- [ ] ID:\` or \`- [x] ID:\`, so cross-references in prose are ignored.
 USAGE
 }
 
@@ -34,10 +34,8 @@ if ! command -v rg >/dev/null 2>&1; then
   exit 127
 fi
 
-set +e
-matches="$(rg -o '[A-Z]+-[A-Z-]+-[0-9]+' "$TODO_FILE")"
-rg_status=$?
-set -e
+rg_status=0
+matches="$(rg '^- \[[ x]\] ([A-Z]+(?:-[A-Z]+)*-[0-9]+):' "$TODO_FILE" -or '$1')" || rg_status=$?
 
 if [[ $rg_status -gt 1 ]]; then
   exit "$rg_status"

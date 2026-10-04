@@ -1,7 +1,27 @@
 import Dispatch
 import Foundation
 
+#if os(macOS)
+import Darwin
+#elseif os(Linux)
+import Glibc
+#endif
+
+func runtimeCurrentPlatformThreadID() -> UInt64 {
+#if os(macOS)
+    return UInt64(pthread_mach_thread_np(pthread_self()))
+#elseif os(Linux)
+    return UInt64(pthread_self())
+#else
+    return 0
+#endif
+}
+
 // MARK: - Kotlin/Native specific APIs (STDLIB-NATIVE-168)
+
+func runtimeCurrentStackTraceAddresses() -> [Int] {
+    Thread.callStackReturnAddresses.map { Int(truncating: $0) }
+}
 
 // MARK: - CPointer / COpaquePointer
 
@@ -90,7 +110,7 @@ public func kk_cpointer_toKStringFromUtf16(_ handle: Int) -> Int {
         units.append(utf16[index])
         index += 1
     }
-    return registerRuntimeObject(RuntimeStringBox(String(decoding: units, as: UTF16.self)))
+    return registerRuntimeObject(RuntimeStringBox(runtimeKotlinStringFromUTF16CodeUnits(units)))
 }
 
 @_cdecl("kk_copaque_pointer_new")
@@ -100,7 +120,10 @@ public func kk_copaque_pointer_new(_ address: Int) -> Int {
 
 @_cdecl("kk_copaque_pointer_address")
 public func kk_copaque_pointer_address(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+    // A null `COpaquePointer?` arrives as the runtime null sentinel, not 0.
+    guard handle != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: handle)
+    else {
         return 0
     }
     guard let box = tryCast(ptr, to: RuntimeCOpaquePointerBox.self) else {
@@ -134,9 +157,40 @@ public func kk_native_identityHashCode(_ objectRaw: Int) -> Int {
 }
 
 @_cdecl("kk_native_getStackTraceAddresses")
-public func kk_native_getStackTraceAddresses() -> Int {
-    let addresses = Thread.callStackReturnAddresses.map { Int(truncating: $0) }
+public func kk_native_getStackTraceAddresses(_ throwableRaw: Int) -> Int {
+    let addresses: [Int]
+    if let pointer = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+       runtimeStorage.withGCLock({ state in
+           state.objectPointers.contains(UInt(bitPattern: pointer))
+       })
+    {
+        if let throwable = tryCast(pointer, to: RuntimeThrowableBox.self) {
+            addresses = throwable.stackTraceAddresses
+        } else if let throwable = tryCast(pointer, to: RuntimeObjectBox.self) {
+            addresses = throwable.throwableStackTraceAddresses ?? []
+        } else {
+            addresses = []
+        }
+    } else {
+        addresses = []
+    }
     return registerRuntimeObject(RuntimeListBox(elements: addresses))
+}
+
+@_cdecl("__kk_throwable_captureStackTrace")
+public func __kk_throwable_captureStackTrace(_ throwableRaw: Int) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: pointer))
+          }),
+          let object = tryCast(pointer, to: RuntimeObjectBox.self)
+    else {
+        return throwableRaw
+    }
+    if object.throwableStackTraceAddresses == nil {
+        object.throwableStackTraceAddresses = runtimeCurrentStackTraceAddresses()
+    }
+    return throwableRaw
 }
 
 private final class RuntimeUnhandledExceptionHookRegistry: @unchecked Sendable {
@@ -149,10 +203,12 @@ private final class RuntimeUnhandledExceptionHookRegistry: @unchecked Sendable {
         return hookRaw
     }
 
-    func set(_ raw: Int) {
+    func set(_ raw: Int) -> Int {
         lock.lock()
+        let previous = hookRaw
         hookRaw = raw == 0 || raw == runtimeNullSentinelInt ? runtimeNullSentinelInt : raw
         lock.unlock()
+        return previous
     }
 }
 
@@ -166,7 +222,6 @@ public func kk_native_getUnhandledExceptionHook() -> Int {
 @_cdecl("kk_native_setUnhandledExceptionHook")
 public func kk_native_setUnhandledExceptionHook(_ hookRaw: Int) -> Int {
     runtimeUnhandledExceptionHookRegistry.set(hookRaw)
-    return 0
 }
 
 @_cdecl("kk_native_processUnhandledException")
@@ -183,12 +238,32 @@ public func kk_native_processUnhandledException(
 }
 
 @_cdecl("kk_native_terminateWithUnhandledException")
-public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Int {
+public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Never {
     _ = kk_native_processUnhandledException(throwableRaw, nil)
     runtimeStructuredPanic("Unhandled Kotlin exception: \(throwableRaw)")
 }
 
 // MARK: - Native ByteArray accessors
+
+/// ImmutableBlob has the same element layout as ByteArray. The source-backed
+/// factory receives the raw Short vararg array; each element is truncated to
+/// one byte just as Kotlin/Native's ImmutableBlob constructor does.
+@_cdecl("__kk_immutable_blob_of")
+public func kk_immutable_blob_of(_ elementsRaw: Int, _: Int) -> Int {
+    guard let elements = runtimeArrayBox(from: elementsRaw) else {
+        return 0
+    }
+    let blob = RuntimeArrayBox(length: elements.count)
+    for index in 0..<elements.count {
+        blob[index] = Int(Int8(truncatingIfNeeded: elements[index]))
+    }
+    let raw = registerRuntimeObject(blob)
+    runtimeRegisterObjectType(
+        rawValue: raw,
+        classID: runtimeStableNominalTypeID(fqName: "kotlin.native.ImmutableBlob")
+    )
+    return raw
+}
 
 @inline(__always)
 private func runtimeNativeByteArrayLoadUnsigned(
@@ -200,13 +275,13 @@ private func runtimeNativeByteArrayLoadUnsigned(
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+    guard index >= 0, index <= array.count, byteCount >= 0, byteCount <= array.count - index else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
     }
 
     var value: UInt64 = 0
     for byteOffset in 0..<byteCount {
-        let byte = UInt8(truncatingIfNeeded: array.elements[index + byteOffset])
+        let byte = UInt8(truncatingIfNeeded: array[index + byteOffset])
         value |= UInt64(byte) << UInt64(byteOffset * 8)
     }
     return value
@@ -223,13 +298,13 @@ private func runtimeNativeByteArrayStoreUnsigned(
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+    guard index >= 0, index <= array.count, byteCount >= 0, byteCount <= array.count - index else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
     }
 
     for byteOffset in 0..<byteCount {
         let byte = UInt8(truncatingIfNeeded: value >> UInt64(byteOffset * 8))
-        array.elements[index + byteOffset] = Int(Int8(bitPattern: byte))
+        array[index + byteOffset] = Int(Int8(bitPattern: byte))
     }
     return 0
 }
@@ -523,11 +598,6 @@ final class RuntimeCValuesBox: @unchecked Sendable {
     deinit {
         storage.deallocate()
     }
-
-    var rawAddress: UInt {
-        guard let base = storage.baseAddress else { return 0 }
-        return UInt(bitPattern: base)
-    }
 }
 
 @_cdecl("kk_byteArray_toCValues")
@@ -562,13 +632,45 @@ public func kk_uByteArray_toCValues(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeCValuesBox(bytes: array.elements))
 }
 
+// MARK: - ImmutableBlob
+
+/// Returns a stable native address for `ImmutableBlob.asCPointer(offset)` /
+/// `asUCPointer(offset)` (upstream `Kotlin_ImmutableBlob_asCPointerImpl`).
+///
+/// RuntimeArrayBox storage is `[RuntimeValue]`, which is not byte-addressable
+/// C storage, so the blob's bytes are copied into a `RuntimeCValuesBox`'s
+/// unmanaged heap buffer and `baseAddress + offset` is returned. The box is
+/// pinned permanently: the escaped address has no release path in this API,
+/// and upstream ImmutableBlobs are effectively immortal once exposed as a C
+/// pointer.
+@_cdecl("__kk_immutable_blob_as_cpointer")
+public func __kk_immutable_blob_as_cpointer(_ blobRaw: Int, _ offset: Int) -> Int {
+    guard let array = runtimeArrayBox(from: blobRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid ImmutableBlob handle in __kk_immutable_blob_as_cpointer")
+    }
+    guard offset >= 0 && offset <= array.count else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_immutable_blob_as_cpointer offset \(offset) out of bounds for blob of size \(array.count)")
+    }
+    let box = RuntimeCValuesBox(bytes: array.elements)
+    let boxRaw = registerRuntimeObject(box)
+    runtimeStorage.withGCLock { state in
+        state.pinnedObjectCounts[UInt(bitPattern: boxRaw), default: 0] += 1
+    }
+    guard let baseAddress = box.storage.baseAddress else {
+        return 0
+    }
+    return Int(bitPattern: baseAddress) + offset
+}
+
 // MARK: - Pinned<T>
 
 /// Runtime backing for `kotlin.native.ref.Pinned<T>`.
 ///
 /// Pinning prevents the GC from moving (or collecting) a heap object while
 /// the pin is held.  In the KSwiftK stop-the-world mark-sweep GC objects
-/// are never moved, so pinning is implemented as a simple reference hold.
+/// are never moved, so pinning is implemented as a simple reference hold:
+/// `GCState.pinnedObjectCounts` keeps a per-target refcount of outstanding
+/// pins, and the mark phase roots every target with a non-zero count.
 ///
 /// ABI-005: `unpinned` guards against double-unpin UB.  Once `kk_unpin_object`
 /// executes the release path, the flag is set to `true`; any subsequent call
@@ -600,9 +702,12 @@ public func kk_pin_object(_ objectRaw: Int) -> Int {
         return 0
     }
     // Register the object as a GC root so the mark-sweep collector treats it
-    // as reachable for as long as the pin is held.
+    // as reachable for as long as the pin is held. Each call returns an
+    // independent handle, so the root is a per-target refcount rather than a
+    // single membership: unpinning one handle must not unroot the target
+    // while sibling pins are still held.
     runtimeStorage.withGCLock { state in
-        state.pinnedObjects.insert(UInt(bitPattern: objectRaw))
+        state.pinnedObjectCounts[UInt(bitPattern: objectRaw), default: 0] += 1
     }
     return registerRuntimeObject(RuntimePinnedBox(objectRaw: objectRaw))
 }
@@ -612,28 +717,44 @@ public func kk_unpin_object(_ pinnedHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pinnedHandle) else {
         return 0
     }
-    // ABI-005: guard is not registered at all → silently no-op.
-    let isKnown = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
+    // The whole handle lifetime protocol — registration check, box cast,
+    // double-unpin guard, and root refcount decrement — runs inside one
+    // GC-lock critical section. The membership check before tryCast keeps
+    // takeUnretainedValue safe (a registered box is still passRetained, and
+    // the release path cannot drop it while the lock is held), and bundling
+    // the refcount update with the handle checks leaves no window for a
+    // concurrent unpin/release to observe intermediate state.
+    var shouldReleaseHandle = false
+    let objectRaw = runtimeStorage.withGCLock { state -> Int? in
+        // ABI-005: guard is not registered at all → silently no-op.
+        guard state.objectPointers.contains(UInt(bitPattern: ptr)),
+              let box = tryCast(ptr, to: RuntimePinnedBox.self)
+        else {
+            return nil
+        }
+        // ABI-005: idempotency guard — second unpin on same handle is a no-op.
+        guard box.tryUnpin() else {
+            return box.objectRaw
+        }
+        shouldReleaseHandle = true
+        let objectRaw = box.objectRaw
+        // Drop this handle's share of the GC root; the target stays rooted
+        // until the last independent pin on it is released.
+        let key = UInt(bitPattern: objectRaw)
+        if let count = state.pinnedObjectCounts[key], count > 1 {
+            state.pinnedObjectCounts[key] = count - 1
+        } else {
+            state.pinnedObjectCounts.removeValue(forKey: key)
+        }
+        return objectRaw
     }
-    guard isKnown else {
+    guard let objectRaw else {
         return 0
     }
-    guard let box = tryCast(ptr, to: RuntimePinnedBox.self) else {
-        return 0
+    if shouldReleaseHandle {
+        _ = runtimeReleaseObject(pinnedHandle)
     }
-    // ABI-005: idempotency guard — second unpin on same handle is a no-op.
-    guard box.tryUnpin() else {
-        return box.objectRaw
-    }
-    let unmanaged = Unmanaged<RuntimePinnedBox>.fromOpaque(ptr)
-    // Drop GC root registration so the object can be collected again; see kk_pin_object.
-    runtimeStorage.withGCLock { state in
-        state.pinnedObjects.remove(UInt(bitPattern: box.objectRaw))
-        state.objectPointers.remove(UInt(bitPattern: ptr))
-    }
-    unmanaged.release()
-    return box.objectRaw
+    return objectRaw
 }
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-CINTEROP-FN-009/042 (pin() / usePinned())
@@ -642,10 +763,86 @@ public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pinnedHandle) else {
         return 0
     }
-    guard let box = tryCast(ptr, to: RuntimePinnedBox.self) else {
+    // Same atomic handle-lifetime protocol as kk_unpin_object: only a box
+    // still registered in objectPointers is safe to takeUnretainedValue on.
+    return runtimeStorage.withGCLock { state in
+        guard state.objectPointers.contains(UInt(bitPattern: ptr)),
+              let box = tryCast(ptr, to: RuntimePinnedBox.self)
+        else {
+            return 0
+        }
+        return box.objectRaw
+    }
+}
+
+// MARK: - StableRef<T>
+
+/// Runtime backing for `kotlinx.cinterop.StableRef<T>`.
+///
+/// Same GC-root-pinning mechanism as `Pinned<T>` above (KSwiftK never moves
+/// heap objects, so pinning is a reachability hold rather than a real pin),
+/// backed by its own per-target refcount table (`stableRefCounts`) because
+/// the handle mechanics differ: StableRef handles are COpaquePointer boxes
+/// disposed by target address rather than per-handle boxes, and the public
+/// contract allows the same target to be wrapped by several independent
+/// handles at once (e.g.
+/// `kotlin.native.concurrent.Continuation1.invoke` creates a fresh
+/// `StableRef` per call while the block's own StableRef stays alive across
+/// many calls), and disposing one handle must never unpin a sibling handle
+/// to the same object.
+///
+/// The resulting pointer is boxed through the existing `RuntimeCOpaquePointerBox`
+/// (`kk_copaque_pointer_new`/`kk_copaque_pointer_address`) so `StableRef.stablePtr`
+/// is a regular `COpaquePointer` value, matching `StableRef.asCPointer()`'s
+/// contract of handing back something safe to pass to native code.
+@_cdecl("kk_stable_ref_create")
+public func kk_stable_ref_create(_ objectRaw: Int) -> Int {
+    guard objectRaw != 0 else {
         return 0
     }
-    return box.objectRaw
+    runtimeStorage.withGCLock { state in
+        state.stableRefCounts[UInt(bitPattern: objectRaw), default: 0] += 1
+    }
+    return kk_copaque_pointer_new(objectRaw)
+}
+
+@_cdecl("kk_stable_ref_deref")
+public func kk_stable_ref_deref(_ pointerHandle: Int) -> Int {
+    let objectRaw = kk_copaque_pointer_address(pointerHandle)
+    guard objectRaw != 0 else {
+        return runtimeNullSentinelInt
+    }
+    let isLive = runtimeStorage.withGCLock { state in
+        (state.stableRefCounts[UInt(bitPattern: objectRaw)] ?? 0) > 0
+    }
+    // Guards against a COpaquePointer that was never a StableRef (or was
+    // already disposed): kk_copaque_pointer_address would otherwise return
+    // its raw address unchecked, and `get()`'s `as T` would then fault on
+    // garbage instead of throwing a clean ClassCastException.
+    guard isLive else {
+        return runtimeNullSentinelInt
+    }
+    return objectRaw
+}
+
+@_cdecl("kk_stable_ref_dispose")
+public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
+    let objectRaw = kk_copaque_pointer_address(pointerHandle)
+    guard objectRaw != 0 else {
+        return 0
+    }
+    return runtimeStorage.withGCLock { state in
+        let key = UInt(bitPattern: objectRaw)
+        guard let count = state.stableRefCounts[key], count > 0 else {
+            return 0
+        }
+        if count == 1 {
+            state.stableRefCounts.removeValue(forKey: key)
+        } else {
+            state.stableRefCounts[key] = count - 1
+        }
+        return objectRaw
+    }
 }
 
 // MARK: - WeakReference<T>
@@ -674,7 +871,12 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
               runtimeWeakReferentIsLive(current)
         else {
             clear()
-            return 0
+            // The Kotlin-level `get(): T?` is a generic Any-erased slot, where a
+            // reference's null representation is `runtimeNullSentinelInt` (bare
+            // `0` there is otherwise read back as a boxed `Int` zero, not null;
+            // see KSP-1255's WeakReference constructor migration for how this
+            // surfaced).
+            return runtimeNullSentinelInt
         }
         return current
     }
@@ -718,7 +920,7 @@ public func kk_weak_ref_create(_ objectRaw: Int) -> Int {
 @_cdecl("kk_weak_ref_get")
 public func kk_weak_ref_get(_ weakRefRaw: Int) -> Int {
     guard let box = runtimeWeakReferenceBox(from: weakRefRaw) else {
-        return 0
+        return runtimeNullSentinelInt
     }
     return box.get()
 }
@@ -847,8 +1049,10 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
         guard root != 0 else { return }
         var visited: Set<UInt> = []
         var queue: [Int] = [root]
-        while !queue.isEmpty {
-            let raw = queue.removeFirst()
+        var index = 0
+        while index < queue.count {
+            let raw = queue[index]
+            index += 1
             guard raw != 0 else { continue }
             let key = UInt(bitPattern: raw)
             guard visited.insert(key).inserted else { continue }
@@ -861,7 +1065,10 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
                 state.objectPointers.contains(UInt(bitPattern: ptr))
             }
             guard isRegistered else { continue }
-            let anyObject = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+            // Primitive box handles are tagged (kk_box_*); ARC reads need the
+            // base object pointer.
+            let basePtr = runtimePrimitiveBoxBasePointer(from: raw) ?? ptr
+            let anyObject = Unmanaged<AnyObject>.fromOpaque(basePtr).takeUnretainedValue()
             if let provider = anyObject as? RuntimeChildReferenceProviding {
                 for child in provider.childRefs where child != 0 {
                     let childKey = UInt(bitPattern: child)
@@ -880,6 +1087,17 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
         return frozen.contains(UInt(bitPattern: raw))
     }
 
+    func remove(_ raw: Int) {
+        guard raw != 0 else { return }
+        lock.lock()
+        frozen.remove(UInt(bitPattern: raw))
+        lock.unlock()
+    }
+
+}
+
+func runtimeForgetFrozenObject(_ raw: Int) {
+    runtimeFrozenSet.remove(raw)
 }
 
 @discardableResult
@@ -903,15 +1121,65 @@ public func kk_is_frozen(_ objectRaw: Int) -> Int {
 /// `execute` are run in FIFO order on that queue.  `requestTermination` drains
 /// the queue and prevents new work from being submitted.
 final class RuntimeWorkerBox: @unchecked Sendable {
-    private let lock = NSLock()
+    /// Guards `terminated`/`pendingJobs` and doubles as the condition
+    /// `waitForTermination` parks on until `requestTermination` broadcasts.
+    private let lock = NSCondition()
     private let queue: DispatchQueue
-    let name: String
+    let name: String?
+    private let queueSpecificKey = DispatchSpecificKey<Void>()
     private var terminated = false
     private var pendingJobs: Int = 0
 
-    init(name: String) {
+    init(name: String?) {
         self.name = name
-        self.queue = DispatchQueue(label: "kswiftk.worker.\(name)", qos: .userInitiated)
+        let queueName = name ?? "anonymous"
+        self.queue = DispatchQueue(
+            label: "kswiftk.worker.\(queueName)",
+            qos: .userInitiated
+        )
+        self.queue.setSpecific(key: queueSpecificKey, value: ())
+    }
+
+    /// The registry handle for this box, i.e. the same `Int` `registerRuntimeObject`
+    /// returned for it. Recomputed from `self`'s own address rather than stored,
+    /// since it is only needed off the hot allocation path (current-worker tracking).
+    private var selfHandle: Int {
+        Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+    }
+
+    /// Box wrapping the handle tracked per-thread by `currentWorkerHandle`/
+    /// `runAsCurrentWorker`. Boxed because the shared pthread-local helpers
+    /// (CORO-003) store `AnyObject`, not raw `Int`.
+    private final class CurrentWorkerHandleBox: @unchecked Sendable {
+        let handle: Int
+        init(handle: Int) { self.handle = handle }
+    }
+
+    /// pthread-local key tracking which worker's job is currently executing on
+    /// the calling thread. Uses the CORO-003 pthread helpers rather than
+    /// `Thread.current.threadDictionary`, matching this runtime's established
+    /// thread-local convention (see `RuntimeCoroutine.swift`).
+    private static let currentWorkerPthreadKey: pthread_key_t = makePthreadKey()
+
+    /// Runs `body` with `handle` recorded as the current thread's worker, restoring
+    /// whatever was recorded before (there is none, ordinarily — worker jobs don't
+    /// nest — but restoring rather than clearing unconditionally stays correct if
+    /// a job synchronously drives another worker's queue).
+    private static func runAsCurrentWorker(_ handle: Int, _ body: () -> Void) {
+        let previous: CurrentWorkerHandleBox? = pthreadGetValue(currentWorkerPthreadKey)
+        pthreadSetValue(currentWorkerPthreadKey, CurrentWorkerHandleBox(handle: handle))
+        defer {
+            pthreadSetValue(currentWorkerPthreadKey, previous)
+        }
+        body()
+    }
+
+    /// The handle of the worker whose job is currently executing on the calling
+    /// thread, or `nil` if the calling thread isn't currently running a worker job
+    /// (e.g. the main thread, or a thread GCD spun up outside `execute`/`executeAfter`).
+    static func currentWorkerHandle() -> Int? {
+        let box: CurrentWorkerHandleBox? = pthreadGetValue(currentWorkerPthreadKey)
+        return box?.handle
     }
 
     /// Submit a closure to the worker. Returns false if the worker has been terminated.
@@ -925,8 +1193,9 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         pendingJobs += 1
         lock.unlock()
 
+        let handle = selfHandle
         queue.async { [weak self] in
-            work()
+            RuntimeWorkerBox.runAsCurrentWorker(handle, work)
             self?.lock.lock()
             self?.pendingJobs -= 1
             self?.lock.unlock()
@@ -939,6 +1208,7 @@ final class RuntimeWorkerBox: @unchecked Sendable {
     func requestTermination(processScheduled: Bool) {
         lock.lock()
         terminated = true
+        lock.broadcast()
         lock.unlock()
 
         if processScheduled {
@@ -958,6 +1228,15 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         return terminated
     }
 
+    /// Blocks until `requestTermination` marks this worker terminated.
+    func waitForTermination() {
+        lock.lock()
+        defer { lock.unlock() }
+        while !terminated {
+            lock.wait()
+        }
+    }
+
     /// Schedule a closure on the worker's serial queue at the given deadline.
     /// Returns false if the worker is already terminated.
     @discardableResult
@@ -970,25 +1249,99 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         pendingJobs += 1
         lock.unlock()
 
+        let handle = selfHandle
         queue.asyncAfter(deadline: deadline) { [weak self] in
-            work()
+            RuntimeWorkerBox.runAsCurrentWorker(handle, work)
             self?.lock.lock()
             self?.pendingJobs -= 1
             self?.lock.unlock()
         }
         return true
     }
+
+    /// Process work already queued for this worker.
+    ///
+    /// Dispatch queues do not expose Kotlin/Native's worker event loop, so a
+    /// synchronous queue drain is the closest equivalent.  Avoid synchronizing
+    /// on the same queue because processQueue may itself be called by a worker job.
+    @discardableResult
+    func processQueue() -> Bool {
+        lock.lock()
+        let hadPendingJobs = pendingJobs > 0
+        lock.unlock()
+
+        guard DispatchQueue.getSpecific(key: queueSpecificKey) == nil else {
+            return hadPendingJobs
+        }
+        queue.sync {}
+        return hadPendingJobs
+    }
+
+    /// Park the current worker thread for the requested duration.
+    ///
+    /// The current runtime has no separate wake-up primitive, therefore an
+    /// indefinite park is represented as an immediate timeout. Timed parks
+    /// still preserve the observable delay and process flag behavior.
+    @discardableResult
+    func park(timeoutMicroseconds: Int, process: Bool) -> Bool {
+        if process {
+            _ = processQueue()
+        }
+        guard timeoutMicroseconds > 0 else {
+            return false
+        }
+        Thread.sleep(forTimeInterval: Double(timeoutMicroseconds) / 1_000_000.0)
+        return false
+    }
+
+    /// Return the platform thread currently servicing this worker queue.
+    func platformThreadID() -> UInt64 {
+        if DispatchQueue.getSpecific(key: queueSpecificKey) != nil {
+            return runtimeCurrentPlatformThreadID()
+        }
+        var threadID: UInt64 = 0
+        queue.sync {
+            threadID = runtimeCurrentPlatformThreadID()
+        }
+        return threadID
+    }
 }
 
 @_cdecl("kk_worker_new")
 public func kk_worker_new(_ nameRaw: Int) -> Int {
-    let name: String
-    if let nameStr = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) {
-        name = nameStr
-    } else {
-        name = "worker-\(UInt32.random(in: 0...UInt32.max))"
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
+    let handle = registerRuntimeObject(RuntimeWorkerBox(name: name))
+    registerActiveWorker(handle: handle)
+    return handle
+}
+
+/// Lazily-created stand-in for the implicit worker that owns the main thread
+/// (and any other thread that never runs inside `RuntimeWorkerBox.execute`).
+/// Kotlin/Native eagerly creates this at process start; here it's created on
+/// first use since nothing else needs its identity until `Worker.current` (or
+/// a `WorkerBoundReference` built off the main thread) is asked for it.
+private final class MainWorkerHandleBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handle: Int = 0
+
+    func resolve() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        if handle == 0 {
+            handle = registerRuntimeObject(RuntimeWorkerBox(name: nil))
+            registerActiveWorker(handle: handle)
+        }
+        return handle
     }
-    return registerRuntimeObject(RuntimeWorkerBox(name: name))
+}
+
+private let mainWorkerHandleBox = MainWorkerHandleBox()
+
+/// Returns the handle of the worker currently executing on the calling thread,
+/// or the shared main-worker handle if the calling thread isn't running a job
+/// dispatched through `RuntimeWorkerBox.execute`/`executeAfter`.
+func runtimeCurrentWorkerHandle() -> Int {
+    RuntimeWorkerBox.currentWorkerHandle() ?? mainWorkerHandleBox.resolve()
 }
 
 @_cdecl("kk_worker_execute")
@@ -1012,7 +1365,7 @@ public func kk_worker_execute(
     }
 
     var producerThrown = 0
-    let producedRaw = runtimeInvokeClosureThunk(
+    let producedRaw = runtimeInvokeClosureThunkMaybeWrapped(
         fnPtr: producerFnPtr,
         closureRaw: producerClosureRaw,
         outThrown: &producerThrown
@@ -1025,11 +1378,26 @@ public func kk_worker_execute(
     guard futureHandle != 0 else {
         return 0
     }
+    // `jobFnPtr`/`jobClosureRaw` can arrive as a `kk_function_create_1`-wrapped
+    // handle instead of a raw pair: CallLowerer's `kk_worker_execute` call-site
+    // expansion (CallLowerer+MemberCallEmission.swift / +ClosureAdapters.swift,
+    // `appendClosureArgumentsIfNeeded`) expands `producer` via
+    // `makeClosureThunkExpandedArguments`, which always resolves to a genuine
+    // raw pair, but expands `job` via `makeCollectionHOFExpandedArguments`,
+    // whose no-compile-time-info fallback forwards the argument expression
+    // as-is with a literal `0` closureRaw — the same fallback documented on
+    // `runtimeInvokeCollectionLambda1MaybeWrapped`. Resolve here, on the
+    // calling thread, while the handle is still reachable from this call's
+    // own arguments — see `resolveFunctionValuePair`. The queued closure
+    // below runs later on the worker's dispatch queue and captures only the
+    // resolved raw (fnPtr, closureRaw) pair, so it carries no dependency on
+    // the wrapper box surviving until the job actually executes.
+    let resolvedJob = resolveFunctionValuePair(fnPtr: jobFnPtr, closureRaw: jobClosureRaw)
     let submitted = worker.execute {
         var jobThrown = 0
         let resultRaw = runtimeInvokeCollectionLambda1(
-            fnPtr: jobFnPtr,
-            closureRaw: jobClosureRaw,
+            fnPtr: resolvedJob.fnPtr,
+            closureRaw: resolvedJob.closureRaw,
             value: producedRaw,
             outThrown: &jobThrown
         )
@@ -1047,6 +1415,7 @@ public func kk_worker_request_termination(_ workerHandle: Int, _ processSchedule
         return 0
     }
     worker.requestTermination(processScheduled: processScheduledRaw != 0)
+    unregisterActiveWorker(handle: workerHandle)
     let futureHandle = kk_future_new()
     guard futureHandle != 0 else {
         return 0
@@ -1074,7 +1443,10 @@ public func kk_worker_name(_ workerHandle: Int) -> Int {
     guard let worker = tryCast(ptr, to: RuntimeWorkerBox.self) else {
         return 0
     }
-    return registerRuntimeObject(RuntimeStringBox(worker.name))
+    guard let name = worker.name else {
+        return 0
+    }
+    return registerRuntimeObject(RuntimeStringBox(name))
 }
 
 // MARK: - @CName annotation (C interop export name)
@@ -1142,7 +1514,8 @@ public func kk_cinterop_writeBits(_ ptr: Int, _ offset: Int, _ size: Int, _ valu
     guard offset >= 0, size >= 0, size <= Int.bitWidth else { return }
     for i in 0..<size {
         let bit = (value >> i) & 1
-        let bitIndex = offset + i
+        let (bitIndex, overflow) = offset.addingReportingOverflow(i)
+        guard !overflow else { return }
         let bytePtr = rawPtr.advanced(by: bitIndex >> 3).bindMemory(to: UInt8.self, capacity: 1)
         let mask: UInt8 = 1 << UInt8(bitIndex & 7)
         if bit != 0 {

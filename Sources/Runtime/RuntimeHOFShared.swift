@@ -20,7 +20,9 @@ func runtimeApplyMapElement(
         runtimeSetThrown(outThrown, thrown)
         return (0, thrown)
     }
-    return (maybeUnbox(result), 0)
+    // The result is already boxed for its Any-typed return and
+    // must stay boxed for later generic (list/sequence) consumption.
+    return (result, 0)
 }
 
 @inline(__always)
@@ -133,10 +135,6 @@ func applyFilterNotNullStep(_ elements: [Int]) -> [Int] {
     elements.filter { runtimeNormalizeNullableCollectionValue($0) != nil }
 }
 
-func applyFilterIsInstanceStep(_ elements: [Int], typeToken: Int) -> [Int] {
-    elements.filter { kk_op_is($0, typeToken) != 0 }
-}
-
 func applyMapIndexedStep(
     _ elements: [Int],
     fnPtr: Int,
@@ -158,7 +156,8 @@ func applyMapIndexedStep(
             runtimeSetThrown(outThrown, thrown)
             return []
         }
-        mapped.append(maybeUnbox(result))
+        // Keep the transform's already-boxed result as-is.
+        mapped.append(result)
     }
     return mapped
 }

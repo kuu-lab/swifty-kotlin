@@ -23,17 +23,36 @@ public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     {
         switch (lhsValue, rhsValue) {
         case let (.floating(lhs), .floating(rhs)):
-            return runtimeCompareFloating(lhs, rhs)
+            return runtimeCompareFloatingValues(lhs, rhs)
         case let (.floating(lhs), .integer(rhs)):
-            return runtimeCompareFloating(lhs, Double(rhs))
+            return runtimeCompareFloatingValues(lhs, Double(rhs))
+        case let (.floating(lhs), .unsignedInteger(rhs)):
+            return runtimeCompareFloatingValues(lhs, Double(rhs))
         case let (.integer(lhs), .floating(rhs)):
-            return runtimeCompareFloating(Double(lhs), rhs)
+            return runtimeCompareFloatingValues(Double(lhs), rhs)
+        case let (.unsignedInteger(lhs), .floating(rhs)):
+            return runtimeCompareFloatingValues(Double(lhs), rhs)
         case let (.integer(lhs), .integer(rhs)):
             if lhs == rhs {
                 return 0
             }
             return lhs < rhs ? -1 : 1
+        case let (.unsignedInteger(lhs), .unsignedInteger(rhs)):
+            if lhs == rhs {
+                return 0
+            }
+            return lhs < rhs ? -1 : 1
+        // Mixed signed/unsigned only arises comparing statically-incompatible
+        // Kotlin types (e.g. Long vs ULong); fall back to a Double approximation.
+        case let (.integer(lhs), .unsignedInteger(rhs)):
+            return runtimeCompareFloatingValues(Double(lhs), Double(rhs))
+        case let (.unsignedInteger(lhs), .integer(rhs)):
+            return runtimeCompareFloatingValues(Double(lhs), Double(rhs))
         }
+    }
+
+    if let comparableResult = runtimeCompareComparableValues(lhs: lhsRaw, rhs: rhsRaw) {
+        return comparableResult
     }
 
     return lhsRaw < rhsRaw ? -1 : 1
@@ -41,20 +60,8 @@ public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
 
 private enum RuntimeComparableScalar {
     case integer(Int)
+    case unsignedInteger(UInt)
     case floating(Double)
-}
-
-private func runtimeCompareFloating(_ lhs: Double, _ rhs: Double) -> Int {
-    if lhs.isNaN {
-        return rhs.isNaN ? 0 : 1
-    }
-    if rhs.isNaN {
-        return -1
-    }
-    if lhs == rhs {
-        return 0
-    }
-    return lhs < rhs ? -1 : 1
 }
 
 private func runtimeComparableScalar(from raw: Int) -> RuntimeComparableScalar? {
@@ -85,6 +92,9 @@ private func runtimeComparableScalar(from raw: Int) -> RuntimeComparableScalar? 
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
         return .integer(longBox.value)
     }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        return .unsignedInteger(UInt(bitPattern: ulongBox.value))
+    }
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return .integer(charBox.value)
     }
@@ -92,14 +102,30 @@ private func runtimeComparableScalar(from raw: Int) -> RuntimeComparableScalar? 
 }
 
 func runtimeCompareStrings(_ lhs: String, _ rhs: String) -> Int {
-    let lhsScalars = Array(lhs.unicodeScalars)
-    let rhsScalars = Array(rhs.unicodeScalars)
-    let sharedCount = Swift.min(lhsScalars.count, rhsScalars.count)
-    for index in 0 ..< sharedCount {
-        let difference = Int(lhsScalars[index].value) - Int(rhsScalars[index].value)
-        if difference != 0 {
-            return difference
+    var lhsIterator = lhs.utf16.makeIterator()
+    var rhsIterator = rhs.utf16.makeIterator()
+    while true {
+        switch (lhsIterator.next(), rhsIterator.next()) {
+        case let (lhsUnit?, rhsUnit?):
+            let difference = Int(lhsUnit) - Int(rhsUnit)
+            if difference != 0 {
+                return difference
+            }
+        case (nil, nil):
+            return 0
+        case (.some, nil):
+            return 1 + countRemaining(lhsIterator)
+        case (nil, .some):
+            return -(1 + countRemaining(rhsIterator))
         }
     }
-    return lhsScalars.count - rhsScalars.count
+}
+
+private func countRemaining(_ iterator: String.UTF16View.Iterator) -> Int {
+    var iterator = iterator
+    var count = 0
+    while iterator.next() != nil {
+        count += 1
+    }
+    return count
 }

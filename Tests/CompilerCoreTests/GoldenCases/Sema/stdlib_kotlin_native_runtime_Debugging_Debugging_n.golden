@@ -1,0 +1,21 @@
+symbol fq=__local_0.runnable[kind=local] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_1.dumped[kind=local] kind=local vis=private flags=_ type=Boolean
+symbol fq=golden.sema.debuggingSurface[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
+file fstdlib_kotlin_native_runtime_Debugging_Debugging_n package=golden.sema
+  decl golden.sema.debuggingSurface[kind=fun;params=] fun debuggingSurface sym=golden.sema.debuggingSurface[kind=fun;params=]
+expr e@7:29 name(Debugging) type=kotlin.native.runtime.Debugging ref=kotlin.native.runtime.Debugging[kind=obj]
+expr e@7:29#1 memberCall recv=e@7:29 callee=isThreadStateRunnable args=[] type=Boolean ref=kotlin.native.runtime.Debugging.isThreadStateRunnable[kind=prop]
+expr e@7:5 localDecl runnable mutable=0 type=Boolean init=e@7:29#1 type=Unit ref=__local_0.runnable[kind=local]
+expr e@8:5 name(Debugging) type=kotlin.native.runtime.Debugging ref=kotlin.native.runtime.Debugging[kind=obj]
+expr e@8:39 name(Debugging) type=kotlin.native.runtime.Debugging ref=kotlin.native.runtime.Debugging[kind=obj]
+expr e@8:39#1 memberCall recv=e@8:39 callee=forceCheckedShutdown args=[] type=Boolean ref=kotlin.native.runtime.Debugging.forceCheckedShutdown[kind=prop]
+expr e@8:38 unary(not) operand=e@8:39#1 type=Boolean
+expr e@8:5#1 memberAssign recv=e@8:5 callee=forceCheckedShutdown value=e@8:38 type=Unit ref=kotlin.native.runtime.Debugging.forceCheckedShutdown[kind=prop]
+expr e@9:27 name(Debugging) type=kotlin.native.runtime.Debugging ref=kotlin.native.runtime.Debugging[kind=obj]
+expr e@9:48 long(2) type=Long
+expr e@9:27#1 memberCall recv=e@9:27 callee=dumpMemory args=[_:e@9:48] type=Boolean call=kotlin.native.runtime.Debugging.dumpMemory[kind=fun;recv=kotlin.native.runtime.Debugging;params=Long]
+expr e@9:5 localDecl dumped mutable=0 type=Boolean init=e@9:27#1 type=Unit ref=__local_1.dumped[kind=local]
+expr e@10:12 name(runnable) type=Boolean ref=__local_0.runnable[kind=local]
+expr e@10:24 name(dumped) type=Boolean ref=__local_1.dumped[kind=local]
+expr e@10:12#1 binary(logicalAnd) lhs=e@10:12 rhs=e@10:24 type=Boolean
+expr e@10:5 return value=e@10:12#1 type=Nothing

@@ -20,6 +20,8 @@ public enum BinaryOp: Equatable, Codable {
     case modulo
     case equal
     case notEqual
+    case identityEqual
+    case notIdentityEqual
     case lessThan
     case lessOrEqual
     case greaterThan
@@ -48,6 +50,10 @@ public enum BinaryOp: Equatable, Codable {
         case .modulo: "rem"
         case .equal: "equals"
         case .notEqual: "equals"
+        // `===`/`!==` are compiler intrinsics (raw identity comparison) with no
+        // backing Kotlin function; Sema never routes them through operator-function
+        // lookup, so this value is unreachable in practice.
+        case .identityEqual, .notIdentityEqual: ""
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual: "compareTo"
         case .logicalAnd: "and"
         case .logicalOr: "or"
@@ -186,6 +192,10 @@ public enum Expr: Equatable, Codable {
     case objectLiteral(superTypes: [TypeRefID], decl: DeclID?, range: SourceRange)
     case callableRef(receiver: ExprID?, member: InternedString, range: SourceRange)
     case localFunDecl(name: InternedString, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange)
+    /// A `class`/`object` declared as a block statement (`{ class L { ... } }`).
+    /// Unlike a top-level nominal decl the name is only visible to statements
+    /// after it inside the same block scope, mirroring `localFunDecl`.
+    case localNominalDecl(declID: DeclID, range: SourceRange)
     case blockExpr(statements: [ExprID], trailingExpr: ExprID?, range: SourceRange)
     case superRef(interfaceQualifier: InternedString?, SourceRange)
     case thisRef(label: InternedString?, SourceRange)

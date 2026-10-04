@@ -1,10 +1,19 @@
-/// Synthetic-stdlib dispatch helpers used by `inferCallExpr` to
-/// recognize the kotlin.stdlib `run` / `let` / `also` / `apply` / `with`
-/// scope-function family and to detect user-shadowing or qualified-call
-/// paths.
+/// Synthetic-stdlib dispatch helpers used by `inferCallExpr` to detect
+/// user-shadowing or qualified-call paths.
 ///
 /// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
+    /// Returns true when `exprID` is a lambda literal or callable reference.
+    func isLambdaOrCallableRefArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let argExpr = ast.arena.expr(exprID) else { return false }
+        switch argExpr {
+        case .lambdaLiteral, .callableRef:
+            return true
+        default:
+            return false
+        }
+    }
+
     func shouldUseBuiltinFlowFactorySpecialHandling(
         calleeName: InternedString,
         ctx: TypeInferenceContext,
@@ -17,66 +26,58 @@ extension CallTypeChecker {
         if visibleCandidates.isEmpty {
             return true
         }
-        let hasConflictingUserDefinedCandidate = visibleCandidates.contains { candidate in
+        // KSP-674: defer to any real (non-synthetic) declaration — the bundled
+        // Kotlin `flowOf`/`emptyFlow` implementations (kotlinx.coroutines.flow)
+        // or a user override. Only keep the builtin factory special handling
+        // while a synthetic stub is the only visible candidate.
+        let hasRealCandidate = visibleCandidates.contains { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function
             else {
                 return false
             }
-            let flowPkgPrefix = [
-                ctx.interner.intern("kotlinx"),
-                ctx.interner.intern("coroutines"),
-                ctx.interner.intern("flow"),
-            ]
-            return !symbol.fqName.starts(with: flowPkgPrefix)
+            return !symbol.flags.contains(.synthetic)
         }
-        return !hasConflictingUserDefinedCandidate
+        return !hasRealCandidate
     }
 
-    /// Returns true when the call site looks like a top-level `run { ... }` or
-    /// `run(::ref)` that should be intercepted by the scope-function path.
-    func isTopLevelRunCandidate(
-        calleeName: InternedString?,
-        args: [CallArgument],
-        knownNames: KnownCompilerNames,
-        ast: ASTModule,
-        ctx: TypeInferenceContext,
-        locals: LocalBindings
+    /// Returns true only for the bundled source-backed producer-flow builders.
+    /// A same-named user declaration must keep the regular callable ABI.
+    func isSourceBackedProducerFlowBuilder(
+        _ symbolID: SymbolID,
+        ctx: TypeInferenceContext
     ) -> Bool {
-        guard let calleeName, args.count == 1,
-              calleeName == knownNames.run,
-              locals[calleeName] == nil
+        guard let symbol = ctx.sema.symbols.symbol(symbolID),
+              symbol.kind == .function,
+              ctx.sema.symbols.isSourceBackedSymbol(symbolID)
         else {
             return false
         }
-        return isLambdaOrCallableRefArg(args[0].expr, ast: ast)
-            && !isShadowedByUserDefinedRun(calleeName, ctx: ctx)
-    }
-
-    /// Returns true when `exprID` is a lambda literal or callable reference.
-    func isLambdaOrCallableRefArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
-        guard let argExpr = ast.arena.expr(exprID) else { return false }
-        switch argExpr {
-        case .lambdaLiteral, .callableRef:
-            return true
-        default:
-            return false
+        let interner = ctx.interner
+        let channelFlow = interner.intern("channelFlow")
+        let callbackFlow = interner.intern("callbackFlow")
+        if symbol.name == channelFlow || symbol.name == callbackFlow {
+            let flowPackage = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("flow"),
+            ]
+            return symbol.fqName == flowPackage + [symbol.name]
         }
-    }
-
-    /// Returns true when a non-synthetic (user-defined) `run` shadows the
-    /// synthetic stdlib helper.
-    /// KNOWN LIMITATION: This treats any non-synthetic symbol named `run` as
-    /// shadowing, regardless of whether it is a top-level or extension overload.
-    /// A more precise check would compare signatures/receiver types.
-    func isShadowedByUserDefinedRun(
-        _ calleeName: InternedString,
-        ctx: TypeInferenceContext
-    ) -> Bool {
-        ctx.cachedScopeLookup(calleeName).contains { candidate in
-            guard let sym = ctx.cachedSymbol(candidate) else { return false }
-            return !sym.flags.contains(.synthetic)
+        // KSP-1573: the bundled CoroutineScope.produce/actor extensions use the
+        // same launcher-continuation convention for their suspend
+        // ProducerScope/ActorScope receiver block.
+        let produce = interner.intern("produce")
+        let actor = interner.intern("actor")
+        if symbol.name == produce || symbol.name == actor {
+            let channelsPackage = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("channels"),
+            ]
+            return symbol.fqName == channelsPackage + [symbol.name]
         }
+        return false
     }
 
     /// Returns true when `name` is shadowed by a non-synthetic (user-defined) symbol,
@@ -86,11 +87,21 @@ extension CallTypeChecker {
     func isShadowedByNonSyntheticSymbol(
         _ name: InternedString,
         locals: LocalBindings,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        argumentCount: Int? = nil
     ) -> Bool {
         if locals[name] != nil { return true }
         return ctx.cachedScopeLookup(name).contains { candidate in
             guard let sym = ctx.cachedSymbol(candidate) else { return false }
+            if let argumentCount {
+                guard sym.kind == .function,
+                      let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                      signature.receiverType == nil,
+                      signature.parameterTypes.count == argumentCount
+                else {
+                    return false
+                }
+            }
             return !sym.flags.contains(.synthetic)
         }
     }
@@ -147,6 +158,62 @@ extension CallTypeChecker {
         }
     }
 
+    /// Resolves a synthetic `AtomicIntArray` / `AtomicLongArray` class symbol
+    /// visible under `name`, accepting either the legacy `kotlin.concurrent`
+    /// package or the newer `kotlin.concurrent.atomics` package.
+    func syntheticAtomicArrayClassSymbol(
+        _ name: InternedString,
+        className: String,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        let interner = ctx.interner
+        let kotlin = interner.intern("kotlin")
+        let concurrent = interner.intern("concurrent")
+        let atomics = interner.intern("atomics")
+        let classNameStr = interner.intern(className)
+        let legacyFQ = [kotlin, concurrent, classNameStr]
+        let atomicsFQ = [kotlin, concurrent, atomics, classNameStr]
+        return ctx.cachedScopeLookup(name).first { candidate in
+            guard let sym = ctx.cachedSymbol(candidate),
+                  sym.kind == .class,
+                  sym.flags.contains(.synthetic)
+            else { return false }
+            return sym.fqName == legacyFQ || sym.fqName == atomicsFQ
+        }
+    }
+
+    /// Returns true when a source-backed canonical `AtomicIntArray` /
+    /// `AtomicLongArray` factory with the requested arity is visible. Imported
+    /// library symbols carry the synthetic flag for compatibility, so the
+    /// source-backed provenance check must be used before falling back to the
+    /// runtime factory special path. Legacy `kotlin.concurrent` constructors
+    /// intentionally retain their existing special-call behavior.
+    func hasSourceBackedAtomicArrayFactory(
+        _ name: InternedString,
+        className: String,
+        argumentCount: Int,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let interner = ctx.interner
+        let kotlin = interner.intern("kotlin")
+        let concurrent = interner.intern("concurrent")
+        let classNameString = interner.intern(className)
+        let expectedFQName = [kotlin, concurrent, interner.intern("atomics"), classNameString]
+        return ctx.cachedScopeLookup(name).contains { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  ctx.sema.symbols.isSourceBackedSymbol(candidate),
+                  symbol.fqName == expectedFQName,
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  signature.receiverType == nil,
+                  signature.parameterTypes.count == argumentCount
+            else {
+                return false
+            }
+            return true
+        }
+    }
+
     /// Returns the visible stdlib function symbol for source-backed stdlib
     /// declarations that still need compiler special-casing.
     ///
@@ -179,32 +246,6 @@ extension CallTypeChecker {
             }
         }
         return stdlibSymbol
-    }
-
-    /// Returns true for legacy synthetic runtime stubs, but not for imported
-    /// Kotlin stdlib source implementations. This lets source stdlib wrappers
-    /// run their Kotlin body instead of being swallowed by an intrinsic path.
-    func shouldUseRuntimeStdlibSpecialCall(
-        _ name: InternedString,
-        fqComponents: [String],
-        locals: LocalBindings,
-        ctx: TypeInferenceContext
-    ) -> Bool {
-        if isShadowedByNonSyntheticSymbol(name, locals: locals, ctx: ctx) {
-            return false
-        }
-        let interner = ctx.interner
-        let internedFQ = fqComponents.map { interner.intern($0) }
-        return ctx.cachedScopeLookup(name).contains { candidate in
-            guard let sym = ctx.cachedSymbol(candidate),
-                  sym.kind == .function,
-                  sym.flags.contains(.synthetic),
-                  !sym.flags.contains(.importedLibrary)
-            else {
-                return false
-            }
-            return sym.fqName == internedFQ
-        }
     }
 
     /// Returns the fully qualified path of a callee expression when it is

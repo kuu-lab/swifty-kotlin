@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "experimental_markers_custom_message_ending_with_quote.kt",
+      "range": {
+        "start": { "line": 8, "character": 32 },
+        "end": { "line": 8, "character": 59 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OPT-IN",
+      "source": "kswiftk",
+      "message": "'golden.diagnostics.EndingWithQuoteMarker' requires opt-in. Annotate the usage with '@golden.diagnostics.EndingWithQuoteMarker' or '@OptIn(golden.diagnostics.EndingWithQuoteMarker::class)'. say \"hi\"",
+      "codeActions": []
+    }
+  ]
+}

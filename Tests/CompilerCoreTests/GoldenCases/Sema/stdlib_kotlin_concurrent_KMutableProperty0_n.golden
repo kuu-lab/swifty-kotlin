@@ -1,0 +1,66 @@
+symbol fq=golden.sema.compareAndExchange.$0.expected[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.compareAndExchange.$0.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.compareAndExchange.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.compareAndExchange[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Int>,Int,Int] ret=Int
+symbol fq=golden.sema.compareAndSet.$1.expected[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.compareAndSet.$1.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.compareAndSet.$1.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.compareAndSet[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Int>,Int,Int] ret=Boolean
+symbol fq=golden.sema.getAndAddByte.$2.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndAddByte.$2.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndAddByte[kind=fun;params=kotlin.reflect.KMutableProperty0<Byte>,Byte] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Byte>,Byte] ret=Byte
+symbol fq=golden.sema.getAndAddInt.$3.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndAddInt.$3.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndAddInt[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Int>,Int] ret=Int
+symbol fq=golden.sema.getAndAddLong.$4.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndAddLong.$4.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndAddLong[kind=fun;params=kotlin.reflect.KMutableProperty0<Long>,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Long>,Long] ret=Long
+symbol fq=golden.sema.getAndAddShort.$5.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndAddShort.$5.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndAddShort[kind=fun;params=kotlin.reflect.KMutableProperty0<Short>,Short] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Short>,Short] ret=Short
+symbol fq=golden.sema.getAndSet.$6.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndSet.$6.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.getAndSet[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Int>,Int] ret=Int
+symbol fq=golden.sema.read.$7.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.read[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Int>] ret=Int
+symbol fq=golden.sema.write.$8.property[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.write.$8.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.write[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<Int>,Int] ret=Unit
+file fstdlib_kotlin_concurrent_KMutableProperty0_n package=golden.sema annotations=[@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
+  decl golden.sema.read[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>] fun read sym=golden.sema.read[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>]
+  decl golden.sema.write[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int] fun write sym=golden.sema.write[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int]
+  decl golden.sema.compareAndSet[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int,Int] fun compareAndSet sym=golden.sema.compareAndSet[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int,Int]
+  decl golden.sema.compareAndExchange[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int,Int] fun compareAndExchange sym=golden.sema.compareAndExchange[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int,Int]
+  decl golden.sema.getAndSet[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int] fun getAndSet sym=golden.sema.getAndSet[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int]
+  decl golden.sema.getAndAddByte[kind=fun;params=kotlin.reflect.KMutableProperty0<Byte>,Byte] fun getAndAddByte sym=golden.sema.getAndAddByte[kind=fun;params=kotlin.reflect.KMutableProperty0<Byte>,Byte]
+  decl golden.sema.getAndAddShort[kind=fun;params=kotlin.reflect.KMutableProperty0<Short>,Short] fun getAndAddShort sym=golden.sema.getAndAddShort[kind=fun;params=kotlin.reflect.KMutableProperty0<Short>,Short]
+  decl golden.sema.getAndAddInt[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int] fun getAndAddInt sym=golden.sema.getAndAddInt[kind=fun;params=kotlin.reflect.KMutableProperty0<Int>,Int]
+  decl golden.sema.getAndAddLong[kind=fun;params=kotlin.reflect.KMutableProperty0<Long>,Long] fun getAndAddLong sym=golden.sema.getAndAddLong[kind=fun;params=kotlin.reflect.KMutableProperty0<Long>,Long]
+expr e@13:51 name(property) type=kotlin.reflect.KMutableProperty0<Int> ref=golden.sema.read.$7.property[kind=vparam]
+expr e@13:51#1 memberCall recv=e@13:51 callee=atomicGetField args=[] type=Int call=kotlin.concurrent.atomicGetField[kind=fun;recv=kotlin.reflect.KMutableProperty0<T0>;params=;gen=1] targs=[Int]
+expr e@14:65 name(property) type=kotlin.reflect.KMutableProperty0<Int> ref=golden.sema.write.$8.property[kind=vparam]
+expr e@14:89 name(value) type=Int ref=golden.sema.write.$8.value[kind=vparam]
+expr e@14:65#1 memberCall recv=e@14:65 callee=atomicSetField args=[_:e@14:89] type=Unit call=kotlin.concurrent.atomicSetField[kind=fun;recv=kotlin.reflect.KMutableProperty0<T0>;params=T0;gen=1] targs=[Int]
+expr e@16:5 name(property) type=kotlin.reflect.KMutableProperty0<Int> ref=golden.sema.compareAndSet.$1.property[kind=vparam]
+expr e@16:33 name(expected) type=Int ref=golden.sema.compareAndSet.$1.expected[kind=vparam]
+expr e@16:43 name(value) type=Int ref=golden.sema.compareAndSet.$1.value[kind=vparam]
+expr e@16:5#1 memberCall recv=e@16:5 callee=compareAndSetField args=[_:e@16:33,_:e@16:43] type=Boolean call=kotlin.concurrent.compareAndSetField[kind=fun;recv=kotlin.reflect.KMutableProperty0<T0>;params=T0,T0;gen=1] targs=[Int]
+expr e@18:5 name(property) type=kotlin.reflect.KMutableProperty0<Int> ref=golden.sema.compareAndExchange.$0.property[kind=vparam]
+expr e@18:38 name(expected) type=Int ref=golden.sema.compareAndExchange.$0.expected[kind=vparam]
+expr e@18:48 name(value) type=Int ref=golden.sema.compareAndExchange.$0.value[kind=vparam]
+expr e@18:5#1 memberCall recv=e@18:5 callee=compareAndExchangeField args=[_:e@18:38,_:e@18:48] type=Int call=kotlin.concurrent.compareAndExchangeField[kind=fun;recv=kotlin.reflect.KMutableProperty0<T0>;params=T0,T0;gen=1] targs=[Int]
+expr e@19:68 name(property) type=kotlin.reflect.KMutableProperty0<Int> ref=golden.sema.getAndSet.$6.property[kind=vparam]
+expr e@19:92 name(value) type=Int ref=golden.sema.getAndSet.$6.value[kind=vparam]
+expr e@19:68#1 memberCall recv=e@19:68 callee=getAndSetField args=[_:e@19:92] type=Int call=kotlin.concurrent.getAndSetField[kind=fun;recv=kotlin.reflect.KMutableProperty0<T0>;params=T0;gen=1] targs=[Int]
+expr e@20:75 name(property) type=kotlin.reflect.KMutableProperty0<Byte> ref=golden.sema.getAndAddByte.$2.property[kind=vparam]
+expr e@20:99 name(delta) type=Byte ref=golden.sema.getAndAddByte.$2.delta[kind=vparam]
+expr e@20:75#1 memberCall recv=e@20:75 callee=getAndAddField args=[_:e@20:99] type=Byte call=kotlin.concurrent.getAndAddField[kind=fun;recv=kotlin.reflect.KMutableProperty0<Byte>;params=Byte]
+expr e@21:79 name(property) type=kotlin.reflect.KMutableProperty0<Short> ref=golden.sema.getAndAddShort.$5.property[kind=vparam]
+expr e@21:103 name(delta) type=Short ref=golden.sema.getAndAddShort.$5.delta[kind=vparam]
+expr e@21:79#1 memberCall recv=e@21:79 callee=getAndAddField args=[_:e@21:103] type=Short call=kotlin.concurrent.getAndAddField[kind=fun;recv=kotlin.reflect.KMutableProperty0<Short>;params=Short]
+expr e@22:71 name(property) type=kotlin.reflect.KMutableProperty0<Int> ref=golden.sema.getAndAddInt.$3.property[kind=vparam]
+expr e@22:95 name(delta) type=Int ref=golden.sema.getAndAddInt.$3.delta[kind=vparam]
+expr e@22:71#1 memberCall recv=e@22:71 callee=getAndAddField args=[_:e@22:95] type=Int call=kotlin.concurrent.getAndAddField[kind=fun;recv=kotlin.reflect.KMutableProperty0<Int>;params=Int]
+expr e@23:75 name(property) type=kotlin.reflect.KMutableProperty0<Long> ref=golden.sema.getAndAddLong.$4.property[kind=vparam]
+expr e@23:99 name(delta) type=Long ref=golden.sema.getAndAddLong.$4.delta[kind=vparam]
+expr e@23:75#1 memberCall recv=e@23:75 callee=getAndAddField args=[_:e@23:99] type=Long call=kotlin.concurrent.getAndAddField[kind=fun;recv=kotlin.reflect.KMutableProperty0<Long>;params=Long]

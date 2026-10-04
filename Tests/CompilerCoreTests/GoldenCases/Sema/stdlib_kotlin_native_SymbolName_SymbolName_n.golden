@@ -1,0 +1,6 @@
+symbol fq=golden.sema.readSymbolName.$0.symbolName[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readSymbolName[kind=fun;params=kotlin.native.SymbolName] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.SymbolName] ret=String
+file fstdlib_kotlin_native_SymbolName_SymbolName_n package=golden.sema annotations=[@file:OptIn(kotlin.native.SymbolNameIsInternal::class)]
+  decl golden.sema.readSymbolName[kind=fun;params=kotlin.native.SymbolName] fun readSymbolName sym=golden.sema.readSymbolName[kind=fun;params=kotlin.native.SymbolName]
+expr e@7:54 name(symbolName) type=kotlin.native.SymbolName ref=golden.sema.readSymbolName.$0.symbolName[kind=vparam]
+expr e@7:54#1 memberCall recv=e@7:54 callee=name args=[] type=String ref=kotlin.native.SymbolName.name[kind=prop]

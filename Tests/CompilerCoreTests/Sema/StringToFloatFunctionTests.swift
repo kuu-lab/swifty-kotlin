@@ -2,9 +2,7 @@
 import Testing
 
 /// STDLIB-TEXT-FN-097: Validates that `String.toFloat()` resolves through Sema
-/// for plain String receivers as well as literal / branch / nullable contexts.
-/// The runtime link involved is `kk_string_toFloat_flat` (see
-/// `Sources/Runtime/RuntimeStringStdlib.swift`).
+/// for plain String receivers as well as literal / branch contexts.
 @Suite
 struct StringToFloatFunctionTests {
     @Test
@@ -36,35 +34,27 @@ struct StringToFloatFunctionTests {
             errors.isEmpty,
             "Expected String.toFloat() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    @Test
-    func testStringToFloatResolvesToRuntimeLink() throws {
-        var resolvedLink: String?
-        var resolvedReturnType: TypeID?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "toFloat"].map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let fq = ["kotlin", "text", "toFloat"].map { interner.intern($0) }
+        let symbol = try #require(
+            sema.symbols.lookupAll(fqName: fq).first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == sema.types.stringType
                     && signature.parameterTypes.isEmpty
-            })
-            resolvedLink = sema.symbols.externalLinkName(for: symbol)
-            resolvedReturnType = sema.symbols.functionSignature(for: symbol)?.returnType
-            #expect(
-                resolvedReturnType == sema.types.floatType,
-                "String.toFloat() should return Float"
-            )
-            #expect(resolvedLink == nil || resolvedLink?.isEmpty == true)
-            let privateFq = ["kotlin", "text", "__kk_string_toFloat"].map { ctx.interner.intern($0) }
-            let privateSymbol = sema.symbols.lookup(fqName: privateFq)
-            #expect(privateSymbol != nil)
-            #expect(sema.symbols.externalLinkName(for: privateSymbol!) == "__kk_string_toFloat")
-        }
+            }
+        )
+        let resolvedLink = sema.symbols.externalLinkName(for: symbol)
+        let resolvedReturnType = sema.symbols.functionSignature(for: symbol)?.returnType
+        #expect(
+            resolvedReturnType == sema.types.floatType,
+            "String.toFloat() should return Float"
+        )
+        #expect(resolvedLink == nil || resolvedLink?.isEmpty == true)
+        let privateFq = ["kotlin", "text", "__kk_string_toFloat"].map { interner.intern($0) }
+        let privateSymbol = sema.symbols.lookup(fqName: privateFq)
+        #expect(privateSymbol != nil)
+        #expect(sema.symbols.externalLinkName(for: privateSymbol!) == "__kk_string_toFloat")
     }
 }

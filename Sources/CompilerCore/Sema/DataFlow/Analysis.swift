@@ -42,6 +42,10 @@ struct ConditionBranch: Equatable {
 final class DataFlowAnalyzer {
     init() {}
 
+    private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
+        BuiltinTypeNames(interner: interner)
+    }
+
     func branchOnCondition(
         _ conditionID: ExprID,
         base: DataFlowState,
@@ -82,6 +86,42 @@ final class DataFlowAnalyzer {
         }
     }
 
+    /// Narrows a stable local expression to its non-null type after a contract
+    /// guarantees that the expression is non-null on normal return.
+    func narrowNonNull(
+        _ expressionID: ExprID,
+        base: DataFlowState,
+        locals: [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)],
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> DataFlowState {
+        guard let (symbol, currentType, isStable) = resolveLocalVariable(
+            expressionID,
+            locals: locals,
+            ast: ast,
+            sema: sema,
+            interner: interner
+        ), isStable else {
+            return base
+        }
+        let effectiveType: TypeID = if let baseState = base.variables[symbol],
+                                       baseState.possibleTypes.count == 1,
+                                       let baseType = baseState.possibleTypes.first
+        {
+            baseType
+        } else {
+            currentType
+        }
+        var variables = base.variables
+        variables[symbol] = VariableFlowState(
+            possibleTypes: [makeTypeNonNullable(effectiveType, types: sema.types)],
+            nullability: .nonNull,
+            isStable: true
+        )
+        return DataFlowState(variables: variables)
+    }
+
     private func branchOnBinary(
         op: BinaryOp,
         lhsID: ExprID,
@@ -94,14 +134,16 @@ final class DataFlowAnalyzer {
         scope: Scope
     ) -> ConditionBranch {
         switch op {
-        case .equal, .notEqual:
+        case .equal, .notEqual, .identityEqual, .notIdentityEqual:
+            // `x === null` / `x !== null` narrow nullability exactly like `==`/`!=`
+            // (identity comparison against the null literal is not overridable).
             let nullResult = branchOnNullComparison(
                 lhsID: lhsID, rhsID: rhsID,
                 base: base, locals: locals,
                 ast: ast, sema: sema, interner: interner
             )
             if let nullResult {
-                if op == .notEqual {
+                if op == .notEqual || op == .notIdentityEqual {
                     return ConditionBranch(trueState: nullResult.falseState, falseState: nullResult.trueState)
                 }
                 return nullResult
@@ -199,7 +241,7 @@ final class DataFlowAnalyzer {
         ), isStable else {
             return ConditionBranch(trueState: base, falseState: base)
         }
-        guard let targetType = resolveIsCheckTargetType(
+        guard let rawTargetType = resolveIsCheckTargetType(
             typeRefID: typeRefID,
             scope: scope,
             ast: ast,
@@ -208,6 +250,17 @@ final class DataFlowAnalyzer {
         ) else {
             return ConditionBranch(trueState: base, falseState: base)
         }
+        let priorType: TypeID = if let baseState = base.variables[symbol], baseState.possibleTypes.count == 1,
+                                   let baseType = baseState.possibleTypes.first
+        {
+            baseType
+        } else {
+            currentType
+        }
+        // `this is List` (no explicit type argument) checked against a value
+        // already known to be `Iterable<T>` must narrow to `List<T>`, not a
+        // raw/star-projected `List<*>` -- see narrowedSubtypeArgs.
+        let targetType = refineIsCheckTargetType(rawTargetType, priorType: priorType, sema: sema)
         let targetNullability = sema.types.nullability(of: targetType)
         // Use intersection with previous flow state type for chained is-checks (P5-97)
         let narrowedType: TypeID = if let baseState = base.variables[symbol],
@@ -255,6 +308,7 @@ final class DataFlowAnalyzer {
     func branchOnWhenSubject(
         subjectSymbol: SymbolID,
         subjectType: TypeID,
+        subjectID: ExprID,
         conditionID: ExprID,
         base: DataFlowState,
         ast: ASTModule,
@@ -267,7 +321,7 @@ final class DataFlowAnalyzer {
         }
         switch conditionExpr {
         case let .nameRef(name, _):
-            if name == BuiltinTypeNames(interner: interner).null {
+            if name == builtinTypeNames(interner: interner).null {
                 var vars = base.variables
                 vars[subjectSymbol] = VariableFlowState(
                     possibleTypes: [subjectType],
@@ -310,7 +364,7 @@ final class DataFlowAnalyzer {
         case let .isCheck(exprID, typeRefID, negated, _):
             return narrowedStateForIsCheck(
                 exprID: exprID, typeRefID: typeRefID, negated: negated,
-                subjectSymbol: subjectSymbol, conditionID: conditionID,
+                subjectSymbol: subjectSymbol, subjectType: subjectType, subjectID: subjectID, conditionID: conditionID,
                 base: base, ast: ast, sema: sema, interner: interner, scope: scope
             )
         default:
@@ -349,9 +403,12 @@ final class DataFlowAnalyzer {
             else {
                 return base
             }
-            let narrowed = sema.types.make(.classType(ClassType(
+            let rawNarrowed = sema.types.make(.classType(ClassType(
                 classSymbol: conditionSymbolID, args: [], nullability: .nonNull
             )))
+            // Same "no explicit type argument" narrowing gap as
+            // narrowedStateForIsCheck -- see refineIsCheckTargetType.
+            let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
             var vars = base.variables
             vars[subjectSymbol] = VariableFlowState(
                 possibleTypes: [narrowed], nullability: .nonNull, isStable: true
@@ -367,6 +424,8 @@ final class DataFlowAnalyzer {
         typeRefID: TypeRefID,
         negated: Bool,
         subjectSymbol: SymbolID,
+        subjectType: TypeID,
+        subjectID: ExprID,
         conditionID _: ExprID,
         base: DataFlowState,
         ast: ASTModule,
@@ -374,19 +433,26 @@ final class DataFlowAnalyzer {
         interner: StringInterner,
         scope: Scope
     ) -> DataFlowState {
-        // Only narrow when the isCheck's expr refers to the when subject.
-        // This prevents incorrect narrowing for `when(x) { y is String -> ... }`.
-        if let checkedSymbol = sema.bindings.identifierSymbols[exprID],
-           checkedSymbol != subjectSymbol
-        {
+        // Only narrow when the isCheck's expr refers to the when subject. A
+        // bare `is Type` when-branch condition is always parsed as
+        // `.isCheck(expr: subject, ...)`, reusing the subject's own ExprID
+        // (BuildASTPhase+ExpressionParserControlFlow.parseWhenBranchCondition),
+        // so identity comparison here is reliable even for synthetic subjects
+        // (`this`, a lambda parameter) that never get an `identifierSymbols`
+        // binding for their own ExprID.
+        guard exprID == subjectID else {
             return base
         }
         guard !negated else { return base }
-        guard let narrowed = resolveIsCheckTargetType(
+        guard let rawNarrowed = resolveIsCheckTargetType(
             typeRefID: typeRefID, scope: scope, ast: ast, sema: sema, interner: interner
         ) else {
             return base
         }
+        // `when (this) { is List -> ... }` on a value known to be
+        // `Iterable<T>` must narrow to `List<T>`, not an under-specified
+        // `List` -- see the matching fix in branchOnIsCheck/refineIsCheckTargetType.
+        let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
         let narrowedNullability = sema.types.nullability(of: narrowed)
         var vars = base.variables
         vars[subjectSymbol] = VariableFlowState(
@@ -450,7 +516,7 @@ final class DataFlowAnalyzer {
         else {
             return false
         }
-        return name == BuiltinTypeNames(interner: interner).null
+        return name == builtinTypeNames(interner: interner).null
     }
 
     private func resolveLocalVariable(
@@ -475,15 +541,18 @@ final class DataFlowAnalyzer {
         default:
             return nil
         }
+        // Local `var`s are smart-cast candidates in Kotlin as well: only members
+        // and captured-and-modified locals are unstable. Narrowing is dropped
+        // again when the local is reassigned (LocalDeclTypeChecker.inferLocalAssignExpr).
         let isStable: Bool = if let symbol = sema.symbols.symbol(local.symbol) {
             switch symbol.kind {
             case .valueParameter, .local:
-                !symbol.flags.contains(.mutable)
+                true
             default:
                 false
             }
         } else {
-            !local.isMutable
+            true
         }
         return (local.symbol, local.type, isStable)
     }
@@ -577,6 +646,26 @@ final class DataFlowAnalyzer {
         }
     }
 
+    /// Whether a non-exhaustive `when` over `subjectType` is an error even when
+    /// the `when` is used as a statement (its value discarded). Kotlin only
+    /// enforces exhaustiveness unconditionally — regardless of expression vs.
+    /// statement position — for `Boolean` and sealed/enum subjects; any other
+    /// subject type (`Byte`, `Int`, `String`, a non-sealed class, ...) is only
+    /// required to be exhaustive when the `when`'s value is actually used.
+    func subjectRequiresStatementExhaustiveness(subjectType: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: subjectType) {
+        case .primitive(.boolean, _):
+            return true
+        case let .classType(classType):
+            guard let classSymbol = sema.symbols.symbol(classType.classSymbol) else {
+                return false
+            }
+            return classSymbol.kind == .enumClass || classSymbol.flags.contains(.sealedType)
+        default:
+            return false
+        }
+    }
+
     /// P5-78: Returns the set of missing sealed subtype InternedString names for diagnostic purposes.
     /// Returns nil if the type is not a sealed type or if all branches are covered.
     func missingSealedBranches(
@@ -655,6 +744,35 @@ final class DataFlowAnalyzer {
         return Set(sema.symbols.directSubtypes(of: classSymbol.id).compactMap { subtype in
             sema.symbols.symbol(subtype)?.name
         })
+    }
+
+    /// Refines a raw `is` target type resolved with no explicit type argument
+    /// (`this is List`) using a value already known to be some generic
+    /// `priorType` (e.g. `Iterable<T>`), narrowing `List` to `List<T>` rather
+    /// than leaving it under-specified. See `TypeSystem.narrowedSubtypeArgs`
+    /// for why this is sound and when it can't determine an argument.
+    private func refineIsCheckTargetType(
+        _ rawTargetType: TypeID,
+        priorType: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        guard case let .classType(targetClass) = sema.types.kind(of: rawTargetType),
+              targetClass.args.isEmpty,
+              !sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty,
+              case let .classType(priorClass) = sema.types.kind(of: sema.types.makeNonNullable(priorType)),
+              let narrowedArgs = sema.types.narrowedSubtypeArgs(
+                  forSubtype: targetClass.classSymbol,
+                  givenSupertype: priorClass.classSymbol,
+                  supertypeArgs: priorClass.args
+              )
+        else {
+            return rawTargetType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: targetClass.classSymbol,
+            args: narrowedArgs,
+            nullability: targetClass.nullability
+        )))
     }
 
     /// Resolve TypeArgRef array into TypeArg array, mapping builtin type names to their TypeIDs.
@@ -794,13 +912,7 @@ final class DataFlowAnalyzer {
         types: TypeSystem,
         interner: StringInterner
     ) -> TypeID? {
-        if let builtin = BuiltinTypeNames(interner: interner).resolveBuiltinType(name, types: types) {
-            return builtin
-        }
-        if name == interner.intern("Byte") || name == interner.intern("Short") {
-            return types.intType
-        }
-        return nil
+        return builtinTypeNames(interner: interner).resolveBuiltinType(name, types: types)
     }
 
     private func enumEntryNames(for enumSymbol: SemanticSymbol, sema: SemaModule) -> Set<InternedString> {

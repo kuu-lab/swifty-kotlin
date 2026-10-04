@@ -2,7 +2,7 @@
 import Testing
 
 /// STDLIB-SEQ-FN-026: Validates that `Sequence<*>.filterIsInstance<R>()` resolves
-/// through Sema and lowers to the synthetic runtime callee `kk_sequence_filterIsInstance`.
+/// through Sema as a bundled Kotlin-source declaration.
 @Suite
 struct SequenceFilterIsInstanceFunctionTests {
     @Test func testFilterIsInstanceFunctionResolvesInSource() throws {

@@ -4,12 +4,8 @@ import Testing
 
 /// STDLIB-TEXT-FN-103: `fun String.toLongOrNull(): Long?` in `kotlin.text`.
 ///
-/// Verifies:
-/// - The synthetic stub registered for `String.toLongOrNull` links to the
-///   runtime symbol `kk_string_toLongOrNull_flat` declared in
-///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
-/// - The extension resolves cleanly from source code and produces no Sema
-///   diagnostics for a call returning `Long?`.
+/// Verifies that the extension is source-backed after KSP-414 and bridges
+/// through the private `__kk_string_toLongOrNull` runtime symbol.
 @Suite
 struct StringToLongOrNullFunctionTests {
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
@@ -27,43 +23,39 @@ struct StringToLongOrNullFunctionTests {
     }
 
     @Test
-    func testToLongOrNullStubLinksToRuntimeSymbol() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-
-            #expect(
-                externalLink(for: "toLongOrNull", sema: sema, interner: ctx.interner) == "kk_string_toLongOrNull",
-                "String.toLongOrNull should link to kk_string_toLongOrNull"
-            )
-
-            let links = externalLinks(for: "toLongOrNull", sema: sema, interner: ctx.interner)
-            #expect(
-                links.contains("kk_string_toLongOrNull"),
-                "lookupAll for toLongOrNull must include kk_string_toLongOrNull; got: \(links)"
-            )
-        }
-    }
-
-    @Test
-    func testToLongOrNullResolvesOnStringReceiver() throws {
-        let source = """
+    func testToLongOrNullResolvesInSource() throws {
+        let ctx = makeContextFromSource("""
         fun parse(raw: String): Long? {
             return raw.toLongOrNull()
         }
-        """
+        """)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected String.toLongOrNull to resolve cleanly, got: \(diagnosticSummary)"
-            )
-        }
+        try runSema(ctx)
+
+        let diagnosticSummary = ctx.diagnostics.diagnostics
+            .map { "\($0.code): \($0.message)" }
+            .joined(separator: " | ")
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Expected String.toLongOrNull to resolve cleanly, got: \(diagnosticSummary)"
+        )
+
+        let sema = try #require(ctx.sema)
+
+        #expect(
+            externalLink(for: "toLongOrNull", sema: sema, interner: ctx.interner) == nil,
+            "String.toLongOrNull should be source-backed and have no public C link"
+        )
+
+        let links = externalLinks(for: "toLongOrNull", sema: sema, interner: ctx.interner)
+        #expect(
+            !links.contains("kk_string_toLongOrNull") && !links.contains("__kk_string_toLongOrNull"),
+            "lookupAll for toLongOrNull must not include public or private string parse links; got: \(links)"
+        )
+
+        #expect(
+            externalLink(for: "__kk_string_toLongOrNull", sema: sema, interner: ctx.interner) == "__kk_string_toLongOrNull",
+            "Private __kk_string_toLongOrNull bridge should be registered"
+        )
     }
 }

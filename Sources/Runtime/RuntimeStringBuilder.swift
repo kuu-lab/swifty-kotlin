@@ -2,8 +2,41 @@
 // MARK: - StringBuilder Runtime Type (STDLIB-255/256/257)
 
 final class RuntimeStringBuilderBox {
-    var value: String
-    init(_ initial: String = "") { self.value = initial }
+    /// Contents as Kotlin UTF-16 code units. Positional runtime operations
+    /// (length/get/indexOf/insert/substring/...) work on this buffer directly;
+    /// a Swift `String` is materialized only when a result needs one.
+    var units: [UInt16]
+
+    init(_ initial: String = "") {
+        self.units = runtimeKotlinStringUTF16CodeUnits(initial)
+    }
+
+    init(units: [UInt16]) {
+        self.units = units
+    }
+
+    var stringValue: String {
+        runtimeKotlinStringFromUTF16CodeUnits(units)
+    }
+}
+
+// BUG-044: StringBuilder instances bypass normal kk_object_new-based class
+// construction (see CallLowerer.lowerStringBuilderConstructorCall), so they
+// never go through the compiler-emitted kk_type_register_super/
+// kk_object_register_itable_iface calls a regular class gets. Without an
+// object type ID and supertype edges, `sb is CharSequence`/`sb is Appendable`
+// fell through kk_op_is's nominalBase case to the RuntimeThrowableBox
+// fallback and incorrectly returned false. Register both explicitly here.
+private let stringBuilderTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.StringBuilder")
+private let stringBuilderCharSequenceSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
+private let stringBuilderAppendableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.Appendable")
+
+func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {
+    runtimeRegisterObjectType(rawValue: raw, classID: stringBuilderTypeID)
+    runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderCharSequenceSuperTypeID)
+    runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderAppendableSuperTypeID)
+    runtimeRegisterCharSequenceItable(raw)
+    return raw
 }
 
 private func runtimeStringBuilderBox(from raw: Int) -> RuntimeStringBuilderBox? {
@@ -25,40 +58,15 @@ private func sbMakeStringRaw(_ value: String) -> Int {
     })
 }
 
-private func runtimeThrowStringIndexOutOfBounds(
-    _ outThrown: UnsafeMutablePointer<Int>?,
-    message: String
-) {
-    guard let outThrown else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: StringBuilder bounds exception escaped without outThrown: \(message)")
-    }
-    runtimeSetThrown(
-        outThrown,
-        runtimeAllocateStringIndexOutOfBoundsException(message: message)
-    )
-}
-
 // MARK: - @_cdecl functions
 
-@_cdecl("kk_string_builder_new")
-public func kk_string_builder_new() -> Int {
-    registerRuntimeObject(RuntimeStringBuilderBox())
+@_cdecl("__kk_string_builder_new")
+public func __kk_string_builder_new() -> Int {
+    runtimeStringBuilderNew(initial: "")
 }
 
-@_cdecl("kk_string_builder_new_with_capacity")
-public func kk_string_builder_new_with_capacity(_ capacity: Int) -> Int {
-    // capacity is an allocation hint only (mirrors kk_string_builder_ensureCapacity);
-    // Swift String manages its own storage, so there is no separate capacity to apply.
-    registerRuntimeObject(RuntimeStringBuilderBox())
-}
-
-@_cdecl("kk_string_builder_new_from_string")
-public func kk_string_builder_new_from_string(_ strRaw: Int) -> Int {
-    runtimeStringBuilderNew(initial: runtimeStringFromRawOrPanic(strRaw, caller: #function))
-}
-
-@_cdecl("kk_string_builder_new_from_string_flat")
-public func kk_string_builder_new_from_string_flat(
+@_cdecl("__kk_string_builder_new_from_string_flat")
+public func __kk_string_builder_new_from_string_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -69,8 +77,38 @@ public func kk_string_builder_new_from_string_flat(
     )
 }
 
+@_cdecl("__kk_string_builder_new_from_char_sequence")
+public func __kk_string_builder_new_from_char_sequence(_ valueRaw: Int) -> Int {
+    if let units = runtimeCharSequenceUTF16Units(from: valueRaw) {
+        return runtimeStringBuilderNew(units: units)
+    }
+    return runtimeStringBuilderNew(initial: runtimeElementToString(valueRaw))
+}
+
+// BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body (see
+// StringBuilder.kt) — construction is entirely native. The capacity is only
+// ever used as a preallocation hint (this runtime doesn't preallocate string
+// storage), but real Kotlin/Java still rejects a negative capacity with
+// NegativeArraySizeException, so this must validate rather than silently
+// ignore it the way falling through to __kk_string_builder_new did before.
+@_cdecl("__kk_string_builder_new_capacity_checked")
+public func __kk_string_builder_new_capacity_checked(
+    _ capacity: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard capacity >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(capacity)"))
+        return 0
+    }
+    return runtimeStringBuilderNew(initial: "")
+}
+
 private func runtimeStringBuilderNew(initial: String) -> Int {
-    registerRuntimeObject(RuntimeStringBuilderBox(initial))
+    runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(initial)))
+}
+
+private func runtimeStringBuilderNew(units: [UInt16]) -> Int {
+    runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(units: units)))
 }
 
 private func runtimeStringBuilderObjectStringFromFlat(
@@ -85,13 +123,329 @@ private func runtimeStringBuilderObjectStringFromFlat(
     return runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
 }
 
-@_cdecl("kk_string_builder_append_obj")
-public func kk_string_builder_append_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int {
+private func stringBuilderCharArrayUnits(
+    from raw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> [UInt16]? {
+    guard let array = runtimeArrayBox(from: raw) else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalArgumentException(message: "expected CharArray handle")
+        )
+        return nil
+    }
+    return array.elements.map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
+}
+
+private func stringBuilderIndexError(
+    outThrown: UnsafeMutablePointer<Int>?,
+    message: String
+) {
+    runtimeSetThrown(outThrown, runtimeAllocateIndexOutOfBoundsException(message: message))
+}
+
+private func stringBuilderIndexOf(_ source: [UInt16], _ needle: [UInt16], from startIndex: Int) -> Int {
+    let start = max(0, startIndex)
+    if needle.isEmpty {
+        return min(start, source.count)
+    }
+    guard start <= source.count - needle.count else {
+        return -1
+    }
+    for index in start ... (source.count - needle.count)
+        where source[index ..< index + needle.count].elementsEqual(needle)
+    {
+        return index
+    }
+    return -1
+}
+
+private func stringBuilderLastIndexOf(_ source: [UInt16], _ needle: [UInt16], from startIndex: Int) -> Int {
+    guard startIndex >= 0 else {
+        return -1
+    }
+    if needle.isEmpty {
+        return min(startIndex, source.count)
+    }
+    let lastStart = source.count - needle.count
+    guard lastStart >= 0 else {
+        return -1
+    }
+    var index = min(startIndex, lastStart)
+    while index >= 0 {
+        if source[index ..< index + needle.count].elementsEqual(needle) {
+            return index
+        }
+        index -= 1
+    }
+    return -1
+}
+
+@_cdecl("__kk_string_builder_append_obj")
+public func __kk_string_builder_append_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int {
     runtimeStringBuilderAppend(sbRaw, value: runtimeElementToString(valueRaw))
 }
 
-@_cdecl("kk_string_builder_append_obj_flat")
-public func kk_string_builder_append_obj_flat(
+// Retain the direct append bridge for existing runtime ABI callers. Kotlin
+// Appendable calls dispatch through source-backed implementations and itables.
+@_cdecl("__kk_string_builder_append_char")
+public func __kk_string_builder_append_char(_ sbRaw: Int, _ charRaw: Int) -> Int {
+    runtimeStringBuilderAppend(sbRaw, value: runtimeCharacterFromRaw(charRaw))
+}
+
+@_cdecl("__kk_string_builder_append_char_array")
+public func __kk_string_builder_append_char_array(
+    _ sbRaw: Int,
+    _ arrayRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    guard let arrayUnits = stringBuilderCharArrayUnits(from: arrayRaw, outThrown: outThrown) else {
+        return sbRaw
+    }
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= arrayUnits.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(arrayUnits.count)"
+        )
+        return sbRaw
+    }
+    sb.units.append(contentsOf: arrayUnits[startIndex ..< endIndex])
+    return sbRaw
+}
+
+@_cdecl("__kk_string_builder_insert_obj")
+public func __kk_string_builder_insert_obj(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    guard index >= 0, index <= sb.units.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "index=\(index), length=\(sb.units.count)"
+        )
+        return sbRaw
+    }
+    let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
+        ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+    sb.units.insert(contentsOf: inserted, at: index)
+    return sbRaw
+}
+
+@_cdecl("__kk_string_builder_insert_char_sequence")
+public func __kk_string_builder_insert_char_sequence(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    guard index >= 0, index <= sb.units.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "index=\(index), length=\(sb.units.count)"
+        )
+        return sbRaw
+    }
+
+    guard let sourceBuilder = runtimeStringBuilderBox(from: valueRaw) else {
+        let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
+            ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+        sb.units.insert(contentsOf: inserted, at: index)
+        return sbRaw
+    }
+
+    let sourceLength = sourceBuilder.units.count
+    if sourceBuilder === sb {
+        // Java shifts the destination tail before reading a self-referential
+        // CharSequence. Keep that overlap behavior by reading the working buffer
+        // after the shift while filling the inserted window.
+        let originalLength = sb.units.count
+        sb.units.append(contentsOf: repeatElement(0, count: sourceLength))
+        if index < originalLength {
+            for sourceIndex in stride(from: originalLength - 1, through: index, by: -1) {
+                sb.units[sourceIndex + sourceLength] = sb.units[sourceIndex]
+            }
+        }
+        for offset in 0 ..< sourceLength {
+            sb.units[index + offset] = sb.units[offset]
+        }
+    } else {
+        sb.units.insert(contentsOf: sourceBuilder.units, at: index)
+    }
+    return sbRaw
+}
+
+@_cdecl("__kk_string_builder_insert_char_array")
+public func __kk_string_builder_insert_char_array(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ arrayRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    guard let arrayUnits = stringBuilderCharArrayUnits(from: arrayRaw, outThrown: outThrown) else {
+        return sbRaw
+    }
+    guard index >= 0, index <= sb.units.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "index=\(index), length=\(sb.units.count)"
+        )
+        return sbRaw
+    }
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= arrayUnits.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(arrayUnits.count)"
+        )
+        return sbRaw
+    }
+    sb.units.insert(contentsOf: arrayUnits[startIndex ..< endIndex], at: index)
+    return sbRaw
+}
+
+@_cdecl("__kk_string_builder_index_of")
+public func __kk_string_builder_index_of(_ sbRaw: Int, _ stringRaw: Int, _ startIndex: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return -1 }
+    let needle = runtimeStringUTF16CodeUnits(stringRaw)
+    return stringBuilderIndexOf(sb.units, needle, from: startIndex)
+}
+
+@_cdecl("__kk_string_builder_last_index_of")
+public func __kk_string_builder_last_index_of(_ sbRaw: Int, _ stringRaw: Int, _ startIndex: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return -1 }
+    let needle = runtimeStringUTF16CodeUnits(stringRaw)
+    return stringBuilderLastIndexOf(sb.units, needle, from: startIndex)
+}
+
+@_cdecl("__kk_string_builder_set_length")
+public func __kk_string_builder_set_length(
+    _ sbRaw: Int,
+    _ newLength: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    guard newLength >= 0 else {
+        stringBuilderIndexError(outThrown: outThrown, message: "newLength=\(newLength)")
+        return sbRaw
+    }
+    if newLength < sb.units.count {
+        sb.units.removeLast(sb.units.count - newLength)
+    } else if newLength > sb.units.count {
+        sb.units.append(contentsOf: repeatElement(0, count: newLength - sb.units.count))
+    }
+    return sbRaw
+}
+
+@_cdecl("__kk_string_builder_substring")
+public func __kk_string_builder_substring(
+    _ sbRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return runtimeMakeStringRaw("") }
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= sb.units.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(sb.units.count)"
+        )
+        return 0
+    }
+    return runtimeMakeStringRaw(
+        runtimeKotlinStringFromUTF16CodeUnits(Array(sb.units[startIndex ..< endIndex]))
+    )
+}
+
+@_cdecl("__kk_string_builder_to_char_array")
+public func __kk_string_builder_to_char_array(
+    _ sbRaw: Int,
+    _ destinationRaw: Int,
+    _ destinationOffset: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
+    guard let destination = runtimeArrayBox(from: destinationRaw) else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalArgumentException(message: "expected CharArray handle")
+        )
+        return 0
+    }
+    let source = sb.units
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= source.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(source.count)"
+        )
+        return 0
+    }
+    let copyCount = endIndex - startIndex
+    let (destinationEnd, overflow) = destinationOffset.addingReportingOverflow(copyCount)
+    guard destinationOffset >= 0, !overflow, destinationEnd <= destination.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "destinationOffset=\(destinationOffset), length=\(copyCount), size=\(destination.count)"
+        )
+        return 0
+    }
+    for offset in 0 ..< copyCount {
+        destination[destinationOffset + offset] = kk_box_char(Int(source[startIndex + offset]))
+    }
+    return 0
+}
+
+@_cdecl("__kk_string_builder_length_utf16")
+public func __kk_string_builder_length_utf16(_ sbRaw: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
+    return sb.units.count
+}
+
+@_cdecl("__kk_string_builder_append_range")
+public func __kk_string_builder_append_range(
+    _ sbRaw: Int,
+    _ valueRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let stringRaw = valueRaw == runtimeNullSentinelInt ? runtimeMakeStringRaw("null") : valueRaw
+    guard let source = runtimeStringFromRaw(stringRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_builder_append_range received invalid string handle")
+    }
+    let utf16 = runtimeStringUTF16CodeUnits(stringRaw)
+    let length = utf16.count
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(length)"
+        )
+        return sbRaw
+    }
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    sb.units.append(contentsOf: utf16[startIndex ..< endIndex])
+    return sbRaw
+}
+
+@_cdecl("__kk_string_builder_append_obj_flat")
+public func __kk_string_builder_append_obj_flat(
     _ sbRaw: Int,
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
@@ -106,653 +460,47 @@ public func kk_string_builder_append_obj_flat(
 
 private func runtimeStringBuilderAppend(_ sbRaw: Int, value: String) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append(value)
+    runtimeAppendKotlinUTF16CodeUnits(of: value, to: &sb.units)
     return sbRaw
 }
 
-@_cdecl("kk_string_builder_toString")
-public func kk_string_builder_toString(_ sbRaw: Int) -> Int {
+@_cdecl("__kk_string_builder_toString")
+public func __kk_string_builder_toString(_ sbRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else {
         return sbMakeStringRaw("")
     }
-    return sbMakeStringRaw(sb.value)
+    return sbMakeStringRaw(sb.stringValue)
 }
 
-@_cdecl("kk_string_builder_length_prop")
-public func kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
+@_cdecl("__kk_string_builder_get")
+public func __kk_string_builder_get(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return sb.value.utf8.count
-}
-
-// ABI note: The old camelCase symbols (kk_string_builder_appendLine_obj) were never part of
-// a shipped/stable ABI. This rename to snake_case happened before any release, so there are
-// no pre-existing compiled artifacts that reference the old names.
-@_cdecl("kk_string_builder_append_line_obj")
-public func kk_string_builder_append_line_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int {
-    runtimeStringBuilderAppendLine(sbRaw, value: runtimeElementToString(valueRaw))
-}
-
-@_cdecl("kk_string_builder_append_line_obj_flat")
-public func kk_string_builder_append_line_obj_flat(
-    _ sbRaw: Int,
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    runtimeStringBuilderAppendLine(
-        sbRaw,
-        value: runtimeStringBuilderObjectStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    )
-}
-
-private func runtimeStringBuilderAppendLine(_ sbRaw: Int, value: String) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append(value)
-    sb.value.append("\n")
-    return sbRaw
-}
-
-// ABI note: Same as above — old camelCase symbol never shipped; rename is safe.
-@_cdecl("kk_string_builder_append_line_noarg_obj")
-public func kk_string_builder_append_line_noarg_obj(_ sbRaw: Int) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append("\n")
-    return sbRaw
-}
-
-private func sbInsert(
-    _ sb: RuntimeStringBuilderBox,
-    at index: Int,
-    string str: String,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Bool {
-    let utf8Count = sb.value.utf8.count
-    guard index >= 0, index <= utf8Count else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
-        return false
-    }
-    let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
-    let insertionPoint = String.Index(utf8Index, within: sb.value) ?? sb.value.endIndex
-    sb.value.insert(contentsOf: str, at: insertionPoint)
-    return true
-}
-
-@_cdecl("kk_string_builder_insert_obj")
-public func kk_string_builder_insert_obj(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ valueRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
-) -> Int {
-    runtimeStringBuilderInsert(sbRaw, index: index, value: runtimeElementToString(valueRaw), outThrown: outThrown)
-}
-
-@_cdecl("kk_string_builder_appendRange_obj")
-public func kk_string_builder_appendRange_obj(_ sbRaw: Int, _ valueRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
-    runtimeStringBuilderAppendRange(
-        sbRaw,
-        csq: runtimeElementToString(valueRaw),
-        startIndex: startIndex,
-        endIndex: endIndex
-    )
-}
-
-@_cdecl("kk_string_builder_insert_obj_flat")
-public func kk_string_builder_insert_obj_flat(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
-) -> Int {
-    runtimeStringBuilderInsert(
-        sbRaw,
-        index: index,
-        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
-        outThrown: outThrown
-    )
-}
-
-private func runtimeStringBuilderInsert(_ sbRaw: Int, index: Int, value str: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    _ = sbInsert(sb, at: index, string: str, outThrown: outThrown)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_insert_char")
-public func kk_string_builder_insert_char(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ charValue: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let str: String
-    if let ptr = UnsafeMutableRawPointer(bitPattern: charValue) {
-        let isObj = runtimeStorage.withGCLock { $0.objectPointers.contains(UInt(bitPattern: ptr)) }
-        if isObj, let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-            str = UnicodeScalar(charBox.value).map(String.init) ?? "?"
-        } else {
-            str = UnicodeScalar(charValue).map(String.init) ?? "?"
-        }
-    } else {
-        str = UnicodeScalar(charValue).map(String.init) ?? "?"
-    }
-    _ = sbInsert(sb, at: index, string: str, outThrown: outThrown)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_insert_bool")
-public func kk_string_builder_insert_bool(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ value: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    _ = sbInsert(sb, at: index, string: value != 0 ? "true" : "false", outThrown: outThrown)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_insert_float")
-public func kk_string_builder_insert_float(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ value: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let str: String
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObj = runtimeStorage.withGCLock { $0.objectPointers.contains(UInt(bitPattern: ptr)) }
-        if isObj, let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
-            str = runtimeFormatFloatingPoint(floatBox.value)
-        } else {
-            str = runtimeFormatFloatingPoint(kk_bits_to_float(value))
-        }
-    } else {
-        str = runtimeFormatFloatingPoint(kk_bits_to_float(value))
-    }
-    _ = sbInsert(sb, at: index, string: str, outThrown: outThrown)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_insert_double")
-public func kk_string_builder_insert_double(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ value: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let str: String
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObj = runtimeStorage.withGCLock { $0.objectPointers.contains(UInt(bitPattern: ptr)) }
-        if isObj, let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
-            str = runtimeFormatFloatingPoint(doubleBox.value)
-        } else {
-            str = runtimeFormatFloatingPoint(kk_bits_to_double(value))
-        }
-    } else {
-        str = runtimeFormatFloatingPoint(kk_bits_to_double(value))
-    }
-    _ = sbInsert(sb, at: index, string: str, outThrown: outThrown)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_delete_obj")
-public func kk_string_builder_delete_obj(
-    _ sbRaw: Int,
-    _ start: Int,
-    _ end: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let len = sb.value.utf8.count
-    guard start >= 0, start <= len, end >= start, end <= len else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "start=\(start), end=\(end), length=\(len)")
-        return sbRaw
-    }
-    let startIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: start)
-    let endIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: end)
-    let sIdx = String.Index(startIdx, within: sb.value) ?? sb.value.endIndex
-    let eIdx = String.Index(endIdx, within: sb.value) ?? sb.value.endIndex
-    sb.value.removeSubrange(sIdx..<eIdx)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_deleteRange")
-public func kk_string_builder_deleteRange(
-    _ sbRaw: Int,
-    _ startIndex: Int,
-    _ endIndex: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_builder_delete_obj(sbRaw, startIndex, endIndex, outThrown)
-}
-
-@_cdecl("kk_string_builder_clear")
-public func kk_string_builder_clear(_ sbRaw: Int) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value = ""
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_reverse")
-public func kk_string_builder_reverse(_ sbRaw: Int) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value = String(sb.value.reversed())
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_deleteCharAt")
-public func kk_string_builder_deleteCharAt(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let utf8Count = sb.value.utf8.count
-    guard index >= 0, index < utf8Count else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
-        return sbRaw
-    }
-    let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
-    guard let charIdx = String.Index(utf8Index, within: sb.value) else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
-        return sbRaw
-    }
-    sb.value.remove(at: charIdx)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_deleteAt")
-public func kk_string_builder_deleteAt(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_builder_deleteCharAt(sbRaw, index, outThrown)
-}
-
-@_cdecl("kk_string_builder_appendRange_obj_flat")
-public func kk_string_builder_appendRange_obj_flat(
-    _ sbRaw: Int,
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ startIndex: Int,
-    _ endIndex: Int
-) -> Int {
-    runtimeStringBuilderAppendRange(
-        sbRaw,
-        csq: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
-        startIndex: startIndex,
-        endIndex: endIndex
-    )
-}
-
-private func runtimeStringBuilderAppendRange(
-    _ sbRaw: Int,
-    csq: String,
-    startIndex: Int,
-    endIndex: Int
-) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    // Use UTF-16 code unit indexing to match Kotlin CharSequence semantics.
-    sb.value.append(runtimeUTF16Substring(csq, startIndex: startIndex, endIndex: endIndex))
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_insertRange_obj")
-public func kk_string_builder_insertRange_obj(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ csqRaw: Int,
-    _ startIndex: Int,
-    _ endIndex: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
-) -> Int {
-    runtimeStringBuilderInsertRange(
-        sbRaw,
-        index: index,
-        csq: runtimeElementToString(csqRaw),
-        startIndex: startIndex,
-        endIndex: endIndex,
-        outThrown: outThrown
-    )
-}
-
-@_cdecl("kk_string_builder_insertRange_obj_flat")
-public func kk_string_builder_insertRange_obj_flat(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ startIndex: Int,
-    _ endIndex: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
-) -> Int {
-    runtimeStringBuilderInsertRange(
-        sbRaw,
-        index: index,
-        csq: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
-        startIndex: startIndex,
-        endIndex: endIndex,
-        outThrown: outThrown
-    )
-}
-
-private func runtimeStringBuilderInsertRange(
-    _ sbRaw: Int,
-    index: Int,
-    csq: String,
-    startIndex: Int,
-    endIndex: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let utf8Count = sb.value.utf8.count
-    guard index >= 0, index <= utf8Count else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
-        return sbRaw
-    }
-    let slice = runtimeUTF16Substring(csq, startIndex: startIndex, endIndex: endIndex)
-    let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
-    let insertionPoint = String.Index(utf8Index, within: sb.value) ?? sb.value.endIndex
-    sb.value.insert(contentsOf: slice, at: insertionPoint)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_setRange")
-public func kk_string_builder_setRange(
-    _ sbRaw: Int,
-    _ startIndex: Int,
-    _ endIndex: Int,
-    _ valueRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
-) -> Int {
-    runtimeStringBuilderSetRange(
-        sbRaw,
-        startIndex: startIndex,
-        endIndex: endIndex,
-        value: runtimeElementToString(valueRaw),
-        outThrown: outThrown
-    )
-}
-
-@_cdecl("kk_string_builder_setRange_flat")
-public func kk_string_builder_setRange_flat(
-    _ sbRaw: Int,
-    _ startIndex: Int,
-    _ endIndex: Int,
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
-) -> Int {
-    runtimeStringBuilderSetRange(
-        sbRaw,
-        startIndex: startIndex,
-        endIndex: endIndex,
-        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
-        outThrown: outThrown
-    )
-}
-
-private func runtimeStringBuilderSetRange(
-    _ sbRaw: Int,
-    startIndex: Int,
-    endIndex: Int,
-    value: String,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let len = sb.value.utf8.count
-    guard startIndex >= 0, startIndex <= len, endIndex >= startIndex, endIndex <= len else {
-        runtimeThrowStringIndexOutOfBounds(
-            outThrown,
-            message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(len)"
+    guard index >= 0, index < sb.units.count else {
+        stringBuilderIndexError(
+            outThrown: outThrown,
+            message: "index=\(index), length=\(sb.units.count)"
         )
-        return sbRaw
+        return 0
     }
-    let startIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: startIndex)
-    let endIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: endIndex)
-    let sIdx = String.Index(startIdx, within: sb.value) ?? sb.value.endIndex
-    let eIdx = String.Index(endIdx, within: sb.value) ?? sb.value.endIndex
-    sb.value.replaceSubrange(sIdx..<eIdx, with: value)
-    return sbRaw
+    return Int(sb.units[index])
 }
 
-// MARK: - STDLIB-STR-123: Additional StringBuilder methods
-
-@_cdecl("kk_string_builder_replace_obj_flat")
-public func kk_string_builder_replace_obj_flat(
-    _ sbRaw: Int,
-    _ start: Int,
-    _ end: Int,
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
-) -> Int {
-    runtimeStringBuilderReplace(
-        sbRaw,
-        start: start,
-        end: end,
-        replacement: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
-        outThrown: outThrown
-    )
-}
-
-@_cdecl("kk_string_builder_replace_obj")
-public func kk_string_builder_replace_obj(
-    _ sbRaw: Int,
-    _ start: Int,
-    _ end: Int,
-    _ replacementRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
-) -> Int {
-    runtimeStringBuilderReplace(
-        sbRaw,
-        start: start,
-        end: end,
-        replacement: runtimeElementToString(replacementRaw),
-        outThrown: outThrown
-    )
-}
-
-private func runtimeStringBuilderReplace(
-    _ sbRaw: Int,
-    start: Int,
-    end: Int,
-    replacement: String,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let len = sb.value.utf8.count
-    let clampedEnd = min(end, len)
-    guard start >= 0, start <= len, clampedEnd >= start else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "start=\(start), end=\(end), length=\(len)")
-        return sbRaw
-    }
-    let startIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: start)
-    let endIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: clampedEnd)
-    let sIdx = String.Index(startIdx, within: sb.value) ?? sb.value.endIndex
-    let eIdx = String.Index(endIdx, within: sb.value) ?? sb.value.endIndex
-    sb.value.replaceSubrange(sIdx..<eIdx, with: replacement)
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_setCharAt")
-public func kk_string_builder_setCharAt(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ charValue: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let utf8Count = sb.value.utf8.count
-    guard index >= 0, index < utf8Count else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
-        return sbRaw
-    }
-    let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
-    guard let charIdx = String.Index(utf8Index, within: sb.value) else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
-        return sbRaw
-    }
-    // charValue is a boxed Char (unicode scalar value)
-    let unboxed = kk_unbox_char(charValue)
-    guard let scalar = Unicode.Scalar(unboxed) else { return sbRaw }
-    sb.value.replaceSubrange(charIdx...charIdx, with: String(scalar))
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_capacity")
-public func kk_string_builder_capacity(_ sbRaw: Int) -> Int {
-    // Swift Strings have no separate capacity concept; return length + 16 as a
-    // reasonable default (mirrors the JVM default initial capacity of 16).
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 16 }
-    return sb.value.utf8.count + 16
-}
-
-@_cdecl("kk_string_builder_ensureCapacity")
-public func kk_string_builder_ensureCapacity(_ sbRaw: Int, _ minimumCapacity: Int) -> Int {
-    // Swift Strings handle memory automatically; this is a no-op at runtime.
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_trimToSize")
-public func kk_string_builder_trimToSize(_ sbRaw: Int) -> Int {
-    // Swift Strings handle memory automatically; this is a no-op at runtime.
-    return sbRaw
-}
-
-@_cdecl("kk_string_builder_get")
-public func kk_string_builder_get(
-    _ sbRaw: Int,
-    _ index: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_string_builder_length_prop")
+public func __kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
+    // KSP-817: StringBuilder.length must agree with String.length and with
+    // CharSequence.length dispatch, all of which count UTF-16 code units.
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    let utf8Count = sb.value.utf8.count
-    guard index >= 0, index < utf8Count else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
-        return 0
-    }
-    let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
-    guard let charIdx = String.Index(utf8Index, within: sb.value) else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
-        return 0
-    }
-    let charValue = Int(sb.value[charIdx].unicodeScalars.first?.value ?? 0)
-    return kk_box_char(charValue)
+    return sb.units.count
 }
 
-// MARK: - STDLIB-TEXT-FN-003: Typed append overloads
-
-/// append(value: Boolean): StringBuilder
-/// Accepts the raw unboxed boolean (0 or 1) and appends "false" or "true".
-@_cdecl("kk_string_builder_append_bool")
-public func kk_string_builder_append_bool(_ sbRaw: Int, _ value: Int) -> Int {
+@_cdecl("__kk_string_builder_clear")
+public func __kk_string_builder_clear(_ sbRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append(value != 0 ? "true" : "false")
-    return sbRaw
-}
-
-/// append(value: Char): StringBuilder
-/// Accepts the raw unboxed char (unicode scalar value or boxed CharBox) and appends the character.
-@_cdecl("kk_string_builder_append_char")
-public func kk_string_builder_append_char(_ sbRaw: Int, _ value: Int) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    // The value may be either a boxed RuntimeCharBox or a raw unicode scalar.
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        if isObjectPointer, let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-            let rendered = UnicodeScalar(charBox.value).map(String.init) ?? "?"
-            sb.value.append(rendered)
-            return sbRaw
-        }
-    }
-    let rendered = UnicodeScalar(value).map(String.init) ?? "?"
-    sb.value.append(rendered)
-    return sbRaw
-}
-
-/// append(value: Float): StringBuilder
-/// Accepts the raw float bits (via kk_bits_to_float) or a boxed RuntimeFloatBox.
-@_cdecl("kk_string_builder_append_float")
-public func kk_string_builder_append_float(_ sbRaw: Int, _ value: Int) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        if isObjectPointer, let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
-            sb.value.append(runtimeFormatFloatingPoint(floatBox.value))
-            return sbRaw
-        }
-    }
-    sb.value.append(runtimeFormatFloatingPoint(kk_bits_to_float(value)))
-    return sbRaw
-}
-
-/// append(value: Double): StringBuilder
-/// Accepts the raw double bits (via kk_bits_to_double) or a boxed RuntimeDoubleBox.
-@_cdecl("kk_string_builder_append_double")
-public func kk_string_builder_append_double(_ sbRaw: Int, _ value: Int) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        if isObjectPointer, let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
-            sb.value.append(runtimeFormatFloatingPoint(doubleBox.value))
-            return sbRaw
-        }
-    }
-    sb.value.append(runtimeFormatFloatingPoint(kk_bits_to_double(value)))
-    return sbRaw
-}
-
-// MARK: - STDLIB-TEXT-EDGE-012: append(vararg) overloads
-
-/// Append each element in an array/list of values to the StringBuilder.
-/// Corresponds to StringBuilder.append(vararg value: String?) and
-/// StringBuilder.append(vararg value: Any?).
-///
-/// Some lowering paths still pass a single boxed/raw element instead of a packed
-/// list for singleton varargs, so we accept that form here as a one-element vararg.
-@_cdecl("kk_string_builder_append_vararg_obj")
-public func kk_string_builder_append_vararg_obj(_ sbRaw: Int, _ argsArrayRaw: Int) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let values = runtimeCollectionOrArrayValues(from: argsArrayRaw)
-        ?? [RuntimeValue(raw: argsArrayRaw)]
-    for value in values {
-        sb.value.append(runtimeElementToString(value))
-    }
+    sb.units.removeAll()
     return sbRaw
 }

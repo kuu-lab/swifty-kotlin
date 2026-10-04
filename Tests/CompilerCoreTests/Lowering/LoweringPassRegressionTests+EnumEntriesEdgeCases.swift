@@ -39,22 +39,7 @@ extension LoweringPassRegressionTests {
         let decl = arena.appendDecl(.nominalType(KIRNominalType(symbol: enumSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [decl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: moduleName,
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        let ctx = try runLowering(module: module, interner: interner, moduleName: moduleName, sema: sema)
         return (module, enumSymbol, ctx)
     }
 
@@ -65,7 +50,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Color",
@@ -84,14 +69,14 @@ extension LoweringPassRegressionTests {
                 "entries$get should be synthesized; got: \(functionNames)")
     }
 
-    // MARK: - STDLIB-023-02: entries$get body calls kk_array_new and kk_enum_make_entries_list
+    // MARK: - STDLIB-023-02: entries$get body calls kk_array_new and cached entries runtime
 
     @Test
     func testEnumEntriesGetterBodyUsesCorrectRuntimeCalls() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Direction",
@@ -109,8 +94,8 @@ extension LoweringPassRegressionTests {
                 "entries$get should call kk_array_new; callees: \(callees)")
         #expect(callees.contains("kk_array_set"),
                 "entries$get should call kk_array_set for each entry; callees: \(callees)")
-        #expect(callees.contains("kk_enum_make_entries_list"),
-                "entries$get should call kk_enum_make_entries_list; callees: \(callees)")
+        #expect(callees.contains("kk_enum_make_entries_list_cached"),
+                "entries$get should call kk_enum_make_entries_list_cached; callees: \(callees)")
     }
 
     // MARK: - STDLIB-023-03: entries count matches declared enum cases
@@ -120,7 +105,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Planet",
@@ -158,7 +143,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Season",
@@ -169,15 +154,18 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumEntriesOrder"
         )
 
+        let enumName = interner.intern("Season")
+        let classSuffix = NameMangler.enumClassNameSuffix(for: [interner.intern("test"), enumName], interner: interner)
+
         // Per-entry ordinal functions must return 0, 1, 2, 3 in declaration order.
         for (expectedOrdinal, name) in ["SPRING", "SUMMER", "AUTUMN", "WINTER"].enumerated() {
-            let fn = try findKIRFunction(named: "\(name)$enumOrdinal", in: module, interner: interner)
+            let fn = try findKIRFunction(named: "\(name)$enumOrdinal$\(classSuffix)", in: module, interner: interner)
             let consts = fn.body.compactMap { inst -> Int64? in
                 guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
                 return v
             }
             #expect(consts.contains(Int64(expectedOrdinal)),
-                    "\(name)$enumOrdinal should be \(expectedOrdinal); got: \(consts)")
+                    "\(name)$enumOrdinal$\(classSuffix) should be \(expectedOrdinal); got: \(consts)")
         }
     }
 
@@ -188,7 +176,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Empty",
@@ -212,8 +200,8 @@ extension LoweringPassRegressionTests {
         let callees = extractCallees(from: entriesFn.body, interner: interner)
         #expect(!callees.contains("kk_array_set"),
                 "Empty enum entries$get must not call kk_array_set; callees: \(callees)")
-        #expect(callees.contains("kk_enum_make_entries_list"),
-                "Empty enum entries$get must still call kk_enum_make_entries_list; callees: \(callees)")
+        #expect(callees.contains("kk_enum_make_entries_list_cached"),
+                "Empty enum entries$get must still call kk_enum_make_entries_list_cached; callees: \(callees)")
     }
 
     // MARK: - STDLIB-023-06: single-variant enum
@@ -223,7 +211,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Singleton",
@@ -234,6 +222,8 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumEntriesSingle"
         )
 
+        let singletonSuffix = NameMangler.enumClassNameSuffix(for: [interner.intern("test"), interner.intern("Singleton")], interner: interner)
+
         let countFn = try findKIRFunction(named: "Singleton$enumValuesCount", in: module, interner: interner)
         let countConsts = countFn.body.compactMap { inst -> Int64? in
             guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
@@ -241,20 +231,20 @@ extension LoweringPassRegressionTests {
         }
         #expect(countConsts.contains(1), "Single-variant enum count should be 1; got: \(countConsts)")
 
-        let ordinalFn = try findKIRFunction(named: "ONLY$enumOrdinal", in: module, interner: interner)
+        let ordinalFn = try findKIRFunction(named: "ONLY$enumOrdinal$\(singletonSuffix)", in: module, interner: interner)
         let ordinalConsts = ordinalFn.body.compactMap { inst -> Int64? in
             guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
             return v
         }
-        #expect(ordinalConsts.contains(0), "ONLY ordinal should be 0; got: \(ordinalConsts)")
+        #expect(ordinalConsts.contains(0), "ONLY$enumOrdinal$\(singletonSuffix) should be 0; got: \(ordinalConsts)")
 
-        let nameFn = try findKIRFunction(named: "ONLY$enumName", in: module, interner: interner)
+        let nameFn = try findKIRFunction(named: "ONLY$enumName$\(singletonSuffix)", in: module, interner: interner)
         let nameConsts = nameFn.body.compactMap { inst -> InternedString? in
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
             return s
         }
         #expect(nameConsts.contains(interner.intern("ONLY")),
-                "ONLY$enumName should return \"ONLY\"")
+                "ONLY$enumName$\(singletonSuffix) should return \"ONLY\"")
     }
 
     // MARK: - STDLIB-023-07: values() synthesized separately from entries$get
@@ -264,7 +254,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Side",
@@ -283,30 +273,30 @@ extension LoweringPassRegressionTests {
         #expect(functionNames.contains("entries$get"),
                 "entries$get must be synthesized; got: \(functionNames)")
 
-        // values() uses kk_enum_make_values_array; entries$get uses kk_enum_make_entries_list.
+        // values() uses kk_enum_make_values_array; entries$get uses kk_enum_make_entries_list_cached.
         let valuesFn = try findKIRFunction(named: "values", in: module, interner: interner)
         let valuesCallees = extractCallees(from: valuesFn.body, interner: interner)
         #expect(valuesCallees.contains("kk_enum_make_values_array"),
                 "values() should call kk_enum_make_values_array; callees: \(valuesCallees)")
-        #expect(!valuesCallees.contains("kk_enum_make_entries_list"),
-                "values() must NOT call kk_enum_make_entries_list; callees: \(valuesCallees)")
+        #expect(!valuesCallees.contains("kk_enum_make_entries_list_cached"),
+                "values() must NOT call kk_enum_make_entries_list_cached; callees: \(valuesCallees)")
 
         let entriesFn = try findKIRFunction(named: "entries$get", in: module, interner: interner)
         let entriesCallees = extractCallees(from: entriesFn.body, interner: interner)
-        #expect(entriesCallees.contains("kk_enum_make_entries_list"),
-                "entries$get should call kk_enum_make_entries_list; callees: \(entriesCallees)")
+        #expect(entriesCallees.contains("kk_enum_make_entries_list_cached"),
+                "entries$get should call kk_enum_make_entries_list_cached; callees: \(entriesCallees)")
         #expect(!entriesCallees.contains("kk_enum_make_values_array"),
                 "entries$get must NOT call kk_enum_make_values_array; callees: \(entriesCallees)")
     }
 
-    // MARK: - STDLIB-023-08: valueOf is synthesized and calls kk_string_equals_flat + kk_enum_valueOf_throw
+    // MARK: - STDLIB-023-08: valueOf is synthesized and calls __kk_string_equals_flat + kk_enum_valueOf_throw
 
     @Test
     func testEnumValueOfSynthesizedWithStringComparisonAndThrow() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Status",
@@ -320,8 +310,8 @@ extension LoweringPassRegressionTests {
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         let callees = extractCallees(from: valueOfFn.body, interner: interner)
 
-        #expect(callees.contains("kk_string_equals_flat"),
-                "valueOf should call kk_string_equals_flat; callees: \(callees)")
+        #expect(callees.contains("__kk_string_equals_flat"),
+                "valueOf should call __kk_string_equals_flat; callees: \(callees)")
         #expect(callees.contains("kk_enum_valueOf_throw"),
                 "valueOf should call kk_enum_valueOf_throw; callees: \(callees)")
     }
@@ -333,7 +323,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Coin",
@@ -361,7 +351,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let entryNames = ["ALPHA", "BETA", "GAMMA"]
         let (module, _, _) = try makeEnumModule(
@@ -373,26 +363,28 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumPerEntryHelpers"
         )
 
+        let greekSuffix = NameMangler.enumClassNameSuffix(for: [interner.intern("test"), interner.intern("Greek")], interner: interner)
+
         let functionNames = findAllKIRFunctions(in: module).map { fn in
             interner.resolve(fn.name)
         }
 
         for name in entryNames {
-            #expect(functionNames.contains("\(name)$enumOrdinal"),
-                    "Missing \(name)$enumOrdinal; got: \(functionNames)")
-            #expect(functionNames.contains("\(name)$enumName"),
-                    "Missing \(name)$enumName; got: \(functionNames)")
+            #expect(functionNames.contains("\(name)$enumOrdinal$\(greekSuffix)"),
+                    "Missing \(name)$enumOrdinal$\(greekSuffix); got: \(functionNames)")
+            #expect(functionNames.contains("\(name)$enumName$\(greekSuffix)"),
+                    "Missing \(name)$enumName$\(greekSuffix); got: \(functionNames)")
         }
 
         // Verify per-entry name strings are correct.
         for name in entryNames {
-            let nameFn = try findKIRFunction(named: "\(name)$enumName", in: module, interner: interner)
+            let nameFn = try findKIRFunction(named: "\(name)$enumName$\(greekSuffix)", in: module, interner: interner)
             let nameConsts = nameFn.body.compactMap { inst -> InternedString? in
                 guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
                 return s
             }
             #expect(nameConsts.contains(interner.intern(name)),
-                    "\(name)$enumName should return \"\(name)\"")
+                    "\(name)$enumName$\(greekSuffix) should return \"\(name)\"")
         }
     }
 
@@ -403,7 +395,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Fruit",
@@ -419,9 +411,9 @@ extension LoweringPassRegressionTests {
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
             return interner.resolve(s)
         }
-        // Kotlin error message format: "No enum constant Fruit.UNKNOWN"
-        #expect(stringLiterals.contains("Fruit."),
-                "valueOf should embed \"Fruit.\" prefix for error messages; got: \(stringLiterals)")
+        // Kotlin error message format: "No enum constant test.Fruit.UNKNOWN"
+        #expect(stringLiterals.contains("test.Fruit."),
+                "valueOf should embed \"test.Fruit.\" prefix for error messages; got: \(stringLiterals)")
     }
 
     // MARK: - STDLIB-023-12: entries$get takes no parameters (zero-param getter)
@@ -431,7 +423,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Flag",
@@ -466,10 +458,249 @@ extension LoweringPassRegressionTests {
             let body = try findKIRFunctionBody(named: "useEntries", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("kk_enum_make_entries_list"),
-                    "enumEntries<Color>() should call kk_enum_make_entries_list; callees: \(callees)")
+            #expect(callees.contains("kk_enum_make_entries_list_cached"),
+                    "enumEntries<Color>() should call kk_enum_make_entries_list_cached; callees: \(callees)")
             #expect(!callees.contains("kk_enum_make_values_array"),
                     "enumEntries<Color>() must not call kk_enum_make_values_array; callees: \(callees)")
+        }
+    }
+
+    // MARK: - STDLIB-023-13: `Direction.values()` (member-call-on-class-name
+    // syntax, not the top-level `enumValues<T>()`) resolves at Sema time and
+    // links to the exact same symbol as the KIR function synthesized by
+    // DataEnumSealedSynthesisPass. Before the fix, Sema had no symbol for
+    // `values()` at all ("Unresolved reference 'values'"); after registering
+    // one, a naive Lowering-side re-`.define()` would have minted a *second*
+    // disconnected SymbolID (functions may coexist as overloads), silently
+    // orphaning the call site from the synthesized body.
+
+    @Test
+    func testDirectEnumValuesCallLinksToSynthesizedFunction() throws {
+        let source = """
+        enum class Direction { NORTH, SOUTH, EAST, WEST }
+
+        fun main() {
+            val v = Direction.values()
+            println(v.size)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            #expect(!ctx.diagnostics.hasError,
+                    "Direction.values() should compile without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+            let module = try #require(ctx.kir)
+            let valuesFunction = try findKIRFunction(named: "values", in: module, interner: ctx.interner)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+            var foundValuesCall = false
+            var valuesCallSymbol: SymbolID?
+            for instruction in mainBody {
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "values"
+                else { continue }
+                foundValuesCall = true
+                valuesCallSymbol = symbol
+                break
+            }
+
+            #expect(foundValuesCall, "main() should contain a call to `values`")
+            #expect(
+                valuesCallSymbol == valuesFunction.symbol,
+                """
+                Direction.values() call site must resolve to the same symbol as the synthesized \
+                `values` KIR function, otherwise the call is bound but silently unlinked at codegen
+                """
+            )
+        }
+    }
+
+    // MARK: - STDLIB-023-14: `Direction.entries.forEach { }` / `.size` resolve.
+    // Before the fix, `EnumEntries<T>` had no registered supertype at all, so
+    // neither ordinary member-call resolution nor the collection member-call
+    // fallback could discover List's members (forEach, size, ...) on an
+    // EnumEntries-typed receiver ("Unresolved member function").
+    //
+    // Note on scope: this test only runs the pipeline through Lowering (no
+    // Codegen/Link), so it verifies Sema resolution + KIR synthesis linkage
+    // only. End-to-end runtime coverage for enum-typed collection-HOF lambda
+    // parameters, including constructor-property reads such as `d.name` or
+    // `d.rgb`, lives in `CodegenBackendEnumEdgeCoverageTests`.
+    @Test
+    func testDirectionEntriesForEachAndSizeResolveWithoutDiagnostics() throws {
+        let source = """
+        enum class Direction { NORTH, SOUTH, EAST, WEST }
+
+        fun main() {
+            Direction.entries.forEach { d -> println(d.name) }
+            println(Direction.entries.size)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            #expect(!ctx.diagnostics.hasError,
+                    "Direction.entries.forEach{}/.size should compile without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            // `main()` calls the `entries$get` accessor directly (once for the
+            // forEach receiver, once for .size's receiver); `entries$get`'s own
+            // body is what calls kk_enum_make_entries_list_cached (already covered by
+            // testEnumEntriesGetterBodyUsesCorrectRuntimeCalls above), so it does
+            // not appear in main's own callee list.
+            #expect(callees.contains("entries$get"),
+                    "Direction.entries should call the entries$get accessor; callees: \(callees)")
+            #expect(callees.contains("kk_list_forEach"),
+                    "Direction.entries.forEach should dispatch to the real List forEach runtime; callees: \(callees)")
+            #expect(callees.contains("__kk_list_size"),
+                    "Direction.entries.size should dispatch to the real List size runtime; callees: \(callees)")
+        }
+    }
+
+    // MARK: - BUG-178: `Direction.entries[i]` / `enumEntries<T>()[i]` must
+    // dispatch to the List `get` runtime. `EnumEntries<T>` is backed by a
+    // `RuntimeListBox` (`kk_enum_make_entries_list_cached`), but while the interface
+    // had no owned `get` operator, its `List<T>` supertype alone did not make
+    // synthetic member lookup find `List.get`. The indexing operator therefore
+    // fell back to the array bridge `kk_array_get`, which read the list handle
+    // as a `RuntimeArrayBox`, threw ArrayIndexOutOfBounds and aborted the
+    // program with `KSWIFTK-LINK-0003: Unhandled top-level exception`.
+    @Test
+    func testEnumEntriesIndexAccessUsesListGetNotArrayGet() throws {
+        let source = """
+        enum class Direction { NORTH, SOUTH, EAST, WEST }
+
+        fun main() {
+            println(Direction.entries[0])
+            println(enumEntries<Direction>()[1])
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            #expect(!ctx.diagnostics.hasError,
+                    "entries[0]/enumEntries<T>()[1] should compile without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(callees.contains("__kk_enum_entries_get"),
+                    "EnumEntries indexing should dispatch to the List get runtime; callees: \(callees)")
+            #expect(!callees.contains("kk_array_get"),
+                    "EnumEntries indexing must not fall back to the array bridge; callees: \(callees)")
+        }
+    }
+
+    // MARK: - STDLIB-023-15: `Outer.Direction.values()`, a nested enum class
+    // accessed through a class-name-receiver qualifier chain, resolves at Sema
+    // time and links to the exact same symbol as the KIR function synthesized
+    // by DataEnumSealedSynthesisPass -- mirroring
+    // testDirectEnumValuesCallLinksToSynthesizedFunction above, but with the
+    // added nesting hop that exposed a KIR-lowering bug:
+    // `tryLowerClassNameMemberValueExpr` (CallLowerer+MemberPropertyReads.swift)
+    // only special-cased class-name-receiver members of kind .property/.field/
+    // .object, so a *further* nested-type qualifier segment like the `Direction`
+    // in `Outer.Direction.values()` (kind .enumClass) fell through to a generic
+    // fallback that lowered the `Outer.Direction` receiver as if it needed a
+    // runtime value, emitting an unresolved 0-arg call literally named
+    // "Direction" -- undefined at link time, since no such accessor exists for
+    // a plain (non-object) nested class.
+
+    @Test
+    func testNestedEnumValuesCallLinksToSynthesizedFunctionWithoutSpuriousReceiverCall() throws {
+        let source = """
+        class Outer {
+            enum class Direction { NORTH, SOUTH, EAST, WEST }
+        }
+
+        fun main() {
+            val v = Outer.Direction.values()
+            println(v.size)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            #expect(!ctx.diagnostics.hasError,
+                    "Outer.Direction.values() should compile without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+            let module = try #require(ctx.kir)
+            let valuesFunction = try findKIRFunction(named: "values", in: module, interner: ctx.interner)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+            var foundValuesCall = false
+            var valuesCallSymbol: SymbolID?
+            for instruction in mainBody {
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "values"
+                else { continue }
+                foundValuesCall = true
+                valuesCallSymbol = symbol
+                break
+            }
+
+            #expect(foundValuesCall, "main() should contain a call to `values`")
+            #expect(
+                valuesCallSymbol == valuesFunction.symbol,
+                """
+                Outer.Direction.values() call site must resolve to the same symbol as the synthesized \
+                `values` KIR function, otherwise the call is bound but silently unlinked at codegen
+                """
+            )
+
+            let spuriousReceiverCalls = mainBody.filter { instruction in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
+                return symbol == nil && ctx.interner.resolve(callee) == "Direction"
+            }
+            #expect(spuriousReceiverCalls.isEmpty,
+                    "main() must not call the nested enum class's bare short name as if it were a 0-arg accessor; found: \(spuriousReceiverCalls)")
+        }
+    }
+
+    // MARK: - STDLIB-023-16: `Outer.Direction.entries.forEach { }` / `.size`
+    // resolve for a nested enum class, mirroring
+    // testDirectionEntriesForEachAndSizeResolveWithoutDiagnostics above. This
+    // remains a Lowering-only test (no Codegen/Link); runtime normalization of
+    // enum-typed HOF lambda parameters is covered by the backend regression
+    // suite.
+    @Test
+    func testNestedEnumEntriesForEachAndSizeResolveWithoutDiagnostics() throws {
+        let source = """
+        class Outer {
+            enum class Direction { NORTH, SOUTH, EAST, WEST }
+        }
+
+        fun main() {
+            Outer.Direction.entries.forEach { d -> println(d.name) }
+            println(Outer.Direction.entries.size)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            #expect(!ctx.diagnostics.hasError,
+                    "Outer.Direction.entries.forEach{}/.size should compile without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(callees.contains("entries$get"),
+                    "Outer.Direction.entries should call the entries$get accessor; callees: \(callees)")
+            #expect(callees.contains("kk_list_forEach"),
+                    "Outer.Direction.entries.forEach should dispatch to the real List forEach runtime; callees: \(callees)")
+            #expect(callees.contains("__kk_list_size"),
+                    "Outer.Direction.entries.size should dispatch to the real List size runtime; callees: \(callees)")
         }
     }
 }

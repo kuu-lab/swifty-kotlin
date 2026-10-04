@@ -2,11 +2,12 @@
 import Testing
 
 /// STDLIB-SEQ-FN-042: Validates that `Sequence<T>.fold(initial: R, operation: (R, T) -> R): R`
-/// resolves via the synthetic Sema member stub and links to the
-/// `kk_sequence_fold` runtime entry point.
+/// resolves via the source-backed Sequence aggregate HOF implementation.
+/// KSP-1346: Sequence.fold is implemented in the canonical kotlin.sequences
+/// source file, so there is no synthetic `kk_sequence_fold` runtime stub.
 @Suite
 struct SequenceFoldFunctionTests {
-    @Test func testSequenceFoldResolvesToRuntimeABIWithMatchingResultType() throws {
+    @Test func testSequenceFoldResolvesToCanonicalSource() throws {
         let ctx = makeContextFromSource("""
         fun sumValues(values: Sequence<Int>): Int {
             return values.fold(0) { acc, value -> acc + value }
@@ -32,15 +33,16 @@ struct SequenceFoldFunctionTests {
             return ctx.interner.resolve(callee) == "fold"
         }, "Expected fold member call")
 
-        let memberFQName = [
-            "kotlin", "sequences", "Sequence", "fold",
-        ].map(ctx.interner.intern)
-        let foldMembers = sema.symbols.lookupAll(fqName: memberFQName)
+        let binding = try #require(sema.bindings.callBinding(for: callExprID))
+        let chosenCallee = try #require(binding.chosenCallee)
+        let fqName = try #require(sema.symbols.symbol(chosenCallee)?.fqName)
+            .map { ctx.interner.resolve($0) }
+        #expect(fqName == ["kotlin", "sequences", "fold"])
         #expect(
-            foldMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_fold" },
-            "Expected Sequence.fold synthetic member to link to kk_sequence_fold"
+            sema.symbols.symbol(chosenCallee)?.declSite != nil,
+            "Expected Sequence.fold call to resolve to the source-backed extension"
         )
-
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         #expect(sema.bindings.exprType(for: callExprID) == sema.types.intType)
     }
 }

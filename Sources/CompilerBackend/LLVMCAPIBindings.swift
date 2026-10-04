@@ -15,12 +15,23 @@ final class LLVMCAPIBindings {
     typealias LLVMTargetRef = OpaquePointer
     typealias LLVMTargetMachineRef = OpaquePointer
     typealias LLVMTargetDataRef = OpaquePointer
+    typealias LLVMPassBuilderOptionsRef = OpaquePointer
+    typealias LLVMErrorRef = OpaquePointer
+    typealias LLVMRunPassesFn = @convention(c) (
+        LLVMModuleRef?, UnsafePointer<CChar>?, LLVMTargetMachineRef?, LLVMPassBuilderOptionsRef?
+    ) -> LLVMErrorRef?
+    typealias LLVMCreatePassBuilderOptionsFn = @convention(c) () -> LLVMPassBuilderOptionsRef?
+    typealias LLVMDisposePassBuilderOptionsFn = @convention(c) (LLVMPassBuilderOptionsRef?) -> Void
+    typealias LLVMGetErrorMessageFn = @convention(c) (LLVMErrorRef?) -> UnsafeMutablePointer<CChar>?
+    typealias LLVMDisposeErrorMessageFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
+    typealias LLVMVerifyModuleFn = @convention(c) (
+        LLVMModuleRef?, UInt32, UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+    ) -> Int32
     typealias LLVMBool = Int32
     typealias LLVMContextCreateFn = @convention(c) () -> LLVMContextRef?
     typealias LLVMContextDisposeFn = @convention(c) (LLVMContextRef?) -> Void
     typealias LLVMModuleCreateWithNameInContextFn = @convention(c) (UnsafePointer<CChar>?, LLVMContextRef?) -> LLVMModuleRef?
     typealias LLVMDisposeModuleFn = @convention(c) (LLVMModuleRef?) -> Void
-    typealias LLVMLinkModules2Fn = @convention(c) (LLVMModuleRef?, LLVMModuleRef?) -> LLVMBool
     typealias LLVMPrintModuleToStringFn = @convention(c) (LLVMModuleRef?) -> UnsafeMutablePointer<CChar>?
     typealias LLVMDisposeMessageFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
     typealias LLVMSetTargetFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
@@ -44,6 +55,8 @@ final class LLVMCAPIBindings {
     typealias LLVMCreateBuilderInContextFn = @convention(c) (LLVMContextRef?) -> LLVMBuilderRef?
     typealias LLVMDisposeBuilderFn = @convention(c) (LLVMBuilderRef?) -> Void
     typealias LLVMPositionBuilderAtEndFn = @convention(c) (LLVMBuilderRef?, LLVMBasicBlockRef?) -> Void
+    typealias LLVMPositionBuilderBeforeFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?) -> Void
+    typealias LLVMGetFirstInstructionFn = @convention(c) (LLVMBasicBlockRef?) -> LLVMValueRef?
     typealias LLVMGetBasicBlockTerminatorFn = @convention(c) (LLVMBasicBlockRef?) -> LLVMValueRef?
     typealias LLVMBuildRetFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?) -> LLVMValueRef?
     typealias LLVMBuildBrFn = @convention(c) (LLVMBuilderRef?, LLVMBasicBlockRef?) -> LLVMValueRef?
@@ -238,8 +251,13 @@ final class LLVMCAPIBindings {
         LLVMDIBuilderRef?,
         UnsafeMutablePointer<UInt64>?, Int
     ) -> LLVMMetadataRef?
-    let linkModules2Fn: LLVMLinkModules2Fn?
     private let handle: UnsafeMutableRawPointer
+    let runPassesFn: LLVMRunPassesFn?
+    let createPassBuilderOptionsFn: LLVMCreatePassBuilderOptionsFn?
+    let disposePassBuilderOptionsFn: LLVMDisposePassBuilderOptionsFn?
+    let getErrorMessageFn: LLVMGetErrorMessageFn?
+    let disposeErrorMessageFn: LLVMDisposeErrorMessageFn?
+    let verifyModuleFn: LLVMVerifyModuleFn?
     let contextCreateFn: LLVMContextCreateFn
     let contextDisposeFn: LLVMContextDisposeFn
     let moduleCreateFn: LLVMModuleCreateWithNameInContextFn
@@ -324,6 +342,8 @@ final class LLVMCAPIBindings {
     let initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?
     let addGlobalFn: LLVMAddGlobalFn?
     let setInitializerFn: LLVMSetInitializerFn?
+    let positionBuilderBeforeFn: LLVMPositionBuilderBeforeFn?
+    let getFirstInstructionFn: LLVMGetFirstInstructionFn?
     let createDIBuilderFn: LLVMCreateDIBuilderFn?
     let disposeDIBuilderFn: LLVMDisposeDIBuilderFn?
     let diBuilderFinalizeFn: LLVMDIBuilderFinalizeFn?
@@ -344,6 +364,12 @@ final class LLVMCAPIBindings {
     let diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn?
     init(
         handle: UnsafeMutableRawPointer,
+        runPassesFn: LLVMRunPassesFn? = nil,
+        createPassBuilderOptionsFn: LLVMCreatePassBuilderOptionsFn? = nil,
+        disposePassBuilderOptionsFn: LLVMDisposePassBuilderOptionsFn? = nil,
+        getErrorMessageFn: LLVMGetErrorMessageFn? = nil,
+        disposeErrorMessageFn: LLVMDisposeErrorMessageFn? = nil,
+        verifyModuleFn: LLVMVerifyModuleFn? = nil,
         contextCreateFn: @escaping LLVMContextCreateFn,
         contextDisposeFn: @escaping LLVMContextDisposeFn,
         moduleCreateFn: @escaping LLVMModuleCreateWithNameInContextFn,
@@ -428,6 +454,8 @@ final class LLVMCAPIBindings {
         initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?,
         addGlobalFn: LLVMAddGlobalFn? = nil,
         setInitializerFn: LLVMSetInitializerFn? = nil,
+        positionBuilderBeforeFn: LLVMPositionBuilderBeforeFn? = nil,
+        getFirstInstructionFn: LLVMGetFirstInstructionFn? = nil,
         createDIBuilderFn: LLVMCreateDIBuilderFn?,
         disposeDIBuilderFn: LLVMDisposeDIBuilderFn?,
         diBuilderFinalizeFn: LLVMDIBuilderFinalizeFn?,
@@ -445,10 +473,15 @@ final class LLVMCAPIBindings {
         diBuilderCreateParameterVariableFn: LLVMDIBuilderCreateParameterVariableFn? = nil,
         diBuilderCreateAutoVariableFn: LLVMDIBuilderCreateAutoVariableFn? = nil,
         diBuilderInsertDeclareAtEndFn: LLVMDIBuilderInsertDeclareAtEndFn? = nil,
-        diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn? = nil,
-        linkModules2Fn: LLVMLinkModules2Fn? = nil
+        diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn? = nil
     ) {
         self.handle = handle
+        self.runPassesFn = runPassesFn
+        self.createPassBuilderOptionsFn = createPassBuilderOptionsFn
+        self.disposePassBuilderOptionsFn = disposePassBuilderOptionsFn
+        self.getErrorMessageFn = getErrorMessageFn
+        self.disposeErrorMessageFn = disposeErrorMessageFn
+        self.verifyModuleFn = verifyModuleFn
         self.contextCreateFn = contextCreateFn
         self.contextDisposeFn = contextDisposeFn
         self.moduleCreateFn = moduleCreateFn
@@ -533,6 +566,8 @@ final class LLVMCAPIBindings {
         self.initializeAArch64AsmPrinterFn = initializeAArch64AsmPrinterFn
         self.addGlobalFn = addGlobalFn
         self.setInitializerFn = setInitializerFn
+        self.positionBuilderBeforeFn = positionBuilderBeforeFn
+        self.getFirstInstructionFn = getFirstInstructionFn
         self.createDIBuilderFn = createDIBuilderFn
         self.disposeDIBuilderFn = disposeDIBuilderFn
         self.diBuilderFinalizeFn = diBuilderFinalizeFn
@@ -551,7 +586,6 @@ final class LLVMCAPIBindings {
         self.diBuilderCreateAutoVariableFn = diBuilderCreateAutoVariableFn
         self.diBuilderInsertDeclareAtEndFn = diBuilderInsertDeclareAtEndFn
         self.diBuilderCreateExpressionFn = diBuilderCreateExpressionFn
-        self.linkModules2Fn = linkModules2Fn
     }
 
     deinit {

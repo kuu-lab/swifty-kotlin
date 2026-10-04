@@ -10,8 +10,32 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        guard sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor,
-              args.count == 1 || args.count == 2
+        // Bundled source bodies are omitted from regular `kirDump`/library
+        // output, so a source-backed primitive-array initializer can reach
+        // this lowerer without a body to inline. Preserve its Sema binding
+        // while reusing the compiler-provided array allocation and loop path.
+        let isSourceBackedArrayInitializer: Bool = {
+            guard args.count == 2,
+                  sema.bindings.stdlibSpecialCallKind(for: exprID) == nil,
+                  let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                  let symbol = sema.symbols.symbol(chosen),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(chosen),
+                  symbol.fqName.count == 2,
+                  symbol.fqName[0] == interner.intern("kotlin"),
+                  let signature = sema.symbols.functionSignature(for: chosen),
+                  signature.receiverType == nil,
+                  signature.parameterTypes.count == args.count
+            else {
+                return false
+            }
+            let knownNames = KnownCompilerNames(interner: interner)
+            return knownNames.isPrimitiveArrayConstructorTypeName(symbol.name)
+                && ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(signature.returnType)
+        }()
+        guard (sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor
+            || isSourceBackedArrayInitializer),
+            args.count == 1 || args.count == 2
         else {
             return nil
         }
@@ -20,6 +44,12 @@ extension CallLowerer {
         let boolType = sema.types.booleanType
         let anyType = sema.types.anyType
         let arrayNewCallee = interner.intern("kk_array_new_checked")
+        let arrayTypeID = [
+            sema.bindings.exprTypes[exprID],
+            sema.bindings.callBinding(for: exprID)
+                .flatMap { $0.chosenCallee }
+                .flatMap { sema.symbols.functionSignature(for: $0)?.returnType },
+        ].compactMap { runtimeArrayNominalTypeID($0, sema: sema, interner: interner) }.first
 
         // 1. Lower the size argument
         let sizeExpr = driver.lowerExpr(
@@ -35,7 +65,7 @@ extension CallLowerer {
         // 2. Create the array: kk_array_new_checked(size) — throws
         // NegativeArraySizeException for negative sizes instead of silently
         // clamping to an empty array.
-        let arrayExpr = arena.appendTemporary(type: anyType)
+        var arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
             callee: arrayNewCallee,
@@ -44,6 +74,20 @@ extension CallLowerer {
             canThrow: true,
             thrownResult: nil
         ))
+        if let arrayTypeID {
+            let typeIDExpr = arena.appendExpr(.intLiteral(arrayTypeID), type: intType)
+            instructions.append(.constValue(result: typeIDExpr, value: .intLiteral(arrayTypeID)))
+            let taggedArrayExpr = arena.appendTemporary(type: anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_tag_type"),
+                arguments: [arrayExpr, typeIDExpr],
+                result: taggedArrayExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            arrayExpr = taggedArrayExpr
+        }
 
         // Size-only primitive array constructor (e.g. ByteArray(8)): kk_array_new_checked
         // already zero-fills every slot (RuntimeValue(raw: 0)), which matches

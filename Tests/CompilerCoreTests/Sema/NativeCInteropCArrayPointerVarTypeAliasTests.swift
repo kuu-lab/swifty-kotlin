@@ -4,10 +4,21 @@ import Testing
 
 @Suite
 struct NativeCInteropCArrayPointerVarTypeAliasTests {
-    @Test func testCArrayPointerVarTypeAliasSurface() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
+    @Test func testCArrayPointerVar() throws {
+        let source = """
+        import kotlinx.cinterop.CArrayPointerVar
+        import kotlinx.cinterop.CPointed
+
+        fun pass(value: CArrayPointerVar<CPointed>): CArrayPointerVar<CPointed> {
+            return value
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        #expect(!(ctx.diagnostics.hasError), "Expected CArrayPointerVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+
+        #expect(!(ctx.diagnostics.hasError), "Expected CArrayPointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
+
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPackage = ["kotlinx", "cinterop"].map { interner.intern($0) }
@@ -27,24 +38,10 @@ struct NativeCInteropCArrayPointerVarTypeAliasTests {
             args: [.invariant(typeParameterType)],
             nullability: .nonNull
         )))
-
         #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
         #expect(sema.symbols.symbol(typeParameter)?.name == interner.intern("T"))
         #expect(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) == expectedUnderlying)
     }
 
-    @Test func testCArrayPointerVarResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.CArrayPointerVar
-        import kotlinx.cinterop.CPointed
-
-        fun pass(value: CArrayPointerVar<CPointed>): CArrayPointerVar<CPointed> {
-            return value
-        }
-        """)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.hasError), "Expected CArrayPointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
-    }
 }
 #endif

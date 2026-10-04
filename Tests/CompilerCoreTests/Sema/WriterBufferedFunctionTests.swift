@@ -6,26 +6,27 @@ import Testing
 /// Verifies STDLIB-IO-FN-006 — the synthetic Sema stub registers both the
 /// no-argument and bufferSize overloads, resolves them on `java.io.Writer`,
 /// returns `java.io.BufferedWriter`, and binds them to the documented
-/// `kk_writer_buffered_default` / `kk_writer_buffered` runtime symbols.
+/// `__kk_writer_buffered_default` / `__kk_writer_buffered` runtime symbols.
 @Suite
 struct WriterBufferedFunctionTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Writer.buffered surface should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+    private static let fixture = SemaFixture(surface: "Writer.buffered")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test
     func testWriterBufferedFunctionsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let writerSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("java"),
             interner.intern("io"),
@@ -59,7 +60,7 @@ struct WriterBufferedFunctionTests {
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == bufferedWriterType
         })
-        #expect(sema.symbols.externalLinkName(for: defaultOverload) == "kk_writer_buffered_default")
+        #expect(sema.symbols.externalLinkName(for: defaultOverload) == "__kk_writer_buffered_default")
 
         let bufferSizeOverload = try #require(functions.first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
@@ -67,7 +68,7 @@ struct WriterBufferedFunctionTests {
                 && signature.parameterTypes == [sema.types.intType]
                 && signature.returnType == bufferedWriterType
         })
-        #expect(sema.symbols.externalLinkName(for: bufferSizeOverload) == "kk_writer_buffered")
+        #expect(sema.symbols.externalLinkName(for: bufferSizeOverload) == "__kk_writer_buffered")
     }
 
     @Test
@@ -86,7 +87,7 @@ struct WriterBufferedFunctionTests {
 
     @Test
     func testBufferedWriterIsRecognizedAsWriterSubtype() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let writerSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("java"),
             interner.intern("io"),

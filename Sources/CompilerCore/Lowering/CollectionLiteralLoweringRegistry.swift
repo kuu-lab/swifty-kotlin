@@ -12,10 +12,27 @@ struct CollectionLiteralLookupRegistry {
 
 final class CollectionLiteralConstructionLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionLiteralConstructionLowering"
+
+    /// Shared with `CollectionVirtualCallRewriteLoweringPass` so direct and
+    /// virtual dispatch apply the same source-backed preservation rule.
+    let sourceBackedPreservation: SourceBackedCallPreservationPolicy
+
+    init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
+        self.sourceBackedPreservation = sourceBackedPreservation
+        super.init()
+    }
 }
 
 final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionVirtualCallRewrite"
+
+    /// See `CollectionLiteralConstructionLoweringPass.sourceBackedPreservation`.
+    let sourceBackedPreservation: SourceBackedCallPreservationPolicy
+
+    init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
+        self.sourceBackedPreservation = sourceBackedPreservation
+        super.init()
+    }
 
     func lowerVirtualCallInstruction(
         symbol: SymbolID?,
@@ -30,7 +47,7 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         rewriteVirtualCallInstruction(
             symbol: symbol,
@@ -47,17 +64,7 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
                 sema: ctx.sema,
                 interner: ctx.interner
             ),
-            listExprIDs: &state.listExprIDs,
-            setExprIDs: &state.setExprIDs,
-            mapExprIDs: &state.mapExprIDs,
-            arrayExprIDs: &state.arrayExprIDs,
-            sequenceExprIDs: &state.sequenceExprIDs,
-            rangeExprIDs: &state.rangeExprIDs,
-            charRangeExprIDs: &state.charRangeExprIDs,
-            ulongRangeExprIDs: &state.ulongRangeExprIDs,
-            fileExprIDs: &state.fileExprIDs,
-            pathExprIDs: &state.pathExprIDs,
-            indexingIterableExprIDs: &state.indexingIterableExprIDs,
+            state: &state,
             loweredBody: &loweredBody
         )
     }
@@ -70,8 +77,13 @@ struct CollectionLiteralLoweringRegistry {
 
     init(interner: StringInterner) {
         lookupRegistry = CollectionLiteralLookupRegistry(interner: interner)
-        constructionPass = CollectionLiteralConstructionLoweringPass()
-        virtualCallRewritePass = CollectionVirtualCallRewriteLoweringPass()
+        let sourceBackedPreservation = SourceBackedCallPreservationPolicy()
+        constructionPass = CollectionLiteralConstructionLoweringPass(
+            sourceBackedPreservation: sourceBackedPreservation
+        )
+        virtualCallRewritePass = CollectionVirtualCallRewriteLoweringPass(
+            sourceBackedPreservation: sourceBackedPreservation
+        )
     }
 
     var componentNames: [String] {
@@ -84,11 +96,6 @@ struct CollectionLiteralLoweringRegistry {
 
     func run(module: KIRModule, ctx: KIRContext, recordAs loweringName: String) throws {
         let lookup = lookupRegistry.tables
-        let builderLambdaKinds = constructionPass.collectBuilderLambdaKinds(
-            module: module,
-            lookup: lookup,
-            ctx: ctx
-        )
 
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated = function
@@ -99,24 +106,16 @@ struct CollectionLiteralLoweringRegistry {
                 lookup: lookup,
                 arena: module.arena,
                 sema: ctx.sema,
-                interner: ctx.interner,
-                listExprIDs: &state.listExprIDs,
-                setExprIDs: &state.setExprIDs,
-                mapExprIDs: &state.mapExprIDs,
-                arrayExprIDs: &state.arrayExprIDs,
-                sequenceExprIDs: &state.sequenceExprIDs,
-                rangeExprIDs: &state.rangeExprIDs,
-                charRangeExprIDs: &state.charRangeExprIDs,
-                ulongRangeExprIDs: &state.ulongRangeExprIDs,
-                stringExprIDs: &state.stringExprIDs,
-                fileExprIDs: &state.fileExprIDs,
-                pathExprIDs: &state.pathExprIDs
+                state: &state
             )
 
-            var loweredBody: [KIRInstruction] = []
-            loweredBody.reserveCapacity(function.body.count + 32)
+            var loweredBody = KIRLoweringEmitContext()
+            loweredBody.instructions.reserveCapacity(function.body.count + 32)
 
-            for instruction in function.body {
+            for (index, instruction) in function.body.enumerated() {
+                loweredBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 switch instruction {
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, _, _):
                     constructionPass.lowerCallInstruction(
@@ -128,7 +127,6 @@ struct CollectionLiteralLoweringRegistry {
                         canThrow: canThrow,
                         thrownResult: thrownResult,
                         function: function,
-                        builderLambdaKinds: builderLambdaKinds,
                         module: module,
                         ctx: ctx,
                         lookup: lookup,

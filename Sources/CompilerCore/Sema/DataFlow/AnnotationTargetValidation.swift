@@ -28,7 +28,8 @@ extension DataFlowSemaPhase {
                     bindings: bindings,
                     diagnostics: diagnostics,
                     interner: interner,
-                    filesByID: filesByID
+                    filesByID: filesByID,
+                    isTopLevel: true
                 )
             }
         }
@@ -69,7 +70,8 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        filesByID: [Int32: ASTFile]
+        filesByID: [Int32: ASTFile],
+        isTopLevel: Bool = false
     ) {
         guard let decl = ast.arena.decl(declID) else {
             return
@@ -91,7 +93,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 diagnostics: diagnostics,
                 interner: interner,
-                filesByID: filesByID
+                filesByID: filesByID,
+                isTopLevel: isTopLevel
             )
         }
 
@@ -322,7 +325,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        filesByID: [Int32: ASTFile]
+        filesByID: [Int32: ASTFile],
+        isTopLevel: Bool = false
     ) {
         guard let annotationSymbolID = resolveAnnotationSymbol(
             named: annotation.name,
@@ -360,6 +364,35 @@ extension DataFlowSemaPhase {
                 range: ownerRange
             )
             return
+        }
+
+        let expectRefinementFQName = ["kotlin", "experimental", "ExpectRefinement"].map {
+            interner.intern($0)
+        }
+        if annotationSymbol.fqName == expectRefinementFQName,
+           !isTopLevel || !isExpectDeclaration(decl)
+        {
+            diagnostics.error(
+                "KSWIFTK-SEMA-EXPECT-REFINEMENT",
+                "Only top-level 'expect' declarations can be annotated with '@ExpectRefinement'.",
+                range: ownerRange
+            )
+        }
+    }
+
+    private func isExpectDeclaration(_ decl: Decl?) -> Bool {
+        guard let decl else {
+            return false
+        }
+        switch decl {
+        case let .classDecl(classDecl):
+            return classDecl.modifiers.contains(.expect)
+        case let .interfaceDecl(interfaceDecl):
+            return interfaceDecl.modifiers.contains(.expect)
+        case let .objectDecl(objectDecl):
+            return objectDecl.modifiers.contains(.expect)
+        default:
+            return false
         }
     }
 

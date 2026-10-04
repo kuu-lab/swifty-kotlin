@@ -30,22 +30,27 @@ extension CallTypeChecker {
             return result
         }
 
+        if let result = tryInferFQNQualifiedValue(request, locals: locals) {
+            return result
+        }
+
         if let result = tryInferFQNPackageTopLevelCall(request, locals: &locals) {
             return result
         }
 
         let receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
-        let recoveredReceiverType = recoveredMemberCallReceiverType(
-            receiverID: receiverID,
-            receiverType: receiverType,
-            ctx: ctx,
-            locals: locals
-        )
-
+        // The invalid super receiver already emitted its own diagnostic.
+        // Resolving a member on the error type can introduce unrelated
+        // extension candidates and produce a misleading overload error.
+        if receiverType == ctx.sema.types.errorType,
+           case .superRef = ctx.ast.arena.expr(receiverID)
+        {
+            ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.errorType)
+            return ctx.sema.types.errorType
+        }
         if let result = tryInferMemberCallEarlyReceiverSpecials(
             request,
             receiverType: receiverType,
-            recoveredReceiverType: recoveredReceiverType,
             locals: &locals
         ) {
             return result

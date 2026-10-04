@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "experimental_markers_context_parameters_message.kt",
+      "range": {
+        "start": { "line": 9, "character": 30 },
+        "end": { "line": 9, "character": 48 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OPT-IN",
+      "source": "kswiftk",
+      "message": "'kotlin.ExperimentalContextParameters' requires opt-in. Annotate the usage with '@kotlin.ExperimentalContextParameters' or '@OptIn(kotlin.ExperimentalContextParameters::class)'. The API is related to the experimental feature \"context parameters\" (see KEEP-367) and may be changed or removed in any future release.",
+      "codeActions": []
+    }
+  ]
+}

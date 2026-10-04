@@ -37,13 +37,14 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Byte and Short are erased to Int in Sema, so the signed until matrix
-        // only needs the Int/Long combinations that remain distinguishable.
+        // KSP-456: bundled Kotlin sources provide class-returning `until` extensions.
+        // The signed `until` matrix here is only a primitive-return fallback; skip
+        // any receiver type already covered by bundled source.
         registerSyntheticRangeUntilFunction(
             receiverType: types.intType,
             parameterType: types.intType,
             returnType: types.intType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -53,7 +54,7 @@ extension DataFlowSemaPhase {
             receiverType: types.intType,
             parameterType: types.longType,
             returnType: types.longType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -63,7 +64,7 @@ extension DataFlowSemaPhase {
             receiverType: types.longType,
             parameterType: types.intType,
             returnType: types.longType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -73,7 +74,7 @@ extension DataFlowSemaPhase {
             receiverType: types.longType,
             parameterType: types.longType,
             returnType: types.longType,
-            externalLinkName: "kk_op_rangeUntil",
+            externalLinkName: "__kk_op_rangeUntil",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -91,16 +92,27 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
+        guard let types = BundledSyntheticStubRegistration.types else {
+            return
+        }
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
         let functionName = interner.intern("until")
         let functionFQName = rangesFQName + [functionName]
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes == [parameterType]
-                && signature.returnType == returnType
-        }) {
+
+        // KSP-456: bundled Kotlin sources provide class-returning `until` extensions.
+        // Skip the synthetic primitive-return stub for any receiver type already
+        // covered by bundled source.
+        if let owner = BundledDeclarationIndex.receiverOwnerFQName(
+            for: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ), shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: owner,
+            name: functionName,
+            arity: 1
+        ) {
             return
         }
 

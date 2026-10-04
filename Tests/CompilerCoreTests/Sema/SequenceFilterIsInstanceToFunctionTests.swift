@@ -3,9 +3,7 @@ import Foundation
 import Testing
 
 /// STDLIB-SEQ-FN-027: Validates that `Sequence<*>.filterIsInstanceTo<R>` resolves through Sema
-/// to the runtime ABI entry point (`kk_sequence_filterIsInstanceTo`). The destination-argument
-/// HOF appends elements matching the given runtime type to the supplied mutable collection
-/// and returns the destination.
+/// to the bundled Kotlin source implementation.
 @Suite
 struct SequenceFilterIsInstanceToFunctionTests {
     @Test func testSequenceFilterIsInstanceToResolvesInSource() throws {
@@ -27,14 +25,12 @@ struct SequenceFilterIsInstanceToFunctionTests {
             )
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "filterIsInstanceTo"]
+            let memberFQName = ["kotlin", "sequences", "filterIsInstanceTo"]
                 .map(ctx.interner.intern)
             let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
 
-            #expect(
-                sequenceMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_filterIsInstanceTo" },
-                "Expected Sequence.filterIsInstanceTo synthetic member to link to kk_sequence_filterIsInstanceTo"
-            )
+            #expect(sequenceMembers.contains { sema.symbols.isSourceBackedSymbol($0) })
+            #expect(sequenceMembers.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 }

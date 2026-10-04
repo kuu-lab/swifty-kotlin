@@ -6,8 +6,9 @@ import Testing
 /// STDLIB-TEXT-PROP-022: Validates that `Char.uppercase()` resolves through Sema
 /// across its public surface: the no-arg overload returning `String`, the
 /// `Locale`-aware overload, and the related `uppercaseChar()` returning `Char`.
-/// Runtime link names involved: `kk_char_uppercase`, `kk_char_uppercase_locale`,
-/// `kk_char_uppercaseChar`.
+/// Since KSP-662 these are implemented by bundled Kotlin
+/// (kotlin.text.CharConversions); only locale conversion crosses the
+/// `__kk_char_uppercase_locale` bridge.
 @Suite
 struct CharUppercaseFunctionTests {
     @Test func testCharUppercaseResolvesInSource() throws {

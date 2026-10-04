@@ -35,43 +35,8 @@ final class LocalDeclTypeChecker {
             )
         }
 
-        var initializerType: TypeID?
-        if let initializer {
-            initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
-        }
-
-        let localType: TypeID
-        if let declaredType {
-            localType = declaredType
-            if let initializerType {
-                if isDelegated {
-                    // Local delegated properties are currently modeled as local
-                    // declarations whose initializer is the delegate factory call.
-                    // Preserve the declared property type and skip constraining
-                    // the delegate object itself to that property type.
-                } else {
-                    if let initializer,
-                       sema.bindings.isRangeExpr(initializer),
-                       driver.helpers.isRangeLikeType(declaredType, sema: sema, interner: interner)
-                    {
-                        // Range expressions keep their runtime representation separate from
-                        // the source-level range interface, so accept the annotation without
-                        // forcing a nominal subtype check.
-                    } else {
-                        driver.emitSubtypeConstraint(
-                            left: initializerType, right: declaredType,
-                            range: range, solver: ConstraintSolver(),
-                            sema: sema, diagnostics: ctx.semaCtx.diagnostics
-                        )
-                    }
-                }
-            }
-        } else if let initializerType {
-            localType = initializerType
-        } else {
-            localType = sema.types.errorType
-        }
-
+        // The delegate resolution below needs a symbol to key getValue/setValue
+        // onto, so the symbol is defined up front instead of after localType.
         let localSymbol = sema.symbols.define(
             kind: .local,
             name: name,
@@ -83,6 +48,96 @@ final class LocalDeclTypeChecker {
             visibility: .private,
             flags: isMutable ? [.mutable] : []
         )
+
+        let localType: TypeID
+        if isDelegated, let initializer {
+            // Resolve getValue (and setValue for `var`) against the delegate
+            // expression's type, exactly as member/top-level delegated properties
+            // do (DeclTypeChecker.typeCheckDelegate). Previously this branch never
+            // ran for local declarations, so the local's type silently fell back
+            // to the delegate instance's own type below, and KIR lowering had no
+            // resolved operator to call — `val x by Prop()` bound `x` straight to
+            // the `Prop()` instance instead of `Prop().getValue(...)`.
+            localType = driver.declChecker.typeCheckDelegate(
+                initializer,
+                isVar: isMutable,
+                fallbackRange: range,
+                symbol: localSymbol,
+                inferredPropertyType: declaredType,
+                ctx: ctx,
+                locals: &locals,
+                diagnostics: ctx.semaCtx.diagnostics
+            ) ?? declaredType ?? sema.types.nullableAnyType
+        } else {
+            var initializerType: TypeID?
+            if let initializer {
+                if declaredType != nil {
+                    sema.bindings.markSourceDeclaredExpectedType(initializer)
+                }
+                initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
+            }
+
+            if let declaredType {
+                localType = declaredType
+                if let initializerType {
+                    let rangeExprSatisfiesIterableAnnotation: Bool = {
+                        guard let initializer,
+                              sema.bindings.isRangeExpr(initializer),
+                              driver.helpers.isPlainIterableType(
+                                  declaredType,
+                                  sema: sema,
+                                  interner: interner
+                              ),
+                              let declaredElementType = driver.helpers.plainIterableElementType(
+                                  for: declaredType,
+                                  sema: sema,
+                                  interner: interner
+                              ),
+                              let rangeElementType = driver.helpers.iterableElementType(
+                                  for: initializerType,
+                                  isRangeExpr: true,
+                                  isCharRangeExpr: sema.bindings.isCharRangeExpr(initializer),
+                                  sema: sema,
+                                  interner: interner
+                              )
+                        else {
+                            return false
+                        }
+                        return declaredElementType == rangeElementType
+                    }()
+                    if rangeExprSatisfiesIterableAnnotation
+                        || (initializer.map {
+                            driver.helpers.rangeExprMatchesDeclaredElementType(
+                                bodyExprID: $0,
+                                bodyType: initializerType,
+                                declaredType: declaredType,
+                                sema: sema,
+                                interner: interner
+                            )
+                        } ?? false)
+                    {
+                        // Range expressions keep their runtime representation separate from
+                        // the source-level range interface, so accept a matching range-like or
+                        // plain Iterable annotation without forcing a nominal subtype check.
+                    } else {
+                        driver.emitSubtypeConstraint(
+                            left: initializerType, right: declaredType,
+                            range: range, solver: ConstraintSolver(),
+                            sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                        )
+                    }
+                }
+            } else if let initializerType {
+                // `val x = ClassName` holds the class's companion object.
+                localType = initializer.flatMap {
+                    driver.helpers.retypeClassNameAsCompanionValue(
+                        $0, currentType: initializerType, ast: ast, sema: sema
+                    )
+                } ?? initializerType
+            } else {
+                localType = sema.types.errorType
+            }
+        }
         sema.symbols.setPropertyType(localType, for: localSymbol)
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
         sema.bindings.bindIdentifier(id, symbol: localSymbol)
@@ -115,6 +170,10 @@ final class LocalDeclTypeChecker {
                 if sema.bindings.isFloatingPointRangeExpr(initializer) {
                     sema.bindings.markFloatingPointRangeExpr(id)
                     sema.bindings.markFloatingPointRangeSymbol(localSymbol)
+                    if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: initializer) {
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forSymbol: localSymbol)
+                    }
                 }
             }
         }
@@ -142,10 +201,25 @@ final class LocalDeclTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> TypeID {
+        let ast = ctx.ast
         let interner = ctx.interner
 
-        let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
         if let local = locals[name] {
+            // Reassignment drops any smart cast narrowing applied to the local
+            // inside the current branch, so both the constraint and the binding
+            // use the declared type again.
+            let declaredType = ctx.sema.symbols.propertyType(for: local.symbol) ?? local.type
+            // A lambda literal assigned to a local (e.g. a recursive
+            // `lateinit var` closure such as `fact = { ... fact(it - 1) ... }`)
+            // may reference the target from inside its own body. That read is
+            // deferred until the closure is later invoked, not evaluated
+            // immediately, so mark the local initialized before inferring the
+            // RHS: the lambda body type-checks against a snapshot of `locals`
+            // taken at that point, and it must see the target as available.
+            if case .lambdaLiteral = ast.arena.expr(value) {
+                locals[name] = (local.type, local.symbol, local.isMutable, true)
+            }
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: declaredType)
             ctx.sema.bindings.bindIdentifier(id, symbol: local.symbol)
             if !local.isMutable, local.isInitialized {
                 ctx.semaCtx.diagnostics.error(
@@ -156,13 +230,13 @@ final class LocalDeclTypeChecker {
             } else {
                 driver.emitSubtypeConstraint(
                     left: valueType,
-                    right: local.type,
+                    right: declaredType,
                     range: range,
                     solver: ConstraintSolver(),
                     sema: ctx.sema,
                     diagnostics: ctx.semaCtx.diagnostics
                 )
-                locals[name] = (local.type, local.symbol, local.isMutable, true)
+                locals[name] = (declaredType, local.symbol, local.isMutable, true)
                 if ctx.sema.bindings.isFlowExpr(value) {
                     ctx.sema.bindings.markFlowSymbol(local.symbol)
                     if let flowElementType = ctx.sema.bindings.flowElementType(forExpr: value) {
@@ -183,6 +257,7 @@ final class LocalDeclTypeChecker {
                sema: ctx.sema
            )
         {
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: member.type)
             ctx.sema.bindings.bindIdentifier(id, symbol: member.symbol)
             let propSymbol = ctx.sema.symbols.symbol(member.symbol)
             if let propSymbol,
@@ -224,8 +299,9 @@ final class LocalDeclTypeChecker {
             return parentSym.kind == .package || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         }) {
-            ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: propType)
+            ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             if !propSymbol.flags.contains(.mutable), !ctx.allowsValPropertyInitialization {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
@@ -246,6 +322,10 @@ final class LocalDeclTypeChecker {
             return ctx.sema.types.unitType
         }
 
+        // No assignment target was resolved; still type-check the RHS (with no
+        // useful expected type) so its sub-expressions get bound types and any
+        // diagnostics inside it are still reported.
+        _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
         if !dslBlockedIDs.isEmpty {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-DSLMARKER",

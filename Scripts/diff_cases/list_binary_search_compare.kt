@@ -1,4 +1,5 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+data class Person(val name: String, val age: Int)
+
 fun main() {
     // Comprehensive binarySearch(compare) overload tests
     
@@ -66,9 +67,6 @@ fun main() {
     println("double search 3.3: $doubleSearch")
     
     println("\n=== Complex comparison logic ===")
-    
-    // Custom object comparison
-    data class Person(val name: String, val age: Int)
     
     val people = listOf(
         Person("Alice", 25),
@@ -147,7 +145,7 @@ fun main() {
     println("\n=== Type safety tests ===")
     
     // Generic types
-    val genericList: List<Comparable<Any>> = listOf(1, 2, 3, 4, 5)
+    val genericList: List<Comparable<*>> = listOf(1, 2, 3, 4, 5)
     val genericSearch = genericList.binarySearch { (it as Int).compareTo(3) }
     println("generic search: $genericSearch")
     

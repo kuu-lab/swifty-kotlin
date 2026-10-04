@@ -21,6 +21,11 @@ extension DataFlowSemaPhase {
                   existingSymbol.kind == newSymbol.kind,
                   !canCoexistAsExpectActualPair(newSymbol, existingSymbol),
                   !canCoexistAsSyntheticFallback(newSymbol, existingSymbol),
+                  !canCoexistAsPrivateTopLevelCallableAcrossSourceFiles(
+                      newSymbol,
+                      existingSymbol,
+                      symbols: symbols
+                  ),
                   let existingSignature = symbols.functionSignature(for: existingID)
             else {
                 return false
@@ -39,6 +44,25 @@ extension DataFlowSemaPhase {
                 range: range
             )
         }
+    }
+
+    private func canCoexistAsPrivateTopLevelCallableAcrossSourceFiles(
+        _ lhs: SemanticSymbol,
+        _ rhs: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> Bool {
+        // Kotlin private top-level callables are file-scoped, so distinct source
+        // files compile them into distinct JVM file facades.
+        guard lhs.visibility == .private,
+              rhs.visibility == .private,
+              symbols.parentSymbol(for: lhs.id) == nil,
+              symbols.parentSymbol(for: rhs.id) == nil,
+              let lhsFileID = symbols.sourceFileID(for: lhs.id),
+              let rhsFileID = symbols.sourceFileID(for: rhs.id)
+        else {
+            return false
+        }
+        return lhsFileID != rhsFileID
     }
 
     func hasSameJVMErasedCallableSignature(

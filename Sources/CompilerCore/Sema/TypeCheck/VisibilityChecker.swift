@@ -1,18 +1,53 @@
 
 struct VisibilityChecker {
     let symbols: SymbolTable
+    let sourceManager: SourceManager?
+    /// Files that opted into calling otherwise-invisible declarations via
+    /// `@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")`, the same
+    /// escape hatch kotlin-stdlib uses to reach `@PublishedApi internal` API.
+    let invisibleAccessFiles: Set<Int32>
+
+    init(symbols: SymbolTable, sourceManager: SourceManager? = nil, invisibleAccessFiles: Set<Int32> = []) {
+        self.symbols = symbols
+        self.sourceManager = sourceManager
+        self.invisibleAccessFiles = invisibleAccessFiles
+    }
 
     func isAccessible(
         _ symbol: SemanticSymbol,
         fromFile accessFileID: FileID,
         enclosingClass: SymbolID?
     ) -> Bool {
+        // An explicitly public constructor or member cannot expose an owner
+        // whose declaration is private or internal in an imported library.
+        if symbol.flags.contains(.importedLibrary),
+           let parent = symbols.parentSymbol(for: symbol.id),
+           let owner = symbols.symbol(parent),
+           owner.flags.contains(.importedLibrary),
+           !isAccessible(owner, fromFile: accessFileID, enclosingClass: enclosingClass) {
+            return false
+        }
         switch symbol.visibility {
-        case .public, .internal:
+        case .public:
             return true
+        case .internal:
+            if symbol.flags.contains(.importedLibrary) {
+                return invisibleAccessFiles.contains(accessFileID.rawValue)
+            }
+            guard let sourceManager,
+                  let declarationFileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file,
+                  sourceManager.origin(of: declarationFileID)?.isBundledStdlib == true
+            else {
+                return true
+            }
+            return sourceManager.origin(of: accessFileID)?.isBundledStdlib == true
+                || invisibleAccessFiles.contains(accessFileID.rawValue)
         case .private:
             if isLocalOrParameter(symbol.kind) {
                 return true
+            }
+            if symbol.flags.contains(.importedLibrary) {
+                return false
             }
             if let parent = symbols.parentSymbol(for: symbol.id) {
                 // Allow access from companion object to the containing class's private members
@@ -27,7 +62,22 @@ struct VisibilityChecker {
                    parent == companionOfEnclosing {
                     return true
                 }
-                return enclosingClass == parent || isEnclosedBy(enclosingClass, ancestor: parent)
+                if shareEnclosingClass(enclosingClass, parent) {
+                    return true
+                }
+                // This constructor's `.private` was inherited from its owner
+                // (no explicit modifier on the constructor itself), so its real
+                // accessibility ceiling is the owner's own visibility rather than
+                // a class-hierarchy relationship — an unrelated top-level
+                // declaration in the same file as a `private class` shares no
+                // class hierarchy with it, but should still be able to construct
+                // it. Recurse into the owner's own check, which correctly falls
+                // back to file scope once its parent chain is exhausted.
+                if symbol.flags.contains(.constructorVisibilityInherited),
+                   let ownerSymbol = symbols.symbol(parent) {
+                    return isAccessible(ownerSymbol, fromFile: accessFileID, enclosingClass: enclosingClass)
+                }
+                return false
             }
             guard let declSite = symbol.declSite else {
                 return true
@@ -66,11 +116,20 @@ struct VisibilityChecker {
         return false
     }
 
-    private func isEnclosedBy(_ candidate: SymbolID?, ancestor: SymbolID) -> Bool {
-        var current = candidate
-        while let c = current {
-            if c == ancestor { return true }
-            current = symbols.parentSymbol(for: c)
+    private func shareEnclosingClass(_ a: SymbolID?, _ b: SymbolID) -> Bool {
+        guard let a else { return false }
+        var ancestorsA: Set<SymbolID> = []
+        var currentA: SymbolID? = a
+        while let ca = currentA, !ancestorsA.contains(ca) {
+            ancestorsA.insert(ca)
+            currentA = symbols.parentSymbol(for: ca)
+        }
+        var currentB: SymbolID? = b
+        var visitedB: Set<SymbolID> = []
+        while let cb = currentB, !visitedB.contains(cb) {
+            if ancestorsA.contains(cb) { return true }
+            visitedB.insert(cb)
+            currentB = symbols.parentSymbol(for: cb)
         }
         return false
     }

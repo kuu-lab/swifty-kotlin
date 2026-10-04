@@ -3,78 +3,125 @@
 import Foundation
 import Testing
 
-// MARK: - CLASS-001: End-to-end companion object (factory, const val, singleton)
-
 extension CompanionObjectTests {
-    /// Verify `Foo.create()` companion factory resolves through sema with no errors.
-    @Test func testCompanionFactoryFunctionResolvesEndToEnd() throws {
-        let source = """
-        package test
-        class Foo(val x: Int) {
-            companion object {
-                fun create(): Foo = Foo(0)
-            }
-        }
-        fun main() {
-            val f: Foo = Foo.create()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
 
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors for Foo.create(), got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
+    @Test func testFactoryConstAndLoweringSema() throws {
+        let sources: [String] = [
+            // testCompanionFactoryFunctionResolvesEndToEnd
+            """
+            package sample0
+                    class Foo(val x: Int) {
+                        companion object {
+                            fun create(): Foo = Foo(0)
+                        }
+                    }
+                    fun main() {
+                        val f: Foo = Foo.create()
+                    }
+
+            """,
+
+            // testCompanionConstValAccessResolvesEndToEnd
+            """
+            package sample1
+                    class Foo {
+                        companion object {
+                            const val MAX_COUNT: Int = 100
+                        }
+                    }
+                    fun main() {
+                        val m: Int = Foo.MAX_COUNT
+                    }
+
+            """,
+
+            // testCompanionFactoryAndConstValCombinedEndToEnd
+            """
+            package sample2
+                    class Foo(val x: Int) {
+                        companion object {
+                            const val MAX_COUNT: Int = 100
+                            fun create(): Foo = Foo(0)
+                        }
+                    }
+                    fun main() {
+                        val f: Foo = Foo.create()
+                        val m: Int = Foo.MAX_COUNT
+                    }
+
+            """,
+
+            // testNamedCompanionFactoryResolvesEndToEnd
+            """
+            package sample3
+                    class Widget {
+                        companion object Factory {
+                            fun create(): Widget = Widget()
+                        }
+                    }
+                    fun main() {
+                        val w: Widget = Widget.create()
+                    }
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // testCompanionFactoryFunctionResolvesEndToEnd
+
+            do {
+                let sample0Path = paths[0]
+                let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
+
+                        #expect(
+                            !sampleDiags.hasError,
+                            "Expected no sema errors for Foo.create(), got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+            // testCompanionConstValAccessResolvesEndToEnd
+
+            do {
+                let sample1Path = paths[1]
+                let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
+
+                        #expect(
+                            !sampleDiags.hasError,
+                            "Expected no sema errors for Foo.MAX_COUNT, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+            // testCompanionFactoryAndConstValCombinedEndToEnd
+
+            do {
+                let sample2Path = paths[2]
+                let sampleDiags = diagnosticsForPath(sample2Path, in: ctx)
+
+                        #expect(
+                            !sampleDiags.hasError,
+                            "Expected no sema errors, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+            // testNamedCompanionFactoryResolvesEndToEnd
+
+            do {
+                let sample3Path = paths[3]
+                let sampleDiags = diagnosticsForPath(sample3Path, in: ctx)
+
+                        #expect(
+                            !sampleDiags.hasError,
+                            "Expected no errors for named companion factory, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+
+        }
     }
 
-    /// Verify `Foo.MAX_COUNT` const val access resolves through sema with no errors.
-    @Test func testCompanionConstValAccessResolvesEndToEnd() throws {
-        let source = """
-        package test
-        class Foo {
-            companion object {
-                const val MAX_COUNT: Int = 100
-            }
-        }
-        fun main() {
-            val m: Int = Foo.MAX_COUNT
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors for Foo.MAX_COUNT, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
-    }
-
-    /// Combined: factory function + const val in the same companion, used from main.
-    @Test func testCompanionFactoryAndConstValCombinedEndToEnd() throws {
-        let source = """
-        package test
-        class Foo(val x: Int) {
-            companion object {
-                const val MAX_COUNT: Int = 100
-                fun create(): Foo = Foo(0)
-            }
-        }
-        fun main() {
-            val f: Foo = Foo.create()
-            val m: Int = Foo.MAX_COUNT
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
-    }
-
-    /// Verify companion factory + const val lowers to KIR with companion init synthesized.
     @Test func testCompanionFactoryAndConstValKIRLowering() throws {
         let source = """
         package test
@@ -93,7 +140,7 @@ extension CompanionObjectTests {
         try runToKIR(ctx)
 
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no KIR errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 
@@ -102,20 +149,17 @@ extension CompanionObjectTests {
             ctx.interner.resolve(function.name)
         }
 
-        // Companion initializer must be synthesized
         #expect(
             functionNames.contains(where: { $0.hasPrefix("__companion_init_") }),
             "Expected synthesized companion initializer, got: \(functionNames)"
         )
 
-        // The create function must be lowered
         #expect(
             functionNames.contains("create"),
             "Expected companion function 'create' in KIR, got: \(functionNames)"
         )
     }
 
-    /// Verify exactly one companion singleton init function is synthesized.
     @Test func testCompanionSingletonInitSynthesizedExactlyOnce() throws {
         let source = """
         class Host {
@@ -132,7 +176,7 @@ extension CompanionObjectTests {
         try runToKIR(ctx)
 
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 
@@ -148,29 +192,6 @@ extension CompanionObjectTests {
         )
     }
 
-    /// Named companion object should resolve factory calls via `ClassName.factoryFn()`.
-    @Test func testNamedCompanionFactoryResolvesEndToEnd() throws {
-        let source = """
-        package test
-        class Widget {
-            companion object Factory {
-                fun create(): Widget = Widget()
-            }
-        }
-        fun main() {
-            val w: Widget = Widget.create()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no errors for named companion factory, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
-    }
-
-    /// Companion lowering through the full pipeline including LoweringPhase.
     @Test func testCompanionObjectFullPipelineLowering() throws {
         let source = """
         class Foo(val x: Int) {
@@ -188,12 +209,11 @@ extension CompanionObjectTests {
         try runToLowering(ctx)
 
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no errors after full lowering, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
-    /// Companion object with property initializer generates correct KIR body.
     @Test func testCompanionPropertyInitializerInKIRBody() throws {
         let source = """
         class Config {
@@ -209,24 +229,26 @@ extension CompanionObjectTests {
             try runToKIR(ctx)
 
             #expect(
-                !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+                !ctx.diagnostics.hasError,
                 "Expected no KIR errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
             )
 
             let module = try #require(ctx.kir)
-            // Find the companion init function and verify it has a copy instruction
-            // (property initialization writes the initial value)
-            let expectedInitName = try companionInitializerName(forOwnerNamed: "Config", in: ctx)
+            // BUG-274: property initializers now live in the *lazy* companion
+            // init function (guarded by a `$initialized` flag, run on first
+            // access) rather than the eager one (which only allocates the
+            // dispatch object and registers type edges/vtable slots).
+            let expectedInitName = try companionLazyInitializerName(forOwnerNamed: "Config", in: ctx)
             let companionInitFn = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 let name = ctx.interner.resolve(function.name)
                 return name == expectedInitName ? function : nil
             }.first
-            let initBody = try #require(companionInitFn, "Expected companion init function").body
+            let initBody = try #require(companionInitFn, "Expected companion lazy init function").body
             let hasCopy = initBody.contains { instruction in
                 if case .copy = instruction { return true }
                 return false
             }
-            #expect(hasCopy, "Expected copy instruction in companion init body for property initialization")
+            #expect(hasCopy, "Expected copy instruction in companion lazy init body for property initialization")
         }
     }
 
@@ -239,5 +261,19 @@ extension CompanionObjectTests {
         let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
         return "__companion_init_\(ownerSymbol.rawValue)_\(companionSymbol.rawValue)"
     }
+
+    /// BUG-274: name of the lazy companion initializer synthesized by
+    /// `synthesizeCompanionLazyInit` -- guarded by a `$initialized` flag and
+    /// run on first access, rather than unconditionally at module start.
+    private func companionLazyInitializerName(
+        forOwnerNamed ownerName: String,
+        in ctx: CompilationContext
+    ) throws -> String {
+        let sema = try #require(ctx.sema)
+        let ownerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern(ownerName)]))
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
+        return "__companion_lazy_init_\(companionSymbol.rawValue)"
+    }
+
 }
 #endif

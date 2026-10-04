@@ -12,31 +12,8 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        var depth = 1
-        var bodyTokens: [Token] = []
-        var end = openBrace.range.end
-        while let token = current() {
-            _ = consume()
-            switch token.kind {
-            case .symbol(.lBrace):
-                depth += 1
-                bodyTokens.append(token)
-            case .symbol(.rBrace):
-                depth -= 1
-                if depth == 0 {
-                    end = token.range.end
-                    break
-                }
-                bodyTokens.append(token)
-            default:
-                bodyTokens.append(token)
-            }
-            if depth == 0 {
-                break
-            }
-        }
-
-        guard depth == 0 else {
+        let (bodyTokens, end, balanced) = consumeBalancedBraceBody(fallbackEnd: openBrace.range.end)
+        guard balanced else {
             index = savedIndex
             return nil
         }
@@ -46,7 +23,7 @@ extension BuildASTPhase.ExpressionParser {
             let lambdaBodySlice = bodyTokens[(arrowIndex + 1)...]
 
             // Detect lambda destructuring: { (a, b) -> body }
-            if let names = extractDestructuringNames(from: paramTokens), names.count >= 2 {
+            if let names = extractDestructuringNames(from: paramTokens) {
                 let range = SourceRange(start: start ?? openBrace.range.start, end: end)
                 return buildDestructuringLambda(
                     names: names, bodySlice: lambdaBodySlice,
@@ -54,10 +31,16 @@ extension BuildASTPhase.ExpressionParser {
                 )
             }
 
-            let params = parseLambdaParamNames(from: paramTokens)
+            let parsedParams = parseLambdaParams(from: paramTokens)
             let bodyExpr = parseLambdaBody(bodySlice: lambdaBodySlice, fallbackStart: openBrace.range.end)
             let range = SourceRange(start: start ?? openBrace.range.start, end: end)
-            return astArena.appendExpr(.lambdaLiteral(params: params, body: bodyExpr, label: label, range: range))
+            let lambdaID = astArena.appendExpr(.lambdaLiteral(
+                params: parsedParams.map(\.name), body: bodyExpr, label: label, range: range
+            ))
+            if parsedParams.contains(where: { $0.typeRef != nil }) {
+                astArena.setLambdaParamTypeRefs(parsedParams.map(\.typeRef), for: lambdaID)
+            }
+            return lambdaID
         }
 
         // No-arrow lambda: `{ body }`.
@@ -75,63 +58,48 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         var superTypes: [TypeRefID] = []
+        // Only the (at most one) class supertype can carry a constructor
+        // call `(args)` — interfaces are listed bare. Kept as a single list
+        // rather than per-supertype since that is all `ObjectDecl` needs.
+        var superTypeConstructorArgs: [CallArgument] = []
         var end = objectToken.range.end
         var bodyTokens: [Token] = []
 
         if consumeIf(.symbol(.colon)) != nil {
-            if index > 0 {
-                end = tokens[index - 1].range.end
-            }
             while true {
                 guard let superType = parseTypeReference(current()?.range ?? objectToken.range) else {
                     break
                 }
                 superTypes.append(superType)
-                if index > 0 {
-                    end = tokens[index - 1].range.end
-                }
                 if matches(.symbol(.lParen)) {
-                    skipBalancedParenthesisIfNeeded()
-                    if index > 0 {
-                        end = tokens[index - 1].range.end
+                    _ = consume()
+                    let args = parseCallArguments()
+                    _ = consumeIf(.symbol(.rParen))
+                    if !args.isEmpty {
+                        superTypeConstructorArgs = args
                     }
                 }
                 if consumeIf(.symbol(.comma)) != nil {
-                    if index > 0 {
-                        end = tokens[index - 1].range.end
-                    }
                     continue
                 }
                 break
             }
-        }
-
-        if matches(.symbol(.lBrace)), let openBrace = consume() {
-            var depth = 1
-            end = openBrace.range.end
-            while let token = current() {
-                _ = consume()
-                switch token.kind {
-                case .symbol(.lBrace):
-                    depth += 1
-                    bodyTokens.append(token)
-                case .symbol(.rBrace):
-                    depth -= 1
-                    if depth > 0 {
-                        bodyTokens.append(token)
-                    }
-                default:
-                    bodyTokens.append(token)
-                }
-                end = token.range.end
-                if depth == 0 {
-                    break
-                }
+            if index > 0 {
+                end = tokens[index - 1].range.end
             }
         }
 
+        if matches(.symbol(.lBrace)), let openBrace = consume() {
+            (bodyTokens, end, _) = consumeBalancedBraceBody(fallbackEnd: openBrace.range.end)
+        }
+
         let range = SourceRange(start: objectToken.range.start, end: end)
-        let declID = parseObjectLiteralDecl(superTypes: superTypes, bodyTokens: bodyTokens, range: range)
+        let declID = parseObjectLiteralDecl(
+            superTypes: superTypes,
+            superTypeConstructorArgs: superTypeConstructorArgs,
+            bodyTokens: bodyTokens,
+            range: range
+        )
         return astArena.appendExpr(.objectLiteral(superTypes: superTypes, decl: declID, range: range))
     }
 
@@ -151,6 +119,69 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.callableRef(receiver: nil, member: memberName, range: range))
     }
 
+    /// Consumes tokens up to and including a closing brace matching a
+    /// just-consumed opening `{` (depth starts at 1). Returns the tokens
+    /// strictly between the braces, the end location reached, and whether
+    /// the depth actually returned to 0 before the token stream ran out.
+    /// On imbalance, `bodyTokens` holds everything scanned and `end` is the
+    /// last token's end (or `fallbackEnd` if nothing was consumed) — the
+    /// caller decides whether that's acceptable.
+    private func consumeBalancedBraceBody(
+        fallbackEnd: SourceLocation
+    ) -> (bodyTokens: [Token], end: SourceLocation, balanced: Bool) {
+        let bodyStart = index
+        var depth = 1
+        var end = fallbackEnd
+        while let token = current() {
+            _ = consume()
+            end = token.range.end
+            switch token.kind {
+            case .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rBrace):
+                depth -= 1
+            default:
+                break
+            }
+            if depth == 0 {
+                break
+            }
+        }
+        let bodyEnd = depth == 0 ? index - 1 : index
+        return (Array(tokens[bodyStart..<bodyEnd]), end, depth == 0)
+    }
+
+    /// Kotlin parses a control-structure body `{ params -> ... }` as a function
+    /// literal rather than a block. Looks ahead (without consuming) at the brace
+    /// group starting at the current `{` and reports whether it opens with a
+    /// lambda parameter list followed by `->`.
+    func braceGroupStartsLambdaLiteral() -> Bool {
+        guard matches(.symbol(.lBrace)) else {
+            return false
+        }
+        var depth = 0
+        var offset = index
+        while offset < tokens.endIndex {
+            switch tokens[offset].kind {
+            case .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rBrace):
+                depth -= 1
+            default:
+                break
+            }
+            if depth == 0 {
+                break
+            }
+            offset += 1
+        }
+        guard depth == 0 else {
+            return false
+        }
+        let bodyTokens = Array(tokens[(index + 1) ..< offset])
+        return lambdaArrowIndex(in: bodyTokens) != nil
+    }
+
     private func lambdaArrowIndex(in tokens: [Token]) -> Int? {
         var depth = BuildASTPhase.BracketDepth()
         var candidate: Int?
@@ -163,14 +194,18 @@ extension BuildASTPhase.ExpressionParser {
         guard let candidate else {
             return nil
         }
-        let parameterTokens = Array(tokens[..<candidate])
-        guard isPotentialLambdaParameterList(parameterTokens) else {
+        guard isPotentialLambdaParameterList(tokens[..<candidate]) else {
             return nil
         }
         return candidate
     }
 
-    private func parseLambdaParamNames(from tokens: [Token]) -> [InternedString] {
+    struct LambdaParam {
+        let name: InternedString
+        let typeRef: TypeRefID?
+    }
+
+    private func parseLambdaParams(from tokens: [Token]) -> [LambdaParam] {
         let normalized = stripEnclosingParentheses(from: tokens)
         guard !normalized.isEmpty else {
             return []
@@ -194,20 +229,42 @@ extension BuildASTPhase.ExpressionParser {
             segments.append(currentSegment)
         }
 
-        var params: [InternedString] = []
+        var params: [LambdaParam] = []
         for segment in segments {
-            if let token = segment.first(where: { token in
+            guard let nameIndex = segment.firstIndex(where: { token in
                 switch token.kind {
                 case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
                     true
                 default:
                     false
                 }
-            }), let name = lambdaParameterName(from: token) {
-                params.append(name)
+            }), let name = lambdaParameterName(from: segment[nameIndex]) else {
+                continue
             }
+            params.append(LambdaParam(
+                name: name,
+                typeRef: parseLambdaParamTypeAnnotation(in: segment, after: nameIndex)
+            ))
         }
         return params
+    }
+
+    /// Parses the `: Type` annotation of a lambda parameter segment, if present.
+    private func parseLambdaParamTypeAnnotation(in segment: [Token], after nameIndex: Int) -> TypeRefID? {
+        let colonIndex = nameIndex + 1
+        guard colonIndex < segment.count, segment[colonIndex].kind == .symbol(.colon) else {
+            return nil
+        }
+        var options = TypeRefParserCore.Options.expressionInline
+        options.allowFunctionType = true
+        return TypeRefParserCore.parseTypeRefPrefix(
+            segment[(colonIndex + 1)...],
+            interner: interner,
+            astArena: astArena,
+            options: options,
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth
+        )?.ref
     }
 
     private func stripEnclosingParentheses(from tokens: [Token]) -> [Token] {
@@ -238,28 +295,10 @@ extension BuildASTPhase.ExpressionParser {
     /// Checks whether paramTokens form a `(name, name, ...)` destructuring pattern.
     /// Returns the extracted names (nil for underscore), or nil when not destructuring.
     private func extractDestructuringNames(from paramTokens: [Token]) -> [InternedString?]? {
-        guard hasBalancedEnclosingParens(paramTokens) else { return nil }
-        let innerTokens = Array(paramTokens.dropFirst().dropLast())
+        let innerTokens = stripEnclosingParentheses(from: paramTokens)
+        guard innerTokens.count != paramTokens.count else { return nil }
         let names = parseDestructuringNames(from: innerTokens)
         return names.count >= 2 ? names : nil
-    }
-
-    private func hasBalancedEnclosingParens(_ tokens: [Token]) -> Bool {
-        guard tokens.count >= 3,
-              tokens.first?.kind == .symbol(.lParen),
-              tokens.last?.kind == .symbol(.rParen)
-        else { return false }
-        var depth = 0
-        for (idx, token) in tokens.enumerated() {
-            switch token.kind {
-            case .symbol(.lParen): depth += 1
-            case .symbol(.rParen):
-                depth -= 1
-                if depth == 0, idx != tokens.count - 1 { return false }
-            default: break
-            }
-        }
-        return true
     }
 
     private func parseDestructuringNames(from innerTokens: [Token]) -> [InternedString?] {
@@ -323,7 +362,7 @@ extension BuildASTPhase.ExpressionParser {
         ))
     }
 
-    private func isPotentialLambdaParameterList(_ tokens: [Token]) -> Bool {
+    private func isPotentialLambdaParameterList(_ tokens: ArraySlice<Token>) -> Bool {
         var depth = BuildASTPhase.BracketDepth()
         for token in tokens {
             if depth.isAtTopLevel {

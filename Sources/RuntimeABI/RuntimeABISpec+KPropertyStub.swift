@@ -26,24 +26,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Delegate"
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kproperty_stub_name",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kproperty_stub_return_type",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
         // STDLIB-REFLECT-062: visibility, isLateinit, isConst
         RuntimeABIFunctionSpec(
             name: "__kk_kproperty_stub_visibility",

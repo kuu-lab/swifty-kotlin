@@ -1,0 +1,23 @@
+symbol fq=__local_0.values[kind=local] kind=local vis=private flags=_ type=String
+symbol fq=golden.sema.numberHexFormatProperties.$0.format[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.numberHexFormatProperties[kind=fun;params=kotlin.text.HexFormat.NumberHexFormat] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat.NumberHexFormat] ret=String
+file fstdlib_kotlin_text_HexFormat_NumberHexFormat_NumberHexFormat_n package=golden.sema
+  decl golden.sema.numberHexFormatProperties[kind=fun;params=kotlin.text.HexFormat.NumberHexFormat] fun numberHexFormatProperties sym=golden.sema.numberHexFormatProperties[kind=fun;params=kotlin.text.HexFormat.NumberHexFormat]
+expr e@4:18 name(format) type=kotlin.text.HexFormat.NumberHexFormat ref=golden.sema.numberHexFormatProperties.$0.format[kind=vparam]
+expr e@4:18#1 memberCall recv=e@4:18 callee=prefix args=[] type=String ref=kotlin.text.HexFormat.NumberHexFormat.prefix[kind=prop]
+expr e@4:34 name(format) type=kotlin.text.HexFormat.NumberHexFormat ref=golden.sema.numberHexFormatProperties.$0.format[kind=vparam]
+expr e@4:34#1 memberCall recv=e@4:34 callee=suffix args=[] type=String ref=kotlin.text.HexFormat.NumberHexFormat.suffix[kind=prop]
+expr e@4:18#2 binary(add) lhs=e@4:18#1 rhs=e@4:34#1 type=String
+expr e@4:50 name(format) type=kotlin.text.HexFormat.NumberHexFormat ref=golden.sema.numberHexFormatProperties.$0.format[kind=vparam]
+expr e@4:50#1 memberCall recv=e@4:50 callee=removeLeadingZeros args=[] type=Boolean ref=kotlin.text.HexFormat.NumberHexFormat.removeLeadingZeros[kind=prop]
+expr e@4:50#2 memberCall recv=e@4:50#1 callee=toString args=[] type=String
+expr e@4:18#3 binary(add) lhs=e@4:18#2 rhs=e@4:50#2 type=String
+expr e@4:5 localDecl values mutable=0 type=_ init=e@4:18#3 type=Unit ref=__local_0.values[kind=local]
+expr e@5:12 name(values) type=String ref=__local_0.values[kind=local]
+expr e@5:21 name(format) type=kotlin.text.HexFormat.NumberHexFormat ref=golden.sema.numberHexFormatProperties.$0.format[kind=vparam]
+expr e@5:21#1 memberCall recv=e@5:21 callee=minLength args=[] type=Int ref=kotlin.text.HexFormat.NumberHexFormat.minLength[kind=prop]
+expr e@5:12#1 binary(add) lhs=e@5:12 rhs=e@5:21#1 type=String
+expr e@5:40 name(format) type=kotlin.text.HexFormat.NumberHexFormat ref=golden.sema.numberHexFormatProperties.$0.format[kind=vparam]
+expr e@5:40#1 memberCall recv=e@5:40 callee=toString args=[] type=String call=kotlin.text.HexFormat.NumberHexFormat.toString[kind=fun;recv=kotlin.text.HexFormat.NumberHexFormat;params=]
+expr e@5:12#2 binary(add) lhs=e@5:12#1 rhs=e@5:40#1 type=String
+expr e@5:5 return value=e@5:12#2 type=Nothing

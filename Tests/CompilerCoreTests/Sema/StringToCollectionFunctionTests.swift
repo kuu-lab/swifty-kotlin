@@ -5,7 +5,7 @@ import Testing
 /// resolves through Sema and preserves the destination collection type.
 @Suite
 struct StringToCollectionFunctionTests {
-    @Test func testToCollectionReturnsDestinationTypeForStringAndCharSequence() throws {
+    @Test func testToCollectionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun collectString(s: String): MutableList<Char> {
             val destination = mutableListOf<Char>('z')
@@ -32,21 +32,14 @@ struct StringToCollectionFunctionTests {
             errors.isEmpty,
             "Expected CharSequence.toCollection to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    @Test func testToCollectionSyntheticLinkRegistered() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
         let sema = try #require(ctx.sema)
         let fqName = ["kotlin", "text", "toCollection"].map { ctx.interner.intern($0) }
-        let links = Set(
-            sema.symbols.lookupAll(fqName: fqName)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
-
+        let symbols = sema.symbols.lookupAll(fqName: fqName)
+        #expect(!symbols.isEmpty, "CharSequence.toCollection should be registered as bundled Kotlin source")
         #expect(
-            links.contains("kk_string_toCollection_flat"),
-            "CharSequence.toCollection should link to kk_string_toCollection"
+            symbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil },
+            "CharSequence.toCollection must not have a C runtime link after Kotlinization"
         )
     }
 }

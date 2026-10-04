@@ -56,7 +56,8 @@ extension KotlinParser {
         var projectionExpected = true
         var sawProjection = false
 
-        for lookahead in 1 ... 32 {
+        var lookahead = 1
+        while true {
             let token = stream.peek(lookahead)
             switch token.kind {
             case .eof:
@@ -101,9 +102,8 @@ extension KotlinParser {
                     return false
                 }
             }
+            lookahead += 1
         }
-
-        return false
     }
 
     func followsTypeArgs(_ token: Token) -> Bool {
@@ -111,7 +111,7 @@ extension KotlinParser {
         case .symbol(.lParen), .symbol(.dot), .symbol(.questionDot), .symbol(.bangBang),
              .symbol(.doubleColon), .symbol(.lessThan), .symbol(.colon), .symbol(.comma),
              .symbol(.lBrace), .symbol(.rParen), .symbol(.rBrace), .symbol(.question),
-             .symbol(.assign):
+             .symbol(.assign), .symbol(.at):
             true
         case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
             true

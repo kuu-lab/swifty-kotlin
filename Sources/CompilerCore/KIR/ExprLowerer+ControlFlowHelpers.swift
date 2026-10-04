@@ -71,11 +71,20 @@ extension ExprLowerer {
         }
         let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-        let setResult = arena.appendTemporary(type: arena.exprType(valueID) ?? sema.types.anyType)
+        let cellContentType = driver.ctx.localDeclaredType(for: symbol)
+            ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+        let storedValueID = normalizedValueForNullablePrimitiveSlot(
+            valueID,
+            slotType: cellContentType,
+            types: sema.types,
+            arena: arena,
+            into: &instructions
+        )
+        let setResult = arena.appendTemporary(type: arena.exprType(storedValueID) ?? sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
-            arguments: [cellExpr, zeroExpr, valueID],
+            arguments: [cellExpr, zeroExpr, storedValueID],
             result: setResult,
             canThrow: false,
             thrownResult: nil
@@ -294,5 +303,4 @@ extension ExprLowerer {
         ))
         return result
     }
-
 }

@@ -4,8 +4,10 @@ import Testing
 /// STDLIB-TEXT-FN-003: Validates `append` on StringBuilder and Appendable.
 @Suite
 struct StringAppendFunctionTests {
-    @Test func testStringBuilderTypedAppendOverloadsResolveAndLink() throws {
+    @Test func testAppendResolvesInSource() throws {
         let ctx = makeContextFromSource("""
+        import kotlin.text.Appendable
+
         fun main() {
             val sb = StringBuilder()
             val anyValue: Any? = 42
@@ -19,64 +21,6 @@ struct StringAppendFunctionTests {
             sb.append(3.5f)
             sb.append(4.5)
         }
-        """)
-
-        try runSema(ctx)
-
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected append overloads to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-
-        let interner = ctx.interner
-        let sema = try #require(ctx.sema)
-        let appendSymbols = sema.symbols.lookupAll(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("text"),
-            interner.intern("StringBuilder"),
-            interner.intern("append"),
-        ])
-
-        let objectLikeTypes = [
-            sema.types.nullableAnyType,
-            sema.types.makeNullable(sema.types.stringType),
-        ]
-        for parameterType in objectLikeTypes {
-            let overload = appendSymbols.first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return signature.parameterTypes == [parameterType]
-            }
-            #expect(overload != nil, "Expected StringBuilder.append overload for \(parameterType)")
-            if let overload {
-                #expect(sema.symbols.externalLinkName(for: overload) != nil)
-            }
-        }
-
-        let expectedLinks: [TypeID: String] = [
-            sema.types.charType: "kk_string_builder_append_char",
-            sema.types.booleanType: "kk_string_builder_append_bool",
-            sema.types.intType: "kk_string_builder_append_obj",
-            sema.types.longType: "kk_string_builder_append_obj",
-            sema.types.floatType: "kk_string_builder_append_float",
-            sema.types.doubleType: "kk_string_builder_append_double",
-        ]
-
-        for (parameterType, expectedLink) in expectedLinks {
-            let overload = appendSymbols.first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return signature.parameterTypes == [parameterType]
-            }
-            #expect(overload != nil, "Expected StringBuilder.append overload for \(parameterType)")
-            if let overload {
-                #expect(sema.symbols.externalLinkName(for: overload) == expectedLink)
-            }
-        }
-    }
-
-    @Test func testAppendableAppendOverloadsResolveAndLink() throws {
-        let ctx = makeContextFromSource("""
-        import kotlin.text.Appendable
 
         fun appendPieces(target: Appendable): Appendable {
             target.append('a')
@@ -90,12 +34,90 @@ struct StringAppendFunctionTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected Appendable.append overloads to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            "Expected append overloads to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
 
         let interner = ctx.interner
         let sema = try #require(ctx.sema)
-        let appendSymbols = sema.symbols.lookupAll(fqName: [
+
+        let stringBuilderSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("StringBuilder"),
+        ]))
+        let appendableSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("Appendable"),
+        ]))
+        let charSequenceSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("CharSequence"),
+        ]))
+        let nullableCharSequenceType = sema.types.make(.classType(ClassType(
+            classSymbol: charSequenceSymbol,
+            args: [],
+            nullability: .nullable
+        )))
+        let anySymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("Any"),
+        ]))
+        #expect(sema.symbols.isSourceBackedSymbol(stringBuilderSymbol))
+        #expect(
+            Set(sema.symbols.directSupertypes(for: stringBuilderSymbol))
+                == Set([appendableSymbol, charSequenceSymbol, anySymbol])
+        )
+
+        let stringBuilderAppendSymbols = sema.symbols.lookupAll(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("StringBuilder"),
+            interner.intern("append"),
+        ])
+
+        let objectLikeTypes = [
+            sema.types.nullableAnyType,
+            sema.types.makeNullable(sema.types.stringType),
+        ]
+        for parameterType in objectLikeTypes {
+            let overload = stringBuilderAppendSymbols.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return signature.parameterTypes == [parameterType]
+            }
+            #expect(overload != nil, "Expected StringBuilder.append overload for \(parameterType)")
+            if let overload {
+                #expect(
+                    sema.symbols.externalLinkName(for: overload) == nil,
+                    "StringBuilder.append overload for \(parameterType) should be source-backed"
+                )
+            }
+        }
+
+        let typedParameterTypes = [
+            sema.types.charType,
+            sema.types.booleanType,
+            sema.types.intType,
+            sema.types.longType,
+            sema.types.floatType,
+            sema.types.doubleType,
+        ]
+
+        for parameterType in typedParameterTypes {
+            let overload = stringBuilderAppendSymbols.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return signature.parameterTypes == [parameterType]
+            }
+            #expect(overload != nil, "Expected StringBuilder.append overload for \(parameterType)")
+            if let overload {
+                #expect(
+                    sema.symbols.externalLinkName(for: overload) == nil,
+                    "StringBuilder.append overload for \(parameterType) should be source-backed"
+                )
+            }
+        }
+
+        let appendableAppendSymbols = sema.symbols.lookupAll(fqName: [
             interner.intern("kotlin"),
             interner.intern("text"),
             interner.intern("Appendable"),
@@ -103,28 +125,32 @@ struct StringAppendFunctionTests {
         ])
 
         #expect(
-            appendSymbols.contains { symbolID in
+            appendableAppendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes == [sema.types.charType]
-                    && sema.symbols.externalLinkName(for: symbolID) == "kk_string_builder_append_char"
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
             },
-            "Expected Appendable.append(Char) to link to kk_string_builder_append_char"
+            "Expected Appendable.append(Char) to use interface dispatch"
         )
         #expect(
-            appendSymbols.contains { symbolID in
+            appendableAppendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return signature.parameterTypes.count == 1
-                    && sema.symbols.externalLinkName(for: symbolID) == "kk_string_builder_append_obj"
+                return signature.parameterTypes == [nullableCharSequenceType]
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
             },
-            "Expected Appendable.append(CharSequence?) to link to kk_string_builder_append_obj"
+            "Expected Appendable.append(CharSequence?) to use interface dispatch"
         )
         #expect(
-            appendSymbols.contains { symbolID in
+            appendableAppendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return signature.parameterTypes.count == 3
-                    && sema.symbols.externalLinkName(for: symbolID) == "kk_string_builder_appendRange_obj_flat"
+                return signature.parameterTypes == [
+                    nullableCharSequenceType,
+                    sema.types.intType,
+                    sema.types.intType,
+                ]
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
             },
-            "Expected Appendable.append(CharSequence?, Int, Int) to link to kk_string_builder_appendRange_obj_flat"
+            "Expected Appendable.append(CharSequence?, Int, Int) to use interface dispatch"
         )
     }
 }

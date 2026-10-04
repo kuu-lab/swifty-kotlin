@@ -1,0 +1,79 @@
+symbol fq=golden.sema.appendByteRange.$0.bytes[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendByteRange.$0.fromIndex[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendByteRange.$0.target[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendByteRange.$0.toIndex[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendByteRange[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData,kotlin.ByteArray,Int,Int] ret=Unit
+symbol fq=golden.sema.appendBytes.$1.bytes[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendBytes.$1.target[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendBytes[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData,kotlin.ByteArray] ret=Unit
+symbol fq=golden.sema.appendMutableData.$2.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendMutableData.$2.target[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendMutableData[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.native.concurrent.MutableData] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData,kotlin.native.concurrent.MutableData] ret=Unit
+symbol fq=golden.sema.appendPointer.$3.count[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendPointer.$3.pointer[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendPointer.$3.target[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendPointer[kind=fun;params=kotlin.native.concurrent.MutableData,kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData,kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?,Int] ret=Unit
+symbol fq=golden.sema.bufferLockedSize.$4.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.bufferLockedSize[kind=fun;params=kotlin.native.concurrent.MutableData] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData] ret=Int
+symbol fq=golden.sema.copyBytes.$5.destinationIndex[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.copyBytes.$5.endIndex[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.copyBytes.$5.output[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.copyBytes.$5.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.copyBytes.$5.startIndex[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.copyBytes[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray,Int,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData,kotlin.ByteArray,Int,Int,Int] ret=Unit
+symbol fq=golden.sema.dataSize.$6.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.dataSize[kind=fun;params=kotlin.native.concurrent.MutableData] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData] ret=Int
+symbol fq=golden.sema.pointerLockedSize.$7.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.pointerLockedSize[kind=fun;params=kotlin.native.concurrent.MutableData] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData] ret=Int
+symbol fq=golden.sema.readByte.$8.index[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readByte.$8.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readByte[kind=fun;params=kotlin.native.concurrent.MutableData,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData,Int] ret=Byte
+symbol fq=golden.sema.resetData.$9.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.resetData[kind=fun;params=kotlin.native.concurrent.MutableData] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.MutableData] ret=Unit
+file fstdlib_kotlin_native_concurrent_MutableData_MutableData_n package=golden.sema annotations=[@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.appendMutableData[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.native.concurrent.MutableData] fun appendMutableData sym=golden.sema.appendMutableData[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.native.concurrent.MutableData]
+  decl golden.sema.appendPointer[kind=fun;params=kotlin.native.concurrent.MutableData,kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?,Int] fun appendPointer sym=golden.sema.appendPointer[kind=fun;params=kotlin.native.concurrent.MutableData,kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?,Int]
+  decl golden.sema.appendBytes[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray] fun appendBytes sym=golden.sema.appendBytes[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray]
+  decl golden.sema.appendByteRange[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray,Int,Int] fun appendByteRange sym=golden.sema.appendByteRange[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray,Int,Int]
+  decl golden.sema.copyBytes[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray,Int,Int,Int] fun copyBytes sym=golden.sema.copyBytes[kind=fun;params=kotlin.native.concurrent.MutableData,kotlin.ByteArray,Int,Int,Int]
+  decl golden.sema.readByte[kind=fun;params=kotlin.native.concurrent.MutableData,Int] fun readByte sym=golden.sema.readByte[kind=fun;params=kotlin.native.concurrent.MutableData,Int]
+  decl golden.sema.resetData[kind=fun;params=kotlin.native.concurrent.MutableData] fun resetData sym=golden.sema.resetData[kind=fun;params=kotlin.native.concurrent.MutableData]
+  decl golden.sema.dataSize[kind=fun;params=kotlin.native.concurrent.MutableData] fun dataSize sym=golden.sema.dataSize[kind=fun;params=kotlin.native.concurrent.MutableData]
+  decl golden.sema.bufferLockedSize[kind=fun;params=kotlin.native.concurrent.MutableData] fun bufferLockedSize sym=golden.sema.bufferLockedSize[kind=fun;params=kotlin.native.concurrent.MutableData]
+  decl golden.sema.pointerLockedSize[kind=fun;params=kotlin.native.concurrent.MutableData] fun pointerLockedSize sym=golden.sema.pointerLockedSize[kind=fun;params=kotlin.native.concurrent.MutableData]
+expr e@9:5 name(target) type=kotlin.native.concurrent.MutableData ref=golden.sema.appendMutableData.$2.target[kind=vparam]
+expr e@9:19 name(source) type=kotlin.native.concurrent.MutableData ref=golden.sema.appendMutableData.$2.source[kind=vparam]
+expr e@9:5#1 memberCall recv=e@9:5 callee=append args=[_:e@9:19] type=Unit call=kotlin.native.concurrent.MutableData.append[kind=fun;recv=kotlin.native.concurrent.MutableData;params=kotlin.native.concurrent.MutableData]
+expr e@13:5 name(target) type=kotlin.native.concurrent.MutableData ref=golden.sema.appendPointer.$3.target[kind=vparam]
+expr e@13:19 name(pointer) type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>? ref=golden.sema.appendPointer.$3.pointer[kind=vparam]
+expr e@13:28 name(count) type=Int ref=golden.sema.appendPointer.$3.count[kind=vparam]
+expr e@13:5#1 memberCall recv=e@13:5 callee=append args=[_:e@13:19,_:e@13:28] type=Unit call=kotlin.native.concurrent.MutableData.append[kind=fun;recv=kotlin.native.concurrent.MutableData;params=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?,Int]
+expr e@17:5 name(target) type=kotlin.native.concurrent.MutableData ref=golden.sema.appendBytes.$1.target[kind=vparam]
+expr e@17:19 name(bytes) type=kotlin.ByteArray ref=golden.sema.appendBytes.$1.bytes[kind=vparam]
+expr e@17:5#1 memberCall recv=e@17:5 callee=append args=[_:e@17:19] type=Unit call=kotlin.native.concurrent.MutableData.append[kind=fun;recv=kotlin.native.concurrent.MutableData;params=kotlin.ByteArray,Int,Int]
+expr e@21:5 name(target) type=kotlin.native.concurrent.MutableData ref=golden.sema.appendByteRange.$0.target[kind=vparam]
+expr e@21:19 name(bytes) type=kotlin.ByteArray ref=golden.sema.appendByteRange.$0.bytes[kind=vparam]
+expr e@21:26 name(fromIndex) type=Int ref=golden.sema.appendByteRange.$0.fromIndex[kind=vparam]
+expr e@21:37 name(toIndex) type=Int ref=golden.sema.appendByteRange.$0.toIndex[kind=vparam]
+expr e@21:5#1 memberCall recv=e@21:5 callee=append args=[_:e@21:19,_:e@21:26,_:e@21:37] type=Unit call=kotlin.native.concurrent.MutableData.append[kind=fun;recv=kotlin.native.concurrent.MutableData;params=kotlin.ByteArray,Int,Int]
+expr e@25:5 name(source) type=kotlin.native.concurrent.MutableData ref=golden.sema.copyBytes.$5.source[kind=vparam]
+expr e@25:21 name(output) type=kotlin.ByteArray ref=golden.sema.copyBytes.$5.output[kind=vparam]
+expr e@25:29 name(destinationIndex) type=Int ref=golden.sema.copyBytes.$5.destinationIndex[kind=vparam]
+expr e@25:47 name(startIndex) type=Int ref=golden.sema.copyBytes.$5.startIndex[kind=vparam]
+expr e@25:59 name(endIndex) type=Int ref=golden.sema.copyBytes.$5.endIndex[kind=vparam]
+expr e@25:5#1 memberCall recv=e@25:5 callee=copyInto args=[_:e@25:21,_:e@25:29,_:e@25:47,_:e@25:59] type=Unit call=kotlin.native.concurrent.MutableData.copyInto[kind=fun;recv=kotlin.native.concurrent.MutableData;params=kotlin.ByteArray,Int,Int,Int]
+expr e@28:55 name(source) type=kotlin.native.concurrent.MutableData ref=golden.sema.readByte.$8.source[kind=vparam]
+expr e@28:62 name(index) type=Int ref=golden.sema.readByte.$8.index[kind=vparam]
+expr e@28:55#1 indexedAccess receiver=e@28:55 indices=[e@28:62] type=Byte call=kotlin.native.concurrent.MutableData.get[kind=fun;recv=kotlin.native.concurrent.MutableData;params=Int]
+expr e@31:5 name(source) type=kotlin.native.concurrent.MutableData ref=golden.sema.resetData.$9.source[kind=vparam]
+expr e@31:5#1 memberCall recv=e@31:5 callee=reset args=[] type=Unit call=kotlin.native.concurrent.MutableData.reset[kind=fun;recv=kotlin.native.concurrent.MutableData;params=]
+expr e@34:42 name(source) type=kotlin.native.concurrent.MutableData ref=golden.sema.dataSize.$6.source[kind=vparam]
+expr e@34:42#1 memberCall recv=e@34:42 callee=size args=[] type=Int ref=kotlin.native.concurrent.MutableData.size[kind=prop]
+expr e@36:50 name(source) type=kotlin.native.concurrent.MutableData ref=golden.sema.bufferLockedSize.$4.source[kind=vparam]
+expr e@36:87 name(size) type=Int ref=s-0
+expr e@36:74 lambda params=[_,size] body=e@36:87 label=withBufferLocked type=(kotlin.ByteArray, Int) -> Int
+expr e@36:50#1 memberCall recv=e@36:50 callee=withBufferLocked args=[_:e@36:74] type=Int call=kotlin.native.concurrent.MutableData.withBufferLocked[kind=fun;recv=kotlin.native.concurrent.MutableData;params=fn{p=kotlin.ByteArray,Int;ret=T0};gen=1] targs=[Int]
+expr e@38:51 name(source) type=kotlin.native.concurrent.MutableData ref=golden.sema.pointerLockedSize.$7.source[kind=vparam]
+expr e@38:89 name(size) type=Int ref=s-1
+expr e@38:76 lambda params=[_,size] body=e@38:89 label=withPointerLocked type=(kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>, Int) -> Int
+expr e@38:51#1 memberCall recv=e@38:51 callee=withPointerLocked args=[_:e@38:76] type=Int call=kotlin.native.concurrent.MutableData.withPointerLocked[kind=fun;recv=kotlin.native.concurrent.MutableData;params=fn{p=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>,Int;ret=T0};gen=1] targs=[Int]

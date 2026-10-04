@@ -88,13 +88,18 @@ extension LibraryMetadataCacheBehaviorTests {
         let interner = StringInterner()
         let record = DataFlowSemaPhase.ImportedLibrarySymbolRecord(
             kind: .function, mangledName: "", fqName: [interner.intern("test")],
-            arity: 0, isSuspend: false, isInline: false, typeSignature: nil,
+            arity: 0, isSuspend: false, isInline: false,
+            valueParameterIsVararg: [], valueParameterHasDefaultValues: [],
+            typeSignature: nil, defaultStubExternalLinkName: nil,
             externalLinkName: nil, declaredFieldCount: nil, declaredInstanceSizeWords: nil,
             declaredVtableSize: nil, declaredItableSize: nil, superFQName: nil,
             fieldOffsets: [], vtableSlots: [], itableSlots: [], isDataClass: false,
             isSealedClass: false, isValueClass: false,
             isExpect: false, isActual: false,
-            valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: []
+            valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: [],
+            propertyReceiverTypeSignature: nil, propertyGetterExternalLinkName: nil,
+            abiReturnTypeSignature: nil, propertyGetterAbiReturnTypeSignature: nil,
+            isMutable: false
         )
         cache.cacheMetadataRecords([record], metadataPath: metadataPath, interner: interner)
 
@@ -114,13 +119,18 @@ extension LibraryMetadataCacheBehaviorTests {
         let interner1 = StringInterner()
         let record = DataFlowSemaPhase.ImportedLibrarySymbolRecord(
             kind: .function, mangledName: "", fqName: [interner1.intern("test")],
-            arity: 0, isSuspend: false, isInline: false, typeSignature: nil,
+            arity: 0, isSuspend: false, isInline: false,
+            valueParameterIsVararg: [], valueParameterHasDefaultValues: [],
+            typeSignature: nil, defaultStubExternalLinkName: nil,
             externalLinkName: nil, declaredFieldCount: nil, declaredInstanceSizeWords: nil,
             declaredVtableSize: nil, declaredItableSize: nil, superFQName: nil,
             fieldOffsets: [], vtableSlots: [], itableSlots: [], isDataClass: false,
             isSealedClass: false, isValueClass: false,
             isExpect: false, isActual: false,
-            valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: []
+            valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: [],
+            propertyReceiverTypeSignature: nil, propertyGetterExternalLinkName: nil,
+            abiReturnTypeSignature: nil, propertyGetterAbiReturnTypeSignature: nil,
+            isMutable: false
         )
         cache.cacheMetadataRecords([record], metadataPath: metadataPath, interner: interner1)
 
@@ -220,13 +230,18 @@ extension LibraryMetadataCacheBehaviorTests {
         let interner1 = StringInterner()
         let record = DataFlowSemaPhase.ImportedLibrarySymbolRecord(
             kind: .function, mangledName: "", fqName: [interner1.intern("test")],
-            arity: 0, isSuspend: false, isInline: false, typeSignature: nil,
+            arity: 0, isSuspend: false, isInline: false,
+            valueParameterIsVararg: [], valueParameterHasDefaultValues: [],
+            typeSignature: nil, defaultStubExternalLinkName: nil,
             externalLinkName: nil, declaredFieldCount: nil, declaredInstanceSizeWords: nil,
             declaredVtableSize: nil, declaredItableSize: nil, superFQName: nil,
             fieldOffsets: [], vtableSlots: [], itableSlots: [], isDataClass: false,
             isSealedClass: false, isValueClass: false,
             isExpect: false, isActual: false,
-            valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: []
+            valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: [],
+            propertyReceiverTypeSignature: nil, propertyGetterExternalLinkName: nil,
+            abiReturnTypeSignature: nil, propertyGetterAbiReturnTypeSignature: nil,
+            isMutable: false
         )
         cache.cacheMetadataRecords([record], metadataPath: metadataPath, interner: interner1)
         #expect(cache.metadataCacheCount == 1)
@@ -235,13 +250,18 @@ extension LibraryMetadataCacheBehaviorTests {
         let interner2 = StringInterner()
         let record2 = DataFlowSemaPhase.ImportedLibrarySymbolRecord(
             kind: .property, mangledName: "", fqName: [interner2.intern("test2")],
-            arity: 0, isSuspend: false, isInline: false, typeSignature: nil,
+            arity: 0, isSuspend: false, isInline: false,
+            valueParameterIsVararg: [], valueParameterHasDefaultValues: [],
+            typeSignature: nil, defaultStubExternalLinkName: nil,
             externalLinkName: nil, declaredFieldCount: nil, declaredInstanceSizeWords: nil,
             declaredVtableSize: nil, declaredItableSize: nil, superFQName: nil,
             fieldOffsets: [], vtableSlots: [], itableSlots: [], isDataClass: false,
             isSealedClass: false, isValueClass: false,
             isExpect: false, isActual: false,
-            valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: []
+            valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: [],
+            propertyReceiverTypeSignature: nil, propertyGetterExternalLinkName: nil,
+            abiReturnTypeSignature: nil, propertyGetterAbiReturnTypeSignature: nil,
+            isMutable: false
         )
         let otherPath = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".bin").path
         try "symbols=0".write(toFile: otherPath, atomically: true, encoding: .utf8)

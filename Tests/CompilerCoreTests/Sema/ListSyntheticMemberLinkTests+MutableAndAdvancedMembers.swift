@@ -9,47 +9,50 @@ import Testing
 extension ListSyntheticMemberLinkTests {
     @Test
     func testListSortedAndSortedDescendingHaveComparableUpperBound() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let baseFQName: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-            ]
-            let memberCases: [(String, String)] = [
-                ("sorted", "kk_list_sorted"),
-                ("sortedDescending", "kk_list_sortedDescending"),
-            ]
+        let sema = try #require(ctx.sema)
+        let packageFQName: [InternedString] = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+        ]
+        let memberCases = ["sorted", "sortedDescending"]
 
-            for (memberName, externalLinkName) in memberCases {
-                let symbolID = try #require(sema.symbols.lookupAll(
-                        fqName: baseFQName + [ctx.interner.intern(memberName)]
-                    ).first(where: { sema.symbols.externalLinkName(for: $0) == externalLinkName }))
-                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
-                #expect(signature.typeParameterUpperBoundsList.count == 1)
-                let upperBounds = signature.typeParameterUpperBoundsList[0]
-                #expect(upperBounds.count == 1, "Expected Comparable upper bound for \(memberName) element type")
+        for memberName in memberCases {
+            let allSymbols = sema.symbols.lookupAll(fqName: packageFQName + [ctx.interner.intern(memberName)])
+            let symbolID = try #require(allSymbols.first { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      let fileID = sema.symbols.sourceFileID(for: symbolID),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+                else { return false }
+                return ctx.interner.resolve(receiverSymbol.name) == "List"
+                    && ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+            })
+            let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+            #expect(signature.typeParameterUpperBoundsList.count == 1)
+            let upperBounds = signature.typeParameterUpperBoundsList[0]
+            #expect(upperBounds.count == 1, "Expected Comparable upper bound for \(memberName) element type")
 
-                guard case let .classType(boundType) = sema.types.kind(of: upperBounds[0]) else {
-                    Issue.record("Expected \(memberName) upper bound to be a class type"); return
-                }
-
-                #expect(boundType.classSymbol == sema.types.comparableInterfaceSymbol)
-                #expect(boundType.args.count == 1)
-
-                guard case let .invariant(argumentType) = boundType.args[0] else {
-                    Issue.record("Expected \(memberName) upper bound to reference invariant element type"); return
-                }
-
-                let expectedElementType = sema.types.make(.typeParam(TypeParamType(
-                    symbol: signature.typeParameterSymbols[0],
-                    nullability: .nonNull
-                )))
-                #expect(argumentType == expectedElementType)
+            guard case let .classType(boundType) = sema.types.kind(of: upperBounds[0]) else {
+                Issue.record("Expected \(memberName) upper bound to be a class type"); return
             }
+
+            #expect(boundType.classSymbol == sema.types.comparableInterfaceSymbol)
+            #expect(boundType.args.count == 1)
+
+            guard case let .invariant(argumentType) = boundType.args[0] else {
+                Issue.record("Expected \(memberName) upper bound to reference invariant element type"); return
+            }
+
+            let expectedElementType = sema.types.make(.typeParam(TypeParamType(
+                symbol: signature.typeParameterSymbols[0],
+                nullability: .nonNull
+            )))
+            #expect(argumentType == expectedElementType)
         }
     }
 
@@ -75,7 +78,30 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListConversionMembersUseRuntimeExternalLinks() throws {
+    func testListSortingAcceptsUserComparableElements() throws {
+        let source = """
+        class Version(val value: Int) : Comparable<Version> {
+            override fun compareTo(other: Version): Int = value - other.value
+        }
+
+        fun render(values: List<Version>): List<Int> {
+            return values.sorted().map { it.value }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected user-defined Comparable list sorting to type-check, got: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    @Test
+    func testListConversionMembersResolveToBundledSource() throws {
         let source = """
         fun convert(values: List<Int>) {
             values.toMutableList()
@@ -91,10 +117,10 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let expectedExternalLinks = [
-                "toMutableList": "kk_list_to_mutable_list",
-                "toSet": "kk_list_to_set",
-                "joinToString": "kk_list_joinToString",
+            let expectedExternalLinks: [String: String?] = [
+                "toMutableList": nil,
+                "toSet": nil,
+                "joinToString": nil,
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
@@ -107,12 +133,14 @@ extension ListSyntheticMemberLinkTests {
                     ]))
                     #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 } else {
-                    // Exclude bundled stdlib files (FileIDs 0 and 1) to avoid matching
-                    // internal calls like `result.add(element)` inside bundled Set HOFs.
+                    // Exclude bundled stdlib files to avoid matching internal calls
+                    // like `result.add(element)` or `this.toMutableList()` inside
+                    // bundled Iterable/Set HOFs.
                     let callExpr = try #require(firstExprID(in: ast) { id, expr in
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                         guard ctx.interner.resolve(callee) == memberName else { return false }
-                        if let range = ast.arena.exprRange(id), range.start.file.rawValue < 2 {
+                        if let range = ast.arena.exprRange(id),
+                           ctx.sourceManager.origin(of: range.start.file)?.isBundledStdlib == true {
                             return false
                         }
                         return true
@@ -124,53 +152,67 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
+    /// KSP-435: the generic Iterable/Collection conversions are bundled Kotlin
+    /// source (Iterables.kt / Collections.kt), so they must resolve to a
+    /// source-backed declaration without any `kk_*` external link.
     @Test
-    func testCollectionAndIterableConversionMembersUseRuntimeExternalLinks() throws {
-        let cases: [SyntheticMemberCallCase] = [
-            .init(
-                source: """
-                fun copy(values: Collection<String>) {
-                    values.toMutableList()
-                }
-                """,
-                memberName: "toMutableList",
-                expectedExternalLink: "kk_collection_toMutableList",
-                expectedTypeShape: .classNamed("MutableList")
-            ),
-            .init(
-                source: """
-                fun copy(values: Collection<String>) {
-                    values.toTypedArray()
-                }
-                """,
-                memberName: "toTypedArray",
-                expectedExternalLink: "kk_collection_toTypedArray",
-                expectedTypeShape: .classNamed("Array")
-            ),
-            .init(
-                source: """
-                fun copy(values: Iterable<String>) {
-                    values.toMutableList()
-                }
-                """,
-                memberName: "toMutableList",
-                expectedExternalLink: "kk_iterable_toMutableList",
-                expectedTypeShape: .classNamed("MutableList")
-            ),
-            .init(
-                source: """
-                fun copy(values: Iterable<String>) {
-                    values.toMutableSet()
-                }
-                """,
-                memberName: "toMutableSet",
-                expectedExternalLink: "kk_iterable_toMutableSet",
-                expectedTypeShape: .classNamed("MutableSet")
-            ),
+    func testCollectionAndIterableConversionMembersResolveToBundledSource() throws {
+        let cases: [(source: String, memberName: String, resultClassName: String)] = [
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toList()
+            }
+            """, "toList", "List"),
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toMutableList()
+            }
+            """, "toMutableList", "MutableList"),
+            ("""
+            fun copy(values: Collection<String>) {
+                values.toTypedArray()
+            }
+            """, "toTypedArray", "Array"),
+            ("""
+            fun copy(values: Iterable<String>) {
+                values.toMutableList()
+            }
+            """, "toMutableList", "MutableList"),
+            ("""
+            fun copy(values: Iterable<String>) {
+                values.toMutableSet()
+            }
+            """, "toMutableSet", "MutableSet"),
         ]
 
         for testCase in cases {
-            try assertSyntheticMemberCall(testCase)
+            try withTemporaryFile(contents: testCase.source) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+
+                let ast = try #require(ctx.ast)
+                let sema = try #require(ctx.sema)
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == testCase.memberName
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(chosenCallee),
+                    "\(testCase.memberName) must bind to the bundled Kotlin declaration"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "\(testCase.memberName) must not keep a kk_* external link"
+                )
+                try assertSyntheticMemberType(
+                    try #require(sema.bindings.exprType(for: callExpr)),
+                    matches: .classNamed(testCase.resultClassName),
+                    sema: sema,
+                    interner: ctx.interner,
+                    memberName: testCase.memberName
+                )
+            }
         }
     }
 
@@ -249,7 +291,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "unzip"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_unzip")
+            // KSP-425: List.unzip() is now source-backed and has no external runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected List.unzip to resolve to bundled source")
 
             let resultType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(pairType) = sema.types.kind(of: resultType) else {
@@ -292,12 +335,12 @@ extension ListSyntheticMemberLinkTests {
                 return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_joinToString")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected Sequence.joinToString to have no bundled external link")
         }
     }
 
     @Test
-    func testSequenceReduceIndexedOrNullUsesRuntimeExternalLink() throws {
+    func testSequenceReduceIndexedOrNullIsSourceBacked() throws {
         let source = """
         fun render(values: Sequence<Int>) {
             println(values.reduceIndexedOrNull { index, acc, value -> acc + index * value })
@@ -311,21 +354,22 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let sequenceReduceIndexedOrNullSymbol = try #require(sema.symbols.lookup(
-                    fqName: [
-                        ctx.interner.intern("kotlin"),
-                        ctx.interner.intern("sequences"),
-                        ctx.interner.intern("Sequence"),
-                        ctx.interner.intern("reduceIndexedOrNull"),
-                    ]
-                ))
-            #expect(sema.symbols.externalLinkName(for: sequenceReduceIndexedOrNullSymbol) == "kk_sequence_reduceIndexedOrNull")
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "reduceIndexedOrNull"
+            }, "Expected reduceIndexedOrNull member call")
+            let chosenCallee = try #require(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected reduceIndexedOrNull call to be bound"
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
         }
     }
 
     @Test
-    func testListFlatMapRegistersRuntimeExternalLink() throws {
+    func testListFlatMapBindsToBundledSource() throws {
         let source = """
         fun render(values: List<String>) {
             val result: List<Int> = values.flatMap { listOf(it.length) }
@@ -341,18 +385,26 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let memberFQName = [
+            let sourceFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
                 ctx.interner.intern("flatMap"),
             ]
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            #expect(symbols.count == 1, "Expected one synthetic List.flatMap overload")
+            let symbols = sema.symbols.lookupAll(fqName: sourceFQName)
+            let listFlatMapSymbol = try #require(symbols.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      let (receiverClassType, _) = resolveClassTypeSymbol(receiverType, sema: sema),
+                      let receiverSymbol = sema.symbols.symbol(receiverClassType.classSymbol)
+                else { return false }
+                return ctx.interner.resolve(receiverSymbol.name) == "List"
+            }, "Expected bundled source List.flatMap overload")
 
-            let symbol = try #require(symbols.first)
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_list_flatMap")
+            let symbolInfo = try #require(sema.symbols.symbol(listFlatMapSymbol))
+            #expect(!symbolInfo.flags.contains(.synthetic), "flatMap must be a bundled source declaration")
+            #expect(sema.symbols.externalLinkName(for: listFlatMapSymbol) == nil, "source flatMap must not link to runtime")
 
+            let symbol = listFlatMapSymbol
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
                   let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
@@ -365,9 +417,9 @@ extension ListSyntheticMemberLinkTests {
             guard case let .functionType(functionType) = sema.types.kind(of: transformType),
                   let (_, transformReturnSymbol) = resolveClassTypeSymbol(functionType.returnType, sema: sema)
             else {
-                Issue.record("Expected List.flatMap transform to return Collection<R>"); return
+                Issue.record("Expected List.flatMap transform to return List<R>"); return
             }
-            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "Collection")
+            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "List")
         }
     }
 
@@ -390,17 +442,29 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let memberFQName = [
+            let packageFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("sequences"),
+                ctx.interner.intern("flatMapIndexed"),
+            ]
+            let sequenceFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("sequences"),
                 ctx.interner.intern("Sequence"),
-                ctx.interner.intern("flatMapIndexed"),
             ]
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
+            guard let sequenceSymbol = sema.symbols.lookup(fqName: sequenceFQName) else {
+                #expect(Bool(false), "Sequence symbol not found")
+                return
+            }
+            let allSymbols = sema.symbols.lookupAll(fqName: packageFQName)
+            let symbols = allSymbols.filter { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let (receiverClassType, _) = resolveClassTypeSymbol(signature.receiverType ?? sema.types.anyType, sema: sema)
+                else { return false }
+                return receiverClassType.classSymbol == sequenceSymbol
+            }
             #expect(symbols.count == 2, "Expected Iterable and Sequence flatMapIndexed overloads")
-            #expect(symbols.allSatisfy {
-                sema.symbols.externalLinkName(for: $0) == "kk_sequence_flatMapIndexed"
-            })
+            #expect(symbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil }, "Source-backed flatMapIndexed must not link to runtime")
 
             let transformReturnTypeNames = symbols.compactMap { symbolID -> String? in
                 guard let parameterType = sema.symbols.functionSignature(for: symbolID)?.parameterTypes.first,
@@ -448,7 +512,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testSequenceRequireNoNullsSyntheticStubHasRuntimeExternalLink() throws {
+    func testSequenceRequireNoNullsIsBundledSourceWithNoRuntimeLink() throws {
         let source = """
         fun render(values: Sequence<Int?>) {
             val result: Sequence<Int> = values.requireNoNulls()
@@ -464,15 +528,28 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let fqName = [
+            let packageFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("sequences"),
+                ctx.interner.intern("requireNoNulls"),
+            ]
+            let sequenceFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("sequences"),
                 ctx.interner.intern("Sequence"),
-                ctx.interner.intern("requireNoNulls"),
             ]
-            #expect(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_sequence_requireNoNulls"
-            })
+            guard let sequenceSymbol = sema.symbols.lookup(fqName: sequenceFQName) else {
+                #expect(Bool(false), "Sequence symbol not found")
+                return
+            }
+            let candidates = sema.symbols.lookupAll(fqName: packageFQName).filter { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let (receiverClassType, _) = resolveClassTypeSymbol(signature.receiverType ?? sema.types.anyType, sema: sema)
+                else { return false }
+                return receiverClassType.classSymbol == sequenceSymbol
+            }
+            #expect(candidates.isEmpty == false, "Expected a bundled source requireNoNulls")
+            #expect(candidates.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil }, "Source-backed requireNoNulls must not have a runtime link")
         }
     }
 
@@ -480,6 +557,7 @@ extension ListSyntheticMemberLinkTests {
     func testMutableListMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
+            values[0] = 9
             values.add(1)
             values.add(1, 0)
             values.addAll(listOf(2, 3))
@@ -491,6 +569,70 @@ extension ListSyntheticMemberLinkTests {
             values.removeLast()
             values.removeLastOrNull()
             values.clear()
+            values += 6
+            values += listOf(7)
+            values -= 6
+            values -= listOf(7)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            // KSP-705 residual: addAll keeps a synthetic runtime link until its
+            // own Kotlin migration lands.
+            let expectedExternalLinks: [(String, Int, String)] = [
+                ("addAll", 1, "__kk_mutable_list_addAll"),
+            ]
+
+            for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, valueArgs, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && valueArgs.count == argumentCount
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)")
+            }
+
+            // KSP-1503: element add/remove members are bundled MutableList
+            // defaults forwarding to `__kk_mutable_list_*` inside the body, so
+            // the member symbol itself carries no external link.
+            let sourceBackedMembers: [(String, Int)] = [
+                ("add", 1),
+                ("add", 2),
+                ("removeAll", 1),
+                ("retainAll", 1),
+                ("removeAt", 1),
+                ("clear", 0),
+                ("removeFirst", 0),
+                ("removeFirstOrNull", 0),
+                ("removeLast", 0),
+                ("removeLastOrNull", 0),
+            ]
+            for (memberName, argumentCount) in sourceBackedMembers {
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, valueArgs, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && valueArgs.count == argumentCount
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected \(memberName)/\(argumentCount) to remain source-backed")
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected \(memberName)/\(argumentCount) to resolve to bundled source")
+            }
+        }
+    }
+
+    /// KSP-436: predicate-driven mutable list operations are bundled Kotlin
+    /// source; only the storage-mutating members keep a `__kk_mutable_*` bridge.
+    @Test
+    func testMutableListPredicateMembersResolveToBundledSource() throws {
+        let source = """
+        fun mutate(values: MutableList<Int>) {
+            values.removeIf { it > 1 }
+            values.replaceAll { it + 1 }
             values.fill(9)
         }
         """
@@ -502,28 +644,26 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let expectedExternalLinks: [(String, Int, String)] = [
-                ("add", 1, "kk_mutable_list_add"),
-                ("add", 2, "kk_mutable_list_add_at"),
-                ("addAll", 1, "kk_mutable_list_addAll"),
-                ("removeAll", 1, "kk_mutable_list_removeAll"),
-                ("retainAll", 1, "kk_mutable_list_retainAll"),
-                ("removeAt", 1, "kk_mutable_list_removeAt"),
-                ("removeFirst", 0, "kk_mutable_list_removeFirst"),
-                ("removeFirstOrNull", 0, "kk_mutable_list_removeFirstOrNull"),
-                ("removeLast", 0, "kk_mutable_list_removeLast"),
-                ("removeLastOrNull", 0, "kk_mutable_list_removeLastOrNull"),
-                ("clear", 0, "kk_mutable_list_clear"),
-                ("fill", 1, "kk_mutable_list_fill"),
-            ]
-
-            for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
+            for memberName in ["removeIf", "replaceAll", "fill"] {
                 let callExpr = try #require(lastExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, valueArgs, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName && valueArgs.count == argumentCount
+                    guard case let .memberCall(_, callee, _, valueArgs, range) = expr,
+                          valueArgs.count == 1,
+                          !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                    else {
+                        return false
+                    }
+                    return ctx.interner.resolve(callee) == memberName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)")
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected \(memberName) to be source-backed without a runtime link"
+                )
+                let declFile = try #require(sema.symbols.symbol(chosenCallee)?.declSite?.start.file)
+                #expect(
+                    ctx.sourceManager.path(of: declFile).hasPrefix("__bundled_"),
+                    "Expected \(memberName) to resolve to a bundled stdlib declaration"
+                )
             }
         }
     }
@@ -546,7 +686,15 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            for memberName in ["addAll", "removeAll", "retainAll"] {
+            // KSP-705 residual: addAll still resolves to a synthetic runtime
+            // extern; removeAll/retainAll are bundled MutableList defaults
+            // since KSP-1503.
+            let expectedExternalLinks: [String: String?] = [
+                "addAll": "__kk_mutable_list_addAll",
+                "removeAll": nil,
+                "retainAll": nil,
+            ]
+            for (memberName, expectedLink) in expectedExternalLinks {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
@@ -560,7 +708,7 @@ extension ListSyntheticMemberLinkTests {
                         ]
                     ))
 
-                #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_mutable_list_\(memberName)", "Expected \(memberName) to resolve to runtime extern")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == expectedLink, "Expected \(memberName) external link to be \(String(describing: expectedLink))")
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.booleanType, "Expected \(memberName) to return Boolean")
                 #expect(!(sema.bindings.isCollectionExpr(callExpr)), "Expected \(memberName) result to remain a scalar Boolean")
             }
@@ -568,7 +716,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableCollectionSequenceAddAllMembersUseRuntimeExternalLinks() throws {
+    func testMutableCollectionSequenceAddAllOverloadsResolveByReceiver() throws {
         let source = """
         fun appendCollection(collection: MutableCollection<Int>, source: Sequence<Int>) = collection.addAll(source)
         fun appendList(list: MutableList<Int>, source: Sequence<Int>) = list.addAll(source)
@@ -581,10 +729,12 @@ extension ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let expectedExternalLinks = [
-                "collection": "kk_mutable_collection_addAll_sequence",
-                "list": "kk_mutable_list_addAll_sequence",
-                "set": "kk_mutable_set_addAll_sequence",
+            let expectedExternalLinks: [String: String?] = [
+                // KSP-1019/705: MutableCollection and MutableList use the
+                // source-backed extension.
+                "collection": nil,
+                "list": nil,
+                "set": "__kk_mutable_set_addAll_sequence",
             ]
 
             for (receiverName, externalLinkName) in expectedExternalLinks {
@@ -599,20 +749,30 @@ extension ListSyntheticMemberLinkTests {
                     return ctx.interner.resolve(name) == receiverName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(receiverName).addAll(Sequence) to resolve to \(externalLinkName)")
+                let expectedLinkDescription = externalLinkName ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(receiverName).addAll(Sequence) to resolve to \(expectedLinkDescription)")
+                if receiverName != "set" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected \(receiverName).addAll(Sequence) to be source-backed")
+                }
                 #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
             }
         }
     }
 
     @Test
-    func testMutableListSortMembersUseRuntimeExternalLinks() throws {
+    func testMutableListInPlaceSortingAndShuffleResolveToBundledSource() throws {
         let source = """
-        fun mutate(values: MutableList<Int>) {
+        import kotlin.random.Random
+
+        fun mutate(values: MutableList<Int>, random: Random) {
             values.sort()
             values.sortWith { a, b -> b - a }
             values.sortBy { it }
             values.sortByDescending { it }
+            values.sortDescending()
+            values.shuffle()
+            values.shuffle(random)
+            values.reverse()
         }
         """
 
@@ -622,29 +782,35 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
-            let expectedExternalLinks = [
-                "sort": "kk_mutable_list_sort",
-                "sortWith": "kk_mutable_list_sortWith",
-                "sortBy": "kk_mutable_list_sortBy",
-                "sortByDescending": "kk_mutable_list_sortByDescending",
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "MutableList source extensions must resolve cleanly")
+            let expectedCalls: [(name: String, arity: Int)] = [
+                ("sort", 0),
+                ("sortWith", 1),
+                ("sortBy", 1),
+                ("sortByDescending", 1),
+                ("sortDescending", 0),
+                ("shuffle", 0),
+                ("shuffle", 1),
+                ("reverse", 0),
             ]
 
-            for (memberName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName
+            for (memberName, arity) in expectedCalls {
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard case let .memberCall(_, callee, _, args, _) = expr,
+                          let range = ast.arena.exprRange(exprID),
+                          ctx.sourceManager.path(of: range.start.file) == path
+                    else { return false }
+                    return ctx.interner.resolve(callee) == memberName && args.count == arity
                 })
-                if let chosenCallee = sema.bindings.callBinding(for: callExpr)?.chosenCallee {
-                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
-                }
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected \(memberName)/\(arity) to use a bundled Kotlin declaration")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             }
         }
     }
 
     @Test
-    func testListPrimitiveArrayConversionsUseRuntimeExternalLinks() throws {
+    func testListPrimitiveArrayConversionsResolveToSourceBackedDeclarations() throws {
         let cases: [SyntheticMemberCallCase] = [
             .init(
                 source: """
@@ -653,7 +819,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toBooleanArray",
-                expectedExternalLink: "kk_list_toBooleanArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("BooleanArray")
             ),
             .init(
@@ -663,7 +829,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toByteArray",
-                expectedExternalLink: "kk_list_toByteArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("ByteArray")
             ),
             .init(
@@ -673,7 +839,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toShortArray",
-                expectedExternalLink: "kk_list_toShortArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("ShortArray")
             ),
             .init(
@@ -683,7 +849,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toIntArray",
-                expectedExternalLink: "kk_list_toIntArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("IntArray")
             ),
             .init(
@@ -693,7 +859,7 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toDoubleArray",
-                expectedExternalLink: "kk_list_toDoubleArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("DoubleArray")
             ),
             .init(
@@ -703,8 +869,48 @@ extension ListSyntheticMemberLinkTests {
                 }
                 """,
                 memberName: "toFloatArray",
-                expectedExternalLink: "kk_list_toFloatArray",
+                expectedExternalLink: nil,
                 expectedTypeShape: .classNamed("FloatArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UByte>) {
+                    values.toUByteArray()
+                }
+                """,
+                memberName: "toUByteArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UByteArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UShort>) {
+                    values.toUShortArray()
+                }
+                """,
+                memberName: "toUShortArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UShortArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<UInt>) {
+                    values.toUIntArray()
+                }
+                """,
+                memberName: "toUIntArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("UIntArray")
+            ),
+            .init(
+                source: """
+                fun convert(values: List<ULong>) {
+                    values.toULongArray()
+                }
+                """,
+                memberName: "toULongArray",
+                expectedExternalLink: nil,
+                expectedTypeShape: .classNamed("ULongArray")
             ),
         ]
 
@@ -715,27 +921,24 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableListBulkMutationMembersUseInvariantReceiverTypes() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            let ownerFQName = [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("MutableList"),
-            ]
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let ownerFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ]
 
-            for memberName in ["addAll", "removeAll", "retainAll"] {
-                let symbolID = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern(memberName)]))
-                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
-                guard case let .classType(receiverType) = sema.types.kind(of: try #require(signature.receiverType)) else {
-                    Issue.record("Expected \(memberName) to use MutableList receiver type"); return
-                }
-                guard case .invariant = try #require(receiverType.args.first) else {
-                    Issue.record("Expected \(memberName) receiver projection to remain invariant"); return
-                }
+        for memberName in ["addAll", "removeAll", "retainAll"] {
+            let symbolID = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern(memberName)]))
+            let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+            guard case let .classType(receiverType) = sema.types.kind(of: try #require(signature.receiverType)) else {
+                Issue.record("Expected \(memberName) to use MutableList receiver type"); return
+            }
+            guard case .invariant = try #require(receiverType.args.first) else {
+                Issue.record("Expected \(memberName) receiver projection to remain invariant"); return
             }
         }
     }
@@ -758,15 +961,21 @@ extension ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
 
-            let expectedExternalLinks = [
-                "addAll": "kk_mutable_list_addAll",
-                "removeAll": "kk_mutable_list_removeAll",
-                "retainAll": "kk_mutable_list_retainAll",
+            // KSP-705 residual: addAll keeps a synthetic runtime link;
+            // KSP-1503 migrated removeAll/retainAll to bundled defaults.
+            let expectedExternalLinks: [String: String?] = [
+                "addAll": "__kk_mutable_list_addAll",
+                "removeAll": nil,
+                "retainAll": nil,
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
+                        return false
+                    }
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
@@ -778,35 +987,32 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableListBulkCollectionMembersKeepInvariantReceiverType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let mutableListFQName: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("MutableList"),
-            ]
+        let sema = try #require(ctx.sema)
+        let mutableListFQName: [InternedString] = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("MutableList"),
+        ]
 
-            for memberName in ["addAll", "removeAll", "retainAll"] {
-                let symbolID = try #require(sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]))
-                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
-                let receiverType = try #require(signature.receiverType)
-                guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
-                    Issue.record("Expected \(memberName) receiver to be a class type"); return
-                }
-                guard case .invariant = try #require(receiverClassType.args.first) else {
-                    Issue.record("Expected \(memberName) receiver to keep invariant element type, got \(sema.types.renderType(receiverType))"); return
-                }
+        for memberName in ["addAll", "removeAll", "retainAll"] {
+            let symbolID = try #require(sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]))
+            let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+            let receiverType = try #require(signature.receiverType)
+            guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
+                Issue.record("Expected \(memberName) receiver to be a class type"); return
+            }
+            guard case .invariant = try #require(receiverClassType.args.first) else {
+                Issue.record("Expected \(memberName) receiver to keep invariant element type, got \(sema.types.renderType(receiverType))"); return
+            }
 
-                let parameterType = try #require(signature.parameterTypes.first)
-                guard case let .classType(parameterClassType) = sema.types.kind(of: parameterType) else {
-                    Issue.record("Expected \(memberName) parameter to be a class type"); return
-                }
-                guard case .out = try #require(parameterClassType.args.first) else {
-                    Issue.record("Expected \(memberName) parameter to remain covariant Collection<out E>, got \(sema.types.renderType(parameterType))"); return
-                }
+            let parameterType = try #require(signature.parameterTypes.first)
+            guard case let .classType(parameterClassType) = sema.types.kind(of: parameterType) else {
+                Issue.record("Expected \(memberName) parameter to be a class type"); return
+            }
+            guard case .out = try #require(parameterClassType.args.first) else {
+                Issue.record("Expected \(memberName) parameter to remain covariant Collection<out E>, got \(sema.types.renderType(parameterType))"); return
             }
         }
     }
@@ -927,7 +1133,7 @@ extension ListSyntheticMemberLinkTests {
             })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: iteratorCall)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_range_iterator")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_iterator")
         }
     }
 
@@ -953,8 +1159,9 @@ extension ListSyntheticMemberLinkTests {
             for index in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(index))
                 guard let expr = ast.arena.expr(exprID),
-                      case let .memberCall(_, callee, _, _, _) = expr,
-                      ctx.interner.resolve(callee) == "contains"
+                      case let .memberCall(_, callee, _, _, range) = expr,
+                      ctx.interner.resolve(callee) == "contains",
+                      !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 else { continue }
                 containsCalls.append(exprID)
             }
@@ -963,14 +1170,14 @@ extension ListSyntheticMemberLinkTests {
                 let binding = sema.bindings.callBinding(for: callID)
                 #expect(binding?.chosenCallee != nil, "contains should resolve")
                 if let chosen = binding?.chosenCallee {
-                    #expect(sema.symbols.externalLinkName(for: chosen) == "kk_list_contains", "contains should resolve to kk_list_contains")
+                    #expect(sema.symbols.externalLinkName(for: chosen) == nil, "List.contains is source-backed and should have no external link")
                 }
             }
         }
     }
 
     @Test
-    func testListElementAtUsesRuntimeExternalLink() throws {
+    func testListElementAtUsesBundledSourceFunction() throws {
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -988,12 +1195,15 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "elementAt"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_elementAt")
+            let symbol = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(!symbol.flags.contains(.synthetic))
+            #expect(ctx.interner.resolve(symbol.name) == "elementAt")
         }
     }
 
     @Test
-    func testListElementAtOrNullUsesRuntimeExternalLink() throws {
+    func testListElementAtOrNullUsesBundledSourceFunction() throws {
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -1011,12 +1221,15 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "elementAtOrNull"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_elementAtOrNull")
+            let symbol = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(!symbol.flags.contains(.synthetic))
+            #expect(ctx.interner.resolve(symbol.name) == "elementAtOrNull")
         }
     }
 
     @Test
-    func testSetMembersUseRuntimeExternalLinks() throws {
+    func testSetMembersRetainRuntimeLinksFromBundledSource() throws {
         let source = """
         fun check(values: Set<Int>) {
             values.contains(42)
@@ -1030,164 +1243,258 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "contains"
+            let callExpr = try #require(firstExprID(in: ast) { id, expr in
+                guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                guard ctx.interner.resolve(callee) == "contains" else { return false }
+                guard !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_") else { return false }
+                return true
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_set_contains", "Expected contains to resolve to kk_set_contains")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "__kk_set_contains", "Expected contains to retain its source annotation runtime link")
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+        }
+    }
+
+    @Test
+    func testSetFilterUsesSetSpecificBundledSourceFunction() throws {
+        let source = """
+        fun filterValues(values: Set<Int>): List<Int> {
+            return values.filter { value -> value > 1 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected Set.filter to resolve cleanly: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                return ctx.interner.resolve(callee) == "filter"
+                    && !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            })
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let chosenSymbol = try #require(sema.symbols.symbol(chosenCallee))
+            let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+            let receiverType = try #require(signature.receiverType)
+            let (_, receiverSymbol) = try #require(resolveClassTypeSymbol(receiverType, sema: sema))
+
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+            #expect(chosenSymbol.fqName == [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("filter"),
+            ])
+            #expect(receiverSymbol.fqName == [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("Set"),
+            ])
         }
     }
 
     @Test
     func testSetRegistersCollectionAsNominalSupertype() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let setSymbol = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Set"),
-            ]))
-            let collectionSymbol = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Collection"),
-            ]))
+        let sema = try #require(ctx.sema)
+        let setSymbol = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("Set"),
+        ]))
+        let collectionSymbol = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("Collection"),
+        ]))
 
-            #expect(sema.types.directNominalSupertypes(for: setSymbol) == [collectionSymbol], "Expected Set to register Collection as its nominal supertype")
-        }
+        #expect(sema.types.directNominalSupertypes(for: setSymbol) == [collectionSymbol], "Expected Set to register Collection as its nominal supertype")
     }
 
     @Test
     func testContainsAllMembersUseCollectionRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let listContainsAll = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-                ctx.interner.intern("containsAll"),
-            ]))
-            let setContainsAll = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Set"),
-                ctx.interner.intern("containsAll"),
-            ]))
+        let sema = try #require(ctx.sema)
+        let collectionsPkg = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+        ]
+        let listSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("List")]))
+        let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
 
-            #expect(sema.symbols.externalLinkName(for: listContainsAll) == "kk_list_containsAll")
-            #expect(sema.symbols.externalLinkName(for: setContainsAll) == "kk_set_containsAll")
+        func containsAllSymbol(owner: SymbolID) -> SymbolID? {
+            let name = ctx.interner.intern("containsAll")
+            func matches(_ symbolID: SymbolID) -> Bool {
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      case let .classType(classType) = sema.types.kind(of: receiverType)
+                else {
+                    return false
+                }
+                return classType.classSymbol == owner
+            }
+            if let sourceBacked = sema.symbols.lookupAll(fqName: collectionsPkg + [name]).first(where: matches) {
+                return sourceBacked
+            }
+            guard let ownerSymbol = sema.symbols.symbol(owner) else { return nil }
+            return sema.symbols.lookupAll(fqName: ownerSymbol.fqName + [name]).first(where: matches)
         }
+
+        let listContainsAll = try #require(containsAllSymbol(owner: listSymbol), "Expected List.containsAll source extension")
+        let setContainsAll = try #require(containsAllSymbol(owner: setSymbol), "Expected Set.containsAll")
+
+        // List.containsAll is source-backed (KSP-423), Set.containsAll (KSP-432).
+        #expect(sema.symbols.externalLinkName(for: listContainsAll) == nil)
+        #expect(sema.symbols.externalLinkName(for: setContainsAll) == nil)
     }
 
     @Test
     func testSetContainsAllUsesCollectionParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let setContainsAll = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Set"),
-                ctx.interner.intern("containsAll"),
-            ]))
-            let signature = try #require(sema.symbols.functionSignature(for: setContainsAll))
-            let parameterType = try #require(signature.parameterTypes.first)
+        let sema = try #require(ctx.sema)
+        let collectionsPkg = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+        ]
+        let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
+        let setContainsAll = try #require(
+            sema.symbols.lookupAll(fqName: collectionsPkg + [ctx.interner.intern("containsAll")]).first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      case let .classType(classType) = sema.types.kind(of: receiverType)
+                else {
+                    return false
+                }
+                return classType.classSymbol == setSymbol
+            },
+            "Expected Set.containsAll source extension"
+        )
+        let signature = try #require(sema.symbols.functionSignature(for: setContainsAll))
+        let parameterType = try #require(signature.parameterTypes.first)
 
-            guard case let .classType(collectionType) = sema.types.kind(of: parameterType) else {
-                Issue.record("Set.containsAll should accept Collection<E>"); return
-            }
-
-            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(collectionType.classSymbol)?.name)) == "Collection")
-            guard case let .out(elementType) = try #require(collectionType.args.first) else {
-                Issue.record("Collection parameter should preserve the element projection"); return
-            }
-            let typeParamSymbol = try #require(signature.typeParameterSymbols.first)
-            let expectedElementType = sema.types.make(.typeParam(TypeParamType(
-                symbol: typeParamSymbol,
-                nullability: .nonNull
-            )))
-            #expect(elementType == expectedElementType)
+        guard case let .classType(collectionType) = sema.types.kind(of: parameterType) else {
+            Issue.record("Set.containsAll should accept Collection<E>"); return
         }
+
+        #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(collectionType.classSymbol)?.name)) == "Collection")
+        guard case let .out(elementType) = try #require(collectionType.args.first) else {
+            Issue.record("Collection parameter should preserve the element projection"); return
+        }
+        let typeParamSymbol = try #require(signature.typeParameterSymbols.first)
+        let expectedElementType = sema.types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        #expect(elementType == expectedElementType)
     }
 
     @Test
     func testContainsMembersAreMarkedOperatorFunctions() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let listContains = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-                ctx.interner.intern("contains"),
-            ]))
-            let setContains = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Set"),
-                ctx.interner.intern("contains"),
-            ]))
-            let stringContains = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("text"),
-                ctx.interner.intern("contains"),
-            ]))
+        let sema = try #require(ctx.sema)
+        let collectionsPkg = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+        ]
+        let listSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("List")]))
+        let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
 
-            #expect(sema.symbols.symbol(listContains)?.flags.contains(.operatorFunction) == true)
-            #expect(sema.symbols.symbol(setContains)?.flags.contains(.operatorFunction) == true)
-            #expect(sema.symbols.symbol(stringContains)?.flags.contains(.operatorFunction) == true)
+        func containsSymbol(owner: SymbolID, packageFQName: [InternedString]) -> SymbolID? {
+            let name = ctx.interner.intern("contains")
+            func matches(_ symbolID: SymbolID) -> Bool {
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      case let .classType(classType) = sema.types.kind(of: receiverType)
+                else {
+                    return false
+                }
+                return classType.classSymbol == owner
+            }
+            if let sourceBacked = sema.symbols.lookupAll(fqName: packageFQName + [name]).first(where: matches) {
+                return sourceBacked
+            }
+            guard let ownerSymbol = sema.symbols.symbol(owner) else { return nil }
+            return sema.symbols.lookupAll(fqName: ownerSymbol.fqName + [name]).first(where: matches)
         }
+
+        let listContains = try #require(containsSymbol(owner: listSymbol, packageFQName: collectionsPkg))
+        let setContains = try #require(containsSymbol(owner: setSymbol, packageFQName: collectionsPkg))
+        #expect(sema.symbols.symbol(listContains)?.flags.contains(.operatorFunction) == true)
+        #expect(sema.symbols.symbol(setContains)?.flags.contains(.operatorFunction) == true)
+
+        // KSP-408: `kotlin.text.contains` now has multiple overloads under the same
+        // fqName: CharSequence.contains(other: CharSequence) (1-arg `operator fun`
+        // used for `in` resolution), CharSequence.contains(other, ignoreCase) (2-arg,
+        // not an operator function), and the pre-existing String.contains(regex:
+        // Regex) synthetic stub (1-arg, but a different receiver type and not marked
+        // as an operator function). Disambiguate by receiver type rather than relying
+        // on `lookup`/arity alone, mirroring the List/Set `containsSymbol` helper above.
+        let charSequenceSymbol = try #require(sema.types.charSequenceInterfaceSymbol)
+        let stringContainsCandidates = sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("text"),
+            ctx.interner.intern("contains"),
+        ])
+        let stringContains = try #require(stringContainsCandidates.first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID),
+                  let receiverType = signature.receiverType,
+                  case let .classType(classType) = sema.types.kind(of: receiverType)
+            else {
+                return false
+            }
+            return classType.classSymbol == charSequenceSymbol && signature.parameterTypes.count == 1
+        })
+        #expect(sema.symbols.symbol(stringContains)?.flags.contains(.operatorFunction) == true)
     }
 
     @Test
     func testWithIndexUsesIterableOfIndexedValueSignature() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let withIndexSymbol = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-                ctx.interner.intern("withIndex"),
-            ]))
-            let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("IndexedValue"),
-            ]))
-            let indexedValueRecord = try #require(sema.symbols.symbol(indexedValueSymbol))
-            #expect(indexedValueRecord.kind == .class)
-            #expect(indexedValueRecord.flags.contains(.dataType))
+        let sema = try #require(ctx.sema)
+        let withIndexSymbol = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("withIndex"),
+        ]))
+        let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("IndexedValue"),
+        ]))
+        let indexedValueRecord = try #require(sema.symbols.symbol(indexedValueSymbol))
+        #expect(indexedValueRecord.kind == .class)
+        #expect(indexedValueRecord.flags.contains(.dataType))
 
-            let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
-            guard case let .classType(iterableType) = sema.types.kind(of: signature.returnType) else {
-                Issue.record("Expected withIndex() to return Iterable<IndexedValue<T>>"); return
-            }
-            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(iterableType.classSymbol)?.name)) == "Iterable")
-            guard case let .out(elementType) = try #require(iterableType.args.first),
-                  case let .classType(indexedValueType) = sema.types.kind(of: elementType)
-            else {
-                Issue.record("Expected Iterable element type to be IndexedValue"); return
-            }
-            #expect(indexedValueType.classSymbol == indexedValueSymbol)
+        let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
+        guard case let .classType(iterableType) = sema.types.kind(of: signature.returnType),
+              let firstArg = iterableType.args.first
+        else {
+            Issue.record("Expected withIndex() to return Iterable<IndexedValue<T>>"); return
         }
+        #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(iterableType.classSymbol)?.name)) == "Iterable")
+        let elementType: TypeID
+        switch firstArg {
+        case .invariant(let t), .out(let t), .in(let t):
+            elementType = t
+        case .star:
+            Issue.record("Expected Iterable element type, got star projection"); return
+        }
+        guard case let .classType(indexedValueType) = sema.types.kind(of: elementType) else {
+            Issue.record("Expected Iterable element type to be IndexedValue"); return
+        }
+        #expect(indexedValueType.classSymbol == indexedValueSymbol)
     }
 
     @Test
-    func testMutableSetMutationMembersUseRuntimeExternalLinks() throws {
+    func testMutableSetMutationMembersUseBundledSourceDefaults() throws {
         let source = """
         fun mutate(values: MutableSet<Int>) {
             values.add(1)
@@ -1204,21 +1511,15 @@ extension ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
 
-            let expectedExternalLinks = [
-                "add": "kk_mutable_set_add",
-                "remove": "kk_mutable_set_remove",
-                "addAll": "kk_mutable_set_addAll",
-                "clear": "kk_mutable_set_clear",
-            ]
-
-            for (memberName, externalLinkName) in expectedExternalLinks {
+            for memberName in ["add", "remove", "addAll", "clear"] {
                 let symbol = try #require(sema.symbols.lookup(fqName: [
                     ctx.interner.intern("kotlin"),
                     ctx.interner.intern("collections"),
                     ctx.interner.intern("MutableSet"),
                     ctx.interner.intern(memberName),
                 ]))
-                #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
+                #expect(sema.symbols.externalLinkName(for: symbol) == nil, "Expected \(memberName) to resolve to a source-backed default")
+                #expect(sema.symbols.isSourceBackedSymbol(symbol))
             }
 
             let addAllSymbol = try #require(sema.symbols.lookup(fqName: [
@@ -1227,104 +1528,95 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("MutableSet"),
                 ctx.interner.intern("addAll"),
             ]))
-            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_set_addAll", "Expected addAll to resolve to kk_mutable_set_addAll")
+            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == nil)
         }
     }
 
     @Test
     func testMutableListBulkMutationMembersUseInvariantReceiverType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let mutableListFQName = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("MutableList"),
-            ]
+        let sema = try #require(ctx.sema)
+        let mutableListFQName = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("MutableList"),
+        ]
 
-            for memberName in ["addAll", "removeAll", "retainAll"] {
-                let symbol = try #require(sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]))
-                let signature = try #require(sema.symbols.functionSignature(for: symbol))
-                let receiverType = try #require(signature.receiverType)
+        for memberName in ["addAll", "removeAll", "retainAll"] {
+            let symbol = try #require(sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]))
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            let receiverType = try #require(signature.receiverType)
 
-                guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType),
-                      let firstArg = receiverClassType.args.first
-                else {
-                    Issue.record("Expected MutableList.\(memberName) receiver to be a class type"); return
-                }
+            guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType),
+                  let firstArg = receiverClassType.args.first
+            else {
+                Issue.record("Expected MutableList.\(memberName) receiver to be a class type"); return
+            }
 
-                guard case .invariant = firstArg else {
-                    Issue.record("Expected MutableList.\(memberName) receiver to remain invariant"); return
-                }
+            guard case .invariant = firstArg else {
+                Issue.record("Expected MutableList.\(memberName) receiver to remain invariant"); return
             }
         }
     }
 
     @Test
     func testMutableSetClearIsNotMarkedOperatorFunction() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let clearSymbol = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("MutableSet"),
-                ctx.interner.intern("clear"),
-            ]))
+        let sema = try #require(ctx.sema)
+        let clearSymbol = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("MutableSet"),
+            ctx.interner.intern("clear"),
+        ]))
 
-            #expect(!(sema.symbols.symbol(clearSymbol)?.flags.contains(.operatorFunction) == true), "MutableSet.clear should not be registered as an operator function")
-        }
+        #expect(!(sema.symbols.symbol(clearSymbol)?.flags.contains(.operatorFunction) == true), "MutableSet.clear should not be registered as an operator function")
     }
 
     @Test
     func testMutableSetAddAllUsesCollectionParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            let symbol = try #require(sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("MutableSet"),
-                interner.intern("addAll"),
-            ]))
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            let parameterType = try #require(signature.parameterTypes.first)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let symbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableSet"),
+            interner.intern("addAll"),
+        ]))
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        let parameterType = try #require(signature.parameterTypes.first)
 
-            guard case let .classType(classType) = sema.types.kind(of: parameterType) else {
-                Issue.record("Expected MutableSet.addAll to take a collection type"); return
-            }
-            #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Collection")
-            guard case let .out(elementType) = try #require(classType.args.first),
-                  case .typeParam = sema.types.kind(of: elementType)
-            else {
-                Issue.record("Expected MutableSet.addAll parameter to use Collection<out E>"); return
-            }
+        guard case let .classType(classType) = sema.types.kind(of: parameterType) else {
+            Issue.record("Expected MutableSet.addAll to take a collection type"); return
+        }
+        #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Collection")
+        guard case let .out(elementType) = try #require(classType.args.first),
+              case .typeParam = sema.types.kind(of: elementType)
+        else {
+            Issue.record("Expected MutableSet.addAll parameter to use Collection<out E>"); return
         }
     }
 
     @Test
-    func testMutableCollectionArrayAddAllOverloadsUseRuntimeExternalLinks() throws {
-        let cases: [(String, String, String)] = [
+    func testMutableCollectionArrayAddAllOverloadsResolveByReceiver() throws {
+        let cases: [(String, String?, String)] = [
             (
                 "MutableCollection",
-                "kk_mutable_collection_addAll",
+                nil,
                 "fun mutate(values: MutableCollection<Int>) { values.addAll(arrayOf(1, 2)) }"
             ),
             (
                 "MutableList",
-                "kk_mutable_list_addAll",
+                nil,
                 "fun mutate(values: MutableList<Int>) { values.addAll(arrayOf(1, 2)) }"
             ),
             (
                 "MutableSet",
-                "kk_mutable_set_addAll",
+                "__kk_mutable_set_addAll",
                 "fun mutate(values: MutableSet<Int>) { values.addAll(arrayOf(1, 2)) }"
             ),
         ]
@@ -1346,7 +1638,11 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Array) to resolve to \(expectedExternalLink)")
+                let expectedLinkDescription = expectedExternalLink ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Array) to resolve to \(expectedLinkDescription)")
+                if receiverName == "MutableCollection" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected MutableCollection.addAll(Array) to be source-backed")
+                }
 
                 let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
                 let parameterType = try #require(signature.parameterTypes.first)
@@ -1359,26 +1655,26 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableCollectionIterableAddAllOverloadsUseRuntimeExternalLinks() throws {
-        let cases: [(String, String, String)] = [
+    func testMutableCollectionIterableAddAllOverloadsResolveByReceiver() throws {
+        let cases: [(String, String?, String)] = [
             (
                 "MutableCollection",
-                "kk_mutable_collection_addAll_iterable",
+                nil,
                 "fun mutate(values: MutableCollection<Int>, source: Iterable<Int>) { values.addAll(source) }"
             ),
             (
                 "MutableList",
-                "kk_mutable_list_addAll_iterable",
+                nil,
                 "fun mutate(values: MutableList<Int>, source: Iterable<Int>) { values.addAll(source) }"
             ),
             (
                 "MutableList sequence as Iterable",
-                "kk_mutable_list_addAll_iterable",
+                nil,
                 "fun mutate(values: MutableList<Int>) { values.addAll(sequenceOf(1).asIterable()) }"
             ),
             (
                 "MutableSet",
-                "kk_mutable_set_addAll_iterable",
+                "__kk_mutable_set_addAll_iterable",
                 "fun mutate(values: MutableSet<Int>, source: Iterable<Int>) { values.addAll(source) }"
             ),
         ]
@@ -1400,7 +1696,11 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedExternalLink)")
+                let expectedLinkDescription = expectedExternalLink ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedLinkDescription)")
+                if receiverName != "MutableSet" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected \(receiverName).addAll(Iterable) to be source-backed")
+                }
 
                 let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
                 let parameterType = try #require(signature.parameterTypes.first)
@@ -1427,32 +1727,15 @@ extension ListSyntheticMemberLinkTests {
             let interner = ctx.interner
 
             let kotlinCollections = ["kotlin", "collections"].map { interner.intern($0) }
-            let mapFQ = kotlinCollections + [interner.intern("Map")]
             let mutableMapFQ = kotlinCollections + [interner.intern("MutableMap")]
 
+            // KSP-430 / KSP-431: Map higher-order functions (MapHOF.kt) and Map
+            // lookup/conversion members (MapLookupAndTransform.kt) are
+            // source-backed, so only non-migrated Map members appear here.
             let expectedLinks: [(fqName: [InternedString], memberName: String, externalLink: String)] = [
-                (mapFQ, "containsKey", "kk_map_contains_key"),
-                (mapFQ, "containsValue", "kk_map_contains_value"),
-                (mapFQ, "forEach", "kk_map_forEach"),
-                (mapFQ, "map", "kk_map_map"),
-                (mapFQ, "filter", "kk_map_filter"),
-                (mapFQ, "filterNot", "kk_map_filterNot"),
-                (mapFQ, "keys", "kk_map_keys"),
-                (mapFQ, "values", "kk_map_values"),
-                (mapFQ, "entries", "kk_map_entries"),
-                (mapFQ, "mapValues", "kk_map_mapValues"),
-                (mapFQ, "mapValuesTo", "kk_map_mapValuesTo"),
-                (mapFQ, "mapKeys", "kk_map_mapKeys"),
-                (mapFQ, "mapKeysTo", "kk_map_mapKeysTo"),
-                (mapFQ, "filterKeys", "kk_map_filterKeys"),
-                (mapFQ, "filterValues", "kk_map_filterValues"),
-                (mapFQ, "getValue", "kk_map_getValue"),
-                (mapFQ, "withDefault", "kk_map_withDefault"),
-                (mapFQ, "toList", "kk_map_toList"),
-                (mapFQ, "toMutableMap", "kk_map_to_mutable_map"),
-                (mutableMapFQ, "put", "kk_mutable_map_put"),
-                (mutableMapFQ, "remove", "kk_mutable_map_remove"),
-                (mutableMapFQ, "putAll", "kk_mutable_map_putAll"),
+                (mutableMapFQ, "put", "__kk_mutable_map_put"),
+                (mutableMapFQ, "remove", "__kk_mutable_map_remove"),
+                (mutableMapFQ, "putAll", "__kk_mutable_map_putAll"),
             ]
 
             for (ownerFQ, memberName, expectedExternal) in expectedLinks {
@@ -1461,6 +1744,59 @@ extension ListSyntheticMemberLinkTests {
                 #expect(sema.symbols.externalLinkName(for: symbolID) == expectedExternal, "Expected \(memberName) to have external link \(expectedExternal)")
             }
         }
+    }
+
+    @Test
+    func testMapCountOverloadsAreBundledSourceBacked() throws {
+        let ctx = try sharedListSemaContext()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let packageFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let mapFQName = packageFQName + [interner.intern("Map")]
+
+        func bundledMapCountSymbols(arity: Int) -> [SymbolID] {
+            sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("count")]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      let fileID = sema.symbols.sourceFileID(for: symbolID),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      signature.parameterTypes.count == arity,
+                      let receiverType = signature.receiverType,
+                      case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                      sema.symbols.symbol(receiverClassType.classSymbol)?.fqName == mapFQName
+                else {
+                    return false
+                }
+                return ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+            }
+        }
+
+        let noArg = bundledMapCountSymbols(arity: 0)
+        #expect(!noArg.isEmpty, "Expected bundled Kotlin source for Map.count()")
+        #expect(noArg.allSatisfy { symbolID in
+            guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+            return symbol.flags.contains(.inlineFunction)
+                && sema.symbols.externalLinkName(for: symbolID) == nil
+        })
+
+        let predicate = bundledMapCountSymbols(arity: 1)
+        #expect(!predicate.isEmpty, "Expected bundled Kotlin source for Map.count(predicate)")
+        #expect(predicate.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
+
+        let syntheticNoArg = sema.symbols.lookupAll(fqName: mapFQName + [interner.intern("count")]).filter { symbolID in
+            guard let symbol = sema.symbols.symbol(symbolID),
+                  symbol.flags.contains(.synthetic),
+                  let signature = sema.symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes.isEmpty
+        }
+        #expect(syntheticNoArg.isEmpty, "Map.count() must not retain a synthetic __kk_map_size overload")
     }
 
     @Test
@@ -1481,25 +1817,21 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testIndexedAndAggregateListMembersAreInlineSynthetic() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+    func testIndexedIterableMembersAreSourceBacked() throws {
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let listFQName: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-            ]
+        let sema = try #require(ctx.sema)
+        let packageFQName: [InternedString] = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+        ]
 
-            // forEachIndexed remains synthetic; mapIndexed / filterIndexed / sumOf are bundled source.
-            for memberName in ["forEachIndexed"] {
-                let symbolID = try #require(sema.symbols.lookup(fqName: listFQName + [ctx.interner.intern(memberName)]))
-                let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
-                #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
-                #expect(flags.contains(.synthetic), "Expected \(memberName) to be synthetic")
-            }
+        // KSP-626: forEachIndexed and withIndex are bundled Kotlin source.
+        for memberName in ["forEachIndexed", "withIndex"] {
+            let symbolID = try #require(sema.symbols.lookup(fqName: packageFQName + [ctx.interner.intern(memberName)]))
+            let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
+            #expect(!flags.contains(.synthetic), "Expected \(memberName) to be source-backed")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected \(memberName) to have no external link")
         }
     }
 
@@ -1596,46 +1928,87 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMapHigherOrderMembersAreInlineAndToListPreservesPairType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let mapFQName: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Map"),
-            ]
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let packageFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let mapFQName = packageFQName + [interner.intern("Map")]
 
-            for memberName in ["forEach", "map", "filter", "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo"] {
-                let symbolID = try #require(sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern(memberName)]))
-                let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
-                #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
+        func nominalOwnerFQName(for typeID: TypeID) -> [InternedString]? {
+            switch sema.types.kind(of: sema.types.makeNonNullable(typeID)) {
+            case let .classType(classType):
+                return sema.symbols.symbol(classType.classSymbol)?.fqName
+            default:
+                return nil
             }
-
-            let toListSymbol = try #require(sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern("toList")]))
-            let toListSignature = try #require(sema.symbols.functionSignature(for: toListSymbol))
-            guard case let .classType(listType) = sema.types.kind(of: toListSignature.returnType) else {
-                Issue.record("Expected Map.toList to return List<Pair<K, V>>"); return
-            }
-            let listName = try #require(sema.symbols.symbol(listType.classSymbol)?.name)
-            #expect(ctx.interner.resolve(listName) == "List")
-            let firstListArg = try #require(listType.args.first)
-            guard case let .out(pairTypeID) = firstListArg,
-                  case let .classType(pairType) = sema.types.kind(of: pairTypeID)
-            else {
-                Issue.record("Expected Map.toList element type to be Pair"); return
-            }
-            let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)
-            #expect(ctx.interner.resolve(pairName) == "Pair")
         }
+
+        for memberName in ["forEach", "map", "filter", "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo"] {
+            let candidates = sema.symbols.lookupAll(fqName: packageFQName + [interner.intern(memberName)]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      nominalOwnerFQName(for: receiverType) == mapFQName
+                else {
+                    return false
+                }
+                return true
+            }
+            let symbolID = try #require(candidates.first, "Expected bundled source for Map.\(memberName)")
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+            #expect(symbol.flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil)
+            #expect(symbol.fqName == packageFQName + [interner.intern(memberName)])
+        }
+
+        // KSP-431: Map.toList is a bundled source extension, not a Map member stub.
+        let toListSymbol = try #require(
+            sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("toList")]).first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType
+                else {
+                    return false
+                }
+                return nominalOwnerFQName(for: receiverType) == mapFQName
+            },
+            "Expected bundled source for Map.toList"
+        )
+        #expect(sema.symbols.externalLinkName(for: toListSymbol) == nil)
+        let toListSignature = try #require(sema.symbols.functionSignature(for: toListSymbol))
+        guard case let .classType(listType) = sema.types.kind(of: toListSignature.returnType) else {
+            Issue.record("Expected Map.toList to return List<Pair<K, V>>"); return
+        }
+        let listName = try #require(sema.symbols.symbol(listType.classSymbol)?.name)
+        #expect(interner.resolve(listName) == "List")
+        let firstListArg = try #require(listType.args.first)
+        let pairTypeID: TypeID
+        switch firstListArg {
+        case let .invariant(id), let .out(id), let .in(id):
+            pairTypeID = id
+        case .star:
+            Issue.record("Expected Map.toList element type to be Pair"); return
+        }
+        guard case let .classType(pairType) = sema.types.kind(of: pairTypeID) else {
+            Issue.record("Expected Map.toList element type to be Pair"); return
+        }
+        let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)
+        #expect(interner.resolve(pairName) == "Pair")
     }
 
     @Test
     func testMapEntryToPairSurfaceIsRegistered() throws {
         let source = """
-        fun probe(values: Map<String, Int>): List<Pair<String, Int>> {
-            return values.map { it.toPair() }
+        fun probe(values: Map<String, Int>): Pair<String, Int> {
+            val entry = values.entries.first()
+            val key = entry.component1()
+            val value = entry.component2()
+            return entry.toPair()
         }
         """
 
@@ -1643,24 +2016,52 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(!(ctx.diagnostics.hasError), "Expected Map.Entry.toPair surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
+            #expect(!ctx.diagnostics.hasError, "Expected Map.Entry source-backed surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let entryFQName: [InternedString] = [
+            let packageFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
+            ]
+            let entryFQName: [InternedString] = [
+                packageFQName[0],
+                packageFQName[1],
                 ctx.interner.intern("Map"),
                 ctx.interner.intern("Entry"),
             ]
-            let toPairSymbol = try #require(sema.symbols.lookup(fqName: entryFQName + [ctx.interner.intern("toPair")]))
-            #expect(sema.symbols.externalLinkName(for: toPairSymbol) == "kk_map_entry_to_pair")
-            let signature = try #require(sema.symbols.functionSignature(for: toPairSymbol))
-            guard case let .classType(pairType) = sema.types.kind(of: signature.returnType) else {
-                Issue.record("Expected Map.Entry.toPair to return Pair<K, V>"); return
+
+            for memberName in ["component1", "component2", "toPair"] {
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr,
+                          ctx.interner.resolve(callee) == memberName,
+                          let range = ast.arena.exprRange(exprID)
+                    else {
+                        return false
+                    }
+                    return ctx.sourceManager.origin(of: range.start.file)?.isBundledStdlib != true
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(chosenCallee),
+                    "Map.Entry.\(memberName) must bind to bundled Kotlin source"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Map.Entry.\(memberName) must not use a direct runtime link"
+                )
+                #expect(
+                    sema.symbols.symbol(chosenCallee)?.fqName == packageFQName + [ctx.interner.intern(memberName)],
+                    "Map.Entry.\(memberName) must resolve to the package-level source extension"
+                )
             }
-            let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)
-            #expect(ctx.interner.resolve(pairName) == "Pair")
-            #expect(pairType.args.count == 2)
+
+            for memberName in ["component1", "component2", "toPair"] {
+                #expect(
+                    sema.symbols.lookup(fqName: entryFQName + [ctx.interner.intern(memberName)]) == nil,
+                    "Map.Entry.\(memberName) must not leave a synthetic nested alias"
+                )
+            }
         }
     }
 
@@ -1789,10 +2190,37 @@ extension ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Map.mapKeysTo surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Map", "mapKeysTo"]
-                .map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_map_mapKeysTo")
+            let interner = ctx.interner
+            let packageFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+            ]
+            let mapFQName = packageFQName + [interner.intern("Map")]
+
+            func nominalOwnerFQName(for typeID: TypeID) -> [InternedString]? {
+                switch sema.types.kind(of: sema.types.makeNonNullable(typeID)) {
+                case let .classType(classType):
+                    return sema.symbols.symbol(classType.classSymbol)?.fqName
+                default:
+                    return nil
+                }
+            }
+
+            let candidates = sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("mapKeysTo")]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      nominalOwnerFQName(for: receiverType) == mapFQName
+                else {
+                    return false
+                }
+                return true
+            }
+            let symbol = try #require(candidates.first, "Expected bundled source for Map.mapKeysTo")
+            #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+            #expect(sema.symbols.symbol(symbol)?.fqName == packageFQName + [interner.intern("mapKeysTo")])
 
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             #expect(signature.parameterTypes.count == 2)
@@ -1817,10 +2245,37 @@ extension ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Map.mapValuesTo surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Map", "mapValuesTo"]
-                .map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_map_mapValuesTo")
+            let interner = ctx.interner
+            let packageFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+            ]
+            let mapFQName = packageFQName + [interner.intern("Map")]
+
+            func nominalOwnerFQName(for typeID: TypeID) -> [InternedString]? {
+                switch sema.types.kind(of: sema.types.makeNonNullable(typeID)) {
+                case let .classType(classType):
+                    return sema.symbols.symbol(classType.classSymbol)?.fqName
+                default:
+                    return nil
+                }
+            }
+
+            let candidates = sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("mapValuesTo")]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      nominalOwnerFQName(for: receiverType) == mapFQName
+                else {
+                    return false
+                }
+                return true
+            }
+            let symbol = try #require(candidates.first, "Expected bundled source for Map.mapValuesTo")
+            #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+            #expect(sema.symbols.symbol(symbol)?.fqName == packageFQName + [interner.intern("mapValuesTo")])
 
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             #expect(signature.parameterTypes.count == 2)
@@ -1830,74 +2285,30 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableMapPutAllUsesProjectedMapParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let ctx = try sharedListSemaContext()
 
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            let symbol = try #require(sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("MutableMap"),
-                interner.intern("putAll"),
-            ]))
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            let parameterType = try #require(signature.parameterTypes.first)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let symbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableMap"),
+            interner.intern("putAll"),
+        ]))
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        let parameterType = try #require(signature.parameterTypes.first)
 
-            guard case let .classType(classType) = sema.types.kind(of: parameterType) else {
-                Issue.record("Expected MutableMap.putAll to take a map type"); return
-            }
-            #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Map")
-            guard classType.args.count == 2,
-                  case let .out(keyType) = classType.args[0],
-                  case let .out(valueType) = classType.args[1],
-                  case .typeParam = sema.types.kind(of: keyType),
-                  case .typeParam = sema.types.kind(of: valueType)
-            else {
-                Issue.record("Expected MutableMap.putAll parameter to use projected Map<K, V>"); return
-            }
+        guard case let .classType(classType) = sema.types.kind(of: parameterType) else {
+            Issue.record("Expected MutableMap.putAll to take a map type"); return
         }
-    }
-
-    @Test
-    func testGroupingEachCountToUsesProjectedMutableMapParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            let symbol = try #require(sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Grouping"),
-                interner.intern("eachCountTo"),
-            ]))
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_grouping_eachCountTo")
-            #expect(signature.parameterTypes.count == 1)
-            #expect(signature.returnType == signature.parameterTypes[0])
-
-            let receiverType = try #require(signature.receiverType)
-            guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
-                Issue.record("Expected Grouping.eachCountTo receiver to be a class type"); return
-            }
-            #expect(try interner.resolve(#require(sema.symbols.symbol(receiverClassType.classSymbol)?.name)) == "Grouping")
-
-            let parameterType = try #require(signature.parameterTypes.first)
-            guard case let .classType(parameterClassType) = sema.types.kind(of: parameterType) else {
-                Issue.record("Expected eachCountTo to take a MutableMap type"); return
-            }
-            #expect(try interner.resolve(#require(sema.symbols.symbol(parameterClassType.classSymbol)?.name)) == "MutableMap")
-            #expect(parameterClassType.args.count == 2)
-            guard case let .in(keyProjection) = parameterClassType.args[0],
-                  case .typeParam = sema.types.kind(of: keyProjection),
-                  case let .invariant(valueType) = parameterClassType.args[1]
-            else {
-                Issue.record("Expected eachCountTo parameter to use MutableMap<in K, Int>"); return
-            }
-            #expect(valueType == sema.types.intType)
+        #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Map")
+        guard classType.args.count == 2,
+              case let .out(keyType) = classType.args[0],
+              case let .out(valueType) = classType.args[1],
+              case .typeParam = sema.types.kind(of: keyType),
+              case .typeParam = sema.types.kind(of: valueType)
+        else {
+            Issue.record("Expected MutableMap.putAll parameter to use projected Map<K, V>"); return
         }
     }
 
@@ -2070,7 +2481,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListFlatMapIndexedRegistersRuntimeExternalLink() throws {
+    func testListFlatMapIndexedBindsToBundledSource() throws {
         let source = """
         fun render(values: List<String>) {
             val result: List<Int> = values.flatMapIndexed { index, value -> listOf(index + value.length) }
@@ -2086,18 +2497,26 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let memberFQName = [
+            let sourceFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
                 ctx.interner.intern("flatMapIndexed"),
             ]
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            #expect(symbols.count == 1, "Expected one synthetic List.flatMapIndexed overload")
+            let symbols = sema.symbols.lookupAll(fqName: sourceFQName)
+            let listFlatMapIndexedSymbol = try #require(symbols.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      let (receiverClassType, _) = resolveClassTypeSymbol(receiverType, sema: sema),
+                      let receiverSymbol = sema.symbols.symbol(receiverClassType.classSymbol)
+                else { return false }
+                return ctx.interner.resolve(receiverSymbol.name) == "List"
+            }, "Expected bundled source List.flatMapIndexed overload")
 
-            let symbol = try #require(symbols.first)
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_list_flatMapIndexed")
+            let symbolInfo = try #require(sema.symbols.symbol(listFlatMapIndexedSymbol))
+            #expect(!symbolInfo.flags.contains(.synthetic), "flatMapIndexed must be a bundled source declaration")
+            #expect(sema.symbols.externalLinkName(for: listFlatMapIndexedSymbol) == nil, "source flatMapIndexed must not link to runtime")
 
+            let symbol = listFlatMapIndexedSymbol
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
                   let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
@@ -2110,17 +2529,17 @@ extension ListSyntheticMemberLinkTests {
             guard case let .functionType(functionType) = sema.types.kind(of: transformType),
                   let (_, transformReturnSymbol) = resolveClassTypeSymbol(functionType.returnType, sema: sema)
             else {
-                Issue.record("Expected List.flatMapIndexed transform to return Collection<R>"); return
+                Issue.record("Expected List.flatMapIndexed transform to return List<R>"); return
             }
             #expect(functionType.params.count == 2, "Expected flatMapIndexed transform to take (index, element)")
             #expect(functionType.params.first == sema.types.intType)
             #expect(functionType.params.last != sema.types.intType, "Second transform parameter should be the list element type, not Int")
-            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "Collection")
+            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "List")
         }
     }
 
     @Test
-    func testListToBooleanArrayUsesRuntimeExternalLink() throws {
+    func testListToBooleanArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Boolean>) {
             values.toBooleanArray()
@@ -2137,7 +2556,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toBooleanArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toBooleanArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2149,7 +2569,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToShortArrayUsesRuntimeExternalLink() throws {
+    func testListToShortArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Short>) {
             values.toShortArray()
@@ -2166,7 +2586,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toShortArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toShortArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2178,7 +2599,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToDoubleArrayUsesRuntimeExternalLink() throws {
+    func testListToDoubleArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Double>) {
             values.toDoubleArray()
@@ -2195,7 +2616,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toDoubleArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toDoubleArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -2207,7 +2629,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListToFloatArrayUsesRuntimeExternalLink() throws {
+    func testListToFloatArrayResolvesToSourceBackedDeclaration() throws {
         let source = """
         fun convert(values: List<Float>) {
             values.toFloatArray()
@@ -2224,7 +2646,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "toFloatArray"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toFloatArray")
+            // KSP-628: source-backed (ArrayConversions.kt), no direct runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
             let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)

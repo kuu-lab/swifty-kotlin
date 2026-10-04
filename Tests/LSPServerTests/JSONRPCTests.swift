@@ -39,7 +39,6 @@ struct JSONRPCTests {
     func readsMultipleMessagesAcrossChunkBoundaries() {
         let first = LSPTestSupport.frame(["jsonrpc": "2.0", "method": "a"])
         let second = LSPTestSupport.frame(["jsonrpc": "2.0", "method": "b"])
-        // Split the combined stream at an arbitrary mid-point to exercise buffering.
         var combined = first
         combined.append(second)
         let mid = combined.count / 2

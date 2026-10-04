@@ -1,0 +1,21 @@
+symbol fq=golden.sema.hexFormatBytes.$0.format[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hexFormatBytes[kind=fun;params=kotlin.text.HexFormat] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat] ret=kotlin.text.HexFormat.BytesHexFormat
+symbol fq=golden.sema.hexFormatNumber.$1.format[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hexFormatNumber[kind=fun;params=kotlin.text.HexFormat] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat] ret=kotlin.text.HexFormat.NumberHexFormat
+symbol fq=golden.sema.hexFormatString.$2.format[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hexFormatString[kind=fun;params=kotlin.text.HexFormat] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat] ret=String
+symbol fq=golden.sema.hexFormatUpperCase.$3.format[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.hexFormatUpperCase[kind=fun;params=kotlin.text.HexFormat] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat] ret=Boolean
+file fstdlib_kotlin_text_HexFormat_HexFormat_n package=golden.sema
+  decl golden.sema.hexFormatUpperCase[kind=fun;params=kotlin.text.HexFormat] fun hexFormatUpperCase sym=golden.sema.hexFormatUpperCase[kind=fun;params=kotlin.text.HexFormat]
+  decl golden.sema.hexFormatBytes[kind=fun;params=kotlin.text.HexFormat] fun hexFormatBytes sym=golden.sema.hexFormatBytes[kind=fun;params=kotlin.text.HexFormat]
+  decl golden.sema.hexFormatNumber[kind=fun;params=kotlin.text.HexFormat] fun hexFormatNumber sym=golden.sema.hexFormatNumber[kind=fun;params=kotlin.text.HexFormat]
+  decl golden.sema.hexFormatString[kind=fun;params=kotlin.text.HexFormat] fun hexFormatString sym=golden.sema.hexFormatString[kind=fun;params=kotlin.text.HexFormat]
+expr e@3:66 name(format) type=kotlin.text.HexFormat ref=golden.sema.hexFormatUpperCase.$3.format[kind=vparam]
+expr e@3:66#1 memberCall recv=e@3:66 callee=upperCase args=[] type=Boolean ref=kotlin.text.HexFormat.upperCase[kind=prop]
+expr e@5:91 name(format) type=kotlin.text.HexFormat ref=golden.sema.hexFormatBytes.$0.format[kind=vparam]
+expr e@5:91#1 memberCall recv=e@5:91 callee=bytes args=[] type=kotlin.text.HexFormat.BytesHexFormat ref=kotlin.text.HexFormat.bytes[kind=prop]
+expr e@7:93 name(format) type=kotlin.text.HexFormat ref=golden.sema.hexFormatNumber.$1.format[kind=vparam]
+expr e@7:93#1 memberCall recv=e@7:93 callee=number args=[] type=kotlin.text.HexFormat.NumberHexFormat ref=kotlin.text.HexFormat.number[kind=prop]
+expr e@9:62 name(format) type=kotlin.text.HexFormat ref=golden.sema.hexFormatString.$2.format[kind=vparam]
+expr e@9:62#1 memberCall recv=e@9:62 callee=toString args=[] type=String call=kotlin.text.HexFormat.toString[kind=fun;recv=kotlin.text.HexFormat;params=]

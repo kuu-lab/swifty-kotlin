@@ -25,64 +25,53 @@ struct StringToBooleanFunctionTests {
         return results
     }
 
-    /// Sema should accept `String?.toBoolean()` directly (no safe-call needed)
-    /// because the Kotlin signature is `fun String?.toBoolean(): Boolean`.
-    @Test func testToBooleanOnNullableStringResolvesToNonNullBoolean() throws {
-        let source = """
-        fun parse(value: String?): Boolean {
+    @Test func testToBooleanResolvesInSource() throws {
+        let ctx = makeContextFromSource("""
+        fun parseNullable(value: String?): Boolean {
             return value.toBoolean()
         }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected toBoolean on String? to resolve cleanly, got: \(diagnosticSummary)"
-            )
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callIDs = allMemberCallExprIDs(named: "toBoolean", in: ast, interner: ctx.interner)
-            #expect(callIDs.count == 1)
-            let exprType = try #require(sema.bindings.exprTypes[callIDs[0]])
+        fun parseNonNull(value: String): Boolean {
+            return value.toBoolean()
+        }
+
+        fun parseStrictOrNull(value: String): Boolean? {
+            return value.toBooleanStrictOrNull()
+        }
+        """)
+
+        try runSema(ctx)
+        let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected toBoolean/toBooleanStrictOrNull to resolve cleanly, got: \(diagnosticSummary)"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        let toBooleanCalls = allMemberCallExprIDs(named: "toBoolean", in: ast, interner: ctx.interner)
+        #expect(toBooleanCalls.count == 2)
+        for callID in toBooleanCalls {
+            let exprType = try #require(sema.bindings.exprTypes[callID])
             #expect(
                 exprType == sema.types.booleanType,
-                "toBoolean should be typed as Boolean even for nullable receivers"
+                "toBoolean should be typed as Boolean"
             )
         }
+
+        let orNullCalls = allMemberCallExprIDs(named: "toBooleanStrictOrNull", in: ast, interner: ctx.interner)
+        #expect(orNullCalls.count == 1)
+        let orNullType = try #require(sema.bindings.exprTypes[orNullCalls[0]])
+        #expect(
+            orNullType == sema.types.make(.primitive(.boolean, .nullable)),
+            "toBooleanStrictOrNull should be typed as nullable Boolean (Boolean?)"
+        )
     }
 
-    /// Receiver typed as non-null `String` should also resolve to `Boolean`.
-    @Test func testToBooleanOnNonNullStringResolves() throws {
-        let source = """
-        fun parse(value: String): Boolean {
-            return value.toBoolean()
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected toBoolean on String to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callIDs = allMemberCallExprIDs(named: "toBoolean", in: ast, interner: ctx.interner)
-            #expect(callIDs.count == 1)
-            let exprType = try #require(sema.bindings.exprTypes[callIDs[0]])
-            #expect(exprType == sema.types.booleanType)
-        }
-    }
-
-    /// `toBoolean()` should lower to `kk_string_toBoolean_flat` and be classified as
-    /// non-throwing — `null.toBoolean()` is defined to return `false`, so there
-    /// is no NumberFormatException equivalent that propagates out.
-    @Test func testToBooleanLowersToRuntimeHelperNonThrowing() throws {
+    /// `toBoolean()` should lower through the source-backed `kotlin.text.toBoolean`
+    /// extension, not through a public `kk_string_toBoolean` runtime helper.
+    @Test func testToBooleanLowersThroughSourceBackedStdlib() throws {
         let source = """
         fun main() {
             val missing: String? = null
@@ -100,55 +89,22 @@ struct StringToBooleanFunctionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let toBooleanFlags = try #require(
-                throwFlags["kk_string_toBoolean"],
-                "Expected kk_string_toBoolean calls to appear in main()"
-            )
-            #expect(toBooleanFlags.count == 3)
+            let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                toBooleanFlags.allSatisfy { $0 == false },
-                "kk_string_toBoolean must be lowered as non-throwing"
+                callees.contains("toBoolean"),
+                "main() should call the source-backed toBoolean() extension"
+            )
+            #expect(
+                !callees.contains("kk_string_toBoolean") && !callees.contains("kk_string_toBoolean_flat") && !callees.contains("__kk_string_toBoolean"),
+                "main() must not directly call a public kk_string_toBoolean runtime helper"
             )
         }
     }
 
-    /// STDLIB-TEXT-FN-089: `String.toBooleanStrictOrNull()` returns a *nullable*
-    /// `Boolean` — the strict parser yields `null` instead of throwing when the
-    /// text is neither "true" nor "false". This distinguishes it from
-    /// `toBoolean`/`toBooleanStrict`, which both resolve to a non-null `Boolean`.
-    @Test func testToBooleanStrictOrNullResolvesToNullableBoolean() throws {
-        let source = """
-        fun parse(value: String): Boolean? {
-            return value.toBooleanStrictOrNull()
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected toBooleanStrictOrNull to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callIDs = allMemberCallExprIDs(named: "toBooleanStrictOrNull", in: ast, interner: ctx.interner)
-            #expect(callIDs.count == 1)
-            let exprType = try #require(sema.bindings.exprTypes[callIDs[0]])
-            #expect(
-                exprType == sema.types.make(.primitive(.boolean, .nullable)),
-                "toBooleanStrictOrNull should be typed as nullable Boolean (Boolean?)"
-            )
-        }
-    }
-
-    /// `toBooleanStrictOrNull()` should lower to `kk_string_toBooleanStrictOrNull_flat`
-    /// and be classified as non-throwing: unlike `toBooleanStrict`, the OrNull
-    /// variant signals failure with a `null` sentinel rather than an exception, so
-    /// no thrown-pointer plumbing is emitted at the call site.
-    @Test func testToBooleanStrictOrNullLowersToRuntimeHelperNonThrowing() throws {
+    /// `toBooleanStrictOrNull()` should lower through the source-backed
+    /// `kotlin.text.toBooleanStrictOrNull` extension, not through a public
+    /// `kk_string_toBooleanStrictOrNull` runtime helper.
+    @Test func testToBooleanStrictOrNullLowersThroughSourceBackedStdlib() throws {
         let source = """
         fun main() {
             val yes: String = "true"
@@ -166,15 +122,14 @@ struct StringToBooleanFunctionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let orNullFlags = try #require(
-                throwFlags["kk_string_toBooleanStrictOrNull_flat"],
-                "Expected kk_string_toBooleanStrictOrNull_flat calls to appear in main()"
-            )
-            #expect(orNullFlags.count == 3)
+            let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                orNullFlags.allSatisfy { $0 == false },
-                "kk_string_toBooleanStrictOrNull_flat must be lowered as non-throwing"
+                callees.contains("toBooleanStrictOrNull"),
+                "main() should call the source-backed toBooleanStrictOrNull() extension"
+            )
+            #expect(
+                !callees.contains("kk_string_toBooleanStrictOrNull") && !callees.contains("kk_string_toBooleanStrictOrNull_flat") && !callees.contains("__kk_string_toBooleanStrictOrNull"),
+                "main() must not directly call a public kk_string_toBooleanStrictOrNull runtime helper"
             )
         }
     }

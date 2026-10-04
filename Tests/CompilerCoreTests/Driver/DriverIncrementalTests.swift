@@ -106,7 +106,7 @@ struct DriverIncrementalTests {
     }
 
     @Test
-    func testIncrementalNoOpBuildRestoresCachedOutputArtifact() throws {
+    func testIncrementalNoOpBuildRejectsTamperedCachedOutputArtifact() throws {
         try withTemporaryFile(contents: "fun main() {}") { path in
             let driver = makeDriver()
             let cachePath = tempDir + "/cache"
@@ -124,14 +124,46 @@ struct DriverIncrementalTests {
             #expect(first.exitCode == 0,
                            "Initial incremental build should succeed. Diagnostics: \(first.diagnostics.map(\.message))")
 
-            let sentinel = "// cached artifact\n"
+            let sentinel = "// tampered cached artifact\n"
             try sentinel.write(toFile: cachedOutputArtifactPath(in: cachePath), atomically: true, encoding: .utf8)
             try FileManager.default.removeItem(atPath: kirOutputPath())
 
             let second = driver.runForTesting(options: options)
             #expect(second.exitCode == 0,
-                           "No-op incremental build should restore cached artifact. Diagnostics: \(second.diagnostics.map(\.message))")
-            #expect(try String(contentsOfFile: kirOutputPath(), encoding: .utf8) == sentinel)
+                           "No-op incremental build should fall back to a full build. Diagnostics: \(second.diagnostics.map(\.message))")
+            let produced = try String(contentsOfFile: kirOutputPath(), encoding: .utf8)
+            #expect(produced != sentinel,
+                    "A tampered cached artifact must never be restored")
+            #expect(!produced.isEmpty)
+        }
+    }
+
+    @Test
+    func testIncrementalNoOpBuildRestoresOutputWhenOutputMissing() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let driver = makeDriver()
+            let cachePath = tempDir + "/cache"
+            let options = CompilerOptions(
+                moduleName: "Test",
+                inputs: [path],
+                outputPath: outputPath,
+                emit: .kirDump,
+                target: defaultTargetTriple(),
+                frontendFlags: ["incremental"],
+                incrementalCachePath: cachePath
+            )
+
+            let first = driver.runForTesting(options: options)
+            #expect(first.exitCode == 0,
+                           "Initial incremental build should succeed. Diagnostics: \(first.diagnostics.map(\.message))")
+            let original = try String(contentsOfFile: kirOutputPath(), encoding: .utf8)
+
+            try FileManager.default.removeItem(atPath: kirOutputPath())
+
+            let second = driver.runForTesting(options: options)
+            #expect(second.exitCode == 0,
+                           "No-op incremental build should succeed. Diagnostics: \(second.diagnostics.map(\.message))")
+            #expect(try String(contentsOfFile: kirOutputPath(), encoding: .utf8) == original)
         }
     }
 
@@ -271,6 +303,73 @@ struct DriverIncrementalTests {
             let result = driver.runForTesting(options: options)
             #expect(result.exitCode == 0,
                            "Multi-file incremental should succeed. Diagnostics: \(result.diagnostics.map(\.message))")
+        }
+    }
+
+    @Test
+    func testIncrementalDependencyGraphIncludesFunctionBodiesAndPropertyInitializers() throws {
+        try withTemporaryFiles(contents: [
+            "fun helper(): Int = 1",
+            "val cached = helper()\nfun useIt() = helper()",
+        ]) { paths in
+            let driver = makeDriver()
+            let cachePath = tempDir + "/cache"
+            let options = CompilerOptions(
+                moduleName: "Test",
+                inputs: paths,
+                outputPath: outputPath,
+                emit: .kirDump,
+                target: defaultTargetTriple(),
+                frontendFlags: ["incremental"],
+                incrementalCachePath: cachePath
+            )
+
+            let result = driver.runForTesting(options: options)
+            #expect(result.exitCode == 0,
+                           "Initial incremental build should succeed. Diagnostics: \(result.diagnostics.map(\.message))")
+
+            let cache = IncrementalCompilationCache(cachePath: cachePath)
+            cache.loadPreviousState()
+            let graph = try #require(cache.dependencyGraph)
+            #expect(graph.depended(by: paths[1]).contains("helper"))
+
+            try "fun helper(): Int = 2".write(toFile: paths[0], atomically: true, encoding: .utf8)
+            cache.computeCurrentFingerprints(for: paths)
+            let recompilationSet = try #require(cache.recompilationSet(allPaths: paths, options: options))
+            #expect(recompilationSet == Set(paths))
+        }
+    }
+
+    @Test
+    func testIncrementalDependencyGraphRecompilesWildcardImportDependents() throws {
+        try withTemporaryFiles(contents: [
+            "package provider\nfun helper(): Int = 1",
+            "package consumer\nimport provider.*\nfun useIt() = helper()",
+        ]) { paths in
+            let driver = makeDriver()
+            let cachePath = tempDir + "/cache"
+            let options = CompilerOptions(
+                moduleName: "Test",
+                inputs: paths,
+                outputPath: outputPath,
+                emit: .kirDump,
+                target: defaultTargetTriple(),
+                frontendFlags: ["incremental"],
+                incrementalCachePath: cachePath
+            )
+
+            let first = driver.runForTesting(options: options)
+            #expect(first.exitCode == 0,
+                           "Initial wildcard-import build should succeed. Diagnostics: \(first.diagnostics.map(\.message))")
+
+            let cache = IncrementalCompilationCache(cachePath: cachePath)
+            cache.loadPreviousState()
+            #expect(cache.dependencyGraph?.wildcardImportedPackages(by: paths[1]) == ["provider"])
+
+            try "package provider\nfun helper(): Long = 1".write(toFile: paths[0], atomically: true, encoding: .utf8)
+            cache.computeCurrentFingerprints(for: paths)
+            let recompilationSet = try #require(cache.recompilationSet(allPaths: paths, options: options))
+            #expect(recompilationSet == Set(paths))
         }
     }
 

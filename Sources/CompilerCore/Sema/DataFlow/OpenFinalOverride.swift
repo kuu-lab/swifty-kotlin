@@ -257,7 +257,7 @@ extension DataFlowSemaPhase {
     ) {
         for memberDeclID in memberDeclIDs {
             guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
-                  ctx.bindings.declSymbols[memberDeclID] != nil
+                  let memberSymbol = ctx.bindings.declSymbols[memberDeclID]
             else { continue }
 
             let memberMeta = extractMemberMeta(memberDecl, declID: memberDeclID, ctx: ctx)
@@ -274,6 +274,7 @@ extension DataFlowSemaPhase {
                     memberName: memberMeta.name,
                     memberRange: memberMeta.range,
                     ownerSymbol: symbol,
+                    parameterTypes: memberMeta.parameterTypes,
                     returnType: memberMeta.returnType,
                     ctx: ctx
                 )
@@ -297,6 +298,7 @@ extension DataFlowSemaPhase {
                     memberName: memberMeta.name,
                     memberRange: memberMeta.range,
                     ownerSymbol: symbol,
+                    memberSymbol: memberSymbol,
                     ctx: ctx
                 )
             }
@@ -308,6 +310,7 @@ extension DataFlowSemaPhase {
         let range: SourceRange
         let hasOverride: Bool
         let hasOpen: Bool
+        let parameterTypes: [TypeID]?
         let returnType: TypeID?
         let hasAbstract: Bool
         let hasFinal: Bool
@@ -335,11 +338,14 @@ extension DataFlowSemaPhase {
             } else {
                 nil
             }
+            let parameterTypes = ctx.bindings.declSymbols[declID]
+                .flatMap { ctx.symbols.functionSignature(for: $0)?.parameterTypes }
             return MemberMeta(
                 name: fun.name,
                 range: fun.range,
                 hasOverride: fun.modifiers.contains(.override),
                 hasOpen: fun.modifiers.contains(.open),
+                parameterTypes: parameterTypes,
                 returnType: returnType,
                 hasAbstract: fun.modifiers.contains(.abstract),
                 hasFinal: fun.modifiers.contains(.final),
@@ -351,6 +357,7 @@ extension DataFlowSemaPhase {
                 range: prop.range,
                 hasOverride: prop.modifiers.contains(.override),
                 hasOpen: prop.modifiers.contains(.open),
+                parameterTypes: nil,
                 returnType: nil,
                 hasAbstract: prop.modifiers.contains(.abstract),
                 hasFinal: prop.modifiers.contains(.final),
@@ -381,7 +388,8 @@ extension DataFlowSemaPhase {
         let parent = findInheritedMember(
             named: memberMeta.name,
             for: ownerSymbol,
-            symbols: ctx.symbols
+            symbols: ctx.symbols,
+            parameterTypes: memberMeta.parameterTypes
         )
         guard let parent else { return }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return }
@@ -593,13 +601,15 @@ extension DataFlowSemaPhase {
         memberName: InternedString,
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
+        parameterTypes: [TypeID]?,
         returnType: TypeID?,
         ctx: OpenFinalOverrideContext
     ) {
         let parent = findInheritedMember(
             named: memberName,
             for: ownerSymbol,
-            symbols: ctx.symbols
+            symbols: ctx.symbols,
+            parameterTypes: parameterTypes
         )
         guard let parent else { return }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else {
@@ -1174,6 +1184,7 @@ extension DataFlowSemaPhase {
         memberName: InternedString,
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
+        memberSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
         let name = ctx.interner.resolve(memberName)
@@ -1197,68 +1208,63 @@ extension DataFlowSemaPhase {
 
         guard !overridableParents.isEmpty else { return }
 
+        // Match the inherited member against the declaration currently being
+        // validated. Looking at every child overload with this name makes an
+        // unrelated overload appear to implement the interface member (for
+        // example, StringBuilder.append(Int) after StringBuilder.append(Char)
+        // is declared as an Appendable override).
+        let matchingParents: [OFOInheritedMember]
+        if let childSignature = ctx.symbols.functionSignature(for: memberSymbol) {
+            matchingParents = overridableParents.filter { parent in
+                guard let parentSignature = ctx.symbols.functionSignature(for: parent.memberID) else {
+                    return false
+                }
+                // Kotlin member overrides require equal parameter types. The
+                // general compatibility helper intentionally accepts
+                // contravariant parameters for other checks, which would
+                // incorrectly classify append(Any?) as Appendable.append(CharSequence?).
+                return childSignature.parameterTypes == parentSignature.parameterTypes
+                    && childSignature.isSuspend == parentSignature.isSuspend
+                    && ctx.types.isSubtype(childSignature.returnType, parentSignature.returnType)
+            }
+        } else if ctx.symbols.symbol(memberSymbol)?.kind == .property {
+            matchingParents = overridableParents.filter { parent in
+                ctx.symbols.symbol(parent.memberID)?.kind == .property
+            }
+        } else {
+            matchingParents = []
+        }
+
+        guard !matchingParents.isEmpty else { return }
+
         // Special handling for interface implementations
         if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .class {
             // Check if this is implementing an interface method
-            let interfaceParents = overridableParents.filter { $0.ownerIsInterface }
+            let interfaceParents = matchingParents.filter { $0.ownerIsInterface }
             if !interfaceParents.isEmpty {
-                // Check if any interface parent has matching signature
-                let childOverloads = childFunctions(named: memberName, in: ownerSymbol, ctx: ctx)
-                guard !childOverloads.isEmpty else { return }
-
-                let hasMatchingSignature = interfaceParents.contains { parent in
-                    guard ctx.symbols.symbol(parent.memberID) != nil,
-                          let parentSig = ctx.symbols.functionSignature(for: parent.memberID) else {
-                        return false
-                    }
-                    return childOverloads.contains { childID in
-                        guard let childSig = ctx.symbols.functionSignature(for: childID) else { return false }
-                        return signaturesMatch(child: childSig, parent: parentSig, ctx: ctx)
-                    }
-                }
-
-                if hasMatchingSignature {
-                    // For interface implementations with matching signature, require override modifier
-                    ctx.diagnostics.error(
-                        "KSWIFTK-SEMA-OVERRIDE",
-                        "'\(name)' implements interface member and needs 'override' modifier.",
-                        range: memberRange
-                    )
-                    return
-                }
+                // For interface implementations with matching signature, require override modifier.
+                ctx.diagnostics.error(
+                    "KSWIFTK-SEMA-OVERRIDE",
+                    "'\(name)' implements interface member and needs 'override' modifier.",
+                    range: memberRange
+                )
+                return
             }
         }
 
         // For class inheritance, check if this actually overrides a parent member
         // Use improved signature matching to avoid false positives with overloads
         if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .class {
-            let classParents = overridableParents.filter { !$0.ownerIsInterface }
+            let classParents = matchingParents.filter { !$0.ownerIsInterface }
             if !classParents.isEmpty {
-                // Check if any class parent has matching signature
-                let childOverloads = childFunctions(named: memberName, in: ownerSymbol, ctx: ctx)
-                guard !childOverloads.isEmpty else { return }
-
-                let hasMatchingSignature = classParents.contains { parent in
-                    guard ctx.symbols.symbol(parent.memberID) != nil,
-                          let parentSig = ctx.symbols.functionSignature(for: parent.memberID) else {
-                        return false
-                    }
-                    return childOverloads.contains { childID in
-                        guard let childSig = ctx.symbols.functionSignature(for: childID) else { return false }
-                        return signaturesMatch(child: childSig, parent: parentSig, ctx: ctx)
-                    }
-                }
-
-                if hasMatchingSignature {
-                    let parentName = ctx.interner.resolve(classParents.first!.ownerName)
-                    ctx.diagnostics.error(
-                        "KSWIFTK-SEMA-OVERRIDE",
-                        "'\(name)' hides member of supertype '\(parentName)' "
-                            + "and needs 'override' modifier.",
-                        range: memberRange
-                    )
-                    return
-                }
+                let parentName = ctx.interner.resolve(classParents.first!.ownerName)
+                ctx.diagnostics.error(
+                    "KSWIFTK-SEMA-OVERRIDE",
+                    "'\(name)' hides member of supertype '\(parentName)' "
+                        + "and needs 'override' modifier.",
+                    range: memberRange
+                )
+                return
             }
         }
     }
@@ -1294,7 +1300,8 @@ extension DataFlowSemaPhase {
     private func findInheritedMember(
         named memberName: InternedString,
         for classSymbol: SymbolID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        parameterTypes: [TypeID]? = nil
     ) -> OFOInheritedMember? {
         var visited: Set<SymbolID> = [classSymbol]
         var queue = symbols.directSupertypes(for: classSymbol)
@@ -1310,7 +1317,20 @@ extension DataFlowSemaPhase {
                 }
                 let isMatch = child.kind == .function
                     || child.kind == .property
-                if isMatch, child.name == memberName {
+                guard isMatch, child.name == memberName else {
+                    continue
+                }
+                // Function overloads must be matched by their parameter types;
+                // name-only lookup can select a synthetic range overload before
+                // the real member being overridden.
+                if let parameterTypes {
+                    guard child.kind == .function,
+                          symbols.functionSignature(for: childID)?.parameterTypes == parameterTypes
+                    else {
+                        continue
+                    }
+                }
+                if isMatch {
                     return OFOInheritedMember(
                         memberID: childID,
                         ownerName: sym.name,

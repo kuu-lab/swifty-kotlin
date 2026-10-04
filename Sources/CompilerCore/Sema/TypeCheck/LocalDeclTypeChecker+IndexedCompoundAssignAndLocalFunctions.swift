@@ -11,16 +11,47 @@ extension LocalDeclTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID {
         let sema = ctx.sema
+        let interner = ctx.interner
 
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let getName = interner.intern("get")
+        let getCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: getName, receiverType: receiverType, sema: sema, interner: interner
+        )
         var indexTypes: [TypeID] = []
-        for indexExpr in indices {
-            indexTypes.append(driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: nil))
+        for (position, indexExpr) in indices.enumerated() {
+            let literalExpectedType = contextualIntegerLiteralExpectedType(
+                candidates: getCandidates,
+                parameterIndex: position,
+                indexExpr: indexExpr,
+                ast: ctx.ast,
+                sema: sema
+            )
+            indexTypes.append(driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType))
         }
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
+        // Array<*>'s element type is erased to Any? at the type-check level, but the
+        // backing store's actual boxed representation (IntBox/LongBox/DoubleBox/...)
+        // is only known for a concrete type argument. KIR lowering needs the real
+        // element type to pick the matching box/unbox pair for the read-modify-write;
+        // without it, it would have to guess (e.g. from the RHS operand's type), which
+        // silently corrupts the slot whenever that guess doesn't match the actual
+        // runtime element type. Reject at the type-check boundary instead, matching
+        // real Kotlin's own restriction that `set` is inaccessible on an out-projected
+        // array (`Array<*>` prohibits writes for the same variance-safety reason).
+        if isStarProjectedArrayReceiver(receiverType, sema: sema, interner: ctx.interner) {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-STAR-PROJECTED-WRITE",
+                "Compound assignment to an element of a star-projected array ('Array<*>') is not allowed: the element type is erased, so it cannot be determined which primitive representation to read and write.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+
         let (elementType, operatorResolved) = resolveIndexedGetElement(
-            id: id, receiverType: receiverType, indexTypes: indexTypes,
+            id: id, receiverType: receiverType, getCandidates: getCandidates, indexTypes: indexTypes,
             range: range, ctx: ctx
         )
 
@@ -40,6 +71,34 @@ extension LocalDeclTypeChecker {
         let resultType = compoundOpResultType(
             assignOp: op, elementType: elementType, valueType: valueType, sema: sema
         )
+
+        // KSWIFTK-BUG: the write-back half of `a[i] op= v` must go through the
+        // same custom operator `set()` that a plain `a[i] = v` would resolve,
+        // not the raw built-in array runtime. Only attempt this when `get()`
+        // itself resolved to a real member (not the built-in array fallback)
+        // and the receiver isn't a genuine array (Array<T>'s `get`/`set` ARE
+        // real resolvable members too, but must still go through the raw
+        // array/boxing path — mirrored from inferIndexedAssignExpr's
+        // `assignReceiverIsArrayLike` guard).
+        if operatorResolved, !isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: interner) {
+            let setOperatorBound = bindIndexedCompoundAssignSetOperator(
+                id, receiverType: receiverType, indexTypes: indexTypes, valueType: resultType,
+                elementType: elementType, range: range, ctx: ctx
+            )
+            // KSWIFTK-BUG: a get()-only receiver with no matching set() overload
+            // (wrong arity, mismatched parameter types, ...) must be rejected here,
+            // matching real Kotlin's "no set method providing array access" error.
+            // Falling through silently would leave `id` unbound by
+            // IndexedCompoundAssignOperatorBinding, and KIR lowering would then
+            // treat this as the built-in-array fallback shape: kk_array_set on a
+            // non-array receiver, using only the first index and silently
+            // discarding any additional ones.
+            if !setOperatorBound {
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+        }
+
         driver.emitSubtypeConstraint(
             left: valueType, right: elementType,
             range: ctx.ast.arena.exprRange(valueExpr) ?? range,
@@ -54,10 +113,111 @@ extension LocalDeclTypeChecker {
         return sema.types.unitType
     }
 
+    /// True when `receiverType` is the generic `Array<*>` class specifically (star
+    /// type argument), as opposed to a concrete `Array<T>` or one of the
+    /// primitive-specialized array types (IntArray, ...). Mirrors
+    /// CallLowerer+Operators.swift's isGenericArrayReceiverType/
+    /// genericArrayElementType, which need a concrete T to select the matching
+    /// box/unbox pair.
+    private func isStarProjectedArrayReceiver(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
+              interner.resolve(symbol.name) == "Array",
+              let firstArg = classType.args.first,
+              case .star = firstArg
+        else {
+            return false
+        }
+        return true
+    }
+
+    /// True when `receiverType` is one of the compiler's built-in array types
+    /// (Array, IntArray, ByteArray, ...). Mirrors
+    /// CallLowerer+ReceiverTypePredicates.swift's isConcreteArrayLikeType,
+    /// which KIR lowering uses to keep genuine arrays on the raw
+    /// array/boxing runtime path even though `Array<T>` also has real,
+    /// resolvable `get`/`set` member symbols.
+    private func isConcreteArrayLikeReceiverType(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        return knownNames.isArrayLikeName(symbol.name)
+    }
+
+    /// Resolve `operator fun set` for the write-back half of `a[i] op= v` and,
+    /// on success, record it via `IndexedCompoundAssignOperatorBinding` so
+    /// KIR lowering can dispatch to it instead of the raw array runtime. Only
+    /// called once `get()` has already resolved to a real member (see the
+    /// `operatorResolved` / `isConcreteArrayLikeReceiverType` guard at the
+    /// call site); a `get`-only receiver (no matching `set`) is left
+    /// unbound, and KIR lowering keeps its previous (pre-existing) fallback
+    /// behavior for that edge case.
+    /// Returns `true` once a matching `set()` overload is resolved and bound;
+    /// `false` when the receiver has no usable `set()` (missing entirely, or
+    /// no overload whose parameters accept `indexTypes + valueType`) — the
+    /// caller must then treat this as a hard Sema error rather than silently
+    /// falling back to the raw array runtime.
+    private func bindIndexedCompoundAssignSetOperator(
+        _ id: ExprID,
+        receiverType: TypeID,
+        indexTypes: [TypeID],
+        valueType: TypeID,
+        elementType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let setName = interner.intern("set")
+        let setCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: setName, receiverType: receiverType, sema: sema, interner: interner
+        )
+        guard !setCandidates.isEmpty else {
+            reportMissingIndexedSetOperator(range: range, ctx: ctx)
+            return false
+        }
+
+        var callArgTypes = indexTypes
+        callArgTypes.append(valueType)
+        let callArgs = callArgTypes.map { CallArg(type: $0) }
+        let resolved = ctx.resolver.resolveCall(
+            candidates: setCandidates,
+            call: CallExpr(range: range, calleeName: setName, args: callArgs),
+            expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.semaCtx
+        )
+        guard let chosenSet = resolved.chosenCallee else {
+            reportMissingIndexedSetOperator(range: range, ctx: ctx)
+            return false
+        }
+
+        sema.bindings.bindIndexedCompoundAssignOperator(
+            id,
+            binding: IndexedCompoundAssignOperatorBinding(
+                setCall: CallBinding(
+                    chosenCallee: chosenSet,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { _, value in value },
+                    parameterMapping: resolved.parameterMapping
+                ),
+                elementType: elementType
+            )
+        )
+        return true
+    }
+
+    private func reportMissingIndexedSetOperator(range: SourceRange, ctx: TypeInferenceContext) {
+        ctx.semaCtx.diagnostics.error(
+            "KSWIFTK-SEMA-0002",
+            "No viable overload found for operator 'set'.",
+            range: range
+        )
+    }
+
     /// Resolve `operator fun get` on the receiver and return (elementType, wasResolved).
     private func resolveIndexedGetElement(
         id: ExprID,
         receiverType: TypeID,
+        getCandidates: [SymbolID],
         indexTypes: [TypeID],
         range: SourceRange,
         ctx: TypeInferenceContext
@@ -65,9 +225,6 @@ extension LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let getName = interner.intern("get")
-        let getCandidates = driver.helpers.collectMemberFunctionCandidates(
-            named: getName, receiverType: receiverType, sema: sema, interner: interner
-        )
         let fallback = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
         ) ?? sema.types.anyType
@@ -207,7 +364,8 @@ extension LocalDeclTypeChecker {
             isSuspend: isSuspend,
             valueParameterSymbols: paramSymbols,
             valueParameterHasDefaultValues: valueParams.map(\.hasDefaultValue),
-            valueParameterIsVararg: valueParams.map(\.isVararg)
+            valueParameterIsVararg: valueParams.map(\.isVararg),
+            valueParameterAllowsNonLocalReturn: valueParams.map { !$0.isCrossinline && !$0.isNoinline }
         )
         sema.symbols.setFunctionSignature(signature, for: funSymbol)
 
@@ -219,7 +377,13 @@ extension LocalDeclTypeChecker {
         )))
 
         // Local functions introduce a new scope for control flow: reset loop/lambda stacks.
-        var bodyLocals = locals; let bodyCtx = ctx.copying(loopDepth: 0, loopLabelStack: [], lambdaLabelStack: [])
+        var bodyLocals = locals; let bodyCtx = ctx.copying(
+            loopDepth: 0,
+            loopLabelStack: [],
+            lambdaLabelStack: [],
+            lambdaDepth: 0,
+            enclosingFunctionReturnType: resolvedReturnType
+        )
         for (i, param) in valueParams.enumerated() {
             bodyLocals[param.name] = (parameterTypes[i], paramSymbols[i], false, true)
         }
@@ -252,7 +416,8 @@ extension LocalDeclTypeChecker {
                 isSuspend: isSuspend,
                 valueParameterSymbols: paramSymbols,
                 valueParameterHasDefaultValues: valueParams.map(\.hasDefaultValue),
-                valueParameterIsVararg: valueParams.map(\.isVararg)
+                valueParameterIsVararg: valueParams.map(\.isVararg),
+                valueParameterAllowsNonLocalReturn: valueParams.map { !$0.isCrossinline && !$0.isNoinline }
             )
             sema.symbols.setFunctionSignature(inferredSignature, for: funSymbol)
         }

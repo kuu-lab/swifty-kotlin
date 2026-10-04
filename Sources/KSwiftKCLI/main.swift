@@ -22,12 +22,35 @@ func printCLIError(_ error: CLIParseError) {
         print("Unsupported diagnostics format: \(value)")
     case let .unknownOption(option):
         print("Unknown option: \(option)")
+    case let .incompatibleStdlibOptions(message):
+        print(message)
+    case .stdlibOnlyRequiresLibraryEmit:
+        print("--stdlib-only requires --emit library")
     }
 }
 
 let args = Array(ProcessInfo.processInfo.arguments.dropFirst())
 
 do {
+    let parsedOptions = try CLIParser.parse(args: args)
+    if CompilerOptions.shouldUseDefaultStdlib(
+        allowDefaultStdlibLibrary: parsedOptions.allowDefaultStdlibLibrary,
+        includeStdlib: parsedOptions.includeStdlib,
+        stdlibOnly: parsedOptions.stdlibOnly,
+        stdlibLibraryPath: parsedOptions.stdlibLibraryPath,
+        emit: parsedOptions.emit
+    ) {
+        do {
+            CompilerOptions.defaultStdlibLibraryPath = try StdlibArtifactCache.resolveOrBuild(
+                target: parsedOptions.target
+            )
+        } catch {
+            let message = "KSWIFTK-LIB-0023: Cannot prepare the default bundled stdlib artifact: \(error)\n"
+            FileHandle.standardError.write(Data(message.utf8))
+            exit(1)
+        }
+    }
+
     let options = try CLIParser.parse(args: args)
     let driver = CompilerDriver(backendPhases: makeBackendPhases)
     let exitCode = driver.run(options: options)

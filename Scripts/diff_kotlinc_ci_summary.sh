@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --diff-lines)
       shift
-      DIFF_MAX_LINES="${1:-30}"
+      DIFF_MAX_LINES="${1:-$DIFF_MAX_LINES}"
       ;;
     -h|--help)
       usage
@@ -69,60 +69,59 @@ if [[ ! -f "$REPORT_PATH" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Helper: read a file and optionally truncate to DIFF_MAX_LINES lines
+# Helper: read a file and truncate to DIFF_MAX_LINES lines (0 = unlimited)
 # ---------------------------------------------------------------------------
 read_limited() {
   local file="$1"
-  local max="${2:-$DIFF_MAX_LINES}"
   if [[ ! -f "$file" ]]; then
     return
   fi
-  if [[ "$max" -le 0 ]]; then
+  if [[ "$DIFF_MAX_LINES" -le 0 ]]; then
     cat "$file"
     return
   fi
-  local total
-  total="$(wc -l < "$file" | tr -d ' ')"
-  # Use cat + head to avoid printf issues with lines starting with '-'
-  cat "$file" | head -n "$max"
-  if (( total > max )); then
-    printf '%s\n' "... ($(( total - max )) more lines)"
-  fi
+  awk -v max="$DIFF_MAX_LINES" '
+    NR <= max { print }
+    END { if (NR > max) printf "... (%d more lines)\n", NR - max }
+  ' "$file"
 }
 
 # ---------------------------------------------------------------------------
-# Helper: resolve artifact directory for a failed case
+# Helper: resolve artifact directory for a failed case, writing the result
+# into the caller's variable named by $1 (avoids a subshell fork per case).
 # Accepts the artifact_dir from the TSV, falling back to ARTIFACT_ROOT lookup.
 # ---------------------------------------------------------------------------
 resolve_artifact_dir() {
-  local test_case="$1"
-  local tsv_artifact_dir="$2"
+  local -n __resolved="$1"
+  local test_case="$2"
+  local tsv_artifact_dir="$3"
 
   if [[ -n "$tsv_artifact_dir" && -d "$tsv_artifact_dir" ]]; then
-    printf '%s' "$tsv_artifact_dir"
+    __resolved="$tsv_artifact_dir"
     return
   fi
 
   if [[ -n "$ARTIFACT_ROOT" ]]; then
     local candidate="$ARTIFACT_ROOT/$(sanitize_case_name "$test_case")"
     if [[ -d "$candidate" ]]; then
-      printf '%s' "$candidate"
+      __resolved="$candidate"
       return
     fi
   fi
 
-  printf ''
+  __resolved=""
 }
 
 # ---------------------------------------------------------------------------
-# Parse the TSV report into index-parallel arrays (cases and artifact dirs)
+# Parse the TSV report. Non-passing, non-skipped cases (FAIL, or any
+# unrecognized status) are treated as failures and recorded as
+# "test_case\tartifact_dir" entries in failed_entries.
 # ---------------------------------------------------------------------------
 total=0
 passed=0
 failed=0
 skipped=0
-failed_cases=()
-failed_adirs=()
+failed_entries=()
 
 while IFS=$'\t' read -r test_case status artifact_dir; do
   [[ -n "${test_case:-}" ]] || continue
@@ -130,31 +129,48 @@ while IFS=$'\t' read -r test_case status artifact_dir; do
   case "${status:-}" in
     PASS)
       passed=$((passed + 1))
-      ;;
-    FAIL)
-      failed=$((failed + 1))
-      adir="$(resolve_artifact_dir "$test_case" "${artifact_dir:-}")"
-      failed_cases+=("$test_case")
-      failed_adirs+=("$adir")
-      if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
-        # Workflow commands must be a single line on stdout for GitHub Actions.
-        printf '::error file=%s,title=kotlinc diff::diff regression failed for this case\n' "$test_case"
-      fi
+      continue
       ;;
     SKIP)
       skipped=$((skipped + 1))
-      ;;
-    *)
-      failed=$((failed + 1))
-      adir="$(resolve_artifact_dir "$test_case" "${artifact_dir:-}")"
-      failed_cases+=("$test_case")
-      failed_adirs+=("$adir")
-      if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
-        printf '::warning file=%s,title=kotlinc diff::unknown status %s\n' "$test_case" "${status:-UNKNOWN}"
-      fi
+      continue
       ;;
   esac
+
+  failed=$((failed + 1))
+  adir=""
+  resolve_artifact_dir adir "$test_case" "${artifact_dir:-}"
+  failed_entries+=("$test_case"$'\t'"$adir")
+
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    # Workflow commands must be a single line on stdout for GitHub Actions.
+    if [[ "${status:-}" == "FAIL" ]]; then
+      printf '::error file=%s,title=kotlinc diff::diff regression failed for this case\n' "$test_case"
+    else
+      printf '::warning file=%s,title=kotlinc diff::unknown status %s\n' "$test_case" "${status:-UNKNOWN}"
+    fi
+  fi
 done < "$REPORT_PATH"
+
+# ---------------------------------------------------------------------------
+# Helper: print one <details>-wrapped fenced code block. Pass use_limit=0 to
+# cat the file in full instead of truncating to DIFF_MAX_LINES.
+# ---------------------------------------------------------------------------
+emit_detail_block() {
+  local summary="$1" fence_lang="$2" content_file="$3" use_limit="${4:-1}"
+  printf '\n'
+  printf '%s\n' "<details><summary>${summary}</summary>"
+  printf '\n'
+  printf '%s\n' "\`\`\`${fence_lang}"
+  if [[ "$use_limit" == "1" ]]; then
+    read_limited "$content_file"
+  else
+    cat "$content_file"
+  fi
+  printf '%s\n' '```'
+  printf '\n'
+  printf '%s\n' '</details>'
+}
 
 # ---------------------------------------------------------------------------
 # Emit Markdown (for GitHub Step Summary / console)
@@ -170,16 +186,13 @@ emit_markdown() {
   printf '| Skipped | %d |\n' "$skipped"
 
   if (( failed > 0 )); then
-    local i
-    local case_count="${#failed_cases[@]}"
-
     printf '\n'
     printf '%s\n' "### Failed Cases"
     printf '\n'
 
-    for (( i = 0; i < case_count; i++ )); do
-      local test_case="${failed_cases[$i]}"
-      local adir="${failed_adirs[$i]}"
+    local entry test_case adir
+    for entry in "${failed_entries[@]}"; do
+      IFS=$'\t' read -r test_case adir <<< "$entry"
 
       printf '#### `%s`\n' "$test_case"
       if [[ -n "$adir" ]]; then
@@ -188,14 +201,7 @@ emit_markdown() {
 
       # Embed stdout diff if available
       if [[ -n "$adir" && -f "$adir/stdout.diff" && -s "$adir/stdout.diff" ]]; then
-        printf '\n'
-        printf '%s\n' '<details><summary>stdout diff</summary>'
-        printf '\n'
-        printf '%s\n' '```diff'
-        read_limited "$adir/stdout.diff"
-        printf '%s\n' '```'
-        printf '\n'
-        printf '%s\n' '</details>'
+        emit_detail_block 'stdout diff' 'diff' "$adir/stdout.diff"
         printf '\n'
         printf '%s\n' '> **Golden update candidate**: stdout mismatch detected.'
         printf '> To regenerate: `%s`\n' "$GOLDEN_UPDATE_CMD"
@@ -203,26 +209,12 @@ emit_markdown() {
 
       # Embed compile stderr diff if available
       if [[ -n "$adir" && -f "$adir/compile_stderr.diff" && -s "$adir/compile_stderr.diff" ]]; then
-        printf '\n'
-        printf '%s\n' '<details><summary>compile stderr diff</summary>'
-        printf '\n'
-        printf '%s\n' '```diff'
-        read_limited "$adir/compile_stderr.diff"
-        printf '%s\n' '```'
-        printf '\n'
-        printf '%s\n' '</details>'
+        emit_detail_block 'compile stderr diff' 'diff' "$adir/compile_stderr.diff"
       fi
 
       # Embed summary.txt if available
       if [[ -n "$adir" && -f "$adir/summary.txt" ]]; then
-        printf '\n'
-        printf '%s\n' '<details><summary>case summary</summary>'
-        printf '\n'
-        printf '%s\n' '```'
-        cat "$adir/summary.txt"
-        printf '%s\n' '```'
-        printf '\n'
-        printf '%s\n' '</details>'
+        emit_detail_block 'case summary' '' "$adir/summary.txt" 0
       fi
 
       printf '\n'

@@ -14,11 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
-      - name: Setup Swift and LLVM
-        uses: ./.github/actions/setup-swift-llvm
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check remote Action pins
+        run: python3 Scripts/check_action_pins.py
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Run dead-code audit
         run: |
           mkdir -p "$RUNNER_TEMP/quarterly-audits/dead-code"
@@ -48,7 +50,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload audit artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: quarterly-audits-${{ github.run_id }}
           path: ${{ runner.temp }}/quarterly-audits

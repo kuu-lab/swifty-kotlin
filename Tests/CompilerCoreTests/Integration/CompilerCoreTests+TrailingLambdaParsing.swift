@@ -4,187 +4,409 @@ import Foundation
 import Testing
 
 extension CompilerCoreTests {
-    @Test func testTrailingLambdaWithoutParensParsesAsCallExpression() throws {
-        let source = """
-        fun apply(block: () -> Int): Int = block()
-        fun main(): Int = apply { 42 }
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
+    @Test func testTrailingLambdaParsing() throws {
+        let sources: [String] = [
+            // 0: without parens parses as call expression
+            """
+            package sample0
+            fun apply(block: () -> Int): Int = block()
+            fun main0(): Int = apply { 42 }
+            """,
 
-        let ast = try #require(ctx.ast)
-        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
-        guard case let .expr(exprID, _) = function.body,
-              let expr = ast.arena.expr(exprID),
-              case let .call(calleeID, _, args, _) = expr
-        else {
-            Issue.record("Expected trailing lambda call to parse as call expression.")
-            return
-        }
+            // 1: with explicit type arguments parses as call expression
+            """
+            package sample1
+            fun <T> build(block: () -> T): T = block()
+            fun main1(): Int = build<Int> { 1 }
+            """,
 
-        #expect(args.count == 1)
-        guard let calleeExpr = ast.arena.expr(calleeID),
-              case let .nameRef(calleeName, _) = calleeExpr
-        else {
-            Issue.record("Expected call callee to be a name reference.")
-            return
-        }
-        #expect(ctx.interner.resolve(calleeName) == "apply")
-
-        guard let lambdaExpr = ast.arena.expr(args[0].expr),
-              case .lambdaLiteral = lambdaExpr
-        else {
-            Issue.record("Expected trailing lambda argument.")
-            return
-        }
-    }
-
-    @Test func testTrailingLambdaWithExplicitTypeArgsParsesAsCallExpression() throws {
-        let source = """
-        fun <T> build(block: () -> T): T = block()
-        fun main(): Int = build<Int> { 1 }
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        let ast = try #require(ctx.ast)
-        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
-        guard case let .expr(exprID, _) = function.body,
-              let expr = ast.arena.expr(exprID),
-              case let .call(_, typeArgs, args, _) = expr
-        else {
-            Issue.record("Expected generic trailing lambda call to parse as call expression.")
-            return
-        }
-
-        #expect(typeArgs.count == 1)
-        #expect(args.count == 1)
-    }
-
-    @Test func testTrailingLambdaWithMultipleStatementsParsesAsLambdaBlockBody() throws {
-        let source = """
-        fun main() {
-            val s = buildString {
-                append("hello ")
-                append("world")
+            // 2: with multiple statements parses as lambda block body
+            """
+            package sample2
+            fun main2() {
+                val s = buildString {
+                    append("hello ")
+                    append("world")
+                }
+                println(s)
             }
-            println(s)
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
+            """,
 
-        let ast = try #require(ctx.ast)
-        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
-        guard case let .block(statements, _) = function.body,
-              let localDeclID = statements.first,
-              let localDeclExpr = ast.arena.expr(localDeclID),
-              case let .localDecl(_, _, _, initializer, _, _) = localDeclExpr,
-              let callExprID = initializer,
-              let callExpr = ast.arena.expr(callExprID),
-              case let .call(_, _, args, _) = callExpr,
-              let lambdaArg = args.first,
-              let lambdaExpr = ast.arena.expr(lambdaArg.expr),
-              case let .lambdaLiteral(_, lambdaBodyID, _, _) = lambdaExpr,
-              let lambdaBody = ast.arena.expr(lambdaBodyID),
-              case let .blockExpr(bodyStatements, trailingExpr, _) = lambdaBody
-        else {
-            Issue.record("Expected builder trailing lambda body to be parsed as block expression.")
-            return
-        }
+            // 3: member trailing lambda with two parameters
+            """
+            package sample3
+            fun main3() {
+                val values = listOf(1, 2, 3)
+                val total = values.fold(0) { acc, value -> acc + value }
+                println(total)
+            }
+            """,
 
-        #expect(bodyStatements.count == 1)
-        let firstStmtID = try #require(bodyStatements.first)
-        let trailingID = try #require(trailingExpr)
-        guard let firstStmt = ast.arena.expr(firstStmtID), case .call = firstStmt else {
-            Issue.record("Expected first lambda statement to be a call expression.")
-            return
-        }
-        guard let trailing = ast.arena.expr(trailingID), case .call = trailing else {
-            Issue.record("Expected trailing lambda expression to be a call expression.")
-            return
+            // 4: parenthesized call with two lambda arguments
+            """
+            package sample4
+            fun foo(a: () -> Int, b: () -> String): Int = 0
+            fun main4(): Int = foo({ 42 }, { "x" })
+            """,
+
+            // 5: top-level property with generic trailing lambda initializer
+            """
+            package sample5
+            fun <T> build(block: () -> T): T = block()
+            val topLevelValue5 = build<Int> { 1 }
+            """,
+
+            // 6: top-level property with non-generic trailing lambda initializer
+            """
+            package sample6
+            fun apply(block: () -> Int): Int = block()
+            val topLevelValue6 = apply { 42 }
+            """,
+
+            // 7: class member property with generic trailing lambda initializer
+            """
+            package sample7
+            fun <T> build(block: () -> T): T = block()
+            class Holder {
+                val member = build<Int> { 7 }
+            }
+            """,
+
+            // 8: top-level property trailing lambda preserves inner semicolons
+            """
+            package sample8
+            fun apply(block: () -> Int): Int = block()
+            val topLevelValue8 = apply { val x = 42; x }
+            """,
+
+            // 9: source-backed lazy delegate trailing lambda preserves inner semicolons
+            """
+            package sample9
+            val topLevelLazyValue9 by lazy { val x = 42; x }
+            """,
+
+            // 10: custom delegate constructor and generic factory retain the
+            // trailing lambda as the final call argument
+            """
+            package sample10
+            class Delegate10<T>(private val initializer: () -> T) {
+                operator fun getValue(thisRef: Any?, property: KProperty<*>): T = initializer()
+            }
+            fun <T> delegateFactory10(initializer: () -> T): Delegate10<T> = Delegate10(initializer)
+            val delegateCtor10: String by Delegate10 { val value = "ctor"; value }
+            val delegateFactory10Value: String by delegateFactory10 { val value = "factory"; value }
+            val delegateParenthesized10: String by Delegate10({ "parenthesized" })
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runFrontend(ctx)
+
+            for path in paths {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "Shared trailing-lambda fixture should have no errors for \(path): \(errors.map(\.message))")
+            }
+
+            let ast = try #require(ctx.ast)
+            let interner = ctx.interner
+
+            // 0
+            do {
+                let function = try #require(topLevelFunction(named: "main0", in: ast, interner: interner))
+                guard case let .expr(exprID, _) = function.body,
+                      let expr = ast.arena.expr(exprID),
+                      case let .call(calleeID, _, args, _) = expr
+                else {
+                    Issue.record("Expected trailing lambda call to parse as call expression.")
+                    return
+                }
+
+                #expect(args.count == 1)
+                guard let calleeExpr = ast.arena.expr(calleeID),
+                      case let .nameRef(calleeName, _) = calleeExpr
+                else {
+                    Issue.record("Expected call callee to be a name reference.")
+                    return
+                }
+                #expect(interner.resolve(calleeName) == "apply")
+
+                guard let lambdaExpr = ast.arena.expr(args[0].expr),
+                      case .lambdaLiteral = lambdaExpr
+                else {
+                    Issue.record("Expected trailing lambda argument.")
+                    return
+                }
+            }
+
+            // 1
+            do {
+                let function = try #require(topLevelFunction(named: "main1", in: ast, interner: interner))
+                guard case let .expr(exprID, _) = function.body,
+                      let expr = ast.arena.expr(exprID),
+                      case let .call(_, typeArgs, args, _) = expr
+                else {
+                    Issue.record("Expected generic trailing lambda call to parse as call expression.")
+                    return
+                }
+
+                #expect(typeArgs.count == 1)
+                #expect(args.count == 1)
+            }
+
+            // 2
+            do {
+                let function = try #require(topLevelFunction(named: "main2", in: ast, interner: interner))
+                guard case let .block(statements, _) = function.body,
+                      let localDeclID = statements.first,
+                      let localDeclExpr = ast.arena.expr(localDeclID),
+                      case let .localDecl(_, _, _, initializer, _, _) = localDeclExpr,
+                      let callExprID = initializer,
+                      let callExpr = ast.arena.expr(callExprID),
+                      case let .call(_, _, args, _) = callExpr,
+                      let lambdaArg = args.first,
+                      let lambdaExpr = ast.arena.expr(lambdaArg.expr),
+                      case let .lambdaLiteral(_, lambdaBodyID, _, _) = lambdaExpr,
+                      let lambdaBody = ast.arena.expr(lambdaBodyID),
+                      case let .blockExpr(bodyStatements, trailingExpr, _) = lambdaBody
+                else {
+                    Issue.record("Expected builder trailing lambda body to be parsed as block expression.")
+                    return
+                }
+
+                #expect(bodyStatements.count == 1)
+                let firstStmtID = try #require(bodyStatements.first)
+                let trailingID = try #require(trailingExpr)
+                guard let firstStmt = ast.arena.expr(firstStmtID), case .call = firstStmt else {
+                    Issue.record("Expected first lambda statement to be a call expression.")
+                    return
+                }
+                guard let trailing = ast.arena.expr(trailingID), case .call = trailing else {
+                    Issue.record("Expected trailing lambda expression to be a call expression.")
+                    return
+                }
+            }
+
+            // 3
+            do {
+                let function = try #require(topLevelFunction(named: "main3", in: ast, interner: interner))
+                guard case let .block(statements, _) = function.body,
+                      statements.count >= 2,
+                      let localDeclExpr = ast.arena.expr(statements[1]),
+                      case let .localDecl(_, _, _, initializer, _, _) = localDeclExpr,
+                      let callExprID = initializer,
+                      let callExpr = ast.arena.expr(callExprID),
+                      case let .memberCall(_, calleeName, _, args, _) = callExpr,
+                      interner.resolve(calleeName) == "fold",
+                      args.count == 2,
+                      let lambdaExpr = ast.arena.expr(args[1].expr),
+                      case let .lambdaLiteral(params, bodyExprID, _, _) = lambdaExpr,
+                      let bodyExpr = ast.arena.expr(bodyExprID)
+                else {
+                    Issue.record("Expected fold call with trailing lambda argument.")
+                    return
+                }
+
+                #expect(params.map(interner.resolve) == ["acc", "value"])
+                guard case .binary = bodyExpr else {
+                    Issue.record("Expected lambda body to parse as a binary expression.")
+                    return
+                }
+            }
+
+            // 4
+            do {
+                let function = try #require(topLevelFunction(named: "main4", in: ast, interner: interner))
+                guard case let .expr(exprID, _) = function.body,
+                      let expr = ast.arena.expr(exprID),
+                      case let .call(calleeID, _, args, _) = expr
+                else {
+                    Issue.record("Expected parenthesized lambda call to parse as a call expression.")
+                    return
+                }
+
+                guard args.count == 2 else {
+                    Issue.record("Expected two lambda arguments, got \(args.count).")
+                    return
+                }
+                guard let calleeExpr = ast.arena.expr(calleeID),
+                      case let .nameRef(calleeName, _) = calleeExpr
+                else {
+                    Issue.record("Expected call callee to be a name reference.")
+                    return
+                }
+                #expect(interner.resolve(calleeName) == "foo")
+
+                guard let firstArgExpr = ast.arena.expr(args[0].expr),
+                      case .lambdaLiteral = firstArgExpr
+                else {
+                    Issue.record("Expected first argument to be a lambda literal.")
+                    return
+                }
+
+                guard let secondArgExpr = ast.arena.expr(args[1].expr),
+                      case .lambdaLiteral = secondArgExpr
+                else {
+                    Issue.record("Expected second argument to be a lambda literal.")
+                    return
+                }
+            }
+
+            // 5
+            do {
+                let property = try #require(topLevelProperty(named: "topLevelValue5", in: ast, interner: interner))
+                let initializerID = try #require(property.initializer)
+                guard let initializerExpr = ast.arena.expr(initializerID),
+                      case let .call(calleeID, typeArgs, args, _) = initializerExpr
+                else {
+                    Issue.record("Expected property initializer to parse as a call expression.")
+                    return
+                }
+
+                #expect(typeArgs.count == 1)
+                #expect(args.count == 1)
+                guard let calleeExpr = ast.arena.expr(calleeID),
+                      case let .nameRef(calleeName, _) = calleeExpr
+                else {
+                    Issue.record("Expected call callee to be a name reference.")
+                    return
+                }
+                #expect(interner.resolve(calleeName) == "build")
+                guard let lambdaExpr = ast.arena.expr(args[0].expr),
+                      case .lambdaLiteral = lambdaExpr
+                else {
+                    Issue.record("Expected trailing lambda argument.")
+                    return
+                }
+            }
+
+            // 6
+            do {
+                let property = try #require(topLevelProperty(named: "topLevelValue6", in: ast, interner: interner))
+                let initializerID = try #require(property.initializer)
+                guard let initializerExpr = ast.arena.expr(initializerID),
+                      case let .call(_, _, args, _) = initializerExpr
+                else {
+                    Issue.record("Expected property initializer to parse as a call expression.")
+                    return
+                }
+                #expect(args.count == 1)
+                guard let lambdaExpr = ast.arena.expr(args[0].expr),
+                      case .lambdaLiteral = lambdaExpr
+                else {
+                    Issue.record("Expected trailing lambda argument.")
+                    return
+                }
+            }
+
+            // 7
+            do {
+                let property = try #require(
+                    memberProperty(named: "member", ofClass: "Holder", in: ast, interner: interner)
+                )
+                let initializerID = try #require(property.initializer)
+                guard let initializerExpr = ast.arena.expr(initializerID),
+                      case let .call(_, typeArgs, args, _) = initializerExpr
+                else {
+                    Issue.record("Expected member property initializer to parse as a call expression.")
+                    return
+                }
+                #expect(typeArgs.count == 1)
+                #expect(args.count == 1)
+                guard let lambdaExpr = ast.arena.expr(args[0].expr),
+                      case .lambdaLiteral = lambdaExpr
+                else {
+                    Issue.record("Expected trailing lambda argument.")
+                    return
+                }
+            }
+
+            // 8
+            do {
+                let property = try #require(topLevelProperty(named: "topLevelValue8", in: ast, interner: interner))
+                let initializerID = try #require(property.initializer)
+                guard let initializerExpr = ast.arena.expr(initializerID),
+                      case let .call(_, _, args, _) = initializerExpr
+                else {
+                    Issue.record("Expected property initializer to parse as a call expression.")
+                    return
+                }
+                #expect(args.count == 1)
+                guard let lambdaExpr = ast.arena.expr(args[0].expr),
+                      case .lambdaLiteral = lambdaExpr
+                else {
+                    Issue.record("Expected trailing lambda argument.")
+                    return
+                }
+            }
+
+            // 9
+            do {
+                let property = try #require(topLevelProperty(named: "topLevelLazyValue9", in: ast, interner: interner))
+                let delegateID = try #require(property.delegateExpression)
+                guard let delegateExpr = ast.arena.expr(delegateID),
+                      case let .call(_, _, args, _) = delegateExpr,
+                      args.count == 1,
+                      let lambdaExpr = ast.arena.expr(args[0].expr),
+                      case let .lambdaLiteral(_, bodyID, _, _) = lambdaExpr,
+                      let bodyExpr = ast.arena.expr(bodyID),
+                      case let .blockExpr(bodyStatements, trailingExpr, _) = bodyExpr
+                else {
+                    Issue.record("Expected lazy delegate trailing lambda to preserve its block structure.")
+                    return
+                }
+
+                #expect(bodyStatements.count == 1)
+                #expect(trailingExpr != nil)
+            }
+
+            // 10
+            for propertyName in ["delegateCtor10", "delegateFactory10Value", "delegateParenthesized10"] {
+                let property = try #require(topLevelProperty(named: propertyName, in: ast, interner: interner))
+                let delegateID = try #require(property.delegateExpression)
+                guard case let .call(_, _, args, _) = ast.arena.expr(delegateID),
+                      let lastArgument = args.last,
+                      case .lambdaLiteral = ast.arena.expr(lastArgument.expr)
+                else {
+                    Issue.record("Expected delegate \(propertyName) to retain a parsed trailing lambda call argument and body.")
+                    return
+                }
+
+                guard propertyName != "delegateParenthesized10" else { continue }
+                guard case let .lambdaLiteral(_, bodyID, _, _) = ast.arena.expr(lastArgument.expr),
+                      let bodyExpr = ast.arena.expr(bodyID),
+                      case let .blockExpr(statements, trailingExpr, _) = bodyExpr,
+                      case let .block(delegateBodyExpressions, _) = property.delegateBody
+                else {
+                    Issue.record("Expected delegate \(propertyName) to retain the call argument body for lowering.")
+                    return
+                }
+
+                var expectedBodyExpressions = statements
+                if let trailingExpr {
+                    expectedBodyExpressions.append(trailingExpr)
+                }
+                #expect(delegateBodyExpressions == expectedBodyExpressions)
+            }
         }
     }
 
-    @Test func testMemberTrailingLambdaWithTwoParametersParsesBothParameters() throws {
+    @Test func testDelegateTrailingLambdaDoesNotDuplicateMissingOperatorDiagnostic() throws {
         let source = """
-        fun main() {
-            val values = listOf(1, 2, 3)
-            val total = values.fold(0) { acc, value -> acc + value }
-            println(total)
-        }
+        class DelegateWithoutGetValue<T>(private val initializer: () -> T)
+        val broken: String by DelegateWithoutGetValue { "broken" }
         """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
 
-        let ast = try #require(ctx.ast)
-        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
-        guard case let .block(statements, _) = function.body,
-              statements.count >= 2,
-              let localDeclExpr = ast.arena.expr(statements[1]),
-              case let .localDecl(_, _, _, initializer, _, _) = localDeclExpr,
-              let callExprID = initializer,
-              let callExpr = ast.arena.expr(callExprID),
-              case let .memberCall(_, calleeName, _, args, _) = callExpr,
-              ctx.interner.resolve(calleeName) == "fold",
-              args.count == 2,
-              let lambdaExpr = ast.arena.expr(args[1].expr),
-              case let .lambdaLiteral(params, bodyExprID, _, _) = lambdaExpr,
-              let bodyExpr = ast.arena.expr(bodyExprID)
-        else {
-            Issue.record("Expected fold call with trailing lambda argument.")
-            return
-        }
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
 
-        #expect(params.map(ctx.interner.resolve) == ["acc", "value"])
-        guard case .binary = bodyExpr else {
-            Issue.record("Expected lambda body to parse as a binary expression.")
-            return
-        }
-    }
-
-    @Test func testParenthesizedCallWithTwoLambdaArgumentsParsesBothArguments() throws {
-        let source = """
-        fun foo(a: () -> Int, b: () -> String): Int = 0
-        fun main(): Int = foo({ 42 }, { "x" })
-        """
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        let ast = try #require(ctx.ast)
-        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
-        guard case let .expr(exprID, _) = function.body,
-              let expr = ast.arena.expr(exprID),
-              case let .call(calleeID, _, args, _) = expr
-        else {
-            Issue.record("Expected parenthesized lambda call to parse as a call expression.")
-            return
-        }
-
-        guard args.count == 2 else {
-            Issue.record("Expected two lambda arguments, got \(args.count).")
-            return
-        }
-        guard let calleeExpr = ast.arena.expr(calleeID),
-              case let .nameRef(calleeName, _) = calleeExpr
-        else {
-            Issue.record("Expected call callee to be a name reference.")
-            return
-        }
-        #expect(ctx.interner.resolve(calleeName) == "foo")
-
-        guard let firstArgExpr = ast.arena.expr(args[0].expr),
-              case .lambdaLiteral = firstArgExpr
-        else {
-            Issue.record("Expected first argument to be a lambda literal.")
-            return
-        }
-
-        guard let secondArgExpr = ast.arena.expr(args[1].expr),
-              case .lambdaLiteral = secondArgExpr
-        else {
-            Issue.record("Expected second argument to be a lambda literal.")
-            return
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            let missingGetValueErrors = errors.filter { $0.code == "KSWIFTK-SEMA-0103" }
+            #expect(
+                missingGetValueErrors.count == 1,
+                "Unexpected diagnostics: \(errors.map { "\($0.code): \($0.message)" })"
+            )
         }
     }
 }

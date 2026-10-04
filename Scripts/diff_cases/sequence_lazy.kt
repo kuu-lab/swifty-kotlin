@@ -16,12 +16,8 @@ fun main() {
     // STDLIB-HOF-022: Additional higher-order functions
     // filterNot
     println(sequenceOf(1, 2, 3, 4, 5).filterNot { it % 2 == 0 }.toList())
-    // find
-    println(sequenceOf(1, 2, 3, 4, 5).find { it > 3 })
-    println(sequenceOf(1, 2, 3).find { it > 10 })
-    // asIterable
-    println(sequenceOf(1, 2, 3).asIterable().toList())
-    
+    // find and asIterable are KSP-442/443 and remain runtime-backed for now.
+
     // New lazy higher-order functions
     // mapNotNull
     println(sequenceOf(1, null, 3, null, 5).mapNotNull { it?.times(2) }.toList())

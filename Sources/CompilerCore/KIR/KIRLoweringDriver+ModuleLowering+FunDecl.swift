@@ -38,6 +38,7 @@ extension KIRLoweringDriver {
         ctx.resetScopeForFunction()
         ctx.beginCallableLoweringScope()
         ctx.setCurrentFunctionSymbol(symbol)
+        if function.isTailrec { ctx.markTailrecFunction(symbol) }
         let signature = sema.symbols.functionSignature(for: symbol)
         let params = buildFunDeclParams(function, symbol: symbol, signature: signature, shared: shared)
         let returnType = signature?.returnType ?? sema.types.unitType
@@ -47,12 +48,20 @@ extension KIRLoweringDriver {
         body.append(.endBlock)
         // Auto-inline functions that have function-type parameters (receiver lambdas etc.)
         // so that lambda arguments are expanded at the call site, matching Kotlin semantics.
+        // Suspend functions are excluded: inlining a body that invokes a suspend-lambda
+        // parameter and then branches (try/catch, conditional throw) corrupts the CPS
+        // state machine at the call site. Such functions compile as standalone CPS
+        // coroutines instead, which handle post-suspension control flow correctly.
         let hasLambdaParam = params.contains { param in
             if case .functionType = sema.types.kind(of: param.type) { return true }
             return false
         }
-        let effectiveInline: Bool = function.isInline || hasLambdaParam
-        let isInlineOnly = !function.isInline && hasLambdaParam
+        let hasNoInlineAnnotation = function.annotations.contains { ann in
+            ann.name == "NoInline" || ann.name == "kotlin.native.NoInline"
+        }
+        let autoInline = hasLambdaParam && !function.isSuspend && !hasNoInlineAnnotation
+        let effectiveInline: Bool = function.isInline || autoInline
+        let isInlineOnly = !function.isInline && autoInline
         let kirID = arena.appendDecl(.function(KIRFunction(
             symbol: symbol, name: function.name, params: params,
             returnType: returnType, body: Array(body),
@@ -92,16 +101,17 @@ extension KIRLoweringDriver {
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
                 let effectiveType: TypeID
                 if index < isVararg.count, isVararg[index] {
-                    // Vararg parameters are passed as lists at the call site.
-                    // Use List<T> type so the lowering pass can correctly
-                    // classify the parameter as a collection expression.
                     let interner = shared.interner
                     let listFQName: [InternedString] = [
                         interner.intern("kotlin"),
                         interner.intern("collections"),
                         interner.intern("List"),
                     ]
-                    if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
+                    if let arrayType = primitiveVarargArrayType(
+                        elementType: paramType, sema: sema, interner: interner
+                    ) {
+                        effectiveType = arrayType
+                    } else if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
                         effectiveType = sema.types.make(.classType(ClassType(
                             classSymbol: listSymbol,
                             args: [.invariant(paramType)],
@@ -227,7 +237,7 @@ extension KIRLoweringDriver {
         }
         let fileID = sema.symbols.sourceFileID(for: symbol) ?? symbolInfo.declSite?.start.file
         guard let fileID,
-              sourceManager.path(of: fileID).hasPrefix("__bundled_")
+              sourceManager.origin(of: fileID)?.isBundledStdlib == true
         else {
             return false
         }
@@ -253,10 +263,13 @@ extension KIRLoweringDriver {
             interner.intern("collections"),
         ]
         if packageFQName == kotlinCollectionsPackage {
-            // ListSortingHOF.kt is a migration target; current List call sites
-            // still dispatch through the synthetic kk_list_* runtime ABI.
+            // Remaining collection factory call sites are lowered by
+            // CallLowerer+CollectionFactoryCalls and CollectionLiteralLoweringPass
+            // directly to __kk_* runtime ABI, so their source bodies must not be emitted.
             switch name {
-            case "reversed", "sorted", "sortedBy", "sortedByDescending", "sortedWith", "shuffled":
+            case "emptyList", "listOf", "mutableListOf", "arrayListOf",
+                 "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
+                 "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
                 return true
             default:
                 return false
@@ -268,16 +281,11 @@ extension KIRLoweringDriver {
             interner.intern("text"),
         ]
         if packageFQName == kotlinTextPackage {
-            // These string APIs are source-backed for Sema, while call sites
-            // are still lowered by the String stdlib member call lowerers.
-            switch name {
-            case "trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin",
-                 "indent", "kk_drop", "hasPrefix", "splitIntoLines", "leadingWhitespaceCount",
-                 "isBlankLine", "trimBlankEdges":
-                return true
-            default:
-                return false
-            }
+            // The String indent/format helpers are pure Kotlin; only the
+            // private __kk_string_* bridges are external and skipped by the
+            // external-function path. Public functions must be lowered so user
+            // calls dispatch through the source declarations.
+            return false
         }
 
         let kotlinTimePackage = [

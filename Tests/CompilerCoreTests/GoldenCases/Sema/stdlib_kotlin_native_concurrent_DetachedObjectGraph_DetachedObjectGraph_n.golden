@@ -1,0 +1,11 @@
+symbol fq=golden.sema.detachedObjectGraphAsCPointer.$0.graph[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.detachedObjectGraphAsCPointer[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.DetachedObjectGraph<String>] ret=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?
+symbol fq=golden.sema.detachedObjectGraphStable.$1.graph[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.detachedObjectGraphStable[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.DetachedObjectGraph<String>] ret=kotlin.concurrent.AtomicNativePtr
+file fstdlib_kotlin_native_concurrent_DetachedObjectGraph_DetachedObjectGraph_n package=golden.sema annotations=[@file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class,kotlinx.cinterop.ExperimentalForeignApi::class),@file:Suppress("DEPRECATION_ERROR","INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
+  decl golden.sema.detachedObjectGraphAsCPointer[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>] fun detachedObjectGraphAsCPointer sym=golden.sema.detachedObjectGraphAsCPointer[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>]
+  decl golden.sema.detachedObjectGraphStable[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>] fun detachedObjectGraphStable sym=golden.sema.detachedObjectGraphStable[kind=fun;params=kotlin.native.concurrent.DetachedObjectGraph<String>]
+expr e@14:5 name(graph) type=kotlin.native.concurrent.DetachedObjectGraph<String> ref=golden.sema.detachedObjectGraphAsCPointer.$0.graph[kind=vparam]
+expr e@14:5#1 memberCall recv=e@14:5 callee=asCPointer args=[] type=kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>? call=kotlin.native.concurrent.DetachedObjectGraph.asCPointer[kind=fun;recv=kotlin.native.concurrent.DetachedObjectGraph<T0>;params=;gen=1] targs=[String]
+expr e@17:5 name(graph) type=kotlin.native.concurrent.DetachedObjectGraph<String> ref=golden.sema.detachedObjectGraphStable.$1.graph[kind=vparam]
+expr e@17:5#1 memberCall recv=e@17:5 callee=stable args=[] type=kotlin.concurrent.AtomicNativePtr ref=kotlin.native.concurrent.DetachedObjectGraph.stable[kind=prop]

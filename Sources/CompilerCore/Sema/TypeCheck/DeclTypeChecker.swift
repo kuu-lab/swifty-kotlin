@@ -108,7 +108,7 @@ final class DeclTypeChecker {
                             range: stmtRange
                         )
                     }
-                    _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: nil)
+                    _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: nil, isStatementContext: true)
                     continue
                 }
                 // Pass expectedType to return expressions (so the return value is
@@ -121,7 +121,7 @@ final class DeclTypeChecker {
                 } else {
                     nil
                 }
-                last = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: exprExpectedType)
+                last = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: exprExpectedType, isStatementContext: true)
                 if last == ctx.sema.types.nothingType {
                     reachedNothing = true
                 }
@@ -150,8 +150,11 @@ final class DeclTypeChecker {
 
         if let initializer = property.initializer {
             var locals: LocalBindings = initialLocals
+            if inferredPropertyType != nil {
+                sema.bindings.markSourceDeclaredExpectedType(initializer)
+            }
             let initializerType = driver.inferExpr(
-                initializer, ctx: ctx, locals: &locals,
+                initializer, ctx: ctx.with(initializingPropertySymbol: symbol), locals: &locals,
                 expectedType: inferredPropertyType
             )
             if let declaredType = inferredPropertyType {
@@ -185,12 +188,33 @@ final class DeclTypeChecker {
         }
 
         if let delegateExpr = property.delegateExpression {
+            // A delegated property expression has the same initializer scope as
+            // an ordinary property initializer, including bare primary
+            // constructor parameters.
+            var delegateLocals: LocalBindings = initialLocals
+            // DEBT-KIR-008/BUG-170: a stdlib delegate factory's trailing lambda
+            // (delegateBody) is parsed as a separate FunctionBody from
+            // delegateExpression specifically so KIR lowering can repackage it
+            // into a standalone synthetic function, so ordinary call-argument
+            // inference never visits it -- identifier references inside it
+            // (e.g. a captured `this`-implicit property) never got an
+            // identifierSymbols binding at all and silently lowered to `.unit`
+            // in KIR. `typeCheckDelegate` type-checks the body itself (for any
+            // known stdlib delegate kind, not just `.lazy`: BUG-151 made
+            // `.observable`/`.vetoable`'s three synthetic callback parameters
+            // resolvable by name via `SyntheticSymbolScheme
+            // .delegateLambdaParameterSymbol`, so binding them as locals here no
+            // longer risks a spurious "unresolved reference" diagnostic).
             inferredPropertyType = typeCheckDelegate(
-                delegateExpr, property: property,
+                delegateExpr, isVar: property.isVar,
+                fallbackRange: property.range,
                 symbol: symbol,
                 inferredPropertyType: inferredPropertyType,
                 ctx: ctx,
-                diagnostics: diagnostics
+                locals: &delegateLocals,
+                diagnostics: diagnostics,
+                delegateBody: property.delegateBody,
+                delegateBodyParams: property.delegateBodyParams
             )
         }
 

@@ -2,6 +2,46 @@
 
 /// Default-argument materialization and runtime callee resolution helpers.
 extension CallLowerer {
+    /// Returns the default mask for the five optional parameters of the
+    /// source-backed Iterable.joinToString overload.
+    ///
+    /// Safe-call collection fallback can lose the declaration's default-value
+    /// metadata, so the generic argument normalizer may leave raw null
+    /// sentinels in the call. Recover the omitted parameters from the source
+    /// labels before emitting the source-backed call.
+    func joinToStringDefaultMask(
+        sourceArguments: [CallArgument],
+        interner: StringInterner
+    ) -> Int64 {
+        let parameterNames = ["separator", "prefix", "postfix", "limit", "truncated"]
+        var suppliedParameters = Set<Int>()
+        var nextPositionalParameter = 0
+
+        for argument in sourceArguments {
+            if let label = argument.label,
+               let parameterIndex = parameterNames.firstIndex(of: interner.resolve(label))
+            {
+                suppliedParameters.insert(parameterIndex)
+                continue
+            }
+
+            while suppliedParameters.contains(nextPositionalParameter) {
+                nextPositionalParameter += 1
+            }
+            guard nextPositionalParameter < parameterNames.count else {
+                continue
+            }
+            suppliedParameters.insert(nextPositionalParameter)
+            nextPositionalParameter += 1
+        }
+
+        var defaultMask: Int64 = 0
+        for parameterIndex in parameterNames.indices where !suppliedParameters.contains(parameterIndex) {
+            defaultMask |= Int64(1) << parameterIndex
+        }
+        return defaultMask
+    }
+
     func materializeJoinToStringDefaultArguments(
         _ defaultMask: Int64,
         firstDefaultParameterIndex: Int = 0,
@@ -11,21 +51,29 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: inout [KIRExprID]
     ) {
-        let defaults = [", ", "", ""]
         let stringType = sema.types.stringType
-        for (offset, defaultValue) in defaults.enumerated() {
+        let defaults: [(KIRExprKind, TypeID)] = [
+            (.stringLiteral(interner.intern(", ")), stringType),
+            (.stringLiteral(interner.intern("")), stringType),
+            (.stringLiteral(interner.intern("")), stringType),
+            (.intLiteral(-1), sema.types.intType),
+            (.stringLiteral(interner.intern("...")), stringType),
+        ]
+        for (offset, entry) in defaults.enumerated() {
             let paramIndex = firstDefaultParameterIndex + offset
             let maskBit = Int64(1) << paramIndex
             guard (defaultMask & maskBit) != 0 else { continue }
             let argumentIndex = paramIndex + 1
             guard argumentIndex < arguments.count else { continue }
-            let interned = interner.intern(defaultValue)
-            let exprID = arena.appendExpr(.stringLiteral(interned), type: stringType)
-            instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
+            let (defaultValue, type) = entry
+            let exprID = arena.appendExpr(defaultValue, type: type)
+            instructions.append(.constValue(result: exprID, value: defaultValue))
             arguments[argumentIndex] = exprID
         }
     }
 
+
+    // KSP-423: preserve the Kotlin defaults when a named range argument skips fromIndex.
     func materializeBinarySearchDefaultArguments(
         _ defaultMask: Int64,
         receiverExpr: ExprID,
@@ -61,17 +109,14 @@ extension CallLowerer {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner
-            ) ?? interner.intern("kk_list_size")
-            let sizeExpr = arena.appendTemporary(type: intType
-            )
-            instructions.append(.call(
-                symbol: nil,
+            ) ?? interner.intern("__kk_list_size")
+            let sizeExpr = arena.appendTemporary(type: intType)
+            emitNonThrowingCall(
                 callee: sizeCallee,
-                arguments: [loweredReceiverID],
+                arg: loweredReceiverID,
                 result: sizeExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             cachedSizeExpr = sizeExpr
             return sizeExpr
         }
@@ -104,83 +149,6 @@ extension CallLowerer {
         }
     }
 
-    func materializeArrayBinarySearchDefaultArguments(
-        _ defaultMask: Int64,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction],
-        arguments: inout [KIRExprID]
-    ) {
-        guard arguments.count >= 6 else {
-            return
-        }
-
-        let intType = sema.types.intType
-        let fromIndexMaskBit = Int64(1) << 2
-        let toIndexMaskBit = Int64(1) << 3
-        if (defaultMask & fromIndexMaskBit) != 0 {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            arguments[4] = zeroExpr
-        }
-
-        if (defaultMask & toIndexMaskBit) != 0 {
-            let sizeExpr = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_array_size"),
-                arguments: [arguments[0]],
-                result: sizeExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            arguments[5] = sizeExpr
-        }
-    }
-
-    func materializeArrayCopyIntoDefaultArguments(
-        _ defaultMask: Int64,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction],
-        arguments: inout [KIRExprID]
-    ) {
-        guard arguments.count >= 5 else {
-            return
-        }
-
-        let intType = sema.types.intType
-        let destinationOffsetMaskBit = Int64(1) << 1
-        let startIndexMaskBit = Int64(1) << 2
-        let endIndexMaskBit = Int64(1) << 3
-        if (defaultMask & destinationOffsetMaskBit) != 0 {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            arguments[2] = zeroExpr
-        }
-
-        if (defaultMask & startIndexMaskBit) != 0 {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            arguments[3] = zeroExpr
-        }
-
-        if (defaultMask & endIndexMaskBit) != 0 {
-            let sizeExpr = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_array_size"),
-                arguments: [arguments[0]],
-                result: sizeExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            arguments[4] = sizeExpr
-        }
-    }
-
     /// STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex = 0, endIndex = size,
     /// throwOnInvalidSequence = false). The generic default-argument filler
     /// (`CallSupportLowerer.normalizedCallArguments`) substitutes an `0` sentinel
@@ -205,51 +173,122 @@ extension CallLowerer {
         }
         let intType = sema.types.intType
         let sizeExpr = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_array_size"),
-            arguments: [arguments[0]],
+        emitNonThrowingCall(
+            callee: interner.intern("__kk_array_size"),
+            arg: arguments[0],
             result: sizeExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         arguments[2] = sizeExpr
     }
 
-    /// Callees with an externalLinkName (C runtime functions such as
-    /// kk_array_get) are never dispatched virtually.
+    /// Resolve inherited Iterator methods through their real interface owner when
+    /// the receiver is statically typed as a source-backed ListIterator.
+    func listIteratorInheritedDispatchCallee(
+        receiverType: TypeID?,
+        calleeName: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let receiverType,
+              isExactListIteratorReceiverType(receiverType, sema: sema, interner: interner),
+              calleeName == interner.intern("hasNext") || calleeName == interner.intern("next")
+        else {
+            return nil
+        }
+        return sema.symbols.lookup(
+            fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterator"),
+                calleeName,
+            ]
+        )
+    }
+
+    /// Callees bridged to a C runtime function (such as kk_array_get) are
+    /// normally not dispatched virtually; see `kirIsRuntimeBridgedCallee`.
     func tryEmitVirtualDispatch(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
-        receiverExpr: ExprID,
+        receiverExpr: ExprID?,
         loweredReceiverID: KIRExprID,
         isSuperCall: Bool,
         finalArguments: [KIRExprID],
         result: KIRExprID,
         sema: SemaModule,
+        arena: KIRArena,
         interner: StringInterner
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
-        let hasExternalLink = sema.symbols.externalLinkName(for: chosenCallee)
-            .map { !$0.isEmpty } ?? false
-        guard !hasExternalLink else { return nil }
-        let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
-        guard let dispatchKind = resolveVirtualDispatch(
-            callee: chosenCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
+        let receiverTypeForDispatch: TypeID? = {
+            if let receiverExpr {
+                return sema.bindings.exprTypes[receiverExpr] ?? arena.exprType(loweredReceiverID)
+            }
+            return arena.exprType(loweredReceiverID)
+        }()
+        // Range values are opaque RuntimeRangeBox handles without Kotlin
+        // vtables. The KIR receiver can lose its source type binding, so use
+        // both the best available type and the source range-expression facts
+        // before emitting a virtual call such as LongRange.iterator().
+        let isRuntimeRangeReceiver: Bool = {
+            guard let receiverExpr, let receiverTypeForDispatch else { return false }
+            return MemberRuntimeDispatch.rangeReceiverKind(
+                receiverExpr: receiverExpr,
+                receiverType: receiverTypeForDispatch,
+                sema: sema,
+                interner: interner
+            ) != nil
+        }()
+        let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
+            receiverType: receiverTypeForDispatch,
+            calleeName: calleeName,
+            sema: sema,
+            interner: interner
+        )
+        let dispatchCallee = listIteratorInheritedDispatch ?? chosenCallee
+        // Runtime ABI bridges are receiver-type-agnostic entry points even
+        // when their declarations are imported interface members. Dispatching
+        // those symbols through an itable is invalid for the built-in runtime
+        // collection boxes; only source-backed/internal links may use virtual
+        // dispatch here. A source-backed ListIterator's inherited Iterator
+        // methods and Iterator bridges on source-backed class receivers are
+        // deliberate exceptions because they must use the implementation's
+        // itable slots. Clock bridges are another deliberate exception: their
+        // receiver is represented by a runtime-backed virtual object.
+        let usesIteratorRuntimeVirtualBridge = isIteratorRuntimeVirtualBridge(
+            chosenCallee,
+            receiverTypeID: receiverTypeForDispatch,
+            sema: sema,
+            interner: interner
+        )
+        guard listIteratorInheritedDispatch != nil
+            || !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
+            || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
+            || usesIteratorRuntimeVirtualBridge
+        else { return nil }
+        guard !isRuntimeRangeReceiver,
+              let dispatchKind = resolveVirtualDispatch(
+            callee: dispatchCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
         ) else { return nil }
         var vcArguments = finalArguments
-        if let sig = sema.symbols.functionSignature(for: chosenCallee),
+        if let sig = sema.symbols.functionSignature(for: dispatchCallee),
            sig.receiverType != nil, !vcArguments.isEmpty
         {
             vcArguments.removeFirst()
         }
+        let virtualCalleeName = usesIteratorRuntimeVirtualBridge
+            ? (sema.symbols.symbol(chosenCallee)?.name ?? calleeName)
+            : calleeName
         return .virtualCall(
-            symbol: chosenCallee,
-            callee: calleeName,
+            symbol: usesIteratorRuntimeVirtualBridge ? chosenCallee : dispatchCallee,
+            callee: virtualCalleeName,
             receiver: loweredReceiverID,
             arguments: vcArguments,
             result: result,
-            canThrow: false,
+            canThrow: isIteratorNextName(interner.resolve(calleeName))
+                || isIteratorNextName(interner.resolve(virtualCalleeName))
+                || sema.symbols.externalLinkName(for: dispatchCallee).map(isIteratorNextName) == true,
             thrownResult: nil,
             dispatch: dispatchKind
         )
@@ -265,10 +304,17 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString {
+        if let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
+            chosenCallee: chosenCallee,
+            calleeName: fallback,
+            sema: sema,
+            interner: interner
+        ) {
+            return sequenceBuilderCallee
+        }
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         let rangeDispatchKey = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
@@ -299,17 +345,100 @@ extension CallLowerer {
             return interner.intern(runtimeLinkName)
         }
 
+        // KSP-1523: `contains`/`isEmpty` are also declared directly on the
+        // `ClosedRange<T>`/`ClosedFloatingPointRange<T>` interfaces UIntRange
+        // conforms to (HeaderHelpers+SyntheticRangeInterfaceStubs.swift), with
+        // no externalLinkName of their own. Overload resolution sometimes picks
+        // that interface member over the per-type bundled/synthetic one (or leaves
+        // no chosen callee for a scalar range representation), so check the
+        // receiver's concrete element type before requiring `chosenCallee`.
+        if let closedRangeRuntimeName = closedRangeInterfaceRuntimeName(
+            memberName: fallbackName,
+            receiverExpr: receiverExpr,
+            receiverType: receiverType,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        ) {
+            return closedRangeRuntimeName
+        }
+
         if let chosenCallee {
+            if sema.symbols.isSourceBackedSymbol(chosenCallee),
+               let signature = sema.symbols.functionSignature(for: chosenCallee),
+               let receiverType = signature.receiverType,
+               let (_, receiverSymbol) = resolveClassTypeSymbol(
+                   sema.types.makeNonNullable(receiverType),
+                   sema: sema
+               ),
+               receiverSymbol.fqName.map(interner.resolve) == [
+                   "kotlin", "native", "concurrent", "Worker",
+               ]
+            {
+                // Worker receiver APIs are declared in bundled Kotlin source,
+                // but their implementation boundary is the native runtime ABI.
+                // Keep source-level resolution and lower the runtime-backed
+                // operations to the existing ABI names.
+                switch fallbackName {
+                case "asCPointer":
+                    return interner.intern("kk_worker_as_cpointer")
+                case "execute":
+                    return interner.intern("kk_worker_execute")
+                case "executeAfter":
+                    return interner.intern("kk_worker_execute_after")
+                case "park":
+                    return interner.intern("kk_worker_park")
+                case "platformThreadId":
+                    return interner.intern("kk_worker_platform_thread_id")
+                case "processQueue":
+                    return interner.intern("kk_worker_process_queue")
+                case "requestTermination":
+                    return interner.intern("kk_worker_request_termination")
+                default:
+                    break
+                }
+            }
+            if let setMember = runtimeBackedSetMemberCallee(
+                memberName: fallbackName,
+                receiverType: receiverType,
+                chosenCallee: chosenCallee,
+                sema: sema,
+                interner: interner
+            ) {
+                return setMember
+            }
+            if let listMember = runtimeBackedListMemberCallee(
+                memberName: fallbackName,
+                receiverType: receiverType,
+                chosenCallee: chosenCallee,
+                sema: sema,
+                interner: interner
+            ) {
+                return listMember
+            }
+            if let progressionMember = runtimeBackedULongProgressionMemberCallee(
+                memberName: fallbackName,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner
+            ) {
+                return progressionMember
+            }
             if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
                !externalLinkName.isEmpty
             {
-                if let closedRangeRuntimeName = closedRangeInterfaceRuntimeName(
-                    memberName: fallbackName,
-                    receiverType: receiverType,
-                    sema: sema,
-                    interner: interner
-                ) {
-                    return closedRangeRuntimeName
+                // A source-backed ListIterator can be implemented by user code.
+                // Its inherited synthetic Iterator members must therefore use
+                // the same dynamic itable path as the four source-backed members
+                // instead of calling the runtime list-iterator bridge directly.
+                if isExactListIteratorReceiverType(receiverType, sema: sema, interner: interner),
+                   let parentSymbol = sema.symbols.parentSymbol(for: chosenCallee)
+                       .flatMap(sema.symbols.symbol),
+                   (parentSymbol.fqName.map(interner.resolve) == ["kotlin", "collections", "Iterator"]
+                       || parentSymbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]),
+                   fallbackName == "hasNext" || fallbackName == "next"
+                {
+                    return fallback
                 }
                 if fallbackName == "iterator",
                    let collectionIterator = unresolvedCollectionMemberCallee(
@@ -321,26 +450,38 @@ extension CallLowerer {
                 {
                     return collectionIterator
                 }
-                if externalLinkName == "kk_list_binarySearch" {
-                    // STDLIB-547: When the element-based binarySearch overload was
-                    // recovered but the call actually has a HOF lambda argument,
-                    // redirect to the comparison-based runtime function.
-                    if hasHOFLambdaArg && argumentCount == 2 {
-                        return interner.intern("kk_list_binarySearch_compare")
-                    }
-                    if argumentCount > 2 {
-                        return interner.intern("kk_list_binarySearch_comparator")
-                    }
-                }
-                if (externalLinkName == "kk_list_binarySearch" || externalLinkName == "kk_array_binarySearch"),
-                   isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-                   argumentCount == 5
+                // Collection.size is source-declared but runtime-backed. When
+                // it is inherited by a concrete List/Set/EnumEntries receiver,
+                // retain the receiver-specific bridge instead of letting the
+                // Collection declaration's generic link erase the nominal kind.
+                if fallbackName == "size",
+                   let ownerID = sema.symbols.parentSymbol(for: chosenCallee),
+                   let owner = sema.symbols.symbol(ownerID),
+                   owner.fqName == [
+                       interner.intern("kotlin"),
+                       interner.intern("collections"),
+                       interner.intern("Collection"),
+                   ],
+                   let collectionSize = unresolvedCollectionMemberCallee(
+                       memberName: fallbackName,
+                       receiverType: receiverType,
+                       sema: sema,
+                       interner: interner
+                   )
                 {
-                    return interner.intern("kk_array_binarySearch_compare")
+                    return collectionSize
+                }
+                if let collectionProperty = unresolvedCollectionMemberCallee(
+                    memberName: fallbackName,
+                    receiverType: receiverType,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    return collectionProperty
                 }
                 return interner.intern(externalLinkName)
             }
-            if sema.symbols.symbol(chosenCallee)?.declSite != nil {
+            if sema.symbols.isSourceBackedSymbol(chosenCallee) {
                 // Source-backed stdlib migrations lower through the chosen symbol's internal function.
                 return fallback
             }
@@ -401,12 +542,8 @@ extension CallLowerer {
                 return interner.intern("kk_channel_send")
             case "receive":
                 return interner.intern("kk_channel_receive")
-            case "close":
-                return interner.intern("kk_channel_close")
-            case "isClosedForReceive":
-                return interner.intern("kk_channel_is_closed_for_receive")
-            case "isClosedForSend":
-                return interner.intern("kk_channel_is_closed_for_send")
+            // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
+            // through bundled Kotlin source, not this synthetic fallback.
             default:
                 break
             }
@@ -443,12 +580,143 @@ extension CallLowerer {
         return fallback
     }
 
-    func closedRangeInterfaceRuntimeName(
+    private func isExactListIteratorReceiverType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.kind == .interface
+            && symbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]
+    }
+
+    func resultRuntimeHOFMemberCalleeName(
         memberName: String,
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
+    ) -> String? {
+        guard isKotlinResultType(receiverType, sema: sema, interner: interner) else {
+            return nil
+        }
+        switch memberName {
+        case "getOrElse":
+            return "kk_result_getOrElse"
+        case "map":
+            return "kk_result_map"
+        case "fold":
+            return "kk_result_fold"
+        case "onSuccess":
+            return "kk_result_onSuccess"
+        case "onFailure":
+            return "kk_result_onFailure"
+        case "recover":
+            return "kk_result_recover"
+        case "recoverCatching":
+            return "kk_result_recoverCatching"
+        default:
+            return nil
+        }
+    }
+
+    func isKotlinResultType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullType = sema.types.makeNonNullable(type)
+        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.fqName.map(interner.resolve) == ["kotlin", "Result"]
+    }
+
+    func closedRangeInterfaceRuntimeName(
+        memberName: String,
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
     ) -> InternedString? {
+        // A source-backed rangeUntil result can retain its nominal
+        // OpenEndRange<Float/Double> type even if the element-type side channel
+        // is absent on the member receiver expression. Only use the nominal
+        // fallback for expressions tracked as runtime ranges: user-defined
+        // OpenEndRange implementations must keep their own member dispatch.
+        let nominalFloatingPointElementType: TypeID? = {
+            guard sema.bindings.isRangeExpr(receiverExpr)
+                || sema.bindings.identifierSymbol(for: receiverExpr).map({
+                    sema.bindings.isRangeSymbol($0)
+                }) == true,
+                case let .classType(classType) = sema.types.kind(
+                    of: sema.types.makeNonNullable(receiverType)
+                ),
+                let symbol = sema.symbols.symbol(classType.classSymbol),
+                symbol.fqName.map(interner.resolve) == ["kotlin", "ranges", "OpenEndRange"]
+            else {
+                return nil
+            }
+            switch classType.args.first {
+            case let .invariant(type), let .out(type), let .in(type):
+                return sema.types.makeNonNullable(type)
+            case .star, nil:
+                return nil
+            }
+        }()
+        let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: receiverExpr)
+            ?? sema.bindings.identifierSymbol(for: receiverExpr).flatMap {
+                sema.bindings.floatingPointRangeElementType(forSymbol: $0)
+            }
+            ?? nominalFloatingPointElementType
+        if let floatingPointElementType,
+           floatingPointElementType == sema.types.floatType || floatingPointElementType == sema.types.doubleType
+        {
+            let chosenContainsArgumentIsPrimitive: Bool = if let chosenCallee,
+                                                               let signature = sema.symbols.functionSignature(for: chosenCallee),
+                                                               let argumentType = signature.parameterTypes.first
+            {
+                if case .primitive = sema.types.kind(of: argumentType) {
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+            if memberName == "contains",
+               let chosenCallee,
+               let signature = sema.symbols.functionSignature(for: chosenCallee),
+               let argumentType = signature.parameterTypes.first,
+               sema.types.makeNonNullable(argumentType) != floatingPointElementType,
+               chosenContainsArgumentIsPrimitive
+            {
+                return nil
+            }
+            switch memberName {
+            case "contains":
+                return interner.intern(
+                    floatingPointElementType == sema.types.floatType
+                        ? "__kk_float_range_contains"
+                        : "__kk_double_range_contains"
+                )
+            case "isEmpty":
+                return interner.intern(
+                    floatingPointElementType == sema.types.floatType
+                        ? "__kk_float_range_isEmpty"
+                        : "__kk_double_range_isEmpty"
+                )
+            default:
+                break
+            }
+        }
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
               let closedRangeSymbol = sema.symbols.lookup(fqName: [
@@ -472,29 +740,63 @@ extension CallLowerer {
         case .star:
             return nil
         }
+        // Keep an explicitly selected cross-type extension on its Kotlin body.
+        // A nominal member can also have a receiverType in its normalized
+        // signature; exclude class/interface-owned functions before comparing
+        // the unsubstituted parameter type (for example OpenEndRange<T>.contains(T)).
+        // Same-type extensions are shadowed by the range member in Kotlin, so
+        // retain the normal runtime member path for those.
+        let chosenContainsIsExtension: Bool = if let chosenCallee,
+                                                  let signature = sema.symbols.functionSignature(for: chosenCallee),
+                                                  signature.receiverType != nil,
+                                                  let chosenSymbol = sema.symbols.symbol(chosenCallee)
+        {
+            if let ownerID = sema.symbols.parentSymbol(for: chosenCallee),
+               let owner = sema.symbols.symbol(ownerID)
+            {
+                switch owner.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass:
+                    // Header collection attaches visible top-level extensions to
+                    // their receiver nominal for member lookup. Their declaration
+                    // FQ name still belongs to the source package, unlike a real
+                    // nominal member whose FQ name is owner + member name.
+                    chosenSymbol.fqName != owner.fqName + [chosenSymbol.name]
+                default:
+                    true
+                }
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+        if memberName == "contains",
+           chosenContainsIsExtension,
+           let chosenCallee,
+           let signature = sema.symbols.functionSignature(for: chosenCallee),
+           let argumentType = signature.parameterTypes.first,
+           sema.types.makeNonNullable(argumentType) != sema.types.makeNonNullable(elementType),
+           Self.isSourceBackedLinkName(
+               sema.symbols.externalLinkName(for: chosenCallee)
+           )
+        {
+            return nil
+        }
+
         switch memberName {
         case "contains":
-            if elementType == sema.types.longType {
-                return interner.intern("kk_long_range_contains")
-            }
-            if elementType == sema.types.uintType {
-                return interner.intern("kk_uint_range_contains")
-            }
             if elementType == sema.types.ulongType {
-                return interner.intern("kk_ulong_range_contains")
+                // KSP-1524: ULong membership stays on the bundled Kotlin
+                // implementation; the signed bridge is not ULong-safe.
+                return nil
             }
-            return nil
+            return interner.intern("__kk_range_contains")
         case "isEmpty":
-            if elementType == sema.types.longType {
-                return interner.intern("kk_long_range_isEmpty")
-            }
-            if elementType == sema.types.uintType {
-                return interner.intern("kk_uint_range_isEmpty")
-            }
             if elementType == sema.types.ulongType {
-                return interner.intern("kk_ulong_range_isEmpty")
+                // KSP-1524: source-backed ULongRange/ULongProgression member.
+                return nil
             }
-            return nil
+            return interner.intern("__kk_range_isEmpty")
         default:
             return nil
         }

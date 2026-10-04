@@ -1,5 +1,7 @@
-// SKIP-DIFF (DEBT-DIFF-001): Uses custom jdbc:kswiftk driver provided by this runtime.
-// kotlinc does not ship that driver, so the reference run fails by design.
+// SKIP-DIFF (DEBT-DIFF-001): kswiftc has no java.sql.* / JDBC support at all (no DriverManager,
+// no synthetic stub; verified by repo-wide search) — a candidate compile failure, not a reference
+// runtime failure (kotlinc itself compiles this fine; "jdbc:kswiftk:memory" is just a string
+// literal to it). See docs/diff-skip-inventory.md.
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException

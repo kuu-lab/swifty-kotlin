@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+
 // STDLIB-COMP-041: Comparableインターフェース完全実装テストケース
 
 // 基本的なComparable<T>インターフェースのテスト
@@ -33,6 +33,12 @@ fun <T : Comparable<T>> clamp(value: T, min: T, max: T): T = when {
     else -> value
 }
 
+fun <T : Comparable<T>> compareItems(items: List<T>, a: T, b: T) {
+    println("Comparing $a and $b: ${a.compareTo(b)}")
+    println("$a < $b: ${a < b}")
+    println("$a > $b: ${a > b}")
+}
+
 fun genericConstraintsTest(): Int {
     // Int型でのテスト
     val intMax = maxItem(15, 25)
@@ -59,16 +65,16 @@ fun nullSafeComparisonTest(): Int {
     
     // 通常の比較（nullを含む場合）
     try {
-        // これはエラーになるべき（nullとの比較）
-        val result1 = a?.compareTo(b) ?: 0
+        // nullを含む安全な比較（nullの場合はデフォルト値を使用）
+        val result1 = if (a != null && b != null) a.compareTo(b) else 0
         println("a?.compareTo(b) = $result1")
-        
-        val result2 = a?.compareTo(c) ?: -1
+
+        val result2 = if (a != null && c != null) a.compareTo(c) else -1
         println("a?.compareTo(null) = $result2")
-        
-        val result3 = c?.compareTo(a) ?: 1
+
+        val result3 = if (c != null && a != null) c.compareTo(a) else 1
         println("null?.compareTo(a) = $result3")
-        
+
     } catch (e: Exception) {
         println("Expected exception for null comparison: ${e.message}")
     }
@@ -148,16 +154,9 @@ fun varianceTest(): Int {
     val result = compareStrings("hello", "world")
     println("compareStrings(\"hello\", \"world\") = $result")
     
-    // ジェネリックメソッドでのバリアンス
-    fun <T> compareItems(items: List<T>, a: T, b: T) where T : Comparable<T> {
-        println("Comparing $a and $b: ${a.compareTo(b)}")
-        println("$a < $b: ${a < b}")
-        println("$a > $b: ${a > b}")
-    }
-    
     compareItems(listOf("x", "y", "z"), "apple", "banana")
     compareItems(listOf(1, 2, 3), 10, 20)
-    
+
     return 0
 }
 

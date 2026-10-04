@@ -4,148 +4,129 @@ import Testing
 
 /// STDLIB-IO-FN-033: Validates that `kotlin.io.Reader.readText()` resolves
 /// through Sema as an extension function on `java.io.Reader`. The synthetic
-/// `Reader` supertype lets concrete reader values (currently `BufferedReader`
-/// instances produced by `File.bufferedReader()`) participate in the call
-/// without explicit upcasting.
+/// `Reader` supertype lets concrete reader values (`BufferedReader`
+/// instances) participate in the call without explicit upcasting.
 ///
 /// Verifies:
 ///   1. The synthetic symbol is registered with the correct extension
 ///      receiver, parameter list, return type, and runtime link name
-///      (`kk_reader_readText`).
-///   2. The function resolves end-to-end when invoked on a `BufferedReader`
-///      value, including the common `File("...").bufferedReader().readText()`
-///      chain and inside a `use { }` block.
+///      (`__kk_reader_readText`).
+///   2. `BufferedReader` is registered as a `Reader` subtype in the symbol
+///      table, so the extension resolves without explicit upcasting.
+///
+/// CLEANUP-STUB-107 removed `File.bufferedReader()`, which was this suite's
+/// only in-repo way to obtain a `BufferedReader` from a path; the end-to-end
+/// resolution cases that used to chain off of it (`File("...").bufferedReader().readText()`,
+/// a `use { }` block, and a plain variable binding) were removed along with
+/// it. The symbol-table checks below are unaffected since they don't need a
+/// live `BufferedReader` value.
 @Suite
 struct ReaderReadTextFunctionTests {
 
-    // MARK: - Symbol surface
+    // MARK: - Consolidated runSema clean tests
 
-    @Test func testReaderReadTextFunctionIsRegisteredOnReaderReceiver() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    @Test
+    func testRunSemaClean() throws {
+
+        let sources: [String] = [
+            // testReaderReadTextFunctionIsRegisteredOnReaderReceiver
+            """
+            package sample0
+            fun noop() {}
+            """,
+            // testBufferedReaderIsRegisteredAsReaderSubtype
+            """
+            package sample1
+            fun noop() {}
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
             try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                Comment(rawValue: "Sema should succeed on a trivial program: " +
-                    "\(ctx.diagnostics.diagnostics.map(\.message))")
-            )
+
+            _ = try #require(ctx.ast)
+
             let sema = try #require(ctx.sema)
 
-            let readerFQ = ["java", "io", "Reader"].map { ctx.interner.intern($0) }
-            let readerSymbol = try #require(
-                sema.symbols.lookup(fqName: readerFQ),
-                "java.io.Reader synthetic class should be registered"
-            )
-            let readerType = sema.types.make(.classType(ClassType(
-                classSymbol: readerSymbol, args: [], nullability: .nonNull
-            )))
+            let interner = ctx.interner
 
-            let readTextFQ = ["kotlin", "io", "readText"].map { ctx.interner.intern($0) }
-            let readTextSymbol = try #require(
-                sema.symbols.lookupAll(fqName: readTextFQ).first { symbolID in
-                    guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                        return false
-                    }
-                    return signature.receiverType == readerType
-                        && signature.parameterTypes.isEmpty
-                },
-                "kotlin.io.Reader.readText() extension should be registered"
-            )
+            // === testReaderReadTextFunctionIsRegisteredOnReaderReceiver ===
 
-            let signature = try #require(sema.symbols.functionSignature(for: readTextSymbol))
-            #expect(
-                signature.returnType == sema.types.stringType,
-                "Reader.readText() must return non-null String"
-            )
-            #expect(
-                !(signature.isSuspend),
-                "Reader.readText() is not a suspend function"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: readTextSymbol) == "kk_reader_readText",
-                "Reader.readText() must lower to kk_reader_readText runtime entry"
-            )
-        }
-    }
+            do {
 
-    // MARK: - BufferedReader inherits from Reader
+                let sample0Path = paths[0]
 
-    @Test func testBufferedReaderIsRegisteredAsReaderSubtype() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
 
-            let readerFQ = ["java", "io", "Reader"].map { ctx.interner.intern($0) }
-            let bufferedReaderFQ = ["java", "io", "BufferedReader"].map { ctx.interner.intern($0) }
-            let readerSymbol = try #require(sema.symbols.lookup(fqName: readerFQ))
-            let bufferedReaderSymbol = try #require(sema.symbols.lookup(fqName: bufferedReaderFQ))
-            let directSupertypes = sema.symbols.directSupertypes(for: bufferedReaderSymbol)
-            #expect(
-                directSupertypes.contains(readerSymbol),
-                Comment(rawValue: "BufferedReader must list Reader among its direct supertypes; got: \(directSupertypes)")
-            )
-        }
-    }
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
-    // MARK: - Resolves end-to-end on BufferedReader chain
+                #expect(
+                    !(sample0Diagnostics.contains { $0.severity == .error }),
+                    Comment(rawValue: "Sema should succeed on a trivial program: " +
+                        "\(sample0Diagnostics.map(\.message))")
+                )
 
-    @Test func testReaderReadTextResolvesOnBufferedReaderChain() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
+                let readerFQ = ["java", "io", "Reader"].map { interner.intern($0) }
+                let readerSymbol = try #require(
+                    sema.symbols.lookup(fqName: readerFQ),
+                    "java.io.Reader synthetic class should be registered"
+                )
+                let readerType = sema.types.make(.classType(ClassType(
+                    classSymbol: readerSymbol, args: [], nullability: .nonNull
+                )))
 
-        fun loadAll(): String {
-            return File("/dev/null").bufferedReader().readText()
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            Comment(rawValue: "File(...).bufferedReader().readText() should type-check, got: " +
-                "\(errors.map { "\($0.code): \($0.message)" })")
-        )
-    }
+                let readTextFQ = ["kotlin", "io", "readText"].map { interner.intern($0) }
+                let readTextSymbol = try #require(
+                    sema.symbols.lookupAll(fqName: readTextFQ).first { symbolID in
+                        guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                            return false
+                        }
+                        return signature.receiverType == readerType
+                            && signature.parameterTypes.isEmpty
+                    },
+                    "kotlin.io.Reader.readText() extension should be registered"
+                )
 
-    @Test func testReaderReadTextReturnsStringInVariableBinding() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
+                let signature = try #require(sema.symbols.functionSignature(for: readTextSymbol))
+                #expect(
+                    signature.returnType == sema.types.stringType,
+                    "Reader.readText() must return non-null String"
+                )
+                #expect(
+                    !(signature.isSuspend),
+                    "Reader.readText() is not a suspend function"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: readTextSymbol) == "__kk_reader_readText",
+                    "Reader.readText() must lower to __kk_reader_readText runtime entry"
+                )
 
-        fun loadAll(file: File): String {
-            val reader = file.bufferedReader()
-            val text: String = reader.readText()
-            reader.close()
-            return text
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            Comment(rawValue: "Binding `val text: String = reader.readText()` should compile, got: " +
-                "\(errors.map { "\($0.code): \($0.message)" })")
-        )
-    }
-
-    // MARK: - Works inside Closeable.use { } block
-
-    @Test func testReaderReadTextWorksInsideUseBlock() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.File
-
-        fun loadAllSafely(file: File): String {
-            return file.bufferedReader().use { reader ->
-                reader.readText()
             }
+
+            // === testBufferedReaderIsRegisteredAsReaderSubtype ===
+
+            do {
+
+
+
+
+                let readerFQ = ["java", "io", "Reader"].map { interner.intern($0) }
+                let bufferedReaderFQ = ["java", "io", "BufferedReader"].map { interner.intern($0) }
+                let readerSymbol = try #require(sema.symbols.lookup(fqName: readerFQ))
+                let bufferedReaderSymbol = try #require(sema.symbols.lookup(fqName: bufferedReaderFQ))
+                let directSupertypes = sema.symbols.directSupertypes(for: bufferedReaderSymbol)
+                #expect(
+                    directSupertypes.contains(readerSymbol),
+                    Comment(rawValue: "BufferedReader must list Reader among its direct supertypes; got: \(directSupertypes)")
+                )
+
+            }
+
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            Comment(rawValue: "Reader.readText() inside a use { } block should compile, got: " +
-                "\(errors.map { "\($0.code): \($0.message)" })")
-        )
     }
+
 }
+
 #endif

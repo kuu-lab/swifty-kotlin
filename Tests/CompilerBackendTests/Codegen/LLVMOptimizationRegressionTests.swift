@@ -1,0 +1,391 @@
+#if canImport(Testing)
+@testable import CompilerCore
+@testable import CompilerBackend
+import Foundation
+import Testing
+
+/// Regression probes for the malformed IR that was exposed when the LLVM pass
+/// pipeline first ran against the bundled standard library.
+@Suite
+struct LLVMOptimizationRegressionTests {
+    @Test
+    func optimizedStdlibArtifactRetainsExternallyCalledEntryPoints() throws {
+        let outputBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("llvm-optimization-stdlib-\(UUID().uuidString)")
+            .path
+        defer { try? FileManager.default.removeItem(atPath: outputBase + ".kklib") }
+
+        let options = CompilerOptions(
+            moduleName: "KSwiftKStdlib",
+            inputs: [],
+            outputPath: outputBase,
+            emit: .library,
+            target: defaultTargetTriple(),
+            optLevel: .O2,
+            stdlibOnly: true,
+            allowDefaultStdlibLibrary: false
+        )
+        let context = CompilationContext(
+            options: options,
+            sourceManager: SourceManager(),
+            diagnostics: DiagnosticEngine(),
+            interner: StringInterner()
+        )
+        try runToKIR(context)
+        try LoweringPhase().run(context)
+        try CodegenPhase().run(context)
+
+        let source = """
+        enum class Status(val code: Int) {
+            OK(200),
+            NOT_FOUND(404)
+        }
+
+        class Outer {
+            class Inner {
+                fun value(): Int = 7
+            }
+        }
+
+        fun main() {
+            println(Status.OK.code)
+            println(Status.NOT_FOUND.code)
+            println(Outer.Inner().value())
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationStdlibConsumer",
+            expected: "200\n404\n7\n",
+            optimization: .O2,
+            stdlibPath: outputBase + ".kklib"
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func enumConstructorDelegationRemainsValidAtEachOptimizationLevel(optimization: Int) throws {
+        let source = """
+        enum class Status(val code: Int) {
+            OK(200),
+            NOT_FOUND(404)
+        }
+
+        fun main() {
+            println(Status.OK.code)
+            println(Status.NOT_FOUND.code)
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationEnumConstructor",
+            expected: "200\n404\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func nestedConstructorIsEmittedExactlyOnceAtEachOptimizationLevel(optimization: Int) throws {
+        let source = """
+        class Outer {
+            class Inner {
+                fun value(): Int = 7
+            }
+        }
+
+        fun main() {
+            println(Outer.Inner().value())
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationNestedConstructor",
+            expected: "7\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func nestedClassRuntimeSemanticsRemainValidAtEachOptimizationLevel(optimization: Int) throws {
+        let source = """
+        open class P {
+            class Q : P()
+            object O : P()
+        }
+
+        class Wrapper {
+            class Item(val v: Int) {
+                fun twice() = v * 2
+            }
+        }
+
+        sealed class S {
+            data class A(val n: Int) : S()
+            object B : S()
+        }
+
+        fun main() {
+            val q = P.Q()
+            println(q is P.Q)
+            println(q is P)
+            val p: P = q
+            println(p == P.O)
+            val erased: Any = P.Q()
+            println(erased is P.Q)
+            val s: S = S.A(5)
+            println(s is S.A)
+            println(when (s) {
+                is S.A -> "A${s.n}"
+                S.B -> "B"
+            })
+            println(Wrapper.Item(5).twice())
+            println(S.A(5))
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationNestedClassRuntime",
+            expected: "true\ntrue\nfalse\ntrue\ntrue\nA5\n10\nA(n=5)\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func virtualPropertyGetterArityDoesNotCollideWithSameNamedMethodAtEachOptimizationLevel(optimization: Int) throws {
+        let source = """
+        abstract class Base {
+            abstract val size: Int
+            abstract fun get(index: Int): Int
+        }
+
+        class Impl : Base() {
+            override val size: Int = 3
+            override fun get(index: Int): Int = index * 10
+        }
+
+        fun probe(b: Base): Int {
+            var sum = 0
+            for (i in 0 until b.size) {
+                sum += b.get(i)
+            }
+            return sum
+        }
+
+        fun main() {
+            println(probe(Impl()))
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationVirtualGetterArity",
+            expected: "30\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func stringVarargConstructorUsesPackedListABIAtEachOptimizationLevel(optimization: Int) throws {
+        let source = """
+        class TextBundle(vararg values: String) {
+            val count: Int = values.size
+        }
+
+        fun main() {
+            println(TextBundle("a", "b", "c").count)
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationStringVarargConstructor",
+            expected: "3\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func branchingSuspendStateMachineRemainsValidAtEachOptimizationLevel(optimization: Int) throws {
+        let source = """
+        import kotlin.coroutines.*
+
+        suspend fun branch(flag: Boolean): Int {
+            if (flag) {
+                return suspendCoroutine<Int> { cont: Continuation<Int> ->
+                    cont.resume(1)
+                }
+            }
+            return suspendCoroutine<Int> { cont: Continuation<Int> ->
+                cont.resume(2)
+            }
+        }
+
+        suspend fun branchTrue(): Int = branch(true)
+        suspend fun branchFalse(): Int = branch(false)
+
+        fun main() {
+            println(runBlocking(branchTrue))
+            println(runBlocking(branchFalse))
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationBranchingSuspend",
+            expected: "1\n2\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test
+    func singleAssignmentAcrossControlFlowMergeRemainsValidAtO2() throws {
+        let source = """
+        fun main() {
+            val values: Iterable<Int> = listOf(1, 2, 3)
+            println(values.firstNotNullOf { value ->
+                if (value == 2) "two" else null
+            })
+            try {
+                println(values.firstNotNullOf { value ->
+                    if (value == 9) "nine" else null
+                })
+            } catch (e: NoSuchElementException) {
+                println("missing")
+            }
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationControlFlowMerge",
+            expected: "two\nmissing\n",
+            optimization: .O2
+        )
+    }
+
+    @Test
+    func runtimeFunctionAddressDoesNotWidenDirectCallAtO2() throws {
+        let source = """
+        fun main() {
+            val associated = ("abca" as CharSequence).associate { ch -> ch to 1 }
+            println(associated.size)
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationRuntimeFunctionAddress",
+            expected: "3\n",
+            optimization: .O2
+        )
+    }
+
+    @Test
+    func channelReceiveUsesPointerOutParameterAtO2() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.channels.*
+
+        fun main() = runBlocking {
+            val channel = Channel<Int>()
+            launch {
+                channel.send(42)
+                channel.close()
+            }
+            println(channel.receive())
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationChannelReceive",
+            expected: "42\n",
+            optimization: .O2
+        )
+    }
+
+    @Test
+    func bareCompanionGetterCarriesItsReceiverAtO2() throws {
+        let source = """
+        class C {
+            companion object {
+                val answer: Int get() = 42
+            }
+
+            fun readAnswer() = answer
+        }
+
+        fun main() {
+            println(C().readAnswer())
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationCompanionGetter",
+            expected: "42\n",
+            optimization: .O2
+        )
+    }
+
+    @Test
+    func jvmOverloadsWrappersRouteThroughDefaultStubAtO2() throws {
+        let source = """
+        class Greeter {
+            @JvmName("helloForJava")
+            @JvmOverloads
+            fun greet(prefix: String = "Hello", suffix: String = "!"): String {
+                return prefix + suffix
+            }
+        }
+
+        fun main() {
+            val greeter = Greeter()
+            println(greeter.greet())
+            println(greeter.greet("Hi"))
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationJvmOverloads",
+            expected: "Hello!\nHi!\n",
+            optimization: .O2
+        )
+    }
+
+    private func assertOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String,
+        optimization: OptimizationLevel,
+        stdlibPath: String? = nil
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent("llvm-optimization-\(UUID().uuidString)")
+                .path
+            let libraryPath: String
+            if let stdlibPath {
+                libraryPath = stdlibPath
+            } else {
+                libraryPath = try testStdlibArtifactPath()
+            }
+            let options = CompilerOptions(
+                moduleName: moduleName,
+                inputs: [path],
+                outputPath: outputPath,
+                emit: .executable,
+                target: defaultTargetTriple(),
+                optLevel: optimization,
+                stdlibLibraryPath: libraryPath
+            )
+            let context = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try runToKIR(context)
+            try LoweringPhase().run(context)
+            try CodegenPhase().run(context)
+            try LinkPhase().run(context)
+
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalized == expected)
+        }
+    }
+}
+#endif

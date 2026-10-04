@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "error_override_mismatch.kt",
+      "range": {
+        "start": { "line": 10, "character": 4 },
+        "end": { "line": 10, "character": 43 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
+      "source": "kswiftk",
+      "message": "Override of 'method' has incompatible return type. Expected subtype of 'Int' but found 'String'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_override_mismatch.kt",
+      "range": {
+        "start": { "line": 16, "character": 4 },
+        "end": { "line": 16, "character": 59 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-FINAL",
+      "source": "kswiftk",
+      "message": "'finalMethod' in 'Base' is final and cannot be overridden.",
+      "codeActions": [{ "title": "Remove 'final' modifier from base declaration", "kind": "quickfix" }]
+    },
+    {
+      "file": "error_override_mismatch.kt",
+      "range": {
+        "start": { "line": 26, "character": 0 },
+        "end": { "line": 29, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Class 'BadImpl' must override abstract member 'interfaceMethod' or be declared abstract.",
+      "codeActions": []
+    }
+  ]
+}

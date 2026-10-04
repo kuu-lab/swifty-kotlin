@@ -4,163 +4,6 @@ import Testing
 
 @Suite
 struct AnonymousObjectLocalTypingTests {
-    @Test func testAnonymousObjectBodyProducesLocalNominalTypeAndResolvableProperty() throws {
-        let source = """
-        fun main() {
-            val local = object {
-                val value = 7
-            }
-            println(local.value)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let mainDecl = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
-            guard case let .block(statements, _) = mainDecl.body else {
-                Issue.record("Expected block body for main.")
-                return
-            }
-
-            let localDeclExprID = try #require(statements.first)
-            guard let localDeclExpr = ast.arena.expr(localDeclExprID),
-                  case let .localDecl(_, _, _, initializer, _, _) = localDeclExpr,
-                  let initializer
-            else {
-                Issue.record("Expected local declaration with object literal initializer.")
-                return
-            }
-
-            guard let objectExpr = ast.arena.expr(initializer),
-                  case let .objectLiteral(_, declID, _) = objectExpr,
-                  let declID,
-                  let decl = ast.arena.decl(declID),
-                  case let .objectDecl(objectDecl) = decl
-            else {
-                Issue.record("Expected object literal to retain a synthetic object declaration.")
-                return
-            }
-
-            #expect(objectDecl.memberProperties.count == 1)
-            let objectSymbol = try #require(sema.bindings.declSymbol(for: declID))
-            #expect(sema.symbols.symbol(objectSymbol) != nil)
-
-            let propertyDeclID = try #require(objectDecl.memberProperties.first)
-            let propertySymbol = sema.bindings.declSymbol(for: propertyDeclID)
-            #expect(
-                propertySymbol != nil,
-                "Anonymous object property should be bound. Diagnostics: \(renderDiagnostics(ctx))"
-            )
-
-            let objectType = try #require(sema.bindings.exprType(for: initializer))
-            guard case .classType = sema.types.kind(of: objectType) else {
-                Issue.record("Expected anonymous object initializer to infer a nominal class type.")
-                return
-            }
-
-            let memberExprID = try #require(
-                findMemberCall(named: "value", in: statements, ast: ast, interner: ctx.interner)
-            )
-            let receiverExprID = try #require(memberCallReceiver(for: memberExprID, ast: ast))
-            let receiverType = try #require(
-                sema.bindings.exprType(for: receiverExprID),
-                "Receiver type should be inferred. Diagnostics: \(renderDiagnostics(ctx))"
-            )
-            #expect(receiverType == objectType)
-
-            let memberSymbol = sema.bindings.identifierSymbol(for: memberExprID)
-            #expect(
-                memberSymbol != nil,
-                "Member access should resolve to the anonymous object property. Diagnostics: \(renderDiagnostics(ctx))"
-            )
-            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
-        }
-    }
-
-    @Test func testAnonymousObjectCanImplementMultipleInterfacesWithoutClassInheritanceDiagnostic() throws {
-        let source = """
-        interface First
-        interface Second
-        fun main() {
-            val local = object : First, Second {
-                val marker = 1
-            }
-            println(local)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let ast = try #require(ctx.ast)
-            guard let declID = firstUserObjectLiteralDeclID(in: ast, sourceManager: ctx.sourceManager)
-            else {
-                Issue.record("Expected object literal declaration.")
-                return
-            }
-
-            let objectSymbol = try #require(sema.bindings.declSymbol(for: declID))
-            let directSupertypes = sema.symbols.directSupertypes(for: objectSymbol)
-            let supertypeNames = Set(
-                directSupertypes.compactMap { symbolID in
-                    sema.symbols.symbol(symbolID)?.fqName.last.map(ctx.interner.resolve)
-                }
-            )
-
-            #expect(supertypeNames == ["First", "Second"])
-            assertNoDiagnostic("KSWIFTK-SEMA-0170", in: ctx)
-            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
-        }
-    }
-
-    @Test func testAnonymousObjectCallablePropertyCanBeInvokedFromMemberFunction() throws {
-        let source = """
-        interface Runner {
-            fun run(value: Int): Int
-        }
-
-        fun main() {
-            val local = object : Runner {
-                val callback: (Int) -> Int = { value -> value + 1 }
-                override fun run(value: Int): Int = this.callback(value)
-            }
-            println(local.run(41))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
-        }
-    }
-
-    private func topLevelFunction(
-        named name: String,
-        in ast: ASTModule,
-        interner: StringInterner
-    ) -> FunDecl? {
-        for file in ast.files {
-            for declID in file.topLevelDecls {
-                guard let decl = ast.arena.decl(declID),
-                      case let .funDecl(function) = decl
-                else {
-                    continue
-                }
-                if interner.resolve(function.name) == name {
-                    return function
-                }
-            }
-        }
-        return nil
-    }
 
     private func findMemberCall(
         named name: String,
@@ -238,30 +81,188 @@ struct AnonymousObjectLocalTypingTests {
         return receiver
     }
 
-    private func firstUserObjectLiteralDeclID(
-        in ast: ASTModule,
-        sourceManager: SourceManager
-    ) -> DeclID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .objectLiteral(_, declID, _) = expr,
-                  let declID
-            else {
-                continue
-            }
-            guard let range = ast.arena.exprRange(exprID),
-                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
-            else {
-                continue
-            }
-            return declID
-        }
-        return nil
-    }
-
     private func renderDiagnostics(_ ctx: CompilationContext) -> String {
         ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
     }
+
+    // MARK: - Consolidated runSema clean tests
+
+    @Test
+    func testRunSemaClean() throws {
+
+        let sources: [String] = [
+            // testAnonymousObjectBodyProducesLocalNominalTypeAndResolvableProperty
+            """
+            package sample0
+
+                    fun main() {
+                        val local = object {
+                            val value = 7
+                        }
+                        println(local.value)
+                    }
+
+            """,
+            // testAnonymousObjectCanImplementMultipleInterfacesWithoutClassInheritanceDiagnostic
+            """
+            package sample1
+
+                    interface First
+                    interface Second
+                    fun main() {
+                        val local = object : First, Second {
+                            val marker = 1
+                        }
+                        println(local)
+                    }
+
+            """,
+            // testAnonymousObjectCallablePropertyCanBeInvokedFromMemberFunction
+            """
+            package sample2
+
+                    interface Runner {
+                        fun run(value: Int): Int
+                    }
+
+                    fun main() {
+                        val local = object : Runner {
+                            val callback: (Int) -> Int = { value -> value + 1 }
+                            override fun run(value: Int): Int = this.callback(value)
+                        }
+                        println(local.run(41))
+                    }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+
+            let sema = try #require(ctx.sema)
+
+            let interner = ctx.interner
+
+            // === testAnonymousObjectBodyProducesLocalNominalTypeAndResolvableProperty ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                let mainDecl = try #require(topLevelFunction(named: "main", in: ast, interner: interner))
+                guard case let .block(statements, _) = mainDecl.body else {
+                    Issue.record("Expected block body for main.")
+                    return
+                }
+
+                let localDeclExprID = try #require(statements.first)
+                guard let localDeclExpr = ast.arena.expr(localDeclExprID),
+                      case let .localDecl(_, _, _, initializer, _, _) = localDeclExpr,
+                      let initializer
+                else {
+                    Issue.record("Expected local declaration with object literal initializer.")
+                    return
+                }
+
+                guard let objectExpr = ast.arena.expr(initializer),
+                      case let .objectLiteral(_, declID, _) = objectExpr,
+                      let declID,
+                      let decl = ast.arena.decl(declID),
+                      case let .objectDecl(objectDecl) = decl
+                else {
+                    Issue.record("Expected object literal to retain a synthetic object declaration.")
+                    return
+                }
+
+                #expect(objectDecl.memberProperties.count == 1)
+                let objectSymbol = try #require(sema.bindings.declSymbol(for: declID))
+                #expect(sema.symbols.symbol(objectSymbol) != nil)
+
+                let propertyDeclID = try #require(objectDecl.memberProperties.first)
+                let propertySymbol = sema.bindings.declSymbol(for: propertyDeclID)
+                #expect(
+                    propertySymbol != nil,
+                    "Anonymous object property should be bound. Diagnostics: \(renderDiagnostics(ctx))"
+                )
+
+                let objectType = try #require(sema.bindings.exprType(for: initializer))
+                guard case .classType = sema.types.kind(of: objectType) else {
+                    Issue.record("Expected anonymous object initializer to infer a nominal class type.")
+                    return
+                }
+
+                let memberExprID = try #require(
+                    findMemberCall(named: "value", in: statements, ast: ast, interner: interner)
+                )
+                let receiverExprID = try #require(memberCallReceiver(for: memberExprID, ast: ast))
+                let receiverType = try #require(
+                    sema.bindings.exprType(for: receiverExprID),
+                    "Receiver type should be inferred. Diagnostics: \(renderDiagnostics(ctx))"
+                )
+                #expect(receiverType == objectType)
+
+                let memberSymbol = sema.bindings.identifierSymbol(for: memberExprID)
+                #expect(
+                    memberSymbol != nil,
+                    "Member access should resolve to the anonymous object property. Diagnostics: \(renderDiagnostics(ctx))"
+                )
+                #expect(!sample0Diagnostics.contains { $0.severity == .error }, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
+
+            }
+
+            // === testAnonymousObjectCanImplementMultipleInterfacesWithoutClassInheritanceDiagnostic ===
+
+            do {
+
+                let sample1Path = paths[1]
+
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                guard let declID = firstUserObjectLiteralDeclID(in: ast, path: sample1Path, sourceManager: ctx.sourceManager)
+                else {
+                    Issue.record("Expected object literal declaration.")
+                    return
+                }
+
+                let objectSymbol = try #require(sema.bindings.declSymbol(for: declID))
+                let directSupertypes = sema.symbols.directSupertypes(for: objectSymbol)
+                let supertypeNames = Set(
+                    directSupertypes.compactMap { symbolID in
+                        sema.symbols.symbol(symbolID)?.fqName.last.map(interner.resolve)
+                    }
+                )
+
+                #expect(supertypeNames == ["First", "Second"])
+                assertNoDiagnostic("KSWIFTK-SEMA-0170", in: sample1Diagnostics)
+                #expect(!sample1Diagnostics.contains { $0.severity == .error }, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
+
+            }
+
+            // === testAnonymousObjectCallablePropertyCanBeInvokedFromMemberFunction ===
+
+            do {
+
+                let sample2Path = paths[2]
+
+
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+
+                #expect(!sample2Diagnostics.contains { $0.severity == .error }, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
+
+            }
+
+        }
+    }
+
 }
+
 #endif

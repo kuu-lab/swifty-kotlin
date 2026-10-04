@@ -12,82 +12,126 @@ import Testing
 @Suite
 struct InputStreamBufferedFunctionTests {
 
-    // MARK: - Zero-arg overload
+    // MARK: - Consolidated runSema clean tests
 
     @Test
-    func testInputStreamBufferedNoArgsResolves() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.BufferedInputStream
-        import java.io.File
-        import java.io.InputStream
+    func testRunSemaClean() throws {
 
-        fun open(file: File): BufferedInputStream {
-            val raw: InputStream = file.inputStream()
-            return raw.buffered()
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected InputStream.buffered() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
+        let sources: [String] = [
+            // testInputStreamBufferedNoArgsResolves
+            """
+            package sample0
 
-    // MARK: - bufferSize overload
+                    import java.io.BufferedInputStream
+                    import java.io.InputStream
 
-    @Test
-    func testInputStreamBufferedWithBufferSizeResolves() throws {
-        let ctx = makeContextFromSource("""
-        import java.io.BufferedInputStream
-        import java.io.File
-        import java.io.InputStream
+                    fun open(text: String): BufferedInputStream {
+                        val raw: InputStream = text.byteInputStream()
+                        return raw.buffered()
+                    }
 
-        fun openWithSize(file: File): BufferedInputStream {
-            val raw: InputStream = file.inputStream()
-            return raw.buffered(8 * 1024)
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected InputStream.buffered(bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
+            """,
+            // testInputStreamBufferedWithBufferSizeResolves
+            """
+            package sample1
 
-    // MARK: - Returned BufferedInputStream usable as InputStream
+                    import java.io.BufferedInputStream
+                    import java.io.InputStream
 
-    @Test
-    func testBufferedInputStreamFlowsThroughInputStreamSurface() throws {
-        // BufferedInputStream extends InputStream, so all read/skip/available/close
-        // methods on InputStream remain callable via the buffered handle, and
-        // .use { } works because InputStream is a Closeable subtype.
-        let ctx = makeContextFromSource("""
-        import java.io.BufferedInputStream
-        import java.io.File
-        import java.io.InputStream
+                    fun openWithSize(text: String): BufferedInputStream {
+                        val raw: InputStream = text.byteInputStream()
+                        return raw.buffered(8 * 1024)
+                    }
 
-        fun consume(file: File): Int {
-            val buffered: BufferedInputStream = file.inputStream().buffered()
-            val byte: Int = buffered.read()
-            val remaining: Int = buffered.available()
-            buffered.close()
-            return byte + remaining
-        }
+            """,
+            // testBufferedInputStreamFlowsThroughInputStreamSurface
+            """
+            package sample2
 
-        fun useIt(file: File): Int {
-            return file.inputStream().buffered(4096).use { stream ->
-                stream.read()
+                    import java.io.BufferedInputStream
+
+                    fun consume(text: String): Int {
+                        val buffered: BufferedInputStream = text.byteInputStream().buffered()
+                        val byte: Int = buffered.read()
+                        val remaining: Int = buffered.available()
+                        buffered.close()
+                        return byte + remaining
+                    }
+
+                    fun useIt(text: String): Int {
+                        return text.byteInputStream().buffered(4096).use { stream ->
+                            stream.read()
+                        }
+                    }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
+            try runSema(ctx)
+
+            _ = try #require(ctx.ast)
+
+            _ = try #require(ctx.sema)
+
+
+            // === testInputStreamBufferedNoArgsResolves ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                let errors = sample0Diagnostics.filter { $0.severity == .error }
+                #expect(
+                    errors.isEmpty,
+                    "Expected InputStream.buffered() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                )
+
             }
+
+            // === testInputStreamBufferedWithBufferSizeResolves ===
+
+            do {
+
+                let sample1Path = paths[1]
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                let errors = sample1Diagnostics.filter { $0.severity == .error }
+                #expect(
+                    errors.isEmpty,
+                    "Expected InputStream.buffered(bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                )
+
+            }
+
+            // === testBufferedInputStreamFlowsThroughInputStreamSurface ===
+
+            do {
+
+                let sample2Path = paths[2]
+
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+
+                // BufferedInputStream extends InputStream, so all read/skip/available/close
+                // methods on InputStream remain callable via the buffered handle, and
+                // .use { } works because InputStream is a Closeable subtype.
+                let errors = sample2Diagnostics.filter { $0.severity == .error }
+                #expect(
+                    errors.isEmpty,
+                    "Expected BufferedInputStream to be usable as an InputStream, got: \(errors.map { "\($0.code): \($0.message)" })"
+                )
+
+            }
+
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected BufferedInputStream to be usable as an InputStream, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
     }
+
 }
+
 #endif

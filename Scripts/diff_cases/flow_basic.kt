@@ -25,6 +25,7 @@ fun main() = runBlocking {
     println(f)
 
     // flow + transform + collect
+    // KSP-915 regression: transform's Unit callback result must not become the emitted element type.
     flow { emit(1); emit(2) }
         .transform {
             emit(it * 10)

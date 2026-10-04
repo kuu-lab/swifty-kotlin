@@ -10,23 +10,75 @@ public struct InternedString: Hashable, Sendable, Codable {
     }
 }
 
+private struct StringInternerKey: Hashable {
+    let string: String
+
+    init(_ string: String) {
+        self.string = string
+    }
+
+    static func == (lhs: StringInternerKey, rhs: StringInternerKey) -> Bool {
+        lhs.string.utf16.elementsEqual(rhs.string.utf16)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        for codeUnit in string.utf16 {
+            hasher.combine(codeUnit)
+        }
+    }
+}
+
 public final class StringInterner: @unchecked Sendable {
     private var nextID: Int32 = 0
-    private var map: [String: Int32] = [:]
+    // Swift String hashing uses canonical equivalence. Kotlin string literals
+    // and identifiers must remain distinct when their UTF-16 sequences differ.
+    private var map: [StringInternerKey: Int32] = [:]
     private var values: [String] = []
     private let lock = NSLock()
+    private let compilerNamesLock = NSLock()
+    private var compilerNames: KnownCompilerNames?
+    private let builtinTypeNamesLock = NSLock()
+    private var builtinTypeNames: BuiltinTypeNames?
 
     public init() {}
+
+    /// Keep compiler-name IDs local to this interner and initialize them only
+    /// when first requested. Use a separate lock because creation calls intern().
+    func cachedCompilerNames(create: () -> KnownCompilerNames) -> KnownCompilerNames {
+        compilerNamesLock.lock()
+        defer { compilerNamesLock.unlock() }
+        if let compilerNames {
+            return compilerNames
+        }
+        let names = create()
+        compilerNames = names
+        return names
+    }
+
+    /// Same one-time cache for `BuiltinTypeNames` (19 interned builtin names).
+    /// Keeps the IDs local to this interner; separate lock because creation
+    /// calls intern().
+    func cachedBuiltinTypeNames(create: () -> BuiltinTypeNames) -> BuiltinTypeNames {
+        builtinTypeNamesLock.lock()
+        defer { builtinTypeNamesLock.unlock() }
+        if let builtinTypeNames {
+            return builtinTypeNames
+        }
+        let names = create()
+        builtinTypeNames = names
+        return names
+    }
 
     public func intern(_ string: String) -> InternedString {
         lock.lock()
         defer { lock.unlock() }
-        if let existing = map[string] {
+        let key = StringInternerKey(string)
+        if let existing = map[key] {
             return InternedString(rawValue: existing)
         }
         let id = nextID
         nextID += 1
-        map[string] = id
+        map[key] = id
         values.append(string)
         return InternedString(rawValue: id)
     }
@@ -54,7 +106,7 @@ public final class StringInterner: @unchecked Sendable {
     }
 }
 
-public enum Keyword: String, Sendable {
+public enum Keyword: String, CaseIterable, Sendable {
     case `as`
     case `break`
     case `class`
@@ -118,7 +170,7 @@ public enum Keyword: String, Sendable {
     case value
 }
 
-public enum SoftKeyword: String, Sendable {
+public enum SoftKeyword: String, CaseIterable, Sendable {
     case by
     case get
     case set
@@ -135,9 +187,16 @@ public enum SoftKeyword: String, Sendable {
     case constructor
     case out
     case when
+
+    /// Not `allCases` — `.by`, `.context`, `.where`, etc. are soft keywords but never valid use-site targets.
+    public static let useSiteTargets: [SoftKeyword] = [
+        .get, .set, .field, .property, .receiver, .param, .setparam, .delegate, .file,
+    ]
+
+    public static let useSiteTargetNames: Set<String> = Set(useSiteTargets.map(\.rawValue))
 }
 
-public enum Symbol: String, Sendable {
+public enum Symbol: String, CaseIterable, Sendable {
     case plus = "+"
     case minus = "-"
     case star = "*"
@@ -151,6 +210,8 @@ public enum Symbol: String, Sendable {
     case bang = "!"
     case equalEqual = "=="
     case bangEqual = "!="
+    case tripleEqual = "==="
+    case notTripleEqual = "!=="
     case lessThan = "<"
     case lessOrEqual = "<="
     case greaterThan = ">"

@@ -1,6 +1,8 @@
 
 final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "FlowLowering"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .desugared
 
     private enum RuntimeFlowTag: Int64 {
         case emit = 0
@@ -20,11 +22,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         let calleeNames: Set<InternedString> = [
             ctx.interner.intern("flow"),
-            ctx.interner.intern("channelFlow"),
-            ctx.interner.intern("callbackFlow"),
-            ctx.interner.intern("flowOf"),
-            ctx.interner.intern("emptyFlow"),
-            ctx.interner.intern("asFlow"),
             ctx.interner.intern("emit"),
             ctx.interner.intern("map"),
             ctx.interner.intern("filter"),
@@ -48,11 +45,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     func run(module: KIRModule, ctx: KIRContext) throws {
         let interner = ctx.interner
         let flowName = interner.intern("flow")
-        let channelFlowName = interner.intern("channelFlow")
-        let callbackFlowName = interner.intern("callbackFlow")
-        let flowOfName = interner.intern("flowOf")
-        let emptyFlowName = interner.intern("emptyFlow")
-        let asFlowName = interner.intern("asFlow")
         let emitName = interner.intern("emit")
         let mapName = interner.intern("map")
         let filterName = interner.intern("filter")
@@ -71,16 +63,32 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
         let kkFlowCreateName = interner.intern("kk_flow_create")
         let kkFlowEmitName = interner.intern("kk_flow_emit")
         let kkFlowCollectName = interner.intern("kk_flow_collect")
-        let kkFlowOfName = interner.intern("kk_flow_of")
-        let kkFlowEmptyName = interner.intern("kk_flow_empty")
-        let kkFlowAsFlowName = interner.intern("kk_flow_as_flow")
-        let kkFlowToListName = interner.intern("kk_flow_to_list")
-        let kkFlowFirstName = interner.intern("kk_flow_first")
-        let kkFlowSingleName = interner.intern("kk_flow_single")
-        let kkArrayNewName = interner.intern("kk_array_new")
-        let kkArraySetName = interner.intern("kk_array_set")
+        let kkFlowToListName = interner.intern("__kk_flow_to_list")
+        let kkFlowFirstName = interner.intern("__kk_flow_first")
+        let kkFlowSingleName = interner.intern("__kk_flow_single")
 
         let intType = ctx.sema?.types.intType
+
+        // KSP-674: `flowOf`/`emptyFlow`/`Iterable.asFlow` now resolve to bundled
+        // Kotlin source returning `Flow<T>` rather than the removed
+        // `kk_flow_of`/`kk_flow_empty`/`kk_flow_as_flow` bridges. Their call
+        // results carry a real `Flow<T>` Sema type; track them so downstream
+        // `.map`/`.filter`/`.collect`/... still lower to the runtime Flow ABI.
+        let flowClassSymbol = ctx.sema?.symbols.lookup(fqName: [
+            interner.intern("kotlinx"), interner.intern("coroutines"),
+            interner.intern("flow"), interner.intern("Flow"),
+        ])
+        func isFlowClassResultType(_ exprID: KIRExprID?) -> Bool {
+            guard let exprID,
+                  let flowClassSymbol,
+                  let sema = ctx.sema,
+                  let type = module.arena.exprType(exprID),
+                  case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type))
+            else {
+                return false
+            }
+            return classType.classSymbol == flowClassSymbol
+        }
 
         var functionNameBySymbol: [SymbolID: InternedString] = [:]
         for decl in module.arena.declarations {
@@ -105,7 +113,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             for instruction in function.body {
                 switch instruction {
                 case let .call(_, callee, arguments, _, _, _, _, _):
-                    guard callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    guard callee == flowName,
                           arguments.count == 1
                     else {
                         continue
@@ -121,7 +129,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     let fallbackLambdaName = interner.intern("kk_lambda_\(lambdaArg.rawValue)")
                     flowBuilderFunctionNames.insert(fallbackLambdaName)
                 case let .virtualCall(_, callee, _, arguments, _, _, _, _):
-                    guard callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    guard callee == flowName,
                           arguments.count == 1
                     else {
                         continue
@@ -150,8 +158,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
 
             var flowExprIDs: Set<Int32> = []
             var activeFlowExpr: KIRExprID?
-            var loweredBody: [KIRInstruction] = []
-            loweredBody.reserveCapacity(function.body.count + 16)
+            var loweredBody = KIRLoweringEmitContext()
+            loweredBody.instructions.reserveCapacity(function.body.count + 16)
 
             func appendIntConstant(_ value: Int64) -> KIRExprID {
                 let expr = module.arena.appendTemporary(type: intType
@@ -160,48 +168,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                 return expr
             }
 
-            func appendFlowOfCall(arguments: [KIRExprID], result: KIRExprID?) {
-                let countExpr = appendIntConstant(Int64(arguments.count))
-                let arrayExpr = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: kkArrayNewName,
-                    arguments: [countExpr],
-                    result: arrayExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                for (index, arg) in arguments.enumerated() {
-                    let indexExpr = appendIntConstant(Int64(index))
-                    let setResult = module.arena.appendTemporary(type: nil
-                    )
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: kkArraySetName,
-                        arguments: [arrayExpr, indexExpr, arg],
-                        result: setResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: kkFlowOfName,
-                    arguments: [arrayExpr, countExpr],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                if let result {
-                    flowExprIDs.insert(result.rawValue)
-                    activeFlowExpr = result
-                }
-            }
-
             // KSP-499 Stage 3: a call to a *source-level* operator name
             // (map/filter/toList/collect/flow/...) that Sema already resolved
-            // to a real, non-synthetic declared symbol is never one of this
+            // to a real declared symbol, including an imported bundled
+            // declaration with a `kk_fn_*` link name, is never one of this
             // pass's hard-coded Flow intrinsics — those are recognized purely
             // by literal callee name and never bind a symbol (see
             // CallTypeChecker+MemberCallInferenceCollectionFlow.swift). When a
@@ -213,8 +183,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             // real symbol), and this pass's bookkeeping below must keep
             // tracking those results as flow-typed regardless.
             let kkFlowBridgeNames: Set<InternedString> = [
-                kkFlowCreateName, kkFlowEmitName, kkFlowCollectName, kkFlowOfName,
-                kkFlowEmptyName, kkFlowAsFlowName, kkFlowToListName, kkFlowFirstName,
+                kkFlowCreateName, kkFlowEmitName, kkFlowCollectName,
+                kkFlowToListName, kkFlowFirstName,
                 kkFlowSingleName,
             ]
             func shouldSkipSourceLevelRewrite(symbol: SymbolID?, callee: InternedString) -> Bool {
@@ -224,10 +194,17 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                 else {
                     return false
                 }
-                return !resolvedSymbol.flags.contains(.synthetic)
+                if !resolvedSymbol.flags.contains(.synthetic) {
+                    return true
+                }
+                return sema.symbols.isSourceBackedSymbol(symbol)
+                    && CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: symbol))
             }
 
-            for instruction in function.body {
+            for (index, instruction) in function.body.enumerated() {
+                loweredBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 switch instruction {
                 case let .copy(from, to):
                     if flowExprIDs.contains(from.rawValue) {
@@ -237,6 +214,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     loweredBody.append(instruction)
 
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                    if let result, isFlowClassResultType(result) {
+                        flowExprIDs.insert(result.rawValue)
+                        activeFlowExpr = result
+                    }
                     if shouldSkipSourceLevelRewrite(symbol: symbol, callee: callee) {
                         loweredBody.append(instruction)
                         continue
@@ -261,7 +242,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
 
-                    if callee == flowName || callee == channelFlowName || callee == callbackFlowName,
+                    if callee == flowName,
                        arguments.count == 1
                     {
                         let continuation = appendIntConstant(0)
@@ -316,27 +297,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
 
-                    if callee == flowOfName {
-                        appendFlowOfCall(arguments: arguments, result: result)
-                        continue
-                    }
-
-                    if callee == emptyFlowName, arguments.isEmpty {
-                        loweredBody.append(.call(
-                            symbol: nil,
-                            callee: kkFlowEmptyName,
-                            arguments: [appendIntConstant(0)],
-                            result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                        if let result {
-                            flowExprIDs.insert(result.rawValue)
-                            activeFlowExpr = result
-                        }
-                        continue
-                    }
-
                     if callee == emitName, isFlowBuilderFunction {
                         let flowHandleExpr: KIRExprID
                         let valueExpr: KIRExprID
@@ -362,24 +322,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             thrownResult: nil
                         ))
                         if let result {
-                            activeFlowExpr = result
-                        }
-                        continue
-                    }
-
-                    if callee == asFlowName,
-                       arguments.count == 1
-                    {
-                        loweredBody.append(.call(
-                            symbol: nil,
-                            callee: kkFlowAsFlowName,
-                            arguments: [arguments[0], appendIntConstant(0)],
-                            result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                        if let result {
-                            flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result
                         }
                         continue
@@ -498,7 +440,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
 
-                    if callee == kkFlowCreateName || callee == kkFlowOfName || callee == kkFlowEmptyName || callee == kkFlowAsFlowName,
+                    if callee == kkFlowCreateName,
                        let result
                     {
                         flowExprIDs.insert(result.rawValue)
@@ -534,6 +476,13 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     ))
 
                 case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
+                    if isFlowClassResultType(receiver) {
+                        flowExprIDs.insert(receiver.rawValue)
+                    }
+                    if let result, isFlowClassResultType(result) {
+                        flowExprIDs.insert(result.rawValue)
+                        activeFlowExpr = result
+                    }
                     if shouldSkipSourceLevelRewrite(symbol: symbol, callee: callee) {
                         loweredBody.append(instruction)
                         continue
@@ -569,24 +518,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             thrownResult: nil
                         ))
                         if let result {
-                            activeFlowExpr = result
-                        }
-                        continue
-                    }
-
-                    if callee == asFlowName,
-                       arguments.isEmpty
-                    {
-                        loweredBody.append(.call(
-                            symbol: nil,
-                            callee: kkFlowAsFlowName,
-                            arguments: [receiver, appendIntConstant(0)],
-                            result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                        if let result {
-                            flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result
                         }
                         continue
@@ -700,7 +631,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
 
-                    if callee == kkFlowCreateName || callee == kkFlowOfName || callee == kkFlowEmptyName || callee == kkFlowAsFlowName,
+                    if callee == kkFlowCreateName,
                        let result
                     {
                         flowExprIDs.insert(result.rawValue)

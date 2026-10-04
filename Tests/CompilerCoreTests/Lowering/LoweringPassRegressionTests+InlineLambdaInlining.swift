@@ -116,23 +116,13 @@ private struct InlineLambdaTestContext {
             arena: arena
         )
         let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: moduleName,
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
+        try runLowering(
+            module: module,
+            interner: interner,
+            moduleName: moduleName,
+            sema: sema,
+            diagnostics: diagnostics
         )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainDeclID) else {
             throw NSError(domain: "Test", code: 1, userInfo: [
@@ -150,8 +140,6 @@ extension LoweringPassRegressionTests {
 
     // MARK: - INLINE-002: Lambda argument inlining
 
-    /// Verify that a lambda passed to an inline function is expanded in place,
-    /// eliminating the indirect call to the lambda function.
     @Test
     func testInlineLoweringInlinesLambdaArgumentBody() throws {
         let tc = InlineLambdaTestContext()
@@ -276,8 +264,6 @@ extension LoweringPassRegressionTests {
         )
     }
 
-    /// Verify that non-lambda arguments (e.g. function references that are not
-    /// resolved to a KIR function) still produce a regular call instruction.
     @Test
     func testInlineLoweringFallsBackWhenLambdaNotResolvable() throws {
         let tc = InlineLambdaTestContext()
@@ -365,8 +351,6 @@ extension LoweringPassRegressionTests {
         )
     }
 
-    /// Verify that a multi-instruction lambda body is fully inlined (not just
-    /// single-expression lambdas).
     @Test
     func testInlineLoweringInlinesMultiStatementLambdaBody() throws {
         let tc = InlineLambdaTestContext()
@@ -494,9 +478,6 @@ extension LoweringPassRegressionTests {
         )
     }
 
-    /// Verify that a lambda body with multiple return instructions (control-flow
-    /// branches) is correctly inlined using a merge label, preserving both
-    /// branches and producing a single merged result.
     @Test
     func testInlineLoweringInlinesControlFlowLambdaWithMergeLabel() throws {
         let tc = InlineLambdaTestContext()
@@ -679,9 +660,6 @@ extension LoweringPassRegressionTests {
         )
     }
 
-    /// Verify that lambda arguments materialized through an intermediate
-    /// `constValue` instruction (rather than a direct `.symbolRef` expression)
-    /// are still resolved and inlined.
     @Test
     func testInlineLoweringResolvesLambdaThroughConstValueAlias() throws {
         let tc = InlineLambdaTestContext()

@@ -20,10 +20,25 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
         guard args.isEmpty,
-              case .callableRef = ast.arena.expr(receiverID),
               calleeName == knownNames.isInitialized
         else {
             return nil
+        }
+
+        guard case .callableRef = ast.arena.expr(receiverID) else {
+            _ = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
+            guard let receiverType = sema.bindings.exprType(for: receiverID),
+                  isKProperty0Receiver(receiverType, sema: sema, interner: interner)
+            else {
+                return nil
+            }
+
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-LATEINIT",
+                "'isInitialized' is only available on property literals.",
+                range: range
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
 
         _ = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
@@ -53,5 +68,28 @@ extension CallTypeChecker {
             range: range
         )
         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+    }
+
+    private func isKProperty0Receiver(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let reflectPackage = [interner.intern("kotlin"), interner.intern("reflect")]
+        let kProperty0Name = interner.intern("KProperty0")
+        guard let kProperty0Symbol = sema.symbols.lookup(
+            fqName: reflectPackage + [kProperty0Name]
+        ) else {
+            return false
+        }
+        let kProperty0StarType = sema.types.make(.classType(ClassType(
+            classSymbol: kProperty0Symbol,
+            args: [.star],
+            nullability: .nonNull
+        )))
+        return sema.types.isSubtype(
+            sema.types.makeNonNullable(receiverType),
+            kProperty0StarType
+        )
     }
 }

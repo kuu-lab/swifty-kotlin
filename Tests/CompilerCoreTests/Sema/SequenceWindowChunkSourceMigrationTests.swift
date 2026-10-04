@@ -1,12 +1,27 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Testing
 
 @Suite
 struct SequenceWindowChunkSourceMigrationTests {
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
     @Test
     func migratedSequenceWindowChunkFunctionsAreBundledSourceDefinitions() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let packageFQName = ["kotlin", "sequences"].map(ctx.interner.intern)
         let expectedArities: [String: Set<Int>] = [
@@ -54,41 +69,8 @@ struct SequenceWindowChunkSourceMigrationTests {
     }
 
     @Test
-    func sequenceWindowChunkSyntheticBridgesRetainRuntimeLinks() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let sequenceFQName = ["kotlin", "sequences", "Sequence"].map(ctx.interner.intern)
-        let expectedLinks: [String: String] = [
-            "__kk_sequence_take": "kk_sequence_take",
-            "__kk_sequence_takeWhile": "kk_sequence_takeWhile",
-            "__kk_sequence_drop": "kk_sequence_drop",
-            "__kk_sequence_dropWhile": "kk_sequence_dropWhile",
-            "__kk_sequence_chunked": "kk_sequence_chunked",
-            "__kk_sequence_chunked_transform": "kk_sequence_chunked_transform",
-            "__kk_sequence_windowed": "kk_sequence_windowed",
-            "__kk_sequence_windowed_transform": "kk_sequence_windowed_transform",
-            "__kk_sequence_zip": "kk_sequence_zip",
-            "__kk_sequence_zip_transform": "kk_sequence_zip_transform",
-            "__kk_sequence_zipWithNext": "kk_sequence_zipWithNext",
-            "__kk_sequence_zipWithNextTransform": "kk_sequence_zipWithNextTransform",
-            "__kk_sequence_distinct": "kk_sequence_distinct",
-            "__kk_sequence_distinctBy": "kk_sequence_distinctBy",
-        ]
-
-        for (name, expectedLink) in expectedLinks {
-            let fqName = sequenceFQName + [ctx.interner.intern(name)]
-            let links = Set(sema.symbols.lookupAll(fqName: fqName).compactMap {
-                sema.symbols.externalLinkName(for: $0)
-            })
-            #expect(links.contains(expectedLink), "Expected \(name) bridge to link to \(expectedLink)")
-        }
-    }
-
-    @Test
     func migratedSequenceWindowChunkFunctionsDoNotKeepPublicRuntimeLinkedMembers() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let sequenceFQName = ["kotlin", "sequences", "Sequence"].map(ctx.interner.intern)
         let disallowedMemberLinks: [String: Set<String>] = [
@@ -128,3 +110,4 @@ struct SequenceWindowChunkSourceMigrationTests {
         )
     }
 }
+#endif

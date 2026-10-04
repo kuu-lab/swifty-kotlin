@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 @Suite
-@MainActor
 struct NativeCInteropUseContentsLoweringTests {
     /// Regression: `CValue<T>.useContents { ... }` lowers as an implicit-receiver
     /// scope function, so the contained C variable must be copied into the

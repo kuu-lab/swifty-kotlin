@@ -5,6 +5,15 @@ import Testing
 
 @Suite
 struct RandomSyntheticLinkTests {
+    internal static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    internal func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema()
+        Self._sharedSema = pair
+        return pair
+    }
+
     func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in

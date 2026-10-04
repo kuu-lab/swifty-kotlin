@@ -19,9 +19,17 @@ extension LLVMCAPIBindings {
         return bindings
     }
 
+    /// Default LLVM discovery candidates. Every entry is a canonical absolute
+    /// path inside a well-known install location; generic library-search
+    /// variables (`LIBRARY_PATH`, `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`) are
+    /// deliberately ignored because relative or group/other-writable entries
+    /// in them would let another local user substitute a malicious library.
+    /// The only environment-driven override is `KSWIFTK_LLVM_DYLIB`, which
+    /// must name an absolute path and is still verified before `dlopen`.
     static func candidateLibraryPaths(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
         var candidates: [String] = []
-        if let override = environment["KSWIFTK_LLVM_DYLIB"], !override.isEmpty {
+        if let override = environment["KSWIFTK_LLVM_DYLIB"], !override.isEmpty,
+           override.hasPrefix("/") {
             let resolved = URL(fileURLWithPath: override).standardized.path
             if FileManager.default.fileExists(atPath: resolved) {
                 candidates.append(resolved)
@@ -37,7 +45,7 @@ extension LLVMCAPIBindings {
             "libLLVM-15.so",
             "libLLVM-14.so",
         ]
-        for directory in candidateLibraryDirectories(environment: environment) {
+        for directory in candidateLibraryDirectories() {
             candidates.append(contentsOf: discoveredLibraryPaths(in: directory))
             candidates.append(contentsOf: commonLibraryNames.map {
                 URL(fileURLWithPath: directory).appendingPathComponent($0).standardized.path
@@ -48,7 +56,6 @@ extension LLVMCAPIBindings {
             "/usr/local/opt/llvm/lib/libLLVM.dylib",
             "/Library/Developer/CommandLineTools/usr/lib/libLLVM.dylib",
             "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/lib/libLLVM.dylib",
-            "libLLVM.dylib",
             "/usr/lib/llvm-19/lib/libLLVM.so",
             "/usr/lib/llvm-18/lib/libLLVM.so",
             "/usr/lib/llvm-17/lib/libLLVM.so",
@@ -56,29 +63,12 @@ extension LLVMCAPIBindings {
             "/usr/lib/x86_64-linux-gnu/libLLVM-15.so",
             "/usr/lib/x86_64-linux-gnu/libLLVM.so",
             "/usr/lib/aarch64-linux-gnu/libLLVM.so",
-            "libLLVM.so",
         ])
         return deduplicated(candidates)
     }
 
-    private static func candidateLibraryDirectories(environment: [String: String]) -> [String] {
-        var directories: [String] = []
-        let pathVariables = [
-            "LIBRARY_PATH",
-            "LD_LIBRARY_PATH",
-            "DYLD_LIBRARY_PATH",
-        ]
-        for variable in pathVariables {
-            guard let rawValue = environment[variable], !rawValue.isEmpty else {
-                continue
-            }
-            let paths = rawValue
-                .split(separator: ":")
-                .map { String($0) }
-                .filter { !$0.isEmpty }
-            directories.append(contentsOf: paths)
-        }
-        directories.append(contentsOf: [
+    private static func candidateLibraryDirectories() -> [String] {
+        deduplicated([
             "/opt/homebrew/opt/llvm/lib",
             "/usr/local/opt/llvm/lib",
             "/usr/lib",
@@ -91,8 +81,7 @@ extension LLVMCAPIBindings {
             "/usr/lib/llvm-16/lib",
             "/usr/lib/llvm-15/lib",
             "/usr/lib/llvm-14/lib",
-        ])
-        return deduplicated(directories.map { URL(fileURLWithPath: $0).standardized.path })
+        ].map { URL(fileURLWithPath: $0).standardized.path })
     }
 
     private static func discoveredLibraryPaths(in directory: String) -> [String] {
@@ -113,7 +102,31 @@ extension LLVMCAPIBindings {
 
     static func load(environment: [String: String] = ProcessInfo.processInfo.environment) -> LLVMCAPIBindings? {
         for candidate in candidateLibraryPaths(environment: environment) {
-            guard let handle = dlopen(candidate, RTLD_NOW | RTLD_LOCAL) else {
+            // Verify ownership, permissions, and the canonical path of the
+            // file and every ancestor directory before `dlopen`; a candidate
+            // another local user can tamper with is skipped rather than loaded.
+            let libraryPath: String
+            switch TrustedFileSystem.inspectLoadableFile(candidate) {
+            case .trusted(let resolvedPath):
+                libraryPath = resolvedPath
+            case .rejected(let component, let reason):
+                // A candidate that exists but fails the trust check is worth
+                // naming — otherwise an all-candidates-rejected failure
+                // surfaces only as "bindings could not be loaded". Missing
+                // paths are expected for install layouts the machine does not
+                // have, so they stay silent.
+                if reason != .missing {
+                    FileHandle.standardError.write(Data(
+                        "kswiftc: skipping LLVM library candidate \(candidate): \(component) \(reason.diagnosticDetail)\n".utf8
+                    ))
+                }
+                continue
+            }
+            guard let handle = dlopen(libraryPath, RTLD_NOW | RTLD_LOCAL) else {
+                let message = dlerror().map { String(cString: $0) } ?? "unknown dlopen error"
+                FileHandle.standardError.write(Data(
+                    "kswiftc: could not load LLVM library at \(libraryPath): \(message)\n".utf8
+                ))
                 continue
             }
 
@@ -167,10 +180,14 @@ extension LLVMCAPIBindings {
             let buildCall2 = loadSymbol(handle: handle, name: "LLVMBuildCall2", as: LLVMBuildCall2Fn.self)
             let buildCall = loadSymbol(handle: handle, name: "LLVMBuildCall", as: LLVMBuildCallFn.self)
 
-            let linkModules2 = loadSymbol(handle: handle, name: "LLVMLinkModules2", as: LLVMLinkModules2Fn.self)
-
             return LLVMCAPIBindings(
                 handle: handle,
+                runPassesFn: loadSymbol(handle: handle, name: "LLVMRunPasses", as: LLVMRunPassesFn.self),
+                createPassBuilderOptionsFn: loadSymbol(handle: handle, name: "LLVMCreatePassBuilderOptions", as: LLVMCreatePassBuilderOptionsFn.self),
+                disposePassBuilderOptionsFn: loadSymbol(handle: handle, name: "LLVMDisposePassBuilderOptions", as: LLVMDisposePassBuilderOptionsFn.self),
+                getErrorMessageFn: loadSymbol(handle: handle, name: "LLVMGetErrorMessage", as: LLVMGetErrorMessageFn.self),
+                disposeErrorMessageFn: loadSymbol(handle: handle, name: "LLVMDisposeErrorMessage", as: LLVMDisposeErrorMessageFn.self),
+                verifyModuleFn: loadSymbol(handle: handle, name: "LLVMVerifyModule", as: LLVMVerifyModuleFn.self),
                 contextCreateFn: contextCreate,
                 contextDisposeFn: contextDispose,
                 moduleCreateFn: moduleCreate,
@@ -255,6 +272,8 @@ extension LLVMCAPIBindings {
                 initializeAArch64AsmPrinterFn: loadSymbol(handle: handle, name: "LLVMInitializeAArch64AsmPrinter", as: LLVMInitializeAArch64AsmPrinterFn.self),
                 addGlobalFn: loadSymbol(handle: handle, name: "LLVMAddGlobal", as: LLVMAddGlobalFn.self),
                 setInitializerFn: loadSymbol(handle: handle, name: "LLVMSetInitializer", as: LLVMSetInitializerFn.self),
+                positionBuilderBeforeFn: loadSymbol(handle: handle, name: "LLVMPositionBuilderBefore", as: LLVMPositionBuilderBeforeFn.self),
+                getFirstInstructionFn: loadSymbol(handle: handle, name: "LLVMGetFirstInstruction", as: LLVMGetFirstInstructionFn.self),
                 createDIBuilderFn: loadSymbol(handle: handle, name: "LLVMCreateDIBuilder", as: LLVMCreateDIBuilderFn.self),
                 disposeDIBuilderFn: loadSymbol(handle: handle, name: "LLVMDisposeDIBuilder", as: LLVMDisposeDIBuilderFn.self),
                 diBuilderFinalizeFn: loadSymbol(handle: handle, name: "LLVMDIBuilderFinalize", as: LLVMDIBuilderFinalizeFn.self),
@@ -272,8 +291,7 @@ extension LLVMCAPIBindings {
                 diBuilderCreateParameterVariableFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateParameterVariable", as: LLVMDIBuilderCreateParameterVariableFn.self),
                 diBuilderCreateAutoVariableFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateAutoVariable", as: LLVMDIBuilderCreateAutoVariableFn.self),
                 diBuilderInsertDeclareAtEndFn: loadSymbol(handle: handle, name: "LLVMDIBuilderInsertDeclareAtEnd", as: LLVMDIBuilderInsertDeclareAtEndFn.self),
-                diBuilderCreateExpressionFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateExpression", as: LLVMDIBuilderCreateExpressionFn.self),
-                linkModules2Fn: linkModules2
+                diBuilderCreateExpressionFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateExpression", as: LLVMDIBuilderCreateExpressionFn.self)
             )
         }
         return nil

@@ -1,5 +1,17 @@
 import Foundation
 
+/// Provenance of a file managed by `SourceManager`.
+/// Used to decide bundled-stdlib-specific behavior without parsing paths.
+public enum SourceOrigin: String, Equatable, Sendable, Codable {
+    case user
+    case bundledStdlib
+    case residualStdlib
+
+    public var isBundledStdlib: Bool {
+        self == .bundledStdlib || self == .residualStdlib
+    }
+}
+
 /// Concurrency model:
 /// `SourceManager` is populated sequentially during `LoadSourcesPhase`,
 /// and treated as read-only after that phase completes.
@@ -8,6 +20,7 @@ public final class SourceManager: @unchecked Sendable {
         let path: String
         let contents: Data
         let lineStartOffsets: [Int]
+        let origin: SourceOrigin
     }
 
     private var files: [FileRecord] = []
@@ -15,7 +28,7 @@ public final class SourceManager: @unchecked Sendable {
 
     public init() {}
 
-    public func addFile(path: String, contents: Data) -> FileID {
+    public func addFile(path: String, contents: Data, origin: SourceOrigin = .user) -> FileID {
         if let existingID = fileIDByPath[path] {
             let index = Int(existingID.rawValue)
             guard index >= 0, index < files.count else {
@@ -26,7 +39,8 @@ public final class SourceManager: @unchecked Sendable {
                 files[index] = FileRecord(
                     path: path,
                     contents: contents,
-                    lineStartOffsets: computeLineStartOffsets(contents: contents)
+                    lineStartOffsets: computeLineStartOffsets(contents: contents),
+                    origin: origin
                 )
             }
             return existingID
@@ -35,16 +49,17 @@ public final class SourceManager: @unchecked Sendable {
         let record = FileRecord(
             path: path,
             contents: contents,
-            lineStartOffsets: computeLineStartOffsets(contents: contents)
+            lineStartOffsets: computeLineStartOffsets(contents: contents),
+            origin: origin
         )
         files.append(record)
         fileIDByPath[path] = id
         return id
     }
 
-    public func addFile(path: String) throws -> FileID {
+    public func addFile(path: String, origin: SourceOrigin = .user) throws -> FileID {
         let contents = try Data(contentsOf: URL(fileURLWithPath: path))
-        return addFile(path: path, contents: contents)
+        return addFile(path: path, contents: contents, origin: origin)
     }
 
     public func contents(of file: FileID) -> Data {
@@ -59,6 +74,10 @@ public final class SourceManager: @unchecked Sendable {
             return ""
         }
         return record.path
+    }
+
+    public func origin(of file: FileID) -> SourceOrigin? {
+        fileRecord(for: file)?.origin
     }
 
     package var fileCount: Int {

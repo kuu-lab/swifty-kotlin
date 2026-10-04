@@ -1,6 +1,6 @@
 import Foundation
 
-private func runtimeThrowableBox(from raw: Int) -> RuntimeThrowableBox? {
+func runtimeThrowableBox(from raw: Int) -> RuntimeThrowableBox? {
     guard raw != runtimeNullSentinelInt,
           raw != 0,
           let ptr = UnsafeMutableRawPointer(bitPattern: raw)
@@ -16,6 +16,60 @@ private func runtimeThrowableBox(from raw: Int) -> RuntimeThrowableBox? {
     return tryCast(ptr, to: RuntimeThrowableBox.self)
 }
 
+private let runtimeThrowableToStringVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =
+    __kk_throwable_toString
+
+private let runtimeThrowableStackTraceVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =
+    __kk_throwable_rawStackFrames
+
+// Keep these slots aligned with the bundled Throwable layout. The native
+// getStackTraceAddresses extension occupies slot 2, so toString is slot 1.
+enum RuntimeThrowableVtableSlot {
+    static let getStackTrace = 0
+    static let toString = 1
+}
+
+func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
+    guard runtimeIsThrowableRaw(receiver) else {
+        return nil
+    }
+    if runtimeThrowableBox(from: receiver) == nil,
+       let pointer = UnsafeMutableRawPointer(bitPattern: receiver)
+    {
+        let objectKey = UInt(bitPattern: pointer)
+        if let registered = runtimeStorage.withMetadataLock({ state in
+            state.objectVtableMethods[objectKey]?[slot]
+        }), registered != 0 {
+            return registered
+        }
+    }
+    switch slot {
+    case RuntimeThrowableVtableSlot.getStackTrace:
+        return unsafeBitCast(runtimeThrowableStackTraceVtableMethod, to: Int.self)
+    case RuntimeThrowableVtableSlot.toString:
+        return unsafeBitCast(runtimeThrowableToStringVtableMethod, to: Int.self)
+    default:
+        return nil
+    }
+}
+
+func runtimeThrowableToString(_ receiver: Int) -> String? {
+    guard let methodRaw = runtimeThrowableVtableMethodRaw(
+        receiver,
+        slot: RuntimeThrowableVtableSlot.toString
+    ) else {
+        return nil
+    }
+    let method = unsafeBitCast(
+        methodRaw,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    guard let rendered = UnsafeMutableRawPointer(bitPattern: method(receiver, nil)) else {
+        return nil
+    }
+    return extractString(from: rendered)
+}
+
 private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return ""
@@ -27,9 +81,131 @@ private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
         return throwable.renderedMessage
     }
     if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
-        return cancellation.message
+        return cancellation.message ?? "CancellationException"
     }
     return ""
+}
+
+/// RuntimeObjectBox stores only the stable nominal type ID. Keep the names of
+/// bundled throwable classes here because the hashed ID is intentionally not
+/// reversible; user-defined types are resolved through registered metadata.
+private let runtimeSourceThrowableNames = [
+    ("kotlin.Error", "Error"),
+    ("kotlin.Exception", "Exception"),
+    ("kotlin.RuntimeException", "RuntimeException"),
+    ("kotlin.IllegalArgumentException", "IllegalArgumentException"),
+    ("kotlin.IllegalStateException", "IllegalStateException"),
+    ("kotlin.ConcurrentModificationException", "ConcurrentModificationException"),
+    ("kotlin.UnsupportedOperationException", "UnsupportedOperationException"),
+    ("kotlin.NumberFormatException", "NumberFormatException"),
+    ("kotlin.NullPointerException", "NullPointerException"),
+    ("kotlin.ClassCastException", "ClassCastException"),
+    ("kotlin.TypeCastException", "TypeCastException"),
+    ("kotlin.AssertionError", "AssertionError"),
+    ("kotlin.NoSuchElementException", "NoSuchElementException"),
+    ("kotlin.ArithmeticException", "ArithmeticException"),
+    ("kotlin.NoWhenBranchMatchedException", "NoWhenBranchMatchedException"),
+    ("kotlin.UninitializedPropertyAccessException", "UninitializedPropertyAccessException"),
+    ("kotlin.IndexOutOfBoundsException", "IndexOutOfBoundsException"),
+    ("kotlin.ArrayIndexOutOfBoundsException", "ArrayIndexOutOfBoundsException"),
+    ("kotlin.KotlinNothingValueException", "KotlinNothingValueException"),
+    ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
+    ("kotlin.NotImplementedError", "NotImplementedError"),
+    ("kotlin.text.CharacterCodingException", "CharacterCodingException"),
+    ("java.nio.charset.MalformedInputException", "MalformedInputException"),
+    ("java.nio.charset.CharacterCodingException", "CharacterCodingException"),
+    ("kotlin.io.FileSystemException", "FileSystemException"),
+    ("kotlin.io.FileAlreadyExistsException", "FileAlreadyExistsException"),
+    ("kotlin.io.AccessDeniedException", "AccessDeniedException"),
+    ("kotlin.io.NoSuchFileException", "NoSuchFileException"),
+]
+
+private let runtimeSourceThrowableSimpleNames: [Int64: String] = {
+    Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
+        (runtimeStableNominalTypeID(fqName: entry.0), entry.1)
+    })
+}()
+
+private let runtimeSourceThrowableQualifiedNames: [Int64: String] = {
+    Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
+        (runtimeStableNominalTypeID(fqName: entry.0), entry.0)
+    })
+}()
+
+private func runtimeSourceThrowableSimpleName(for classID: Int64) -> String {
+    // Nominal type tokens use the same payload as classID, with the nominal
+    // base and nullability bit encoded around it. KClass metadata therefore
+    // provides the source name for user-defined throwable classes as well.
+    let payloadMask: UInt64 = (1 << 55) - 1
+    let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
+    let typeToken = Int(truncatingIfNeeded: tokenBits)
+    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
+        ?? runtimeSourceThrowableSimpleNames[classID]
+        ?? "Throwable"
+}
+
+func runtimeSourceThrowableQualifiedName(for classID: Int64) -> String {
+    // Nominal type tokens use the same payload as classID, with the nominal
+    // base and nullability bit encoded around it. KClass metadata therefore
+    // provides the source name for user-defined throwable classes as well.
+    let payloadMask: UInt64 = (1 << 55) - 1
+    let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
+    let typeToken = Int(truncatingIfNeeded: tokenBits)
+    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.qualifiedName
+        ?? runtimeSourceThrowableQualifiedNames[classID]
+        ?? "kotlin.Throwable"
+}
+
+func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
+    guard raw != runtimeNullSentinelInt, raw != 0 else {
+        return false
+    }
+    if runtimeThrowableBox(from: raw) != nil {
+        return true
+    }
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return false
+    }
+    let object: RuntimeObjectBox? = runtimeStorage.withGCLock { state in
+        guard state.objectPointers.contains(UInt(bitPattern: ptr)) else {
+            return nil
+        }
+        return tryCast(ptr, to: RuntimeObjectBox.self)
+    }
+    guard let object else {
+        return false
+    }
+    return runtimeIsAssignable(
+        sourceTypeID: object.classID,
+        targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+    )
+}
+
+private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox) -> String {
+    let typeName = runtimeSourceThrowableSimpleName(for: object.classID)
+    guard let message = object.throwableMessage else {
+        return typeName
+    }
+    return "\(typeName): \(message)"
+}
+
+/// Raw stack-frame strings for a single throwable. The runtime only provides
+/// the class-specific header line here; Kotlin-side formatting walks cause and
+/// suppressed chains and adds prefixes (KSP-655).
+private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
+    if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
+        return []
+    }
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else {
+        return []
+    }
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        return [throwable.renderedMessage]
+    }
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        return [runtimeSourceThrowableHeader(from: object)]
+    }
+    return []
 }
 
 private func runtimeAllocateArrayBox(length: Int) -> Int {
@@ -41,23 +217,34 @@ private func runtimeAllocateArrayBox(length: Int) -> Int {
     return Int(bitPattern: opaque)
 }
 
-@_cdecl("kk_throwable_new")
-public func kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer {
-    let text = extractString(from: message) ?? "Throwable"
+@_cdecl("__kk_throwable_new")
+public func __kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer {
+    let text = extractString(from: message)
     let throwableInt = runtimeAllocateThrowable(message: text)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
-        runtimeStructuredPanic("kk_throwable_new: allocation returned null")
+        runtimeStructuredPanic("__kk_throwable_new: allocation returned null")
     }
     return ptr
 }
 
-@_cdecl("kk_throwable_new_with_cause")
-public func kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _ causeRaw: Int) -> UnsafeMutableRawPointer {
-    let text = extractString(from: message) ?? "Throwable"
+@_cdecl("__kk_throwable_new_with_cause")
+public func __kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _ causeRaw: Int) -> UnsafeMutableRawPointer {
+    let text = extractString(from: message)
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     let throwableInt = runtimeAllocateThrowable(message: text, cause: cause)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
-        runtimeStructuredPanic("kk_throwable_new_with_cause: allocation returned null")
+        runtimeStructuredPanic("__kk_throwable_new_with_cause: allocation returned null")
+    }
+    return ptr
+}
+
+@_cdecl("__kk_throwable_new_cause")
+public func __kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer {
+    let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
+    let message = runtimeCauseToString(from: cause)
+    let throwableInt = runtimeAllocateThrowable(message: message, cause: cause)
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
+        runtimeStructuredPanic("__kk_throwable_new_cause: allocation returned null")
     }
     return ptr
 }
@@ -78,22 +265,25 @@ public func kk_throwable_is_cancellation(_ throwableRaw: Int) -> Int {
     kk_is_cancellation_exception(throwableRaw)
 }
 
-@_cdecl("kk_throwable_message")
-public func kk_throwable_message(_ throwableRaw: Int) -> Int {
+@_cdecl("__kk_throwable_message")
+public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return runtimeNullSentinelInt
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else {
         return runtimeNullSentinelInt
     }
-    let message: String
+    let message: String?
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         message = throwable.message
     } else if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
         message = cancellation.message
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        message = object.throwableMessage
     } else {
         return runtimeNullSentinelInt
     }
+    guard let message else { return runtimeNullSentinelInt }
     let box = RuntimeStringBox(message)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -102,8 +292,27 @@ public func kk_throwable_message(_ throwableRaw: Int) -> Int {
     return Int(bitPattern: opaque)
 }
 
-@_cdecl("kk_throwable_cause")
-public func kk_throwable_cause(_ throwableRaw: Int) -> Int {
+/// Stores a message for a Kotlin-defined Throwable subclass allocated through
+/// the ordinary object path rather than a RuntimeThrowableBox bridge.
+@_cdecl("__kk_throwable_setMessage")
+public func __kk_throwable_setMessage(_ throwableRaw: Int, _ messageRaw: Int) -> Int {
+    guard throwableRaw != runtimeNullSentinelInt,
+          throwableRaw != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          let object = tryCast(ptr, to: RuntimeObjectBox.self)
+    else {
+        return throwableRaw
+    }
+    object.throwableMessage = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
+    runtimeRegisterTypeEdge(
+        childTypeID: object.classID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+    )
+    return throwableRaw
+}
+
+@_cdecl("__kk_throwable_cause")
+public func __kk_throwable_cause(_ throwableRaw: Int) -> Int {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return runtimeNullSentinelInt
     }
@@ -113,89 +322,160 @@ public func kk_throwable_cause(_ throwableRaw: Int) -> Int {
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return throwable.cause == 0 ? runtimeNullSentinelInt : throwable.cause
     }
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        return object.throwableCause == 0 ? runtimeNullSentinelInt : object.throwableCause
+    }
     return runtimeNullSentinelInt
 }
 
-@_cdecl("kk_throwable_stackTraceToString")
-public func kk_throwable_stackTraceToString(_ throwableRaw: Int) -> Int {
-    let message = runtimeThrowableStackTraceText(from: throwableRaw)
-    let box = RuntimeStringBox(message)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+@_cdecl("__kk_throwable_rawStackFrames")
+public func __kk_throwable_rawStackFrames(
+    _ throwableRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    let frameStrings = runtimeThrowableRawStackFrameStrings(from: throwableRaw)
+    let arrayRaw = kk_array_new(frameStrings.count)
+    guard let arrayBox = runtimeArrayBox(from: arrayRaw) else {
+        runtimeStructuredPanic("__kk_throwable_rawStackFrames: array allocation failed")
     }
-    return Int(bitPattern: opaque)
+    for (i, frame) in frameStrings.enumerated() {
+        arrayBox[i] = registerRuntimeObject(RuntimeStringBox(frame))
+    }
+    return arrayRaw
 }
 
-@_cdecl("kk_throwable_printStackTrace")
-public func kk_throwable_printStackTrace(_ throwableRaw: Int) -> Int {
-    let message = runtimeThrowableStackTraceText(from: throwableRaw)
-    FileHandle.standardError.write(Data((message + "\n").utf8))
+@_cdecl("__kk_throwable_toString")
+public func __kk_throwable_toString(
+    _ throwableRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    let typeName: String
+    let message: String?
+    if let throwable = runtimeThrowableBox(from: throwableRaw) {
+        typeName = runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
+        message = throwable.message
+    } else if let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) {
+        let object: RuntimeObjectBox? = runtimeStorage.withGCLock { state in
+            guard state.objectPointers.contains(UInt(bitPattern: ptr)) else {
+                return nil
+            }
+            return tryCast(ptr, to: RuntimeObjectBox.self)
+        }
+        if let object {
+            typeName = runtimeSourceThrowableQualifiedName(for: object.classID)
+            message = object.throwableMessage
+        } else {
+            typeName = "kotlin.Throwable"
+            message = nil
+        }
+    } else {
+        typeName = "kotlin.Throwable"
+        message = nil
+    }
+    return Int(bitPattern: runtimeMakeStringPointer(runtimeRenderedExceptionMessage(typeName, message)))
+}
+
+@_cdecl("__kk_print_raw")
+public func __kk_print_raw(_ messageRaw: Int) {
+    let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
+    Swift.print(message, terminator: "")
+}
+
+@_cdecl("__kk_println_raw")
+public func __kk_println_raw(_ messageRaw: Int) {
+    let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
+    Swift.print(message, terminator: "\n")
+}
+
+@_cdecl("__kk_printStderr")
+public func __kk_printStderr(_ messageRaw: Int) -> Int {
+    let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
+    FileHandle.standardError.write(Data(message.utf8))
     return 0
 }
 
 // MARK: - Advanced exception features (STDLIB-EXCEPT-105)
 
-/// initCause(cause: Throwable?): Throwable — sets the cause on a throwable, returns the throwable.
-@_cdecl("kk_throwable_initCause")
-public func kk_throwable_initCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
+/// Storage bridge for `Throwable.initCause`: overwrites the cause slot.
+@_cdecl("__kk_throwable_setCause")
+public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
     guard throwableRaw != runtimeNullSentinelInt, throwableRaw != 0,
-          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
-          let throwable = tryCast(ptr, to: RuntimeThrowableBox.self)
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw)
     else {
         return throwableRaw
     }
     let causeValue = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
-    throwable.cause = causeValue
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        throwable.cause = causeValue
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        object.throwableCause = causeValue
+        runtimeRegisterTypeEdge(
+            childTypeID: object.classID,
+            parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+        )
+    }
     return throwableRaw
 }
 
-/// addSuppressed(exception: Throwable): Unit — adds a suppressed exception.
-@_cdecl("kk_throwable_addSuppressed")
-public func kk_throwable_addSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int) -> Int {
-    guard let throwable = runtimeThrowableBox(from: throwableRaw)
+/// Storage bridge for `Throwable.addSuppressed`: appends to the suppressed list.
+@_cdecl("__kk_throwable_appendSuppressed")
+public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int) -> Int {
+    guard let suppressedPtr = UnsafeMutableRawPointer(bitPattern: suppressedRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: suppressedPtr))
+          }),
+          (tryCast(suppressedPtr, to: RuntimeThrowableBox.self) != nil
+              || tryCast(suppressedPtr, to: RuntimeObjectBox.self) != nil)
     else {
         return 0
     }
 
-    guard let suppressed = runtimeThrowableBox(from: suppressedRaw) else {
+    guard let throwablePtr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: throwablePtr))
+          })
+    else {
         return 0
     }
 
     // Match Kotlin/JVM's major behavior by rejecting self-suppression while
     // remaining ABI-compatible with this non-throwing runtime entrypoint.
-    guard throwable !== suppressed else { return 0 }
+    guard throwableRaw != suppressedRaw else { return 0 }
+    if let throwable = tryCast(throwablePtr, to: RuntimeThrowableBox.self) {
+        throwable.suppressed.append(suppressedRaw)
+    } else if let throwable = tryCast(throwablePtr, to: RuntimeObjectBox.self) {
+        throwable.throwableSuppressed.append(suppressedRaw)
+    } else {
+        return 0
+    }
 
-    throwable.suppressed.append(suppressedRaw)
     return 0
 }
 
-/// getSuppressed(): Array<Throwable> — returns the suppressed exceptions as an array.
-@_cdecl("kk_throwable_getSuppressed")
-public func kk_throwable_getSuppressed(_ throwableRaw: Int) -> Int {
-    guard let throwable = runtimeThrowableBox(from: throwableRaw)
-    else {
+/// Storage bridge for `Throwable.getSuppressed`: the raw `Array<Throwable>`.
+@_cdecl("__kk_throwable_suppressedRaw")
+public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
+    let suppressed: [Int]
+    if let throwable = runtimeThrowableBox(from: throwableRaw) {
+        suppressed = throwable.suppressed
+    } else if let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+              let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        suppressed = object.throwableSuppressed
+    } else {
         return runtimeAllocateArrayBox(length: 0)
     }
 
-    let arrayBox = RuntimeArrayBox(length: throwable.suppressed.count)
-    for (i, elem) in throwable.suppressed.enumerated() {
-        arrayBox.elements[i] = elem
+    let arrayBox = RuntimeArrayBox(length: suppressed.count)
+    for (i, elem) in suppressed.enumerated() {
+        arrayBox[i] = elem
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
     return Int(bitPattern: opaque)
-}
-
-/// suppressedExceptions: List<Throwable> - returns suppressed exceptions as a Kotlin List.
-@_cdecl("kk_throwable_suppressedExceptions")
-public func kk_throwable_suppressedExceptions(_ throwableRaw: Int) -> Int {
-    guard let throwable = runtimeThrowableBox(from: throwableRaw) else {
-        return kk_emptyList()
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: throwable.suppressed), typeID: listRuntimeTypeID)
 }
 
 @_cdecl("kk_abort_unreachable")
@@ -230,6 +510,8 @@ private enum RuntimeTypeTokenEncoding {
     static let ulongBase: Int64 = 8
     static let ubyteBase: Int64 = 9
     static let ushortBase: Int64 = 10
+    static let byteBase: Int64 = 16
+    static let shortBase: Int64 = 17
     // REFL-002: Additional primitive bases for Long, Double, Float, Char.
     static let longBase: Int64 = 11
     static let doubleBase: Int64 = 12
@@ -243,15 +525,25 @@ func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
     runtimeStructuredPanicMessage(String(cString: cstr))
 }
 
-private final class RuntimeFlatStringStorage: @unchecked Sendable {
+final class RuntimeFlatStringStorage: @unchecked Sendable {
     let data: UnsafeMutablePointer<UInt8>
     let length: Int
     let byteCount: Int
     let hash: Int
+    /// Canonical boxed handle for this buffer, materialized on the first
+    /// flat→raw bridge so repeated conversions share one registered box.
+    /// Only mutated under the flat-string registry lock.
+    weak var canonicalBox: RuntimeStringBox?
+    /// Kotlin UTF-16 code units decoded on first positional access; the flat
+    /// bytes never change, so the cache stays valid for the storage's lifetime.
+    private var cachedUTF16CodeUnits: [UInt16]?
+    private let utf16CodeUnitsLock = NSLock()
 
     init(_ value: String) {
         let bytes = Array(value.utf8)
-        self.length = bytes.count
+        // `length` is the UTF-16 code-unit count used by Kotlin String/CharSequence;
+        // `byteCount` is the UTF-8 byte count used by the flat ABI.
+        self.length = runtimeKotlinStringUTF16Length(value)
         self.byteCount = bytes.count
         self.hash = 0
         self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))
@@ -262,23 +554,135 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
         }
     }
 
+    var utf16CodeUnits: [UInt16] {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedUTF16CodeUnits {
+            return cachedUTF16CodeUnits
+        }
+        let buffer = UnsafeBufferPointer(start: data, count: byteCount)
+        let units = runtimeKotlinStringUTF16CodeUnits(String(decoding: buffer, as: UTF8.self))
+        cachedUTF16CodeUnits = units
+        return units
+    }
+
     deinit {
         data.deallocate()
     }
 }
 
+private struct RuntimeWeakStringBox {
+    weak var box: RuntimeStringBox?
+}
+
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
     private let lock = NSLock()
-    private var storage: [RuntimeFlatStringStorage] = []
+    /// Owning registry of runtime-produced flat String buffers. Entries
+    /// retain their storage until `unregister` (the `kk_flat_string_release`
+    /// path) drops them and the buffer is freed.
+    private var storageByDataPointer: [UInt: RuntimeFlatStringStorage] = [:]
+    /// Canonical boxes deduplicating `kk_string_from_flat` on buffers the
+    /// registry does not own (string literals and other foreign pointers).
+    private var foreignBoxByDataPointer: [UInt: RuntimeWeakStringBox] = [:]
 
-    func append(_ entry: RuntimeFlatStringStorage) {
+    func register(_ storage: RuntimeFlatStringStorage, canonicalBox: RuntimeStringBox?) {
         lock.lock()
-        storage.append(entry)
+        if let canonicalBox, storage.canonicalBox == nil {
+            storage.canonicalBox = canonicalBox
+        }
+        storageByDataPointer[UInt(bitPattern: storage.data)] = storage
         lock.unlock()
+    }
+
+    /// Storage whose `data` pointer is `data`, when the flat string was
+    /// produced by this runtime and has not been released. The pointer key
+    /// stays unique among registered entries: released storages free their
+    /// buffer and are dropped from the map.
+    func storage(for data: UnsafePointer<UInt8>?) -> RuntimeFlatStringStorage? {
+        guard let data else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer[UInt(bitPattern: data)]
+    }
+
+    /// Drops the storage registered for `data` so its buffer is freed.
+    /// Returns false for foreign or already-released pointers.
+    @discardableResult
+    func unregister(data: UnsafePointer<UInt8>) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer.removeValue(forKey: UInt(bitPattern: data)) != nil
+    }
+
+    /// Boxed handle that canonically represents `data`. Materializes and
+    /// registers a `RuntimeStringBox` on first use so repeated flat→raw
+    /// bridges of the same buffer share a single box instead of accumulating
+    /// one registered box per call.
+    func canonicalBoxRaw(
+        for data: UnsafePointer<UInt8>,
+        length: Int,
+        byteCount: Int,
+        hash: Int
+    ) -> Int {
+        let key = UInt(bitPattern: data)
+        lock.lock()
+        if let box = storageByDataPointer[key]?.canonicalBox {
+            lock.unlock()
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        lock.unlock()
+
+        let string = runtimeStringFromFlatFields(
+            data: data,
+            length: length,
+            byteCount: byteCount,
+            hash: hash
+        )
+
+        lock.lock()
+        defer { lock.unlock() }
+        if let box = storageByDataPointer[key]?.canonicalBox {
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        // A foreign buffer (literal or transient caller buffer) may reuse its
+        // address for different contents, so a dedup hit is only valid when
+        // the decoded bytes still match the cached box.
+        if let box = foreignBoxByDataPointer[key]?.box, box.value == string {
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        let box = RuntimeStringBox(string)
+        let raw = registerRuntimeObject(box)
+        if let storage = storageByDataPointer[key] {
+            storage.canonicalBox = box
+        } else {
+            foreignBoxByDataPointer[key] = RuntimeWeakStringBox(box: box)
+        }
+        return raw
+    }
+
+    /// Number of storages retained by the registry; test support only.
+    var liveStorageCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer.count
     }
 }
 
 private let runtimeFlatStringStorageRegistry = RuntimeFlatStringStorageRegistry()
+
+/// Lazily cached UTF-16 code units of a runtime-produced flat string, keyed by
+/// its flat `data` pointer. Returns nil when the pointer did not come from
+/// `runtimeRegisterFlatString` (string literals and other foreign buffers).
+func runtimeFlatStringRegisteredUTF16CodeUnits(
+    data: UnsafePointer<UInt8>?
+) -> [UInt16]? {
+    runtimeFlatStringStorageRegistry.storage(for: data)?.utf16CodeUnits
+}
+
+/// Live storages tracked by the flat-string index; test support only.
+func runtimeFlatStringLiveStorageCountForTesting() -> Int {
+    runtimeFlatStringStorageRegistry.liveStorageCount
+}
 
 func runtimeStringFromFlatFields(
     data: UnsafePointer<UInt8>?,
@@ -294,6 +698,17 @@ func runtimeStringFromFlatFields(
     return String(decoding: buffer, as: UTF8.self)
 }
 
+/// Publishes `storage` in the flat-string registry, which retains it until
+/// `kk_flat_string_release` unregisters and frees the buffer. `canonicalBox`
+/// (when already known, e.g. a `RuntimeStringBox` flattening itself) becomes
+/// the handle `kk_string_from_flat` resolves for this buffer.
+func runtimeRegisterFlatStringStorage(
+    _ storage: RuntimeFlatStringStorage,
+    canonicalBox: RuntimeStringBox? = nil
+) {
+    runtimeFlatStringStorageRegistry.register(storage, canonicalBox: canonicalBox)
+}
+
 func runtimeRegisterFlatString(
     _ value: String,
     outLength: UnsafeMutablePointer<Int>?,
@@ -301,12 +716,11 @@ func runtimeRegisterFlatString(
     outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     let storage = RuntimeFlatStringStorage(value)
+    runtimeRegisterFlatStringStorage(storage)
     outLength?.pointee = storage.length
     outByteCount?.pointee = storage.byteCount
     outHash?.pointee = storage.hash
-    let data = storage.data
-    runtimeFlatStringStorageRegistry.append(storage)
-    return data
+    return storage.data
 }
 
 @_cdecl("kk_string_from_flat")
@@ -316,16 +730,17 @@ public func kk_string_from_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    guard data != nil else {
+    guard let data else {
         return 0
     }
-    let string = runtimeStringFromFlatFields(
-        data: data,
+    // Identity is preserved when `kk_string_to_flat` registered the source
+    // box as the buffer's canonicalBox (generic AtomicReference<T> ABI).
+    return runtimeFlatStringStorageRegistry.canonicalBoxRaw(
+        for: data,
         length: length,
         byteCount: byteCount,
         hash: hash
     )
-    return registerRuntimeObject(RuntimeStringBox(string))
 }
 
 @_cdecl("kk_string_to_flat")
@@ -337,19 +752,34 @@ public func kk_string_to_flat(
 ) -> UnsafeMutablePointer<UInt8>? {
     guard raw != runtimeNullSentinelInt,
           raw != 0,
-          let string = extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
+          let box = extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw))
     else {
         outLength?.pointee = 0
         outByteCount?.pointee = 0
         outHash?.pointee = 0
         return nil
     }
-    return runtimeRegisterFlatString(
-        string,
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
+    let storage = box.flatStringStorage()
+    outLength?.pointee = storage.length
+    outByteCount?.pointee = storage.byteCount
+    outHash?.pointee = storage.hash
+    return storage.data
+}
+
+/// Releases the retained buffer behind a runtime-produced flat `String`
+/// aggregate: the registry drops the storage and its backing allocation is
+/// freed. The `data` pointer — and every aggregate still carrying it — must
+/// not be used after a successful call.
+///
+/// Returns `1` when a registered storage was dropped, and `0` when `data` is
+/// nil, a string literal or other foreign buffer, or an already-released
+/// buffer, making the call idempotent for stale pointers.
+@_cdecl("kk_flat_string_release")
+public func kk_flat_string_release(_ data: UnsafePointer<UInt8>?) -> Int {
+    guard let data else {
+        return 0
+    }
+    return runtimeFlatStringStorageRegistry.unregister(data: data) ? 1 : 0
 }
 
 @_cdecl("kk_string_from_utf8")
@@ -362,21 +792,15 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
+    // Native string construction is also used for temporary CharSequence
+    // windows created by bundled text helpers. Keep those boxes on the same
+    // interface-property itable path as registerRuntimeObject.
+    runtimeRegisterCharSequenceItable(Int(bitPattern: opaque))
     return opaque
 }
 
-@_cdecl("kk_int_toString_radix")
-public func kk_int_toString_radix(_ value: Int, _ radix: Int) -> UnsafeMutableRawPointer {
-    let clampedRadix = max(2, min(36, radix))
-    let str = String(value, radix: clampedRadix)
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
-}
-
-@_cdecl("kk_string_concat_flat")
-public func kk_string_concat_flat(
+@_cdecl("__kk_string_concat_flat")
+public func __kk_string_concat_flat(
     _ lhsData: UnsafePointer<UInt8>?,
     _ lhsLength: Int,
     _ lhsByteCount: Int,
@@ -389,13 +813,24 @@ public func kk_string_concat_flat(
     _ outByteCount: UnsafeMutablePointer<Int>?,
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    let lhs = runtimeStringFromFlatFields(
+    // BUG-B: a nil data pointer is the flat ABI's unambiguous signal for an
+    // actually-null String -- a genuinely empty string ("") always has a
+    // non-nil (zero-length) buffer, both for literals (LLVM never returns a
+    // null pointer for a global string constant) and at runtime
+    // (`RuntimeFlatStringStorage.init` always allocates at least 1 byte).
+    // String templates and the `+`/`String?.plus` operators must render a
+    // null operand as the text "null", matching every other Kotlin
+    // reference type -- silently treating it as "" (as
+    // `runtimeStringFromFlatFields` does for every *other* caller that
+    // really does mean "absent data") hid an uninitialized-field bug behind
+    // output that merely looked wrong instead of null.
+    let lhs = lhsData == nil ? "null" : runtimeStringFromFlatFields(
         data: lhsData,
         length: lhsLength,
         byteCount: lhsByteCount,
         hash: lhsHash
     )
-    let rhs = runtimeStringFromFlatFields(
+    let rhs = rhsData == nil ? "null" : runtimeStringFromFlatFields(
         data: rhsData,
         length: rhsLength,
         byteCount: rhsByteCount,
@@ -439,11 +874,165 @@ public func kk_string_compareTo_flat(
 // Receiver is passed as Int (intptr) so null receivers produce "null".
 // Primitives passed as `other` are already boxed by the ABI lowering pass
 // when widened to Any?, so runtimeElementToString handles them correctly.
-@_cdecl("kk_string_plus")
-public func kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
+@_cdecl("__kk_string_plus")
+public func __kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
     let lhs = runtimeElementToString(receiverRaw)
     let rhs = runtimeElementToString(otherRaw)
     return runtimeMakeStringRaw(lhs + rhs)
+}
+
+/// Stable nominal type ID of `kotlin.String`, with String's interface
+/// supertype edges registered on first use (BUG-153). Strings never reach
+/// `kk_object_new`, so this is the only place those edges get installed.
+let runtimeStringNominalTypeID: Int64 = {
+    let stringTypeID = runtimeStableNominalTypeID(fqName: "kotlin.String")
+    runtimeRegisterTypeEdge(
+        childTypeID: stringTypeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
+    )
+    runtimeRegisterTypeEdge(
+        childTypeID: stringTypeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+    )
+    return stringTypeID
+}()
+
+/// Stable nominal type IDs for boxed primitive Kotlin types (pure hashes of
+/// their fqNames, safe to cache once). Their `kotlin.Number`/
+/// `kotlin.Comparable` supertype edges are registered separately by
+/// `registerEdgesOnce()` below -- see that method's doc comment for why this
+/// can't reuse `runtimeStringNominalTypeID`'s "register inside a `static
+/// let` closure" pattern.
+private struct RuntimePrimitiveNominalTypeIDs {
+    let byte, short, int, long, float, double: Int64
+    let uint, ulong, ubyte, ushort, char, boolean: Int64
+
+    static let shared = RuntimePrimitiveNominalTypeIDs(
+        byte: runtimeStableNominalTypeID(fqName: "kotlin.Byte"),
+        short: runtimeStableNominalTypeID(fqName: "kotlin.Short"),
+        int: runtimeStableNominalTypeID(fqName: "kotlin.Int"),
+        long: runtimeStableNominalTypeID(fqName: "kotlin.Long"),
+        float: runtimeStableNominalTypeID(fqName: "kotlin.Float"),
+        double: runtimeStableNominalTypeID(fqName: "kotlin.Double"),
+        uint: runtimeStableNominalTypeID(fqName: "kotlin.UInt"),
+        ulong: runtimeStableNominalTypeID(fqName: "kotlin.ULong"),
+        ubyte: runtimeStableNominalTypeID(fqName: "kotlin.UByte"),
+        ushort: runtimeStableNominalTypeID(fqName: "kotlin.UShort"),
+        char: runtimeStableNominalTypeID(fqName: "kotlin.Char"),
+        boolean: runtimeStableNominalTypeID(fqName: "kotlin.Boolean")
+    )
+
+    /// Registers every ID above against `kotlin.Number`/`kotlin.Comparable`
+    /// (Kotlin's unsigned types and Char/Boolean implement Comparable but
+    /// are not Number subtypes), exactly once -- mirroring
+    /// `registerReflectionRuntimeTypeMetadata`'s `reflectionTypeEdgesRegistered`
+    /// flag (RuntimeReflectionTypeMetadata.swift), including its
+    /// resettability: `kk_runtime_reset_metadata` clears
+    /// `primitiveTypeEdgesRegistered` alongside `typeParents`, so a metadata
+    /// reset (e.g. RuntimeTests' per-test isolation) re-registers on the next
+    /// call instead of leaving these edges permanently missing after the
+    /// one-time `static let` closure that installed them has already run.
+    /// Cheap on the hot path: one lock acquisition and a flag read once the
+    /// edges are installed (the caller's own `runtimeIsAssignable` takes a
+    /// second, separate acquisition for its BFS).
+    func registerEdgesOnce() {
+        runtimeStorage.withMetadataLock { state in
+            if state.primitiveTypeEdgesRegistered {
+                return
+            }
+            let comparable = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+            let number = runtimeStableNominalTypeID(fqName: "kotlin.Number")
+            for id in [byte, short, int, long, float, double] {
+                state.typeParents[id, default: []].insert(number)
+                state.typeParents[id, default: []].insert(comparable)
+            }
+            for id in [uint, ulong, ubyte, ushort, char, boolean] {
+                state.typeParents[id, default: []].insert(comparable)
+            }
+            state.primitiveTypeEdgesRegistered = true
+        }
+    }
+}
+
+/// The nominal type ID of the boxed primitive `ptr` represents (Int, Double,
+/// UInt, Char, ...), or `nil` when `ptr` is not a registered primitive box.
+/// An enum-ordinal `RuntimeIntBox` (`enumClassID != nil`) is excluded: its
+/// nominal identity is its enum class, not `kotlin.Int`.
+///
+/// `RuntimeIntBox` also backs Byte/Short (there is no dedicated
+/// `kk_box_byte`/`kk_box_short`, so both box through `kk_box_int`'s
+/// `anyFallbackTag: 1`), so this collapses Byte/Short/Int to the same ID --
+/// harmless here since all three share the same `Number`/`Comparable`
+/// ancestry this lookup exists to answer; see `kk_op_is`'s intBase case for
+/// the same pre-existing limitation.
+///
+/// Precondition (enforced by `kk_op_is`, this function's only caller): `ptr`
+/// must not already be a tagged value-class box (`runtimeObjectTypeID(rawValue:)
+/// != nil`). This function does not re-check that itself, so a value class
+/// boxed through the same primitive box types would otherwise be misreported
+/// as its underlying primitive's Number/Comparable identity instead of its
+/// own nominal one. Kept `private` so that precondition can't be violated
+/// from another call site.
+private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) -> Int64? {
+    // `tryCast` force-unwraps `ptr` as a live Swift object via
+    // `Unmanaged.fromOpaque`; only call it once the GC registry confirms
+    // this is actually a tracked allocation, matching every other cast site
+    // in this function's callers (e.g. the throwable check below).
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    let ids = RuntimePrimitiveNominalTypeIDs.shared
+    // Registration only runs once a box actually matches below, so an `is`
+    // check on an untagged non-primitive object (a throwable, list, map, ...)
+    // never pays for it.
+    if let intBox = tryCast(ptr, to: RuntimeIntBox.self), intBox.enumClassID == nil {
+        ids.registerEdgesOnce()
+        switch intBox.anyFallbackTag {
+        case 9: return ids.uint
+        case 10: return ids.ubyte
+        case 11: return ids.ushort
+        default: return ids.int
+        }
+    }
+    if tryCast(ptr, to: RuntimeLongBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.long
+    }
+    if tryCast(ptr, to: RuntimeULongBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.ulong
+    }
+    if tryCast(ptr, to: RuntimeFloatBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.float
+    }
+    if tryCast(ptr, to: RuntimeDoubleBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.double
+    }
+    if tryCast(ptr, to: RuntimeCharBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.char
+    }
+    if tryCast(ptr, to: RuntimeBoolBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.boolean
+    }
+    return nil
+}
+
+/// True when `ptr` is a live runtime object pointer holding a `RuntimeStringBox`.
+func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return false
+    }
+    return tryCast(ptr, to: RuntimeStringBox.self) != nil
 }
 
 @_cdecl("kk_op_is")
@@ -468,18 +1057,14 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 0
         }
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        guard isObjectPointer else {
-            return 0
-        }
-        return tryCast(ptr, to: RuntimeStringBox.self) == nil ? 0 : 1
+        return runtimeIsStringBoxPointer(ptr) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.intBase,
          RuntimeTypeTokenEncoding.uintBase,
          RuntimeTypeTokenEncoding.ubyteBase,
-         RuntimeTypeTokenEncoding.ushortBase:
+         RuntimeTypeTokenEncoding.ushortBase,
+         RuntimeTypeTokenEncoding.byteBase,
+         RuntimeTypeTokenEncoding.shortBase:
         // NOTE: an unboxed (non-object-pointer) value here is treated as a
         // match. That's unsound in general — Int/UInt/UByte/UShort share no
         // value-range heuristic that distinguishes them from Long/Double/
@@ -491,10 +1076,10 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // ABILoweringPass's typeCheckValueCallees); see also the follow-up
         // tracking sequenceOf's missing element boxing.
         //
-        // Even when boxed, Int/UInt/UByte/UShort all box via kk_box_int into
-        // the same RuntimeIntBox (see BoxingCalleeTable), so they remain
-        // indistinguishable from each other here — a separate, pre-existing
-        // limitation of the box representation itself, not fixed by this check.
+        // Even when boxed, Int/UInt/UByte/UShort use the same RuntimeIntBox
+        // representation (through distinct boxing entry points that preserve
+        // hashCode metadata), so they remain indistinguishable from each other
+        // here — a separate, pre-existing limitation of runtime type checks.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -512,14 +1097,7 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
 
-    case RuntimeTypeTokenEncoding.longBase,
-         RuntimeTypeTokenEncoding.ulongBase:
-        // ULong boxes via kk_box_long into RuntimeLongBox, the same as Long
-        // (see BoxingCalleeTable) — it must be checked here rather than
-        // grouped with the RuntimeIntBox family above, or a genuinely-boxed
-        // ULong value would fail its own `is ULong` check. Long and ULong
-        // remain indistinguishable from each other (same pre-existing box
-        // representation limitation noted above).
+    case RuntimeTypeTokenEncoding.longBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -531,6 +1109,16 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             return 0
         }
         return tryCast(ptr, to: RuntimeLongBox.self) == nil ? 0 : 1
+
+    case RuntimeTypeTokenEncoding.ulongBase:
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
+            return 1
+        }
+        let isObjPtr = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if !isObjPtr { return 1 }
+        return tryCast(ptr, to: RuntimeULongBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.doubleBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
@@ -590,15 +1178,69 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return 0
 
     case RuntimeTypeTokenEncoding.unitBase:
-        // The Unit singleton is represented as the integer 0 at runtime.
-        return value == 0 ? 1 : 0
+        // Direct Unit values remain integer 0; Any-erased Unit values use the
+        // runtime box so they remain distinguishable from other raw values.
+        return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        if runtimeArrayHasType(rawValue: value, typeID: payload) {
+            return 1
+        }
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
             return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload) ? 1 : 0
         }
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 0
+        }
+        // BUG-153: String values are allocated through the flat-string fast
+        // paths (kk_string_from_flat / kk_string_from_utf8 / concatenation /
+        // toString()), never through kk_object_new, so they carry no object
+        // type ID and can't answer an interface check (`is CharSequence`,
+        // `is Comparable<*>`) via the registered supertype graph. Recover
+        // String's identity from the box itself instead of tagging every
+        // allocation site, then reuse the ordinary assignability walk over
+        // kotlin.String's supertype edges.
+        if runtimeIsStringBoxPointer(ptr) {
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStringNominalTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // A Double/Float/Long/Int/... held in an Any slot boxes through the
+        // same primitive box types as `is Int`/`is Double` above, but (like
+        // String) carries no object type ID, so it needs the same recovery
+        // to answer an interface check (`is Number`, `is Comparable<*>`).
+        if let primitiveTypeID = runtimePrimitiveBoxNominalTypeID(ptr) {
+            return runtimeIsAssignable(
+                sourceTypeID: primitiveTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // Range handles carry no object type ID either: they are allocated by
+        // `__kk_*_rangeTo`/`downTo`/`until` factories, not kk_object_new.
+        // Recover the nominal identity from the range kind, mirroring the
+        // primitive-box recovery above.
+        if let rangeBox = runtimeRangeBox(from: value) {
+            registerRangeTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeRangeBoxNominalTypeID(rangeBox.kind),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        let isFloatingRangeBox = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+                ? tryCast(ptr, to: RuntimeDoubleRangeBox.self) != nil
+                    || tryCast(ptr, to: RuntimeFloatRangeBox.self) != nil
+                : false
+        }
+        if isFloatingRangeBox {
+            registerRangeTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStableNominalTypeID(
+                    fqName: "kotlin.ranges.ClosedFloatingPointRange"
+                ),
+                targetTypeID: payload
+            ) ? 1 : 0
         }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
@@ -626,11 +1268,43 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     }
 }
 
+@_cdecl("kk_array_tag_type")
+public func kk_array_tag_type(_ arrayRaw: Int, _ typeID: Int) -> Int {
+    guard runtimeArrayBox(from: arrayRaw) != nil else {
+        return arrayRaw
+    }
+    runtimeRegisterArrayType(rawValue: arrayRaw, typeID: Int64(typeID))
+    return arrayRaw
+}
+
 @_cdecl("kk_op_cast")
 public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if kk_op_is(value, typeToken) != 0 {
         return value
+    }
+    // Kotlin/JVM reports a null-to-non-null cast as NullPointerException,
+    // while a non-null value with the wrong runtime type is ClassCastException.
+    // Keep the distinction before allocating the generic cast failure.
+    if value == runtimeNullSentinelInt {
+        let token = Int64(truncatingIfNeeded: typeToken)
+        let base = token & RuntimeTypeTokenEncoding.baseMask
+        let isNullableTarget = (token & RuntimeTypeTokenEncoding.nullableBit) != 0
+        if !isNullableTarget, base != RuntimeTypeTokenEncoding.nullBase {
+            let targetName: String = {
+                if base == RuntimeTypeTokenEncoding.nominalBase,
+                   let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
+                {
+                    return metadata.qualifiedName
+                }
+                let targetNameRaw = __kk_type_token_qualified_name(typeToken, 0)
+                return runtimeStringFromRaw(targetNameRaw) ?? "Unknown"
+            }()
+            outThrown?.pointee = runtimeAllocateNullPointerException(
+                message: "null cannot be cast to non-null type \(targetName)"
+            )
+            return 0
+        }
     }
     outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
     return 0
@@ -645,28 +1319,21 @@ public func kk_op_safe_cast(_ value: Int, _ typeToken: Int) -> Int {
 public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     // Range check first
     if let range = runtimeRangeBox(from: container) {
-        if range.step > 0 {
-            guard element >= range.first, element <= range.last else { return 0 }
-            return (element - range.first) % range.step == 0 ? 1 : 0
-        } else if range.step < 0 {
-            guard element <= range.first, element >= range.last else { return 0 }
-            return (range.first - element) % (-range.step) == 0 ? 1 : 0
-        }
-        return 0
+        return runtimeRangeContains(range, element)
     }
     // List check
     if let list = runtimeListBox(from: container) {
-        return list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+        return list.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
     // Set check
     if let set = runtimeSetBox(from: container) {
-        return set.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+        return set.contains(rawValue: element) ? 1 : 0
     }
     // Array check
     guard let array = runtimeArrayBox(from: container) else {
         return 0
     }
-    return array.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+    return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
 }
 
 @_cdecl("kk_array_new")
@@ -717,8 +1384,8 @@ public func kk_object_type_id(_ objectRaw: Int) -> Int {
 /// token base; for nominal types the compiler supplies a `nameHint` string
 /// pointer that is returned directly (the hint carries the simple name that
 /// was known at compile-time after inline expansion).
-@_cdecl("kk_type_token_simple_name")
-public func kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
+@_cdecl("__kk_type_token_simple_name")
+public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     // If a compiler-provided name hint is available, use it directly.
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
         return nameHint
@@ -740,6 +1407,10 @@ public func kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int 
         "UByte"
     case RuntimeTypeTokenEncoding.ushortBase:
         "UShort"
+    case RuntimeTypeTokenEncoding.byteBase:
+        "Byte"
+    case RuntimeTypeTokenEncoding.shortBase:
+        "Short"
     case RuntimeTypeTokenEncoding.booleanBase:
         "Boolean"
     // REFL-002: Additional primitive bases for accurate simpleName.
@@ -769,8 +1440,8 @@ public func kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int 
 /// returns the fully-qualified "kotlin.X" name as Kotlin reflection specifies.
 /// For nominal (user-defined) types the compiler-supplied name hint already
 /// carries the fully-qualified name, so it is returned unchanged.
-@_cdecl("kk_type_token_qualified_name")
-public func kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
+@_cdecl("__kk_type_token_qualified_name")
+public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
     // Built-in stdlib types always live in the `kotlin` package.
@@ -782,6 +1453,8 @@ public func kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> I
     case RuntimeTypeTokenEncoding.ulongBase:   "kotlin.ULong"
     case RuntimeTypeTokenEncoding.ubyteBase:   "kotlin.UByte"
     case RuntimeTypeTokenEncoding.ushortBase:  "kotlin.UShort"
+    case RuntimeTypeTokenEncoding.byteBase:     "kotlin.Byte"
+    case RuntimeTypeTokenEncoding.shortBase:    "kotlin.Short"
     case RuntimeTypeTokenEncoding.booleanBase: "kotlin.Boolean"
     case RuntimeTypeTokenEncoding.longBase:    "kotlin.Long"
     case RuntimeTypeTokenEncoding.doubleBase:  "kotlin.Double"
@@ -798,7 +1471,7 @@ public func kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> I
         }
     }
     // For nominal types the nameHint carries the fully-qualified name.
-    return kk_type_token_simple_name(typeToken, nameHint)
+    return __kk_type_token_simple_name(typeToken, nameHint)
 }
 
 func runtimeKClassBox(from raw: Int) -> RuntimeKClassBox? {
@@ -823,18 +1496,15 @@ func runtimeKClassBox(from raw: Int) -> RuntimeKClassBox? {
 /// unbounded memory growth when `T::class` is evaluated in a loop. The boxes
 /// are tracked in `runtimeStorage.kClassBoxCache` and are cleared on
 /// `resetRuntimeLocked` (e.g. between test runs).
-@_cdecl("kk_kclass_create")
-public func kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
+@_cdecl("__kk_kclass_create")
+public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     let cacheKey = KClassCacheKey(typeToken: typeToken)
     if let cached = runtimeStorage.withMetadataLock({ state in state.kClassBoxCache[cacheKey] }) {
         return cached
     }
     let box = RuntimeKClassBox(typeToken: typeToken, nameHint: nameHint)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    let result = Int(bitPattern: opaque)
+    registerReflectionRuntimeTypeMetadata()
+    let result = registerRuntimeObject(box, typeID: kClassRuntimeTypeID)
     let winner = runtimeStorage.withMetadataLock { state -> Int in
         if let existing = state.kClassBoxCache[cacheKey] {
             return existing
@@ -843,12 +1513,34 @@ public func kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
         return result
     }
     if winner != result {
-        runtimeStorage.withGCLock { state in
-            state.objectPointers.remove(UInt(bitPattern: opaque))
-        }
-        Unmanaged<RuntimeKClassBox>.fromOpaque(opaque).release()
+        _ = runtimeReleaseObject(result)
     }
     return winner
+}
+
+// MARK: - KSP-496: KClass-handle-based simpleName / qualifiedName bridges
+//
+// Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
+// a bare type token + name hint known at the `T::class` call site), these take
+// the KClass box handle itself so the Kotlin-source `simpleName`/`qualifiedName`
+// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt) can
+// be ordinary extension properties dispatched on `this`, without requiring
+// reified static type information at the call site.
+
+@_cdecl("__kk_kclass_simple_name")
+public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return runtimeNullSentinelInt
+    }
+    return __kk_type_token_simple_name(box.typeToken, box.nameHint)
+}
+
+@_cdecl("__kk_kclass_qualified_name")
+public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return runtimeNullSentinelInt
+    }
+    return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
 }
 
 // MARK: - REFL-004: KClass Binary Metadata Accessors
@@ -867,8 +1559,8 @@ public func kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
 ///          bit 7=abstract).
 /// - fieldCount: Number of declared fields (-1 if unknown).
 /// - memberCount: Number of declared members (-1 if unknown).
-@_cdecl("kk_kclass_register_metadata")
-public func kk_kclass_register_metadata(
+@_cdecl("__kk_kclass_register_metadata")
+public func __kk_kclass_register_metadata(
     _ typeToken: Int,
     _ qualifiedNameRaw: Int,
     _ simpleNameRaw: Int,
@@ -878,7 +1570,7 @@ public func kk_kclass_register_metadata(
     _ memberCount: Int,
     _ constructorCount: Int
 ) -> Int {
-    return kk_kclass_register_metadata_v2(
+    return __kk_kclass_register_metadata_v2(
         typeToken, qualifiedNameRaw, simpleNameRaw, supertypeNameRaw,
         flags, fieldCount, memberCount, constructorCount, 0, 0
     )
@@ -891,8 +1583,8 @@ public func kk_kclass_register_metadata(
 ///   bit 3=interface, bit 4=object, bit 5=enumClass, bit 6=annotationClass,
 ///   bit 7=abstract, bit 8=final, bit 9=open,
 ///   bit 10=inner, bit 11=companion, bit 12=funInterface. (STDLIB-REFLECT-067)
-@_cdecl("kk_kclass_register_metadata_v2")
-public func kk_kclass_register_metadata_v2(
+@_cdecl("__kk_kclass_register_metadata_v2")
+public func __kk_kclass_register_metadata_v2(
     _ typeToken: Int,
     _ qualifiedNameRaw: Int,
     _ simpleNameRaw: Int,
@@ -950,8 +1642,8 @@ public func kk_kclass_register_metadata_v2(
 }
 
 /// Returns 1 if the KClass represents a data class, 0 otherwise.
-@_cdecl("kk_kclass_is_data")
-public func kk_kclass_is_data(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_data")
+public func __kk_kclass_is_data(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -960,8 +1652,8 @@ public func kk_kclass_is_data(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents a sealed class, 0 otherwise.
-@_cdecl("kk_kclass_is_sealed")
-public func kk_kclass_is_sealed(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_sealed")
+public func __kk_kclass_is_sealed(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -970,8 +1662,8 @@ public func kk_kclass_is_sealed(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents a value (inline) class, 0 otherwise.
-@_cdecl("kk_kclass_is_value")
-public func kk_kclass_is_value(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_value")
+public func __kk_kclass_is_value(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -980,8 +1672,8 @@ public func kk_kclass_is_value(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an interface, 0 otherwise.
-@_cdecl("kk_kclass_is_interface")
-public func kk_kclass_is_interface(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_interface")
+public func __kk_kclass_is_interface(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -990,8 +1682,8 @@ public func kk_kclass_is_interface(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an object declaration, 0 otherwise.
-@_cdecl("kk_kclass_is_object")
-public func kk_kclass_is_object(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_object")
+public func __kk_kclass_is_object(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1000,8 +1692,8 @@ public func kk_kclass_is_object(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an enum class, 0 otherwise.
-@_cdecl("kk_kclass_is_enum")
-public func kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_enum")
+public func __kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1012,8 +1704,8 @@ public func kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
 // MARK: - STDLIB-REFLECT-067: KClass type-kind introspection
 
 /// Returns 1 if the KClass represents an inner class, 0 otherwise.
-@_cdecl("kk_kclass_is_inner")
-public func kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_inner")
+public func __kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1022,8 +1714,8 @@ public func kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents a companion object, 0 otherwise.
-@_cdecl("kk_kclass_is_companion")
-public func kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_companion")
+public func __kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1032,8 +1724,8 @@ public func kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents a functional interface (fun interface), 0 otherwise.
-@_cdecl("kk_kclass_is_fun")
-public func kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_fun")
+public func __kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1042,8 +1734,8 @@ public func kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an abstract class, 0 otherwise.
-@_cdecl("kk_kclass_is_abstract")
-public func kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_abstract")
+public func __kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1055,8 +1747,8 @@ public func kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
 
 /// Returns 1 if the KClass represents a final class, 0 otherwise.
 /// A class is final if it is not abstract, not open, and not an interface.
-@_cdecl("kk_kclass_is_final")
-public func kk_kclass_is_final(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_final")
+public func __kk_kclass_is_final(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1065,8 +1757,8 @@ public func kk_kclass_is_final(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an open class, 0 otherwise.
-@_cdecl("kk_kclass_is_open")
-public func kk_kclass_is_open(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_open")
+public func __kk_kclass_is_open(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1076,8 +1768,8 @@ public func kk_kclass_is_open(_ kclassRaw: Int) -> Int {
 
 /// Returns the visibility of this KClass as a runtime string ("PUBLIC", "INTERNAL", "PRIVATE", "PROTECTED").
 /// Returns null sentinel if unknown.
-@_cdecl("kk_kclass_visibility")
-public func kk_kclass_visibility(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_visibility")
+public func __kk_kclass_visibility(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return runtimeNullSentinelInt
@@ -1091,8 +1783,8 @@ public func kk_kclass_visibility(_ kclassRaw: Int) -> Int {
 /// Returns the type parameters of this KClass as a runtime list.
 /// Each element is an integer representing the type parameter index.
 /// Returns an empty list if no type parameters.
-@_cdecl("kk_kclass_type_parameters")
-public func kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_type_parameters")
+public func __kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
@@ -1104,8 +1796,8 @@ public func kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
 
 /// Returns the supertypes of this KClass as a runtime list of strings.
 /// Currently returns a list with the single supertype name if present.
-@_cdecl("kk_kclass_supertypes")
-public func kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_supertypes")
+public func __kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata,
           let superName = metadata.supertypeName else {
@@ -1124,8 +1816,8 @@ public func kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
 /// Delegates to the existing `kk_op_is` runtime type check using the KClass
 /// box's type token.
 /// Returns 1 (true) if the value is an instance, 0 (false) otherwise.
-@_cdecl("kk_kclass_isInstance")
-public func kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
+@_cdecl("__kk_kclass_isInstance")
+public func __kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return 0
     }
@@ -1136,20 +1828,20 @@ public func kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
 /// Called during module initialization to attach compile-time member data.
 ///
 /// - Parameters:
-///   - kclassRaw: Opaque handle to the KClass returned by `kk_kclass_create`.
+///   - kclassRaw: Opaque handle to the KClass returned by `__kk_kclass_create`.
 ///   - memberRaw: Opaque handle to the member callable (KFunction or KPropertyStub).
 /// - Returns: 0 on success.
-@_cdecl("kk_kclass_register_member")
-public func kk_kclass_register_member(_ kclassRaw: Int, _ memberRaw: Int) -> Int {
+@_cdecl("__kk_kclass_register_member")
+public func __kk_kclass_register_member(_ kclassRaw: Int, _ memberRaw: Int) -> Int {
     runtimeKMemberRegistry.register(classRaw: kclassRaw, memberRaw: memberRaw)
     return 0
 }
 
 /// Returns the members of this KClass as a runtime list of KCallable handles.
-/// When members have been registered via `kk_kclass_register_member`, the list
+/// When members have been registered via `__kk_kclass_register_member`, the list
 /// contains the actual KFunction / KPropertyStub handles (STDLIB-REFLECT-ABI-002).
-@_cdecl("kk_kclass_members")
-public func kk_kclass_members(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_members")
+public func __kk_kclass_members(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1157,9 +1849,9 @@ public func kk_kclass_members(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns the constructors of this KClass as a runtime list of KFunction boxes.
-/// Only constructors registered through `kk_kconstructor_create` are returned.
-@_cdecl("kk_kclass_constructors")
-public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
+/// Only constructors registered through `__kk_kconstructor_create` are returned.
+@_cdecl("__kk_kclass_constructors")
+public func __kk_kclass_constructors(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1169,15 +1861,15 @@ public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
 /// Returns the nested classes of this KClass as a runtime list of KClass handles.
 /// Currently returns an empty list; nested class metadata registration is not yet
 /// emitted by the compiler (MIGRATION-REFLECT-002).
-@_cdecl("kk_kclass_nested_classes")
-public func kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_nested_classes")
+public func __kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
 /// Returns the primary constructor of this KClass as a KConstructor box, or null sentinel if none.
 /// STDLIB-REFLECT-064
-@_cdecl("kk_kclass_primary_constructor")
-public func kk_kclass_primary_constructor(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_primary_constructor")
+public func __kk_kclass_primary_constructor(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return runtimeNullSentinelInt
     }
@@ -1188,8 +1880,8 @@ public func kk_kclass_primary_constructor(_ kclassRaw: Int) -> Int {
 
 /// Returns all properties (including inherited) of this KClass as a runtime list.
 /// Returns registered `RuntimeKPropertyStub` handles only.
-@_cdecl("kk_kclass_properties")
-public func kk_kclass_properties(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_properties")
+public func __kk_kclass_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1199,8 +1891,8 @@ public func kk_kclass_properties(_ kclassRaw: Int) -> Int {
 /// Returns the non-extension member properties of this KClass as a runtime list.
 /// These are the properties declared directly in the class or its superclasses,
 /// excluding extension properties.
-@_cdecl("kk_kclass_member_properties")
-public func kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_member_properties")
+public func __kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1209,8 +1901,8 @@ public func kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
 
 /// Returns the declared member properties of this KClass (own class only, not inherited).
 /// These are properties explicitly declared in this class, excluding superclass properties.
-@_cdecl("kk_kclass_declared_member_properties")
-public func kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_declared_member_properties")
+public func __kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1219,8 +1911,8 @@ public func kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
 
 /// Returns all functions (including inherited) of this KClass as a runtime list.
 /// Returns registered `RuntimeKFunctionBox` handles only.
-@_cdecl("kk_kclass_functions")
-public func kk_kclass_functions(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_functions")
+public func __kk_kclass_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1229,8 +1921,8 @@ public func kk_kclass_functions(_ kclassRaw: Int) -> Int {
 
 /// Returns the non-extension member functions of this KClass as a runtime list.
 /// These are functions declared in the class or its superclasses, excluding extensions.
-@_cdecl("kk_kclass_member_functions")
-public func kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_member_functions")
+public func __kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1239,8 +1931,8 @@ public func kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
 
 /// Returns the declared member functions of this KClass (own class only, not inherited).
 /// These are functions explicitly declared in this class, excluding superclass functions.
-@_cdecl("kk_kclass_declared_member_functions")
-public func kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_declared_member_functions")
+public func __kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1258,8 +1950,8 @@ public func kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
 ///   - valueRaw: The value to cast.
 ///   - outThrown: Out-pointer for the thrown exception (nullable).
 /// - Returns: `valueRaw` on success, or `runtimeNullSentinelInt` on failure.
-@_cdecl("kk_kclass_cast")
-public func kk_kclass_cast(
+@_cdecl("__kk_kclass_cast")
+public func __kk_kclass_cast(
     _ kclassRaw: Int,
     _ valueRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -1294,8 +1986,8 @@ public func kk_kclass_cast(
 ///   - kclassRaw: Opaque handle to the KClass.
 ///   - valueRaw: The value to cast.
 /// - Returns: `valueRaw` on success, or `runtimeNullSentinelInt` if not an instance.
-@_cdecl("kk_kclass_safeCast")
-public func kk_kclass_safeCast(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
+@_cdecl("__kk_kclass_safeCast")
+public func __kk_kclass_safeCast(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
     }
@@ -1304,6 +1996,48 @@ public func kk_kclass_safeCast(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
 }
 
 // MARK: - REFL-005: KType and typeOf<T>()
+
+// Source-backed KType properties are dispatched through the interface itable.
+// Runtime-created KType boxes therefore register the same alphabetically sorted
+// getter slots that the compiler assigns to the bundled KType declaration.
+private let runtimeKTypeInterfaceTypeID: Int64 =
+    runtimeStableNominalTypeID(fqName: "kotlin.reflect.KType")
+
+private let runtimeKTypeArgumentsGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    return __kk_ktype_arguments(raw)
+}
+
+private let runtimeKTypeClassifierGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    return __kk_ktype_classifier(raw)
+}
+
+private let runtimeKTypeIsMarkedNullableGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    return __kk_ktype_isMarkedNullable(raw)
+}
+
+func registerRuntimeObject(_ box: RuntimeKTypeBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject, typeID: kTypeRuntimeTypeID)
+    _ = kk_object_register_itable_iface(raw, Int(runtimeKTypeInterfaceTypeID), 0)
+    _ = kk_object_register_itable_method(
+        raw, 0, 0, unsafeBitCast(runtimeKTypeArgumentsGetter, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        raw, 0, 1, unsafeBitCast(runtimeKTypeClassifierGetter, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        raw, 0, 2, unsafeBitCast(runtimeKTypeIsMarkedNullableGetter, to: Int.self)
+    )
+    return raw
+}
 
 private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
     var argumentRaws: [Int] = []
@@ -1321,12 +2055,13 @@ private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullab
         argumentRaws: argumentRaws,
         isMarkedNullable: isNullable != 0
     )
+    registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box)
 }
 
 /// Returns the classifier (KClass) raw handle from a KType, or null sentinel.
-@_cdecl("kk_ktype_classifier")
-public func kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
+@_cdecl("__kk_ktype_classifier")
+public func __kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return runtimeNullSentinelInt
     }
@@ -1334,8 +2069,8 @@ public func kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
 }
 
 /// Returns the list of type arguments (KTypeProjection handles) from a KType.
-@_cdecl("kk_ktype_arguments")
-public func kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
+@_cdecl("__kk_ktype_arguments")
+public func __kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1343,8 +2078,8 @@ public func kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KType is marked nullable, 0 otherwise.
-@_cdecl("kk_ktype_isMarkedNullable")
-public func kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
+@_cdecl("__kk_ktype_isMarkedNullable")
+public func __kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return 0
     }
@@ -1353,16 +2088,127 @@ public func kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
 
 /// Creates a KTypeProjection from a KType raw handle and variance ordinal.
 /// variance: 0=IN, 1=OUT, 2=INVARIANT, -1=STAR (type is ignored for STAR)
-@_cdecl("kk_ktypeprojection_create")
-public func kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) -> Int {
+@_cdecl("__kk_ktypeprojection_create")
+public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) -> Int {
     let variance: RuntimeKVariance?
     if varianceOrdinal == -1 {
         variance = nil // STAR projection
     } else {
         variance = RuntimeKVariance(rawValue: varianceOrdinal) ?? .invariant
     }
+    if variance == nil {
+        return runtimeKTypeProjectionStar()
+    }
+    return runtimeKTypeProjectionCreate(typeRaw: typeRaw, variance: variance)
+}
+
+private func runtimeKTypeProjectionCreate(typeRaw: Int, variance: RuntimeKVariance?) -> Int {
     let box = RuntimeKTypeProjectionBox(typeRaw: typeRaw, variance: variance)
-    return registerRuntimeObject(box)
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
+}
+
+private func runtimeKTypeProjectionStar() -> Int {
+    if let cached = runtimeStorage.withMetadataLock({ $0.kTypeProjectionStarRaw }) {
+        return cached
+    }
+    registerReflectionRuntimeTypeMetadata()
+    let candidate = registerRuntimeObject(
+        RuntimeKTypeProjectionBox(typeRaw: 0, variance: nil),
+        typeID: kTypeProjectionRuntimeTypeID
+    )
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.kTypeProjectionStarRaw {
+            return cached
+        }
+        state.kTypeProjectionStarRaw = candidate
+        return candidate
+    }
+    if winner != candidate {
+        _ = runtimeReleaseObject(candidate)
+    }
+    return winner
+}
+
+/// Returns the canonical star projection used by the companion and `typeOf`.
+@_cdecl("__kk_ktypeprojection_star")
+public func __kk_ktypeprojection_star() -> Int {
+    runtimeKTypeProjectionStar()
+}
+
+/// Creates a KTypeProjection through its public constructor.
+/// The Kotlin constructor accepts either two nulls (a star projection) or
+/// two non-null values; every other pair throws IllegalArgumentException.
+@_cdecl("__kk_ktypeprojection_create_checked")
+public func __kk_ktypeprojection_create_checked(
+    _ varianceOrdinal: Int,
+    _ typeRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+
+    let varianceIsNull = varianceOrdinal == runtimeNullSentinelInt
+    let typeIsNull = typeRaw == 0 || typeRaw == runtimeNullSentinelInt
+    // Nullable enum arguments cross the runtime ABI as boxed Int handles.
+    // Preserve the null sentinel before unboxing; kk_unbox_int maps null to 0.
+    let kotlinVarianceOrdinal = varianceIsNull ? -1 : kk_unbox_int(varianceOrdinal)
+    // KVariance declares INVARIANT, IN, OUT, while RuntimeKVariance keeps the
+    // existing typeOf bridge's internal order IN, OUT, INVARIANT.
+    let decodedVarianceOrdinal: Int = switch kotlinVarianceOrdinal {
+    case 0: 2 // INVARIANT
+    case 1: 0 // IN
+    case 2: 1 // OUT
+    default: kotlinVarianceOrdinal
+    }
+    guard varianceIsNull == typeIsNull else {
+        let message: String
+        if varianceIsNull {
+            message = "Star projection must have no type specified."
+        } else {
+            let varianceName: String = switch RuntimeKVariance(rawValue: decodedVarianceOrdinal) {
+            case .in: "IN"
+            case .out: "OUT"
+            case .invariant: "INVARIANT"
+            case nil: "INVARIANT"
+            }
+            message = "The projection variance \(varianceName) requires type to be specified."
+        }
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: message)
+        return 0
+    }
+
+    if varianceIsNull {
+        return runtimeKTypeProjectionCreate(typeRaw: 0, variance: nil)
+    }
+    return runtimeKTypeProjectionCreate(
+        typeRaw: typeRaw,
+        variance: RuntimeKVariance(rawValue: decodedVarianceOrdinal) ?? .invariant
+    )
+}
+
+/// Returns the Kotlin declaration ordinal for a projection's variance, or null.
+@_cdecl("__kk_ktypeprojection_get_variance")
+public func __kk_ktypeprojection_get_variance(_ projectionRaw: Int) -> Int {
+    guard let box = runtimeKTypeProjectionBox(from: projectionRaw), let variance = box.variance else {
+        return runtimeNullSentinelInt
+    }
+    switch variance {
+    case .invariant:
+        return 0
+    case .in:
+        return 1
+    case .out:
+        return 2
+    }
+}
+
+/// Returns the projected KType handle, or null for a star projection.
+@_cdecl("__kk_ktypeprojection_get_type")
+public func __kk_ktypeprojection_get_type(_ projectionRaw: Int) -> Int {
+    guard let box = runtimeKTypeProjectionBox(from: projectionRaw), box.typeRaw != 0 else {
+        return runtimeNullSentinelInt
+    }
+    return box.typeRaw
 }
 
 /// Implements `typeOf<T>()` — creates a KType for the given type token.
@@ -1370,7 +2216,7 @@ public func kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) ->
 /// type token and nullability at the call site.
 @_cdecl("kk_typeof")
 public func kk_typeof(_ typeToken: Int, _ nameHint: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
-    let classifierRaw = kk_kclass_create(typeToken, nameHint)
+    let classifierRaw = __kk_kclass_create(typeToken, nameHint)
     return runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
 }
 
@@ -1387,6 +2233,20 @@ private func runtimeKTypeBox(from raw: Int) -> RuntimeKTypeBox? {
             return nil
         }
         return tryCast(ptr, to: RuntimeKTypeBox.self)
+    }
+}
+
+private func runtimeKTypeProjectionBox(from raw: Int) -> RuntimeKTypeProjectionBox? {
+    guard raw != 0, raw != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
+    else {
+        return nil
+    }
+    return runtimeStorage.withGCLock { state in
+        guard state.objectPointers.contains(UInt(bitPattern: ptr)) else {
+            return nil
+        }
+        return tryCast(ptr, to: RuntimeKTypeProjectionBox.self)
     }
 }
 
@@ -1468,6 +2328,73 @@ public func kk_object_register_vtable_method(
     return 0
 }
 
+/// Registers the most-specific user implementation of `Any.equals` for an
+/// object whose equality may later be evaluated through an erased type.
+@_cdecl("kk_object_register_equals_override")
+public func kk_object_register_equals_override(_ objectRaw: Int, _ functionRaw: Int) -> Int {
+    guard functionRaw != 0,
+          let objectPtr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return 0
+    }
+    let objectKey = UInt(bitPattern: objectPtr)
+    runtimeStorage.withMetadataLock { state in
+        state.objectEqualsOverrides[objectKey] = functionRaw
+    }
+    return 0
+}
+
+/// Registers the most-specific user implementation of `Any.hashCode` so that
+/// hashed collections, which only see an erased handle, honor it.
+@_cdecl("kk_object_register_hashcode_override")
+public func kk_object_register_hashcode_override(_ objectRaw: Int, _ functionRaw: Int) -> Int {
+    guard functionRaw != 0,
+          let objectPtr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return 0
+    }
+    let objectKey = UInt(bitPattern: objectPtr)
+    runtimeStorage.withMetadataLock { state in
+        state.objectHashCodeOverrides[objectKey] = functionRaw
+    }
+    return 0
+}
+
+@_cdecl("kk_object_register_any_to_string")
+public func kk_object_register_any_to_string(
+    _ objectRaw: Int,
+    _ functionRaw: Int
+) -> Int {
+    guard functionRaw != 0,
+          let objectPtr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return 0
+    }
+    let objectKey = UInt(bitPattern: objectPtr)
+    runtimeStorage.withMetadataLock { state in
+        state.objectAnyToStringMethods[objectKey] = functionRaw
+    }
+    return 0
+}
+
+/// Registers the Any-erased toString bridge for a value class. Value classes
+/// are represented by boxed underlying primitives at reference boundaries, so
+/// the nominal class ID is the stable dispatch key rather than an object
+/// pointer.
+@_cdecl("kk_value_class_register_any_to_string")
+public func kk_value_class_register_any_to_string(
+    _ classID: Int,
+    _ functionRaw: Int
+) -> Int {
+    guard classID != 0, functionRaw != 0 else {
+        return 0
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.valueClassAnyToStringMethods[Int64(classID)] = functionRaw
+    }
+    return 0
+}
+
 @_cdecl("kk_array_get")
 public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -1486,12 +2413,15 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
 
 @_cdecl("kk_array_get_inbounds")
 public func kk_array_get_inbounds(_ arrayRaw: Int, _ index: Int) -> Int {
+    // Uses the O(1) subscript rather than `elements`, which copies the whole
+    // backing store on every access. This is the hot path for object field
+    // reads as well as array indexing.
     guard let array = runtimeArrayBox(from: arrayRaw),
-          array.elements.indices.contains(index)
+          index >= 0, index < array.count
     else {
         runtimeStructuredPanic("kk_array_get_inbounds precondition failed")
     }
-    return array.elements[index]
+    return array[index]
 }
 
 @_cdecl("kk_array_set")
@@ -1511,18 +2441,42 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
     return value
 }
 
+/// Stores an object field together with its static Any-fallback type tag.
+/// Generated data-class constructors use this non-throwing entry point after
+/// the normal inbounds layout checks have been performed by lowering.
+@_cdecl("kk_array_set_typed")
+public func kk_array_set_typed(
+    _ arrayRaw: Int,
+    _ index: Int,
+    _ value: Int,
+    _ anyFallbackTag: Int
+) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw),
+          index >= 0,
+          index < array.count
+    else {
+        return 0
+    }
+    array.setValue(
+        value,
+        at: index,
+        anyFallbackTag: Int32(truncatingIfNeeded: anyFallbackTag)
+    )
+    return value
+}
+
 @_cdecl("kk_vararg_spread_concat")
 public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> Int {
     guard let pairs = runtimeArrayBox(from: pairsArrayRaw),
           pairCount > 0,
-          pairs.elements.count >= pairCount * 2 else { return kk_array_new(0) }
+          pairs.count >= pairCount * 2 else { return kk_array_new(0) }
     var totalCount = 0
     for i in 0 ..< pairCount {
-        let marker = pairs.elements[i * 2]
-        let value = pairs.elements[i * 2 + 1]
+        let marker = pairs[i * 2]
+        let value = pairs[i * 2 + 1]
         if marker == -1 {
-            if let array = runtimeArrayBox(from: value) {
-                totalCount += array.elements.count
+            if let values = runtimeSpreadSourceValues(from: value) {
+                totalCount += values.count
             }
         } else {
             totalCount += 1
@@ -1532,17 +2486,25 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     if let box = runtimeArrayBox(from: result) {
         var writeIndex = 0
         for i in 0 ..< pairCount {
-            let marker = pairs.elements[i * 2]
-            let value = pairs.elements[i * 2 + 1]
+            let marker = pairs[i * 2]
+            let sourceValue = pairs.values[i * 2 + 1]
             if marker == -1 {
-                if let array = runtimeArrayBox(from: value) {
-                    for elem in array.elements {
-                        box.elements[writeIndex] = elem
+                if let values = runtimeSpreadSourceValues(from: sourceValue.legacyRawValue) {
+                    for element in values {
+                        box.setValue(
+                            element.legacyRawValue,
+                            at: writeIndex,
+                            anyFallbackTag: element.anyFallbackTag
+                        )
                         writeIndex += 1
                     }
                 }
             } else {
-                box.elements[writeIndex] = value
+                box.setValue(
+                    sourceValue.legacyRawValue,
+                    at: writeIndex,
+                    anyFallbackTag: sourceValue.anyFallbackTag
+                )
                 writeIndex += 1
             }
         }
@@ -1550,237 +2512,12 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     return result
 }
 
-@_cdecl("kk_println_any")
-public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
-    let intValue = if let ptr = obj {
-        Int(bitPattern: ptr)
-    } else {
-        0
-    }
-    if intValue == runtimeNullSentinelInt {
-        Swift.print("null")
-        return
-    }
-    guard let raw = obj else {
-        Swift.print(intValue)
-        return
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: raw))
-    }
-    if !isObjectPointer {
-        Swift.print(intValue)
-        return
-    }
-    if let boolBox = tryCast(raw, to: RuntimeBoolBox.self) {
-        Swift.print(boolBox.value ? "true" : "false")
-        return
-    }
-    if let intBox = tryCast(raw, to: RuntimeIntBox.self) {
-        Swift.print(intBox.value)
-        return
-    }
-    if let stringBox = tryCast(raw, to: RuntimeStringBox.self) {
-        Swift.print(stringBox.value)
-        return
-    }
-    if let doubleBox = tryCast(raw, to: RuntimeDoubleBox.self) {
-        Swift.print(runtimeFormatFloatingPoint(doubleBox.value))
-        return
-    }
-    if let floatBox = tryCast(raw, to: RuntimeFloatBox.self) {
-        Swift.print(runtimeFormatFloatingPoint(floatBox.value))
-        return
-    }
-    if let longBox = tryCast(raw, to: RuntimeLongBox.self) {
-        Swift.print(longBox.value)
-        return
-    }
-    if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
-        Swift.print("Throwable(\(throwable.renderedMessage))")
-        return
-    }
-    if let charBox = tryCast(raw, to: RuntimeCharBox.self) {
-        if let scalar = UnicodeScalar(charBox.value) {
-            Swift.print(Character(scalar))
-        } else {
-            Swift.print("?")
-        }
-        return
-    }
-    if let listBox = tryCast(raw, to: RuntimeListBox.self) {
-        let rendered = listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
-        Swift.print("[\(rendered)]")
-        return
-    }
-    if let setBox = tryCast(raw, to: RuntimeSetBox.self) {
-        let rendered = setBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
-        Swift.print("[\(rendered)]")
-        return
-    }
-    if let mapBox = tryCast(raw, to: RuntimeMapBox.self) {
-        let rendered = zip(mapBox.keyValues, mapBox.entryValues).map { key, value in
-            "\(runtimeRenderAnyForPrint(key))=\(runtimeRenderAnyForPrint(value))"
-        }.joined(separator: ", ")
-        Swift.print("{\(rendered)}")
-        return
-    }
-    if tryCast(raw, to: RuntimeRangeBox.self) != nil {
-        Swift.print(runtimeElementToString(intValue))
-        return
-    }
-    if let pairBox = tryCast(raw, to: RuntimePairBox.self) {
-        let first = runtimeRenderAnyForPrint(pairBox.firstValue)
-        let second = runtimeRenderAnyForPrint(pairBox.secondValue)
-        if runtimeIsMapEntry(rawValue: intValue) {
-            Swift.print("\(first)=\(second)")
-        } else if runtimeObjectTypeID(rawValue: intValue) == indexedValueRuntimeTypeID {
-            Swift.print("IndexedValue(index=\(first), value=\(second))")
-        } else {
-            Swift.print("(\(first), \(second))")
-        }
-        return
-    }
-    if let tripleBox = tryCast(raw, to: RuntimeTripleBox.self) {
-        let first = runtimeRenderAnyForPrint(tripleBox.first)
-        let second = runtimeRenderAnyForPrint(tripleBox.second)
-        let third = runtimeRenderAnyForPrint(tripleBox.third)
-        Swift.print("(\(first), \(second), \(third))")
-        return
-    }
-    if tryCast(raw, to: RuntimeIndexingIterableBox.self) != nil {
-        let hex = String(format: "%x", UInt(bitPattern: raw) % 0x1_0000_0000)
-        Swift.print("kotlin.collections.IndexingIterable@\(hex)")
-        return
-    }
-    if let iterableBox = tryCast(raw, to: RuntimeStringIterableBox.self) {
-        Swift.print(runtimeRenderStringIterableForPrint(iterableBox.source))
-        return
-    }
-    if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let rendered = arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
-        Swift.print("[\(rendered)]")
-        return
-    }
-    if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
-        Swift.print(sbBox.value)
-        return
-    }
-    // STDLIB-REFLECT-066: KType toString
-    if let ktypeBox = tryCast(raw, to: RuntimeKTypeBox.self) {
-        let str = runtimeKTypeToString(ktypeBox)
-        Swift.print(str)
-        return
-    }
-    Swift.print("<object \(raw)>")
-}
-
-@_cdecl("kk_println_string_flat")
-public func kk_println_string_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        Swift.print("null")
-        return 0
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    Swift.print(String(decoding: buffer, as: UTF8.self))
-    return 0
-}
-
-/// Runtime support for printing aggregate String values without a trailing newline.
-@_cdecl("kk_print_string_flat")
-public func kk_print_string_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        Swift.print("null", terminator: "")
-        return 0
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    Swift.print(String(decoding: buffer, as: UTF8.self), terminator: "")
-    return 0
-}
-
-/// Runtime support for kotlin.io.print(message) (no newline).
-@_cdecl("kk_print_any")
-public func kk_print_any(_ obj: UnsafeMutableRawPointer?) {
-    let intValue = if let ptr = obj { Int(bitPattern: ptr) } else { 0 }
-    Swift.print(runtimeRenderAnyForPrint(intValue), terminator: "")
-}
-
-/// Runtime support for kotlin.io.print() with no arguments (STDLIB-572).
-/// Prints nothing (no output, no newline).
-@_cdecl("kk_print_noarg")
-public func kk_print_noarg() {
-    // Intentionally empty — Kotlin's print() with no args is a no-op.
-}
-
-/// Runtime support for kotlin.io.println() (STDLIB-063).
-/// Prints a newline with no arguments.
-@_cdecl("kk_println_newline")
-public func kk_println_newline() {
-    Swift.print()
-}
-
-/// Runtime support for kotlin.io.DEFAULT_BUFFER_SIZE.
-@_cdecl("kk_io_default_buffer_size")
-public func kk_io_default_buffer_size() -> Int {
-    8192
-}
-
-/// Runtime support for kotlin.io.readLine() (STDLIB-063).
-/// Reads a line from stdin. Returns null (runtimeNullSentinelInt) on EOF.
-@_cdecl("kk_readline")
-public func kk_readline() -> Int {
-    guard let line = readLine() else {
-        return runtimeNullSentinelInt
-    }
-    let utf8 = Array(line.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Runtime support for kotlin.io.readln() (STDLIB-130).
-@_cdecl("kk_readln")
-public func kk_readln(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let line = readLine() else {
-        outThrown?.pointee = runtimeAllocateRuntimeException(message: "EOF has already been reached")
-        return 0
-    }
-    let utf8 = Array(line.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Runtime support for kotlin.io.readlnOrNull() (STDLIB-571).
-/// Reads a line from stdin. Returns null (runtimeNullSentinelInt) on EOF
-/// instead of throwing.
-@_cdecl("kk_readlnOrNull")
-public func kk_readlnOrNull() -> Int {
+/// KSP-615: single low-level console input bridge behind `kotlin.io.readLine` /
+/// `readln` / `readlnOrNull`. Reads a line from stdin. Returns a pointer to a
+/// runtime string on success, or `runtimeNullSentinelInt` on EOF; nullability
+/// and the `readln` EOF throw live in `Stdlib/kotlin/io/Console.kt`.
+@_cdecl("__kk_readline_raw")
+public func __kk_readline_raw() -> Int {
     guard let line = readLine() else {
         return runtimeNullSentinelInt
     }
@@ -1809,11 +2546,14 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     guard isObjectPointer else {
         return String(value)
     }
+    if runtimeIsUnitBox(value) {
+        return "kotlin.Unit"
+    }
     if let boolBox = tryCast(raw, to: RuntimeBoolBox.self) {
         return boolBox.value ? "true" : "false"
     }
     if let intBox = tryCast(raw, to: RuntimeIntBox.self) {
-        return String(intBox.value)
+        return intBox.enumEntryName ?? String(intBox.value)
     }
     if let stringBox = tryCast(raw, to: RuntimeStringBox.self) {
         return stringBox.value
@@ -1827,14 +2567,20 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let longBox = tryCast(raw, to: RuntimeLongBox.self) {
         return String(longBox.value)
     }
+    if let ulongBox = tryCast(raw, to: RuntimeULongBox.self) {
+        return String(UInt(bitPattern: ulongBox.value))
+    }
     if let charBox = tryCast(raw, to: RuntimeCharBox.self) {
         if let scalar = UnicodeScalar(charBox.value) {
             return String(Character(scalar))
         }
         return "?"
     }
-    if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
-        return "Throwable(\(throwable.renderedMessage))"
+    if let throwableString = runtimeThrowableToString(value) {
+        return throwableString
+    }
+    if let instantBox = tryCast(raw, to: RuntimeInstantBox.self) {
+        return runtimeInstantToString(instantBox)
     }
     if let listBox = tryCast(raw, to: RuntimeListBox.self) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
@@ -1851,6 +2597,11 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if tryCast(raw, to: RuntimeRangeBox.self) != nil {
         return runtimeElementToString(value)
     }
+    if tryCast(raw, to: RuntimeDoubleRangeBox.self) != nil
+        || tryCast(raw, to: RuntimeFloatRangeBox.self) != nil
+    {
+        return runtimeElementToString(value)
+    }
     if let pairBox = tryCast(raw, to: RuntimePairBox.self) {
         let first = runtimeRenderAnyForPrint(pairBox.firstValue)
         let second = runtimeRenderAnyForPrint(pairBox.secondValue)
@@ -1863,23 +2614,20 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "(\(first), \(second))"
     }
     if let tripleBox = tryCast(raw, to: RuntimeTripleBox.self) {
-        let first = runtimeRenderAnyForPrint(tripleBox.first)
-        let second = runtimeRenderAnyForPrint(tripleBox.second)
-        let third = runtimeRenderAnyForPrint(tripleBox.third)
+        let first = runtimeRenderAnyForPrint(tripleBox.firstValue)
+        let second = runtimeRenderAnyForPrint(tripleBox.secondValue)
+        let third = runtimeRenderAnyForPrint(tripleBox.thirdValue)
         return "(\(first), \(second), \(third))"
     }
     if tryCast(raw, to: RuntimeIndexingIterableBox.self) != nil {
         let hex = String(format: "%x", UInt(bitPattern: raw) % 0x1_0000_0000)
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
-    if let iterableBox = tryCast(raw, to: RuntimeStringIterableBox.self) {
-        return runtimeRenderStringIterableForPrint(iterableBox.source)
-    }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
-        return sbBox.value
+        return sbBox.stringValue
     }
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)
@@ -1887,6 +2635,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     // STDLIB-REFLECT-066: KType rendering
     if let ktypeBox = tryCast(raw, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
+    }
+    if let rendered = runtimeRenderIndexedValueObject(value, render: runtimeRenderAnyForPrint) {
+        return rendered
     }
     return "<object \(raw)>"
 }
@@ -1908,11 +2659,6 @@ func runtimeRenderAnyForPrint(_ value: RuntimeValue) -> String {
     default:
         return runtimeRenderAnyForPrint(value.payload0)
     }
-}
-
-private func runtimeRenderStringIterableForPrint(_ string: String) -> String {
-    let rendered = string.unicodeScalars.map { String(Character($0)) }.joined(separator: ", ")
-    return "[\(rendered)]"
 }
 
 private func runtimeNormalizeScientificExponent(_ rendered: String) -> String {
@@ -2055,14 +2801,6 @@ public func kk_string_isNullOrEmpty_flat(
     return str.isEmpty ? 1 : 0
 }
 
-@_cdecl("kk_string_isNullOrEmpty")
-public func kk_string_isNullOrEmpty(_ strRaw: Int) -> Int {
-    guard let str = runtimeStringFromRaw(strRaw) else {
-        return 1
-    }
-    return str.isEmpty ? 1 : 0
-}
-
 @_cdecl("kk_string_isNullOrBlank_flat")
 public func kk_string_isNullOrBlank_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -2106,44 +2844,4 @@ public func kk_string_orEmpty_flat(
         outByteCount: outByteCount,
         outHash: outHash
     )
-}
-
-// MARK: - System call wrappers for console I/O
-
-@_cdecl("kk_sys_write")
-public func kk_sys_write(_ fd: Int32, _ buffer: UnsafeRawPointer, _ count: Int) -> Int {
-    return write(fd, buffer, count)
-}
-
-// MARK: - Read from stdin using system calls
-
-@_cdecl("kk_readln_from_syscall")
-public func kk_readln_from_syscall(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    var buffer = [UInt8](repeating: 0, count: 4096)
-    var pos = 0
-
-    while pos < buffer.count {
-        let result = read(STDIN_FILENO, &buffer[pos], 1)
-        if result < 0 {
-            // Error
-            outThrown?.pointee = runtimeAllocateThrowable(message: "Read error")
-            return 0
-        }
-        if result == 0 {
-            // EOF
-            if pos == 0 {
-                return runtimeNullSentinelInt
-            }
-            break
-        }
-        if buffer[pos] == UInt8(ascii: "\n") {
-            break
-        }
-        pos += 1
-    }
-
-    return buffer.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(pos)))
-    }
 }

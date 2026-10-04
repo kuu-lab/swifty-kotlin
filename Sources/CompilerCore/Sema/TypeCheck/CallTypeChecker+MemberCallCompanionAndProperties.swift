@@ -26,6 +26,10 @@ extension CallTypeChecker {
                 if let fieldType = sema.symbols.propertyType(for: candidate) {
                     return (candidate, fieldType)
                 }
+            case .property where candidateSymbol.flags.contains(.static):
+                if let propertyType = sema.symbols.propertyType(for: candidate) {
+                    return (candidate, propertyType)
+                }
             case .object:
                 let objectType = sema.types.make(.classType(ClassType(
                     classSymbol: candidate,
@@ -46,7 +50,9 @@ extension CallTypeChecker {
         range: SourceRange,
         receiverType: TypeID,
         expectedType: TypeID?,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        preferredSourcePackage: [InternedString]? = nil,
+        bindCall: Bool = true
     ) -> TypeID? {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
@@ -55,6 +61,8 @@ extension CallTypeChecker {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
                   !requireSynthetic || symbol.flags.contains(.synthetic),
+                  preferredSourcePackage == nil
+                      || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
                   extensionSyntheticFallbackReceiverMatches(
                       callSiteReceiver: receiverType,
@@ -67,6 +75,45 @@ extension CallTypeChecker {
             }
             if !getterCandidates.contains(getterAccessor) {
                 getterCandidates.append(getterAccessor)
+            }
+        }
+        func isUnavailableKotlinMathProperty(_ candidate: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return false
+            }
+            let kotlinMathPackage = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("math"),
+            ]
+            guard Array(symbol.fqName.dropLast()) == kotlinMathPackage else {
+                return false
+            }
+            guard let sourceFile = ctx.currentASTFile else {
+                return true
+            }
+            if sourceFile.packageFQName == kotlinMathPackage {
+                return false
+            }
+            return !sourceFile.imports.contains { importDecl in
+                importDecl.path == kotlinMathPackage
+                    || importDecl.path == symbol.fqName
+            }
+        }
+        // Canonical and legacy atomic aliases expand to the same runtime class,
+        // so a source-backed extension property must be selected by the package
+        // imported at the call site rather than by nominal type alone.
+        if let preferredSourcePackage {
+            let sourceCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .property,
+                      Array(symbol.fqName.dropLast()) == preferredSourcePackage
+                else {
+                    return false
+                }
+                return true
+            }
+            for candidate in sourceCandidates {
+                collectGetterCandidate(from: candidate, requireSynthetic: false)
             }
         }
         for candidate in visible {
@@ -83,11 +130,33 @@ extension CallTypeChecker {
                 collectGetterCandidate(from: candidate, requireSynthetic: true)
             }
         }
+        // Imported library extension properties are intentionally omitted from
+        // file scopes and are resolved through member lookup instead. Recover
+        // their synthetic accessors by short name when scope lookup found none;
+        // the receiver check keeps this fallback type-directed.
+        if getterCandidates.isEmpty {
+            for candidate in sema.symbols.lookupByShortName(calleeName)
+                where !isUnavailableKotlinMathProperty(candidate)
+            {
+                collectGetterCandidate(from: candidate, requireSynthetic: true)
+            }
+        }
+        // Bundled stdlib source extension properties are not necessarily in the
+        // consumer file scope. Recover their accessors by short name as well;
+        // the receiver check above keeps this fallback type-directed.
+        if getterCandidates.isEmpty {
+            for candidate in sema.symbols.lookupByShortName(calleeName)
+                where sema.symbols.isSourceBackedSymbol(candidate)
+                    && !isUnavailableKotlinMathProperty(candidate)
+            {
+                collectGetterCandidate(from: candidate, requireSynthetic: false)
+            }
+        }
         guard !getterCandidates.isEmpty else {
             return nil
         }
 
-        let resolved = ctx.resolver.resolveCall(
+        var resolved = ctx.resolver.resolveCall(
             candidates: getterCandidates,
             call: CallExpr(
                 range: range,
@@ -98,6 +167,25 @@ extension CallTypeChecker {
             implicitReceiverType: receiverType,
             ctx: ctx.semaCtx
         )
+        // A property can be used where a contravariant generic type is
+        // expected (for example Comparator<String> passed to sortedWith's
+        // Comparator<in String> parameter).  The callable resolver's
+        // expected-return-type check is stricter than Kotlin's variance rule;
+        // retry without that contextual constraint after receiver filtering so
+        // the unique source-backed getter still resolves.
+        if resolved.chosenCallee == nil, expectedType != nil {
+            resolved = ctx.resolver.resolveCall(
+                candidates: getterCandidates,
+                call: CallExpr(
+                    range: range,
+                    calleeName: calleeName,
+                    args: []
+                ),
+                expectedType: nil,
+                implicitReceiverType: receiverType,
+                ctx: ctx.semaCtx
+            )
+        }
         if resolved.diagnostic != nil {
             return nil
         }
@@ -105,19 +193,27 @@ extension CallTypeChecker {
             return nil
         }
 
-        sema.bindings.bindCall(
-            id,
-            binding: CallBinding(
-                chosenCallee: chosen,
-                substitutedTypeArguments: resolved.substitutedTypeArguments
-                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                    .map(\.value),
-                parameterMapping: resolved.parameterMapping
+        if bindCall {
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                        .map(\.value),
+                    parameterMapping: resolved.parameterMapping
+                )
             )
-        )
-        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        }
         let deprecationCheckTarget: SymbolID
-        if let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen) {
+        // Compound assignment (`bindCall == false`) reads the selected property
+        // directly, so its l-value needs the parent-property identifier binding.
+        // Plain reads keep the accessor-owner-only behaviour so lowering still
+        // dispatches through the getter call binding.
+        let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
+            ?? (bindCall ? nil : sema.symbols.parentSymbol(for: chosen))
+        if let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
             deprecationCheckTarget = ownerProperty
         } else {
@@ -145,5 +241,112 @@ extension CallTypeChecker {
             substitution: resolved.substitutedTypeArguments,
             typeVarBySymbol: typeVarBySymbol
         )
+    }
+
+    /// Setter counterpart of `resolveExtensionPropertyGetter`: an extension
+    /// `var` written through an explicit receiver (`a.value = x`) is not found
+    /// by `lookupMemberProperty` — its symbol lives at package scope — so
+    /// `memberAssign` never bound it and KIR fell back to a call named after
+    /// the property, which failed to link. Resolves the property through the
+    /// same candidate sources the getter uses and binds it (plus the setter
+    /// accessor as the call target) so lowering can route the write through
+    /// the registered setter accessor.
+    func resolveExtensionPropertySetter(
+        id: ExprID,
+        calleeName: InternedString,
+        range: SourceRange,
+        receiverType: TypeID,
+        valueType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        let sema = ctx.sema
+        var setterCandidates: [SymbolID] = []
+        var propertyForSetter: [SymbolID: SymbolID] = [:]
+        func collectSetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .property,
+                  !requireSynthetic || symbol.flags.contains(.synthetic),
+                  let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
+                  extensionSyntheticFallbackReceiverMatches(
+                      callSiteReceiver: receiverType,
+                      declaredReceiver: receiver,
+                      sema: sema
+                  ),
+                  let setterAccessor = sema.symbols.extensionPropertySetterAccessor(for: candidate)
+            else {
+                return
+            }
+            if !setterCandidates.contains(setterAccessor) {
+                setterCandidates.append(setterAccessor)
+                propertyForSetter[setterAccessor] = candidate
+            }
+        }
+        for candidate in ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible {
+            collectSetterCandidate(from: candidate, requireSynthetic: false)
+        }
+        // Bundled stdlib source extension properties are not necessarily in the
+        // consumer file scope; recover them by short name, mirroring the
+        // getter-side fallbacks (imported/synthetic props last).
+        if setterCandidates.isEmpty {
+            for candidate in sema.symbols.lookupByShortName(calleeName)
+                where sema.symbols.isSourceBackedSymbol(candidate)
+            {
+                collectSetterCandidate(from: candidate, requireSynthetic: false)
+            }
+        }
+        if setterCandidates.isEmpty {
+            for candidate in sema.symbols.lookupByShortName(calleeName) {
+                collectSetterCandidate(from: candidate, requireSynthetic: true)
+            }
+        }
+        guard !setterCandidates.isEmpty else {
+            return nil
+        }
+
+        let resolved = ctx.resolver.resolveCall(
+            candidates: setterCandidates,
+            call: CallExpr(
+                range: range,
+                calleeName: calleeName,
+                args: [CallArg(type: valueType)]
+            ),
+            expectedType: nil,
+            implicitReceiverType: receiverType,
+            ctx: ctx.semaCtx
+        )
+        guard resolved.diagnostic == nil,
+              let chosen = resolved.chosenCallee,
+              let propertySymbol = propertyForSetter[chosen]
+                  ?? sema.symbols.accessorOwnerProperty(for: chosen)
+        else {
+            return nil
+        }
+
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: resolved.substitutedTypeArguments
+                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                    .map(\.value),
+                parameterMapping: resolved.parameterMapping
+            )
+        )
+        sema.bindings.bindIdentifier(id, symbol: propertySymbol)
+        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        driver.helpers.checkDeprecation(
+            for: propertySymbol,
+            sema: sema,
+            interner: ctx.interner,
+            range: range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        driver.helpers.checkOptIn(
+            for: propertySymbol,
+            ctx: ctx,
+            range: range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        return propertySymbol
     }
 }

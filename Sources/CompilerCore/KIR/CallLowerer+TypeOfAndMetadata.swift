@@ -18,10 +18,17 @@ extension CallLowerer {
             return nil
         }
 
-        guard let callee = ast.arena.expr(calleeExpr),
-              case let .nameRef(name, _) = callee,
-              interner.resolve(name) == "typeOf"
-        else {
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard let callee = ast.arena.expr(calleeExpr) else {
+            return nil
+        }
+        switch callee {
+        case let .nameRef(name, _):
+            guard name == knownNames.typeOf else { return nil }
+        case let .memberCall(_, member, _, _, _):
+            // Fully-qualified `kotlin.reflect.typeOf<T>()` (KSP-1323).
+            guard member == knownNames.typeOf else { return nil }
+        default:
             return nil
         }
 
@@ -115,7 +122,7 @@ extension CallLowerer {
                 let projectionExpr = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_ktypeprojection_create"),
+                    callee: interner.intern("__kk_ktypeprojection_create"),
                     arguments: [typeRawExpr, varianceExpr],
                     result: projectionExpr,
                     canThrow: false,
@@ -168,7 +175,7 @@ extension CallLowerer {
                 argsListExpr = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_list_of"),
+                    callee: interner.intern("__kk_list_of"),
                     arguments: [arrayExpr, countExpr],
                     result: argsListExpr,
                     canThrow: false,
@@ -198,7 +205,7 @@ extension CallLowerer {
 
     // MARK: - REFL-005: KClass Metadata Registration for Constructor Calls
 
-    /// Emits a `kk_kclass_register_metadata` call so that `KClass` reflection
+    /// Emits a `__kk_kclass_register_metadata` call so that `KClass` reflection
     /// queries (`.members`, `.constructors`, etc.) return correct data.
     /// This mirrors `ObjectLiteralLowerer.registerKClassMetadata` but is used
     /// for regular class constructor invocations.
@@ -298,21 +305,12 @@ extension CallLowerer {
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_kclass_register_metadata"),
+            callee: interner.intern("__kk_kclass_register_metadata"),
             arguments: [typeTokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
             result: registerResult,
             canThrow: false,
             thrownResult: nil
         ))
-
-        emitDataClassFieldRegistration(
-            objectSymbol: objectSymbol,
-            classID: typeID,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        )
 
         // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(

@@ -1,13 +1,15 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    func parseImportedInlineFunction(
+    static func parseImportedInlineFunction(
         path: String,
         importedSymbol: SymbolID,
-        parameterCount: Int,
+        signature: FunctionSignature?,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        externalLinkNameToSymbol: [String: SymbolID],
+        importedSymbolByFQName: [String: SymbolID]
     ) -> KIRFunction? {
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             diagnostics.warning(
@@ -19,7 +21,8 @@ extension DataFlowSemaPhase {
         }
 
         var functionName = interner.intern("__imported_inline_\(importedSymbol.rawValue)")
-        var parsedParameterCount = max(0, parameterCount)
+        let signatureParameterCount = (signature?.receiverType != nil ? 1 : 0) + (signature?.parameterTypes.count ?? 0)
+        var parsedParameterCount = max(0, signatureParameterCount)
         var parsedParameterSymbols: [Int32] = []
         var isSuspend = false
         var bodyLines: [String] = []
@@ -28,7 +31,7 @@ extension DataFlowSemaPhase {
         // Bound the number of KIR parameters that can be requested by an
         // untrusted inline KIR artifact.  This prevents a tiny `params=<huge>`
         // line from driving a billion-iteration allocation loop.
-        let maxAllowedParameterCount = 100_000
+        let maxAllowedParameterCount = ImportedLibraryLimits.maxCallableArity
 
         for rawLine in content.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -93,9 +96,23 @@ extension DataFlowSemaPhase {
         }
         var params: [KIRParameter] = []
         var parameterSymbolMapping: [Int32: SymbolID] = [:]
+        let hasReceiver = signature?.receiverType != nil
         for index in 0 ..< parsedParameterCount {
             let localSymbol = importedInlineParameterSymbol(functionSymbol: importedSymbol, index: index)
-            params.append(KIRParameter(symbol: localSymbol, type: types.anyType))
+            let paramType: TypeID
+            if let signature, index == 0, let receiverType = signature.receiverType {
+                paramType = receiverType
+            } else if let signature, index < parsedParameterCount {
+                let parameterIndex = index - (hasReceiver ? 1 : 0)
+                if parameterIndex >= 0 && parameterIndex < signature.parameterTypes.count {
+                    paramType = signature.parameterTypes[parameterIndex]
+                } else {
+                    paramType = types.anyType
+                }
+            } else {
+                paramType = types.anyType
+            }
+            params.append(KIRParameter(symbol: localSymbol, type: paramType))
             if index < parsedParameterSymbols.count {
                 parameterSymbolMapping[parsedParameterSymbols[index]] = localSymbol
             }
@@ -106,45 +123,119 @@ extension DataFlowSemaPhase {
         var importLabelCounter: Int32 = 900_000
         var importExprCounter: Int32 = 900_000
         for line in bodyLines {
-            let instructions = parseImportedInlineInstructions(
+            guard let instructions = parseImportedInlineInstructions(
                 line: line,
                 parameterSymbolMapping: parameterSymbolMapping,
                 interner: interner,
                 labelCounter: &importLabelCounter,
-                exprCounter: &importExprCounter
-            )
+                exprCounter: &importExprCounter,
+                externalLinkNameToSymbol: externalLinkNameToSymbol,
+                importedSymbolByFQName: importedSymbolByFQName
+            ) else {
+                // Dropping a single instruction leaves the remaining ones reading
+                // registers that are never defined, which silently miscompiles the
+                // call site. Skip the inline body entirely instead so the call
+                // keeps targeting the library function.
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0023",
+                    "Unsupported instruction in inline KIR artifact '\(path)'; the function will not be inlined",
+                    range: nil
+                )
+                return nil
+            }
             body.append(contentsOf: instructions)
         }
         if body.isEmpty {
             body = [.returnUnit]
         }
+        body = body.map(shiftImportedInlineExprIDs)
 
         return KIRFunction(
             symbol: importedSymbol,
             name: functionName,
             params: params,
-            returnType: types.anyType,
+            returnType: signature?.returnType ?? types.anyType,
             body: body,
             isSuspend: isSuspend,
             isInline: true
         )
     }
 
-    private func importedInlineParameterSymbol(functionSymbol: SymbolID, index: Int) -> SymbolID {
+    /// Expression IDs in an inline KIR artifact are the ones the library used
+    /// when it was compiled, so they would otherwise alias unrelated
+    /// expressions of the importing module — inline expansion looks types and
+    /// expression kinds up by ID in the importing arena and would read whatever
+    /// happens to sit at the same index. Shifting them out of that range keeps
+    /// an imported body's expressions unresolvable there, which is the correct
+    /// answer: the artifact carries no expression types.
+    private static let importedInlineExprIDBase: Int32 = 4_000_000
+
+    private static func shiftImportedInlineExprIDs(_ instruction: KIRInstruction) -> KIRInstruction {
+        func shift(_ id: KIRExprID) -> KIRExprID {
+            KIRExprID(rawValue: Self.importedInlineExprIDBase &+ id.rawValue)
+        }
+        switch instruction {
+        case .nop, .beginBlock, .endBlock, .label, .jump, .returnUnit,
+             .beginFinallyGuard, .endFinallyGuard:
+            return instruction
+        case let .jumpIfEqual(lhs, rhs, target):
+            return .jumpIfEqual(lhs: shift(lhs), rhs: shift(rhs), target: target)
+        case let .constValue(result, value):
+            return .constValue(result: shift(result), value: value)
+        case let .binary(op, lhs, rhs, result):
+            return .binary(op: op, lhs: shift(lhs), rhs: shift(rhs), result: shift(result))
+        case let .unary(op, operand, result):
+            return .unary(op: op, operand: shift(operand), result: shift(result))
+        case let .nullAssert(operand, result):
+            return .nullAssert(operand: shift(operand), result: shift(result))
+        case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+            return .call(
+                symbol: symbol, callee: callee, arguments: arguments.map(shift),
+                result: result.map(shift), canThrow: canThrow, thrownResult: thrownResult.map(shift),
+                isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+            )
+        case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
+            return .virtualCall(
+                symbol: symbol, callee: callee, receiver: shift(receiver),
+                arguments: arguments.map(shift), result: result.map(shift),
+                canThrow: canThrow, thrownResult: thrownResult.map(shift), dispatch: dispatch
+            )
+        case let .jumpIfNotNull(value, target):
+            return .jumpIfNotNull(value: shift(value), target: target)
+        case let .copy(from, to):
+            return .copy(from: shift(from), to: shift(to))
+        case let .storeGlobal(value, symbol):
+            return .storeGlobal(value: shift(value), symbol: symbol)
+        case let .loadGlobal(result, symbol):
+            return .loadGlobal(result: shift(result), symbol: symbol)
+        case let .rethrow(value):
+            return .rethrow(value: shift(value))
+        case let .returnIfEqual(lhs, rhs):
+            return .returnIfEqual(lhs: shift(lhs), rhs: shift(rhs))
+        case let .returnValue(value):
+            return .returnValue(shift(value))
+        case let .nonLocalReturn(value):
+            return .nonLocalReturn(value.map(shift))
+        }
+    }
+
+    private static func importedInlineParameterSymbol(functionSymbol: SymbolID, index: Int) -> SymbolID {
         let raw = Int32(truncatingIfNeeded: Int64(-200_000) - Int64(functionSymbol.rawValue) * 64 - Int64(index))
         return SymbolID(rawValue: raw)
     }
 
-    private func parseImportedInlineInstructions(
+    private static func parseImportedInlineInstructions(
         line: String,
         parameterSymbolMapping: [Int32: SymbolID],
         interner: StringInterner,
         labelCounter: inout Int32,
-        exprCounter: inout Int32
-    ) -> [KIRInstruction] {
+        exprCounter: inout Int32,
+        externalLinkNameToSymbol: [String: SymbolID],
+        importedSymbolByFQName: [String: SymbolID]
+    ) -> [KIRInstruction]? {
         let parts = line.split(separator: " ")
         guard let opcode = parts.first else {
-            return []
+            return nil
         }
         let pairs = parseInlineKeyValuePairs(parts.dropFirst())
 
@@ -155,7 +246,7 @@ extension DataFlowSemaPhase {
                   let elseRaw = pairs["else"], let elseValue = Int32(elseRaw),
                   let resultRaw = pairs["result"], let result = Int32(resultRaw)
             else {
-                return []
+                return nil
             }
             let elseLabel = labelCounter
             let endLabel = labelCounter + 1
@@ -180,19 +271,30 @@ extension DataFlowSemaPhase {
             pairs: pairs,
             opcode: opcode,
             parameterSymbolMapping: parameterSymbolMapping,
-            interner: interner
+            interner: interner,
+            externalLinkNameToSymbol: externalLinkNameToSymbol,
+            importedSymbolByFQName: importedSymbolByFQName
         ) else {
-            return []
+            return nil
         }
         return [instruction]
     }
 
-    private func parseImportedInlineInstruction(
+    private static func parseImportedLabelID(_ raw: String?) -> Int32? {
+        guard let raw, let id = Int32(raw), id >= 0, id <= InlineLabelAllocator.maxSupportedLabel else {
+            return nil
+        }
+        return id
+    }
+
+    private static func parseImportedInlineInstruction(
         line _: String,
         pairs: [String: String],
         opcode: Substring,
         parameterSymbolMapping: [Int32: SymbolID],
-        interner: StringInterner
+        interner: StringInterner,
+        externalLinkNameToSymbol: [String: SymbolID],
+        importedSymbolByFQName: [String: SymbolID]
     ) -> KIRInstruction? {
         switch opcode {
         case "nop":
@@ -202,15 +304,15 @@ extension DataFlowSemaPhase {
         case "endBlock":
             return .endBlock
         case "label":
-            guard let raw = pairs["id"], let id = Int32(raw) else { return nil }
+            guard let id = parseImportedLabelID(pairs["id"]) else { return nil }
             return .label(id)
         case "jump":
-            guard let raw = pairs["target"], let target = Int32(raw) else { return nil }
+            guard let target = parseImportedLabelID(pairs["target"]) else { return nil }
             return .jump(target)
         case "jumpIfEqual":
             guard let lhsRaw = pairs["lhs"], let lhs = Int32(lhsRaw),
                   let rhsRaw = pairs["rhs"], let rhs = Int32(rhsRaw),
-                  let targetRaw = pairs["target"], let target = Int32(targetRaw)
+                  let target = parseImportedLabelID(pairs["target"])
             else {
                 return nil
             }
@@ -225,7 +327,8 @@ extension DataFlowSemaPhase {
                   let value = parseImportedInlineExprKind(
                       token: valueToken,
                       parameterSymbolMapping: parameterSymbolMapping,
-                      interner: interner
+                      interner: interner,
+                      importedSymbolByFQName: importedSymbolByFQName
                   )
             else {
                 return nil
@@ -245,6 +348,83 @@ extension DataFlowSemaPhase {
                 rhs: KIRExprID(rawValue: rhs),
                 result: KIRExprID(rawValue: result)
             )
+        case "unary":
+            guard let opRaw = pairs["op"], let op = parseUnaryOp(opRaw),
+                  let operandRaw = pairs["operand"], let operand = Int32(operandRaw),
+                  let resultRaw = pairs["result"], let result = Int32(resultRaw)
+            else {
+                return nil
+            }
+            return .unary(
+                op: op,
+                operand: KIRExprID(rawValue: operand),
+                result: KIRExprID(rawValue: result)
+            )
+        case "copy":
+            guard let fromRaw = pairs["from"], let from = Int32(fromRaw),
+                  let toRaw = pairs["to"], let to = Int32(toRaw)
+            else {
+                return nil
+            }
+            return .copy(
+                from: KIRExprID(rawValue: from),
+                to: KIRExprID(rawValue: to)
+            )
+        case "nullAssert":
+            guard let operandRaw = pairs["operand"], let operand = Int32(operandRaw),
+                  let resultRaw = pairs["result"], let result = Int32(resultRaw)
+            else {
+                return nil
+            }
+            return .nullAssert(
+                operand: KIRExprID(rawValue: operand),
+                result: KIRExprID(rawValue: result)
+            )
+        case "jumpIfNotNull":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
+                  let target = parseImportedLabelID(pairs["target"])
+            else {
+                return nil
+            }
+            return .jumpIfNotNull(
+                value: KIRExprID(rawValue: value),
+                target: target
+            )
+        case "storeGlobal":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
+                  let symbol = parseImportedSymbol(
+                      pairs: pairs,
+                      importedSymbolByFQName: importedSymbolByFQName
+                  )
+            else {
+                return nil
+            }
+            return .storeGlobal(
+                value: KIRExprID(rawValue: value),
+                symbol: symbol
+            )
+        case "loadGlobal":
+            guard let resultRaw = pairs["result"], let result = Int32(resultRaw),
+                  let symbol = parseImportedSymbol(
+                      pairs: pairs,
+                      importedSymbolByFQName: importedSymbolByFQName
+                  )
+            else {
+                return nil
+            }
+            return .loadGlobal(
+                result: KIRExprID(rawValue: result),
+                symbol: symbol
+            )
+        case "rethrow":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw) else {
+                return nil
+            }
+            return .rethrow(value: KIRExprID(rawValue: value))
+        case "beginFinallyGuard":
+            return .beginFinallyGuard
+        case "endFinallyGuard":
+            return .endFinallyGuard
         case "returnUnit":
             return .returnUnit
         case "returnValue":
@@ -287,24 +467,115 @@ extension DataFlowSemaPhase {
             let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
             let isSuperCallRaw = pairs["isSuperCall"] ?? "0"
             let isSuperCall = isSuperCallRaw == "1" || isSuperCallRaw == "true"
+            var callSymbol: SymbolID? = nil
+            var resolvedCalleeName = calleeName
+            if let linkEncoded = pairs["linkB64"],
+               let linkName = decodeBase64String(linkEncoded),
+               !linkName.isEmpty
+            {
+                if let consumerSymbol = externalLinkNameToSymbol[linkName] {
+                    callSymbol = consumerSymbol
+                } else {
+                    // The callee is defined by the library itself (a mangled
+                    // `kk_fn_*` symbol in its object archive) and has no
+                    // counterpart in the consumer's symbol table. The declared
+                    // name would not resolve at link time, so call the library
+                    // symbol directly.
+                    resolvedCalleeName = linkName
+                }
+            } else if let symbolFQNameEncoded = pairs["symbolFQNameB64"],
+                      let symbolFQName = decodeBase64String(symbolFQNameEncoded)
+            {
+                callSymbol = importedSymbolByFQName[symbolFQName]
+            }
             return .call(
-                symbol: nil,
-                callee: interner.intern(calleeName),
+                symbol: callSymbol,
+                callee: interner.intern(resolvedCalleeName),
                 arguments: args,
                 result: result,
                 canThrow: canThrow,
                 thrownResult: nil,
                 isSuperCall: isSuperCall
             )
+        case "virtualCall":
+            guard let calleeEncoded = pairs["calleeB64"],
+                  let calleeName = decodeBase64String(calleeEncoded),
+                  let receiverRaw = pairs["receiver"], let receiver = Int32(receiverRaw),
+                  let dispatch = parseImportedInlineDispatchKind(pairs["dispatch"] ?? "")
+            else {
+                return nil
+            }
+            let args = parseInlineIntList(pairs["args"] ?? "[]").map { value in
+                KIRExprID(rawValue: Int32(truncatingIfNeeded: value))
+            }
+            let result: KIRExprID? = if let resultRaw = pairs["result"], resultRaw != "_" {
+                Int32(resultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
+            let thrownResult: KIRExprID? = if let thrownResultRaw = pairs["thrownResult"], thrownResultRaw != "_" {
+                Int32(thrownResultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
+            let canThrowRaw = pairs["canThrow"] ?? "0"
+            let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
+            var callSymbol: SymbolID? = nil
+            if let linkEncoded = pairs["linkB64"],
+               let linkName = decodeBase64String(linkEncoded),
+               !linkName.isEmpty,
+               let consumerSymbol = externalLinkNameToSymbol[linkName]
+            {
+                callSymbol = consumerSymbol
+            } else if pairs["linkB64"] == nil,
+                      let symbolFQNameEncoded = pairs["symbolFQNameB64"],
+                      let symbolFQName = decodeBase64String(symbolFQNameEncoded)
+            {
+                callSymbol = importedSymbolByFQName[symbolFQName]
+            }
+            return .virtualCall(
+                symbol: callSymbol,
+                callee: interner.intern(calleeName),
+                receiver: KIRExprID(rawValue: receiver),
+                arguments: args,
+                result: result,
+                canThrow: canThrow,
+                thrownResult: thrownResult,
+                dispatch: dispatch
+            )
         default:
             return nil
         }
     }
 
-    private func parseImportedInlineExprKind(
+    private static func parseImportedInlineDispatchKind(_ token: String) -> KIRDispatchKind? {
+        let parts = token.split(separator: ":", omittingEmptySubsequences: false)
+        switch parts.first {
+        case "vtable":
+            guard parts.count == 2, let slot = Int(parts[1]) else { return nil }
+            return .vtable(slot: slot)
+        case "itable":
+            guard parts.count == 3,
+                  let interfaceSlot = Int(parts[1]),
+                  let methodSlot = Int(parts[2])
+            else { return nil }
+            return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
+        case "itableDynamic":
+            guard parts.count == 3,
+                  let interfaceTypeID = Int64(parts[1]),
+                  let methodSlot = Int(parts[2])
+            else { return nil }
+            return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+        default:
+            return nil
+        }
+    }
+
+    private static func parseImportedInlineExprKind(
         token: String,
         parameterSymbolMapping: [Int32: SymbolID],
-        interner: StringInterner
+        interner: StringInterner,
+        importedSymbolByFQName: [String: SymbolID]
     ) -> KIRExprKind? {
         if token == "unit" {
             return .unit
@@ -315,6 +586,30 @@ extension DataFlowSemaPhase {
         if token.hasPrefix("int:") {
             let value = String(token.dropFirst("int:".count))
             return Int64(value).map(KIRExprKind.intLiteral)
+        }
+        if token.hasPrefix("long:") {
+            let value = String(token.dropFirst("long:".count))
+            return Int64(value).map(KIRExprKind.longLiteral)
+        }
+        if token.hasPrefix("uint:") {
+            let value = String(token.dropFirst("uint:".count))
+            return UInt64(value).map(KIRExprKind.uintLiteral)
+        }
+        if token.hasPrefix("ulong:") {
+            let value = String(token.dropFirst("ulong:".count))
+            return UInt64(value).map(KIRExprKind.ulongLiteral)
+        }
+        if token.hasPrefix("float:") {
+            let value = String(token.dropFirst("float:".count))
+            return Double(value).map(KIRExprKind.floatLiteral)
+        }
+        if token.hasPrefix("double:") {
+            let value = String(token.dropFirst("double:".count))
+            return Double(value).map(KIRExprKind.doubleLiteral)
+        }
+        if token.hasPrefix("char:") {
+            let value = String(token.dropFirst("char:".count))
+            return UInt32(value).map(KIRExprKind.charLiteral)
         }
         if token.hasPrefix("bool:") {
             let value = String(token.dropFirst("bool:".count))
@@ -337,14 +632,52 @@ extension DataFlowSemaPhase {
             }
             return .symbolRef(SymbolID(rawValue: symbolRaw))
         }
+        if token.hasPrefix("symbolFQNameB64:") {
+            // Resolve library symbols by name because inline KIR symbol IDs
+            // belong to the producer's symbol table.
+            let encoded = String(token.dropFirst("symbolFQNameB64:".count))
+            guard let fQName = decodeBase64String(encoded),
+                  let symbol = importedSymbolByFQName[fQName]
+            else {
+                return nil
+            }
+            return .symbolRef(symbol)
+        }
         if token.hasPrefix("temp:") {
             let raw = String(token.dropFirst("temp:".count))
             return Int32(raw).map(KIRExprKind.temporary)
         }
+        if token.hasPrefix("externB64:") {
+            let encoded = String(token.dropFirst("externB64:".count))
+            guard let decoded = decodeBase64String(encoded) else {
+                return nil
+            }
+            return .externSymbolAddress(interner.intern(decoded))
+        }
+        if token.hasPrefix("extern:") {
+            let name = String(token.dropFirst("extern:".count))
+            return .externSymbolAddress(interner.intern(name))
+        }
         return nil
     }
 
-    private func parseBinaryOp(_ raw: String) -> KIRBinaryOp? {
+    private static func parseImportedSymbol(
+        pairs: [String: String],
+        importedSymbolByFQName: [String: SymbolID]
+    ) -> SymbolID? {
+        if let encoded = pairs["symbolFQNameB64"],
+           let fQName = decodeBase64String(encoded),
+           let symbol = importedSymbolByFQName[fQName]
+        {
+            return symbol
+        }
+        guard let raw = pairs["symbol"], let value = Int32(raw) else {
+            return nil
+        }
+        return SymbolID(rawValue: value)
+    }
+
+    private static func parseBinaryOp(_ raw: String) -> KIRBinaryOp? {
         switch raw {
         case "add":
             .add
@@ -354,14 +687,43 @@ extension DataFlowSemaPhase {
             .multiply
         case "divide":
             .divide
+        case "modulo":
+            .modulo
         case "equal":
             .equal
+        case "notEqual":
+            .notEqual
+        case "lessThan":
+            .lessThan
+        case "lessOrEqual":
+            .lessOrEqual
+        case "greaterThan":
+            .greaterThan
+        case "greaterOrEqual":
+            .greaterOrEqual
+        case "logicalAnd":
+            .logicalAnd
+        case "logicalOr":
+            .logicalOr
         default:
             nil
         }
     }
 
-    private func parseInlineKeyValuePairs(_ tokens: ArraySlice<Substring>) -> [String: String] {
+    private static func parseUnaryOp(_ raw: String) -> KIRUnaryOp? {
+        switch raw {
+        case "not":
+            .not
+        case "unaryPlus":
+            .unaryPlus
+        case "unaryMinus":
+            .unaryMinus
+        default:
+            nil
+        }
+    }
+
+    private static func parseInlineKeyValuePairs(_ tokens: ArraySlice<Substring>) -> [String: String] {
         var mapping: [String: String] = [:]
         for token in tokens {
             guard let separatorIndex = token.firstIndex(of: "=") else {
@@ -374,7 +736,7 @@ extension DataFlowSemaPhase {
         return mapping
     }
 
-    private func parseInlineIntList(_ token: String) -> [Int] {
+    private static func parseInlineIntList(_ token: String) -> [Int] {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         let inner: Substring
         if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
@@ -388,7 +750,7 @@ extension DataFlowSemaPhase {
         return inner.split(separator: ",").compactMap { Int($0) }
     }
 
-    private func decodeBase64String(_ token: String) -> String? {
+    private static func decodeBase64String(_ token: String) -> String? {
         guard let data = Data(base64Encoded: token),
               let decoded = String(data: data, encoding: .utf8)
         else {

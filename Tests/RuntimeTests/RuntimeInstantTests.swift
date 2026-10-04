@@ -16,6 +16,22 @@ struct RuntimeInstantTests {
     }
 
     @Test
+    func testInstantHashCodeMatchesKotlinFormula() {
+        let instant = kk_instant_from_epoch_seconds(1, 500_000_000)
+        let expected = Int(Int32(1) &+ (51 &* Int32(500_000_000)))
+
+        #expect(kk_any_hashCode(instant, 0) == expected)
+    }
+
+    @Test
+    func testInstantAnyStringUsesIsoRepresentation() {
+        let instant = kk_instant_from_epoch_seconds(1, 500_000_000)
+        let rendered = kk_any_member_to_string(instant)
+
+        #expect(extractString(from: rendered) == "1970-01-01T00:00:01.500Z")
+    }
+
+    @Test
     func testInstantFromEpochSecondsPreservesAndNormalizesNanoseconds() {
         let instant = kk_instant_from_epoch_seconds(1_700_000_000, 123_456_789)
 

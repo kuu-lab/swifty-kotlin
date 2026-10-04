@@ -6,7 +6,11 @@ extension KIRLoweringDriver {
         compilationCtx: CompilationContext
     ) -> KIRModule {
         ctx.resetModuleState()
-        ctx.initializeSyntheticLambdaSymbolAllocator(sema: sema)
+        ctx.lazyThreadSafetyMode = compilationCtx.options.lazyThreadSafetyMode
+        ctx.initializeSyntheticLambdaSymbolAllocator(
+            sema: sema,
+            stdlibOnly: compilationCtx.options.stdlibOnly
+        )
 
         let arena = KIRArena()
         var files: [KIRFile] = []
@@ -38,8 +42,10 @@ extension KIRLoweringDriver {
         // at use-sites when rewriting getValue calls.
         var delegateStorageSymbolByPropertySymbol: [SymbolID: SymbolID] = [:]
 
+        var skippedBundledFiles: [ASTFile] = []
         for file in ast.sortedFiles {
             if shouldSkipBundledFileForOutput(file, compilationCtx: compilationCtx) {
+                skippedBundledFiles.append(file)
                 continue
             }
             let declIDs = lowerTopLevelDecls(
@@ -52,16 +58,72 @@ extension KIRLoweringDriver {
             files.append(KIRFile(fileID: file.fileID, decls: declIDs))
         }
 
+        // Bundled stdlib files skipped from output can still be referenced by
+        // enum constructor-property reads (e.g. `CpuArchitecture.ARM64.bitness`),
+        // which are emitted as `$enumConstructorProperty$` placeholder calls.
+        // The matching helper is only synthesized while lowering the enum's
+        // ClassDecl, so skipped files leave the placeholder dangling all the
+        // way to an unresolved-symbol link error. Synthesize helpers for the
+        // skipped enums whose placeholders are actually called.
+        synthesizeSkippedBundledEnumConstructorPropertyHelpers(
+            skippedFiles: skippedBundledFiles,
+            files: &files,
+            shared: shared,
+            compilationCtx: compilationCtx
+        )
+
+        // Object and companion handles must exist before any top-level
+        // initializer can trigger their lazy bodies. Keep these allocation-only
+        // calls ahead of user-visible property initialization.
+        var orderedTopLevelInitInstructions: KIRLoweringEmitContext = []
+        appendCompanionInitializerCalls(
+            arena: arena, sema: sema,
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
+        )
+
+        appendImportedLibraryInitializerCalls(
+            arena: arena,
+            sema: sema,
+            interner: compilationCtx.interner,
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
+        )
+
+        orderedTopLevelInitInstructions.appendRelocatingLabels(
+            contentsOf: allTopLevelInitInstructions
+        )
+
+        // A library has no `main` to receive its stored top-level property
+        // initializers. Keep them as a callable entry point in the artifact;
+        // importing modules call it before their own property initializers.
+        // Object/companion initializers are imported separately, so this
+        // entry point contains only the library's own property writes.
+        if case .library = compilationCtx.options.emit,
+           !allTopLevelInitInstructions.isEmpty {
+            let symbol = ctx.allocateSyntheticGeneratedSymbol()
+            let name = compilationCtx.interner.intern(
+                "__kk_library_top_level_init_\(compilationCtx.options.moduleName)"
+            )
+            var body: KIRLoweringEmitContext = [.beginBlock]
+            body.appendRelocatingLabels(contentsOf: allTopLevelInitInstructions)
+            body.append(.returnUnit)
+            body.append(.endBlock)
+            _ = arena.appendDecl(.function(KIRFunction(
+                symbol: symbol,
+                name: name,
+                params: [],
+                returnType: sema.types.unitType,
+                body: body.instructions,
+                isSuspend: false,
+                isInline: false,
+                instructionLocations: body.instructionLocations
+            )))
+        }
+
         emitSyntheticTopLevelExternalPropertyInitializers(
             arena: arena,
             sema: sema,
             interner: compilationCtx.interner,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
-        )
-
-        appendCompanionInitializerCalls(
-            arena: arena, sema: sema,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
         )
 
         postProcessTopLevelInitializersAndDelegates(
@@ -69,7 +131,7 @@ extension KIRLoweringDriver {
             sema: sema,
             compilationCtx: compilationCtx,
             arena: arena,
-            allTopLevelInitInstructions: allTopLevelInitInstructions,
+            allTopLevelInitInstructions: orderedTopLevelInitInstructions,
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
         let module = KIRModule(files: files, arena: arena)
@@ -77,11 +139,72 @@ extension KIRLoweringDriver {
         return module
     }
 
+    /// Synthesizes `$enumConstructorProperty$` helpers for bundled stdlib enum
+    /// classes whose files were skipped from output but whose
+    /// constructor-property placeholders were emitted into lowered bodies.
+    private func synthesizeSkippedBundledEnumConstructorPropertyHelpers(
+        skippedFiles: [ASTFile],
+        files: inout [KIRFile],
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext
+    ) {
+        guard !skippedFiles.isEmpty else { return }
+        let sema = shared.sema
+        let ast = shared.ast
+        let arena = shared.arena
+        let interner = compilationCtx.interner
+        let prefix = "$enumConstructorProperty$"
+
+        var neededOwnerIDs = Set<Int32>()
+        for decl in arena.declarations {
+            guard case let .function(function) = decl else { continue }
+            for instruction in function.body {
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { continue }
+                let calleeName = interner.resolve(callee)
+                guard calleeName.hasPrefix(prefix) else { continue }
+                let remainder = calleeName.dropFirst(prefix.count)
+                guard let separatorIndex = remainder.firstIndex(of: "$"),
+                      let ownerID = Int32(remainder[..<separatorIndex])
+                else { continue }
+                neededOwnerIDs.insert(ownerID)
+            }
+        }
+        guard !neededOwnerIDs.isEmpty else { return }
+
+        for file in skippedFiles {
+            var helperDeclIDs: [KIRDeclID] = []
+            for declID in file.topLevelDecls {
+                guard let decl = ast.arena.decl(declID),
+                      case let .classDecl(classDecl) = decl,
+                      let symbol = sema.bindings.declSymbols[declID],
+                      neededOwnerIDs.contains(symbol.rawValue)
+                else {
+                    continue
+                }
+                helperDeclIDs.append(contentsOf: synthesizeEnumConstructorPropertyHelperFunctions(
+                    classDecl: classDecl,
+                    ownerSymbol: symbol,
+                    shared: shared,
+                    compilationCtx: compilationCtx
+                ))
+            }
+            if !helperDeclIDs.isEmpty {
+                files.append(KIRFile(fileID: file.fileID, decls: helperDeclIDs))
+            }
+        }
+    }
+
     private func shouldSkipBundledFileForOutput(
         _ file: ASTFile,
         compilationCtx: CompilationContext
     ) -> Bool {
-        guard compilationCtx.sourceManager.path(of: file.fileID).hasPrefix("__bundled_") else {
+        guard compilationCtx.sourceManager.origin(of: file.fileID)?.isBundledStdlib == true else {
+            return false
+        }
+
+        // When emitting a dedicated stdlib .kklib, the bundled/residual source
+        // bodies must be lowered into objects and inline-KIR artifacts.
+        if compilationCtx.options.stdlibOnly {
             return false
         }
 
@@ -136,12 +259,14 @@ extension KIRLoweringDriver {
 
             case let .interfaceDecl(interfaceDecl):
                 declIDs.append(contentsOf: lowerTopLevelInterfaceDecl(
-                    interfaceDecl, symbol: symbol, shared: shared
+                    interfaceDecl, symbol: symbol, shared: shared,
+                    compilationCtx: compilationCtx
                 ))
 
             case let .objectDecl(objectDecl):
                 declIDs.append(contentsOf: lowerTopLevelObjectDecl(
-                    objectDecl, symbol: symbol, shared: shared
+                    objectDecl, symbol: symbol, shared: shared,
+                    compilationCtx: compilationCtx
                 ))
 
             case let .funDecl(function):
@@ -177,29 +302,35 @@ extension KIRLoweringDriver {
     private func lowerTopLevelInterfaceDecl(
         _ interfaceDecl: InterfaceDecl,
         symbol: SymbolID,
-        shared: KIRLoweringSharedContext
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext
     ) -> [KIRDeclID] {
         let arena = shared.arena
         var ifaceNestedObjects = interfaceDecl.nestedObjects
         if let companionDeclID = interfaceDecl.companionObject {
             ifaceNestedObjects.append(companionDeclID)
         }
+        // BUG-274: register the companion's lazy-init entry before lowering
+        // this interface's own (default-body) member functions, which can
+        // reference the companion -- see the matching comment in
+        // `lowerTopLevelClassDecl`.
+        var declIDs = synthesizeCompanionInitializerIfNeeded(
+            companionDeclID: interfaceDecl.companionObject,
+            ownerSymbol: symbol,
+            shared: shared
+        )
         let (directMembers, allDecls) = memberLowerer.lowerMemberDecls(
             memberFunctions: interfaceDecl.memberFunctions,
             memberProperties: interfaceDecl.memberProperties,
             nestedClasses: interfaceDecl.nestedClasses,
             nestedObjects: ifaceNestedObjects,
             shared: shared,
+            compilationCtx: compilationCtx,
             isInterfaceContext: true
         )
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
-        var declIDs = [kirID]
+        declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
-        declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
-            companionDeclID: interfaceDecl.companionObject,
-            ownerSymbol: symbol,
-            shared: shared
-        ))
         return declIDs
     }
 
@@ -208,7 +339,8 @@ extension KIRLoweringDriver {
     private func lowerTopLevelObjectDecl(
         _ objectDecl: ObjectDecl,
         symbol: SymbolID,
-        shared: KIRLoweringSharedContext
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext
     ) -> [KIRDeclID] {
         let sema = shared.sema
         let arena = shared.arena
@@ -217,24 +349,22 @@ extension KIRLoweringDriver {
             memberProperties: objectDecl.memberProperties,
             nestedClasses: objectDecl.nestedClasses,
             nestedObjects: objectDecl.nestedObjects,
-            shared: shared
+            shared: shared,
+            compilationCtx: compilationCtx
         )
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
         var declIDs = [kirID]
         declIDs.append(contentsOf: allDecls)
 
-        // When the object implements interfaces, it needs a global slot to hold
-        // its heap-allocated pointer for interface-typed virtual dispatch.
-        let hasInterfaceSupertypes = sema.symbols.directSupertypes(for: symbol).contains { superSym in
-            sema.symbols.symbol(superSym)?.kind == .interface
-        }
-        if hasInterfaceSupertypes {
-            let objectType = sema.types.make(.classType(ClassType(
-                classSymbol: symbol, args: [], nullability: .nonNull
-            )))
-            let globalID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: objectType)))
-            declIDs.append(globalID)
-        }
+        // Every source-backed top-level object needs a global slot for its
+        // singleton heap pointer. Without it, an object crossing an Any
+        // boundary is lowered as an unresolved symbol reference and reaches
+        // the runtime as the raw zero value instead of a registered handle.
+        let objectType = sema.types.make(.classType(ClassType(
+            classSymbol: symbol, args: [], nullability: .nonNull
+        )))
+        let globalID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: objectType)))
+        declIDs.append(globalID)
 
         // Synthesise an initializer for the top-level object so that
         // property initializers and init blocks run during module init
@@ -305,6 +435,52 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions.append(
                 .copy(from: result, to: storage)
             )
+        }
+    }
+
+    private func appendImportedLibraryInitializerCalls(
+        arena: KIRArena,
+        sema: SemaModule,
+        interner: StringInterner,
+        allTopLevelInitInstructions: inout KIRLoweringEmitContext
+    ) {
+        func appendInitializer(_ initializerSymbol: SymbolID?) {
+            guard let initializerSymbol else { return }
+            guard let externalLinkName = sema.symbols.externalLinkName(for: initializerSymbol),
+                  !externalLinkName.isEmpty
+            else {
+                return
+            }
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            allTopLevelInitInstructions.append(
+                .call(
+                    symbol: initializerSymbol,
+                    callee: interner.intern(externalLinkName),
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+        }
+
+        for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            if symbol.kind == .function,
+               interner.resolve(symbol.name).hasPrefix("__kk_library_top_level_init_") {
+                appendInitializer(symbol.id)
+                continue
+            }
+            switch symbol.kind {
+            case .object:
+                appendInitializer(sema.symbols.objectInitializerSymbol(for: symbol.id))
+            case .class, .interface, .annotationClass:
+                appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
+            case .enumClass:
+                appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
+                appendInitializer(sema.symbols.enumStaticInitSymbol(for: symbol.id))
+            default:
+                break
+            }
         }
     }
 

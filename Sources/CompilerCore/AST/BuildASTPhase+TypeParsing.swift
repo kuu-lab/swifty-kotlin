@@ -100,13 +100,22 @@ extension BuildASTPhase {
         return parseTypeRef(from: receiverTokens, interner: interner, astArena: astArena)
     }
 
-    func declarationContextReceiverTypes(
+    func declarationContextReceivers(
         from nodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
-    ) -> [TypeRefID] {
-        let tokens = collectTokens(from: nodeID, in: arena)
+    ) -> [ContextReceiverDecl] {
+        let allTokens = collectTokens(from: nodeID, in: arena)
+        // Context receivers are declaration modifiers, so they always precede `fun`.
+        // Restricting the scan keeps a `context(...)` function type in the parameter
+        // list — or a function literally named `context` — from being mistaken for
+        // a declaration-level context receiver.
+        let tokens = if let funIndex = allTokens.firstIndex(where: { $0.kind == .keyword(.fun) }) {
+            Array(allTokens[..<funIndex])
+        } else {
+            allTokens
+        }
         guard let contextIndex = tokens.firstIndex(where: { $0.kind == .softKeyword(.context) }) else {
             return []
         }
@@ -116,7 +125,7 @@ extension BuildASTPhase {
         var index = contextIndex + 2
         var depth = 1
         var current: [Token] = []
-        var refs: [TypeRefID] = []
+        var items: [ContextReceiverDecl] = []
         while index < tokens.count, depth > 0 {
             let token = tokens[index]
             if token.kind == .symbol(.lParen) {
@@ -125,15 +134,15 @@ extension BuildASTPhase {
             } else if token.kind == .symbol(.rParen) {
                 depth -= 1
                 if depth == 0 {
-                    if let ref = parseTypeRef(from: current, interner: interner, astArena: astArena) {
-                        refs.append(ref)
+                    if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
+                        items.append(ContextReceiverDecl(name: item.name, type: item.ref))
                     }
                     break
                 }
                 current.append(token)
             } else if token.kind == .symbol(.comma), depth == 1 {
-                if let ref = parseTypeRef(from: current, interner: interner, astArena: astArena) {
-                    refs.append(ref)
+                if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
+                    items.append(ContextReceiverDecl(name: item.name, type: item.ref))
                 }
                 current.removeAll(keepingCapacity: true)
             } else {
@@ -141,7 +150,62 @@ extension BuildASTPhase {
             }
             index += 1
         }
-        return refs
+        return items
+    }
+
+    /// Context parameters may carry a `name:` or `_:` prefix (`context(ctx: Context)` /
+    /// `context(_: Context)`). Split the leading `name :` off so the receiver type still
+    /// parses, returning the name (nil for unnamed or `_`) alongside the type ref.
+    private func parseContextReceiverItem(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> (name: InternedString?, ref: TypeRefID)? {
+        var name: InternedString?
+        var typeTokens = tokens
+        if typeTokens.count > 2,
+           typeTokens[1].kind == .symbol(.colon)
+        {
+            switch typeTokens[0].kind {
+            case let .identifier(ident):
+                if interner.resolve(ident) != "_" {
+                    name = ident
+                }
+                typeTokens = Array(typeTokens.dropFirst(2))
+            case let .backtickedIdentifier(ident):
+                name = ident
+                typeTokens = Array(typeTokens.dropFirst(2))
+            default:
+                break
+            }
+        }
+        guard let ref = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+            return nil
+        }
+        return (name, ref)
+    }
+
+    private func contextReceiverDecl(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> ContextReceiverDecl? {
+        var depth = BracketDepth()
+        for (index, token) in tokens.enumerated() {
+            if depth.isAtTopLevel, token.kind == .symbol(.colon), index > 0, index + 1 < tokens.count {
+                let name = internedIdentifier(from: tokens[index - 1], interner: interner)
+                let typeTokens = Array(tokens[(index + 1)...])
+                guard let type = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+                    return nil
+                }
+                return ContextReceiverDecl(name: name, type: type)
+            }
+            depth.track(token.kind)
+        }
+        guard let type = parseTypeRef(from: tokens, interner: interner, astArena: astArena) else {
+            return nil
+        }
+        return ContextReceiverDecl(type: type)
     }
 
     func declarationReturnType(
@@ -177,7 +241,10 @@ extension BuildASTPhase {
         while index < tokens.count {
             let token = tokens[index]
             if depth.angle == 0 {
-                if token.kind == .symbol(.assign) || token.kind == .symbol(.lBrace) {
+                if token.kind == .symbol(.assign)
+                    || token.kind == .symbol(.lBrace)
+                    || token.kind == .symbol(.semicolon)
+                {
                     break
                 }
                 if case .softKeyword(.where) = token.kind {
@@ -330,34 +397,70 @@ extension BuildASTPhase {
 
     func propertyHeadTokens(
         from nodeID: NodeID,
-        in arena: SyntaxArena
+        in arena: SyntaxArena,
+        includingTrailingLambdaTokens: Bool = false
     ) -> [Token] {
         var tokens: [Token] = []
+        var inlineAccessorScanEnd = 0
+        var enteredNestedBlock = false
         for child in arena.children(of: nodeID) {
             switch child {
             case let .token(tokenID):
                 if let token = resolveToken(tokenID, in: arena) {
                     // Stop before inline `get(`/`set(` accessor keywords so that
                     // type and initializer parsing don't consume accessor tokens.
-                    switch token.kind {
-                    case .softKeyword(.get), .softKeyword(.set):
-                        if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
-                            return Array(tokens.prefix(idx))
+                    if !enteredNestedBlock {
+                        switch token.kind {
+                        case .softKeyword(.get), .softKeyword(.set):
+                            if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
+                                return Array(tokens.prefix(idx))
+                            }
+                        default:
+                            break
                         }
-                    default:
-                        break
                     }
                     tokens.append(token)
+                    if !enteredNestedBlock {
+                        inlineAccessorScanEnd = tokens.count
+                    }
                 }
             case let .node(childID):
                 let childKind = arena.node(childID).kind
-                if childKind == .block || childKind == .propertyAccessor {
+                if childKind == .propertyAccessor {
                     return tokens
+                }
+                if childKind == .block {
+                    // Do not scan tokens from a trailing lambda for inline
+                    // accessors: a call such as `map.get(key)` uses the same
+                    // soft keyword spelling as a property `get()` accessor.
+                    enteredNestedBlock = true
+                    // Genuine get()/set() and explicit-backing-field bodies are
+                    // always wrapped as `.propertyAccessor` (see
+                    // parsePropertyAccessor/parseExplicitBackingField), handled
+                    // above -- a bare `.block` sibling here can only be a
+                    // trailing-lambda call argument that `parseTail` split off
+                    // while still inside the initializer expression (e.g.
+                    // `= Comparator<Int> { a, b -> a - b }`).
+                    //
+                    // Only recurse for property initializers and delegate
+                    // expressions, which explicitly opt in because a direct
+                    // block is a trailing call argument. Delegate lowering
+                    // still stores that same lambda body in
+                    // `PropertyDecl.delegateBody` for its existing
+                    // synthetic/runtime path.
+                    guard includingTrailingLambdaTokens else {
+                        return tokens
+                    }
+                    tokens.append(contentsOf: collectTokens(from: childID, in: arena))
+                    continue
                 }
             }
         }
-        // Final check: scan collected tokens for inline accessor start.
-        if let idx = inlineAccessorStartIndex(in: tokens) {
+        // Final check: scan only the direct-token prefix for inline accessor
+        // start.  Recursed trailing-lambda tokens may contain calls to `get` or
+        // `set`, which are not property accessors.
+        let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
+        if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
             return Array(tokens.prefix(idx))
         }
         return tokens
@@ -394,9 +497,7 @@ extension BuildASTPhase {
     }
 
     func functionKeywordIndex(in tokens: [Token]) -> Int? {
-        tokens.firstIndex(where: { token in
-            token.kind == .keyword(.fun)
-        })
+        firstTopLevelKeywordIndex(in: tokens, matching: [.fun])
     }
 
     /// Returns the opening parenthesis index of the function parameter list.
@@ -415,6 +516,11 @@ extension BuildASTPhase {
                 close: .symbol(.greaterThan)
             )
         }
+        // `fun (() -> R).name(` / `fun (T)?.name(`: a parenthesized receiver
+        // type precedes the function name, so its `(` is not the parameter list.
+        if let afterReceiver = indexAfterParenthesizedReceiver(in: tokens, from: index) {
+            index = afterReceiver
+        }
         while index < tokens.count {
             let kind = tokens[index].kind
             if kind == .symbol(.lParen) {
@@ -426,6 +532,27 @@ extension BuildASTPhase {
             index += 1
         }
         return nil
+    }
+
+    /// When `tokens[index]` opens a parenthesized receiver type that is followed
+    /// by `.` / `?.` (optionally after `?`), returns the index just past that
+    /// separator; otherwise nil.
+    func indexAfterParenthesizedReceiver(in tokens: [Token], from index: Int) -> Int? {
+        guard index < tokens.count, tokens[index].kind == .symbol(.lParen) else {
+            return nil
+        }
+        var probe = skipBalancedBracket(
+            in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen)
+        )
+        if probe < tokens.count, tokens[probe].kind == .symbol(.question) {
+            probe += 1
+        }
+        guard probe < tokens.count,
+              tokens[probe].kind == .symbol(.dot) || tokens[probe].kind == .symbol(.questionDot)
+        else {
+            return nil
+        }
+        return probe + 1
     }
 
     func parseTypeRef(
@@ -447,17 +574,5 @@ extension BuildASTPhase {
             return nil
         }
         return parsed.consumed == tokens.count ? parsed.ref : nil
-    }
-
-    func isParameterModifierToken(_ token: Token) -> Bool {
-        guard case let .keyword(keyword) = token.kind else {
-            return false
-        }
-        switch keyword {
-        case .vararg, .crossinline, .noinline:
-            return true
-        default:
-            return false
-        }
     }
 }

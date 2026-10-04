@@ -39,15 +39,15 @@ struct LibraryMetadataSignatureParsingTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
 
-            DataFlowSemaPhase().loadImportedLibrarySymbols(
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
@@ -92,15 +92,15 @@ struct LibraryMetadataSignatureParsingTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
 
-            DataFlowSemaPhase().loadImportedLibrarySymbols(
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
@@ -114,7 +114,8 @@ struct LibraryMetadataSignatureParsingTests {
         let libDir = baseDir.appendingPathExtension("kklib")
         try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
 
-        let nesting = 500
+        // The leaf adds one parser call, so 63 wrappers exercise the 64-call limit.
+        let nesting = 63
         let prefix = String(repeating: "Q<", count: nesting)
         let suffix = String(repeating: ">", count: nesting)
         let sig = prefix + "I" + suffix
@@ -141,23 +142,82 @@ struct LibraryMetadataSignatureParsingTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
 
-            DataFlowSemaPhase().loadImportedLibrarySymbols(
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
-            #expect(warnings.isEmpty, "Expected a 500-deep nullable signature to parse within the depth limit: \(diagnostics.diagnostics.map(\.code))")
+            #expect(warnings.isEmpty, "Expected a 63-deep nullable signature to parse within the depth limit: \(diagnostics.diagnostics.map(\.code))")
             let xSymbol = symbols.allSymbols().first { symbol in
                 interner.resolve(symbol.name) == "x" && symbol.kind == .property
             }
             #expect(xSymbol != nil, "Property 'x' should be imported")
+        }
+    }
+
+    @Test func testByteAndShortSignaturesParseWithoutWarning() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "ByteShortSig",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=2
+        property _ fq=byte.x schema=v1 sig=B
+        property _ fq=short.y schema=v1 sig=S
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "ByteShortSigApp",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            let symbols = SymbolTable()
+            let types = TypeSystem()
+            let diagnostics = DiagnosticEngine()
+            let interner = StringInterner()
+            let inlineFns = ImportedInlineFunctionStore()
+
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
+                options: ctx.options,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner,
+                importedInlineFunctions: inlineFns
+            )
+
+            let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
+            #expect(warnings.isEmpty, "Expected Byte/Short signatures to parse without malformed-signature warnings: \(diagnostics.diagnostics.map(\.code))")
+
+            let byteX = symbols.allSymbols().first { symbol in
+                interner.resolve(symbol.name) == "x" && symbol.kind == .property
+            }
+            let shortY = symbols.allSymbols().first { symbol in
+                interner.resolve(symbol.name) == "y" && symbol.kind == .property
+            }
+            #expect(byteX != nil, "Property 'x' should be imported")
+            #expect(shortY != nil, "Property 'y' should be imported")
+            #expect(byteX.map({ symbols.propertyType(for: $0.id) }) == types.byteType, "Byte signature should resolve to byteType")
+            #expect(shortY.map({ symbols.propertyType(for: $0.id) }) == types.shortType, "Short signature should resolve to shortType")
         }
     }
 }

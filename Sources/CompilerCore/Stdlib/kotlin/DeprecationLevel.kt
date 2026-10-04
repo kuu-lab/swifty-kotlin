@@ -1,0 +1,11 @@
+package kotlin
+
+// KSP-730: bundled source-backed enum for kotlin.DeprecationLevel.
+public enum class DeprecationLevel {
+    WARNING,
+    ERROR,
+    HIDDEN
+}
+
+public val DeprecationLevel.entries: kotlin.enums.EnumEntries<DeprecationLevel>
+    get() = enumEntries<DeprecationLevel>()

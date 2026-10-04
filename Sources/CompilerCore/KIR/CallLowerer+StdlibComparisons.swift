@@ -18,9 +18,10 @@ extension CallLowerer {
             return nil
         }
 
+        let knownNames = KnownCompilerNames(interner: interner)
         let isStdlibComparisonsFn = chosenSymbol.fqName.count >= 3
-            && chosenSymbol.fqName[0] == interner.intern("kotlin")
-            && chosenSymbol.fqName[1] == interner.intern("comparisons")
+            && chosenSymbol.fqName[0] == knownNames.kotlin
+            && chosenSymbol.fqName[1] == knownNames.comparisons
         let chosenCalleeName = interner.resolve(chosenSymbol.name)
         let isStdlibMaxOfCall = isStdlibComparisonsFn && chosenCalleeName == "maxOf"
         let isStdlibMinOfCall = isStdlibComparisonsFn && chosenCalleeName == "minOf"
@@ -75,6 +76,10 @@ extension CallLowerer {
             guard args.count == 2 else { return nil }
             comparisonOp = .lessThan
             floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte, .minOfShort:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         case .maxOfInt3, .maxOfLong3:
             guard args.count == 3 else { return nil }
             comparisonOp = .greaterThan
@@ -99,6 +104,10 @@ extension CallLowerer {
             guard args.count == 3 else { return nil }
             comparisonOp = .lessThan
             floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte3, .minOfShort3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         default:
             return nil
         }
@@ -170,19 +179,30 @@ extension CallLowerer {
         // (minOf) / greater (maxOf) than the running result.
         let primitiveOp: KIRBinaryOp = isMin ? .lessThan : .greaterThan
 
-        let isGenericComparable = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
+        let isComparatorOverload = signature.parameterTypes.contains(where: { paramType in
+            isComparatorType(paramType, sema: sema, interner: interner)
+        })
+        let hasComparableUpperBound = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
             upperBounds.contains(where: { bound in
                 isComparableUpperBound(bound, sema: sema)
             })
         })
-        let isComparatorOverload = !isGenericComparable
-            && signature.parameterTypes.contains(where: { paramType in
-                isComparatorType(paramType, sema: sema, interner: interner)
-            })
-        let isPrimitiveOverload = !isGenericComparable
-            && !isComparatorOverload
+        let isPrimitiveOverload = !isComparatorOverload
             && signature.typeParameterSymbols.isEmpty
             && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema) })
+        let isGenericTypeParameterOverload = !signature.typeParameterSymbols.isEmpty
+            && !isComparatorOverload
+            && isUniformTypeParameterOverload(signature, sema: sema)
+        // Source-backed maxOf/minOf declare `T : Comparable<T>`. Precompiled
+        // .kklib metadata currently drops type-parameter upper bounds, so the
+        // imported signature has type parameters without bounds. Still treat
+        // that shape as the generic-comparable overload so we lower via
+        // kk_compare_any instead of a bare `maxOf` external call.
+        let isGenericComparable = hasComparableUpperBound
+            || isGenericTypeParameterOverload
+            || (!isComparatorOverload
+                && !isPrimitiveOverload
+                && !signature.typeParameterSymbols.isEmpty)
 
         guard isGenericComparable || isComparatorOverload || isPrimitiveOverload else {
             return nil
@@ -227,7 +247,7 @@ extension CallLowerer {
             /// signed-zero ordering match Kotlin's minOf/maxOf (see lowerTwoArgComparison).
             case floatingPoint(runtimeCallee: InternedString)
             case genericComparable
-            case comparator(comparatorArgIndex: Int, trampolineCallee: InternedString)
+            case comparator(comparatorArgIndex: Int)
         }
 
         let comparisonStrategy: ComparisonStrategy
@@ -252,21 +272,8 @@ extension CallLowerer {
             guard comparatorArgIndex >= 0, comparatorArgIndex < loweredArgIDs.count else {
                 return nil
             }
-            guard let trampolineName = comparatorTrampolineName(
-                comparatorExprID: args[comparatorArgIndex].expr,
-                loweredComparatorID: loweredArgIDs[comparatorArgIndex],
-                sema: sema,
-                interner: interner,
-                instructions: instructions
-            ) else {
-                return nil
-            }
-            let trampolineCallee = interner.intern(trampolineName)
             comparisonArgIndices = args.indices.filter { $0 != comparatorArgIndex }
-            comparisonStrategy = .comparator(
-                comparatorArgIndex: comparatorArgIndex,
-                trampolineCallee: trampolineCallee
-            )
+            comparisonStrategy = .comparator(comparatorArgIndex: comparatorArgIndex)
         }
 
         guard !comparisonArgIndices.isEmpty else {
@@ -320,12 +327,12 @@ extension CallLowerer {
                     rhs: zeroExpr,
                     result: conditionExpr
                 ))
-            case let .comparator(comparatorArgIndex, trampolineCallee):
+            case let .comparator(comparatorArgIndex):
                 let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: trampolineCallee,
+                    callee: interner.intern("__kk_compare_with_comparator"),
                     arguments: [loweredArgIDs[comparatorArgIndex], candidateExpr, currentExpr],
                     result: compareResultExpr,
                     canThrow: true,
@@ -368,19 +375,49 @@ extension CallLowerer {
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return interner.resolve(symbol.name) == "Comparator"
+        return symbol.name == KnownCompilerNames(interner: interner).comparator
+    }
+
+    /// True when every value parameter of the signature is the same type
+    /// parameter. This captures generic `maxOf`/`minOf` overloads whose upper
+    /// bounds were lost during metadata round-trip but are still known to be
+    /// `Comparable<T>` by the stdlib contract.
+    private func isUniformTypeParameterOverload(
+        _ signature: FunctionSignature,
+        sema: SemaModule
+    ) -> Bool {
+        guard let firstParamType = signature.parameterTypes.first else {
+            return false
+        }
+        return signature.parameterTypes.allSatisfy { paramType in
+            paramType == firstParamType && isTypeParameter(paramType, sema: sema)
+        }
+    }
+
+    private func isTypeParameter(
+        _ type: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        switch sema.types.kind(of: type) {
+        case .typeParam:
+            return true
+        default:
+            return false
+        }
     }
 
     /// True for the numeric primitive types whose ordering can be lowered to a
-    /// direct `<` / `>` comparison: the signed primitives (Int/Long/Float/Double,
-    /// which Byte/Short widen into) plus the unsigned primitives. Used by the
-    /// vararg `minOf` / `maxOf` lowering to fold the arguments inline.
+    /// direct `<` / `>` comparison: all signed and unsigned primitive types.
+    /// Used by the vararg `minOf` / `maxOf` lowering to fold the arguments
+    /// inline without widening Byte or Short.
     private func isPrimitiveComparisonType(
         _ type: TypeID,
         sema: SemaModule
     ) -> Bool {
         switch sema.types.kind(of: type) {
-        case .primitive(.int, .nonNull),
+        case .primitive(.byte, .nonNull),
+             .primitive(.short, .nonNull),
+             .primitive(.int, .nonNull),
              .primitive(.long, .nonNull),
              .primitive(.float, .nonNull),
              .primitive(.double, .nonNull),

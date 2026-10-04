@@ -15,19 +15,25 @@ extension CallTypeChecker {
             return nil
         }
         let expectedPrefix = [ctx.interner.intern("kotlin"), ctx.interner.intern("comparisons")]
-        let onlyStdlibComparisonCandidates = visibleCandidates.allSatisfy { symbolID in
-            guard let symbol = ctx.sema.symbols.symbol(symbolID) else {
-                return false
-            }
+        // Only consider top-level (non-extension, non-member) functions; extension
+        // functions such as Sequence.maxOf share the same short name but are not
+        // callable without a receiver and should not block the primitive fast path.
+        let topLevelCandidates = visibleCandidates.filter { symbolID in
+            guard let signature = ctx.sema.symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == nil
+        }
+        let comparisonCandidates = topLevelCandidates.filter { symbolID in
+            guard let symbol = ctx.sema.symbols.symbol(symbolID) else { return false }
             return symbol.fqName.count >= expectedPrefix.count
                 && Array(symbol.fqName.prefix(expectedPrefix.count)) == expectedPrefix
         }
-        guard onlyStdlibComparisonCandidates else {
+        guard !comparisonCandidates.isEmpty, topLevelCandidates.count == comparisonCandidates.count else {
             return nil
         }
         let resolvedName = ctx.interner.resolve(calleeName)
         let types = ctx.sema.types
         let supportedNumericTypes = [types.intType, types.longType, types.doubleType, types.floatType]
+            + (resolvedName == "minOf" ? [types.byteType, types.shortType] : [])
         let numericParamType = resolvedParamType.flatMap { paramType in
             supportedNumericTypes.first(where: { $0 == paramType })
         }
@@ -43,6 +49,8 @@ extension CallTypeChecker {
                 if numericParamType == types.floatType { return .maxOfFloat3 }
                 return .maxOfInt3
             case "minOf":
+                if numericParamType == types.byteType { return .minOfByte3 }
+                if numericParamType == types.shortType { return .minOfShort3 }
                 if numericParamType == types.longType { return .minOfLong3 }
                 if numericParamType == types.doubleType { return .minOfDouble3 }
                 if numericParamType == types.floatType { return .minOfFloat3 }
@@ -60,6 +68,8 @@ extension CallTypeChecker {
             if numericParamType == types.floatType { return .maxOfFloat }
             return .maxOfInt
         case "minOf":
+            if numericParamType == types.byteType { return .minOfByte }
+            if numericParamType == types.shortType { return .minOfShort }
             if numericParamType == types.longType { return .minOfLong }
             if numericParamType == types.doubleType { return .minOfDouble }
             if numericParamType == types.floatType { return .minOfFloat }

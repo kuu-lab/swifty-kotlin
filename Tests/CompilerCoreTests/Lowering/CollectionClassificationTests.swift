@@ -1,0 +1,455 @@
+#if canImport(Testing)
+@testable import CompilerCore
+import Foundation
+import Testing
+
+@Suite
+struct CollectionClassificationTests {
+    private typealias State = CollectionLiteralLoweringSupport.CollectionRewriteState
+
+    private struct Fixture {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = makeSemaModule().ctx
+        private let sourceManager = SourceManager()
+
+        func classType(_ components: [String]) -> TypeID {
+            let symbol = sema.symbols.define(
+                kind: .class,
+                name: interner.intern(components.last!),
+                fqName: components.map(interner.intern),
+                declSite: nil,
+                visibility: .public,
+                flags: []
+            )
+            return sema.types.make(.classType(ClassType(classSymbol: symbol)))
+        }
+
+        /// A function symbol with a `declSite`, so `isSourceBackedSymbol`
+        /// reports it as source-backed (mirrors
+        /// `SourceBackedCallPreservationPolicyTests`), with `receiverType`
+        /// registered so `isKnownSourceObjectConstructingAsSequenceReceiver`
+        /// can resolve it.
+        func sourceBackedFunctionSymbol(
+            _ components: [String],
+            receiverType: TypeID?,
+            returnType: TypeID
+        ) -> SymbolID {
+            let file = sourceManager.addFile(
+                path: "fixture/\(components.last!).kt",
+                contents: Data("fun \(components.last!)() = Unit\n".utf8),
+                origin: .user
+            )
+            let symbol = sema.symbols.define(
+                kind: .function,
+                name: interner.intern(components.last!),
+                fqName: components.map(interner.intern),
+                declSite: SourceRange(
+                    start: SourceLocation(file: file, offset: 4),
+                    end: SourceLocation(file: file, offset: 7)
+                ),
+                visibility: .public
+            )
+            sema.symbols.setFunctionSignature(
+                FunctionSignature(receiverType: receiverType, parameterTypes: [], returnType: returnType),
+                for: symbol
+            )
+            return symbol
+        }
+
+        func virtualCall(
+            _ name: String, symbol: SymbolID?, receiver: KIRExprID, result: KIRExprID
+        ) -> KIRInstruction {
+            .virtualCall(
+                symbol: symbol, callee: interner.intern(name), receiver: receiver,
+                arguments: [], result: result, canThrow: false, thrownResult: nil,
+                dispatch: .vtable(slot: 0)
+            )
+        }
+
+        func function(_ body: [KIRInstruction], params: [KIRParameter] = []) -> KIRFunction {
+            KIRFunction(
+                symbol: SymbolID(rawValue: 1000), name: interner.intern("probe"),
+                params: params, returnType: sema.types.unitType,
+                body: body + [.returnUnit], isSuspend: false, isInline: false
+            )
+        }
+
+        func call(_ name: String, arguments: [KIRExprID] = [], result: KIRExprID) -> KIRInstruction {
+            .call(
+                symbol: nil, callee: interner.intern(name), arguments: arguments,
+                result: result, canThrow: false, thrownResult: nil
+            )
+        }
+
+        func scan(_ function: KIRFunction) -> State {
+            var state = State()
+            CollectionLiteralLoweringSupport().collectInitialCollectionExprIDs(
+                function: function, lookup: CollectionLiteralLookupTables(interner: interner),
+                arena: arena, sema: sema, state: &state
+            )
+            return state
+        }
+    }
+
+    @Test
+    func staticCollectionTypesSeedParametersCallResultsAndCopyChains() {
+        let cases: [([String], WritableKeyPath<State, Set<Int32>>)] = [
+            (["kotlin", "collections", "List"], \.listExprIDs),
+            (["kotlin", "collections", "Set"], \.setExprIDs),
+            (["kotlin", "collections", "Map"], \.mapExprIDs),
+            (["kotlin", "Array"], \.arrayExprIDs),
+            (["kotlin", "UIntArray"], \.arrayExprIDs),
+            (["kotlin", "String"], \.stringExprIDs),
+            // RF-LOWER-STATE-009: static type alone only proves `sequenceType`
+            // (Sequence-typed, origin unknown) — never `sequenceExprIDs`
+            // (confirmed RuntimeSequenceBox) or `sequenceSourceObjectExprIDs`
+            // (confirmed source object).
+            (["kotlin", "sequences", "Sequence"], \.sequenceTypeExprIDs),
+        ]
+        for (name, classification) in cases {
+            let fixture = Fixture()
+            let type = fixture.classType(name)
+            let parameterSymbol = SymbolID(rawValue: 100)
+            let parameter = fixture.arena.appendExpr(.symbolRef(parameterSymbol), type: type)
+            let result = fixture.arena.appendTemporary(type: type)
+            let firstCopy = fixture.arena.appendTemporary(type: nil)
+            let secondCopy = fixture.arena.appendTemporary(type: nil)
+            let function = fixture.function([
+                fixture.call("userFactory", arguments: [parameter], result: result),
+                .copy(from: result, to: firstCopy),
+                .copy(from: firstCopy, to: secondCopy),
+            ], params: [KIRParameter(symbol: parameterSymbol, type: type)])
+
+            let state = fixture.scan(function)
+
+            #expect(state[keyPath: classification] == Set([
+                parameter.rawValue, result.rawValue, firstCopy.rawValue, secondCopy.rawValue,
+            ]), "missing classification for \(name)")
+
+            let module = KIRModule(files: [], arena: fixture.arena)
+            var directState = State()
+            for expr in [parameter, result] {
+                CollectionLiteralLoweringSupport().classifyTrackedExprByStaticType(
+                    expr, module: module, sema: fixture.sema,
+                    lookup: CollectionLiteralLookupTables(interner: fixture.interner),
+                    state: &directState
+                )
+            }
+            #expect(directState[keyPath: classification] == [parameter.rawValue, result.rawValue])
+        }
+    }
+
+    @Test
+    func directStaticClassificationRejectsUserTypesWithStdlibNames() {
+        let fixture = Fixture()
+        let module = KIRModule(files: [], arena: fixture.arena)
+        var state = State()
+        for name in ["List", "Set", "Map", "Array", "String", "Range", "Iterator", "File", "Path"] {
+            let expr = fixture.arena.appendTemporary(type: fixture.classType(["user", name]))
+            CollectionLiteralLoweringSupport().classifyTrackedExprByStaticType(
+                expr, module: module, sema: fixture.sema,
+                lookup: CollectionLiteralLookupTables(interner: fixture.interner), state: &state
+            )
+        }
+
+        #expect(state.listExprIDs.isEmpty && state.setExprIDs.isEmpty && state.mapExprIDs.isEmpty)
+        #expect(state.arrayExprIDs.isEmpty && state.stringExprIDs.isEmpty && state.rangeExprIDs.isEmpty)
+        #expect(state.listIteratorExprIDs.isEmpty && state.mapIteratorExprIDs.isEmpty)
+        #expect(state.fileExprIDs.isEmpty && state.pathExprIDs.isEmpty)
+    }
+
+    @Test
+    func sourceObjectTypesAloneDoNotProveSpecializedRuntimeRepresentations() {
+        let fixture = Fixture()
+        let names = [
+            ["kotlin", "sequences", "Sequence"],
+            ["kotlin", "collections", "Iterator"],
+            ["kotlin", "ranges", "IntRange"],
+            ["kotlin", "ranges", "CharRange"],
+            ["kotlin", "ranges", "ULongRange"],
+            ["java", "io", "File"],
+            ["java", "nio", "file", "Path"],
+        ]
+        let arguments = names.map { fixture.arena.appendTemporary(type: fixture.classType($0)) }
+        let result = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([
+            fixture.call("consumeSourceObjects", arguments: arguments, result: result),
+        ]))
+
+        #expect(state.sequenceExprIDs.isEmpty)
+        #expect(state.rangeExprIDs.isEmpty && state.charRangeExprIDs.isEmpty && state.ulongRangeExprIDs.isEmpty)
+        #expect(state.listIteratorExprIDs.isEmpty && state.mapIteratorExprIDs.isEmpty)
+        #expect(state.fileExprIDs.isEmpty && state.pathExprIDs.isEmpty)
+    }
+
+    @Test
+    func knownFactoryResultsAndStringLiteralsPropagateWithoutStaticTypes() {
+        let cases: [(String, WritableKeyPath<State, Set<Int32>>)] = [
+            ("listOf", \.listExprIDs), ("setOf", \.setExprIDs),
+            ("mapOf", \.mapExprIDs), ("arrayOf", \.arrayExprIDs),
+        ]
+        for (name, classification) in cases {
+            let fixture = Fixture()
+            let result = fixture.arena.appendTemporary(type: nil)
+            let copy = fixture.arena.appendTemporary(type: nil)
+            let state = fixture.scan(fixture.function([
+                fixture.call(name, result: result), .copy(from: result, to: copy),
+            ]))
+            #expect(state[keyPath: classification] == [result.rawValue, copy.rawValue])
+        }
+
+        let fixture = Fixture()
+        let string = fixture.arena.appendTemporary(type: fixture.sema.types.stringType)
+        let copy = fixture.arena.appendTemporary(type: nil)
+        let unknown = fixture.arena.appendTemporary(type: nil)
+        let unknownCopy = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([
+            .constValue(result: string, value: .stringLiteral(fixture.interner.intern("text"))),
+            .copy(from: string, to: copy), .copy(from: unknown, to: unknownCopy),
+        ]))
+        #expect(state.stringExprIDs == [string.rawValue, copy.rawValue])
+        #expect(state.listExprIDs.isEmpty && state.arrayExprIDs.isEmpty)
+    }
+
+    @Test
+    func seedingKeepsAStaticTypeWhenTheCopiedValueIsUnclassified() {
+        let fixture = Fixture()
+        let storage = fixture.arena.appendTemporary(
+            type: fixture.classType(["kotlin", "collections", "List"])
+        )
+        let unknown = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([.copy(from: unknown, to: storage)]))
+
+        // The static type still holds for the instructions that precede the
+        // copy; dropping the seed here is the rewrite's job, not the seed's.
+        #expect(state.listExprIDs == [storage.rawValue])
+    }
+
+    @Test
+    func rangeFactoriesAndCopyChainsPreserveSpecialization() {
+        let fixture = Fixture()
+        let char = fixture.arena.appendTemporary(type: fixture.sema.types.charType)
+        let ulong = fixture.arena.appendTemporary(type: fixture.sema.types.ulongType)
+        let charRange = fixture.arena.appendTemporary(type: nil)
+        let ulongRange = fixture.arena.appendTemporary(type: nil)
+        let charAlias = fixture.arena.appendTemporary(type: nil)
+        let ulongAlias = fixture.arena.appendTemporary(type: nil)
+        let stepped = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([
+            .constValue(result: char, value: .charLiteral(97)),
+            .constValue(result: ulong, value: .ulongLiteral(1)),
+            fixture.call("kk_op_rangeTo", arguments: [char, char], result: charRange),
+            fixture.call("kk_op_rangeTo", arguments: [ulong, ulong], result: ulongRange),
+            .copy(from: charRange, to: charAlias), .copy(from: ulongRange, to: ulongAlias),
+            fixture.call("__kk_op_step", arguments: [ulongAlias, ulong], result: stepped),
+        ]))
+
+        #expect(state.rangeExprIDs == Set([charRange, ulongRange, charAlias, ulongAlias, stepped].map(\.rawValue)))
+        #expect(state.charRangeExprIDs == [charRange.rawValue, charAlias.rawValue])
+        #expect(state.ulongRangeExprIDs == [ulongRange.rawValue, ulongAlias.rawValue, stepped.rawValue])
+    }
+
+    @Test
+    func iteratorReassignmentKeepsTheGenericCallAndItsThrowChannel() throws {
+        let fixture = Fixture()
+        let collection = fixture.arena.appendTemporary(type: nil)
+        let listIterator = fixture.arena.appendTemporary(type: nil)
+        let storage = fixture.arena.appendTemporary(type: nil)
+        let replacement = fixture.arena.appendTemporary(type: nil)
+        let result = fixture.arena.appendTemporary(type: fixture.sema.types.intType)
+        let thrown = fixture.arena.appendTemporary(type: fixture.sema.types.anyType)
+        let function = fixture.function([
+            fixture.call("kk_list_iterator", arguments: [collection], result: listIterator),
+            .copy(from: listIterator, to: storage),
+            fixture.call("userIteratorFactory", result: replacement),
+            .copy(from: replacement, to: storage),
+            .call(
+                symbol: nil, callee: fixture.interner.intern("kk_iterator_next"),
+                arguments: [storage], result: result, canThrow: true, thrownResult: thrown
+            ),
+        ])
+        let declaration = fixture.arena.appendDecl(.function(function))
+        let module = KIRModule(files: [], arena: fixture.arena)
+        let options = makeCompilationContext(inputs: [], includeStdlib: false).options
+        let context = KIRContext(
+            diagnostics: DiagnosticEngine(), options: options,
+            interner: fixture.interner, sema: fixture.sema
+        )
+
+        try CollectionLiteralLoweringPass().run(module: module, ctx: context)
+
+        let lowered = try requireTestValue(module.arena.decl(declaration)?.function, "The collection pass removed the probe function")
+        let iteratorCalls = lowered.body.filter { instruction in
+            guard case let .call(_, _, _, returned, _, _, _, _) = instruction else { return false }
+            return returned == result
+        }
+        #expect(iteratorCalls.count == 1)
+        guard case let .call(_, callee, arguments, returned, canThrow, thrownResult, _, _) = try #require(iteratorCalls.first) else {
+            Issue.record("The iterator operation is no longer a call")
+            return
+        }
+        #expect(fixture.interner.resolve(callee) == "kk_iterator_next")
+        #expect(arguments == [storage] && returned == result)
+        #expect(canThrow && thrownResult == thrown)
+    }
+
+    // MARK: - RF-LOWER-STATE-009: Sequence provenance
+
+    @Test
+    func asSequenceOnConfirmedObjectConstructingReceiverIsTaggedSourceObject() {
+        let fixture = Fixture()
+        let iterableType = fixture.classType(["kotlin", "collections", "Iterable"])
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let symbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "sequences", "asSequence"], receiverType: iterableType, returnType: sequenceType
+        )
+        let receiver = fixture.arena.appendTemporary(type: iterableType)
+        let result = fixture.arena.appendTemporary(type: sequenceType)
+        let state = fixture.scan(fixture.function([
+            fixture.virtualCall("asSequence", symbol: symbol, receiver: receiver, result: result),
+        ]))
+
+        // Confirmed by reading Sequences.kt: `Iterable<T>.asSequence()`
+        // constructs a fresh `object : Sequence<T>`.
+        #expect(state.sequenceSourceObjectExprIDs == [result.rawValue])
+        #expect(state.sequenceExprIDs.isEmpty)
+    }
+
+    @Test
+    func asSequenceOnArrayReceiverIsNotConfirmedEvenThoughItsOwnBodyIsSource() {
+        let fixture = Fixture()
+        let arrayType = fixture.classType(["kotlin", "Array"])
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let symbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "collections", "asSequence"], receiverType: arrayType, returnType: sequenceType
+        )
+        let receiver = fixture.arena.appendTemporary(type: arrayType)
+        let result = fixture.arena.appendTemporary(type: sequenceType)
+        let state = fixture.scan(fixture.function([
+            fixture.virtualCall("asSequence", symbol: symbol, receiver: receiver, result: result),
+        ]))
+
+        // ArrayHOF.kt's `Array<T>.asSequence()` body is source too, but the
+        // array virtual-call rewrite intercepts `asSequence()` ahead of
+        // source resolution for any receiver tracked as an array and
+        // redirects it to `kk_array_asSequence` — so a positive
+        // "confirmed source object" fact here would be wrong.
+        #expect(state.sequenceSourceObjectExprIDs.isEmpty)
+        #expect(state.sequenceExprIDs.isEmpty)
+    }
+
+    @Test
+    func asSequenceIdentityOverloadOnSequenceReceiverStaysUnknown() {
+        let fixture = Fixture()
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let symbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "sequences", "asSequence"], receiverType: sequenceType, returnType: sequenceType
+        )
+        let receiver = fixture.arena.appendTemporary(type: sequenceType)
+        let result = fixture.arena.appendTemporary(type: sequenceType)
+        let state = fixture.scan(fixture.function([
+            fixture.virtualCall("asSequence", symbol: symbol, receiver: receiver, result: result),
+        ]))
+
+        // `Sequence<T>.asSequence()` is `= this` (identity): the result's
+        // provenance is the receiver's own, which this callee-only check has
+        // no way to look up — recording nothing here is correct, not a gap.
+        #expect(state.sequenceSourceObjectExprIDs.isEmpty)
+        #expect(state.sequenceExprIDs.isEmpty)
+    }
+
+    @Test
+    func runtimeBridgeFactoryResultIsTaggedSequenceNotSourceObject() {
+        let fixture = Fixture()
+        let result = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([
+            fixture.call("lineSequence", result: result),
+        ]))
+
+        #expect(state.sequenceExprIDs == [result.rawValue])
+        #expect(state.sequenceSourceObjectExprIDs.isEmpty)
+    }
+
+    @Test
+    func overloadedSourceSequenceFactoriesAreNotClassifiedByNameOnly() {
+        let fixture = Fixture()
+        let lookup = CollectionLiteralLookupTables(interner: fixture.interner)
+        for name in ["sequenceOf", "emptySequence", "generateSequence"] {
+            #expect(
+                !lookup.sequenceRuntimeBridgeReturningNames.contains(fixture.interner.intern(name)),
+                "the overloaded source factory (name) needs explicit provenance"
+            )
+        }
+    }
+
+    @Test
+    func sequenceRepresentationTracksArgumentsFactoriesSourceObjectsAndCopies() {
+        let fixture = Fixture()
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let iterableType = fixture.classType(["kotlin", "collections", "Iterable"])
+        let sourceSymbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "sequences", "asSequence"],
+            receiverType: iterableType,
+            returnType: sequenceType
+        )
+        let parameterSymbol = SymbolID(rawValue: 101)
+        let sequenceParameter = fixture.arena.appendExpr(
+            .symbolRef(parameterSymbol), type: sequenceType
+        )
+        let consumeResult = fixture.arena.appendTemporary(type: nil)
+        let runtimeFactory = fixture.arena.appendTemporary(type: sequenceType)
+        let runtimeAlias = fixture.arena.appendTemporary(type: sequenceType)
+        let iterableReceiver = fixture.arena.appendTemporary(type: iterableType)
+        let sourceObject = fixture.arena.appendTemporary(type: sequenceType)
+        let sourceAlias = fixture.arena.appendTemporary(type: sequenceType)
+        let function = fixture.function([
+            fixture.call("consume", arguments: [sequenceParameter], result: consumeResult),
+            fixture.call("lineSequence", result: runtimeFactory),
+            .copy(from: runtimeFactory, to: runtimeAlias),
+            fixture.virtualCall("asSequence", symbol: sourceSymbol, receiver: iterableReceiver, result: sourceObject),
+            .copy(from: sourceObject, to: sourceAlias),
+        ], params: [KIRParameter(symbol: parameterSymbol, type: sequenceType)])
+
+        let state = fixture.scan(function)
+
+        // A Sequence parameter has only static-type evidence, so its origin is
+        // unknown until a concrete runtime producer or source object is seen.
+        #expect(state.sequenceRuntimeRepresentation(of: sequenceParameter) == .unknown)
+        #expect(state.sequenceRuntimeRepresentation(of: runtimeFactory) == .runtimeBox)
+        #expect(state.sequenceRuntimeRepresentation(of: runtimeAlias) == .runtimeBox)
+        #expect(state.sequenceRuntimeRepresentation(of: sourceObject) == .sourceObject)
+        #expect(state.sequenceRuntimeRepresentation(of: sourceAlias) == .sourceObject)
+    }
+
+    @Test
+    func copiesFromConflictingSequenceProvenanceIntoTheSameSlotLoseBothFacts() {
+        let fixture = Fixture()
+        let iterableType = fixture.classType(["kotlin", "collections", "Iterable"])
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let symbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "sequences", "asSequence"], receiverType: iterableType, returnType: sequenceType
+        )
+        let iterableReceiver = fixture.arena.appendTemporary(type: iterableType)
+        let sourceObject = fixture.arena.appendTemporary(type: sequenceType)
+        let runtimeBoxed = fixture.arena.appendTemporary(type: nil)
+        let storage = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([
+            fixture.virtualCall("asSequence", symbol: symbol, receiver: iterableReceiver, result: sourceObject),
+            fixture.call("lineSequence", result: runtimeBoxed),
+            .copy(from: sourceObject, to: storage),
+            .copy(from: runtimeBoxed, to: storage),
+        ]))
+
+        // Two branches of an if/when that both assign into the same reused
+        // slot cannot both be right; RF-LOWER-STATE-009 drops the slot's
+        // provenance entirely rather than trust whichever copy is textually
+        // last. The original producers keep their own confirmed facts —
+        // only the conflicted destination loses its provenance.
+        #expect(!state.sequenceExprIDs.contains(storage.rawValue))
+        #expect(!state.sequenceSourceObjectExprIDs.contains(storage.rawValue))
+        #expect(state.sequenceExprIDs.contains(runtimeBoxed.rawValue))
+        #expect(state.sequenceSourceObjectExprIDs.contains(sourceObject.rawValue))
+    }
+}
+#endif

@@ -59,13 +59,63 @@ RF-STUB-004〜006 は登録構造の整理であり、API 除去そのもので�
 上表の `.synthetic` フラグ付き残留サーフェス値を更新し、実削減がある場合は該当 bucket と削除根拠を
 このファイルへ追記する。
 
+## 2026-07-25 CLEANUP-STUB-102（cinterop 未配線外殻削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswiftc -swift-version -Xswiftc 6
+```
+
+結果:
+
+| 時点 | 追跡対象 | 合計 | 前回からの差分 |
+|---|---|---:|---:|
+| 2026-07-06 RF-STUB-007 | `.synthetic` フラグ付き残留サーフェス | 5951 | - |
+| 2026-07-25 CLEANUP-STUB-102 | `.synthetic` フラグ付き残留サーフェス | 5099 | -852 (-14.3%) |
+
+現行 `.synthetic` フラグ付き root 内訳:
+
+- `kotlin.*`: 4434
+- `kotlinx.*`: 294
+- `java.*`: 370
+- `CancellationException`: 1
+
+参考値として、同じ `DUMP_SURFACE=1` 実行時の `SymbolTable.allSymbols()` 総数は **8599**。
+
+主な削減内容:
+
+- `kotlinx.cinterop` パッケージから externalLinkName 未設定の未配線 synthetic 関数外殻
+  （`CPointer.get/set/pointed/value/reinterpret`, `CPointer.plus`, `CPointer.asStableRef`,
+  `Arena`/`MemScope`/`NativePlacement`/`nativeHeap` 系 `alloc`/`place`, `StableRef`,
+  `CValues`/`CValue`/`CValuesRef` 系アクセサ, `CEnum`/`CVariable` 系プロパティ,
+  `zeroValue`/`typeOf`/Vector128 系など）を削除。
+- 併せて `HeaderHelpers+SyntheticNativeInteropHelpers.swift` から
+  `registerSyntheticCPointerGetFunction`/`setFunction`/`pointedProperty`/`plusFunction`/
+  `varTypeAlias`/`CPointedReadFunction` などの未使用ビルダーと、
+  `registerSyntheticNativeExtensionProperty`/`NativeTopLevelProperty`/`NativePlacementAllocArrayFunction`
+  を削除。
+- 残留する実働 cinterop ブリッジは `kk_cpointer_toLong`, `kk_byteArray_toCValues`,
+  `kk_pin_object`/`kk_pinned_get`/`kk_unpin_object`, `kk_uByteArray_toCValues`/
+  `kk_uIntArray_toCValues`/`kk_uLongArray_toCValues`, `kk_cpointer_toKStringFromUtf32`/
+  `kk_cpointer_toKStringFromUtf16` のみ。
+- **追補（2026-09-23）**: この削除は関数登録だけを外し、各サーフェスの「シグネチャコメント +
+  孤児 `typeParameter` シンボル + 戻り値を捨てる `types.make`」を `HeaderHelpers+SyntheticCInteropStubs.swift`
+  に取り残していた（PR #6463 は生じた未使用変数警告を `_ =` で黙らせただけで削除を完了していない）。
+  残っていた 14 ブロック 480 行（`CValue.useContents` / `CPointer.get`・`set`・`reinterpret`・`plus` /
+  `Long`・`Float`・`Double`・`Short`・`UShortArray.toCValues` / `CPointer<ShortVar>.toKStringFromUtf16` /
+  `Array`・`List<CPointer<T>?>.toCValues` / `typeOf` / `zeroValue`）と、
+  最後の利用者を失った `syntheticListType` ヘルパーを削除し、上記 12 ブリッジのみが残る状態にした。
+  これらのブロックは関数・クラスシンボルを一切定義しておらず、削除による観測可能な差は
+  `SymbolID`/`TypeID` の採番のみ（`TypeSystem.make` は純粋なインターン）。
+
 ## 重要な判断: `java.*` / `kotlinx.*` は「架空」ではない
 
 当初の計画では `java.*`/`javax.*` を一律「架空クラス」として削除予定だったが、調査の結果
 **これらは意図的かつ kotlinc と整合検証された JVM 互換 interop** であることが判明した:
 
 - `Scripts/diff_kotlinc.sh` の回帰は **kotlinc(JVM) でコンパイル・実行した出力**と KSwiftK の
-  出力を比較する。`url_basic` / `stream_basic` / `locale_basic` / `files_utility` /
+  出力を比較する。`url_basic` / `stream_basic` / `i18n_common_edge_cases` / `files_utility` /
   `platform_time_conversion` / `http_client_basic` など多数の `java.*` ケースが
   **非スキップ（= kotlinc と一致することを期待）** で存在する。
 - kotlinc 非互換な部分は明示的に `// SKIP-DIFF` でマークされている
@@ -76,6 +126,11 @@ RF-STUB-004〜006 は登録構造の整理であり、API 除去そのもので�
 JDK / kotlinx ライブラリのクラスは「Kotlin stdlib ではない」ものの **実在 (real)** であり、
 ユーザー要件の「架空 (実在しない) クラス/メソッド」には該当しない。よって **一律削除は行わず保持**する。
 （もし JVM/kotlinx interop 自体を撤去したい場合は別タスクとして要相談。）
+
+`java.nio.file.Files` は Java SE の実在する JDK API であり、架空シンボルではない。ただし
+CLEANUP-STUB-110 は JVM interop 全体の一律削除ではなく、明示された target-out cleanup として
+この Files utility surface のみを全層から除去した。`java.io.File` の FileIO surface と、Path が
+共有する `java.nio.file.attribute.FileTime` / `toMillis`、`RuntimeFileTimeBox` は対象外として保持した。
 
 ## 真に架空（実在しない）と確認したシンボル → 除去/修正対象
 
@@ -94,10 +149,11 @@ JDK / kotlinx ライブラリのクラスは「Kotlin stdlib ではない」も�
 ### 検証のうえ「除去しない」と判断したもの
 
 - `kotlin.concurrent.Lock` / `kotlin.concurrent.ReentrantReadWriteLock`（`HeaderHelpers+SyntheticAtomicStubs.swift`）:
-  パッケージ配置は不正確（実型は `java.util.concurrent.locks.*`）だが、これらは**実在 API の
-  `withLock` / `read` / `write` を型検査・ランタイム接続するための実装受け皿**であり、
-  ランタイム実装・テストも伴う。除去すると動作中のロック機能が壊れるため、純粋な「架空」では
-  なく対象外とした（正しくは型を `java.util.concurrent.locks` に寄せる別タスクのリファクタ）。
+  パッケージ配置は不正確（実型は `java.util.concurrent.locks.*`）だが、`kotlin.concurrent.Lock` は
+  実在 API の `withLock` を型検査・ランタイム接続するための実装受け皿であり機能を伴うため対象外とした。
+  `kotlin.concurrent.ReentrantReadWriteLock` および `java.util.concurrent.locks.ReentrantReadWriteLock` / `kotlin.concurrent.read`
+  は実在する ReadWriteLock API の受け皿だったが、使用箇所がテストのみで製品経路から到達不能であったため
+  CLEANUP-STUB-120 で削除した。
 - `kotlin.random.SecureRandom` 等も同様に、実在の `java.security` interop（kotlinc 検証ケースあり）の
   受け皿であり、機能を伴うため対象外。
 
@@ -112,3 +168,129 @@ JDK / kotlinx ライブラリのクラスは「Kotlin stdlib ではない」も�
 - `swift build` 成功（ベースライン）。
 - 除去後は `bash Scripts/swift_test.sh` 全テスト + `UPDATE_GOLDEN=1 ... matchesGolden` で
   ゴールデン再生成（フルダンプ golden は 5 件）+ `bash Scripts/diff_kotlinc.sh` スポット確認。
+
+## 2026-08-14 CLEANUP-STUB-123（`java.net.URI` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
+```
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-08-14 CLEANUP-STUB-123 | `.synthetic` フラグ付き残留サーフェス | 3386 | `kotlin=2630`, `java=291`, `kotlinx=186`, `CancellationException=1`（その他の内部生成 root を含む） |
+
+この値は CLEANUP-STUB-102 以降の master 上の削減を含むため、前回記録の 5099 との差分を URI 単独の削減量としては扱わない。
+今回の対象では `java.net.URI` の synthetic shell、公開 URI exports、Path/URL の URI 変換を除去し、HTTP request builder 内部の URI handoff は保持した。
+
+## 2026-08-14 CLEANUP-STUB-109（`kotlin.io.FileWalkDirection` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
+```
+
+変更前後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 変更前 | `.synthetic` フラグ付き残留サーフェス | 3105 | `kotlin=2607`, `java=304`, `kotlinx=193`, `CancellationException=1` |
+| 2026-08-14 CLEANUP-STUB-109 | `.synthetic` フラグ付き残留サーフェス | 3102 | `kotlin=2604`, `java=304`, `kotlinx=193`, `CancellationException=1` |
+
+`kotlin.io.FileWalkDirection` の enum と `TOP_DOWN`/`BOTTOM_UP` の synthetic symbol 3件を削除した。File IO/FileTreeWalk の別 surface は対象外として保持した。
+
+## 2026-08-14 CLEANUP-STUB-124（`java.net.URL` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
+```
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-08-14 CLEANUP-STUB-124 | `.synthetic` フラグ付き残留サーフェス | 3397 | `kotlin=2566`, `java=271`, `kotlinx=187`, `CancellationException=1`（その他の内部生成 root を含む） |
+
+この値は CLEANUP-STUB-123 後の master 上の削減を含むため、前回記録との差分を URL 単独の削減量としては扱わない。
+今回の対象では `java.net.URL` の synthetic shell、公開 URL exports、URL runtime/ABI exports を除去し、HTTP request builder 内部の URI handoff は保持した。
+
+## 2026-08-19 CLEANUP-STUB-127/128（Kotlin/JS `JsAny` / `JsNumber` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
+```
+
+標準の Swift Testing dump が成功し、`makeCompilationContext` / `runSema` pipeline の実測値を取得した。
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-08-19 CLEANUP-STUB-127/128 | `.synthetic` フラグ付き残留サーフェス | 2898 | `kotlin=2063`, `java=266`, `kotlinx=191`, `CancellationException=1`（その他の内部生成 root を含む） |
+
+参考値として、同じ実行時の `SymbolTable.allSymbols()` 総数は **14500**。
+`kotlin.js.JsAny` / `JsNumber` の synthetic Sema 登録、stale RuntimeABI spec、ABI parity の spec-only allowlist を除去した。
+実 Runtime export は存在しないため Runtime 本体は変更していない。`Tests` / `Scripts/diff_cases` に `JsAny` の参照はなく、別問題の `js_annotations.kt` は保持している。
+
+## 2026-09-03 CLEANUP-STUB-110（`java.nio.file.Files` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --no-parallel --filter FictionAuditDumpTests -Xswiftc -swift-version -Xswiftc 6
+```
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-09-03 CLEANUP-STUB-110 | `.synthetic` フラグ付き残留サーフェス | 2529 | `kotlin=1746`, `java=214`, `kotlinx=191`, `CancellationException=1`（その他の内部生成 root を含む） |
+| 2026-09-13 CLEANUP-STUB-107 | `.synthetic` フラグ付き残留サーフェス | 2271 | `kotlin=1540`, `java=146`, `kotlinx=191`, `CancellationException=1`, `__ObjectLiteral_*`（102 root, 合計393） |
+
+`Files` synthetic registration、16 個の `__kk_files_*` runtime export/ABI parity、専用 diff case を削除した。
+`FileTime` は Path metadata API が共有するため、`RuntimeFileTimeBox` / `__kk_fileTime_toMillis` と
+`FileTime.toMillis` の Path 側登録を保持した。`java.io.File` の `file_isDirectory_test.kt` は
+CLEANUP-STUB-107 の surface であり、誤って削除していない。
+
+## 2026-09-13 CLEANUP-STUB-107（`java.io.File` 自身のメンバ facade 削除）
+
+実行コマンドは上表と同一。上段からの差分（kotlin -206, java -68）は本タスク単独の効果ではない
+点に注意——この10日間に master へ着地した無関係な並行クリーンアップ（RF-LOWER-CALL 系等）の分も
+含まれており、着手直前のベースラインを本タスクでは計測していないため、本タスクの取り分だけを厳密に
+分離することはできない。
+
+本タスクで削除したのは `java.io.File` **自身のメンバ facade**（`readText`/`writeText`/`appendText`/
+`exists`/`isFile`/`isDirectory`/`forEachBlock`/`bufferedReader`/`bufferedWriter`/`printWriter`/`walk`/
+`listFiles`/`delete`/`mkdirs`/`readBytes`/`appendBytes`/`writeBytes`/`absolutePath`/`canonicalPath`/
+`length`/`lastModified`/`createNewFile`/`canRead`/`canWrite`/`canExecute`/`copyTo`/`copyRecursively`）
+と対応する Runtime `__kk_file_*` cdecl・`RuntimeABISpec+FileIO.swift`/`+ABIParity.swift` エントリ。
+File の bare shell・`path` プロパティ・コンストラクタ2種（`__kk_file_new`/`__kk_file_new_parent_child`）
+は **削除していない**——`kotlin.io.FileSystemException` 系（KSP-619）と `Files.kt`（KSP-483）の
+`resolveSibling`/`normalize` が実際に `File` を構築・受け渡す実働コンシューマであり、File を
+non-constructible にするとこの2系統が壊れるため（詳細は `TODO.md` の CLEANUP-STUB-107 エントリ）。
+
+副次発見として、`java.io.OutputStream`・bare `Writer`（Buffered 抜き）はユーザーの Kotlin コードから
+一切構築できない状態になっていることが判明した。唯一の producer だった `File.outputStream()`/
+`File.bufferedWriter()` を本タスクで削除した一方、`kotlin.io.path.Path` 側にも同名の producer は
+登録されていない（`HeaderHelpers+SyntheticPathStubs.swift` は bare class anchor のみで member
+function を持たない）。この2型自体の Sema 登録・Runtime cdecl・ABI spec は「(c) 削除しない」判断で
+そのまま残したため、上記カウントには影響していない——到達不能になった事実と surface が残っている
+事実は独立している。影響を受けたテスト（`OutputStream*FunctionTests.swift` 3件、
+`ReaderCopyToFunctionTests.swift`）は削除した。CLEANUP-STUB-115（Path 本体削除）着手時に、Path 側へ
+producer を追加するか、この一式ごと (a) target-out として削除するかの判断が必要。
+
+**追記（CLEANUP-STUB-115, 2026-09-14）**: 上記の判断を確定した——`kotlin.io.path.Path` を Sema から
+完全に削除し、Path 側へ producer は追加しない。`OutputStream`/bare `Writer` の bufferedWriter 系は
+引き続き Sema 到達不能のまま（`HeaderHelpers+SyntheticJavaIOStreamStubs.swift` の bare class anchor
+自体は「(c) 削除しない」判断のとおり保持）。`FileTime`（CLEANUP-STUB-110 で Path 共有を理由に保持され
+ていた `RuntimeFileTimeBox`/`__kk_fileTime_toMillis`）は、Sema 側の唯一の登録元が
+`HeaderHelpers+SyntheticPathStubs.swift` だったため、Path 削除と同時に producer 消滅・Runtime 実装
+とも削除した（`FileTime.toMillis` も同様に到達不能なため、残す理由が無くなった）。

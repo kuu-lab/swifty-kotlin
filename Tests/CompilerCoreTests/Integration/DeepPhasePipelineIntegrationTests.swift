@@ -234,18 +234,15 @@ import Testing
     private func makeSyntheticCSTFixture() -> SyntheticCSTFixture {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
-        let options = CompilerOptions(
-            moduleName: "Synthetic",
+        // `allowDefaultStdlibLibrary: true` matches `CompilerOptions`' own default rather
+        // than the CompilerCoreTests wrapper's; it is inert here because this fixture
+        // feeds a hand-built CST and never runs LoadSourcesPhase.
+        let ctx = makeCompilationContext(
             inputs: [],
-            outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
+            moduleName: "Synthetic",
+            interner: interner,
             diagnostics: diagnostics,
-            interner: interner
+            allowDefaultStdlibLibrary: true
         )
 
         var builder = CSTBuilder(interner: interner)

@@ -1,0 +1,20 @@
+symbol fq=__local_0.fromSize[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicIntArray
+symbol fq=__local_1.fromArray[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicIntArray
+symbol fq=golden.sema.atomicIntArrayConstructors.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntArrayConstructors[kind=fun;params=kotlin.IntArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.IntArray] ret=Int
+file fstdlib_kotlin_concurrent_atomics_AtomicIntArray_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicIntArrayConstructors[kind=fun;params=kotlin.IntArray] fun atomicIntArrayConstructors sym=golden.sema.atomicIntArrayConstructors[kind=fun;params=kotlin.IntArray]
+expr e@8:35 int(3) type=Int
+expr e@8:20 call callee=e@8:20#1 args=[_:e@8:35] type=kotlin.concurrent.atomics.AtomicIntArray call=kotlin.concurrent.atomics.AtomicIntArray[kind=fun;params=Int]
+expr e@8:5 localDecl fromSize mutable=0 type=_ init=e@8:20 type=Unit ref=__local_0.fromSize[kind=local]
+expr e@9:36 name(values) type=kotlin.IntArray ref=golden.sema.atomicIntArrayConstructors.$0.values[kind=vparam]
+expr e@9:21 call callee=e@9:21#1 args=[_:e@9:36] type=kotlin.concurrent.atomics.AtomicIntArray call=kotlin.concurrent.atomics.AtomicIntArray[kind=fun;params=kotlin.IntArray]
+expr e@9:5 localDecl fromArray mutable=0 type=_ init=e@9:21 type=Unit ref=__local_1.fromArray[kind=local]
+expr e@10:12 name(fromSize) type=kotlin.concurrent.atomics.AtomicIntArray ref=__local_0.fromSize[kind=local]
+expr e@10:28 int(0) type=Int
+expr e@10:12#1 memberCall recv=e@10:12 callee=loadAt args=[_:e@10:28] type=Int call=kotlin.concurrent.atomics.loadAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int]
+expr e@10:33 name(fromArray) type=kotlin.concurrent.atomics.AtomicIntArray ref=__local_1.fromArray[kind=local]
+expr e@10:50 int(1) type=Int
+expr e@10:33#1 memberCall recv=e@10:33 callee=loadAt args=[_:e@10:50] type=Int call=kotlin.concurrent.atomics.loadAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int]
+expr e@10:12#2 binary(add) lhs=e@10:12#1 rhs=e@10:33#1 type=Int
+expr e@10:5 return value=e@10:12#2 type=Nothing

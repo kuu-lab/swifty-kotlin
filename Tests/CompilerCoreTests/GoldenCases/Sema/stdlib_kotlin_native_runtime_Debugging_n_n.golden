@@ -1,0 +1,4 @@
+symbol fq=golden.sema.debuggingSingleton[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.native.runtime.Debugging
+file fstdlib_kotlin_native_runtime_Debugging_n_n package=golden.sema
+  decl golden.sema.debuggingSingleton[kind=fun;params=] fun debuggingSingleton sym=golden.sema.debuggingSingleton[kind=fun;params=]
+expr e@6:39 name(Debugging) type=kotlin.native.runtime.Debugging ref=kotlin.native.runtime.Debugging[kind=obj]

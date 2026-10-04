@@ -5,6 +5,49 @@
 /// keep the giant `rewriteCalls` body file scoped only to the rewrite
 /// dispatcher.
 extension CollectionLiteralConstructionLoweringPass {
+    /// Recognizes both the legacy bare `HashSet` constructor name and the
+    /// source-backed class constructor symbol emitted for the nominal class.
+    func isHashSetConstructor(
+        callee: InternedString,
+        symbol: SymbolID?,
+        result: KIRExprID?,
+        module: KIRModule,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        if callee == lookup.hashSetName {
+            return true
+        }
+        guard let sema = ctx.sema else { return false }
+        let expectedFQName = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            lookup.hashSetName,
+        ]
+        if let symbol,
+           sema.symbols.symbol(symbol)?.kind == .constructor,
+           let owner = sema.symbols.parentSymbol(for: symbol),
+           let ownerInfo = sema.symbols.symbol(owner),
+           ownerInfo.fqName == expectedFQName
+        {
+            return true
+        }
+
+        // Source-backed implicit constructors can lose their constructor
+        // symbol while the call is converted to KIR. Recover the owner from
+        // the resolved result type before falling back to the generic `<init>`
+        // callee.
+        guard callee == ctx.interner.intern("<init>"),
+              let result,
+              let resultType = module.arena.exprType(result),
+              let resultClass = resolveClassType(resultType, sema: sema),
+              let resultInfo = sema.symbols.symbol(resultClass.classSymbol)
+        else {
+            return false
+        }
+        return resultInfo.fqName == expectedFQName
+    }
+
     /// Looks up the primitive boxing callee for `type`, resolving a value
     /// class to its underlying primitive first (see `resolveValueClassKind`)
     /// so `Meters` boxes exactly like the `Int` it wraps — matching
@@ -21,34 +64,6 @@ extension CollectionLiteralConstructionLoweringPass {
     ) -> InternedString? {
         let kind = resolveValueClassKind(types.kind(of: type), types: types, symbols: symbols)
         return BoxingCalleeTable(interner: interner).boxCallee(for: kind, requireNonNull: false)
-    }
-
-    func boxedBuildStringTextArgumentIfNeeded(
-        _ argument: KIRExprID,
-        module: KIRModule,
-        ctx: KIRContext,
-        loweredBody: inout [KIRInstruction]
-    ) -> KIRExprID {
-        guard let sema = ctx.sema,
-              let argumentType = module.arena.exprType(argument),
-              case .primitive(_, .nonNull) = sema.types.kind(of: argumentType),
-              let boxCallee = primitiveBoxCalleeName(
-                  for: argumentType,
-                  types: sema.types,
-                  symbols: sema.symbols,
-                  interner: ctx.interner
-              )
-        else {
-            return argument
-        }
-        let boxedArgument = emitNonThrowingCall(
-            callee: boxCallee,
-            arg: argument,
-            resultType: sema.types.anyType,
-            arena: module.arena,
-            into: &loweredBody
-        )
-        return boxedArgument
     }
 
     /// Returns true when the resolved symbol's FQN matches one of the known
@@ -89,16 +104,49 @@ extension CollectionLiteralConstructionLoweringPass {
             || fqName == lookup.linkedMapOfFQName
     }
 
+    /// Source-backed concrete classes lower through the same runtime bridge as
+    /// the historical name-based constructor path. The resolved callee is
+    /// `<init>` once ArrayList is a real class, so the owner FQName is the
+    /// authoritative discriminator.
+    func isStdlibArrayListConstructor(
+        symbol: SymbolID?,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        if lookup.mutableListConstructorNames.contains(callee) {
+            return true
+        }
+        guard let symbol,
+              let resolved = ctx.sema?.symbols.symbol(symbol),
+              resolved.kind == .constructor
+        else {
+            return false
+        }
+        return resolved.fqName == [
+            lookup.kotlinName,
+            ctx.interner.intern("collections"),
+            lookup.arrayListName,
+            lookup.initName,
+        ]
+    }
+
     func isStdlibArrayFactoryCall(
         symbol: SymbolID?,
         callee: InternedString,
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
-        guard lookup.arrayOfFactoryNames.contains(callee) else {
-            return false
+        if lookup.arrayOfFactoryNames.contains(callee),
+           isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx)
+        {
+            return true
         }
-        return isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx)
+        return isSourceBackedPrimitiveArrayFactory(
+            symbol,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
     }
 
     func isCollectionCopyConstructorArgument(
@@ -138,22 +186,20 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    func isJavaIOFileMember(
+    /// True when the resolved callee is a bundled Kotlin source declaration
+    /// or an imported library symbol, meaning the lowering pass should not
+    /// rewrite it to a `kk_*` runtime helper.
+    func isSourceBacked(
         symbol: SymbolID?,
-        ctx: KIRContext,
-        interner: StringInterner
+        ctx: KIRContext
     ) -> Bool {
         guard let symbol,
-              let resolved = ctx.sema?.symbols.symbol(symbol)
+              let sema = ctx.sema,
+              sema.symbols.symbol(symbol) != nil
         else {
             return false
         }
-
-        let javaIOFilePrefix: [InternedString] = [
-            interner.intern("java"),
-            interner.intern("io"),
-            interner.intern("File"),
-        ]
-        return resolved.fqName.starts(with: javaIOFilePrefix)
+        return sema.symbols.isSourceBackedSymbol(symbol)
     }
+
 }

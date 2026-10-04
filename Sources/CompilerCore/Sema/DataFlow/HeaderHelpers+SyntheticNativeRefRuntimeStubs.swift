@@ -6,17 +6,22 @@
 /// type-checking, and opt-in diagnostics work correctly without any runtime
 /// edits:
 ///
-/// - `kotlin.native.ref.WeakReference<T>` — generic weak-reference wrapper.
-/// - `kotlin.native.ref.createCleaner` — top-level factory function tagged
-///   with `@ExperimentalNativeApi`.
+/// - residual `WeakReference<T>` members, retained as a no-op fallback now
+///   that the constructor (KSP-1255) and members (KSP-1256) are source-backed
+///   in Weak.kt; the bundled-declaration check short-circuits registration.
+/// - residual `createCleaner` bridge only when its bundled source declaration
+///   is absent.
 /// - `kotlin.native.runtime.NativeRuntimeApi` — runtime opt-in marker.
-/// - `kotlin.native.runtime.GC` — object providing GC controls, tagged with
-///   `@NativeRuntimeApi`.
+/// - `kotlin.native.runtime.GC` needs no stub here: it is fully source-backed
+///   (see GC.kt), including its own `@NativeRuntimeApi` annotation, so it is
+///   registered by ordinary header collection like any other bundled object.
 /// - `kotlin.native.runtime.RootSetStatistics` — GC root-set statistics DTO.
 /// - `kotlin.native.runtime.SweepStatistics` — GC sweep statistics DTO.
 /// - `kotlin.native.runtime.GCInfo` — GC statistics DTO surface.
-/// - `kotlin.native.runtime.Debugging` — object exposing debug helpers, tagged
-///   with `@NativeRuntimeApi`.
+///
+/// `kotlin.native.runtime.Debugging` is fully source-backed (KSP-1260,
+/// `Stdlib/kotlin/native/runtime/Debugging.kt`) and registers no synthetic
+/// stub here.
 ///
 /// All symbols are compile-time stubs only.  No runtime code is generated or
 /// modified by this registration.
@@ -41,10 +46,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let nativeRuntimeApiSymbol = registerNativeRuntimeApiAnnotation(
-            packageFQName: nativeRuntimePkg,
-            symbols: symbols,
-            interner: interner
+        let nativeRuntimeApiSymbol = symbols.lookup(
+            fqName: nativeRuntimePkg + [interner.intern("NativeRuntimeApi")]
         )
 
         // Ensure ExperimentalNativeApi is a RequiresOptIn marker so that
@@ -65,14 +68,6 @@ extension DataFlowSemaPhase {
         registerCreateCleanerStub(
             packageFQName: nativeRefPkg,
             experimentalNativeApiSymbol: experimentalNativeApiSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerGCObjectStub(
-            packageFQName: nativeRuntimePkg,
-            nativeRuntimeApiSymbol: nativeRuntimeApiSymbol,
             symbols: symbols,
             types: types,
             interner: interner
@@ -102,13 +97,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerDebuggingObjectStub(
-            packageFQName: nativeRuntimePkg,
-            nativeRuntimeApiSymbol: nativeRuntimeApiSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     // MARK: - WeakReference<T>
@@ -142,15 +130,16 @@ extension DataFlowSemaPhase {
         }
 
         // Tag WeakReference itself with @ExperimentalNativeApi so that
-        // callers must opt in.
-        if let experimentalNativeApiSymbol {
-            attachExperimentalNativeApi(
-                to: classSymbol,
-                markerFQName: symbols.symbol(experimentalNativeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
+        // callers must opt in.  The marker is declared in bundled Kotlin
+        // source, so fall back to its fully-qualified name when the symbol
+        // is not yet registered at synthetic-stub time.
+        attachExperimentalNativeApi(
+            to: classSymbol,
+            markerFQName: experimentalNativeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.experimental.ExperimentalNativeApi",
+            symbols: symbols
+        )
 
         // Set up the single type-parameter T (inline, as the NativeInterop
         // helper is private).
@@ -188,14 +177,9 @@ extension DataFlowSemaPhase {
             parentSymbol: classSymbol,
             typeParameterSymbolsByName: ["T": typeParamSymbol]
         )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceType,
-            context: weakReferenceContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1255: the public constructor is now source-backed in Weak.kt
+        // (`@KsSymbolName("kk_weak_ref_create") constructor(referred: T)`);
+        // no synthetic constructor registration is needed here anymore.
         registerSyntheticFunctionStubs(
             SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceMembers,
             context: weakReferenceContext,
@@ -218,6 +202,18 @@ extension DataFlowSemaPhase {
         let functionFQName = packageFQName + [functionName]
         let pkgSymbol = symbols.lookup(fqName: packageFQName)
 
+        // KSP-1254 supplies the exact generic source declaration. Keep the
+        // runtime bridge only for configurations that do not load bundled
+        // Kotlin source; do not leave an Any-based synthetic duplicate beside
+        // the source-backed function.
+        guard !BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: packageFQName,
+            name: functionName,
+            arity: 2
+        ) else {
+            return
+        }
+
         // Avoid double-registration.
         guard symbols.lookupAll(fqName: functionFQName).isEmpty else {
             return
@@ -236,18 +232,19 @@ extension DataFlowSemaPhase {
         }
         symbols.setExternalLinkName("kk_cleaner_create", for: functionSymbol)
 
-        // Tag with @ExperimentalNativeApi.
-        if let experimentalNativeApiSymbol {
-            attachExperimentalNativeApi(
-                to: functionSymbol,
-                markerFQName: symbols.symbol(experimentalNativeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
+        // Tag with @ExperimentalNativeApi.  The marker is declared in bundled
+        // Kotlin source, so fall back to its fully-qualified name when the
+        // symbol is not yet registered at synthetic-stub time.
+        attachExperimentalNativeApi(
+            to: functionSymbol,
+            markerFQName: experimentalNativeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.experimental.ExperimentalNativeApi",
+            symbols: symbols
+        )
 
-        // createCleaner<T>(value: T, block: (T) -> Unit): Cleaner
-        // We use `Any` as a simple approximation for T and the Cleaner return type.
+        // Legacy fallback only. The bundled source declaration carries the
+        // exact generic T and Cleaner signature whenever it is available.
         let anyType = types.anyType
         let blockType = types.make(.functionType(FunctionType(
             params: [anyType],
@@ -286,73 +283,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - GC object
-
-    private func registerGCObjectStub(
-        packageFQName: [InternedString],
-        nativeRuntimeApiSymbol: SymbolID?,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let objectName = interner.intern("GC")
-        let objectFQName = packageFQName + [objectName]
-        let pkgSymbol = symbols.lookup(fqName: packageFQName)
-
-        let objectSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: objectFQName) {
-            objectSymbol = existing
-        } else {
-            objectSymbol = symbols.define(
-                kind: .object,
-                name: objectName,
-                fqName: objectFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if let pkgSymbol {
-            symbols.setParentSymbol(pkgSymbol, for: objectSymbol)
-        }
-
-        let objectType = types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(objectType, for: objectSymbol)
-
-        // Tag with @NativeRuntimeApi.
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: objectSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        let objectContext = SyntheticStubRegistrationContext(
-            ownerFQName: objectFQName,
-            parentSymbol: objectSymbol
-        )
-        registerSyntheticFunctionStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcFunctions,
-            context: objectContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcProperties,
-            context: objectContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
-
     // MARK: - RootSetStatistics class
 
     private func registerRootSetStatisticsStub(
@@ -369,34 +299,12 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: classSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        let classFQName = packageFQName + [interner.intern("RootSetStatistics")]
-        let classContext = SyntheticStubRegistrationContext(
-            ownerFQName: classFQName,
-            parentSymbol: classSymbol
-        )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.rootSetStatisticsConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.rootSetStatisticsType,
-            context: classContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.rootSetStatisticsProperties,
-            context: classContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
+        attachNativeRuntimeApi(
+            to: classSymbol,
+            markerFQName: nativeRuntimeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.native.runtime.NativeRuntimeApi",
+            symbols: symbols
         )
     }
 
@@ -416,35 +324,14 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: classSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
+        attachNativeRuntimeApi(
+            to: classSymbol,
+            markerFQName: nativeRuntimeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.native.runtime.NativeRuntimeApi",
+            symbols: symbols
+        )
 
-        let classFQName = packageFQName + [interner.intern("SweepStatistics")]
-        let classContext = SyntheticStubRegistrationContext(
-            ownerFQName: classFQName,
-            parentSymbol: classSymbol
-        )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.sweepStatisticsConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.sweepStatisticsType,
-            context: classContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.sweepStatisticsProperties,
-            context: classContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     // MARK: - GCInfo class
@@ -485,122 +372,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: gcInfoSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-            attachNativeRuntimeApi(
-                to: memoryUsageSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        let gcInfoFQName = packageFQName + [interner.intern("GCInfo")]
-        let memoryUsageFQName = packageFQName + [interner.intern("MemoryUsage")]
-        let gcInfoContext = SyntheticStubRegistrationContext(
-            ownerFQName: gcInfoFQName,
-            parentSymbol: gcInfoSymbol
+        let nativeRuntimeApiFQName = nativeRuntimeApiSymbol.flatMap {
+            symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        } ?? "kotlin.native.runtime.NativeRuntimeApi"
+        attachNativeRuntimeApi(
+            to: gcInfoSymbol,
+            markerFQName: nativeRuntimeApiFQName,
+            symbols: symbols
         )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.gcInfoConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.gcInfoType,
-            context: gcInfoContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcInfoProperties,
-            context: gcInfoContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
+        attachNativeRuntimeApi(
+            to: memoryUsageSymbol,
+            markerFQName: nativeRuntimeApiFQName,
+            symbols: symbols
         )
 
-        let memoryUsageContext = SyntheticStubRegistrationContext(
-            ownerFQName: memoryUsageFQName,
-            parentSymbol: memoryUsageSymbol
-        )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.memoryUsageConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.memoryUsageType,
-            context: memoryUsageContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.memoryUsageProperties,
-            context: memoryUsageContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
-
-    // MARK: - Debugging object
-
-    private func registerDebuggingObjectStub(
-        packageFQName: [InternedString],
-        nativeRuntimeApiSymbol: SymbolID?,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let objectName = interner.intern("Debugging")
-        let objectFQName = packageFQName + [objectName]
-        let pkgSymbol = symbols.lookup(fqName: packageFQName)
-
-        let objectSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: objectFQName) {
-            objectSymbol = existing
-        } else {
-            objectSymbol = symbols.define(
-                kind: .object,
-                name: objectName,
-                fqName: objectFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if let pkgSymbol {
-            symbols.setParentSymbol(pkgSymbol, for: objectSymbol)
-        }
-
-        let objectType = types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(objectType, for: objectSymbol)
-
-        // Tag with @NativeRuntimeApi.
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: objectSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        let objectContext = SyntheticStubRegistrationContext(
-            ownerFQName: objectFQName,
-            parentSymbol: objectSymbol
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.debuggingProperties,
-            context: objectContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     /// Attaches `@RequiresOptIn` to `ExperimentalNativeApi` so the opt-in
@@ -632,61 +417,6 @@ extension DataFlowSemaPhase {
         let fqName = ["kotlin", "experimental", "ExperimentalNativeApi"]
             .map { interner.intern($0) }
         return symbols.lookup(fqName: fqName)
-    }
-
-    private func registerNativeRuntimeApiAnnotation(
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> SymbolID {
-        let annotationSymbol = ensureAnnotationClassSymbol(
-            named: "NativeRuntimeApi",
-            in: packageFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if let pkgSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(pkgSymbol, for: annotationSymbol)
-        }
-
-        var annotations = symbols.annotations(for: annotationSymbol)
-        let requiresOptInRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.RequiresOptIn",
-            arguments: ["level=RequiresOptIn.Level.ERROR"]
-        )
-        if !annotations.contains(requiresOptInRecord) {
-            annotations.append(requiresOptInRecord)
-        }
-
-        let targetRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.annotation.Target",
-            arguments: [
-                "AnnotationTarget.CLASS",
-                "AnnotationTarget.ANNOTATION_CLASS",
-                "AnnotationTarget.PROPERTY",
-                "AnnotationTarget.FIELD",
-                "AnnotationTarget.LOCAL_VARIABLE",
-                "AnnotationTarget.VALUE_PARAMETER",
-                "AnnotationTarget.CONSTRUCTOR",
-                "AnnotationTarget.FUNCTION",
-                "AnnotationTarget.PROPERTY_GETTER",
-                "AnnotationTarget.PROPERTY_SETTER",
-                "AnnotationTarget.TYPEALIAS",
-            ]
-        )
-        if !annotations.contains(targetRecord) {
-            annotations.append(targetRecord)
-        }
-
-        let retentionRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.annotation.Retention",
-            arguments: ["AnnotationRetention.BINARY"]
-        )
-        if !annotations.contains(retentionRecord) {
-            annotations.append(retentionRecord)
-        }
-        symbols.setAnnotations(annotations, for: annotationSymbol)
-        return annotationSymbol
     }
 
     /// Attaches a `@ExperimentalNativeApi` annotation record to the given

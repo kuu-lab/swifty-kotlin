@@ -6,37 +6,82 @@ extension CallTypeChecker {
         returnType: TypeID,
         sema: SemaModule
     ) {
-        guard let externalLinkName = sema.symbols.externalLinkName(for: chosen) else {
-            return
-        }
-        guard [
-            "kk_op_rangeTo",
-            "kk_op_rangeUntil",
-            "kk_uint_rangeTo",
-            "kk_char_rangeTo",
-            "kk_int_progression_fromClosedRange",
-            "kk_long_progression_fromClosedRange",
-            "kk_uint_progression_fromClosedRange",
-            "kk_ulong_progression_fromClosedRange",
-            "kk_op_ulong_rangeUntil",
-        ].contains(externalLinkName) else {
-            return
+        let interner = driver.interner
+        let isRangeConstructor: Bool
+        let externalLinkName = sema.symbols.externalLinkName(for: chosen)
+        if let externalLinkName, !CallLowerer.isSourceBackedLinkName(externalLinkName) {
+            isRangeConstructor = [
+                "kk_op_rangeTo",
+                "__kk_op_rangeUntil",
+                "__kk_op_ulong_rangeUntil",
+                "__kk_uint_rangeTo",
+                "__kk_ulong_rangeTo",
+                "__kk_char_rangeTo",
+                "__kk_int_progression_fromClosedRange",
+                "__kk_long_progression_fromClosedRange",
+                "__kk_uint_progression_fromClosedRange",
+                "__kk_ulong_progression_fromClosedRange",
+                "__kk_char_progression_fromClosedRange",
+            ].contains(externalLinkName)
+        } else if let symbol = sema.symbols.symbol(chosen) {
+            let name = interner.resolve(symbol.name)
+            isRangeConstructor = ["rangeTo", "until", "rangeUntil", "downTo", "step", "fromClosedRange"].contains(name)
+                && driver.helpers.isRangeLikeType(returnType, sema: sema, interner: interner)
+        } else {
+            isRangeConstructor = false
         }
 
+        guard isRangeConstructor else { return }
+
         sema.bindings.markRangeExpr(id)
-        if externalLinkName == "kk_uint_rangeTo"
-            || externalLinkName == "kk_uint_progression_fromClosedRange"
-            || (externalLinkName == "kk_op_rangeUntil" && returnType == sema.types.uintType)
-        {
-            sema.bindings.markUIntRangeExpr(id)
+
+        if let elementType = driver.helpers.rangeLikeDeclaredElementType(
+            for: returnType,
+            sema: sema,
+            interner: interner
+        ), elementType == sema.types.floatType || elementType == sema.types.doubleType {
+            // Generic source-backed rangeUntil resolves through OpenEndRange<T>.
+            // Preserve its concrete floating-point element type for the KIR/runtime
+            // bridge, just as the legacy scalar range path does for range literals.
+            sema.bindings.markFloatingPointRangeExpr(id)
+            sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
         }
-        if externalLinkName == "kk_char_rangeTo" {
-            sema.bindings.markCharRangeExpr(id)
+
+        // Classify the concrete range/progression kind for UInt/ULong/Char dispatch.
+        if let (_, symbol) = resolveClassTypeSymbol(returnType, sema: sema) {
+            let className = interner.resolve(symbol.name)
+            switch className {
+            case "UIntRange", "UIntProgression":
+                sema.bindings.markUIntRangeExpr(id)
+            case "ULongRange", "ULongProgression":
+                sema.bindings.markULongRangeExpr(id)
+            case "CharRange", "CharProgression":
+                sema.bindings.markCharRangeExpr(id)
+            default:
+                break
+            }
         }
-        if externalLinkName == "kk_ulong_progression_fromClosedRange"
-            || externalLinkName == "kk_op_ulong_rangeUntil"
-        {
-            sema.bindings.markULongRangeExpr(id)
+
+        // Preserve the legacy external-link-name fast paths for the residual
+        // synthetic/runtime-backed operators (rangeTo, old signed rangeUntil,
+        // etc.) whose return type may still be the scalar handle.
+        if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
+            if externalLinkName == "__kk_uint_rangeTo"
+                || externalLinkName == "__kk_uint_progression_fromClosedRange"
+                || (externalLinkName == "__kk_op_rangeUntil" && returnType == sema.types.uintType)
+            {
+                sema.bindings.markUIntRangeExpr(id)
+            }
+            if externalLinkName == "__kk_char_rangeTo" {
+                sema.bindings.markCharRangeExpr(id)
+            }
+            if externalLinkName == "__kk_ulong_rangeTo"
+                || externalLinkName == "__kk_ulong_progression_fromClosedRange"
+                || externalLinkName == "__kk_op_ulong_rangeUntil"
+                || externalLinkName == "__kk_ulong_rangeTo"
+            {
+                sema.bindings.markULongRangeExpr(id)
+            }
         }
     }
 
@@ -75,6 +120,30 @@ extension CallTypeChecker {
         return returnType
     }
 
+    /// How an extension-function-typed callee's own receiver (if any) may be
+    /// supplied when the arity of `argTypes` doesn't by itself say whether
+    /// argument 0 is that receiver or the first ordinary parameter.
+    enum CallableValueArityPolicy {
+        /// The callee type's receiver (if any) is never read from `argTypes`.
+        /// Matches the original, receiver-unaware behavior. Used by the
+        /// member-property callable-invocation sugar (`receiver.prop(args)`),
+        /// which is unrelated to explicit-receiver call forms and must not
+        /// change behavior.
+        case receiverNeverExplicit
+        /// A bare call (`ef(...)`) accepts either the historical shape, where
+        /// the receiver comes from an active implicit-receiver scope
+        /// (`argTypes.count == params.count`, e.g. calling a `T.() -> Unit`
+        /// value bare inside `T.run { ... }`), or the receiver supplied
+        /// positionally as argument 0 (`argTypes.count == params.count + 1`,
+        /// e.g. `ef(3, 4)`).
+        case receiverOptionallyExplicit
+        /// An explicit `.invoke(...)` member call has no implicit-receiver
+        /// concept: when the callee type has a receiver, it must always be
+        /// supplied positionally as argument 0 (`ef.invoke(3, 4)`); there is
+        /// no arity at which it may be omitted (`ef.invoke(4)` is invalid).
+        case receiverRequiredExplicit
+    }
+
     func inferCallableValueInvocation(
         _ id: ExprID,
         calleeType: TypeID,
@@ -83,7 +152,8 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         range: SourceRange,
         ctx: TypeInferenceContext,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        arityPolicy: CallableValueArityPolicy = .receiverNeverExplicit
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -91,8 +161,16 @@ extension CallTypeChecker {
         guard case let .functionType(functionType) = sema.types.kind(of: nonNullCalleeType) else {
             return nil
         }
+        let receiverArgOffset: Int = switch arityPolicy {
+        case .receiverNeverExplicit:
+            0
+        case .receiverOptionallyExplicit:
+            (functionType.receiver != nil && argTypes.count == functionType.params.count + 1) ? 1 : 0
+        case .receiverRequiredExplicit:
+            functionType.receiver != nil ? 1 : 0
+        }
         guard !args.contains(where: { $0.label != nil || $0.isSpread }),
-              functionType.params.count == argTypes.count
+              functionType.params.count + receiverArgOffset == argTypes.count
         else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
@@ -103,12 +181,25 @@ extension CallTypeChecker {
             return sema.types.errorType
         }
         var parameterMapping: [Int: Int] = [:]
-        for index in argTypes.indices {
-            parameterMapping[index] = index
+        if receiverArgOffset == 1, let receiverType = functionType.receiver {
             driver.emitSubtypeConstraint(
-                left: argTypes[index],
-                right: functionType.params[index],
-                range: ast.arena.exprRange(args[index].expr) ?? range,
+                left: argTypes[0],
+                right: receiverType,
+                range: ast.arena.exprRange(args[0].expr) ?? range,
+                solver: ConstraintSolver(),
+                sema: sema,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+        }
+        for paramIndex in functionType.params.indices {
+            let argIndex = paramIndex + receiverArgOffset
+            if receiverArgOffset == 0 {
+                parameterMapping[argIndex] = paramIndex
+            }
+            driver.emitSubtypeConstraint(
+                left: argTypes[argIndex],
+                right: functionType.params[paramIndex],
+                range: ast.arena.exprRange(args[argIndex].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
                 diagnostics: ctx.semaCtx.diagnostics
@@ -147,3 +238,4 @@ extension CallTypeChecker {
         return nonNullType
     }
 }
+
