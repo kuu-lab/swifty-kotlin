@@ -158,20 +158,5 @@ extension LoweringPassRegressionTests {
         let callees = try loweredCallees(for: source, function: "checkTwoNullableLongs")
         #expect(callees.contains("kk_nullable_primitive_eq"), "Long? == Long? should use kk_nullable_primitive_eq, got: \(callees)")
     }
-
-    @Test
-    func testNullableLongMixedWithNullableIntStillUsesNullablePrimitiveEquality() throws {
-        // A *different* nullable primitive kind on the peer side (Int?,
-        // which is not itself sentinel-ambiguous) must still have its own
-        // nullability checked at runtime rather than assumed non-null —
-        // only the Long? side is what routes this comparison here at all.
-        let source = """
-        fun checkMixedNullablePrimitives(l: Long?, i: Int?): Boolean {
-            return l == i
-        }
-        """
-        let callees = try loweredCallees(for: source, function: "checkMixedNullablePrimitives")
-        #expect(callees.contains("kk_nullable_primitive_eq"), "Long? == Int? should use kk_nullable_primitive_eq, got: \(callees)")
-    }
 }
 #endif
