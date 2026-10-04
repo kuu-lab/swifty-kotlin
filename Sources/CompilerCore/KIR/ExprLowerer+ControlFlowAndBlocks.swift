@@ -341,7 +341,8 @@ extension ExprLowerer {
                        receiverExpr: exprID,
                        accessorKind: .getter,
                        ast: ast,
-                       sema: sema
+                       sema: sema,
+                       interner: interner
                    )
                 {
                     instructions.append(.virtualCall(
@@ -1481,6 +1482,32 @@ extension ExprLowerer {
                     )
                 )
                 driver.ctx.appendGeneratedCallableDecl(localFunDeclID)
+
+                // Call sites route an omitted-argument call through `<name>$default`;
+                // top-level/member functions get that stub from module lowering, but
+                // a local function is only reachable from here.
+                let localFunDefaults = localFunValueParams.map(\.defaultValue)
+                if let sig, localFunDefaults.contains(where: { $0 != nil }) {
+                    let stubID = driver.callSupportLowerer.generateDefaultStubFunction(
+                        originalSymbol: symbol,
+                        originalName: localFunName,
+                        signature: sig,
+                        defaultExpressions: localFunDefaults,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        captures: captureBindings.map { binding in
+                            DefaultStubCapture(
+                                capturedSymbol: binding.capturedSymbol,
+                                param: binding.param,
+                                isBoxedMutable: boxedCaptureSymbols.contains(binding.capturedSymbol)
+                            )
+                        }
+                    )
+                    driver.ctx.appendGeneratedCallableDecl(stubID)
+                }
             }
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -1557,16 +1584,23 @@ extension ExprLowerer {
                         // declaration rather than an alias to the initializer. This
                         // keeps later assignments (e.g. String -> Int in Any) in the
                         // same erased storage and lets ABILoweringPass apply the
-                        // correct boxing at each copy. Primitive destinations are
-                        // intentionally excluded: nullable primitive locals use a
-                        // distinct sentinel representation and must keep their
-                        // existing coercion path.
+                        // correct boxing at each copy. Nullable primitives whose
+                        // raw payload can collide with the null sentinel need the
+                        // same treatment: aliasing a raw `Long` initializer would
+                        // leave sentinel-equal bits in the `Long?` slot, which
+                        // every null check then reads as `null` (KUU-854).
                         let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
                         case .any, .classType, .functionType, .typeParam:
                             true
                         default:
                             false
                         }
+                        let declaredTypeIsSentinelCollidingNullablePrimitive: Bool = {
+                            guard case let .primitive(primitive, .nullable) = sema.types.kind(of: declaredType) else {
+                                return false
+                            }
+                            return primitive.rawValueCollidesWithNullSentinel
+                        }()
                         // A mutable local initialized directly from a bare symbol
                         // reference (an enum entry or object singleton, e.g. `var d:
                         // Direction = Direction.NORTH`) must not alias its storage to
@@ -1584,22 +1618,10 @@ extension ExprLowerer {
                         let requiresFreshSlotForMutableAlias = isMutable
                             && declaredTypeIsReferenceLike
                             && initializerIsBareSymbolRef
-                        // A non-null Long widened to Long? must cross a typed
-                        // copy so ABI lowering can box Long.MIN_VALUE before
-                        // it collides with the nullable null sentinel.
-                        let requiresNullableLongBoxing: Bool = if let initializerType,
-                           case .primitive(.long, .nonNull) = sema.types.kind(of: initializerType),
-                           case .primitive(.long, .nullable) = sema.types.kind(of: declaredType)
-                        {
-                            true
-                        } else {
-                            false
-                        }
                         if !isDelegated,
-                           (declaredTypeIsReferenceLike
-                               && ((initializerType != nil && initializerType != declaredType)
-                                   || requiresFreshSlotForMutableAlias))
-                               || requiresNullableLongBoxing
+                           declaredTypeIsReferenceLike || declaredTypeIsSentinelCollidingNullablePrimitive,
+                           (initializerType != nil && initializerType != declaredType)
+                           || requiresFreshSlotForMutableAlias
                         {
                             let localSlot = arena.appendTemporary(type: declaredType)
                             instructions.append(.copy(from: initializerID, to: localSlot))
@@ -1639,6 +1661,40 @@ extension ExprLowerer {
             } else if let symbol = sema.bindings.identifierSymbols[exprID] {
                 let declaredType = driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                 driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
+                // No initializer (e.g. `lateinit var f: (Int) -> Int`): a
+                // lambda capturing `f` before its first real assignment --
+                // a self-referential closure such as `f = { ... f(...) ... }`
+                // -- needs `f`'s mutable-capture cell to already exist so it
+                // can capture a reference to it, but `ensureMutableCaptureCell`
+                // requires a current value to seed the cell with. Seed a
+                // transient null placeholder for that case only (mutable,
+                // reference-like, and actually captured), mirroring how a
+                // lateinit *property*'s backing storage is seeded with `.null`
+                // in lowerPropertyInitializer. Scoped this narrowly because a
+                // primitive local's `.null` representation is a distinct
+                // sentinel (see `declaredTypeIsReferenceLike` above), not a
+                // plain null constant, and every other uninitialized local
+                // never needs a placeholder at all -- its first real
+                // assignment is a plain `setLocalValue`, not a capture-cell
+                // store.
+                let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
+                case .any, .classType, .functionType, .typeParam:
+                    true
+                default:
+                    false
+                }
+                if isMutable, declaredTypeIsReferenceLike, isCapturedByLambda(symbol, sema: sema) {
+                    let placeholder = arena.appendExpr(.null, type: declaredType)
+                    instructions.append(.constValue(result: placeholder, value: .null))
+                    driver.ctx.setLocalValue(placeholder, for: symbol)
+                    _ = ensureMutableCaptureCell(
+                        for: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
             }
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -1722,10 +1778,17 @@ extension ExprLowerer {
                 {
                     let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                    let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                        valueID,
+                        slotType: sema.symbols.propertyType(for: symbol) ?? sema.types.anyType,
+                        types: sema.types,
+                        arena: arena,
+                        into: &instructions
+                    )
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_set"),
-                        arguments: [receiverExprID, offsetExpr, valueID],
+                        arguments: [receiverExprID, offsetExpr, storedValueID],
                         result: nil,
                         canThrow: false,
                         thrownResult: nil
@@ -1771,8 +1834,18 @@ extension ExprLowerer {
                         // PropertyLoweringPass rewrites any `.copy` targeting a
                         // `.backingField`-kind symbolRef into a setter-accessor
                         // call, which would misfire here since no setter
-                        // accessor function was emitted for this property.
-                        instructions.append(.storeGlobal(value: valueID, symbol: backingFieldSym))
+                        // accessor function was emitted for this property. The
+                        // value still goes through a property-typed `.copy`
+                        // temporary first so a `P?` backing field keeps its
+                        // box-or-sentinel invariant (KUU-854).
+                        let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                            valueID,
+                            slotType: sema.symbols.propertyType(for: symbol) ?? sema.types.anyType,
+                            types: sema.types,
+                            arena: arena,
+                            into: &instructions
+                        )
+                        instructions.append(.storeGlobal(value: storedValueID, symbol: backingFieldSym))
                     } else if let storageID = driver.ctx.localValue(for: symbol) {
                         // Neither a real setter nor a backing field exists (e.g. an
                         // abstract property with no accessor of its own): fall back
@@ -2594,10 +2667,17 @@ extension ExprLowerer {
                         thrownResult: nil
                     ))
                     func storeFieldResult(_ value: KIRExprID) {
+                        let storedValue = normalizedValueForNullablePrimitiveSlot(
+                            value,
+                            slotType: propType,
+                            types: sema.types,
+                            arena: arena,
+                            into: &instructions
+                        )
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_array_set"),
-                            arguments: [receiverID, offsetExpr, value],
+                            arguments: [receiverID, offsetExpr, storedValue],
                             result: nil,
                             canThrow: false,
                             thrownResult: nil
@@ -2699,10 +2779,17 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                     func storeField(_ value: KIRExprID) {
+                        let storedValue = normalizedValueForNullablePrimitiveSlot(
+                            value,
+                            slotType: fieldType,
+                            types: sema.types,
+                            arena: arena,
+                            into: &instructions
+                        )
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_array_set"),
-                            arguments: [receiverExprID, offsetExpr, value],
+                            arguments: [receiverExprID, offsetExpr, storedValue],
                             result: nil,
                             canThrow: false,
                             thrownResult: nil
