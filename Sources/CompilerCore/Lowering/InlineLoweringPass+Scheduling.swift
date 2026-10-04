@@ -31,7 +31,6 @@ extension InlineLoweringPass {
             guard visited.insert(symbol).inserted,
                   let original = index.originalBodies[symbol] else { continue }
             var dependencies: Set<SymbolID> = []
-            let byName = index.inlineFunctionsByName
             for instruction in original.body {
                 guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = instruction else {
                     continue
@@ -39,7 +38,8 @@ extension InlineLoweringPass {
                 // Resolving reachable descriptors here discovers their own
                 // dependencies before expansion, without parsing unused imports.
                 if let target = index.inlineTarget(
-                    callSymbol: callSymbol, callee: callee, inlineFunctionsByName: byName
+                    callSymbol: callSymbol, callee: callee,
+                    inlineFunctionsByName: index.inlineFunctionsByName
                 ) {
                     dependencies.insert(target.symbol)
                     if index.isBodyless(target.symbol) {
@@ -78,7 +78,8 @@ extension InlineLoweringPass {
                 inlineFunctionsByName: index.inlineFunctionsByName,
                 module: module,
                 ctx: ctx,
-                unitType: unitType
+                unitType: unitType,
+                preserveNonLocalReturns: true
             )
             index.recordExpansion(of: symbol, to: expanded)
         }
@@ -145,7 +146,8 @@ extension InlineLoweringPass {
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?,
-        expansionLimits: InlineExpansionBudget.Limits = .init()
+        expansionLimits: InlineExpansionBudget.Limits = .init(),
+        preserveNonLocalReturns: Bool = false
     ) -> KIRFunction {
         var updated = function
         var body = function.body
@@ -166,7 +168,8 @@ extension InlineLoweringPass {
                 ctx: ctx,
                 unitType: unitType,
                 pending: pending,
-                budget: budget
+                budget: budget,
+                preserveNonLocalReturns: preserveNonLocalReturns
             )
             body = expansion.body
             locations = expansion.locations

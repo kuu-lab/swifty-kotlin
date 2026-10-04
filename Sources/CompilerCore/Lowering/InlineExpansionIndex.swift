@@ -77,6 +77,8 @@ final class InlineExpansionIndex {
     /// The module arena deferred materialization rebinds expression IDs into.
     private let arena: KIRArena
 
+    private var cachedInlineFunctionsByName: [InternedString: [SymbolID]]?
+
     /// Snapshot the module's functions and the imported inline store.
     /// Materialized imported bodies fill only symbols no module `inline`
     /// declaration owns; every imported symbol — materialized or still a
@@ -193,6 +195,7 @@ final class InlineExpansionIndex {
     /// eagerly imported body. On failure the symbol drops out of every set
     /// the eager path would never have put it in.
     private func materializeImportedBody(for symbol: SymbolID) -> KIRFunction? {
+        cachedInlineFunctionsByName = nil
         guard let function = importedStore.function(for: symbol, arena: arena) else {
             origins[symbol] = nil
             bodylessInlineSymbols.remove(symbol)
@@ -211,6 +214,7 @@ final class InlineExpansionIndex {
     /// grouping so candidate order within each name never depends on
     /// dictionary enumeration order.
     var inlineFunctionsByName: [InternedString: [SymbolID]] {
+        if let cachedInlineFunctionsByName { return cachedInlineFunctionsByName }
         var groups: [InternedString: [SymbolID]] = [:]
         for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             groups[function.name, default: []].append(symbol)
@@ -220,6 +224,7 @@ final class InlineExpansionIndex {
         {
             groups[descriptor.name, default: []].append(symbol)
         }
+        cachedInlineFunctionsByName = groups
         return groups
     }
 
