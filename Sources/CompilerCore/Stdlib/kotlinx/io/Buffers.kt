@@ -18,8 +18,8 @@ public fun Buffer.snapshot(): ByteString {
     if (size == 0L) return ByteString()
     check(size <= Int.MAX_VALUE) { "Buffer is too long ($size) to be converted into a byte string." }
     val builder = ByteStringBuilder(size.toInt())
-    UnsafeBufferOperations.forEachSegment(this) { context, segment ->
-        context.withData(segment) { bytes, start, end ->
+    UnsafeBufferOperations.forEachSegment(this) { readContext, segment ->
+        readContext.withData(segment) { bytes, start, end ->
             builder.append(bytes, start, end)
         }
     }
