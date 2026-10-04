@@ -88,6 +88,29 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions: &orderedTopLevelInitInstructions
         )
 
+        // Serialized `.klib` bodies: materialize imported functions, ctors,
+        // accessors, member fields and singleton init into this arena so the
+        // calls lowered above resolve to real definitions. A klib is a
+        // dependency — its top-level initializers run before the consumer's
+        // own, but after `.kklib` stubs and object pre-allocations.
+        for loadedKlib in sema.klibModules {
+            let lowerer = KlibBodyLowerer(
+                loaded: loadedKlib,
+                driver: self,
+                sema: sema,
+                arena: arena,
+                interner: compilationCtx.interner,
+                diagnostics: compilationCtx.diagnostics
+            )
+            let klibResult = lowerer.lowerModule()
+            if let klibFile = klibResult.file {
+                files.append(klibFile)
+            }
+            orderedTopLevelInitInstructions.appendRelocatingLabels(
+                contentsOf: klibResult.topLevelInitInstructions
+            )
+        }
+
         orderedTopLevelInitInstructions.appendRelocatingLabels(
             contentsOf: allTopLevelInitInstructions
         )

@@ -798,6 +798,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .warning,
             summary: "Kotlin .klib recognized; declaration import pending."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0029",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib body contains unsupported serialized IR."
+        ),
     ]
 
     // MARK: - KIR generation pass (KIR)
