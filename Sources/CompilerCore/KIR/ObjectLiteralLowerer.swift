@@ -261,6 +261,37 @@ final class ObjectLiteralLowerer {
             interner: interner,
             instructions: &instructions
         )
+        // Seed `lateinit` fields with the null sentinel before the
+        // superclass constructor runs (a fresh object's fields are 0, which
+        // the lateinit read path would take for a live value).
+        let lateinitSentinelSymbols = driver.lateinitSentinelPropertySymbols(
+            objectDecl.memberProperties,
+            shared: KIRLoweringSharedContext(
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+        )
+        for propertySymbol in lateinitSentinelSymbols {
+            let targetSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            guard let fieldOffset = layout?.fieldOffsets[targetSymbol] else { continue }
+            let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+            let nullExpr = arena.appendExpr(.null, type: propertyType)
+            instructions.append(.constValue(result: nullExpr, value: .null))
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let unusedResult = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [objectValue, offsetExpr, nullExpr],
+                result: unusedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
         emitObjectLiteralSuperConstructorCall(
             objectDecl,
             objectSymbol: objectSymbol,

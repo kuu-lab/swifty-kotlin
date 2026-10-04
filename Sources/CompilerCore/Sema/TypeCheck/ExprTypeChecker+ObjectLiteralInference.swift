@@ -454,6 +454,11 @@ extension ExprTypeChecker {
             if propertyDecl.isVar {
                 propertyFlags.insert(.mutable)
             }
+            // Read wrapping (`kk_lateinit_get_or_throw`) and `::p.isInitialized`
+            // both key off this flag, exactly as for named-class members.
+            if propertyDecl.modifiers.contains(.lateinit) {
+                propertyFlags.insert(.lateinitProperty)
+            }
             let propertySymbol = sema.symbols.define(
                 kind: .property,
                 name: propertyDecl.name,
