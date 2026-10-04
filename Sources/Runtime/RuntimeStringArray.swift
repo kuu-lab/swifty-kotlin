@@ -533,7 +533,7 @@ func runtimeStructuredPanic(_ message: @autoclosure () -> String) -> Never {
     fatalError(runtimeStructuredPanicMessage(message()))
 }
 
-private enum RuntimeTypeTokenEncoding {
+enum RuntimeTypeTokenEncoding {
     static let baseMask: Int64 = 0xFF
     static let nullableBit: Int64 = 0x100
     static let payloadShift: Int64 = 9
