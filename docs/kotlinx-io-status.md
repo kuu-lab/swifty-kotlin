@@ -19,6 +19,12 @@
 - `RealSource` / `RealSink`（`RawSource.buffered()` / `RawSink.buffered()` の内部実装）
 - `PeekSource`（`Source.peek()` の内部実装）
 - `Core.kt`（`buffered()` 拡張関数2つ、`discardingSink()`、`SystemLineSeparator`）
+- `Sources.kt`（0.9.1 の Source 拡張一式：decimal/hex 読み込み、LE/unsigned/浮動小数点、
+  ByteArray 読み込み、byte 検索、`startsWith`。`ByteStrings.kt` の Source/Buffer 検索・
+  ByteString 取得も同梱。`readAtMostTo(ByteArray)` の省略引数形は拡張で提供する）
+
+`readUnsignedByte` 等ではなく upstream の `readUByte` / `readUShort` / `readUInt` / `readULong`
+を公開する。0.9.1 の `Sources.kt` には `select(OPTIONAL_*)` / `segmentedBytes` は存在しない。
 
 ### 内部実装の簡略化：セグメント連結リストではなく単一 ByteArray
 
