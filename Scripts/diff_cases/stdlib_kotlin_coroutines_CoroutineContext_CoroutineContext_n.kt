@@ -25,4 +25,9 @@ fun main() {
     // their result is exercised here without asserting the value.
     ctx.get(Marker.Key)
     ctx[Marker.Key]
+    try {
+        ctx.fold(0) { _, _ -> throw IllegalStateException("fold") }
+    } catch (e: IllegalStateException) {
+        println("fold threw")
+    }
 }

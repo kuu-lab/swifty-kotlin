@@ -177,11 +177,12 @@ public func kk_context_fold(
     var acc = initial
     for elementRaw in runtimeCoroutineContextElementHandles(in: ctx) {
         var thrown = 0
-        acc = maybeUnbox(lambda(closureRaw, acc, elementRaw, &thrown))
+        let result = lambda(closureRaw, acc, elementRaw, &thrown)
         if thrown != 0 {
             outThrown?.pointee = thrown
-            return initial
+            return acc
         }
+        acc = maybeUnbox(result)
     }
     return acc
 }
