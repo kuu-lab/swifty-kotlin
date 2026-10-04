@@ -32,7 +32,7 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
         return runtimeMakeStringPointer("null")
     }
     if tag == 2 {
-        return runtimeMakeStringPointer(value != 0 ? "true" : "false")
+        return runtimeMakeStringPointer(kk_unbox_bool_static(value) != 0 ? "true" : "false")
     }
     if tag == 4 {
         let rendered = runtimeRenderTaggedChar(value)
@@ -553,6 +553,9 @@ func runtimeValueHash(_ value: Int) -> Int {
 public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) -> Int {
     let lhsTag = Int32(truncatingIfNeeded: lhsTag)
     let rhsTag = Int32(truncatingIfNeeded: rhsTag)
+    if let lhsRange = runtimeRangeBox(from: lhs), let rhsRange = runtimeRangeBox(from: rhs) {
+        return kk_box_bool(runtimeRangesEqual(lhsRange, rhsRange) ? 1 : 0)
+    }
     if runtimeAnyKind(lhs, lhsTag) != runtimeAnyKind(rhs, rhsTag) {
         return kk_box_bool(0)
     }
