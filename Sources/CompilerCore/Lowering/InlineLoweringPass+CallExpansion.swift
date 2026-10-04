@@ -18,11 +18,15 @@ extension InlineLoweringPass {
         module: KIRModule,
         ctx: KIRContext,
         callerBody: [KIRInstruction],
-        labels: inout InlineLabelAllocator
+        labels: inout InlineLabelAllocator,
+        expansionBudget: InlineExpansionBudget? = nil
     ) -> InlineExpansion? {
         guard arguments.count == inlineTarget.params.count else {
             return nil
         }
+        let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
+        guard budget.enter(inlineTarget, arena: module.arena) else { return nil }
+        defer { budget.leave() }
 
         let parameterValues = Dictionary(uniqueKeysWithValues: zip(inlineTarget.params.map(\.symbol), arguments))
 
@@ -125,6 +129,7 @@ extension InlineLoweringPass {
 
         let sequenceGenerateCallee = ctx.interner.intern("__kk_sequence_generate")
         for instruction in inlineTarget.body {
+            guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
             switch instruction {
             case .beginBlock, .endBlock:
                 continue
@@ -257,7 +262,8 @@ extension InlineLoweringPass {
                         module: module,
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
-                        labels: &labels
+                        labels: &labels,
+                        expansionBudget: budget
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
@@ -320,7 +326,8 @@ extension InlineLoweringPass {
                         module: module,
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
-                        labels: &labels
+                        labels: &labels,
+                        expansionBudget: budget
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
@@ -618,6 +625,7 @@ extension InlineLoweringPass {
             lowered.append(.label(inlineExitLabel))
         }
 
+        guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
         return InlineExpansion(
             instructions: lowered.instructions,
             returnedExpr: returnedExpr,

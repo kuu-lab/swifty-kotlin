@@ -61,8 +61,12 @@ extension InlineLoweringPass {
         module: KIRModule,
         allFunctionsBySymbol: [SymbolID: KIRFunction],
         ctx: KIRContext,
-        labels: inout InlineLabelAllocator
+        labels: inout InlineLabelAllocator,
+        expansionBudget: InlineExpansionBudget? = nil
     ) -> InlineExpansion? {
+        let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
+        guard budget.enter(lambdaFunction, arena: module.arena) else { return nil }
+        defer { budget.leave() }
         // Map lambda parameters to arguments. If the argument count does not
         // match the parameter count, skip capture parameters at the front and
         // map only the trailing value parameters.
@@ -142,6 +146,7 @@ extension InlineLoweringPass {
         }
 
         for instruction in lambdaFunction.body {
+            guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
             switch instruction {
             case .beginBlock, .endBlock:
                 continue
@@ -227,7 +232,8 @@ extension InlineLoweringPass {
                         module: module,
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
-                        labels: &labels
+                        labels: &labels,
+                        expansionBudget: budget
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
@@ -373,6 +379,7 @@ extension InlineLoweringPass {
             lowered.append(.label(exitLabel))
         }
 
+        guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
         return InlineExpansion(
             instructions: lowered.instructions,
             returnedExpr: returnedExpr,

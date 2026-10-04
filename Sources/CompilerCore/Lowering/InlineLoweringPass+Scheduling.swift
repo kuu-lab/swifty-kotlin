@@ -13,11 +13,6 @@ extension InlineLoweringPass {
     /// without limit.
     private static let maxBodylessExpansionRounds = 4
 
-    /// Upper bound on how many times a function body is re-scanned for inline
-    /// calls. Nested expansions terminate well below this; the cap only keeps
-    /// mutually recursive inline functions from looping forever.
-    private static let maxInlineExpansionRounds = 8
-
     /// Rewrite the bodies that later get spliced into callers so they no longer
     /// call functions whose body never reaches codegen. The index's pending
     /// set is computed from the *current* snapshot bodies, while each round
@@ -113,17 +108,18 @@ extension InlineLoweringPass {
         inlineFunctionsByName: [InternedString: [SymbolID]],
         module: KIRModule,
         ctx: KIRContext,
-        unitType: TypeID?
+        unitType: TypeID?,
+        expansionLimits: InlineExpansionBudget.Limits = .init()
     ) -> KIRFunction {
         var updated = function
         var body = function.body
         var locations = function.instructionLocations
-        // An expanded inline body can itself call another inline function
-        // (`Grouping.fold` delegating to `foldTo`). Those calls only become
-        // visible once the outer body is spliced in, and inline functions are
-        // not emitted as standalone symbols, so a call left behind here would
-        // dangle at link time. Re-scan until no inline call remains.
-        for _ in 0 ..< Self.maxInlineExpansionRounds {
+        let budget = InlineExpansionBudget(arena: module.arena, limits: expansionLimits)
+        var pending: [Int: [SymbolID]] = [:]
+        for (offset, instruction) in body.enumerated() {
+            if case .call = instruction { pending[offset] = [function.symbol] }
+        }
+        while !pending.isEmpty, budget.consumeWork(body.count, arena: module.arena) {
             let expansion = expandInlineCalls(
                 in: body,
                 callerLocations: locations,
@@ -132,10 +128,13 @@ extension InlineLoweringPass {
                 inlineFunctionsByName: inlineFunctionsByName,
                 module: module,
                 ctx: ctx,
-                unitType: unitType
+                unitType: unitType,
+                pending: pending,
+                budget: budget
             )
             body = expansion.body
             locations = expansion.locations
+            pending = expansion.pending
             if !expansion.didExpand {
                 break
             }

@@ -251,17 +251,11 @@ struct InlineTerminationContractTests {
         #expect(errors.first?.message.contains("reached its limit") == true)
     }
 
-    // MARK: - Caller rescan boundary (8 rounds)
+    // MARK: - Progress-driven caller expansion
 
-    /// A regular `inline` delegation chain converges after one rescan per
-    /// level. At exactly the limit (a chain of eight) every inline call is
-    /// gone; one level deeper the leftover call is legal residue -- regular
-    /// inline bodies are emitted, so no diagnostic is raised.
-    @Test(arguments: [(8, false), (9, true)])
-    func testRegularInlineChainAtAndBeyondRescanLimit(
-        depth: Int,
-        leavesResidue: Bool
-    ) throws {
+    /// Deep acyclic delegation is limited by work, not an arbitrary round count.
+    @Test(arguments: [8, 9, 32, 128])
+    func testRegularInlineChainBeyondFormerRescanLimit(depth: Int) throws {
         let interner = StringInterner()
         let types = TypeSystem()
         let leaf = makeFunction("leaf", symbol: 500, interner: interner, types: types)
@@ -302,16 +296,148 @@ struct InlineTerminationContractTests {
             }
             return interner.resolve(callee)
         }
-        if leavesResidue {
-            // Beyond the limit the call to the regular inline `g9` remains --
-            // emitted normally, legal to leave behind.
-            #expect(targets == ["g\(depth)"])
-        } else {
-            #expect(targets == ["leaf"])
-        }
+        #expect(targets == ["leaf"])
     }
 
     // MARK: - Residue scope
+
+    @Test
+    func testCallerExpandsAlternatingInlineAndLambdaStages() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let module = makeModule([])
+        let depth = 24
+        for stage in 1 ... depth {
+            let lambdaSymbol = SymbolID(rawValue: Int32(100 + stage))
+            let callable = module.arena.appendExpr(.symbolRef(lambdaSymbol))
+            let wrapper = makeFunction(
+                "stage\(stage)", symbol: Int32(stage), interner: interner, types: types,
+                body: [call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [callable])],
+                isInline: true
+            )
+            let lambda = makeFunction(
+                "lambda\(stage)", symbol: lambdaSymbol.rawValue, interner: interner, types: types,
+                body: stage == depth ? [.nop, .returnUnit] : [
+                    call(to: SymbolID(rawValue: Int32(stage + 1)), callee: "stage\(stage + 1)", interner: interner),
+                ]
+            )
+            _ = module.arena.appendDecl(.function(wrapper))
+            _ = module.arena.appendDecl(.function(lambda))
+        }
+        let caller = makeFunction(
+            "caller", symbol: 1000, interner: interner, types: types,
+            body: [call(to: SymbolID(rawValue: 1), callee: "stage1", interner: interner)]
+        )
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let diagnostics = DiagnosticEngine()
+        let expanded = InlineLoweringPass().inlineTransform(
+            function: caller, index: index, inlineFunctionsByName: index.inlineFunctionsByName,
+            module: module, ctx: makeContext(diagnostics: diagnostics, interner: interner), unitType: types.unitType
+        )
+        #expect(!diagnostics.hasError)
+        #expect(callTargets(of: expanded, interner: interner).isEmpty)
+        #expect(expanded.body == [.nop])
+    }
+
+    @Test
+    func testCallerCycleGuardIsPerExpansionPath() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let a = makeFunction("a", symbol: 1, interner: interner, types: types, body: [
+            .nop, call(to: SymbolID(rawValue: 2), callee: "b", interner: interner),
+        ], isInline: true)
+        let b = makeFunction("b", symbol: 2, interner: interner, types: types, body: [
+            call(to: a.symbol, callee: "a", interner: interner),
+        ], isInline: true)
+        let caller = makeFunction("caller", symbol: 3, interner: interner, types: types, body: [
+            call(to: a.symbol, callee: "a", interner: interner),
+            call(to: a.symbol, callee: "a", interner: interner),
+        ])
+        let module = makeModule([a, b, caller])
+        let diagnostics = DiagnosticEngine()
+        try InlineLoweringPass().run(module: module, ctx: makeContext(diagnostics: diagnostics, interner: interner))
+        let expanded = try #require(module.arena.declarations.compactMap { decl -> KIRFunction? in
+            guard case let .function(function) = decl, function.symbol == caller.symbol else { return nil }
+            return function
+        }.first)
+        #expect(!diagnostics.hasError)
+        #expect(expanded.body.count == 4)
+        #expect(callTargets(of: expanded, interner: interner).map(\.callee) == ["a", "a"])
+    }
+
+    @Test
+    func testRecursiveLambdaInvocationStopsWithoutGrowingArena() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let module = makeModule([])
+        let symbol = SymbolID(rawValue: 1)
+        let callable = module.arena.appendExpr(.symbolRef(symbol))
+        let lambda = makeFunction("recursiveLambda", symbol: 1, interner: interner, types: types, body: [
+            call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [callable]),
+        ])
+        _ = module.arena.appendDecl(.function(lambda))
+        let caller = makeFunction("caller", symbol: 2, interner: interner, types: types, body: lambda.body)
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let diagnostics = DiagnosticEngine()
+        let expanded = InlineLoweringPass().inlineTransform(
+            function: caller, index: index, inlineFunctionsByName: index.inlineFunctionsByName,
+            module: module, ctx: makeContext(diagnostics: diagnostics, interner: interner), unitType: types.unitType
+        )
+        #expect(expanded.body.count == 1)
+        #expect(module.arena.expressions.count <= 3)
+        #expect(!diagnostics.hasError)
+    }
+
+    @Test(arguments: ["work", "instructions", "expressions"])
+    func testCallerBudgetsLeaveDiagnosableMandatoryResidue(resource: String) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let module = makeModule([])
+        let value = module.arena.appendTemporary(type: types.intType)
+        let target = makeFunction("mandatory", symbol: 1, interner: interner, types: types, body: [
+            .constValue(result: value, value: .intLiteral(42)),
+            .constValue(result: value, value: .intLiteral(43)),
+            .returnUnit,
+        ], isInline: true, isInlineOnly: true)
+        _ = module.arena.appendDecl(.function(target))
+        let caller = makeFunction("caller", symbol: 2, interner: interner, types: types, body: [
+            call(to: target.symbol, callee: "mandatory", interner: interner),
+        ])
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        var limits = InlineExpansionBudget.Limits()
+        switch resource {
+        case "work": limits.work = 1
+        case "instructions": limits.instructions = 1
+        default: limits.expressions = 0
+        }
+        let diagnostics = DiagnosticEngine()
+        let ctx = makeContext(diagnostics: diagnostics, interner: interner)
+        let expanded = InlineLoweringPass().inlineTransform(
+            function: caller, index: index, inlineFunctionsByName: index.inlineFunctionsByName,
+            module: module, ctx: ctx, unitType: types.unitType, expansionLimits: limits
+        )
+        #expect(expanded.body == caller.body)
+        #expect(module.arena.expressions.count <= 2)
+        _ = module.arena.appendDecl(.function(expanded))
+        InlineLoweringPass().diagnoseMandatoryInlineResidue(module: module, index: index, ctx: ctx)
+        #expect(diagnostics.diagnostics.count == 1)
+        #expect(diagnostics.diagnostics.first?.code == "KSWIFTK-INL-0001")
+        #expect(diagnostics.diagnostics.first?.message.contains("reached its limit") == true)
+    }
+
+    @Test
+    func testCallerWorkBudgetBoundsEmptyExpansionChain() {
+        let module = makeModule([])
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let budget = InlineExpansionBudget(arena: module.arena, limits: .init(work: 2))
+        let empty = makeFunction("empty", symbol: 1, interner: interner, types: types, body: [])
+        #expect(budget.enter(empty, arena: module.arena))
+        budget.leave()
+        #expect(budget.enter(empty, arena: module.arena))
+        budget.leave()
+        #expect(!budget.enter(empty, arena: module.arena))
+    }
 
     /// A leftover call to a non-bodyless expansion target or to a function
     /// outside the index entirely is legal: it resolves to an emitted body

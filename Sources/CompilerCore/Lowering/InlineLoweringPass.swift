@@ -73,8 +73,10 @@ final class InlineLoweringPass: LoweringPass {
         inlineFunctionsByName: [InternedString: [SymbolID]],
         module: KIRModule,
         ctx: KIRContext,
-        unitType: TypeID?
-    ) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool) {
+        unitType: TypeID?,
+        pending: [Int: [SymbolID]],
+        budget: InlineExpansionBudget
+    ) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool, pending: [Int: [SymbolID]]) {
         // Every label this round introduces into the caller comes from here,
         // starting above the labels the caller body already uses.
         var labels = InlineLabelAllocator(callerBody: callerBody)
@@ -84,15 +86,32 @@ final class InlineLoweringPass: LoweringPass {
                 "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
                 range: function.sourceRange
             )
-            return (callerBody, callerLocations, false)
+            return (callerBody, callerLocations, false, [:])
         }
 
         var loweredBody = KIRLoweringEmitContext()
         loweredBody.instructions.reserveCapacity(callerBody.count)
         var aliases: [KIRExprID: KIRExprID] = [:]
         var didExpand = false
+        var nextPending: [Int: [SymbolID]] = [:]
 
         for (instructionIndex, originalInstruction) in callerBody.enumerated() {
+            let outputStart = loweredBody.instructions.count
+            let ancestry = pending[instructionIndex]
+            var expandedSymbol: SymbolID?
+            var retryInvoke = false
+            defer {
+                if let ancestry {
+                    for offset in outputStart ..< loweredBody.instructions.count {
+                        guard case .call = loweredBody.instructions[offset] else { continue }
+                        if let expandedSymbol {
+                            nextPending[offset] = ancestry + [expandedSymbol]
+                        } else if retryInvoke {
+                            nextPending[offset] = ancestry
+                        }
+                    }
+                }
+            }
             loweredBody.currentSourceRange = instructionIndex < callerLocations.count
                 ? callerLocations[instructionIndex]
                 : nil
@@ -106,8 +125,15 @@ final class InlineLoweringPass: LoweringPass {
                 continue
             }
 
+            guard let ancestry, budget.permitsOutput(loweredBody.instructions.count, arena: module.arena) else {
+                loweredBody.append(instruction)
+                continue
+            }
+            budget.ancestry = ancestry
+
             let resolvedArguments = arguments.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
-            if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
+            retryInvoke = ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee))
+            if retryInvoke,
                let callableExpr = resolvedArguments.first,
                let lambdaFunction = resolveLambdaFunction(
                    argExpr: callableExpr,
@@ -116,6 +142,11 @@ final class InlineLoweringPass: LoweringPass {
                    callerBody: callerBody
                )
             {
+                guard !ancestry.contains(lambdaFunction.symbol) else {
+                    loweredBody.append(instruction)
+                    retryInvoke = false
+                    continue
+                }
                 let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
                     .map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
                 // A lambda spliced into an already-inlined generic body reads
@@ -134,7 +165,8 @@ final class InlineLoweringPass: LoweringPass {
                     module: module,
                     allFunctionsBySymbol: index.allFunctionsBySymbol,
                     ctx: ctx,
-                    labels: &labels
+                    labels: &labels,
+                    expansionBudget: budget
                 ) {
                     let (reroutedInstructions, throwDispatchLabel) = InlineThrowRerouting.rerouteUnprotectedThrows(
                         in: labels.relocate(lambdaExpansion.instructions),
@@ -143,6 +175,7 @@ final class InlineLoweringPass: LoweringPass {
                     )
                     loweredBody.append(contentsOf: reroutedInstructions)
                     didExpand = true
+                    expandedSymbol = lambdaFunction.symbol
                     if let throwDispatchLabel {
                         loweredBody.append(.label(throwDispatchLabel))
                     }
@@ -176,7 +209,7 @@ final class InlineLoweringPass: LoweringPass {
                             "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
                             range: function.sourceRange
                         )
-                        return (callerBody, callerLocations, false)
+                        return (callerBody, callerLocations, false, [:])
                     }
                     continue
                 }
@@ -192,7 +225,7 @@ final class InlineLoweringPass: LoweringPass {
                 inlineFunctionsByName: inlineFunctionsByName
             )
 
-            guard let inlineTarget, inlineTarget.symbol != function.symbol else {
+            guard let inlineTarget, !ancestry.contains(inlineTarget.symbol) else {
                 loweredBody.append(instruction)
                 continue
             }
@@ -217,13 +250,15 @@ final class InlineLoweringPass: LoweringPass {
                 module: module,
                 ctx: ctx,
                 callerBody: callerBody,
-                labels: &labels
+                labels: &labels,
+                expansionBudget: budget
             )
             guard let expansion else {
                 loweredBody.append(instruction)
                 continue
             }
             didExpand = true
+            expandedSymbol = inlineTarget.symbol
 
             // Move the expansion's labels into the caller's label namespace so
             // the caller's own labels and the inlined callee's cannot collide.
@@ -358,7 +393,7 @@ final class InlineLoweringPass: LoweringPass {
                     "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
                     range: function.sourceRange
                 )
-                return (callerBody, callerLocations, false)
+                return (callerBody, callerLocations, false, [:])
             }
         }
 
@@ -368,10 +403,13 @@ final class InlineLoweringPass: LoweringPass {
                 "Inline label allocator overflow in function '\(ctx.interner.resolve(function.name))'",
                 range: function.sourceRange
             )
-            return (callerBody, callerLocations, false)
+            return (callerBody, callerLocations, false, [:])
         }
 
-        return (loweredBody.instructions, loweredBody.instructionLocations, didExpand)
+        guard budget.permitsOutput(loweredBody.instructions.count, arena: module.arena) else {
+            return (callerBody, callerLocations, false, [:])
+        }
+        return (loweredBody.instructions, loweredBody.instructionLocations, didExpand, nextPending)
     }
 
     /// Whether any instruction in `instructions` defines `expr` — including
