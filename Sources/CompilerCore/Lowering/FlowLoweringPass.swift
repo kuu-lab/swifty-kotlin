@@ -236,8 +236,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [flowExpr, arguments[0], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         continue
                     }
@@ -386,8 +386,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [arguments[0], arguments[1], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         if let result {
                             activeFlowExpr = result
@@ -579,8 +579,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [receiver, arguments[0], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         activeFlowExpr = receiver
                         continue

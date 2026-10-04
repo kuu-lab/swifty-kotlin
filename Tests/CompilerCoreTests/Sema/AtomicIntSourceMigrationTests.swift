@@ -4,8 +4,8 @@ import Foundation
 import Testing
 
 /// KSP-1112: the canonical `kotlin.concurrent.atomics.AtomicInt(Int)`
-/// constructor is represented by a source-backed factory that delegates to the
-/// runtime-backed `kotlin.concurrent.AtomicInt` allocation.
+/// constructor is represented by a source-backed factory linked directly to
+/// the runtime allocation for the canonical nominal type.
 @Suite(.serialized)
 struct AtomicIntSourceMigrationTests {
     @Test
@@ -31,10 +31,9 @@ struct AtomicIntSourceMigrationTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
             let constructorFQName = ["kotlin", "concurrent", "atomics", "AtomicInt"].map(interner.intern)
-            let underlyingFQName = ["kotlin", "concurrent", "AtomicInt"].map(interner.intern)
-            let underlyingSymbol = try #require(sema.symbols.lookup(fqName: underlyingFQName))
+            let canonicalSymbol = try #require(sema.symbols.lookup(fqName: constructorFQName))
             let expectedReturn = sema.types.make(.classType(ClassType(
-                classSymbol: underlyingSymbol,
+                classSymbol: canonicalSymbol,
                 args: [],
                 nullability: .nonNull
             )))
@@ -55,7 +54,7 @@ struct AtomicIntSourceMigrationTests {
             #expect(symbol.visibility == .public)
             #expect(!symbol.flags.contains(.synthetic))
             #expect(sema.symbols.isSourceBackedSymbol(factory))
-            #expect(sema.symbols.externalLinkName(for: factory) == nil)
+            #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_int_create")
             let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
             #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/atomics/AtomicInt/Stdlib.kt")
 

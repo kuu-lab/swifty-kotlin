@@ -62,7 +62,8 @@ final class RuntimeSequenceIteratorBox {
             return generatorCursor.next(outThrown: outThrown)
         }
         materialize(outThrown: outThrown)
-        guard index < elements.count else { return 0 }
+        if (outThrown?.pointee ?? 0) != 0 { return 0 }
+        guard index < elements.count else { return runtimeThrowIteratorExhausted(outThrown) }
         let value = elements[index]
         index += 1
         return value
@@ -141,7 +142,11 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
     }
 
     func next(outThrown: UnsafeMutablePointer<Int>?) -> Int {
-        guard hasNext(outThrown: outThrown), bufferedIndex < bufferedElements.count else { return 0 }
+        let hasElement = hasNext(outThrown: outThrown)
+        if (outThrown?.pointee ?? 0) != 0 { return 0 }
+        guard hasElement, bufferedIndex < bufferedElements.count else {
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
         let value = bufferedElements[bufferedIndex]
         bufferedIndex += 1
         return value
@@ -3885,19 +3890,7 @@ public func kk_sequence_box_iterator(_ seqRaw: Int, _ outThrown: UnsafeMutablePo
         return 0
     }
     let iterator = RuntimeSequenceIteratorBox(seq: seq)
-    let raw = registerRuntimeObject(iterator as AnyObject)
-    _ = kk_object_register_itable_iface(raw, Int(runtimeIteratorInterfaceTypeID), 0)
-    let hasNextPtr = unsafeBitCast(
-        kk_sequence_iterator_hasNext as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
-        to: Int.self
-    )
-    _ = kk_object_register_itable_method(raw, 0, 0, hasNextPtr)
-    let nextPtr = unsafeBitCast(
-        kk_sequence_iterator_next as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
-        to: Int.self
-    )
-    _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
-    return raw
+    return registerRuntimeObject(iterator)
 }
 
 @_cdecl("kk_sequence_iterator_hasNext")
@@ -3918,13 +3911,11 @@ public func kk_sequence_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutable
     return iter.next(outThrown: outThrown)
 }
 
-func registerRuntimeObject(_ box: RuntimeSequenceBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
+func registerRuntimeSequenceItable(raw: Int) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeSequenceInterfaceTypeID), 0)
     let iteratorPtr = unsafeBitCast(
         kk_sequence_box_iterator as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
         to: Int.self
     )
     _ = kk_object_register_itable_method(raw, 0, 0, iteratorPtr)
-    return raw
 }

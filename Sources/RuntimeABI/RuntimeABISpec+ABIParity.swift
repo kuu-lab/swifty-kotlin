@@ -111,6 +111,25 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_copaque_pointer_new", parameters: [
             p("address", .intptr),
         ]),
+        abiParitySpec("__kk_cancellable_continuation_new", parameters: [p("delegate", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_state", parameters: [p("handle", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_resume", parameters: [
+            p("handle", .intptr), p("result", .intptr), p("callback", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_cancel", parameters: [p("handle", .intptr), p("cause", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_invoke_on_cancellation", parameters: [
+            p("handle", .intptr), p("handler", .intptr), p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_try_resume", parameters: [
+            p("handle", .intptr), p("result", .intptr), p("idempotent", .intptr),
+        ]),
+        abiParitySpec("__kk_cancellable_continuation_complete_resume", parameters: [
+            p("handle", .intptr), p("token", .intptr), p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_get_result", parameters: [
+            p("handle", .intptr), p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("__kk_coroutine_continuation_context", parameters: [
             p("continuation", .intptr),
             p("outThrown", .nullableIntptrPointer),

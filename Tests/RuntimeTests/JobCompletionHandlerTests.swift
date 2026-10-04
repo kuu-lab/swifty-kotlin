@@ -2,6 +2,11 @@ import Foundation
 @testable import Runtime
 import Testing
 
+private func jobCompletionTestEntry(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 73)
+}
+
 private final class JobHandlerEvents: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [Int] = []
@@ -111,7 +116,49 @@ struct JobCompletionHandlerTests {
         let parentRaw = kk_job_new()
         let scopeRaw = kk_coroutine_scope_new_with_context(parentRaw)
         let scope = runtimeCoroutineScope(from: scopeRaw)
-        #expect(scope?.contextJob === runtimeJobHandle(from: parentRaw))
+        #expect(scope?.job === runtimeJobHandle(from: parentRaw))
+    }
+
+    @Test func launchedBodyRestoresAmbientScopeAndJob() throws {
+        let previousJob = RuntimeJobHandle.current
+        let previousScope = RuntimeCoroutineScope.current
+        defer {
+            RuntimeJobHandle.current = previousJob
+            RuntimeCoroutineScope.current = previousScope
+        }
+        let parent = RuntimeJobHandle()
+        parent.markStarted()
+        let parentScope = RuntimeCoroutineScope()
+        RuntimeJobHandle.current = parent
+        RuntimeCoroutineScope.current = parentScope
+
+        let child = RuntimeJobHandle()
+        let childScope = RuntimeCoroutineScope()
+        let continuation = kk_coroutine_continuation_new(9103)
+        let state = try #require(runtimeContinuationState(from: continuation))
+        state.jobHandle = child
+        state.scope = childScope
+        let events = JobHandlerEvents()
+        let entry = unsafeBitCast(
+            jobCompletionTestEntry as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        runtimeStartLaunchedBody(
+            entryPointRaw: entry,
+            continuation: continuation,
+            scope: childScope,
+            job: child
+        ) { result, thrown in
+            #expect(RuntimeJobHandle.current === child)
+            #expect(RuntimeCoroutineScope.current === childScope)
+            #expect(thrown == 0)
+            events.append(result)
+            _ = child.complete(with: result)
+        }
+        #expect(events.snapshot() == [73])
+        #expect(RuntimeJobHandle.current === parent)
+        #expect(RuntimeCoroutineScope.current === parentScope)
+        #expect(parent.isActiveSnapshot())
     }
 
     @Test func deferredCompletionAndCancellationParticipateInJobCallbacksAndHierarchy() {

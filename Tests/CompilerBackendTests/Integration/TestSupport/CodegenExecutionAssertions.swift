@@ -10,6 +10,7 @@ func runCodegenPipeline(
     emit: EmitMode,
     outputPath: String,
     irFlags: [String] = [],
+    optLevel: OptimizationLevel = .O0,
     allowDefaultStdlibLibrary: Bool = true
 ) throws -> CompilationContext {
     let options = CompilerOptions(
@@ -18,6 +19,7 @@ func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
+        optLevel: optLevel,
         irFlags: irFlags,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
@@ -46,6 +48,7 @@ func assertKotlinOutput(
     _ source: String,
     moduleName: String,
     expected: String,
+    optLevel: OptimizationLevel = .O0,
     allowDefaultStdlibLibrary: Bool = true
 ) throws {
     try withTemporaryFile(contents: source) { path in
@@ -56,6 +59,7 @@ func assertKotlinOutput(
             moduleName: moduleName,
             emit: .executable,
             outputPath: outputBase,
+            optLevel: optLevel,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
         try LinkPhase().run(ctx)

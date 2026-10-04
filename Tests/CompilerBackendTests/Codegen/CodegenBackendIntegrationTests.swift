@@ -63,8 +63,9 @@ import Testing
             let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
             #expect(manifest["moduleName"] as? String == "LibMod")
 
-            let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
-            #expect(metadata.contains("symbols="))
+            let metadata = try Data(contentsOf: URL(fileURLWithPath: metadataPath))
+            let indexedMetadata = try #require(IndexedMetadataFile(data: metadata))
+            #expect(indexedMetadata.entries.count == 2)
 
             let inlineDir = libDir + "/inline-kir"
             let inlineFiles = try FileManager.default.contentsOfDirectory(atPath: inlineDir)

@@ -279,14 +279,22 @@ extension DeclTypeChecker {
         // constructor call. This also records constant-property bindings for
         // expressions such as `Base64(STANDARD_ALPHABET, 0)`.
         var superclassArgumentLocals: LocalBindings = [:]
+        var superclassCallArgs: [CallArg] = []
         for argument in objectDecl.superTypeConstructorArgs {
-            _ = driver.inferExpr(
+            let argType = driver.inferExpr(
                 argument.expr,
                 ctx: ctx,
                 locals: &superclassArgumentLocals,
                 expectedType: nil
             )
+            superclassCallArgs.append(CallArg(label: argument.label, isSpread: argument.isSpread, type: argType))
         }
+        bindObjectSuperConstructorCall(
+            objectDecl,
+            symbol: symbol,
+            callArgs: superclassCallArgs,
+            ctx: ctx
+        )
 
         typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
         typeCheckClassLikeMembers(
@@ -297,6 +305,46 @@ extension DeclTypeChecker {
             ctx: objectCtx,
             solver: solver,
             diagnostics: diagnostics
+        )
+    }
+
+    /// Resolves the superclass constructor named by `object O : Base(args)`
+    /// and records the full call binding under the object symbol, so KIR
+    /// lowering can apply the same named-argument / default normalization as
+    /// for a class header's `super(...)` call
+    /// (`typeCheckPrimaryConstructorSuperDelegation`).
+    private func bindObjectSuperConstructorCall(
+        _ objectDecl: ObjectDecl,
+        symbol: SymbolID,
+        callArgs: [CallArg],
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
+              let superclassInfo = sema.symbols.symbol(superclassSymbol)
+        else {
+            return
+        }
+        let candidates = sema.symbols
+            .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
+            .filter { sema.symbols.symbol($0)?.kind == .constructor }
+        guard !candidates.isEmpty else { return }
+        let resolved = ctx.resolver.resolveCall(
+            candidates: candidates,
+            call: CallExpr(range: objectDecl.range, calleeName: ctx.interner.intern("<init>"), args: callArgs),
+            expectedType: nil,
+            ctx: sema
+        )
+        guard let chosenCallee = resolved.chosenCallee else { return }
+        sema.bindings.bindConstructorDelegationCall(
+            symbol,
+            binding: CallBinding(
+                chosenCallee: chosenCallee,
+                substitutedTypeArguments: resolved.substitutedTypeArguments
+                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                    .map(\.value),
+                parameterMapping: resolved.parameterMapping
+            )
         )
     }
 
