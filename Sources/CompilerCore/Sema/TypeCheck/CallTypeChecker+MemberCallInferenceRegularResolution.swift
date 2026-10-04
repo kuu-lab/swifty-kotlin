@@ -270,7 +270,22 @@ extension CallTypeChecker {
         // accessible (not instance methods).  This prevents `Foo.instanceMethod()`
         // from resolving when there is no companion with that name.
         let classNameReceiverNominalSymbol: SymbolID? = {
-            if let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverID),
+            // BUG-inner-outer: a qualified `this@Label`/`super@Label` is by
+            // definition an instance receiver, never a type/class-name
+            // qualifier -- regardless of what symbol kind its
+            // `identifierSymbol` carries. An object literal stashes an
+            // ancestor `inner class`'s own class symbol there (see
+            // `ObjectLiteralInference.swift`'s `objectOuterReceiverTypes`
+            // fill) purely as a capture key for `CaptureAnalyzer`/
+            // `resolveOuterChainValue`, not as a class-name-receiver marker;
+            // without this guard `this@Outer.tag` misclassifies exactly like
+            // `Outer.tag` and only resolves companion members.
+            let receiverIsQualifiedThisOrSuper: Bool = switch ast.arena.expr(receiverID) {
+            case .thisRef, .superRef: true
+            default: false
+            }
+            if !receiverIsQualifiedThisOrSuper,
+               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverID),
                let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
             {
                 switch receiverSymbol.kind {
