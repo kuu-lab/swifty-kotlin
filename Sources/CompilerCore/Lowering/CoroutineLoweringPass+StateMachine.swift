@@ -7,6 +7,7 @@ struct StateMachineTypeContext {
     let continuationType: TypeID
     let anyType: TypeID
     let intType: TypeID?
+    let longType: TypeID?
     let unitType: TypeID?
 }
 
@@ -31,6 +32,7 @@ extension CoroutineLoweringPass {
         let continuationType = smTypes.continuationType
         let anyType = smTypes.anyType
         let intType = smTypes.intType
+        let longType = smTypes.longType
         let unitType = smTypes.unitType
         let enterCallee = interner.intern("kk_coroutine_state_enter")
         let setLabelCallee = interner.intern("kk_coroutine_state_set_label")
@@ -48,6 +50,10 @@ extension CoroutineLoweringPass {
         // CORO-004: runtime suspend callees that take the caller continuation as a
         // trailing argument so they can resume the awaiting coroutine without blocking.
         let continuationConsumingRuntimeCallees: Set<InternedString> = [
+            // KSP-1566: bundled `delay` overloads are declared straight on the
+            // `kk_kxmini_delay` bridge, whose external suspend call emits the
+            // cdecl directly with the caller continuation appended.
+            interner.intern("kk_kxmini_delay"),
             interner.intern("kk_kxmini_async_await"),
             interner.intern("kk_job_join"),
             interner.intern("kk_job_await_completion"),
@@ -292,11 +298,48 @@ extension CoroutineLoweringPass {
                         loweredSuspendArguments = suspendCallInfo.arguments
                         loweredSuspendArguments.append(continuationExpr)
                     } else {
-                        loweredSuspendCallee = suspendCallInfo.callee == sourceDelayCallee ? runtimeDelayCallee : suspendCallInfo.callee
+                        // KSP-1566: `delay(duration)` resolves to the bundled
+                        // Duration overload; only calls whose first argument is
+                        // a millis integer lower to the kk_kxmini_delay bridge.
+                        // Duration calls keep their source callee so the bundled
+                        // body delegates via `Duration.inWholeMilliseconds`.
+                        let isMillisDelayCall: Bool = {
+                            guard suspendCallInfo.callee == sourceDelayCallee else {
+                                return false
+                            }
+                            guard let firstArg = suspendCallInfo.arguments.first,
+                                  let argType = module.arena.exprType(firstArg)
+                            else {
+                                return true
+                            }
+                            return argType == longType || argType == intType
+                        }()
+                        loweredSuspendCallee = isMillisDelayCall ? runtimeDelayCallee : suspendCallInfo.callee
                         loweredSuspendArguments = suspendCallInfo.arguments
-                        if suspendCallInfo.callee == sourceDelayCallee {
-                            loweredSuspendArguments.append(continuationExpr)
-                        } else if continuationConsumingRuntimeCallees.contains(suspendCallInfo.callee) {
+                        // KSP-1566: `delay(duration)` binds the bundled Duration
+                        // overload straight to `kk_kxmini_delay`; the argument
+                        // arrives unboxed as nanoseconds, so convert it to
+                        // milliseconds inline (`inWholeMilliseconds`).
+                        if suspendCallInfo.callee == runtimeDelayCallee,
+                           let firstArg = loweredSuspendArguments.first,
+                           let argType = module.arena.exprType(firstArg),
+                           argType != longType, argType != intType, let longType
+                        {
+                            let divisorExpr = module.arena.appendExpr(
+                                .intLiteral(1_000_000),
+                                type: longType
+                            )
+                            let millisExpr = module.arena.appendTemporary(type: longType
+                            )
+                            lowered.append(.binary(
+                                op: .divide,
+                                lhs: firstArg,
+                                rhs: divisorExpr,
+                                result: millisExpr
+                            ))
+                            loweredSuspendArguments[0] = millisExpr
+                        }
+                        if isMillisDelayCall || continuationConsumingRuntimeCallees.contains(suspendCallInfo.callee) {
                             // CORO-004: append the caller continuation so await / join can
                             // resume the coroutine via the runtime instead of blocking.
                             loweredSuspendArguments.append(continuationExpr)

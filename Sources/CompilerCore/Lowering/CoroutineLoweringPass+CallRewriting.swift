@@ -1072,27 +1072,67 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
+        // KSP-1566: bundled kotlinx declarations surface here under several
+        // spellings — the Kotlin name for source-injected calls, the
+        // `kk_fn_*` linkname for kklib-imported overloads, and the runtime
+        // `kk_with_timeout*` linkname for the `external` declarations.
+        let calleeName = rewrite.ctx.interner.resolve(call.callee)
         let runtimeCallee: InternedString
-        if call.callee == rewrite.withTimeoutCallee {
-            runtimeCallee = rewrite.runtimeWithTimeoutCallee
-        } else if call.callee == rewrite.withTimeoutOrNullCallee {
+        if calleeName == "withTimeoutOrNull"
+            || calleeName.hasPrefix("withTimeoutOrNull_")
+            || calleeName.hasPrefix("kk_fn_withTimeoutOrNull_")
+            || calleeName.hasPrefix("kk_suspend_withTimeoutOrNull")
+            || call.callee == rewrite.runtimeWithTimeoutOrNullCallee
+        {
             runtimeCallee = rewrite.runtimeWithTimeoutOrNullCallee
+        } else if calleeName == "withTimeout"
+            || calleeName.hasPrefix("withTimeout_")
+            || calleeName.hasPrefix("kk_fn_withTimeout_")
+            || calleeName.hasPrefix("kk_suspend_withTimeout")
+            || call.callee == rewrite.runtimeWithTimeoutCallee
+        {
+            runtimeCallee = rewrite.runtimeWithTimeoutCallee
         } else {
             return nil
         }
 
-        guard call.arguments.count >= 2,
-              let referencedSymbol = symbolReference(
-                  for: call.arguments[1],
-                  module: rewrite.module,
-                  propagatedSymbols: symbolByExprRaw
-              ),
+        guard call.arguments.count >= 2 else {
+            return nil
+        }
+
+        // KSP-1566: a Duration argument arrives unboxed as nanoseconds;
+        // convert to milliseconds inline (`inWholeMilliseconds`). Millis
+        // arguments (Long/Int) pass through untouched.
+        var timeMillisExpr = call.arguments[0]
+        var rewritten: [KIRInstruction] = []
+        if let argType = rewrite.module.arena.exprType(timeMillisExpr) {
+            let longType = rewrite.ctx.sema?.types.make(.primitive(.long, .nonNull))
+            if argType != longType, argType != rewrite.intType {
+                let divisorExpr = rewrite.module.arena.appendExpr(
+                    .intLiteral(1_000_000),
+                    type: longType
+                )
+                let millisExpr = rewrite.module.arena.appendTemporary(type: longType)
+                rewritten.append(.binary(
+                    op: .divide,
+                    lhs: timeMillisExpr,
+                    rhs: divisorExpr,
+                    result: millisExpr
+                ))
+                timeMillisExpr = millisExpr
+            }
+        }
+
+        let referencedSymbol = symbolReference(
+            for: call.arguments[1],
+            module: rewrite.module,
+            propagatedSymbols: symbolByExprRaw
+        )
+        guard let referencedSymbol,
               let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
             return nil
         }
-
-        let timeMillisExpr = call.arguments[0]
         let extraArgs = Array(call.arguments.dropFirst(2))
         let targetArity = rewrite.suspendFunctionArityBySymbol[referencedSymbol] ?? 0
         guard extraArgs.count == targetArity else {
@@ -1105,7 +1145,6 @@ extension CoroutineLoweringPass {
         }
 
         let entryTarget: LoweredSuspendFunction
-        var rewritten: [KIRInstruction] = []
         let continuationFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
         let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType

@@ -1214,15 +1214,9 @@ extension DataFlowSemaPhase {
         // KSP-679: `coroutineScope` / `supervisorScope` are now real suspend
         // functions in bundled Kotlin (Stdlib/kotlinx/coroutines/
         // CoroutineScope.kt), delegating to the residual (c) scope primitives.
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "delay",
-            packageFQName: coroutinesPkg,
-            parameterName: "timeMillis",
-            parameterType: types.longType,
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1566: `delay` / `withTimeout` / `withTimeoutOrNull` are bundled
+        // Kotlin now (Stdlib/kotlinx/coroutines/Delay.kt and Timeout.kt),
+        // delegating to the kk_kxmini_delay / kk_with_timeout(_or_null) bridges.
         registerSyntheticCoroutineTopLevelFunction(
             named: "yield",
             packageFQName: coroutinesPkg,
@@ -1237,38 +1231,6 @@ extension DataFlowSemaPhase {
             parameters: [],
             returnType: types.unitType,
             externalLinkName: "kk_ensure_active",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "withTimeout",
-            packageFQName: coroutinesPkg,
-            parameters: [
-                (name: "timeMillis", type: types.longType),
-                (name: "block", type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: true,
-                    nullability: .nonNull
-                )))),
-            ],
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "withTimeoutOrNull",
-            packageFQName: coroutinesPkg,
-            parameters: [
-                (name: "timeMillis", type: types.longType),
-                (name: "block", type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: true,
-                    nullability: .nonNull
-                )))),
-            ],
-            returnType: types.nullableAnyType,
             symbols: symbols,
             interner: interner
         )

@@ -1625,35 +1625,6 @@ final class CallTypeChecker {
         // KSP-678: `Channel()` / `Channel(capacity)` resolve through the bundled
         // Kotlin factory functions (Channels.kt) via normal overload resolution.
 
-        if let calleeName,
-           calleeName == knownNames.delay,
-           args.count == 1
-        {
-            let delayArgType = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: sema.types.longType
-            )
-            if delayArgType == sema.types.intType,
-               let argumentExpr = ast.arena.expr(args[0].expr),
-               case .intLiteral = argumentExpr
-            {
-                sema.bindings.bindExprType(args[0].expr, type: sema.types.longType)
-            } else {
-                driver.emitSubtypeConstraint(
-                    left: delayArgType,
-                    right: sema.types.longType,
-                    range: ast.arena.exprRange(args[0].expr) ?? range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
-                )
-            }
-            sema.bindings.bindExprType(id, type: sema.types.unitType)
-            return sema.types.unitType
-        }
-
         let isCoroutineLauncher = calleeName == knownNames.runBlocking
             || calleeName == knownNames.launch
             || calleeName == knownNames.async
