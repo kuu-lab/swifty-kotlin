@@ -710,7 +710,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rightRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_context_get",
@@ -719,7 +720,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "keyRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_context_fold",
@@ -740,7 +742,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "keyRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_context_get_dispatcher",
