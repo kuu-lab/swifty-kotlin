@@ -2,11 +2,29 @@
  * Copyright 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  *
- * Derived from kotlinx-io core/common/src/Buffers.kt (tag 0.9.1). `Buffer.snapshot()` is omitted:
- * it requires `kotlinx.io.bytestring.ByteString`, which is bundled separately (KSP-1556).
+ * Derived from kotlinx-io core/common/src/Buffers.kt (tag 0.9.1).
  */
 
 package kotlinx.io
+
+import kotlinx.io.bytestring.ByteString
+import kotlinx.io.bytestring.ByteStringBuilder
+import kotlinx.io.unsafe.UnsafeBufferOperations
+import kotlinx.io.unsafe.withData
+
+/** Returns an immutable copy of all buffered bytes without consuming them. */
+@OptIn(UnsafeIoApi::class)
+public fun Buffer.snapshot(): ByteString {
+    if (size == 0L) return ByteString()
+    check(size <= Int.MAX_VALUE) { "Buffer is too long ($size) to be converted into a byte string." }
+    val builder = ByteStringBuilder(size.toInt())
+    UnsafeBufferOperations.forEachSegment(this) { context, segment ->
+        context.withData(segment) { bytes, start, end ->
+            builder.append(bytes, start, end)
+        }
+    }
+    return builder.toByteString()
+}
 
 /**
  * Returns an index of [byte] first occurrence in the range of [startIndex] to [endIndex],
