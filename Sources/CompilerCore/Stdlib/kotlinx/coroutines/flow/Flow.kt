@@ -7,7 +7,26 @@
 
 package kotlinx.coroutines.flow
 
+import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.ensureActive
+
+public interface Flow<out T>
+
+@KsSymbolName("kk_flow_collect")
+internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> Unit)
+
+public suspend fun <T> Flow<T>.collect(collector: suspend (T) -> Unit) {
+    if (this is SharedFlow<*>) {
+        @Suppress("UNCHECKED_CAST")
+        (this as SharedFlow<T>).collect(collector)
+    } else {
+        this.collectCold { value -> collector(value) }
+    }
+}
+
+public suspend fun <T> Flow<T>.collect(collector: FlowCollector<T>) {
+    this.collect { value -> collector.emit(value) }
+}
 
 // MIGRATION-FLOW-004 (KSP-499)
 // Flow operators are bundled Kotlin source. The compiler/runtime keep only the
