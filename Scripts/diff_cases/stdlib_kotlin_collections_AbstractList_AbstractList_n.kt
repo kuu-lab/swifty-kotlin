@@ -11,6 +11,10 @@ class ViewList<T>(private val backing: MutableList<T>) : AbstractList<T>() {
     override fun get(index: Int): T = backing[index]
 }
 
+fun <L : List<Int>> boundedIndex(list: L): Int = list.indexOf(7)
+fun <L : List<Int>> boundedLastIndex(list: L): Int = list.lastIndexOf(7)
+fun <L : List<Int>> boundedSubList(list: L): Int = list.subList(0, 1)[0]
+
 fun main() {
     val abstract: AbstractList<Int> = OverrideList()
     val list: List<Int> = abstract
@@ -20,6 +24,9 @@ fun main() {
     println(list.indexOf(7))
     println(list.lastIndexOf(7))
     println(list.subList(0, 1)[0])
+    println(boundedIndex(list))
+    println(boundedLastIndex(list))
+    println(boundedSubList(list))
 
     val backing = mutableListOf<Int?>(1, null, 1, 3)
     val values: AbstractList<Int?> = ViewList(backing)

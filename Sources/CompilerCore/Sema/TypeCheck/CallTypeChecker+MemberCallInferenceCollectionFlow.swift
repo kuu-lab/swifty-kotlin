@@ -249,9 +249,10 @@ extension CallTypeChecker {
         }
         let calleeStr = interner.resolve(calleeName)
         if ["indexOf", "lastIndexOf", "subList"].contains(calleeStr),
-           let receiverOwner = driver.helpers.nominalSymbol(of: receiverType, types: sema.types),
            let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
-           sema.types.isNominalSubtypeSymbol(receiverOwner, of: listOwner)
+           driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
+               sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+           })
         {
             return nil
         }

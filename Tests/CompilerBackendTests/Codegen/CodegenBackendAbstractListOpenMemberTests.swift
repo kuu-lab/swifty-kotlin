@@ -16,6 +16,9 @@ struct CodegenBackendAbstractListOpenMemberTests {
             override fun lastIndexOf(element: Int): Int = 202
             override fun subList(fromIndex: Int, toIndex: Int): List<Int> = listOf(303)
         }
+        fun <L : List<Int>> boundedIndex(list: L): Int = list.indexOf(7)
+        fun <L : List<Int>> boundedLastIndex(list: L): Int = list.lastIndexOf(7)
+        fun <L : List<Int>> boundedSubList(list: L): Int = list.subList(0, 1)[0]
         fun main() {
             val abstract: AbstractList<Int> = OpenList()
             val list: List<Int> = abstract
@@ -25,6 +28,9 @@ struct CodegenBackendAbstractListOpenMemberTests {
             println(list.indexOf(7))
             println(list.lastIndexOf(7))
             println(list.subList(0, 1)[0])
+            println(boundedIndex(list))
+            println(boundedLastIndex(list))
+            println(boundedSubList(list))
             println(listOf(7, 8, 7).indexOf(7))
             println(listOf(7, 8, 7).lastIndexOf(7))
             val strings: List<String?> = listOf("a", null, "a")
@@ -40,7 +46,7 @@ struct CodegenBackendAbstractListOpenMemberTests {
         try assertKotlinOutput(
             source,
             moduleName: "AbstractListOpenDispatch",
-            expected: "101\n202\n303\n101\n202\n303\n0\n2\n0\n2\n1\n-1\n0\n2\n",
+            expected: "101\n202\n303\n101\n202\n303\n101\n202\n303\n0\n2\n0\n2\n1\n-1\n0\n2\n",
             allowDefaultStdlibLibrary: useLibrary
         )
     }
@@ -58,6 +64,9 @@ struct CodegenBackendAbstractListOpenMemberTests {
             source,
             moduleName: "AbstractListSemantics",
             expected: """
+            101
+            202
+            303
             101
             202
             303

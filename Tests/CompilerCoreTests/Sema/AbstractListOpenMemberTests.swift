@@ -24,9 +24,14 @@ struct AbstractListOpenMemberTests {
             list.lastIndexOf(7)
             list.subList(0, 1)
         }
+        fun <L : List<Int>> boundedProbe(list: L) {
+            list.indexOf(7)
+            list.lastIndexOf(7)
+            list.subList(0, 1)
+        }
         """
         try withTemporaryFile(contents: source) { path in
-            let libraryPath = useLibrary ? try #require(CompilerOptions.defaultStdlibLibraryPath) : nil
+            let libraryPath = useLibrary ? CompilerOptions.defaultStdlibLibraryPath : nil
             let ctx = makeCompilationContext(inputs: [path], stdlibLibraryPath: libraryPath)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
@@ -80,7 +85,7 @@ struct AbstractListOpenMemberTests {
                 #expect(sema.symbols.symbol(callee)?.flags.contains(.extensionMemberAlias) == false)
                 calls += 1
             }
-            #expect(calls == 6)
+            #expect(calls == 9)
         }
     }
 }

@@ -1986,10 +1986,11 @@ extension CallTypeChecker {
         let isUniqueIteratorSource = memberNameText == "iterator" && candidates.count == 1
         let isListSearchOrSubListMember: Bool = {
             guard ["indexOf", "lastIndexOf", "subList"].contains(memberNameText),
-                  let receiverOwner = driver.helpers.nominalSymbol(of: memberLookupType, types: sema.types),
                   let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName)
             else { return false }
-            return sema.types.isNominalSubtypeSymbol(receiverOwner, of: listOwner)
+            return driver.helpers.allNominalSymbols(of: memberLookupType, types: sema.types, symbols: sema.symbols).contains {
+                sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+            }
         }()
         // KSP-687 resolves Array.joinToString through the dedicated primitive
         // and generic-array source candidates. KSP-429's broad trailing-lambda
