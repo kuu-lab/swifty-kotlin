@@ -2123,18 +2123,26 @@ extension CallTypeChecker {
            !candidates.isEmpty
         {
             let receiverForExtensionLookup = sema.types.makeNonNullable(lookupReceiverType)
-            // Only user-declared extensions: bundled stdlib extensions carry
-            // constraints (`@OnlyInputTypes`) the resolver does not model, so
-            // retrying them would accept calls Kotlin rejects.
-            func receiverMatchingUserExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
+            // Generic bundled extensions may carry unmodeled @OnlyInputTypes
+            // constraints. Non-generic source-backed overloads can safely retry.
+            func receiverMatchingScopedExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
                 scopeCandidates.filter { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate),
                           symbol.kind == .function,
-                          let declFile = symbol.declSite?.start.file,
-                          driver.sourceManager?.origin(of: declFile) == .user,
                           let signature = sema.symbols.functionSignature(for: candidate),
                           let declaredReceiver = signature.receiverType
                     else { return false }
+                    let isUserExtension = symbol.declSite.map {
+                        driver.sourceManager?.origin(of: $0.start.file) == .user
+                    } == true
+                    guard isUserExtension || (
+                        sema.symbols.isSourceBackedSymbol(candidate)
+                            && signature.typeParameterSymbols.isEmpty
+                    ), ctx.visibilityChecker.isAccessible(
+                        symbol,
+                        fromFile: ctx.currentFileID,
+                        enclosingClass: ctx.enclosingClassSymbol
+                    ) else { return false }
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
@@ -2144,9 +2152,9 @@ extension CallTypeChecker {
             }
             // Innermost binding first so a user extension keeps shadowing a
             // same-named one; merge the whole chain only if that finds nothing.
-            var extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookup(calleeName))
+            var extensionCandidates = receiverMatchingScopedExtensions(ctx.scope.lookup(calleeName))
             if extensionCandidates.isEmpty {
-                extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookupMergingChain(calleeName))
+                extensionCandidates = receiverMatchingScopedExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
                 let retried = resolveCallRespectingLambdaReturnType(

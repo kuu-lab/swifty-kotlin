@@ -20,16 +20,14 @@
 - `PeekSource`（`Source.peek()` の内部実装）
 - `Core.kt`（`buffered()` 拡張関数2つ、`discardingSink()`、`SystemLineSeparator`）
 
-### 内部実装の簡略化：セグメント連結リストではなく単一 ByteArray
+### 内部実装：Segment ベースの Buffer
 
-upstream の `Buffer` は、コピーを避けるためプールされた `Segment`（固定長 `ByteArray` チャンク）の
-双方向連結リストとしてバイト列を持つ。今回のポートでは `Segment` / `SegmentPool` /
-`unsafe.UnsafeBufferOperations` は実装せず、`Buffer` を単一の可変長 `ByteArray` ＋ `start`/`end`
-カーソルで実装した。外部から観測できる挙動（読み書きした値・例外・`size`）は upstream と一致する
-（後述の diff_cases で確認済み）。バッファ間のセグメント所有権移動によるゼロコピーのような内部最適化は
-無くなるが、正当性には影響しない。
+初期の KSP-1540 ポートは単一の可変長 `ByteArray` とカーソルを使用していたが、KSP-1547
+（KUU-883）で upstream と同様の `Segment` / `SegmentPool` / `unsafe.UnsafeBufferOperations`
+を追加した。現在の `Buffer` は固定長 `ByteArray` チャンクの双方向連結リストを使用し、
+ByteString 検索・snapshot もこの構造に基づく。
 
-**この簡略化により、新規 Runtime ABI（`@_cdecl kk_*`）は一切追加していない。** `ByteArray` の読み書きは
+**新規 Runtime ABI（`@_cdecl kk_*`）は一切追加していない。** `ByteArray` の読み書きは
 既存の bundled stdlib プリミティブ（配列インデクシング、`toInt()`/`toLong()`/`toByte()`変換）だけで
 書けたため、`docs/spec.md` の Runtime ABI spec 登録（Doc J16 節）は今回は不要だった。
 
@@ -94,10 +92,29 @@ closeFnPtr, closeClosureRaw) -> streamRaw` を追加した。呼び出し側は
 ケースは upstream の closed 意味論（Buffer-backed は close 後も書き込みが流れる、
 RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を検証する。
 
+## ByteString 連携（KSP-1556 / KUU-892）
+
+Segment ベースの Buffer と UnsafeBufferOperations（KSP-1547）を土台に、
+`ByteStrings.kt` の `Sink.write(ByteString, startIndex, endIndex)`、
+`Source.readByteString()` / `readByteString(byteCount)`、`Source.indexOf(ByteString, startIndex)`、
+`Buffer.indexOf(ByteString, startIndex)` と `Buffers.kt` の `Buffer.snapshot()` を追加した。
+snapshot は `UnsafeBufferOperations.forEachSegment` / `SegmentReadContext.withData` で
+各セグメントの有効範囲だけをコピーし、Buffer を消費しない。`Buffer.copy()` / 内部 `seek`
+は KSP-1547 の実装を利用する。upstream 0.9.1 の snapshot は引数なしのみ。
+
+`Sources.kt` の `readByteArray` 拡張はまだ未対応のため、ByteString 読み出しは同じ require / EOF
+検証の後で Buffer から新規 ByteArray にコピーし、`UnsafeByteStringOperations.wrapUnsafe` で包む。
+新規 Runtime ABI は追加していない。差分ケース `kotlinx_io_bytestring_io_*.kt` は、
+ByteArray メンバとの write オーバーロード共存、部分書き込み、読み出し、非消費 snapshot、
+copy の独立性、セグメント間の検索、buffered Source/Sink、境界・EOF 例外を検証する。
+
+検索は private helper に分離し、ネストした inline lambda の capture 置換不具合
+（[KUU-985](https://linear.app/kuu/issue/KUU-985/nested-inline-lambdas-retain-unbound-captures-after-expansion-non)）
+を避けている。非ジェネリックな bundled 拡張は、同名メンバが適用できない場合に限って
+import scope から再解決するよう Sema を修正した。
+
 ## 未対応（次PR以降）
 
-- `Segment` / `SegmentPool` / `kotlinx.io.unsafe.UnsafeBufferOperations`（低レベルなセグメント直接
-  操作。Ktor の `ktor-io` が一部使用しているため、`ktor_io` モジュールの残存エラーの一因）
 - `JvmCore.kt` の残り: `SystemLineSeparator` actual は `Core.kt` 側で実装済み。`SourcesJvm.kt` /
   `SinksJvm.kt` の残り（`readString`, `writeString`, `readAtMostTo`/`write` ByteBuffer,
   `asByteChannel`）は ByteBuffer/NIO 依存のため未対応
@@ -107,9 +124,6 @@ RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を�
 - `Sources.kt` / `Sinks.kt` の拡張関数群（`readByteArray`, `readString`, `writeString`,
   `readUByte`/`writeUShort`等の unsigned 変換, `readFloat`/`writeDouble`, `readDecimalLong`,
   `readHexadecimalUnsignedLong`, `writeToInternalBuffer` 等）
-- `Buffers.kt` の `Buffer.snapshot()`（`ByteString` が必要）
-- `kotlinx.io.bytestring`（`ByteString`, `ByteStringBuilder`, `Base64`, `Hex`,
-  `UnsafeByteStringOperations`）— ユーザ依頼の「ByteString」PR に相当
 - `kotlinx.io.files`（`FileSystem`, `Path`）
 
 ## 計測：`Scripts/ktor_build.sh`
