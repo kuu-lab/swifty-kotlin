@@ -69,8 +69,8 @@ fun main() = runBlocking {
     } catch (e: TimeoutCancellationException) {
         println("nested orNull: ${e.message}")
     }
-    println(withTimeout(5000) { withTimeoutOrNull(10) { delay(1000); 1 } })
-    println(withTimeoutOrNull(5000) { withTimeoutOrNull(10) { delay(1000); 1 } })
+    withTimeout(5000) { println(withTimeoutOrNull(10) { delay(1000); 1 }) }
+    withTimeoutOrNull(5000) { println(withTimeoutOrNull(10) { delay(1000); 1 }) }
     println(withTimeoutOrNull(10) { delay(1000); 1 })
     println(withTimeout(5000) { try { throw failure } catch (e: IllegalStateException) { 42 } })
     println(withTimeoutOrNull(5000) { 0 })
