@@ -102,9 +102,15 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
     }
 
     func resumeWith(_ result: UnsafeMutableRawPointer?) {
+        resumeWith(result, outThrown: nil)
+    }
+
+    func resumeWith(_ result: UnsafeMutableRawPointer?, outThrown: UnsafeMutablePointer<Int>?) {
         var thrown = 0
         _ = kk_function_invoke(resumeWithRaw, Int(bitPattern: result), &thrown)
-        if thrown != 0 {
+        if let outThrown {
+            outThrown.pointee = thrown
+        } else if thrown != 0 {
             _ = kk_native_processUnhandledException(thrown, nil)
         }
     }
@@ -1678,56 +1684,67 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         }
     }
 
-    func waitForChildren() -> Int {
-        lock.lock()
-        let currentChildren = children
-        children.removeAll()
-        lock.unlock()
+    func waitForChildren(releaseOriginalHandles: Bool = true) -> Int {
         var firstFailure = 0
         var cancelledRemainingChildren = false
-        for (index, child) in currentChildren.enumerated() {
-            let childResult = runtimeJoinChild(child)
-            let shouldIgnoreChildCancellation = isCancelled && runtimeCoroutineIsCancellationResult(childResult)
-            if firstFailure == 0,
-               runtimeCoroutineIsThrowableResult(childResult),
-               !shouldIgnoreChildCancellation
-            {
-                firstFailure = childResult
-                if !isSupervisor, !cancelledRemainingChildren {
-                    cancelledRemainingChildren = true
-                    for remainingChild in currentChildren.dropFirst(index + 1) {
-                        runtimeCancelChild(remainingChild)
+        // A child can register more work while we join it. Drain successive
+        // batches so those descendants also finish before the scope returns.
+        while true {
+            lock.lock()
+            let currentChildren = children
+            children.removeAll()
+            lock.unlock()
+            if currentChildren.isEmpty {
+                return firstFailure
+            }
+            for (index, child) in currentChildren.enumerated() {
+                let childResult = runtimeJoinChild(child)
+                // Cancelling one child Job is not a failure of its parent
+                // scope. Parent-scope cancellation is tracked separately by
+                // `isCancelled`; either way, a child's terminal
+                // CancellationException must not escape from the scope join.
+                let shouldIgnoreChildCancellation = runtimeCoroutineIsCancellationResult(childResult)
+                if firstFailure == 0,
+                   runtimeCoroutineIsThrowableResult(childResult),
+                   !shouldIgnoreChildCancellation
+                {
+                    firstFailure = childResult
+                    if !isSupervisor, !cancelledRemainingChildren {
+                        cancelledRemainingChildren = true
+                        cancel()
+                        for remainingChild in currentChildren.dropFirst(index + 1) {
+                            runtimeCancelChild(remainingChild)
+                        }
                     }
                 }
-            }
-            if let ptr = UnsafeMutableRawPointer(bitPattern: child) {
-                // Check the per-handle flag to see if user code already consumed the passRetained.
-                // This is scope-independent: the flag lives on the handle object itself,
-                // so it works correctly even with nested scopes or cross-thread joins.
-                let consumed: Bool
-                let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-                switch RuntimeJobOrTask(obj) {
-                case .job(let job):
-                    consumed = job.consumedByUserCodeSnapshot()
-                case .task(let task):
-                    consumed = task.consumedByUserCodeSnapshot()
-                case .other:
-                    consumed = false
-                }
-                // Release the extra retain taken in registerChild
-                Unmanaged<AnyObject>.fromOpaque(ptr).release()
-                // Release the original passRetained only if user code hasn't already consumed it
-                // (via kk_job_join or kk_kxmini_async_await)
-                if !consumed {
+                if let ptr = UnsafeMutableRawPointer(bitPattern: child) {
+                    // Check the per-handle flag to see if user code already consumed the passRetained.
+                    // This is scope-independent: the flag lives on the handle object itself,
+                    // so it works correctly even with nested scopes or cross-thread joins.
+                    let consumed: Bool
+                    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+                    switch RuntimeJobOrTask(obj) {
+                    case .job(let job):
+                        consumed = job.consumedByUserCodeSnapshot()
+                    case .task(let task):
+                        consumed = task.consumedByUserCodeSnapshot()
+                    case .other:
+                        consumed = false
+                    }
+                    // Release the extra retain taken in registerChild
                     Unmanaged<AnyObject>.fromOpaque(ptr).release()
-                    // Clean up from RuntimeStorage
-                    runtimeStorage.withGCLock { state in
-                        state.objectPointers.remove(UInt(bitPattern: ptr))
+                    // Release the original passRetained only if user code hasn't already consumed it
+                    // (via kk_job_join or kk_kxmini_async_await)
+                    if !consumed, releaseOriginalHandles {
+                        Unmanaged<AnyObject>.fromOpaque(ptr).release()
+                        // Clean up from RuntimeStorage
+                        runtimeStorage.withGCLock { state in
+                            state.objectPointers.remove(UInt(bitPattern: ptr))
+                        }
                     }
                 }
             }
         }
-        return firstFailure
     }
 }
 
@@ -1914,6 +1931,31 @@ public func kk_create_coroutine_unintercepted(_ entryPointRaw: Int, _ completion
     return continuation
 }
 
+/// Link-time marker for the source-backed receiver-less
+/// `createCoroutineUnintercepted`. `CoroutineLoweringPass` rewrites every call
+/// into `kk_create_coroutine_unintercepted`; this stub only exists so the
+/// standalone copy of the inline caller in the stdlib library links.
+@_cdecl("kk_create_coroutine_unintercepted_no_receiver")
+public func kk_create_coroutine_unintercepted_no_receiver(
+    _ functionRaw: Int,
+    _ functionContextRaw: Int,
+    _ completionContinuation: Int
+) -> Int {
+    fatalError("kk_create_coroutine_unintercepted_no_receiver is rewritten by CoroutineLoweringPass")
+}
+
+/// Link-time marker for the source-backed receiver-less
+/// `startCoroutineUninterceptedOrReturn`; see the create marker above.
+@_cdecl("kk_start_coroutine_unintercepted_or_return_no_receiver")
+public func kk_start_coroutine_unintercepted_or_return_no_receiver(
+    _ functionRaw: Int,
+    _ functionContextRaw: Int,
+    _ completionContinuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    fatalError("kk_start_coroutine_unintercepted_or_return_no_receiver is rewritten by CoroutineLoweringPass")
+}
+
 @_cdecl("kk_start_coroutine_unintercepted_or_return")
 public func kk_start_coroutine_unintercepted_or_return(
     _ entryPointRaw: Int,
@@ -1931,7 +1973,8 @@ public func kk_start_coroutine_unintercepted_or_return(
 private func startUninterceptedCoroutineFromResume(
     entryPointRaw: Int,
     continuation: Int,
-    completionContinuation: Int
+    completionContinuation: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
 ) {
     var thrown = 0
     let result = startCoroutineUninterceptedOrReturn(
@@ -1944,11 +1987,15 @@ private func startUninterceptedCoroutineFromResume(
         return
     }
     if thrown != 0 {
-        kk_coroutine_continuation_resume_with_exception(completionContinuation, thrown)
+        __kk_coroutine_continuation_resume_with(
+            completionContinuation, runtimeResultFailure(thrown), outThrown
+        )
         return
     }
     if result != Int(bitPattern: kk_coroutine_suspended()) {
-        kk_coroutine_continuation_resume(completionContinuation, result)
+        __kk_coroutine_continuation_resume_with(
+            completionContinuation, runtimeResultSuccess(result), outThrown
+        )
     }
 }
 
@@ -2101,6 +2148,30 @@ public func kk_coroutine_state_get_thrown_exception(_ continuation: Int) -> Int 
 
 @_cdecl("kk_coroutine_continuation_context")
 public func kk_coroutine_continuation_context(_ continuation: Int) -> Int {
+    __kk_coroutine_continuation_context(continuation, nil)
+}
+
+@_cdecl("__kk_coroutine_continuation_context")
+public func __kk_coroutine_continuation_context(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    // Continuation has one function slot (resumeWith), followed by context's getter.
+    let sourceGetter = kk_itable_lookup_dynamic(
+        continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 1
+    )
+    if sourceGetter != 0 {
+        let getter = unsafeBitCast(sourceGetter, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var thrown = 0
+        let result = getter(continuation, &thrown)
+        if let outThrown {
+            outThrown.pointee = thrown
+        } else if thrown != 0 {
+            _ = kk_native_processUnhandledException(thrown, nil)
+        }
+        return result
+    }
     guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_context received invalid continuation handle")
     }
@@ -2127,11 +2198,35 @@ public func kk_coroutine_continuation_factory(_ contextRaw: Int, _ resumeWithRaw
 
 @_cdecl("kk_coroutine_continuation_resume_with")
 public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultRaw: Int) {
+    __kk_coroutine_continuation_resume_with(continuation, resultRaw, nil)
+}
+
+@_cdecl("__kk_coroutine_continuation_resume_with")
+public func __kk_coroutine_continuation_resume_with(
+    _ continuation: Int,
+    _ resultRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) {
+    outThrown?.pointee = 0
+    let sourceResume = kk_itable_lookup_dynamic(
+        continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 0
+    )
+    if sourceResume != 0 {
+        let resume = unsafeBitCast(sourceResume, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Void).self)
+        var thrown = 0
+        resume(continuation, resultRaw, &thrown)
+        if let outThrown {
+            outThrown.pointee = thrown
+        } else if thrown != 0 {
+            _ = kk_native_processUnhandledException(thrown, nil)
+        }
+        return
+    }
     guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume_with received invalid continuation handle")
     }
     if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
+        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw), outThrown: outThrown)
         return
     }
     guard let state = runtimeContinuationState(from: continuation) else {
@@ -2145,9 +2240,10 @@ public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultR
            !resultBox.isSuccess
         {
             if start.completionContinuation != 0 {
-                kk_coroutine_continuation_resume_with_exception(
+                __kk_coroutine_continuation_resume_with(
                     start.completionContinuation,
-                    resultBox.exception
+                    runtimeResultFailure(resultBox.exception),
+                    outThrown
                 )
             }
             return
@@ -2155,7 +2251,8 @@ public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultR
         startUninterceptedCoroutineFromResume(
             entryPointRaw: start.entryPointRaw,
             continuation: continuation,
-            completionContinuation: start.completionContinuation
+            completionContinuation: start.completionContinuation,
+            outThrown: outThrown
         )
         return
     }
@@ -2182,49 +2279,19 @@ public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultR
 }
 
 @_cdecl("kk_coroutine_continuation_resume")
-public func kk_coroutine_continuation_resume(_ continuation: Int, _ value: Int) {
-    guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume received invalid continuation handle")
-    }
-    if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        let resultRaw = runtimeRegisterObject(RuntimeResultBox(isSuccess: true, value: value, exception: 0))
-        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
-        return
-    }
-    guard let state = runtimeContinuationState(from: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume received invalid continuation handle")
-    }
-    if let start = state.takeUninterceptedCoroutineStart() {
-        startUninterceptedCoroutineFromResume(
-            entryPointRaw: start.entryPointRaw,
-            continuation: continuation,
-            completionContinuation: start.completionContinuation
-        )
-        return
-    }
-    if let ise = state.resume(with: value) {
-        // STDLIB-CORO-BUG-01: double-resume detected — surface the ISE via thrownException.
-        state.deliverDoubleResumeException(ise)
-    }
+public func kk_coroutine_continuation_resume(
+    _ continuation: Int,
+    _ value: Int
+) {
+    __kk_coroutine_continuation_resume_with(continuation, runtimeResultSuccess(value), nil)
 }
 
 @_cdecl("kk_coroutine_continuation_resume_with_exception")
-public func kk_coroutine_continuation_resume_with_exception(_ continuation: Int, _ exception: Int) {
-    guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume_with_exception received invalid continuation handle")
-    }
-    if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        let resultRaw = runtimeRegisterObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception))
-        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
-        return
-    }
-    guard let state = runtimeContinuationState(from: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume_with_exception received invalid continuation handle")
-    }
-    if let ise = state.resume(withException: exception) {
-        // STDLIB-CORO-BUG-01: double-resume detected — surface the ISE via thrownException.
-        state.deliverDoubleResumeException(ise)
-    }
+public func kk_coroutine_continuation_resume_with_exception(
+    _ continuation: Int,
+    _ exception: Int
+) {
+    __kk_coroutine_continuation_resume_with(continuation, runtimeResultFailure(exception), nil)
 }
 
 @_cdecl("kk_kxmini_run_blocking")
@@ -3482,6 +3549,157 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
     }
     return Int(bitPattern: jobPtr)
 }
+/// KSP-1573: backing for the bundled `CoroutineScope.produce`/`actor`
+/// builders — `__kk_produce_launch(channel, blockFnPtr, blockEnvRaw)`.
+///
+/// Two block shapes reach this boundary:
+///  - A suspend *literal* is rewritten by CoroutineLoweringPass into a
+///    launcher-thunk + continuation pair and reaches
+///    `__kk_produce_launch_with_cont` instead — the same convention the
+///    synthetic `kk_kxmini_produce_with_cont` launcher used.
+///  - A suspend function *value* (a block stored in a variable or received
+///    from another call) crosses as the (fnPtr, env) pair suspend function
+///    values use at the ABI boundary. A suspend value's invoke thunk is
+///    `(receiver, cap0..capN, outThrown)`, so the channel handle passes as
+///    arg0 and env supplies the captures. The thunk binds arg0 to
+///    launcherArgs[0] itself (nested runBlocking on the worker).
+///
+/// Both shapes register the child job on the ambient scope
+/// (`RuntimeCoroutineScope.current` — the same scope the synthetic
+/// kk_produce launcher used) and close the channel when the block finishes.
+/// Returns the channel handle.
+@_cdecl("__kk_produce_launch")
+public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ envRaw: Int) -> Int {
+    guard entryPointRaw != 0 else {
+        return channelHandle
+    }
+    let job = RuntimeJobHandle()
+    let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: jobPtr))
+    }
+    job.markStarted()
+    let callerScope = RuntimeCoroutineScope.current
+    callerScope?.registerChild(Int(bitPattern: jobPtr))
+
+    // Expand the env slot into the thunk's positional captures: 0 → none, a
+    // packed env object (kk_object_new(2+N, classID: 0), captures at slots
+    // 2..) → N captures, anything else → a single raw capture.
+    let captures: [Int]
+    if envRaw == 0 {
+        captures = []
+    } else if let envBox = resolveRuntimeHandle(envRaw, as: RuntimeObjectBox.self),
+              envBox.classID == 0,
+              envBox.elements.count > 2
+    {
+        captures = Array(envBox.elements.dropFirst(2))
+    } else {
+        captures = [envRaw]
+    }
+
+    KxMiniRuntime.launch {
+        if job.cancellationSnapshot() {
+            _ = kk_channel_close(channelHandle)
+            _ = job.complete(with: 0)
+            return
+        }
+        RuntimeCoroutineScope.current = callerScope
+        RuntimeJobHandle.current = nil
+        var thrown = 0
+        let result = runtimeInvokeSuspendLauncherThunk(
+            entryPointRaw: entryPointRaw,
+            receiver: channelHandle,
+            captures: captures,
+            outThrown: &thrown
+        )
+        _ = kk_channel_close(channelHandle)
+        if thrown != 0 {
+            _ = job.completeExceptionally(with: thrown)
+        } else {
+            _ = job.complete(with: result)
+        }
+    }
+    return channelHandle
+}
+
+/// Invokes a suspend launcher thunk `(receiver, cap0..capN, outThrown)`
+/// whose captures arrive at the ABI boundary packed in env.
+private func runtimeInvokeSuspendLauncherThunk(
+    entryPointRaw: Int,
+    receiver: Int,
+    captures: [Int],
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    switch captures.count {
+    case 0:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint1.self)
+        return invoke(receiver, outThrown)
+    case 1:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
+        return invoke(receiver, captures[0], outThrown)
+    case 2:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint3.self)
+        return invoke(receiver, captures[0], captures[1], outThrown)
+    case 3:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint4.self)
+        return invoke(receiver, captures[0], captures[1], captures[2], outThrown)
+    case 4:
+        let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint5.self)
+        return invoke(receiver, captures[0], captures[1], captures[2], captures[3], outThrown)
+    default:
+        runtimeStructuredPanic("__kk_produce_launch: suspend block captures exceed launcher thunk arity")
+        return 0
+    }
+}
+
+/// KSP-1573: launcher-rewrite counterpart of `__kk_produce_launch` —
+/// `(channel, launcherThunk, continuation)`, the same convention
+/// `kk_kxmini_produce_with_cont` uses except the channel arrives
+/// pre-created: the bundled `Channel(capacity, onBufferOverflow)` factory
+/// applies the capacity/overflow semantics in Kotlin before the launch.
+@_cdecl("__kk_produce_launch_with_cont")
+public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    guard let contState = runtimeContinuationState(from: continuation) else {
+        return channelHandle
+    }
+    let job = RuntimeJobHandle()
+    let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: jobPtr))
+    }
+    job.markStarted()
+    job.continuationState = contState
+    contState.jobHandle = job
+    // launcherArgs[0] is the suspend-entry receiver slot: the block's `this`
+    // (ProducerScope / ActorScope) is the channel handle; captures occupy the
+    // remaining slots, seeded by the call-site rewrite.
+    contState.launcherArgs[0] = Int64(channelHandle)
+    let callerScope = RuntimeCoroutineScope.current
+    callerScope?.registerChild(Int(bitPattern: jobPtr))
+    contState.scope = callerScope
+
+    KxMiniRuntime.launch {
+        if job.cancellationSnapshot() {
+            _ = kk_channel_close(channelHandle)
+            _ = job.complete(with: 0)
+            return
+        }
+        runtimeStartLaunchedBody(
+            entryPointRaw: entryPointRaw,
+            continuation: continuation,
+            scope: callerScope,
+            job: nil
+        ) { result, thrown in
+            _ = kk_channel_close(channelHandle)
+            if thrown != 0 {
+                _ = job.completeExceptionally(with: thrown)
+            } else {
+                _ = job.complete(with: result)
+            }
+        }
+    }
+    return channelHandle
+}
 /// Backing for the bare `kotlinx.coroutines.Job(): Job` factory (no parent argument --
 /// the only shape currently registered in Sema).
 @_cdecl("kk_job_new")
@@ -4212,8 +4430,20 @@ func runtimeRunBlockingOnEventLoop(
     continuation: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let loop = RuntimeEventLoop.current ?? RuntimeEventLoop()
-    runtimeContinuationState(from: continuation)?.eventLoop = loop
+    let previousLoop = RuntimeEventLoop.current
+    let loop = previousLoop ?? RuntimeEventLoop()
+    RuntimeEventLoop.current = loop
+    defer { RuntimeEventLoop.current = previousLoop }
+
+    let state = runtimeContinuationState(from: continuation)
+    state?.eventLoop = loop
+    // A fresh blocking coroutine owns its children's lifetime. Suspend-value
+    // launcher thunks borrow an existing scope instead; joining that scope
+    // here would wait for the very actor/producer executing this thunk.
+    let ownedScope = state != nil && state?.scope == nil ? RuntimeCoroutineScope() : nil
+    if let ownedScope {
+        state?.scope = ownedScope
+    }
 
     final class Outcome: @unchecked Sendable {
         private let lock = NSLock()
@@ -4255,7 +4485,14 @@ func runtimeRunBlockingOnEventLoop(
     )
     loop.run(until: { outcome.isFinished })
 
-    let (result, thrown) = outcome.snapshot()
+    let (result, bodyThrown) = outcome.snapshot()
+    if bodyThrown != 0 {
+        ownedScope?.cancel()
+    }
+    // Job/Deferred values may escape through the block's result or captures.
+    // Joining only consumes the scope's retain, not the live Kotlin handle.
+    let childThrown = ownedScope?.waitForChildren(releaseOriginalHandles: false) ?? 0
+    let thrown = bodyThrown != 0 ? bodyThrown : childThrown
     // Same contract as the previous synchronous path: report the failure
     // through `outThrown` and hand back 0 as the value.
     outThrown?.pointee = thrown

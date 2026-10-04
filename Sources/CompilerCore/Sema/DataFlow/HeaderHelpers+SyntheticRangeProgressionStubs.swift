@@ -54,14 +54,11 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticRangeUntilFunction(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1281: no generic `T.rangeUntil` registration — the bundled
+        // `ranges/Stdlib.kt` declares it as Kotlin source. The bundledIndex
+        // skip-guard cannot see a type-parameter receiver, so the synthetic
+        // would survive alongside the source declaration and make generic
+        // `x..<y` calls ambiguous.
 
         // Byte/Short until produce Int ranges; mixed Int/Long calls widen to Long.
         registerSyntheticRangeUntilStub(
@@ -216,7 +213,7 @@ extension DataFlowSemaPhase {
         registerSyntheticProgressionStub(
             named: "ULongProgression",
             elementType: types.ulongType,
-            stepType: types.intType,
+            stepType: types.longType,
             externalLinkName: "__kk_ulong_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
@@ -242,11 +239,16 @@ extension DataFlowSemaPhase {
     }
 
     /// KSP-652: the `OpenEndRange<T>` declaration is source-backed by
-    /// `Stdlib/kotlin/ranges/Ranges.kt`, which reuses this shell on bundle load (the
+    /// `Stdlib/kotlin/ranges/OpenEndRange/OpenEndRange.kt` (moved out of
+    /// `Ranges.kt` by KSP-1311), which reuses this shell on bundle load (the
     /// `.synthetic` flag is cleared then). The shell has to stay because `rangeUntil` and the
     /// concrete range conformances are registered before bundled headers are collected and need
-    /// the symbol to already exist; its members stay compiler-side residuals for the same
-    /// reason as the `ClosedRange` ones. See `HeaderHelpers+SyntheticRangeInterfaceStubs.swift`.
+    /// the symbol to already exist. The member registrations below are the
+    /// residual runtime links the bundled declarations reuse: `start`/
+    /// `endExclusive` keep `__kk_range_*` external links because runtime range
+    /// boxes carry no interface itable (the `Map.size` pattern), and the
+    /// `contains`/`isEmpty` residuals act as the `--no-stdlib` fallback plus the
+    /// reuse target for the `@KsSymbolName` source members.
     private func registerSyntheticOpenEndRangeStub(
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
@@ -306,6 +308,7 @@ extension DataFlowSemaPhase {
             named: "start",
             ownerSymbol: classSymbol,
             propertyType: typeParamType,
+            externalLinkName: "__kk_range_first",
             symbols: symbols,
             interner: interner
         )
@@ -313,6 +316,7 @@ extension DataFlowSemaPhase {
             named: "endExclusive",
             ownerSymbol: classSymbol,
             propertyType: typeParamType,
+            externalLinkName: "__kk_range_endExclusive",
             symbols: symbols,
             interner: interner
         )
@@ -324,8 +328,9 @@ extension DataFlowSemaPhase {
             returnType: types.booleanType,
             flags: [.synthetic, .operatorFunction],
             classTypeParameterCount: 1,
-            // KSP-1288 adds source-backed cross-type overloads with the same
-            // arity. Keep this generic interface residual alongside them.
+            // KSP-1288 adds source-backed cross-type overloads and KSP-1311 the
+            // source-backed member itself. Keep this generic residual for
+            // `--no-stdlib` compilations; bundled loads reuse the symbol.
             allowBundledSourceOverlap: true,
             symbols: symbols,
             interner: interner
@@ -342,104 +347,6 @@ extension DataFlowSemaPhase {
         )
 
         return classSymbol
-    }
-
-    private func registerSyntheticRangeUntilFunction(
-        rangesPackageSymbol: SymbolID,
-        rangesFQName: [InternedString],
-        openEndRangeSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern("rangeUntil")
-        let functionFQName = rangesFQName + [functionName]
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = functionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: typeParamFQName) {
-            typeParamSymbol = existing
-        } else {
-            typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let comparableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("Comparable"),
-        ]
-        guard let comparableSymbol = symbols.lookup(fqName: comparableFQName) else {
-            return
-        }
-        let comparableType = types.make(.classType(ClassType(
-            classSymbol: comparableSymbol,
-            args: [.in(typeParamType)],
-            nullability: .nonNull
-        )))
-        let openEndRangeType = types.make(.classType(ClassType(
-            classSymbol: openEndRangeSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == typeParamType
-                && signature.parameterTypes == [typeParamType]
-                && signature.returnType == openEndRangeType
-        }) {
-            return
-        }
-
-        let parameterName = interner.intern("that")
-        let parameterSymbol = symbols.define(
-            kind: .valueParameter,
-            name: parameterName,
-            fqName: functionFQName + [parameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(rangesPackageSymbol, for: functionSymbol)
-        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-        symbols.setExternalLinkName("__kk_op_rangeUntil", for: functionSymbol)
-        symbols.setTypeParameterUpperBounds([comparableType], for: typeParamSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: typeParamType,
-                parameterTypes: [typeParamType],
-                returnType: openEndRangeType,
-                valueParameterSymbols: [parameterSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParamSymbol],
-                typeParameterUpperBoundsList: [[comparableType]]
-            ),
-            for: functionSymbol
-        )
     }
 
     private func registerSyntheticRangeUntilStub(

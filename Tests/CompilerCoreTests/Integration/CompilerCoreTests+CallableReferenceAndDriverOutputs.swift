@@ -438,6 +438,148 @@ extension CompilerCoreTests {
         #expect(ctx.interner.resolve(sema.symbols.symbol(returnClassType.classSymbol)!.name) == "Foo")
     }
 
+    /// KUU-917: a class used as the receiver of a nested constructor reference
+    /// provides the constructor's owner, not a captured receiver argument.
+    @Test func testNestedConstructorReferenceBindsConstructorWithoutReceiver() throws {
+        let source = """
+        class Outer { class Nested(val n: Int) }
+        fun make(): Outer.Nested {
+            val ctor: (Int) -> Outer.Nested = Outer::Nested
+            return ctor(7)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let ctor = try #require(sema.bindings.identifierSymbols[ref])
+        #expect(sema.symbols.symbol(ctor)?.kind == .constructor)
+        #expect(!sema.bindings.isUnboundCallableRef(ref))
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected nested constructor function type.")
+            return
+        }
+        #expect(function.params == [sema.types.make(.primitive(.int, .nonNull))])
+        guard case let .classType(result) = sema.types.kind(of: function.returnType) else {
+            Issue.record("Expected nested constructor result type.")
+            return
+        }
+        #expect(sema.symbols.symbol(result.classSymbol)?.fqName.map { ctx.interner.resolve($0) } == ["Outer", "Nested"])
+    }
+
+    /// KUU-917: a bare reference in an extension body binds its receiver,
+    /// including members inherited through an interface.
+    @Test func testExtensionBareMemberReferenceBindsImplicitReceiver() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        fun flush(): Int = 7
+        fun Writer.flushLater(): () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        #expect(sema.bindings.implicitReceiverMemberNames[ref] != nil)
+        let member = try #require(sema.bindings.identifierSymbols[ref])
+        let owner = try #require(sema.symbols.parentSymbol(for: member))
+        #expect(sema.symbols.symbol(owner)?.kind == .interface)
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected bound member function type.")
+            return
+        }
+        #expect(function.params.isEmpty)
+        #expect(function.returnType == sema.types.make(.primitive(.int, .nonNull)))
+    }
+
+    @Test func testSuspendImplicitMemberReferenceRetainsSuspendFunctionType() throws {
+        let source = """
+        interface Writer { suspend fun flush(): Int }
+        fun Writer.flushLater(): suspend () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected suspend function reference type.")
+            return
+        }
+        #expect(function.isSuspend)
+        #expect(function.params.isEmpty)
+    }
+
+    @Test func testImplicitMemberReferenceBeatsSameNamedPackageProperty() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        val flush: Int = 7
+        fun Writer.flushLater(): () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let member = try #require(sema.bindings.identifierSymbols[ref])
+        let owner = try #require(sema.symbols.parentSymbol(for: member))
+        #expect(sema.symbols.symbol(owner)?.kind == .interface)
+        #expect(sema.bindings.implicitReceiverMemberNames[ref] != nil)
+    }
+
+    /// The implicit-receiver fallback must leave a top-level `::function`
+    /// unchanged, even when that reference occurs inside an extension body.
+    @Test func testTopLevelCallableReferenceInsideExtensionRemainsReceiverless() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        fun top(): Int = 3
+        fun Writer.topLater(): () -> Int = ::top
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        #expect(sema.bindings.implicitReceiverMemberNames[ref] == nil)
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected top-level function reference type.")
+            return
+        }
+        #expect(function.params.isEmpty)
+    }
+
     /// REFL-EXTPROP: `String::length` is a package-level extension property
     /// (`Sources/CompilerCore/Stdlib/kotlin/String.kt`) registered under its
     /// declaring package's FQ name, not under `kotlin.String`'s -- the
@@ -510,6 +652,67 @@ extension CompilerCoreTests {
             #expect(functionType.params == [intType, intType])
             #expect(functionType.returnType == intType)
         }
+    }
+
+    /// A bound reference to a method of a generic interface instantiation
+    /// (`t::apply` with `t: Transformer<Int, Int>`) substitutes the receiver's
+    /// type arguments into the member's signature instead of leaving the
+    /// declared type parameters (`(A) -> B`) in the function type.
+    @Test func testBoundGenericInterfaceMethodReferenceSubstitutesReceiverTypeArguments() throws {
+        let source = """
+        interface Transformer<A, B> { fun apply(a: A): B }
+        fun use(t: Transformer<Int, Int>): (Int) -> Int = t::apply
+        fun infer(t: Transformer<Int, String>) = t::apply
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let callableRefExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
+            return exprID
+        }
+        #expect(callableRefExprIDs.count == 2)
+        let inferredRef = try #require(callableRefExprIDs.last)
+        let refType = try #require(sema.bindings.exprTypes[inferredRef])
+        guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
+            Issue.record("Bound generic interface method reference should infer a function type.")
+            return
+        }
+        #expect(functionType.params == [intType])
+        #expect(functionType.returnType == sema.types.stringType)
+    }
+
+    /// `Int::toString` has no zero-argument member symbol (only
+    /// `toString(radix)` is declared); with a one-parameter expected function
+    /// type it resolves to a synthesized `(Int) -> String`, while a two-parameter
+    /// expected type still picks the real `toString(radix)` overload.
+    @Test func testOverloadedToStringReferenceIsChosenByExpectedFunctionArity() throws {
+        let source = """
+        fun one(): (Int) -> String = Int::toString
+        fun two(): (Int, Int) -> String = Int::toString
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
+            return exprID
+        }
+        #expect(callableRefExprIDs.count == 2)
+        #expect(sema.bindings.isAnyToStringCallableRef(callableRefExprIDs[0]))
+        #expect(!sema.bindings.isAnyToStringCallableRef(callableRefExprIDs[1]))
+        #expect(sema.bindings.callableTarget(for: callableRefExprIDs[1]) != nil)
     }
 }
 #endif

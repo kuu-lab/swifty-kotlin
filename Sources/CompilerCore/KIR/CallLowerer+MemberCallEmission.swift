@@ -244,8 +244,7 @@ extension CallLowerer {
            }(),
            let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
            let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
-           dispatchSignature.typeParameterSymbols.count
-               == dispatchSignature.classTypeParameterCount,
+           dispatchSignature.typeParameterSymbols.isEmpty,
            dispatchSignature.reifiedTypeParameterIndices.isEmpty,
            !dispatchSignature.isSuspend,
            finalArguments.first == receiver.loweredID
@@ -455,8 +454,27 @@ extension CallLowerer {
             interner: interner
         )
         let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
-        let callSymbol: SymbolID? = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
+        let runtimeProgressionMemberCallee = runtimeBackedULongProgressionMemberCallee(
+            memberName: interner.resolve(calleeName),
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        )
+        let usesRuntimeSetMember = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
             && isSourceBackedHashSetType(receiverType, sema: sema, interner: interner)
+        let usesRuntimeProgressionMember = runtimeProgressionMemberCallee.map { $0 == loweredCallee } == true
+        let rangeInterfaceCallee = closedRangeInterfaceRuntimeName(
+            memberName: interner.resolve(calleeName),
+            receiverExpr: receiver.expr,
+            receiverType: receiverType,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        )
+        let usesRuntimeRangeMember = rangeInterfaceCallee.map { $0 == loweredCallee } == true
+        // Remapped runtime bridges must not retain a source symbol whose own
+        // external link would override the concrete runtime callee.
+        let callSymbol: SymbolID? = usesRuntimeSetMember || usesRuntimeProgressionMember || usesRuntimeRangeMember
             ? nil
             : chosenCallee
         // KSP-641: ClosedFloatingPointRange members are still compiler residuals,

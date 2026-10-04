@@ -511,6 +511,11 @@ final class ControlFlowLowerer {
 
         let currentSlot = arena.appendTemporary(type: intType)
         instructions.append(.copy(from: firstID, to: currentSlot))
+        // Reading a local yields its storage register, so `lastID` would alias
+        // `n` in `for (i in 0..n)` and follow mutations in the body. Kotlin
+        // evaluates the bound once; snapshot it into a fresh temporary.
+        let lastSnapshotID = arena.appendTemporary(type: intType)
+        instructions.append(.copy(from: lastID, to: lastSnapshotID))
         let hasMoreSlot = arena.appendTemporary(type: boolType)
         let trueID = arena.appendExpr(.boolLiteral(true), type: boolType)
         instructions.append(.constValue(result: trueID, value: .boolLiteral(true)))
@@ -532,7 +537,7 @@ final class ControlFlowLowerer {
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("__kk_int_range_induction_le"),
-            arguments: [currentSlot, lastID],
+            arguments: [currentSlot, lastSnapshotID],
             result: hasMoreID,
             canThrow: false,
             thrownResult: nil
@@ -549,7 +554,7 @@ final class ControlFlowLowerer {
 
         // Do not increment after the final element. This is the same
         // monotonicity/overflow guard as IntProgressionIterator.next().
-        instructions.append(.jumpIfEqual(lhs: currentSlot, rhs: lastID, target: lastValueLabel))
+        instructions.append(.jumpIfEqual(lhs: currentSlot, rhs: lastSnapshotID, target: lastValueLabel))
         let oneID = arena.appendExpr(.intLiteral(1), type: intType)
         instructions.append(.constValue(result: oneID, value: .intLiteral(1)))
         let nextValueID = arena.appendTemporary(type: intType)
@@ -715,7 +720,7 @@ final class ControlFlowLowerer {
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        let arrayID = driver.lowerExpr(
+        let arrayValueID = driver.lowerExpr(
             iterableExpr,
             ast: ast,
             sema: sema,
@@ -724,6 +729,11 @@ final class ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+
+        // Snapshot the array reference: `for (x in arr)` iterates the array
+        // evaluated once, even if the `var` is reassigned inside the body.
+        let arrayID = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.copy(from: arrayValueID, to: arrayID))
 
         let sizeID = arena.appendTemporary(type: intType)
         emitNonThrowingCall(
@@ -1069,8 +1079,25 @@ final class ControlFlowLowerer {
             interner: interner,
             instructions: &instructions
         )
+        // The erased Iterator<T>.next ABI may return a boxed Int for Byte and
+        // Short elements. Normalize it before arithmetic in source-backed
+        // Iterable loops; kk_unbox_int also accepts an already-raw scalar.
+        let loopElementID: KIRExprID
+        switch sema.types.kind(of: loopBinding.elementType) {
+        case .primitive(.byte, .nonNull), .primitive(.short, .nonNull):
+            let scalar = arena.appendTemporary(type: loopBinding.elementType)
+            emitNonThrowingCall(
+                callee: interner.intern("kk_unbox_int"),
+                arg: nextValueID,
+                result: scalar,
+                into: &instructions
+            )
+            loopElementID = scalar
+        default:
+            loopElementID = nextValueID
+        }
         if let loopVariableSymbol {
-            driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
+            driver.ctx.setLocalValue(loopElementID, for: loopVariableSymbol)
         }
 
         driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)

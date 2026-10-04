@@ -716,7 +716,7 @@ extension TypeSystem {
     /// Finds a supertype of every element of `types` that is more specific
     /// than `Any`, without a full generic-hierarchy walk (the special-cased
     /// `isSubtype` rules for primitives don't expose a generic "supertypes
-    /// of" query). Covers two shapes seen in practice:
+    /// of" query). Covers three shapes seen in practice:
     ///
     /// - One input is already a common supertype of the rest, e.g.
     ///   `lub(Int, Number) == Number`, even when `Number` only appears as
@@ -727,8 +727,12 @@ extension TypeSystem {
     ///   `Double`, `Byte`, `Short`), whose only common ancestor besides
     ///   `Any` is `kotlin.Number` — e.g. `lub(Int, Long) == Number`, matching
     ///   kotlinc (`pick(1, 2L)` assigned to a `Number`-typed val).
+    /// - All inputs are user/library class types whose nominal supertype
+    ///   graphs share a class or interface other than `Any`, e.g.
+    ///   `lub(X, Y) == I` for `class X : I` / `class Y : I`
+    ///   (see `nearestCommonNominalSupertype`).
     ///
-    /// Returns `nil` when neither shape applies, leaving the caller to fall
+    /// Returns `nil` when none of the shapes apply, leaving the caller to fall
     /// back to `Any`.
     private func nearestCommonSupertype(_ types: [TypeID]) -> TypeID? {
         if let dominating = types.first(where: { candidate in types.allSatisfy { isSubtype($0, candidate) } }) {
@@ -737,7 +741,135 @@ extension TypeSystem {
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
-        return nil
+        // Prefer the strict result (unique most-specific ancestor with agreeing type
+        // arguments); fall back to the BFS approximation when several incomparable
+        // candidates remain.
+        return commonNominalSupertype(types) ?? nearestCommonNominalSupertype(types)
+    }
+
+    /// Finds the most specific nominal supertype (other than `Any`) shared by
+    /// every non-null class type in `types`.
+    ///
+    /// Candidates are the ancestors of the first input, visited breadth-first
+    /// over `directNominalSupertypes` (an explicit worklist with a visited set,
+    /// so a cyclic or attacker-shaped `.kklib` supertype graph cannot recurse
+    /// or loop -- see KUU-809). Each candidate is instantiated with the type
+    /// arguments the first input lifts to (`liftedNominalSupertypeArgs`) and is
+    /// kept only if *every* input is a subtype of that instantiation, which
+    /// rejects generic mismatches such as `Comparable<X>` vs `Comparable<Y>`.
+    /// Among the survivors, candidates that are strict supertypes of another
+    /// survivor are dropped, and a superclass is preferred over an interface.
+    ///
+    /// Kotlin infers an intersection type when several incomparable candidates
+    /// remain (e.g. two classes implementing both `I` and `J`). This compiler
+    /// has no denotable intersection for inferred variables, so it
+    /// approximates with the first surviving candidate in breadth-first order
+    /// (nominal supertypes are stored sorted by symbol ID, so the
+    /// choice is deterministic). Members of the other candidates are not
+    /// visible on the result.
+    private func nearestCommonNominalSupertype(_ types: [TypeID]) -> TypeID? {
+        guard types.count > 1 else { return nil }
+        var classTypes: [ClassType] = []
+        for type in types {
+            guard case let .classType(classType) = kind(of: type), classType.nullability == .nonNull else {
+                return nil
+            }
+            classTypes.append(classType)
+        }
+        let first = classTypes[0]
+
+        var ancestors: [SymbolID] = []
+        var visited: Set<SymbolID> = [first.classSymbol]
+        var worklist = directNominalSupertypes(for: first.classSymbol)
+        var head = 0
+        while head < worklist.count {
+            let ancestor = worklist[head]
+            head += 1
+            guard visited.insert(ancestor).inserted else { continue }
+            ancestors.append(ancestor)
+            worklist.append(contentsOf: directNominalSupertypes(for: ancestor))
+        }
+
+        var survivors: [TypeID] = []
+        for ancestor in ancestors {
+            let args = liftedNominalSupertypeArgs(
+                from: first.classSymbol,
+                childArgs: first.args,
+                to: ancestor
+            ) ?? []
+            let candidate = make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull)))
+            if normalizedBuiltinDisguisedClassTypeAndKind(candidate).0 == anyType {
+                continue
+            }
+            if types.allSatisfy({ isSubtype($0, candidate) }) {
+                survivors.append(candidate)
+            }
+        }
+
+        let mostSpecific = survivors.filter { candidate in
+            !survivors.contains { other in other != candidate && isSubtype(other, candidate) }
+        }
+        let isInterface: (TypeID) -> Bool = { [self] candidate in
+            guard case let .classType(classType) = kind(of: candidate) else { return false }
+            return symbolTable?.symbol(classType.classSymbol)?.kind == .interface
+        }
+        return mostSpecific.first(where: { !isInterface($0) }) ?? mostSpecific.first
+    }
+
+    /// Nominal hierarchy walk for inputs that are all nominal class types
+    /// where no input dominates the rest — e.g.
+    /// `lub(EmptyCoroutineContext, Element) == CoroutineContext`: neither
+    /// input is a supertype of the other, but they share
+    /// `CoroutineContext` above them. Collects the ancestor symbols
+    /// reachable from every input, keeps those whose substituted type args
+    /// agree across all inputs, and returns the single most specific
+    /// candidate (a subtype of every other candidate). Returns `nil` for
+    /// non-class inputs, disagreeing args, or ambiguity — the caller then
+    /// falls back to `Any`, so this can only tighten results that would
+    /// otherwise widen to `Any`.
+    private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
+        var ancestorSets: [Set<SymbolID>] = []
+        for input in types {
+            guard case let .classType(classType) = kind(of: input) else { return nil }
+            var ancestors: Set<SymbolID> = [classType.classSymbol]
+            var queue = directNominalSupertypes(for: classType.classSymbol)
+            while let symbol = queue.popLast() {
+                if ancestors.insert(symbol).inserted {
+                    queue.append(contentsOf: directNominalSupertypes(for: symbol))
+                }
+            }
+            ancestorSets.append(ancestors)
+        }
+        guard var common = ancestorSets.first else { return nil }
+        for rest in ancestorSets.dropFirst() {
+            common.formIntersection(rest)
+        }
+        var candidates: [TypeID] = []
+        for ancestor in common {
+            var args: [TypeArg]?
+            var agrees = true
+            for input in types {
+                guard case let .classType(classType) = kind(of: input),
+                      let lifted = liftedNominalSupertypeArgs(
+                          from: classType.classSymbol,
+                          childArgs: classType.args,
+                          to: ancestor
+                      )
+                else {
+                    agrees = false
+                    break
+                }
+                if let prev = args, prev != lifted {
+                    agrees = false
+                    break
+                }
+                args = args ?? lifted
+            }
+            guard agrees, let args else { continue }
+            candidates.append(make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull))))
+        }
+        let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
+        return best.count == 1 ? best.first : nil
     }
 
     private func isNumericPrimitiveType(_ type: TypeID) -> Bool {

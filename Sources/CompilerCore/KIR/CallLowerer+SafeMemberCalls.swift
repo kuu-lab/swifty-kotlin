@@ -659,6 +659,8 @@ extension CallLowerer {
             case ("toUByte", ulongType, ubyteType): interner.intern("kk_ulong_to_ubyte")
             case ("toUByte", ubyteType, ubyteType): nil // identity
             case ("toUByte", ushortType, ubyteType): interner.intern("kk_ushort_to_ubyte")
+            case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
+            case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
             case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
@@ -719,12 +721,32 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        // Explicit `.invoke(...)` on a receiver whose own type is a function
+        // type (e.g. `fs["dbl"]?.invoke(4)`). Mirrors the non-safe-call arm
+        // in `lowerMemberCallExpr` and goes through `lowerResolvedCallBody`
+        // so positional-receiver / default-arg shapes stay consistent.
+        if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(
+            exprID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            loweredReceiverID: loweredReceiverID,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.copy(from: invokeResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // Callable-value invocation through a safe call (KUU-644):
-        // `h?.f(args)` on a function-typed member property, and
-        // `x?.invoke(args)` on a function value. The receiver is already
-        // known non-null here; emit the property read / invoke on the
+        // `h?.f(args)` on a function-typed member property. The receiver is
+        // already known non-null here; emit the property read / invoke on the
         // non-null path and copy into the nullable result like the other
-        // safe-call arms.
+        // safe-call arms. Explicit `x?.invoke(args)` is handled above.
         if let callableBinding = sema.bindings.callableValueCalls[exprID],
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            let invokeCallee = runtimeCallableInvokeCallee(
@@ -1092,6 +1114,15 @@ extension CallLowerer {
                 )
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
+                ?? arena.exprType(loweredReceiverID)
+            let isRuntimeRangeReceiver = receiverTypeForDispatch.map { receiverType in
+                MemberRuntimeDispatch.rangeReceiverKind(
+                    receiverExpr: receiverExpr,
+                    receiverType: receiverType,
+                    sema: sema,
+                    interner: interner
+                ) != nil
+            } ?? false
             let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
             let usesIteratorRuntimeVirtualBridge = chosen.map {
                 isIteratorRuntimeVirtualBridge(
@@ -1102,6 +1133,7 @@ extension CallLowerer {
                 )
             } ?? false
             if !isSuperCall,
+               !isRuntimeRangeReceiver,
                let chosen,
                (!hasExternalLink
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)
@@ -1228,9 +1260,27 @@ func resolveVirtualDispatchKind(
     guard let calleeSymbol = sema.symbols.symbol(callee),
           calleeSymbol.kind == .function
     else { return nil }
+    // Range/progression receivers are RuntimeRangeBox handles without a
+    // Kotlin vtable/itable — dispatching a member virtually on them crashes
+    // at kk_vtable_lookup (KSWIFTK-RUNTIME-0001). Their member calls always
+    // use direct dispatch.
+    if let receiverTypeID,
+       MemberRuntimeDispatch.rangeReceiverKind(for: receiverTypeID, sema: sema, interner: interner) != nil
+    {
+        return nil
+    }
     guard let parentID = sema.symbols.parentSymbol(for: callee),
           let parentSymbol = sema.symbols.symbol(parentID)
     else { return nil }
+    // Members declared on a range/progression class are only ever invoked on
+    // RuntimeRangeBox handles — the constructors are internal, so no
+    // vtable-carrying subclass exists. Keep them on direct dispatch even when
+    // the receiver's static type lost the nominal (e.g. ClosedRange<Long>).
+    if parentSymbol.kind == .class,
+       MemberRuntimeDispatch.rangeReceiverKind(forClassSymbol: parentSymbol, interner: interner) != nil
+    {
+        return nil
+    }
     guard let layout = sema.symbols.nominalLayout(for: parentID) else { return nil }
     if parentSymbol.kind == .interface {
         return resolveItableDispatchKind(
@@ -1239,9 +1289,39 @@ func resolveVirtualDispatchKind(
         )
     }
     if parentSymbol.kind == .class {
+        // KSP-1281: members of the range/progression classes are never
+        // vtable-dispatchable. Their values are runtime `RuntimeRangeBox`
+        // handles, not heap objects carrying a KTypeInfo vtable, so
+        // `kk_vtable_lookup` traps on the receiver. The paired Range classes
+        // are `final` and the progressions have `internal` constructors, so
+        // no user subtype can ever materialize as a real object — the only
+        // subtype a progression can gain (e.g. `UIntRange : UIntProgression`)
+        // is box-backed itself. Direct calls to the resolved source member
+        // lower through the `kk_range_*` handle bridges and are correct.
+        if isRuntimeRangeBoxNominal(parentSymbol, interner: interner) { return nil }
         return resolveVtableDispatchKind(callee: callee, parentID: parentID, layout: layout, sema: sema)
     }
     return nil
+}
+
+/// Whether `symbol` is one of the `kotlin.ranges` progression/range classes
+/// whose values the runtime represents as `RuntimeRangeBox` handles rather
+/// than real heap objects — a `vtable` dispatch on such an owner can never
+/// resolve a slot (`kk_vtable_lookup` traps on the raw handle).
+private func isRuntimeRangeBoxNominal(_ symbol: SemanticSymbol, interner: StringInterner) -> Bool {
+    let fqName = symbol.fqName
+    guard fqName.count == 3,
+          fqName[0] == interner.intern("kotlin"),
+          fqName[1] == interner.intern("ranges")
+    else { return false }
+    switch interner.resolve(fqName[2]) {
+    case "IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange",
+         "IntProgression", "LongProgression", "CharProgression",
+         "UIntProgression", "ULongProgression":
+        return true
+    default:
+        return false
+    }
 }
 
 private func resolveItableDispatchKind(

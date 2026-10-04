@@ -84,12 +84,13 @@ extension DataFlowSemaPhase {
         // registered property here so expressions like `r.first` type-check as
         // UInt. Keep the link names aligned to the bridge that's actually used
         // so they don't dangle on a symbol slated for removal.
+        // KSP-1315: `start`, `endInclusive`, and `endExclusive` moved to the
+        // bundled `UIntRange/UIntRange.kt` extension declarations; `end`
+        // remains a legacy alias with no Kotlin API surface.
         for property in [
-            ("start", "__kk_range_first"),
             ("end", "__kk_range_last"),
             ("first", "__kk_range_first"),
             ("last", "__kk_range_last"),
-            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,
@@ -166,15 +167,9 @@ extension DataFlowSemaPhase {
         // `Iterable<Byte/Short/Int/Long/Float/Double>`, confirmed via
         // diff_kotlinc.sh), so it was dropped entirely rather than
         // migrated.
-        registerSyntheticConstructor(
-            ownerSymbol: classSymbol,
-            ownerType: rangeType,
-            parameterTypes: [types.uintType, types.uintType],
-            parameterNames: ["start", "end"],
-            externalLinkName: "__kk_uint_rangeTo",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1281: no constructor registration either — the bundled
+        // `UIntRange/Stdlib.kt` declares it with the `@KsSymbolName`
+        // `__kk_uint_rangeTo` link, same as ULongRange in KSP-1320.
     }
 
     func registerSyntheticULongRangeStub(
@@ -230,10 +225,8 @@ extension DataFlowSemaPhase {
         )
         for property in [
             ("start", "__kk_range_first"),
-            ("endInclusive", "__kk_range_last"),
             ("first", "__kk_range_first"),
             ("last", "__kk_range_last"),
-            ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
                 named: property.0,
@@ -247,7 +240,7 @@ extension DataFlowSemaPhase {
         registerProgressionProperty(
             named: "step",
             ownerSymbol: classSymbol,
-            propertyType: types.intType,
+            propertyType: types.longType,
             externalLinkName: "kk_ulong_range_step",
             symbols: symbols,
             interner: interner

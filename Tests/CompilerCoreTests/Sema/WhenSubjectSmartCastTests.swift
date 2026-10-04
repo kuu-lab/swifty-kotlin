@@ -50,5 +50,51 @@ struct WhenSubjectSmartCastTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    @Test func testQualifiedSealedSubjectWithReifiedAndIsBranchesIsExhaustive() throws {
+        let source = """
+        sealed interface Slot {
+            class Task : Slot
+            object Closed : Slot
+            object Empty : Slot
+        }
+        class Holder(val previous: Slot)
+
+        inline fun <reified TaskType> classify(holder: Holder): Int = when (holder.previous) {
+            is TaskType -> 0
+            is Slot.Task -> 1
+            Slot.Closed -> 2
+            Slot.Empty -> 3
+        }
+        inline fun <reified TaskType> classifyLocal(previous: Slot): Int = when (previous) {
+            is TaskType -> 0
+            is Slot.Task -> 1
+            Slot.Closed -> 2
+            Slot.Empty -> 3
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
+    }
+
+    @Test func testQualifiedSealedSubjectStillReportsMissingSubtype() throws {
+        let source = """
+        sealed interface Slot {
+            class Task : Slot
+            object Empty : Slot
+        }
+        class Holder(val previous: Slot)
+        fun classify(holder: Holder): Int = when (holder.previous) {
+            is Slot.Task -> 1
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
+    }
 }
 #endif

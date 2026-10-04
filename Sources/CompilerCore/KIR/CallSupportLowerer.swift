@@ -4,6 +4,13 @@ struct NormalizedCallResult {
     let defaultMask: Int64
 }
 
+/// A captured value forwarded by the `$default` stub of a local function.
+struct DefaultStubCapture {
+    let capturedSymbol: SymbolID
+    let param: KIRParameter
+    let isBoxedMutable: Bool
+}
+
 final class CallSupportLowerer {
     unowned let driver: KIRLoweringDriver
 
@@ -122,7 +129,8 @@ final class CallSupportLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind]
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        captures: [DefaultStubCapture] = []
     ) -> KIRDeclID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let paramCount = signature.parameterTypes.count
@@ -131,7 +139,10 @@ final class CallSupportLowerer {
         driver.ctx.resetScopeForFunction()
         driver.ctx.setCurrentFunctionSymbol(originalSymbol)
 
-        var params: [KIRParameter] = []
+        // A local function's lifted body takes its captured values as leading
+        // parameters; the stub mirrors them and forwards them to the original.
+        var params: [KIRParameter] = captures.map(\.param)
+        var captureArgExprs: [KIRExprID] = []
         if let receiverType = signature.receiverType {
             let receiverSym = syntheticReceiverParameterSymbol(functionSymbol: originalSymbol)
             params.append(KIRParameter(symbol: receiverSym, type: receiverType))
@@ -187,6 +198,17 @@ final class CallSupportLowerer {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
 
+        for capture in captures {
+            let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
+            body.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
+            if capture.isBoxedMutable {
+                driver.ctx.setMutableCaptureCell(captureExpr, for: capture.capturedSymbol)
+            } else {
+                driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
+            }
+            captureArgExprs.append(captureExpr)
+        }
+
         let maskExpr = arena.appendExpr(.symbolRef(maskSymbol), type: intType)
         body.append(.constValue(result: maskExpr, value: .symbolRef(maskSymbol)))
 
@@ -224,8 +246,26 @@ final class CallSupportLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &body
                 )
+                // A function-typed parameter is consumed through kk_function_invoke,
+                // which needs a boxed function value. Call-site lambdas are wrapped
+                // by materializeSourceBackedFunctionValueArguments; do the same for
+                // a default lambda / callable reference so it isn't a raw fn pointer.
+                var defaultValueForCopy = defaultVal
+                if case let .functionType(defaultFunctionType) = sema.types.kind(
+                    of: sema.types.makeNonNullable(effectiveParamType)
+                ) {
+                    defaultValueForCopy = driver.callLowerer.materializeFunctionValueArgument(
+                        loweredArgID: defaultVal,
+                        argExprID: defaultExprID,
+                        functionType: defaultFunctionType,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &body
+                    )
+                }
                 let resolvedExpr = arena.appendTemporary(type: effectiveParamType)
-                body.append(.copy(from: defaultVal, to: resolvedExpr))
+                body.append(.copy(from: defaultValueForCopy, to: resolvedExpr))
                 body.append(.jump(afterLabel))
 
                 body.append(.label(skipLabel))
@@ -241,7 +281,7 @@ final class CallSupportLowerer {
         }
 
         let receiverExprForCall = driver.ctx.activeImplicitReceiverExprID()
-        var callArgs: [KIRExprID] = []
+        var callArgs: [KIRExprID] = captureArgExprs
         if let receiverExprForCall {
             callArgs.append(receiverExprForCall)
         }
@@ -349,17 +389,81 @@ final class CallSupportLowerer {
         return declID
     }
 
+    /// A `tailrec` function calling itself with omitted defaults would normally
+    /// detour through `f$default`, which calls `f` again and so defeats the
+    /// self-call -> loop rewrite of `TailrecLoweringPass` (real recursion, stack
+    /// overflow). Evaluate the omitted default expressions at the call site
+    /// instead, exactly like the stub does: in parameter order, with earlier
+    /// parameters bound to this call's resolved values. Returns `true` when every
+    /// omitted default was expanded (the call then needs no mask).
+    ///
+    /// Restricted to functions without receivers: a default expression of a
+    /// member/extension may read `this`, which for a call on a different
+    /// receiver would bind to the wrong object here.
+    private func expandSelfTailrecDefaults(
+        normalized: inout [KIRExprID],
+        mask: Int64,
+        chosenCallee: SymbolID,
+        signature: FunctionSignature,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        let ctx = driver.ctx
+        guard ctx.activeFunctionSymbol() == chosenCallee,
+              ctx.tailrecFunctionSymbols.contains(chosenCallee),
+              signature.receiverType == nil,
+              ctx.activeImplicitReceiver() == nil,
+              signature.reifiedTypeParameterIndices.isEmpty,
+              let defaults = ctx.defaultArguments(for: chosenCallee),
+              normalized.count == signature.valueParameterSymbols.count
+        else {
+            return false
+        }
+        for index in normalized.indices where mask & (Int64(1) << index) != 0 {
+            guard index < defaults.count, defaults[index] != nil else { return false }
+        }
+        let paramSymbols = signature.valueParameterSymbols
+        let savedLocals = paramSymbols.map { ctx.localValue(for: $0) }
+        var expanded = normalized
+        for index in normalized.indices {
+            if mask & (Int64(1) << index) != 0, let defaultExpr = defaults[index] {
+                let value = driver.lowerExpr(
+                    defaultExpr,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+                let resolved = arena.appendTemporary(type: signature.parameterTypes[index])
+                instructions.append(.copy(from: value, to: resolved))
+                expanded[index] = resolved
+            }
+            ctx.setLocalValue(expanded[index], for: paramSymbols[index])
+        }
+        for (symbol, saved) in zip(paramSymbols, savedLocals) {
+            if let saved { ctx.setLocalValue(saved, for: symbol) }
+        }
+        normalized = expanded
+        return true
+    }
+
     func normalizedCallArguments(
         providedArguments: [KIRExprID],
         callBinding: CallBinding?,
         chosenCallee: SymbolID?,
         spreadFlags: [Bool],
         sourceArgExprs: [ExprID] = [],
-        ast _: ASTModule,
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers _: [SymbolID: KIRExprKind],
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> NormalizedCallResult {
         guard let callBinding,
@@ -441,7 +545,7 @@ final class CallSupportLowerer {
             }
         }
 
-        if externalLinkName == "kk_array_of",
+        if (externalLinkName == "kk_array_of" || externalLinkName == "__kk_immutable_blob_of"),
            parameterCount == 1,
            isVararg.first == true
         {
@@ -539,6 +643,11 @@ final class CallSupportLowerer {
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
                 if isVararg[paramIndex] {
+                    let primitiveArrayType = primitiveVarargArrayType(
+                        elementType: signature.parameterTypes[paramIndex],
+                        sema: sema,
+                        interner: interner
+                    )
                     boxNonSpreadVarargArguments(
                         argIndices,
                         in: &boxedArguments,
@@ -553,8 +662,9 @@ final class CallSupportLowerer {
                         argIndices: argIndices,
                         providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
-                        listifyResult: !preserveArrayVarargs,
-                        boxPrimitiveElements: !preserveArrayVarargs,
+                        listifyResult: !preserveArrayVarargs && primitiveArrayType == nil,
+                        boxPrimitiveElements: !preserveArrayVarargs && primitiveArrayType == nil,
+                        resultType: primitiveArrayType,
                         arena: arena,
                         interner: interner,
                         intType: intType,
@@ -576,9 +686,24 @@ final class CallSupportLowerer {
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.anyType,
+                    resultType: primitiveVarargArrayType(
+                        elementType: signature.parameterTypes[paramIndex],
+                        sema: sema,
+                        interner: interner
+                    ),
                     instructions: &instructions
                 )
-                normalized.append(emptyArray)
+                // Match the non-empty path: a vararg parameter is a List inside the
+                // callee unless the callee preserves raw array varargs.
+                normalized.append(preserveArrayVarargs
+                    ? emptyArray
+                    : emitArrayToList(
+                        emptyArray,
+                        arena: arena,
+                        interner: interner,
+                        anyType: sema.types.anyType,
+                        instructions: &instructions
+                    ))
                 continue
             }
             // Use semantic hasDefaultValues flag (callee context) instead of
@@ -590,6 +715,23 @@ final class CallSupportLowerer {
             let sentinel = arena.appendExpr(.intLiteral(0), type: signature.parameterTypes[paramIndex])
             instructions.append(.constValue(result: sentinel, value: .intLiteral(0)))
             normalized.append(sentinel)
+        }
+
+        if mask != 0,
+           expandSelfTailrecDefaults(
+               normalized: &normalized,
+               mask: mask,
+               chosenCallee: chosenCallee,
+               signature: signature,
+               ast: ast,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               propertyConstantInitializers: propertyConstantInitializers,
+               instructions: &instructions
+           )
+        {
+            return NormalizedCallResult(arguments: normalized, defaultMask: 0)
         }
 
         // `$default` stubs are synthetic calls and therefore do not carry the

@@ -26,6 +26,14 @@ internal class RealSink(
         hintEmit()
     }
 
+    override fun write(source: ByteArray) {
+        write(source, 0, source.size)
+    }
+
+    override fun write(source: ByteArray, startIndex: Int) {
+        write(source, startIndex, source.size)
+    }
+
     override fun write(source: ByteArray, startIndex: Int, endIndex: Int) {
         checkNotClosed()
         checkBounds(source.size, startIndex, endIndex)

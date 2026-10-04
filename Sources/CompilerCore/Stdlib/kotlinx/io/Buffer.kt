@@ -13,7 +13,6 @@ import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind.EXACTLY_ONCE
 import kotlin.contracts.contract
 import kotlinx.io.unsafe.UnsafeBufferOperations
-
 /**
  * A collection of bytes in memory.
  *
@@ -353,6 +352,14 @@ public class Buffer : Source, Sink {
             return newTail
         }
         return t
+    }
+
+    override fun write(source: ByteArray) {
+        write(source, 0, source.size)
+    }
+
+    override fun write(source: ByteArray, startIndex: Int) {
+        write(source, startIndex, source.size)
     }
 
     override fun write(source: ByteArray, startIndex: Int, endIndex: Int) {

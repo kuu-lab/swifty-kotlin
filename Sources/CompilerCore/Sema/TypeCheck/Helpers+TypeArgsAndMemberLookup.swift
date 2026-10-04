@@ -344,6 +344,7 @@ extension TypeCheckHelpers {
         }
     }
 
+
     func compoundAssignToBinaryOp(_ op: CompoundAssignOp) -> BinaryOp {
         switch op {
         case .plusAssign: .add
@@ -719,7 +720,7 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    private func resolveMemberPropertyType(
+    func resolveMemberPropertyType(
         _ propertyType: TypeID,
         receiverType: TypeID,
         ownerSymbol: SymbolID,

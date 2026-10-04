@@ -117,6 +117,41 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        // `f.invoke(...)` where `f`'s own type is a function type
+        // (`(Int) -> Int`, `Int.(Int) -> Int`, ...) has no nominal owner at
+        // all -- `allNominalSymbolsImpl` (Helpers+TypeArgsAndMemberLookup.swift)
+        // has no `.functionType` case, so ordinary member-candidate lookup
+        // would always end in "Unresolved member function 'invoke'"
+        // (KSWIFTK-SEMA-0024). Intercept here, before any nominal lookup
+        // runs, and delegate to the same invocation logic used for a bare
+        // call (`f(3)`) or extension-receiver call sugar (`1.ef(2)`). Unlike
+        // those two forms, an explicit `.invoke(...)` call has no
+        // implicit-receiver shape: a receiver-typed callee must always
+        // supply it positionally as argument 0 (`ef.invoke(5, 6)`, never
+        // `ef.invoke(6)`).
+        // A non-safe `x.invoke` on a nullable function value is left for
+        // the existing fallback (KUU-644): `h?.f.invoke(3)` must stay
+        // illegal, while `h?.f?.invoke(3)` unwraps first via `safeCall`.
+        if calleeName == knownNames.invoke,
+           explicitTypeArgs.isEmpty,
+           case let .functionType(invokeFunctionType) = sema.types.kind(of: lookupReceiverType),
+           invokeFunctionType.nullability != .nullable,
+           let result = inferCallableValueInvocation(
+               id,
+               calleeType: lookupReceiverType,
+               callableTarget: driver.helpers.callableTargetForCalleeExpr(receiverID, sema: sema),
+               args: args,
+               argTypes: argTypes,
+               range: range,
+               ctx: ctx,
+               expectedType: expectedType,
+               arityPolicy: .receiverRequiredExplicit
+           )
+        {
+            let finalType = safeCall ? sema.types.makeNullable(result) : result
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
         let isSyntacticRangeCollectionMember = calleeName == knownNames.plus || calleeName == knownNames.minus
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
@@ -1136,9 +1171,9 @@ extension CallTypeChecker {
                 // Any.equals/hashCode/toString win before extension fallback.
                 standardMemberCandidates = instantValueSemanticsCandidates
             } else if !bundledStdlibCandidates.isEmpty {
-                // Source-backed bundled extensions are the live implementation
-                // for migrated atomic APIs, including overrides of inherited
-                // synthetic Any members such as AtomicInt.toString().
+                // Source-backed bundled declarations are the live implementation
+                // for migrated atomic APIs and should win over residual synthetic
+                // candidates such as inherited Any members.
                 standardMemberCandidates = bundledStdlibCandidates
             } else {
                 standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1314,6 +1349,24 @@ extension CallTypeChecker {
                             }()
                             let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
                             guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
+                                return false
+                            }
+                            // A member extension declared in a companion is
+                            // callable only when that companion is in lexical
+                            // scope or explicitly imported. Scope lookup above
+                            // already covers both; the global short-name
+                            // fallback must not expose it to every file.
+                            // Extensions declared *on* the companion type
+                            // (e.g. `fun Worker.Companion.start`) are also
+                            // parented under the companion symbol (KSP-443);
+                            // they remain visible through normal imports, so
+                            // only member extensions whose declared receiver
+                            // is a different type are excluded here.
+                            if let parent = sema.symbols.parentSymbol(for: candidate),
+                               let owner = sema.symbols.parentSymbol(for: parent),
+                               sema.symbols.companionObjectSymbol(for: owner) == parent,
+                               resolveClassType(recvType, sema: sema)?.classSymbol != parent
+                            {
                                 return false
                             }
                             // kotlin.math is not a Kotlin default import. Do not let this
@@ -1609,7 +1662,24 @@ extension CallTypeChecker {
             }
         }
 
-        let (visible, invisible) = ctx.filterByVisibility(allCandidates)
+        // Direct member lookup and short-name extension recovery can bypass
+        // cachedScopeLookup, which normally removes an expect declaration once
+        // its matching actual is linked. Apply the same rule before resolving
+        // member-style calls, or the identical expect/actual signatures become
+        // two viable overloads and produce a false ambiguity.
+        let candidateSet = Set(allCandidates)
+        let resolvedCandidates = allCandidates.filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.flags.contains(.expectDeclaration)
+            else {
+                return true
+            }
+            guard let actual = sema.symbols.actualSymbol(for: candidate) else {
+                return true
+            }
+            return !candidateSet.contains(actual)
+        }
+        let (visible, invisible) = ctx.filterByVisibility(resolvedCandidates)
         let memberName = interner.resolve(calleeName)
         if !isClassNameReceiver,
            !safeCall,
@@ -1735,6 +1805,38 @@ extension CallTypeChecker {
                 return parameterSymbol.name == knownNames.closedFloatingPointRange
             }
             candidates.append(contentsOf: genericRangeCandidates.filter { !candidates.contains($0) })
+        }
+        if calleeName == knownNames.coerceAtLeast
+            || calleeName == knownNames.coerceAtMost
+            || calleeName == knownNames.coerceIn
+        {
+            // A concrete `Int.coerceIn`/`UByte.coerceAtLeast`-style overload is
+            // strictly more specific than the generic `T.coerceX` extensions
+            // (upstream's overload ranking). Keeping both in the candidate set
+            // turns calls whose arguments need literal coercion (or whose
+            // argument type makes the generic's bound fail) into a constraint
+            // error instead of binding the concrete overload. Keep the generic
+            // only when no concrete overload has the same arity — i.e.
+            // user-defined `Comparable` receivers, or shapes no concrete
+            // overload covers (e.g. `Double.coerceIn(ClosedFloatingPointRange)`).
+            let concreteArities = Set(candidates.compactMap { candidate -> Int? in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.isEmpty
+                else {
+                    return nil
+                }
+                return signature.parameterTypes.count
+            })
+            candidates.removeAll { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.typeParameterSymbols.count == 1,
+                      let receiver = signature.receiverType,
+                      resolveClassTypeSymbol(receiver, sema: sema) == nil
+                else {
+                    return false
+                }
+                return concreteArities.contains(signature.parameterTypes.count)
+            }
         }
         if calleeName == knownNames.toList {
             candidates = preferCollectionToListCandidates(
@@ -1968,6 +2070,7 @@ extension CallTypeChecker {
                 }
                 return [:]
             }(),
+            contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
             ctx: ctx,
@@ -2010,6 +2113,63 @@ extension CallTypeChecker {
             hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
             ctx: ctx
         )
+        // A same-named member that cannot accept the call must not hide an
+        // applicable extension. Only retried after ordinary resolution failed, so
+        // a viable member (including range/lambda arguments whose provisional
+        // types are unreliable before resolution) always keeps precedence.
+        if resolved.diagnostic != nil,
+           !isClassNameReceiver,
+           !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
+           !candidates.isEmpty
+        {
+            let receiverForExtensionLookup = sema.types.makeNonNullable(lookupReceiverType)
+            // Only user-declared extensions: bundled stdlib extensions carry
+            // constraints (`@OnlyInputTypes`) the resolver does not model, so
+            // retrying them would accept calls Kotlin rejects.
+            func receiverMatchingUserExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
+                scopeCandidates.filter { candidate in
+                    guard let symbol = ctx.cachedSymbol(candidate),
+                          symbol.kind == .function,
+                          let declFile = symbol.declSite?.start.file,
+                          driver.sourceManager?.origin(of: declFile) == .user,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType
+                    else { return false }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: receiverForExtensionLookup,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+            }
+            // Innermost binding first so a user extension keeps shadowing a
+            // same-named one; merge the whole chain only if that finds nothing.
+            var extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookup(calleeName))
+            if extensionCandidates.isEmpty {
+                extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookupMergingChain(calleeName))
+            }
+            if !extensionCandidates.isEmpty {
+                let retried = resolveCallRespectingLambdaReturnType(
+                    candidates: extensionCandidates,
+                    args: args,
+                    argTypes: preparedArgs.argTypes,
+                    range: range,
+                    calleeName: calleeName,
+                    explicitTypeArgs: explicitTypeArgs,
+                    expectedType: expectedType,
+                    implicitReceiverType: effectiveReceiverType,
+                    lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                    inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                    blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                    hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                    ctx: ctx
+                )
+                if retried.diagnostic == nil {
+                    candidates = extensionCandidates
+                    resolved = retried
+                }
+            }
+        }
         if let diagnostic = resolved.diagnostic {
             if diagnostic.code == "KSWIFTK-SEMA-BOUND" {
                 let callee = interner.resolve(calleeName)
@@ -2455,7 +2615,7 @@ extension CallTypeChecker {
         return finalType
     }
 
-    private func floatingPointRangeArgumentType(
+    func floatingPointRangeArgumentType(
         _ exprID: ExprID,
         ast: ASTModule,
         sema: SemaModule,

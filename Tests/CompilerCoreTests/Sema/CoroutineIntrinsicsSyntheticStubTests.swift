@@ -235,7 +235,10 @@ struct CoroutineIntrinsicsSyntheticStubTests {
 
     @Test
     func testStartCoroutineUninterceptedOrReturnOverloadsAreRegistered() throws {
-        let (sema, interner) = try sharedSema()
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let fqName = ["kotlin", "coroutines", "intrinsics", "startCoroutineUninterceptedOrReturn"].map {
             interner.intern($0)
@@ -251,6 +254,35 @@ struct CoroutineIntrinsicsSyntheticStubTests {
         #expect(signatures.allSatisfy { $0.returnType == sema.types.nullableAnyType })
         #expect(signatures.contains(where: { $0.parameterTypes.count == 1 && $0.typeParameterSymbols.count == 1 }))
         #expect(signatures.contains(where: { $0.parameterTypes.count == 2 && $0.typeParameterSymbols.count == 2 }))
+    }
+
+    @Test
+    func testRestrictsSuspensionIsSourceBackedWithBundledStdlib() throws {
+        try withTemporaryFile(contents: "@kotlin.coroutines.RestrictsSuspension class Scope") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlin", "coroutines", "RestrictsSuspension"].map {
+                ctx.interner.intern($0)
+            }
+            #expect(sema.bundledIndex.containsNominal(fqName: fqName))
+            let symbols = sema.symbols.lookupAll(fqName: fqName)
+            #expect(symbols.count == 1)
+            let symbol = try #require(symbols.first)
+            let info = try #require(sema.symbols.symbol(symbol))
+            #expect(info.kind == .annotationClass)
+            #expect(info.declSite != nil)
+            #expect(!info.flags.contains(.synthetic))
+            let constructors = sema.symbols.lookupAll(fqName: fqName + [ctx.interner.intern("<init>")])
+            #expect(constructors.count == 1)
+            let constructor = try #require(constructors.first)
+            #expect(sema.symbols.functionSignature(for: constructor)?.parameterTypes.isEmpty == true)
+            #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        }
     }
 
     @Test
@@ -343,21 +375,29 @@ struct CoroutineIntrinsicsSyntheticStubTests {
 
     @Test
     func testStartCoroutineUninterceptedOrReturnResolvesInSource() throws {
-        let (ctx, paths) = try sharedCtx()
-        let path = paths[3]
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
+        // The no-receiver overload is bundled Kotlin source (SuspendFunction0.kt),
+        // so this needs the bundled stdlib that the shared context omits.
+        try withTemporaryFile(contents: Self.sharedSources[3]) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-        #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
 
-        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
-            guard case let .memberCall(_, memberName, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(memberName) == "startCoroutineUninterceptedOrReturn"
-        })
+            let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .memberCall(_, memberName, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(memberName) == "startCoroutineUninterceptedOrReturn"
+            })
 
-        let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-        #expect(sema.bindings.exprTypes[callExpr] == sema.types.nullableAnyType)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.nullableAnyType)
+        }
     }
 
     private func diagnostics(withCode code: String, in ctx: CompilationContext) -> [Diagnostic] {

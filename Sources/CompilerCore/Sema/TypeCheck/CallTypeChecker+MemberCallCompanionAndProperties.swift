@@ -51,7 +51,8 @@ extension CallTypeChecker {
         receiverType: TypeID,
         expectedType: TypeID?,
         ctx: TypeInferenceContext,
-        preferredSourcePackage: [InternedString]? = nil
+        preferredSourcePackage: [InternedString]? = nil,
+        bindCall: Bool = true
     ) -> TypeID? {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
@@ -116,7 +117,6 @@ extension CallTypeChecker {
             }
         }
         for candidate in visible {
-            guard getterCandidates.isEmpty else { break }
             collectGetterCandidate(from: candidate, requireSynthetic: false)
         }
         // STDLIB-JVM-PROP-003: Fallback to short-name lookup for JVM reflection
@@ -193,19 +193,27 @@ extension CallTypeChecker {
             return nil
         }
 
-        sema.bindings.bindCall(
-            id,
-            binding: CallBinding(
-                chosenCallee: chosen,
-                substitutedTypeArguments: resolved.substitutedTypeArguments
-                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                    .map(\.value),
-                parameterMapping: resolved.parameterMapping
+        if bindCall {
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                        .map(\.value),
+                    parameterMapping: resolved.parameterMapping
+                )
             )
-        )
-        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        }
         let deprecationCheckTarget: SymbolID
-        if let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen) {
+        // Compound assignment (`bindCall == false`) reads the selected property
+        // directly, so its l-value needs the parent-property identifier binding.
+        // Plain reads keep the accessor-owner-only behaviour so lowering still
+        // dispatches through the getter call binding.
+        let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
+            ?? (bindCall ? nil : sema.symbols.parentSymbol(for: chosen))
+        if let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
             deprecationCheckTarget = ownerProperty
         } else {
@@ -233,5 +241,112 @@ extension CallTypeChecker {
             substitution: resolved.substitutedTypeArguments,
             typeVarBySymbol: typeVarBySymbol
         )
+    }
+
+    /// Setter counterpart of `resolveExtensionPropertyGetter`: an extension
+    /// `var` written through an explicit receiver (`a.value = x`) is not found
+    /// by `lookupMemberProperty` — its symbol lives at package scope — so
+    /// `memberAssign` never bound it and KIR fell back to a call named after
+    /// the property, which failed to link. Resolves the property through the
+    /// same candidate sources the getter uses and binds it (plus the setter
+    /// accessor as the call target) so lowering can route the write through
+    /// the registered setter accessor.
+    func resolveExtensionPropertySetter(
+        id: ExprID,
+        calleeName: InternedString,
+        range: SourceRange,
+        receiverType: TypeID,
+        valueType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        let sema = ctx.sema
+        var setterCandidates: [SymbolID] = []
+        var propertyForSetter: [SymbolID: SymbolID] = [:]
+        func collectSetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .property,
+                  !requireSynthetic || symbol.flags.contains(.synthetic),
+                  let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
+                  extensionSyntheticFallbackReceiverMatches(
+                      callSiteReceiver: receiverType,
+                      declaredReceiver: receiver,
+                      sema: sema
+                  ),
+                  let setterAccessor = sema.symbols.extensionPropertySetterAccessor(for: candidate)
+            else {
+                return
+            }
+            if !setterCandidates.contains(setterAccessor) {
+                setterCandidates.append(setterAccessor)
+                propertyForSetter[setterAccessor] = candidate
+            }
+        }
+        for candidate in ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible {
+            collectSetterCandidate(from: candidate, requireSynthetic: false)
+        }
+        // Bundled stdlib source extension properties are not necessarily in the
+        // consumer file scope; recover them by short name, mirroring the
+        // getter-side fallbacks (imported/synthetic props last).
+        if setterCandidates.isEmpty {
+            for candidate in sema.symbols.lookupByShortName(calleeName)
+                where sema.symbols.isSourceBackedSymbol(candidate)
+            {
+                collectSetterCandidate(from: candidate, requireSynthetic: false)
+            }
+        }
+        if setterCandidates.isEmpty {
+            for candidate in sema.symbols.lookupByShortName(calleeName) {
+                collectSetterCandidate(from: candidate, requireSynthetic: true)
+            }
+        }
+        guard !setterCandidates.isEmpty else {
+            return nil
+        }
+
+        let resolved = ctx.resolver.resolveCall(
+            candidates: setterCandidates,
+            call: CallExpr(
+                range: range,
+                calleeName: calleeName,
+                args: [CallArg(type: valueType)]
+            ),
+            expectedType: nil,
+            implicitReceiverType: receiverType,
+            ctx: ctx.semaCtx
+        )
+        guard resolved.diagnostic == nil,
+              let chosen = resolved.chosenCallee,
+              let propertySymbol = propertyForSetter[chosen]
+                  ?? sema.symbols.accessorOwnerProperty(for: chosen)
+        else {
+            return nil
+        }
+
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: resolved.substitutedTypeArguments
+                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                    .map(\.value),
+                parameterMapping: resolved.parameterMapping
+            )
+        )
+        sema.bindings.bindIdentifier(id, symbol: propertySymbol)
+        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        driver.helpers.checkDeprecation(
+            for: propertySymbol,
+            sema: sema,
+            interner: ctx.interner,
+            range: range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        driver.helpers.checkOptIn(
+            for: propertySymbol,
+            ctx: ctx,
+            range: range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        return propertySymbol
     }
 }

@@ -176,13 +176,76 @@ struct RangeSyntheticMemberLinkTests {
         #expect(companionInfo.declSite != nil)
         #expect(sema.symbols.isSourceBackedSymbol(companionSymbol))
 
-        // KSP-1306/KSP-1307 keep the existing runtime-backed member surface unchanged.
+        // KSP-1306 migrates the receiver members to bundled source; KSP-1307
+        // still keeps Companion.fromClosedRange synthetic.
         for memberName in ["first", "last", "step"] {
             let memberFQName = longProgressionFQName + [interner.intern(memberName)]
+            let memberSymbol = try #require(
+                sema.symbols.lookupAll(fqName: memberFQName).first { symbolID in
+                    sema.symbols.symbol(symbolID)?.kind == .property
+                },
+                "LongProgression.\(memberName) must exist"
+            )
+            #expect(
+                sema.symbols.symbol(memberSymbol)?.flags.contains(.synthetic) == false,
+                "LongProgression.\(memberName) is source-backed after KSP-1306"
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(memberSymbol))
+        }
+        let stepProperty = try #require(
+            sema.symbols.lookupAll(fqName: longProgressionFQName + [interner.intern("step")])
+                .first { sema.symbols.symbol($0)?.kind == .property }
+        )
+        #expect(sema.symbols.propertyType(for: stepProperty) == sema.types.longType)
+
+        for memberName in ["equals", "hashCode", "toString", "iterator"] {
+            let memberFQName = longProgressionFQName + [interner.intern(memberName)]
+            let memberSymbol = try #require(
+                sema.symbols.lookupAll(fqName: memberFQName).first { symbolID in
+                    sema.symbols.symbol(symbolID)?.kind == .function
+                        && sema.symbols.parentSymbol(for: symbolID) == longProgressionSymbol
+                },
+                "LongProgression.\(memberName) must exist"
+            )
+            #expect(
+                sema.symbols.symbol(memberSymbol)?.flags.contains(.synthetic) == false,
+                "LongProgression.\(memberName) is source-backed after KSP-1306"
+            )
+            #expect(sema.symbols.isSourceBackedSymbol(memberSymbol))
+        }
+    }
+
+    @Test func testUIntProgressionCompanionIsSourceBacked() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let uintProgressionFQName = ["kotlin", "ranges", "UIntProgression"].map { interner.intern($0) }
+        let uintProgressionSymbol = try #require(sema.symbols.lookup(fqName: uintProgressionFQName))
+        let uintProgressionInfo = try #require(sema.symbols.symbol(uintProgressionSymbol))
+        #expect(!uintProgressionInfo.flags.contains(.synthetic))
+        #expect(uintProgressionInfo.flags.contains(.openType))
+        #expect(uintProgressionInfo.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(uintProgressionSymbol))
+        let sourceFileID = try #require(sema.symbols.sourceFileID(for: uintProgressionSymbol))
+        #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/ranges/UIntProgression/Stdlib.kt")
+
+        let companionFQName = uintProgressionFQName + [interner.intern("Companion")]
+        let companionSymbols = sema.symbols.lookupAll(fqName: companionFQName)
+        #expect(companionSymbols.count == 1)
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: uintProgressionSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        #expect(!companionInfo.flags.contains(.synthetic))
+        #expect(companionInfo.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(companionSymbol))
+
+        // KSP-1313 already migrated first/last/step alongside the nominal.
+        for memberName in ["first", "last", "step"] {
+            let memberFQName = uintProgressionFQName + [interner.intern(memberName)]
             let memberSymbols = sema.symbols.lookupAll(fqName: memberFQName)
             #expect(
-                memberSymbols.contains { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true },
-                "LongProgression.\(memberName) remains synthetic until KSP-1306"
+                memberSymbols.contains { sema.symbols.isSourceBackedSymbol($0) },
+                "UIntProgression.\(memberName) stays source-backed from KSP-1313"
             )
         }
     }

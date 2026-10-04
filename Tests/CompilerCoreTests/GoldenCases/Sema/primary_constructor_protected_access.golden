@@ -1,0 +1,9 @@
+symbol fq=Parent[kind=class] kind=class vis=public flags=openType
+symbol fq=reveal.$0.parent[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=reveal[kind=fun;params=Parent] kind=function vis=public flags=_ sig=recv=_ params=[Parent] ret=Int
+file fprimary_constructor_protected_access package=_
+  decl Parent[kind=class] class Parent sym=Parent[kind=class]
+  decl reveal[kind=fun;params=Parent] fun reveal sym=reveal[kind=fun;params=Parent]
+expr e@2:35 name(parent) type=Parent ref=reveal.$0.parent[kind=vparam]
+expr e@2:35#1 memberCall recv=e@2:35 callee=value args=[] type=<error>
+diagnostic severity=error code=KSWIFTK-SEMA-0041 at=2:35 msg=Cannot access 'value': it is protected.

@@ -81,10 +81,22 @@ extension LocalDeclTypeChecker {
         // array/boxing path — mirrored from inferIndexedAssignExpr's
         // `assignReceiverIsArrayLike` guard).
         if operatorResolved, !isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: interner) {
-            bindIndexedCompoundAssignSetOperator(
+            let setOperatorBound = bindIndexedCompoundAssignSetOperator(
                 id, receiverType: receiverType, indexTypes: indexTypes, valueType: resultType,
                 elementType: elementType, range: range, ctx: ctx
             )
+            // KSWIFTK-BUG: a get()-only receiver with no matching set() overload
+            // (wrong arity, mismatched parameter types, ...) must be rejected here,
+            // matching real Kotlin's "no set method providing array access" error.
+            // Falling through silently would leave `id` unbound by
+            // IndexedCompoundAssignOperatorBinding, and KIR lowering would then
+            // treat this as the built-in-array fallback shape: kk_array_set on a
+            // non-array receiver, using only the first index and silently
+            // discarding any additional ones.
+            if !setOperatorBound {
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
         }
 
         driver.emitSubtypeConstraint(
@@ -140,6 +152,11 @@ extension LocalDeclTypeChecker {
     /// call site); a `get`-only receiver (no matching `set`) is left
     /// unbound, and KIR lowering keeps its previous (pre-existing) fallback
     /// behavior for that edge case.
+    /// Returns `true` once a matching `set()` overload is resolved and bound;
+    /// `false` when the receiver has no usable `set()` (missing entirely, or
+    /// no overload whose parameters accept `indexTypes + valueType`) — the
+    /// caller must then treat this as a hard Sema error rather than silently
+    /// falling back to the raw array runtime.
     private func bindIndexedCompoundAssignSetOperator(
         _ id: ExprID,
         receiverType: TypeID,
@@ -148,14 +165,17 @@ extension LocalDeclTypeChecker {
         elementType: TypeID,
         range: SourceRange,
         ctx: TypeInferenceContext
-    ) {
+    ) -> Bool {
         let sema = ctx.sema
         let interner = ctx.interner
         let setName = interner.intern("set")
         let setCandidates = driver.helpers.collectMemberFunctionCandidates(
             named: setName, receiverType: receiverType, sema: sema, interner: interner
         )
-        guard !setCandidates.isEmpty else { return }
+        guard !setCandidates.isEmpty else {
+            reportMissingIndexedSetOperator(range: range, ctx: ctx)
+            return false
+        }
 
         var callArgTypes = indexTypes
         callArgTypes.append(valueType)
@@ -165,7 +185,10 @@ extension LocalDeclTypeChecker {
             call: CallExpr(range: range, calleeName: setName, args: callArgs),
             expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.semaCtx
         )
-        guard let chosenSet = resolved.chosenCallee else { return }
+        guard let chosenSet = resolved.chosenCallee else {
+            reportMissingIndexedSetOperator(range: range, ctx: ctx)
+            return false
+        }
 
         sema.bindings.bindIndexedCompoundAssignOperator(
             id,
@@ -178,6 +201,15 @@ extension LocalDeclTypeChecker {
                 ),
                 elementType: elementType
             )
+        )
+        return true
+    }
+
+    private func reportMissingIndexedSetOperator(range: SourceRange, ctx: TypeInferenceContext) {
+        ctx.semaCtx.diagnostics.error(
+            "KSWIFTK-SEMA-0002",
+            "No viable overload found for operator 'set'.",
+            range: range
         )
     }
 
