@@ -3,10 +3,6 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
  *
  * Derived from kotlinx-io core/common/src/Source.kt (tag 0.9.1).
- * kotlinx-io declares this `sealed`, and several members take default parameter values; both are
- * dropped here (no code exhaustively `when`s over Source, and default values on interface members
- * are not dispatched correctly through an override on this compiler yet). The default-taking forms
- * are planned as extension functions (see docs/kotlinx-io-status.md for the remaining surface).
  */
 package kotlinx.io
 
@@ -14,7 +10,7 @@ package kotlinx.io
  * A source that facilitates typed data reads and keeps a buffer internally so that callers can read
  * chunks of data without requesting it from a downstream on every call.
  */
-public interface Source : RawSource {
+public sealed interface Source : RawSource {
     public val buffer: Buffer
 
     /**
@@ -64,7 +60,7 @@ public interface Source : RawSource {
      * subrange starting at [startIndex] and ending at [endIndex], and returns the number of bytes
      * read, or -1 if this source is exhausted.
      */
-    public fun readAtMostTo(sink: ByteArray, startIndex: Int, endIndex: Int): Int
+    public fun readAtMostTo(sink: ByteArray, startIndex: Int = 0, endIndex: Int = sink.size): Int
 
     /**
      * Removes exactly [byteCount] bytes from this source and writes them to [sink].

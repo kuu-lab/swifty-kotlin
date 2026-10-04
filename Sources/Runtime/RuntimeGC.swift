@@ -137,6 +137,18 @@ final class RuntimeStorageBox: @unchecked Sendable {
 
     @discardableResult
     @inline(__always)
+    func withFlowAndGCLocks<R>(_ body: (inout FlowState, inout GCState) -> R) -> R {
+        flowLock.lock()
+        gcLock.lock()
+        defer {
+            gcLock.unlock()
+            flowLock.unlock()
+        }
+        return body(&flowState, &gcState)
+    }
+
+    @discardableResult
+    @inline(__always)
     func withThreadLocalLock<R>(_ body: (inout ThreadLocalState) -> R) -> R {
         threadLocalLock.lock()
         defer { threadLocalLock.unlock() }
