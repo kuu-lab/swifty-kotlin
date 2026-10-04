@@ -508,6 +508,31 @@ extension CallTypeChecker {
         }
     }
 
+    func contextualizeResolvedIntegerArguments(
+        args: [CallArgument],
+        resolved: ResolvedCall,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        guard let chosen = resolved.chosenCallee,
+              let signature = ctx.sema.symbols.functionSignature(for: chosen)
+        else { return }
+        let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        for (index, argument) in args.enumerated() where !argument.isSpread {
+            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            guard literal.signed != nil || literal.unsigned != nil,
+                  let parameterIndex = resolved.parameterMapping[index],
+                  signature.parameterTypes.indices.contains(parameterIndex)
+            else { continue }
+            let parameterType = ctx.sema.types.substituteTypeParameters(
+                in: signature.parameterTypes[parameterIndex],
+                substitution: resolved.substitutedTypeArguments,
+                typeVarBySymbol: typeVarBySymbol
+            )
+            _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+        }
+    }
+
     func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
         // Unit contexts accept and discard any expression result, so Unit must
         // not act as a return-type constraint while choosing an overload.
@@ -619,9 +644,7 @@ extension CallTypeChecker {
                     continue
                 }
                 if !args[otherIndex].isSpread,
-                   let varargIndex = signature.valueParameterIsVararg.firstIndex(of: true),
-                   otherIndex >= varargIndex,
-                   integerLiteralFitsVararg(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
+                   integerLiteralFitsParameter(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
                 {
                     continue
                 }
@@ -799,7 +822,7 @@ extension CallTypeChecker {
         return narrowed.isEmpty ? candidates : narrowed
     }
 
-    private func integerLiteralFitsVararg(
+    private func integerLiteralFitsParameter(
         _ exprID: ExprID,
         parameterType: TypeID,
         ctx: TypeInferenceContext
