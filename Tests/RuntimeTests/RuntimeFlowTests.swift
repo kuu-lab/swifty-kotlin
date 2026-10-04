@@ -226,6 +226,13 @@ func runtime_test_flow_collect_throw_on_first(_: Int, _ value: Int, _ outThrown:
     return 0
 }
 
+@_cdecl("runtime_test_flow_capturing_emitter")
+func runtime_test_flow_capturing_emitter(_ continuation: Int) -> Int {
+    let value = kk_coroutine_launcher_arg_get(continuation, 0)
+    _ = kk_flow_emit(0, Int(value), 0)
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
 /// Emits 10_000 values (1..10000) to simulate a very large / "infinite-ish" source.
 /// Records each emit attempt and respects the stop sentinel so the emitter terminates
 /// early when the pipeline signals completion (e.g. take(n) exhaustion).
@@ -396,7 +403,9 @@ struct RuntimeFlowTests {
         let throwingCollectorPtr = unsafeBitCast(runtime_test_flow_collect_throw_on_first as RuntimeFlowCollectorEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
-        _ = kk_flow_collect(flowHandle, throwingCollectorPtr, 0, 0)
+        var thrown = 0
+        _ = kk_flow_collect(flowHandle, throwingCollectorPtr, 0, 0, &thrown)
+        #expect(thrown == 1)
 
         let snapshot = runtimeFlowTestState.snapshot()
         #expect(snapshot.values == [1], "Collector throw should stop subsequent emissions.")
@@ -404,6 +413,24 @@ struct RuntimeFlowTests {
         // Emitter should stop early: value 1 delivered -> collector throws -> terminated.
         // Value 2 emitted -> sees stop sentinel and breaks. So emitCalls <= 2.
         #expect(snapshot.emitCalls <= 2, "Emitter should stop early after collector throw terminates pipeline.")
+    }
+
+    @Test func testCapturingEmitterCanBeCollectedRepeatedly() {
+        let continuation = kk_coroutine_continuation_new(0)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 3)
+        let emitterPtr = unsafeBitCast(
+            runtime_test_flow_capturing_emitter as @convention(c) (Int) -> Int,
+            to: Int.self
+        )
+        let flowHandle = kk_flow_create(emitterPtr, continuation)
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        for _ in 0 ..< 2 {
+            runtimeFlowTestState.reset()
+            var thrown = 0
+            _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0, &thrown)
+            #expect(thrown == 0)
+            #expect(runtimeFlowTestState.snapshot().values == [3])
+        }
     }
 
     @Test func testTakeFollowedByRejectAllFilterTerminatesOverLargeSource() {
