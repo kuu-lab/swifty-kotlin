@@ -30,6 +30,7 @@ public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
         }
 
     public override fun isEmpty(): Boolean = first > last
+    public override operator fun contains(value: ULong): Boolean = value >= first && value <= last
 
     public override fun equals(other: Any?): Boolean =
         other is ULongRange && (isEmpty() && other.isEmpty() || first == other.first && last == other.last)

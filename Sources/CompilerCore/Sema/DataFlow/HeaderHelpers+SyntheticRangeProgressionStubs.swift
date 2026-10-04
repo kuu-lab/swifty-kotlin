@@ -221,7 +221,6 @@ extension DataFlowSemaPhase {
         // `ranges/ULongRange/Stdlib.kt` declaration owns the class shell
         // and its Companion in Kotlin source.
         registerSyntheticClosedRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
             types: types,
@@ -825,99 +824,25 @@ extension DataFlowSemaPhase {
     }
 
     private func registerSyntheticClosedRangeStub(
-        rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let className = interner.intern("ClosedRange")
-        let classFQName = rangesFQName + [className]
-        let classSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: classFQName) {
-            classSymbol = existing
-        } else {
-            let created = symbols.define(
-                kind: .interface,
-                name: className,
-                fqName: classFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(rangesPackageSymbol, for: created)
-            classSymbol = created
+        let classFQName = rangesFQName + [interner.intern("ClosedRange")]
+        guard let classSymbol = symbols.lookup(fqName: classFQName) else { return }
+        if !BundledSyntheticStubRegistration.bundledIndex.contains(owner: classFQName, name: interner.intern("contains"), arity: 1) {
+            for (name, link) in [
+                ("start", "__kk_range_first"),
+                ("endInclusive", "__kk_range_last"),
+                ("contains", "__kk_range_contains"),
+                ("isEmpty", "__kk_range_isEmpty"),
+            ] {
+                if let member = symbols.lookup(fqName: classFQName + [interner.intern(name)]) {
+                    symbols.setExternalLinkName(link, for: member)
+                }
+            }
         }
-
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = classFQName + [typeParamName]
-        let typeParamSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: typeParamFQName) {
-            typeParamSymbol = existing
-        } else {
-            typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: classSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: classSymbol)
-
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let rangeType = types.make(.classType(ClassType(
-            classSymbol: classSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        registerProgressionProperty(
-            named: "start",
-            ownerSymbol: classSymbol,
-            propertyType: typeParamType,
-            externalLinkName: "__kk_range_first",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "endInclusive",
-            ownerSymbol: classSymbol,
-            propertyType: typeParamType,
-            externalLinkName: "__kk_range_last",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "contains",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [typeParamType],
-            returnType: types.booleanType,
-            externalLinkName: "kk_op_contains",
-            flags: [.synthetic, .operatorFunction],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "isEmpty",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.booleanType,
-            externalLinkName: "__kk_range_isEmpty",
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerClosedRangeImplementation(
             named: "IntRange",
@@ -1085,7 +1010,11 @@ extension DataFlowSemaPhase {
             interner.intern("ranges"),
             interner.intern("ClosedRange"),
         ]
-        guard symbols.lookup(fqName: closedRangeFQName) != nil else {
+        guard symbols.lookup(fqName: closedRangeFQName) != nil,
+              !BundledSyntheticStubRegistration.bundledIndex.contains(
+                  owner: closedRangeFQName, name: interner.intern("contains"), arity: 1
+              )
+        else {
             return
         }
         let typeParamFQName = closedRangeFQName + [interner.intern("T")]

@@ -7,3 +7,10 @@ package kotlinx.coroutines
 public fun interface DisposableHandle {
     public fun dispose()
 }
+
+public object NonDisposableHandle : ChildHandle {
+    public override val parent: Job? get() = null
+    public override fun dispose() {}
+    public override fun childCancelled(cause: Throwable): Boolean = false
+    public override fun toString(): String = "NonDisposableHandle"
+}

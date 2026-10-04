@@ -18,6 +18,10 @@
 - `RealSource` / `RealSink`（`RawSource.buffered()` / `RawSink.buffered()` の内部実装）
 - `PeekSource`（`Source.peek()` の内部実装）
 - `Core.kt`（`buffered()` 拡張関数2つ、`discardingSink()`、`SystemLineSeparator`）
+- `Utf8.kt` / `internal/-Utf8.kt`（KUU-886 / KSP-1550）: pure Kotlin の UTF-8 codec、
+  `readString` / `writeString`（String と CharSequence）、`readCodePointValue` /
+  `writeCodePointValue`、`readLine` / `readLineStrict`、`Source.indexOf`。不正 UTF-8 は
+  U+FFFD、不正 UTF-16 サロゲートは `?` とする upstream 0.9.1 の消費規則に従う。
 - `Segment.kt` / `SegmentPool.kt`（upstream `core/common/src` を移植。`expect object SegmentPool`
   は単一ターゲット前提で upstream の native actual と同じ no-op プール（`MAX_SIZE = 0`、
   `take()` は常に新規割当、`recycle()` は no-op）に置き換え、`@JvmField`/`@JvmSynthetic` は除去。
@@ -25,13 +29,13 @@
   `indexOfBytesOutbound`/`isEmpty` の `Segment` 拡張も同ファイルに同梱。`Segment` 自体は
   upstream 同様 `public` だが全メンバが `internal` なので public surface は変わらない）
 
-### Buffer のセグメントリング（KSP-1548）
+### Buffer のセグメント列（KSP-1547 / KSP-1548）
 
-`Buffer` は 8192 バイトの `BufferSegment` を双方向リングとして保持する。
+`Buffer` は 8192 バイトの `Segment` を先頭と末尾を持つ双方向リストとして保持する。
 全セグメントの転送は所有権移動、`copy`/`copyTo` は読み取り範囲と配列の共有で実装し、
 共有済み領域を上書きしない。`size` は独立した `Long` カウンタで管理する。
-upstream の `Segment` / `SegmentPool` は追加済みだが、現行 `Buffer` は内部の `BufferSegment`
-を使用しており未移行。`unsafe.UnsafeBufferOperations` は引き続き未対応。
+`unsafe.UnsafeBufferOperations` は同じセグメント列を使って直接読み書き・走査する。
+`Buffer.indexOf` は公開メンバとして維持し、検索が末尾に達した場合も未接続の次セグメントを参照しない。
 
 `readAtMostTo(ByteArray)` は upstream と同じく先頭セグメントだけを読み、
 `skip` が EOF に達した場合は残存バイトを消費してから例外を投げる。
@@ -105,16 +109,13 @@ RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を�
 
 ## 未対応（次PR以降）
 
-- `kotlinx.io.unsafe.UnsafeBufferOperations`（低レベルなセグメント直接
-  操作。Ktor の `ktor-io` が一部使用しているため、`ktor_io` モジュールの残存エラーの一因。
-  基盤の `Segment`/`SegmentPool` は追加済み）
 - `JvmCore.kt` の残り: `SystemLineSeparator` actual は `Core.kt` 側で実装済み。`SourcesJvm.kt` /
   `SinksJvm.kt` の残り（`readString`, `writeString`, `readAtMostTo`/`write` ByteBuffer,
   `asByteChannel`）は ByteBuffer/NIO 依存のため未対応
 - `Sink.asOutputStream()` の `close()` で `sink.close()` が投げる例外はランタイム側で
   握り潰される（upstream の OutputStream.close() は例外を伝播するが、
   `__kk_output_stream_close` に outThrown チャネルがない）
-- `Sources.kt` / `Sinks.kt` の拡張関数群（`readByteArray`, `readString`, `writeString`,
+- `Sources.kt` / `Sinks.kt` の拡張関数群（`readByteArray`,
   `readUByte`/`writeUShort`等の unsigned 変換, `readFloat`/`writeDouble`, `readDecimalLong`,
   `readHexadecimalUnsignedLong`, `writeToInternalBuffer` 等）
 - `Buffers.kt` の `Buffer.snapshot()`（`ByteString` が必要）

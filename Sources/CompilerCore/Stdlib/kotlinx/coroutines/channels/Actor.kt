@@ -7,6 +7,7 @@
 
 package kotlinx.coroutines.channels
 
+import kotlin.coroutines.CoroutineContext
 import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.CoroutineScope
 
@@ -23,11 +24,17 @@ private external fun <E> __kkActorScopeChannel(scope: ActorScope<E>): Channel<E>
 @KsSymbolName("__kk_identity")
 private external fun <E> __kkAsSendChannel(channel: Channel<E>): SendChannel<E>
 
+@KsSymbolName("kk_coroutine_current_context")
+private external fun __kkActorScopeCurrentContext(): CoroutineContext
+
 // ActorScope is a class so `channel` resolves through static member
 // dispatch: the receiver handed to the launched block is the channel handle
 // itself, which owns no Kotlin itable — an interface member getter would
 // emit a virtual call the handle cannot serve.
 public class ActorScope<E> : CoroutineScope {
+    public override val coroutineContext: CoroutineContext
+        get() = __kkActorScopeCurrentContext()
+
     /** The mailbox channel this actor consumes; identical to the SendChannel
      *  returned to the builder's caller. */
     public val channel: Channel<E>

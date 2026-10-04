@@ -160,7 +160,7 @@ public inline fun <T, R> List<T>.scanIndexed(initial: R, operation: (Int, R, T) 
     return result
 }
 
-public inline fun <T, R> List<T>.scanReduce(operation: (T, T) -> T): List<T> {
+public inline fun <T> List<T>.scanReduce(operation: (T, T) -> T): List<T> {
     if (size == 0) return emptyList()
     val result = mutableListOf<T>()
     var accumulator = this[0]
