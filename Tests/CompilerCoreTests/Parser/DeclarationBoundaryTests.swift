@@ -38,6 +38,42 @@ struct DeclarationBoundaryTests {
         }
     }
 
+    @Test(arguments: [
+        "bytes[2].toInt()",
+        "bytes[0]",
+        "bytes.size",
+        "bytes.copy().size",
+        "copy(bytes).size",
+    ])
+    func pendingInfixAfterPostfixOperandContinuesDeclaration(operand: String) {
+        let pending = lex("val result = 1 or \(operand) or").tokens.dropLast()
+        let complete = lex("val result = 1 or \(operand)").tokens.dropLast()
+        #expect(KotlinParser.endsWithPendingInfixOperator(pending))
+        #expect(!KotlinParser.endsWithPendingInfixOperator(complete))
+    }
+
+    @Test(arguments: [
+        "fun f(s: String?) = s!!.length",
+        "val h = xs.scanReduce { acc, v -> acc + v }.size",
+        "xs.scanReduce { acc, v -> acc + v }.size",
+        "val complete = 1 or bytes.size",
+    ])
+    func qualifiedAndPostfixExpressionsDoNotEndWithPendingInfixOperator(expression: String) {
+        let tokens = lex(expression).tokens.dropLast()
+        #expect(!KotlinParser.endsWithPendingInfixOperator(tokens))
+    }
+
+    @Test
+    func completeInfixWithCallOperandDoesNotAbsorbReturn() {
+        let source = """
+        fun code(): Int {
+            val result = read() xor Int.MIN_VALUE
+            return result
+        }
+        """
+        #expect(blockChildCount(source, blockChildKind: .statement) == 1)
+    }
+
     // BUG-208 (found while implementing KSP-614): a body-less top-level
     // declaration — such as the `external fun` bridges used by the bundled
     // Kotlin stdlib — used to absorb the following declaration when that

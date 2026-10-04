@@ -57,4 +57,10 @@ fun main() {
     val emptyBeyondEof = SearchChunks(byteArrayOf(7, 8)).buffered()
     println(emptyBeyondEof.indexOf(empty, 100L))
     println(emptyBeyondEof.readByteArray().joinToString())
+    val lines = SearchChunks("12\r\n34\n".encodeToByteArray()).buffered()
+    println(lines.indexOf(10.toByte()))
+    println(lines.readLineStrict())
+    println(lines.readDecimalLong())
+    println(lines.readLine())
+    println(lines.readLine())
 }
