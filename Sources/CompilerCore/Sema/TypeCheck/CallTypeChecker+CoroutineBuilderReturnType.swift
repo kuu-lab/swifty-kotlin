@@ -44,19 +44,9 @@ extension CallTypeChecker {
         ctx.sema.bindings.markCoroutineScopeImplicitReceiverCall(expr)
     }
 
-    /// `async`/`coroutineScope`/`supervisorScope` are registered with an
-    /// `Any`-returning signature (STDLIB-CORO builders don't get real generic
-    /// dispatch). Narrow the call's bound type using the trailing lambda's
-    /// already-inferred body type instead, mirroring the Flow `.map` element-type
-    /// readback in CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift.
-    ///
-    /// For `async`, `Deferred` is registered with zero class-level type
-    /// parameters (see HeaderHelpers+SyntheticCoroutineRegistry.swift), so
-    /// constructing a `ClassType` with a synthesized type argument here would
-    /// create an arity mismatch that breaks member-candidate matching for
-    /// `.await()`. Instead, the element type is tracked out-of-band via
-    /// `bindDeferredElementType`, mirroring how `flowElementType` tracks Flow's
-    /// element type without touching `ClassType.args`.
+    /// Recover erased builder results from the block's inferred return type.
+    /// Source-backed Deferred has a type argument; the synthetic fallback does
+    /// not, so also retain the out-of-band element binding for that fallback.
     func coroutineBuilderNarrowedReturnType(
         id: ExprID,
         launcherName: String,
@@ -70,25 +60,36 @@ extension CallTypeChecker {
         // coroutineLauncherExpectedLambdaType above), not the body's actual
         // tightest type. Dig into the AST for the body expression's own bound
         // type instead, same as the Flow `.map` element-type readback.
-        guard case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(lambdaArgExpr),
-              let bodyReturnType = sema.bindings.exprType(for: bodyExpr)
-        else {
+        let bodyReturnType: TypeID?
+        if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(lambdaArgExpr) {
+            bodyReturnType = sema.bindings.exprType(for: bodyExpr)
+        } else if let type = sema.bindings.exprType(for: lambdaArgExpr),
+                  case let .functionType(function) = sema.types.kind(of: type) {
+            bodyReturnType = function.returnType
+        } else {
+            bodyReturnType = nil
+        }
+        guard let bodyReturnType else {
             return fallback
         }
         guard launcherName == "async" else {
-            return bodyReturnType
+            return launcherName == "withTimeoutOrNull"
+                ? sema.types.makeNullable(bodyReturnType) : bodyReturnType
         }
         sema.bindings.bindDeferredElementType(bodyReturnType, forExpr: id)
+        if case let .classType(deferredType) = sema.types.kind(of: fallback),
+           sema.types.nominalTypeParameterSymbols(for: deferredType.classSymbol).count == 1
+        {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: deferredType.classSymbol,
+                args: [.invariant(bodyReturnType)],
+                nullability: deferredType.nullability
+            )))
+        }
         return fallback
     }
 
-    /// `Deferred.await()` resolves as a normal member candidate (the synthetic
-    /// member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift) whose
-    /// signature hardcodes `Any` since `Deferred` has no class-level type
-    /// parameter. When the receiver expression (or the local symbol it was
-    /// assigned to) carries a tracked element type from
-    /// `coroutineBuilderNarrowedReturnType` above, use that instead of always
-    /// widening to `Any?`.
+    /// Recover the element type when Deferred's fallback signature erases it.
     func deferredAwaitResultType(
         receiverID: ExprID,
         fallback: TypeID,

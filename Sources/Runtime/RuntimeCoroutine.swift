@@ -4110,6 +4110,7 @@ private func runTimeoutBlock(
     let blockContinuation = kk_coroutine_continuation_new(entryPointRaw)
     let blockJob = RuntimeJobHandle()
     if let blockState = runtimeContinuationState(from: blockContinuation) {
+        blockState.launcherArgs = runtimeContinuationState(from: continuation)?.launcherArgs ?? [:]
         blockState.scope = scope
         blockState.jobHandle = blockJob
         blockJob.continuationState = blockState

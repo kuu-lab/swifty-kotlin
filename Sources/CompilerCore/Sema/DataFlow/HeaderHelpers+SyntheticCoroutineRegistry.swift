@@ -288,18 +288,17 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        // STDLIB-CORO-076: `CoroutineScope` is registered as an empty marker
-        // interface so extension functions declared as `fun CoroutineScope.foo()`
-        // (a common pattern for user-defined producer/consumer helpers) type-check.
-        // Builder blocks (runBlocking/launch/coroutineScope/...) do not yet carry
-        // this as their lambda receiver type, so such extensions only resolve when
-        // called with an explicit receiver.
-        _ = ensureInterfaceSymbol(
+        let coroutineScopeSymbol = ensureInterfaceSymbol(
             named: "CoroutineScope",
             in: coroutinesPkg,
             symbols: symbols,
             interner: interner
         )
+        let coroutineScopeType = types.make(.classType(ClassType(
+            classSymbol: coroutineScopeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
         let jobSymbol = ensureInterfaceSymbol(
             named: "Job",
             in: coroutinesPkg,
@@ -454,7 +453,9 @@ extension DataFlowSemaPhase {
         )))
         let deferredType = types.make(.classType(ClassType(
             classSymbol: deferredSymbol,
-            args: symbols.isSourceBackedSymbol(deferredSymbol) ? [.out(types.anyType)] : [],
+            args: symbols.isSourceBackedSymbol(deferredSymbol)
+                || !types.nominalTypeParameterSymbols(for: deferredSymbol).isEmpty
+                ? [.out(types.nullableAnyType)] : [],
             nullability: .nonNull
         )))
         let dispatchersType = types.make(.classType(ClassType(
@@ -874,8 +875,9 @@ extension DataFlowSemaPhase {
             packageFQName: coroutinesPkg,
             parameterName: "block",
             parameterType: types.make(.functionType(FunctionType(
+                receiver: coroutineScopeType,
                 params: [],
-                returnType: types.anyType,
+                returnType: types.nullableAnyType,
                 isSuspend: true,
                 nullability: .nonNull
             ))),
@@ -888,6 +890,7 @@ extension DataFlowSemaPhase {
             packageFQName: coroutinesPkg,
             parameterName: "block",
             parameterType: types.make(.functionType(FunctionType(
+                receiver: coroutineScopeType,
                 params: [],
                 returnType: types.unitType,
                 isSuspend: true,
@@ -904,6 +907,7 @@ extension DataFlowSemaPhase {
             parameters: [
                 (name: "context", type: dispatcherType),
                 (name: "block", type: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
                     params: [],
                     returnType: types.unitType,
                     isSuspend: true,
@@ -921,6 +925,7 @@ extension DataFlowSemaPhase {
             parameters: [
                 (name: "start", type: coroutineStartType),
                 (name: "block", type: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
                     params: [],
                     returnType: types.unitType,
                     isSuspend: true,
@@ -1212,8 +1217,9 @@ extension DataFlowSemaPhase {
             packageFQName: coroutinesPkg,
             parameterName: "block",
             parameterType: types.make(.functionType(FunctionType(
+                receiver: coroutineScopeType,
                 params: [],
-                returnType: types.anyType,
+                returnType: types.nullableAnyType,
                 isSuspend: true,
                 nullability: .nonNull
             ))),
@@ -1231,8 +1237,9 @@ extension DataFlowSemaPhase {
             parameters: [
                 (name: "start", type: coroutineStartType),
                 (name: "block", type: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
                     params: [],
-                    returnType: types.anyType,
+                    returnType: types.nullableAnyType,
                     isSuspend: true,
                     nullability: .nonNull
                 )))),
@@ -1357,8 +1364,9 @@ extension DataFlowSemaPhase {
             parameters: [
                 (name: "timeMillis", type: types.longType),
                 (name: "block", type: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
                     params: [],
-                    returnType: types.anyType,
+                    returnType: types.nullableAnyType,
                     isSuspend: true,
                     nullability: .nonNull
                 )))),
@@ -1373,8 +1381,9 @@ extension DataFlowSemaPhase {
             parameters: [
                 (name: "timeMillis", type: types.longType),
                 (name: "block", type: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
                     params: [],
-                    returnType: types.anyType,
+                    returnType: types.nullableAnyType,
                     isSuspend: true,
                     nullability: .nonNull
                 )))),
@@ -1407,8 +1416,9 @@ extension DataFlowSemaPhase {
             parameters: [
                 (name: "context", type: withContextContextType),
                 (name: "block", type: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
                     params: [],
-                    returnType: types.anyType,
+                    returnType: types.nullableAnyType,
                     isSuspend: true,
                     nullability: .nonNull
                 )))),
@@ -1937,8 +1947,9 @@ extension DataFlowSemaPhase {
             parameters: [
                 (name: "context", type: kotlinCoroutineContextType),
                 (name: "block", type: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
                     params: [],
-                    returnType: types.anyType,
+                    returnType: types.nullableAnyType,
                     isSuspend: true,
                     nullability: .nonNull
                 )))),
@@ -2304,17 +2315,6 @@ extension DataFlowSemaPhase {
         // `kotlinx.coroutines.CoroutineScope`: an interface (real Kotlin declares
         // `val coroutineContext: CoroutineContext` as its only member) plus the
         // eponymous `CoroutineScope(context): CoroutineScope` factory function.
-        let coroutineScopeSymbol = ensureInterfaceSymbol(
-            named: "CoroutineScope",
-            in: coroutinesPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let coroutineScopeType = types.make(.classType(ClassType(
-            classSymbol: coroutineScopeSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
         symbols.setPropertyType(coroutineScopeType, for: coroutineScopeSymbol)
         registerSyntheticCoroutineTopLevelFunction(
             named: "CoroutineScope",
@@ -2345,6 +2345,7 @@ extension DataFlowSemaPhase {
             parameters: [(
                 name: "block",
                 type: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
                     params: [],
                     returnType: types.unitType,
                     isSuspend: true,
