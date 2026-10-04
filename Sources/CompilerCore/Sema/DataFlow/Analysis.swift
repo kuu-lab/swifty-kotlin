@@ -241,7 +241,7 @@ final class DataFlowAnalyzer {
         ), isStable else {
             return ConditionBranch(trueState: base, falseState: base)
         }
-        guard let targetType = resolveIsCheckTargetType(
+        guard let rawTargetType = resolveIsCheckTargetType(
             typeRefID: typeRefID,
             scope: scope,
             ast: ast,
@@ -250,6 +250,17 @@ final class DataFlowAnalyzer {
         ) else {
             return ConditionBranch(trueState: base, falseState: base)
         }
+        let priorType: TypeID = if let baseState = base.variables[symbol], baseState.possibleTypes.count == 1,
+                                   let baseType = baseState.possibleTypes.first
+        {
+            baseType
+        } else {
+            currentType
+        }
+        // `this is List` (no explicit type argument) checked against a value
+        // already known to be `Iterable<T>` must narrow to `List<T>`, not a
+        // raw/star-projected `List<*>` -- see narrowedSubtypeArgs.
+        let targetType = refineIsCheckTargetType(rawTargetType, priorType: priorType, sema: sema)
         let targetNullability = sema.types.nullability(of: targetType)
         // Use intersection with previous flow state type for chained is-checks (P5-97)
         let narrowedType: TypeID = if let baseState = base.variables[symbol],
@@ -353,7 +364,7 @@ final class DataFlowAnalyzer {
         case let .isCheck(exprID, typeRefID, negated, _):
             return narrowedStateForIsCheck(
                 exprID: exprID, typeRefID: typeRefID, negated: negated,
-                subjectSymbol: subjectSymbol, subjectID: subjectID, conditionID: conditionID,
+                subjectSymbol: subjectSymbol, subjectType: subjectType, subjectID: subjectID, conditionID: conditionID,
                 base: base, ast: ast, sema: sema, interner: interner, scope: scope
             )
         default:
@@ -392,9 +403,12 @@ final class DataFlowAnalyzer {
             else {
                 return base
             }
-            let narrowed = sema.types.make(.classType(ClassType(
+            let rawNarrowed = sema.types.make(.classType(ClassType(
                 classSymbol: conditionSymbolID, args: [], nullability: .nonNull
             )))
+            // Same "no explicit type argument" narrowing gap as
+            // narrowedStateForIsCheck -- see refineIsCheckTargetType.
+            let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
             var vars = base.variables
             vars[subjectSymbol] = VariableFlowState(
                 possibleTypes: [narrowed], nullability: .nonNull, isStable: true
@@ -410,6 +424,7 @@ final class DataFlowAnalyzer {
         typeRefID: TypeRefID,
         negated: Bool,
         subjectSymbol: SymbolID,
+        subjectType: TypeID,
         subjectID: ExprID,
         conditionID _: ExprID,
         base: DataFlowState,
@@ -429,11 +444,15 @@ final class DataFlowAnalyzer {
             return base
         }
         guard !negated else { return base }
-        guard let narrowed = resolveIsCheckTargetType(
+        guard let rawNarrowed = resolveIsCheckTargetType(
             typeRefID: typeRefID, scope: scope, ast: ast, sema: sema, interner: interner
         ) else {
             return base
         }
+        // `when (this) { is List -> ... }` on a value known to be
+        // `Iterable<T>` must narrow to `List<T>`, not an under-specified
+        // `List` -- see the matching fix in branchOnIsCheck/refineIsCheckTargetType.
+        let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
         let narrowedNullability = sema.types.nullability(of: narrowed)
         var vars = base.variables
         vars[subjectSymbol] = VariableFlowState(
@@ -725,6 +744,35 @@ final class DataFlowAnalyzer {
         return Set(sema.symbols.directSubtypes(of: classSymbol.id).compactMap { subtype in
             sema.symbols.symbol(subtype)?.name
         })
+    }
+
+    /// Refines a raw `is` target type resolved with no explicit type argument
+    /// (`this is List`) using a value already known to be some generic
+    /// `priorType` (e.g. `Iterable<T>`), narrowing `List` to `List<T>` rather
+    /// than leaving it under-specified. See `TypeSystem.narrowedSubtypeArgs`
+    /// for why this is sound and when it can't determine an argument.
+    private func refineIsCheckTargetType(
+        _ rawTargetType: TypeID,
+        priorType: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        guard case let .classType(targetClass) = sema.types.kind(of: rawTargetType),
+              targetClass.args.isEmpty,
+              !sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty,
+              case let .classType(priorClass) = sema.types.kind(of: sema.types.makeNonNullable(priorType)),
+              let narrowedArgs = sema.types.narrowedSubtypeArgs(
+                  forSubtype: targetClass.classSymbol,
+                  givenSupertype: priorClass.classSymbol,
+                  supertypeArgs: priorClass.args
+              )
+        else {
+            return rawTargetType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: targetClass.classSymbol,
+            args: narrowedArgs,
+            nullability: targetClass.nullability
+        )))
     }
 
     /// Resolve TypeArgRef array into TypeArg array, mapping builtin type names to their TypeIDs.

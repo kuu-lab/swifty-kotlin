@@ -48,4 +48,16 @@ public interface SendChannel<in E> {
     public external fun close(): Boolean
 }
 
-public interface ProducerScope<in E> : CoroutineScope, SendChannel<E>
+// KSP-1573: `ProducerScope.channel` returns the very handle the scope is
+// backed by — the receiver handed to the launched block is the channel
+// handle itself. ProducerScope stays a class so `channel` resolves through
+// static member dispatch; an interface member getter would emit a virtual
+// call the raw handle cannot serve.
+@KsSymbolName("__kk_identity")
+private external fun <E> __kkProducerScopeChannel(scope: ProducerScope<E>): SendChannel<E>
+
+public class ProducerScope<out E> : CoroutineScope, SendChannel<E> {
+    /** A reference to the channel this coroutine sends elements to. */
+    public val channel: SendChannel<E>
+        get() = __kkProducerScopeChannel(this)
+}

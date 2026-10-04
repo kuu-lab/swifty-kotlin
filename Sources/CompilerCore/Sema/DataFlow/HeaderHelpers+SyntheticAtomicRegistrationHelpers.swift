@@ -41,6 +41,25 @@ extension DataFlowSemaPhase {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
         let initName = interner.intern("<init>")
         let ctorFQName = ownerInfo.fqName + [initName]
+        // Source-backed constructors (e.g. `AtomicReference(value: T)` in
+        // `concurrent/AtomicReference/Stdlib.kt`) are collected after this
+        // residual pass runs, so the signature match below cannot see them
+        // yet. The bundled index is built from the AST first, so it already
+        // knows the arity of every bundled `<init>`; skip registration when
+        // the source declaration exists to avoid a duplicate `<init>`.
+        if let contextTypes = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: ownerInfo.fqName,
+               receiverType: nil,
+               name: initName,
+               arity: 1,
+               symbols: symbols,
+               types: contextTypes,
+               interner: interner
+           )
+        {
+            return
+        }
         let hasMatch = symbols.lookupAll(fqName: ctorFQName).contains { id in
             guard let sym = symbols.symbol(id),
                   sym.kind == .constructor,
