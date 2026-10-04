@@ -1412,7 +1412,7 @@
     - `kotlin.concurrent.AtomicLong.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
   - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicLong/Stdlib.kt` に `public external fun AtomicLong(value: Long): AtomicLong` を `@KsSymbolName("kk_atomic_long_create")` で source-backed 実装として追加した（KSP-1087 の AtomicInt / KSP-1093 の AtomicLongArray と同じ top-level factory 規約）。`AtomicLong(value)` 呼び出しは overload resolution の duplicate-signature フィルタで residual synthetic `<init>(Long)` が除かれ source fun に束縛される。`kk_atomic_long_create` Runtime 関数 / RuntimeABISpec エントリ / 合成 `<init>(Long)` 登録は残余 scalar surface（value プロパティ・コアメソッド群）との共有のため保持し、name-string 特例は無し。
 
-- [ ] KSP-1092: kotlin.concurrent.AtomicLong.AtomicLong の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1092: kotlin.concurrent.AtomicLong.AtomicLong の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.concurrent.AtomicLong` / receiver `AtomicLong`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicLong/AtomicLong.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1426,6 +1426,7 @@
     - `kotlin.concurrent.AtomicLong.getAndIncrement` — fun AtomicLong.getAndIncrement(): Long  -- `final fun getAndIncrement(): kotlin/Long`
     - `kotlin.concurrent.AtomicLong.toString` — fun AtomicLong.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicLong.value` — val AtomicLong.value: Long  -- `final var value`
+  - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicLong/AtomicLong.kt` に source-backed class 宣言へ移し、`compareAndExchange` / `getAndAdd` / `getAndDecrement` / `getAndIncrement` / `toString` / `var value` の 6 件を class member として実装した。各 member は `__kk_atomic_long_*` private external bridge に委譲し、`value` は `__kk_atomic_long_load` / `__kk_atomic_long_store` に接続する。残りの合成 stub（`AtomicLong(Long)` コンストラクタ、load/store/exchange/compareAndSet/fetch*/increment*/decrement* 系、`AtomicMigration.kt` の top-level wrapper）は継続利用のため保持。name-string 特例は無し。
 
 - [x] KSP-1093: kotlin.concurrent.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.AtomicLongArray` / top-level
@@ -2903,9 +2904,9 @@
     - `kotlin.ranges.ULongRange.start` — val ULongRange.start: ULong  -- `final val start`
     - `kotlin.ranges.ULongRange.toString` — fun ULongRange.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1322: kotlin.ranges.ULongRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1322: kotlin.ranges.ULongRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.ULongRange.Companion` / receiver `Companion`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ULongRange/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ULongRange/Stdlib.kt`（既存 companion object に追加。拡張プロパティ receiver `ULongRange.Companion` は現在の型解決で使えないため）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_ULongRange_Companion_Companion_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ranges_ULongRange_Companion_Companion_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ranges_ULongRange_Companion_Companion_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。

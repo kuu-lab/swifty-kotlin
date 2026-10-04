@@ -2,11 +2,23 @@ public struct CallArg {
     public let label: InternedString?
     public let isSpread: Bool
     public let type: TypeID
+    /// Keep a literal's value until each vararg candidate has been checked.
+    /// A pre-inferred Int/UInt alone cannot be narrowed to a Byte/UByte element.
+    public let signedIntegerLiteral: Int64?
+    public let unsignedIntegerLiteral: UInt64?
 
-    public init(label: InternedString? = nil, isSpread: Bool = false, type: TypeID) {
+    public init(
+        label: InternedString? = nil,
+        isSpread: Bool = false,
+        type: TypeID,
+        signedIntegerLiteral: Int64? = nil,
+        unsignedIntegerLiteral: UInt64? = nil
+    ) {
         self.label = label
         self.isSpread = isSpread
         self.type = type
+        self.signedIntegerLiteral = signedIntegerLiteral
+        self.unsignedIntegerLiteral = unsignedIntegerLiteral
     }
 }
 
