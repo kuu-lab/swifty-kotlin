@@ -307,7 +307,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                        returnType: function.returnType,
                        module: module, types: types, symbols: symbols,
                        interner: ctx.interner,
-                       boxingCalleeTable: boxingCalleeTable
+                       boxingCalleeTable: boxingCalleeTable,
+                       sema: ctx.sema,
+                       cache: ctx.nominalDispatchCache
                    )
                 {
                     newBody.append(contentsOf: rewritten)
@@ -538,6 +540,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         symbols: symbols,
                         interner: ctx.interner,
                         arena: module.arena,
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
                         into: &newBody
                     )
                 }
@@ -619,6 +623,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             symbols: symbols,
                             interner: ctx.interner,
                             arena: module.arena,
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
                             into: &newBody
                         )
                         boxedArguments[0] = boxedResult
@@ -735,7 +741,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         types: TypeSystem,
         symbols: SymbolTable?,
         interner: StringInterner,
-        boxingCalleeTable: BoxingCalleeTable
+        boxingCalleeTable: BoxingCalleeTable,
+        sema: SemaModule?,
+        cache: KIRNominalDispatchCache?
     ) -> [KIRInstruction]? {
         guard let functionReturnKind,
               let valueType = intrinsicArgType(value, arena: module.arena, types: types)
@@ -771,6 +779,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             symbols: symbols,
             interner: interner,
             arena: module.arena,
+            sema: sema,
+            cache: cache,
             into: &instructions
         )
         instructions.append(.returnValue(boxedResult))

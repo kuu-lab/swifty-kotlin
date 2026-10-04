@@ -270,7 +270,22 @@ extension CallTypeChecker {
         // accessible (not instance methods).  This prevents `Foo.instanceMethod()`
         // from resolving when there is no companion with that name.
         let classNameReceiverNominalSymbol: SymbolID? = {
-            if let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverID),
+            // BUG-inner-outer: a qualified `this@Label`/`super@Label` is by
+            // definition an instance receiver, never a type/class-name
+            // qualifier -- regardless of what symbol kind its
+            // `identifierSymbol` carries. An object literal stashes an
+            // ancestor `inner class`'s own class symbol there (see
+            // `ObjectLiteralInference.swift`'s `objectOuterReceiverTypes`
+            // fill) purely as a capture key for `CaptureAnalyzer`/
+            // `resolveOuterChainValue`, not as a class-name-receiver marker;
+            // without this guard `this@Outer.tag` misclassifies exactly like
+            // `Outer.tag` and only resolves companion members.
+            let receiverIsQualifiedThisOrSuper: Bool = switch ast.arena.expr(receiverID) {
+            case .thisRef, .superRef: true
+            default: false
+            }
+            if !receiverIsQualifiedThisOrSuper,
+               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverID),
                let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
             {
                 switch receiverSymbol.kind {
@@ -1277,7 +1292,15 @@ extension CallTypeChecker {
                     return true
                 }
             }()
-            let memberCandidates = sourceBackedOverloads + standardMemberCandidates
+            // Imported extensions can be reached both through the explicit
+            // source-backed overload path above and through ordinary member
+            // collection after the compact index restores their receiver
+            // owner. Keep one instance of the same symbol so overload
+            // resolution does not report a self-ambiguity.
+            var seenMemberCandidates: Set<SymbolID> = []
+            let memberCandidates = (sourceBackedOverloads + standardMemberCandidates).filter {
+                seenMemberCandidates.insert($0).inserted
+            }
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
@@ -1316,6 +1339,21 @@ extension CallTypeChecker {
                             return sema.symbols.parentSymbol(for: candidate).map { supertypeSymbols.contains($0) } ?? false
                         }
                         return true
+                    }
+                    if let dispatchReceiver = ctx.implicitReceiverType {
+                        let dispatchMembers = driver.helpers.collectMemberFunctionCandidates(
+                            named: calleeName, receiverType: dispatchReceiver, sema: sema, interner: interner
+                        ).filter { candidate in
+                            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                                return false
+                            }
+                            return extensionSyntheticFallbackReceiverMatches(
+                                callSiteReceiver: nonNullReceiverForScope, declaredReceiver: receiver, sema: sema
+                            )
+                        }
+                        if !dispatchMembers.isEmpty {
+                            scopeCandidates = dispatchMembers
+                        }
                     }
                     // Primitive-array source members are top-level extensions in
                     // kotlin.collections. Default-import lookup may stop at a

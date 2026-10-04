@@ -79,6 +79,36 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         // swiftlint:enable cyclomatic_complexity function_body_length
+        // BUG-inner-outer: `outer.Inner(args)` resolves to Inner's own
+        // constructor (`collectInnerClassConstructorCandidates`), but every
+        // path below treats a resolved `chosenCallee` as an ordinary member
+        // function and splices the *lowered receiver itself* in as the
+        // call's first argument (`appendReceiverToMemberArguments`) --
+        // which for a constructor means using `outer`'s own instance as if
+        // it already were the freshly allocated `Inner`, instead of
+        // allocating a real `Inner` object and storing `outer` into its
+        // `$outer` link. Intercept before any of the special cases below
+        // lower `receiverExpr` for their own (inapplicable, for a
+        // constructor target) purposes.
+        if let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
+           chosenCallee != .invalid,
+           sema.symbols.symbol(chosenCallee)?.kind == .constructor,
+           let innerClassSymbol = sema.symbols.parentSymbol(for: chosenCallee),
+           sema.symbols.symbol(innerClassSymbol)?.flags.contains(.innerClass) == true
+        {
+            return lowerInnerClassConstructorMemberCall(
+                exprID,
+                receiverExpr: receiverExpr,
+                chosenCtor: chosenCallee,
+                args: args,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         if let foldedConst = tryFoldConstMemberProperty(
             exprID,
             receiverExpr: receiverExpr,
@@ -913,6 +943,7 @@ extension CallLowerer {
                         arena: arena,
                         resultType: sema.types.anyType,
                         requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
+                        sema: sema,
                         into: &instructions
                     )
                 } else {
@@ -2329,6 +2360,7 @@ extension CallLowerer {
                         interner: interner,
                         arena: arena,
                         resultType: sema.types.nullableAnyType,
+                        sema: sema,
                         into: &instructions
                     )
                 }

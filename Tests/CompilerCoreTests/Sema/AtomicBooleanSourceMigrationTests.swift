@@ -3,9 +3,10 @@
 import Foundation
 import Testing
 
-/// KSP-1110: the canonical `kotlin.concurrent.atomics.AtomicBoolean(Boolean)`
-/// constructor is represented by a source-backed factory until the receiver
-/// members are migrated by KSP-1111.
+/// KSP-1110 / KSP-1100: the canonical `kotlin.concurrent.atomics.AtomicBoolean`
+/// is a source-backed class and its `AtomicBoolean(Boolean)` constructor is a
+/// source-backed external factory linked to `kk_atomic_bool_create`; the
+/// receiver members are migrated by KSP-1111.
 @Suite(.serialized)
 struct AtomicBooleanSourceMigrationTests {
     @Test
@@ -31,10 +32,9 @@ struct AtomicBooleanSourceMigrationTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
             let constructorFQName = ["kotlin", "concurrent", "atomics", "AtomicBoolean"].map(interner.intern)
-            let underlyingFQName = ["kotlin", "concurrent", "AtomicBoolean"].map(interner.intern)
-            let underlyingSymbol = try #require(sema.symbols.lookup(fqName: underlyingFQName))
+            let nominalSymbol = try #require(sema.symbols.lookup(fqName: constructorFQName))
             let expectedReturn = sema.types.make(.classType(ClassType(
-                classSymbol: underlyingSymbol,
+                classSymbol: nominalSymbol,
                 args: [],
                 nullability: .nonNull
             )))
@@ -55,7 +55,7 @@ struct AtomicBooleanSourceMigrationTests {
             #expect(symbol.visibility == .public)
             #expect(!symbol.flags.contains(.synthetic))
             #expect(sema.symbols.isSourceBackedSymbol(factory))
-            #expect(sema.symbols.externalLinkName(for: factory) == nil)
+            #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_bool_create")
             let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
             #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/atomics/AtomicBoolean/Stdlib.kt")
 

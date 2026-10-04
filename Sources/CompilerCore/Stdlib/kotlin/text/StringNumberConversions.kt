@@ -18,6 +18,10 @@ public fun Int.toString(radix: Int): String = intToString(this, radix)
 
 public fun Long.toString(radix: Int): String = longToString(this, radix)
 
+public fun Byte.toString(radix: Int): String = intToString(this.toInt(), radix)
+
+public fun Short.toString(radix: Int): String = intToString(this.toInt(), radix)
+
 // KUU-567: Unsigned radix conversion is source-backed as well. UInt, UByte,
 // and UShort fit in the positive Long/Int domain, while ULong needs unsigned
 // division so values with the high bit set are not interpreted as negative.

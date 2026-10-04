@@ -727,6 +727,7 @@ extension CallLowerer {
             symbols: sema.symbols,
             interner: interner,
             arena: arena,
+            sema: sema,
             into: &body
         )
         body.append(.returnValue(boxedResult))

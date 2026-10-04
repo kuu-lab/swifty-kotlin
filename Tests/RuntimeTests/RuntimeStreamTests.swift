@@ -41,6 +41,46 @@ struct RuntimeStreamTests {
         #expect(contents == "ABC")
     }
 
+    @Test(arguments: [false, true])
+    func testOutputStreamWritesRawAndBoxedListBytes(boxed: Bool) throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let values = [104, 105, 106, 0, 127, 128, 255, -1, 256]
+        let elements = boxed ? values.map(kk_box_int) : values
+        let bytesRaw = registerRuntimeObject(RuntimeListBox(elements: elements))
+        let streamRaw = openOutputStream(fileURL.path)
+        var thrown = 0
+        _ = __kk_output_stream_write_bytes(streamRaw, bytesRaw, &thrown)
+        #expect(thrown == 0)
+        _ = __kk_output_stream_close(streamRaw)
+
+        #expect(try Data(contentsOf: fileURL) == Data([104, 105, 106, 0, 127, 128, 255, 255, 0]))
+    }
+
+    @Test func testOutputStreamWritesByteArrayAndEmptyBuffers() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let array = RuntimeArrayBox(length: 5)
+        for (index, value) in [104, 105, 106, -128, -1].enumerated() {
+            array[index] = value
+        }
+        let streamRaw = openOutputStream(fileURL.path)
+        var thrown = 0
+        for buffer in [
+            registerRuntimeObject(array),
+            registerRuntimeObject(RuntimeArrayBox(length: 0)),
+            registerRuntimeObject(RuntimeListBox(elements: [])),
+        ] {
+            _ = __kk_output_stream_write_bytes(streamRaw, buffer, &thrown)
+            #expect(thrown == 0)
+        }
+        _ = __kk_output_stream_close(streamRaw)
+
+        #expect(try Data(contentsOf: fileURL) == Data([104, 105, 106, 128, 255]))
+    }
+
     private func openOutputStream(_ path: String) -> Int {
         if !FileManager.default.fileExists(atPath: path) {
             _ = FileManager.default.createFile(atPath: path, contents: Data())

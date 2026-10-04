@@ -48,6 +48,86 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    @Test(arguments: [false, true])
+    func testOutputStreamBulkWritesPreserveBytes(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        import kotlinx.io.*
+        import java.io.IOException
+
+        fun main() {
+            val buffer = Buffer()
+            val out = buffer.asOutputStream()
+            out.write(listOf(104, 105, 106, 0, 127, 128, 255, -1, 256))
+            out.write(byteArrayOf(104, 105, 106, -128, -1))
+            out.write(listOf<Int>())
+            out.write(byteArrayOf())
+            out.write(65)
+            out.flush()
+            println(buffer.size)
+            while (buffer.size > 0) {
+                println(buffer.readByte().toInt())
+            }
+
+            val raw: RawSink = Buffer()
+            val closed = raw.buffered().asOutputStream()
+            closed.close()
+            try {
+                closed.write(listOf(104, 105, 106))
+                println("no-throw")
+            } catch (e: IOException) {
+                println(e.message)
+            }
+            try {
+                closed.write(byteArrayOf(104, 105, 106))
+                println("no-throw")
+            } catch (e: IOException) {
+                println(e.message)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "OutputStreamBulkWrites",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            15
+            104
+            105
+            106
+            0
+            127
+            -128
+            -1
+            -1
+            0
+            104
+            105
+            106
+            -128
+            -1
+            65
+            Underlying sink is closed.
+            Underlying sink is closed.
+
+            """)
+        }
+    }
+
     private static let abstractCollectionSource = """
     import kotlin.collections.AbstractCollection
     import kotlin.collections.Iterator
@@ -2502,6 +2582,54 @@ struct StdlibArtifactRegressionTests {
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "1\ntrue\n1\ntrue\n1\n")
+        }
+    }
+
+    /// `UIntProgression.fromClosedRange` / `downTo` / `step` lower to runtime
+    /// factories, so the returned handle never passes `kk_object_new` and never
+    /// received the constructor-site `kk_object_register_vtable_method`
+    /// registrations. Once `UIntRange : UIntProgression` made the progression
+    /// open, dispatch on its source-backed `toString`/`equals`/`hashCode` went
+    /// through `kk_vtable_lookup` and trapped. The lowering now registers the
+    /// nominal vtable implementations on range factory boxes, which also makes
+    /// `UIntRange` overrides win when a range handle is viewed through the
+    /// progression base type.
+    @Test
+    func testUIntProgressionOpenMembersDispatchOnFactoryBox() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        fun main() {
+            val positive = UIntProgression.fromClosedRange(2u, 11u, 3)
+            val negative = 10u downTo 1u step 3
+            println(positive)
+            println(negative)
+            val asProgression: UIntProgression = UIntRange(2u, 6u)
+            println(asProgression)
+            println(positive == UIntProgression.fromClosedRange(2u, 11u, 3))
+            println(positive == negative)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "UIntProgressionFactoryVtable",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "2..11 step 3\n10 downTo 1 step 3\n2..6 step 1\ntrue\nfalse\n")
         }
     }
 }

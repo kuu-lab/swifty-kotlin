@@ -42,9 +42,7 @@ internal fun checkByteCount(byteCount: Long) {
 }
 
 internal fun Short.reverseBytes(): Short {
-    // Bare `toX()` calls do not resolve on the implicit primitive receiver
-    // inside extension bodies in this compiler, so use explicit `this`.
-    val i = this.toInt() and 0xffff
+    val i = toInt() and 0xffff
     return ((i and 0xff00 ushr 8) or (i and 0x00ff shl 8)).toShort()
 }
 
@@ -64,12 +62,12 @@ internal fun Long.reverseBytes(): Long =
         (this and 0x000000000000ff00L shl 40) or
         (this and 0x00000000000000ffL shl 56)
 
-internal infix fun Byte.shr(other: Int): Int = this.toInt() shr other
-internal infix fun Byte.shl(other: Int): Int = this.toInt() shl other
-internal infix fun Byte.and(other: Int): Int = this.toInt() and other
-internal infix fun Byte.and(other: Long): Long = this.toLong() and other
-internal infix fun Byte.xor(other: Byte): Byte = (this.toInt() xor other.toInt()).toByte()
-internal infix fun Int.and(other: Long): Long = this.toLong() and other
+internal infix fun Byte.shr(other: Int): Int = toInt() shr other
+internal infix fun Byte.shl(other: Int): Int = toInt() shl other
+internal infix fun Byte.and(other: Int): Int = toInt() and other
+internal infix fun Byte.and(other: Long): Long = toLong() and other
+internal infix fun Byte.xor(other: Byte): Byte = (toInt() xor other.toInt()).toByte()
+internal infix fun Int.and(other: Long): Long = toLong() and other
 // These mixed-sign helpers shadow kotlin.comparisons.minOf(Long, Long) inside
 // this package, so compare directly instead of recursing into minOf.
 internal fun minOf(a: Long, b: Int): Long = if (a <= b.toLong()) a else b.toLong()
@@ -77,8 +75,8 @@ internal fun minOf(a: Int, b: Long): Long = if (a.toLong() <= b) a.toLong() else
 
 internal fun Byte.toHexString(): String {
     val result = StringBuilder()
-    result.append(HEX_DIGIT_CHARS[this.toInt() shr 4 and 0xf])
-    result.append(HEX_DIGIT_CHARS[this.toInt() and 0xf])
+    result.append(HEX_DIGIT_CHARS[toInt() shr 4 and 0xf])
+    result.append(HEX_DIGIT_CHARS[toInt() and 0xf])
     return result.toString()
 }
 

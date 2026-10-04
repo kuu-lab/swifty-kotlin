@@ -454,17 +454,26 @@ extension DataFlowSemaPhase {
             && interner.resolve(nominalSymbol.fqName[1]) == "collections"
             && interner.resolve(nominalSymbol.name) == "MutableList"
         if isMutableList {
-            // kk_list_subList falls back to this interface for Kotlin-defined
-            // mutable lists, where subList must return the implementation's
-            // live mutable view instead of a snapshot. The set bridge also
-            // dispatches through this itable when writing to that source view.
+            // MutableList runtime bridges share these stable source dispatch slots.
+            // Preserve the existing subList/set slots for live mutable views.
             return methods.sorted { lhs, rhs in
                 func fixedSlot(_ symbol: SemanticSymbol) -> Int {
                     let name = interner.resolve(symbol.name)
                     let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
                     if name == "subList" && arity == 2 { return 0 }
                     if name == "set" && arity == 2 { return 1 }
-                    return 2
+                    if name == "add" && arity == 1 { return 2 }
+                    if name == "add" && arity == 2 { return 3 }
+                    if name == "addAll" && arity == 1 { return 4 }
+                    if name == "addAll" && arity == 2 { return 5 }
+                    if name == "removeAt" && arity == 1 { return 6 }
+                    if name == "remove" && arity == 1 { return 7 }
+                    if name == "clear" && arity == 0 { return 8 }
+                    if name == "removeAll" && arity == 1 { return 9 }
+                    if name == "retainAll" && arity == 1 { return 10 }
+                    if name == "listIterator" && arity == 0 { return 11 }
+                    if name == "listIterator" && arity == 1 { return 12 }
+                    return 13
                 }
                 let lhsSlot = fixedSlot(lhs)
                 let rhsSlot = fixedSlot(rhs)
@@ -484,6 +493,25 @@ extension DataFlowSemaPhase {
             return methods.sorted { lhs, rhs in
                 let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
                 let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
+                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
+        let isMutableSet = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "MutableSet"
+        if isMutableSet {
+            // Preserve add/remove/clear slots used by existing source Set bridges.
+            let bridgeMethods = ["add", "remove", "clear", "addAll", "removeAll", "retainAll"]
+            return methods.sorted { lhs, rhs in
+                func fixedSlot(_ method: SemanticSymbol) -> Int {
+                    guard symbols.isSourceBackedSymbol(method.id) else { return bridgeMethods.count }
+                    return bridgeMethods.firstIndex(of: interner.resolve(method.name)) ?? bridgeMethods.count
+                }
+                let lhsSlot = fixedSlot(lhs)
+                let rhsSlot = fixedSlot(rhs)
                 if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
                 return lhs.id.rawValue < rhs.id.rawValue
             }

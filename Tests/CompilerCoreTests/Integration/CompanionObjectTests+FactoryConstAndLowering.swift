@@ -252,6 +252,40 @@ extension CompanionObjectTests {
         }
     }
 
+    /// A `const val` read is inlined at the use site, so — unlike a
+    /// non-const member access — it must not call the owner's lazy
+    /// initializer (kotlinc never runs clinit for it).
+    ///
+    /// See `Scripts/diff_cases/object_const_val_no_lazy_init.kt`.
+    @Test func testConstValReadDoesNotTriggerLazyInit() throws {
+        func mainLazyInitCalls(_ source: String) throws -> [String] {
+            let ctx = makeContextFromSource(source)
+            try runToKIR(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected no KIR errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+            )
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            return extractCallees(from: mainBody, interner: ctx.interner).filter { $0.contains("_lazy_init_") }
+        }
+
+        let constOnly = try mainLazyInitCalls("""
+        object O { const val C = 1; init { println("O init") } }
+        class K { companion object { const val X = 5; init { println("K init") } } }
+        fun main() { println(O.C); println(K.X) }
+        """)
+        #expect(constOnly.isEmpty, "const val reads must not trigger lazy init, got: \(constOnly)")
+
+        let nonConst = try mainLazyInitCalls("""
+        object O { const val C = 1; val d = 2; init { println("O init") } }
+        class K { companion object { const val X = 5; val y = 6; init { println("K init") } } }
+        fun main() { println(O.C); println(O.d); println(K.X); println(K.y) }
+        """)
+        #expect(nonConst.contains { $0.hasPrefix("__object_lazy_init_") }, "got: \(nonConst)")
+        #expect(nonConst.contains { $0.hasPrefix("__companion_lazy_init_") }, "got: \(nonConst)")
+    }
+
     private func companionInitializerName(
         forOwnerNamed ownerName: String,
         in ctx: CompilationContext

@@ -18,9 +18,18 @@ extension BuildASTPhase.ExpressionParser {
 
         var functionDeclIDs: [DeclID] = []
         var propertyDeclIDs: [DeclID] = []
+        var initBlocks: [FunctionBody] = []
+        // Property initializers and `init {}` blocks run interleaved in
+        // declaration order, exactly like a named class body.
+        var classBodyInitOrder: [ClassBodyInitMember] = []
         for (start, end) in statementRanges {
             let group = bodyTokens[start ..< end]
             guard !group.isEmpty else {
+                continue
+            }
+            if let initBlock = parseObjectLiteralInitBlock(from: group) {
+                classBodyInitOrder.append(.initBlock(initBlocks.count))
+                initBlocks.append(initBlock)
                 continue
             }
             if let functionDecl = parseObjectLiteralFunctionDecl(from: group) {
@@ -30,6 +39,7 @@ extension BuildASTPhase.ExpressionParser {
             guard let propertyDecl = parseObjectLiteralPropertyDecl(from: group) else {
                 return nil
             }
+            classBodyInitOrder.append(.property(propertyDeclIDs.count))
             propertyDeclIDs.append(astArena.appendDecl(.propertyDecl(propertyDecl)))
         }
 
@@ -42,10 +52,58 @@ extension BuildASTPhase.ExpressionParser {
             modifiers: [.private],
             superTypes: superTypes,
             superTypeConstructorArgs: superTypeConstructorArgs,
+            initBlocks: initBlocks,
+            classBodyInitOrder: classBodyInitOrder,
             memberFunctions: functionDeclIDs,
             memberProperties: propertyDeclIDs
         )
         return astArena.appendDecl(.objectDecl(objectDecl))
+    }
+
+    /// Parses an `init { ... }` member. The group is re-parsed wrapped in a
+    /// synthetic `object` body so the regular class-body init-block builder
+    /// (`declarationInitBlocks`) produces the `FunctionBody`, rather than
+    /// hand-rolling block-statement parsing here.
+    private func parseObjectLiteralInitBlock(from tokens: ArraySlice<Token>) -> FunctionBody? {
+        let sanitized = strippingMemberSeparatorSemicolons(tokens)
+        guard sanitized.count >= 2,
+              sanitized[0].kind == .softKeyword(.`init`),
+              sanitized[1].kind == .symbol(.lBrace),
+              let first = sanitized.first,
+              let last = sanitized.last
+        else {
+            return nil
+        }
+        let openRange = SourceRange(start: first.range.start, end: first.range.start)
+        let closeRange = SourceRange(start: last.range.end, end: last.range.end)
+        let wrapped = [
+            Token(kind: .keyword(.object), range: openRange),
+            Token(kind: .identifier(interner.intern("__ObjectLiteralInit")), range: openRange),
+            Token(kind: .symbol(.lBrace), range: openRange),
+        ] + sanitized + [Token(kind: .symbol(.rBrace), range: closeRange)]
+        let parser = KotlinParser(
+            tokens: objectLiteralMemberParseTokens(from: wrapped),
+            interner: interner,
+            diagnostics: diagnostics ?? DiagnosticEngine()
+        )
+        let parsed = parser.parseFile()
+        guard let objectNodeID = firstTopLevelNode(
+            ofKind: .objectDecl,
+            in: parsed.arena,
+            root: parsed.root
+        ) else {
+            return nil
+        }
+        let blocks = BuildASTPhase(diagnostics: diagnostics).declarationInitBlocks(
+            from: objectNodeID,
+            in: parsed.arena,
+            interner: interner,
+            astArena: astArena
+        )
+        guard blocks.count == 1 else {
+            return nil
+        }
+        return blocks[0]
     }
 
     private func objectLiteralMemberRanges(in tokens: [Token]) -> [(Int, Int)] {
@@ -196,10 +254,20 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
+        // Only `lateinit` is carried over from the leading modifiers: it
+        // changes storage semantics (null-sentinel seeding, guarded reads,
+        // `::p.isInitialized`), whereas the others are still ignored here.
+        var modifiers: Modifiers = []
+        let declKeywordIndex = sanitized.firstIndex { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }
+            ?? sanitized.endIndex
+        if sanitized[..<declKeywordIndex].contains(where: { $0.kind == .keyword(.lateinit) }) {
+            modifiers.insert(.lateinit)
+        }
+
         return PropertyDecl(
             range: propertyRange,
             name: prefix.name,
-            modifiers: [],
+            modifiers: modifiers,
             type: prefix.typeAnnotation,
             isVar: prefix.isMutable,
             initializer: prefix.initializer,

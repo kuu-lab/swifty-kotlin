@@ -429,7 +429,7 @@ private func runtimeByteArrayBytes(from raw: Int) -> [UInt8]? {
         return array.elements.map { UInt8(truncatingIfNeeded: $0) }
     }
     if let list = runtimeListBox(from: raw) {
-        return list.elements.map { UInt8(truncatingIfNeeded: $0) }
+        return list.elements.map { UInt8(truncatingIfNeeded: kk_unbox_int($0)) }
     }
     return nil
 }
@@ -1114,12 +1114,12 @@ public func __kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ 
     guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_write_bytes received invalid OutputStream handle")
     }
-    guard let list = runtimeListBox(from: bytesRaw) else {
+    guard let bytes = runtimeByteArrayBytes(from: bytesRaw) else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
         return 0
     }
     do {
-        try stream.writeBytes(list.elements)
+        try stream.write(Data(bytes))
     } catch let kotlinThrown as RuntimeKotlinThrownError {
         outThrown?.pointee = kotlinThrown.thrownRaw
     } catch {

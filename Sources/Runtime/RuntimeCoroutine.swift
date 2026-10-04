@@ -309,6 +309,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// so that any subsequent resume call is rejected with an `IllegalStateException`.
     /// Reset by `resetResumeState()` when the coroutine advances to the next suspend point.
     private var hasResumed: Bool = false
+    private var cancellableDelivery: RuntimeCancellableContinuation?
     private var delayTimers: [ObjectIdentifier: DispatchSourceTimer]
     private static let taskStateLock = NSLock()
     nonisolated(unsafe) private static var taskStateMap: [RuntimeTaskKey: RuntimeContinuationState] = [:]
@@ -490,6 +491,25 @@ final class RuntimeContinuationState: @unchecked Sendable {
             return
         }
         resumeContinuation = boxedContinuation
+        stateLock.unlock()
+    }
+
+    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
+        stateLock.lock()
+        cancellableDelivery = continuation
+        stateLock.unlock()
+    }
+
+    func consumeCancellableDelivery() {
+        stateLock.lock()
+        let delivery = cancellableDelivery
+        cancellableDelivery = nil
+        stateLock.unlock()
+        guard let delivery else { return }
+        let result = delivery.takeResultForDelivery()
+        stateLock.lock()
+        completion = Int64(runtimeResultValueOrNull(result))
+        thrownException = runtimeResultIsSuccess(result) ? 0 : runtimeResultExceptionOrNull(result)
         stateLock.unlock()
     }
 
@@ -2060,6 +2080,33 @@ public func kk_start_coroutine_unintercepted_or_return_no_receiver(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     fatalError("kk_start_coroutine_unintercepted_or_return_no_receiver is rewritten by CoroutineLoweringPass")
+}
+
+/// Link-time marker for the source-backed receiver-bearing
+/// `createCoroutineUnintercepted`. `CoroutineLoweringPass` rewrites every call
+/// into `kk_create_coroutine_unintercepted`; this stub only exists so the
+/// standalone copy of the inline caller in the stdlib library links.
+@_cdecl("kk_create_coroutine_unintercepted_with_receiver")
+public func kk_create_coroutine_unintercepted_with_receiver(
+    _ functionRaw: Int,
+    _ functionContextRaw: Int,
+    _ receiverRaw: Int,
+    _ completionContinuation: Int
+) -> Int {
+    fatalError("kk_create_coroutine_unintercepted_with_receiver is rewritten by CoroutineLoweringPass")
+}
+
+/// Link-time marker for the source-backed receiver-bearing
+/// `startCoroutineUninterceptedOrReturn`; see the create marker above.
+@_cdecl("kk_start_coroutine_unintercepted_or_return_with_receiver")
+public func kk_start_coroutine_unintercepted_or_return_with_receiver(
+    _ functionRaw: Int,
+    _ functionContextRaw: Int,
+    _ receiverRaw: Int,
+    _ completionContinuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    fatalError("kk_start_coroutine_unintercepted_or_return_with_receiver is rewritten by CoroutineLoweringPass")
 }
 
 @_cdecl("kk_start_coroutine_unintercepted_or_return")
@@ -3744,10 +3791,11 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
 ///    synthetic `kk_kxmini_produce_with_cont` launcher used.
 ///  - A suspend function *value* (a block stored in a variable or received
 ///    from another call) crosses as the (fnPtr, env) pair suspend function
-///    values use at the ABI boundary. A suspend value's invoke thunk is
-///    `(receiver, cap0..capN, outThrown)`, so the channel handle passes as
-///    arg0 and env supplies the captures. The thunk binds arg0 to
-///    launcherArgs[0] itself (nested runBlocking on the worker).
+///    values use at the ABI boundary. A value's invoke thunk keeps the
+///    ordinary captured-lambda layout `(cap0..capN, receiver, outThrown)` —
+///    only literals marked via coroutineLauncherLambdaExprIDs lower
+///    receiver-first — so env expands to the leading slots and the channel
+///    handle passes as the trailing receiver (the scope `this`).
 ///
 /// Both shapes register the child job on the ambient scope
 /// (`RuntimeCoroutineScope.current` — the same scope the synthetic
@@ -3807,8 +3855,10 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     return channelHandle
 }
 
-/// Invokes a suspend launcher thunk `(receiver, cap0..capN, outThrown)`
-/// whose captures arrive at the ABI boundary packed in env.
+/// Invokes a suspend launcher thunk `(cap0..capN, receiver, outThrown)` —
+/// the ordinary captured-lambda layout, captures first and the receiver
+/// (the block's `this`) trailing — whose captures arrive at the ABI
+/// boundary packed in env.
 private func runtimeInvokeSuspendLauncherThunk(
     entryPointRaw: Int,
     receiver: Int,
@@ -3821,16 +3871,16 @@ private func runtimeInvokeSuspendLauncherThunk(
         return invoke(receiver, outThrown)
     case 1:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
-        return invoke(receiver, captures[0], outThrown)
+        return invoke(captures[0], receiver, outThrown)
     case 2:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint3.self)
-        return invoke(receiver, captures[0], captures[1], outThrown)
+        return invoke(captures[0], captures[1], receiver, outThrown)
     case 3:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint4.self)
-        return invoke(receiver, captures[0], captures[1], captures[2], outThrown)
+        return invoke(captures[0], captures[1], captures[2], receiver, outThrown)
     case 4:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint5.self)
-        return invoke(receiver, captures[0], captures[1], captures[2], captures[3], outThrown)
+        return invoke(captures[0], captures[1], captures[2], captures[3], receiver, outThrown)
     default:
         runtimeStructuredPanic("__kk_produce_launch: suspend block captures exceed launcher thunk arity")
         return 0
@@ -4236,7 +4286,14 @@ public func kk_job_cancel(_ jobHandle: Int) -> Int {
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
     case .job(let job):
-        _ = job.cancel()
+        // KSP-1568: `NonCancellable.cancel()` is a no-op upstream. Now that
+        // `NonCancellable` conforms to `Job`, a Job-typed reference can reach
+        // this entry point with the shared never-cancelled singleton —
+        // cancelling it here would permanently corrupt every later
+        // `withContext(NonCancellable)` / `isActive` check.
+        if job !== runtimeNonCancellableJob {
+            _ = job.cancel()
+        }
     case .task(let task):
         task.cancel()
     case .other:
@@ -4254,7 +4311,9 @@ public func kk_job_cancel_with_cause(_ jobHandle: Int, _ cause: Int) -> Int {
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
     case .job(let job):
-        _ = job.cancel(cause: cause)
+        if job !== runtimeNonCancellableJob {
+            _ = job.cancel(cause: cause)
+        }
     case .task(let task):
         task.cancel()
     case .other:
@@ -4625,6 +4684,15 @@ public func kk_non_cancellable_instance() -> Int {
     return Int(bitPattern: ptr)
 }
 
+// KSP-1568: `awaitCancellation()` parks on the never-completing
+// `runtimeNonCancellableJob`: `kk_job_join` registers a resumer that can
+// never fire, so the suspend point only unwinds when the awaiting coroutine
+// itself is cancelled.
+@_cdecl("kk_await_cancellation")
+public func kk_await_cancellation(_ continuation: Int) -> Int {
+    return kk_job_join(kk_non_cancellable_instance(), continuation)
+}
+
 // MARK: - Suspend Entry Loop
 
 func runSuspendEntryLoop(
@@ -4856,6 +4924,7 @@ func runSuspendEntryLoopWithContinuation(
         // for the duration of `entryPoint`'s call below, so RuntimePendingLaunchQueue
         // knows any `launch{}` it makes has a real burst to be flushed at.
         RuntimeCoroutineBurstDepth.enter()
+        contState?.consumeCancellableDelivery()
         var thrownValue = 0
         let result = entryPoint(continuation, &thrownValue)
         if thrownValue != 0 {
