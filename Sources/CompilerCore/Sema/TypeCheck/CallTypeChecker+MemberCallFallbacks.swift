@@ -200,7 +200,7 @@ extension CallTypeChecker {
             let charType = sema.types.make(.primitive(.char, .nonNull))
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [charType, charType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))

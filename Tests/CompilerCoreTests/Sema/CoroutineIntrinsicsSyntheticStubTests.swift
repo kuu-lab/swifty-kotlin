@@ -116,8 +116,19 @@ struct CoroutineIntrinsicsSyntheticStubTests {
             #expect(sema.symbols.symbol(singletonSymbol)?.kind == .enumClass)
 
             let fallbackSymbols = symbols(named: "startCoroutineUninterceptedOrReturnFallback")
-            #expect(fallbackSymbols.count == 2)
+            #expect(fallbackSymbols.count == 1)
             #expect(fallbackSymbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+
+            // The receiver-bearing forms are bodiless source markers that the
+            // coroutine lowering pass rewrites into the runtime entry-point ABI.
+            for markerName in [
+                "startCoroutineUninterceptedOrReturnWithReceiver",
+                "createCoroutineUninterceptedWithReceiver",
+            ] {
+                let markerSymbols = symbols(named: markerName)
+                #expect(markerSymbols.count == 1, "\(markerName)")
+                #expect(markerSymbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+            }
 
             let suspendName = interner.intern("suspendCoroutineUninterceptedOrReturn")
             #expect(sema.bundledIndex.contains(ownerFQName: package, name: suspendName, arity: 1))
@@ -254,6 +265,37 @@ struct CoroutineIntrinsicsSyntheticStubTests {
         #expect(signatures.allSatisfy { $0.returnType == sema.types.nullableAnyType })
         #expect(signatures.contains(where: { $0.parameterTypes.count == 1 && $0.typeParameterSymbols.count == 1 }))
         #expect(signatures.contains(where: { $0.parameterTypes.count == 2 && $0.typeParameterSymbols.count == 2 }))
+    }
+
+    @Test
+    func testReceiverBearingCoroutineIntrinsicsAreSourceBacked() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let package = ["kotlin", "coroutines", "intrinsics"].map { interner.intern($0) }
+            for name in ["createCoroutineUnintercepted", "startCoroutineUninterceptedOrReturn"] {
+                let fqName = package + [interner.intern(name)]
+                let symbols = sema.symbols.lookupAll(fqName: fqName)
+                #expect(symbols.count == 2)
+                let receiverBearing = symbols.filter {
+                    sema.symbols.functionSignature(for: $0)?.parameterTypes.count == 2
+                }
+                #expect(receiverBearing.count == 1)
+                let symbol = try #require(receiverBearing.first)
+                #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
+                #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                #expect(signature.receiverType != nil)
+                #expect(signature.typeParameterSymbols.count == 2)
+            }
+        }
     }
 
     @Test

@@ -5,6 +5,34 @@ import Testing
 
 @Suite
 struct LibMetadataImportIntegrationTests {
+    @Test func testInputOnlyTypeParameterAnnotationIsRestored() throws {
+        let libDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+        let manifest = """
+        {"formatVersion": 1, "moduleName": "InputOnly", "metadata": "metadata.bin"}
+        """
+        let metadata = """
+        symbols=1
+        function _KK_inputOnly fq=test.inputOnly schema=v1 arity=1 sig=F1<T0,Z> callTParams=T0 inputOnlyTParams=0
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "InputOnlyApp", emit: .kirDump, searchPaths: [libDir.path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let function = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("test"), ctx.interner.intern("inputOnly")]))
+            let signature = try #require(sema.symbols.functionSignature(for: function))
+            let parameter = try #require(signature.typeParameterSymbols.first)
+            #expect(sema.symbols.annotations(for: parameter).contains {
+                $0.annotationFQName == "kotlin.internal.OnlyInputTypes"
+            })
+        }
+    }
+
     // MARK: - Manifest Schema Validation Tests
 
     @Test func testManifestMissingFormatVersionEmitsError() throws {

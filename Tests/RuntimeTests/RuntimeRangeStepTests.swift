@@ -291,6 +291,25 @@ struct RuntimeRangeStepTests {
         #expect(kk_range_contains(range, 11) == 0)
     }
 
+    @Test func testGenericRangeContainsUnboxesPrimitiveElements() {
+        #expect(kk_range_contains(kk_op_rangeTo(1, 5), kk_box_int_static(3)) == 1)
+        #expect(kk_range_contains(kk_long_rangeTo(1, 5), kk_box_long_nonnull_static(3)) == 1)
+        #expect(kk_range_contains(__kk_uint_rangeTo(1, 5), kk_box_uint_static(3)) == 1)
+        #expect(kk_range_contains(__kk_ulong_rangeTo(1, 5), kk_box_ulong_nonnull_static(3)) == 1)
+        #expect(kk_range_contains(kk_char_rangeTo(97, 101), kk_box_char_static(99)) == 1)
+        #expect(kk_range_contains(kk_long_rangeTo(Int.min, Int.min + 2), kk_box_long_nonnull_static(Int.min)) == 1)
+        #expect(kk_range_contains(kk_long_rangeTo(Int.min, Int.min + 2), Int.min) == 1)
+    }
+
+    @Test func testUnsignedRangeContainsAcrossSignedBoundary() {
+        let range = __kk_ulong_rangeTo(1, -1)
+        #expect(kk_range_contains(range, kk_box_ulong_nonnull_static(Int.min)) == 1)
+        #expect(kk_range_contains(range, 0) == 0)
+        let descending = __kk_ulong_downTo(-1, Int.min)
+        #expect(kk_range_contains(descending, kk_box_ulong_nonnull_static(Int.min)) == 1)
+        #expect(kk_range_contains(descending, 1) == 0)
+    }
+
     @Test func testRangeContainsWithStep() {
         let range = __kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
         #expect(kk_range_contains(range, 1) == 1)

@@ -201,7 +201,7 @@ extension BuildASTPhase {
             guard infixPrecedence >= minPrecedence,
                   let token = current(),
                   isInfixIdentifierToken(token),
-                  !token.leadingTrivia.contains(where: { if case .newline = $0 { return true }; return false }),
+                  newlineBeforeInfixContinuesExpression(token),
                   let nextToken = peek(1),
                   canStartExpression(nextToken)
             else { return nil }
@@ -393,6 +393,37 @@ extension BuildASTPhase {
             default:
                 nil
             }
+        }
+
+        /// Whether an infix function name may follow the left operand at this
+        /// position. A leading newline normally ends the expression — at
+        /// statement level `a\nor b` is `a` followed by a new statement that
+        /// starts with `or`, matching kotlinc — but inside `(`/`[` (including
+        /// call argument lists) newlines are not statement separators, so
+        /// `or`/`and`/`shl` etc. at line start still extend the expression:
+        /// `(a\n or b)` is `a or b`. `{`/`}` deliberately do not count:
+        /// lambda and block bodies re-split their contents on newlines, so a
+        /// brace interior keeps the same line-break semantics as top level.
+        private func newlineBeforeInfixContinuesExpression(_ token: Token) -> Bool {
+            let hasLeadingNewline = token.leadingTrivia.contains { piece in
+                if case .newline = piece { return true }
+                return false
+            }
+            guard hasLeadingNewline else { return true }
+            var parenDepth = 0
+            var bracketDepth = 0
+            var cursor = tokens.startIndex
+            while cursor < index {
+                switch tokens[cursor].kind {
+                case .symbol(.lParen): parenDepth += 1
+                case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+                case .symbol(.lBracket): bracketDepth += 1
+                case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+                default: break
+                }
+                cursor = tokens.index(after: cursor)
+            }
+            return parenDepth > 0 || bracketDepth > 0
         }
 
         /// Returns true if the token is an identifier that can serve as an infix function name.

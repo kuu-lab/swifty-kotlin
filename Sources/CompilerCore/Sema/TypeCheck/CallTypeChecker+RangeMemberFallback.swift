@@ -172,6 +172,14 @@ extension CallTypeChecker {
             return nil
         }
 
+        // Nullable membership must be handled by overload resolution, not the
+        // legacy fallback which accepts any element type without a binding.
+        if memberName == "contains", args.count == 1,
+           sema.types.nullability(of: driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)) == .nullable
+        {
+            return nil
+        }
+
         // KSP-453: IntRange/IntProgression HOFs now have bundled Kotlin source
         // implementations; prefer source-backed resolution instead of the legacy
         // hardcoded range-member fallback.

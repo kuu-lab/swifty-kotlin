@@ -1,10 +1,10 @@
 /// Expansion-target index for the inline pass: every function body the pass
 /// can splice into a caller, keyed by `SymbolID`, plus the classification and
-/// dependency queries the scheduling loops consume.
+/// dependency queries the scheduler consumes.
 ///
 /// The index is built once per module from the arena declarations and the
 /// imported inline store, then updated in place as nested bodyless calls are
-/// expanded. Which body a symbol maps to can change between rounds; the
+/// expanded. Which body a symbol maps to can change during scheduling; the
 /// classification (`origin`, `isBodyless`, membership in each table) is fixed
 /// at build time.
 ///
@@ -61,9 +61,8 @@ final class InlineExpansionIndex {
     /// both tables, with the module declaration winning on collision --
     /// frozen when the body enters the index. Deferred descriptors join on
     /// materialization, so a parsed imported body is scheduled by the
-    /// bodyless-snapshot rounds just like an eagerly imported one was. Each
-    /// scheduling round re-expands these originals against the improving
-    /// snapshots so a body is never spliced twice.
+    /// dependency worklist just like an eagerly imported one was. The
+    /// scheduler expands each original once against prepared callee snapshots.
     private(set) var originalBodies: [SymbolID: KIRFunction]
 
     /// Where each expansion target's body was sourced (`nil` for symbols
@@ -77,6 +76,8 @@ final class InlineExpansionIndex {
 
     /// The module arena deferred materialization rebinds expression IDs into.
     private let arena: KIRArena
+
+    private var cachedInlineFunctionsByName: [InternedString: [SymbolID]]?
 
     /// Snapshot the module's functions and the imported inline store.
     /// Materialized imported bodies fill only symbols no module `inline`
@@ -190,10 +191,11 @@ final class InlineExpansionIndex {
 
     /// Resolves a deferred descriptor: read + parse the artifact and rebind
     /// it into the module arena, then fold it into the target table and the
-    /// schedulable originals so later bodyless rounds see it exactly like an
+    /// schedulable originals so the worklist sees it exactly like an
     /// eagerly imported body. On failure the symbol drops out of every set
     /// the eager path would never have put it in.
     private func materializeImportedBody(for symbol: SymbolID) -> KIRFunction? {
+        cachedInlineFunctionsByName = nil
         guard let function = importedStore.function(for: symbol, arena: arena) else {
             origins[symbol] = nil
             bodylessInlineSymbols.remove(symbol)
@@ -212,6 +214,7 @@ final class InlineExpansionIndex {
     /// grouping so candidate order within each name never depends on
     /// dictionary enumeration order.
     var inlineFunctionsByName: [InternedString: [SymbolID]] {
+        if let cachedInlineFunctionsByName { return cachedInlineFunctionsByName }
         var groups: [InternedString: [SymbolID]] = [:]
         for (symbol, function) in inlineFunctionsBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             groups[function.name, default: []].append(symbol)
@@ -221,6 +224,7 @@ final class InlineExpansionIndex {
         {
             groups[descriptor.name, default: []].append(symbol)
         }
+        cachedInlineFunctionsByName = groups
         return groups
     }
 

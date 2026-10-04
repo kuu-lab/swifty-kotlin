@@ -454,7 +454,7 @@ extension VirtualDispatchTests {
         // the core mechanism.
     }
 
-    @Test func testSuspendCallableRefVirtualDispatchForwardsContinuation() throws {
+    @Test func testSuspendCallableRefVirtualDispatchUsesWrapperABI() throws {
         let source = """
         interface Writer { suspend fun flush(): Int }
         class BufferedWriter : Writer { override suspend fun flush(): Int = 42 }
@@ -473,8 +473,8 @@ extension VirtualDispatchTests {
             }
         }
         #expect(!virtualFlushCalls.isEmpty)
-        #expect(virtualFlushCalls.allSatisfy { $0.count == 1 },
-                "A virtual suspend call must pass the caller continuation after explicit arguments.")
+        #expect(virtualFlushCalls.allSatisfy { $0.isEmpty },
+                "Virtual suspend calls use the original blocking wrapper's explicit arguments.")
     }
 
     // MARK: - 15. resolveVirtualDispatch: open class with subtypes -> vtable

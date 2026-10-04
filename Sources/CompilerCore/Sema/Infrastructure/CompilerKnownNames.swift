@@ -263,7 +263,6 @@ package struct KnownCompilerNames {
     let dispatchers: InternedString
     let charsets: InternedString
     let throwable: InternedString
-    let exception: InternedString
     let cancellationException: InternedString
 
     let null: InternedString
@@ -683,7 +682,6 @@ package struct KnownCompilerNames {
         dispatchers = interner.intern("Dispatchers")
         charsets = interner.intern("Charsets")
         throwable = interner.intern("Throwable")
-        exception = interner.intern("Exception")
         cancellationException = interner.intern("CancellationException")
 
         null = interner.intern("null")
@@ -1144,8 +1142,11 @@ package struct KnownCompilerNames {
         symbol.name == channel || symbolMatches(symbol, fqName: kotlinxCoroutinesChannelFQName)
     }
 
+    /// Only `Throwable` catches everything: `catch (e: Exception)` must still
+    /// let `Error` subclasses (`NotImplementedError`, `AssertionError`, user
+    /// `Error()` subclasses) propagate, so it needs the runtime type check.
     func isThrowableCatchAllSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == throwable || symbol.name == exception
+        symbol.name == throwable
     }
 
     func isCancellationExceptionSymbol(_ symbol: SemanticSymbol) -> Bool {

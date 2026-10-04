@@ -121,39 +121,11 @@ extension CallLowerer {
         // access to the object's state, so it must trigger the object's
         // lazy clinit-equivalent first. Imported-library objects restore the
         // guard through metadata; compiler pseudo-objects such as
-        // `Dispatchers`/`Charsets` below remain no-ops.
+        // `Charsets` below remain no-ops.
         driver.emitObjectLazyInitGuardIfNeeded(
             objectSymbol: parent, arena: arena, sema: sema, instructions: &instructions
         )
         let knownNames = KnownCompilerNames(interner: interner)
-        if let parentInfo = sema.symbols.symbol(parent),
-           parentInfo.name == knownNames.dispatchers
-        {
-            let runtimeCallee: InternedString
-            switch interner.resolve(info.name) {
-            case "Default":
-                runtimeCallee = interner.intern("kk_dispatcher_default")
-            case "IO":
-                runtimeCallee = interner.intern("kk_dispatcher_io")
-            case "Main":
-                runtimeCallee = interner.intern("kk_dispatcher_main")
-            default:
-                return nil
-            }
-            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
-                    ?? sema.symbols.propertyType(for: valueSym)
-                    ?? sema.types.anyType
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: runtimeCallee,
-                arguments: [],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
         // STDLIB-581: Charsets.UTF_8 / ISO_8859_1 / US_ASCII / UTF_16 / ...
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.charsets
@@ -534,6 +506,27 @@ extension CallLowerer {
                 interner.intern("size"), interner.intern("keys"),
                 interner.intern("values"), interner.intern("entries"),
             ].contains(sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""))
+        // Dispatchers.Main is an opaque scheduler tag; source subclasses still
+        // need their own immediate getter. Pass the synthesized slot to a bridge
+        // that distinguishes the tag from a Kotlin object before dispatching.
+        if !isSuperQualifiedReceiver,
+           ownerInfo.fqName == ["kotlinx", "coroutines", "MainCoroutineDispatcher"].map(interner.intern),
+           sema.symbols.symbol(propertySymbol)?.name == interner.intern("immediate"),
+           let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
+               SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+           ]
+        {
+            let slot = arena.appendExpr(.intLiteral(Int64(getterSlot)), type: sema.types.intType)
+            instructions.append(.constValue(result: slot, value: .intLiteral(Int64(getterSlot))))
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("__kk_dispatcher_immediate"),
+                arguments: [loweredReceiverID, slot], result: result,
+                canThrow: true, thrownResult: nil
+            ))
+            return result
+        }
+
         if ownerInfo.kind == .class,
            !isSuperQualifiedReceiver,
            !isRuntimeRangeReceiver,
@@ -853,6 +846,15 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             return result
+        }
+
+        // Let the stored-property path distinguish opaque dispatcher tags from
+        // source implementations before attempting a normal virtual getter.
+        if sema.symbols.symbol(propertySymbol)?.name == interner.intern("immediate"),
+           let owner = sema.symbols.parentSymbol(for: propertySymbol),
+           sema.symbols.symbol(owner)?.fqName == ["kotlinx", "coroutines", "MainCoroutineDispatcher"].map(interner.intern)
+        {
+            return nil
         }
 
         if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(

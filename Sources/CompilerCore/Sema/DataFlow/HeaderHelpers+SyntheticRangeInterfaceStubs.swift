@@ -124,6 +124,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction],
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
+            externalLinkName: "__kk_range_contains",
             symbols: symbols,
             types: types,
             interner: interner
@@ -304,6 +305,7 @@ extension DataFlowSemaPhase {
         flags: SymbolFlags = [.synthetic],
         typeParameterSymbols: [SymbolID] = [],
         classTypeParameterCount: Int = 0,
+        externalLinkName: String? = nil,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
@@ -347,6 +349,9 @@ extension DataFlowSemaPhase {
             visibility: .public,
             flags: flags
         )
+        if let externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        }
         symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
         for parameterSymbol in parameterSymbols {
             symbols.setParentSymbol(functionSymbol, for: parameterSymbol)

@@ -163,6 +163,7 @@ extension DataFlowSemaPhase {
             elementType: types.intType,
             stepType: types.intType,
             externalLinkName: "__kk_int_progression_fromClosedRange",
+            registerProperties: false,
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -424,6 +425,7 @@ extension DataFlowSemaPhase {
         elementType: TypeID,
         stepType: TypeID,
         externalLinkName: String,
+        registerProperties: Bool = true,
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
         symbols: SymbolTable,
@@ -611,30 +613,32 @@ extension DataFlowSemaPhase {
             toListRuntime = "kk_range_toList"
         }
 
-        registerProgressionProperty(
-            named: "first",
-            ownerSymbol: classSymbol,
-            propertyType: elementType,
-            externalLinkName: firstLastRuntime.0,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "last",
-            ownerSymbol: classSymbol,
-            propertyType: elementType,
-            externalLinkName: firstLastRuntime.1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "step",
-            ownerSymbol: classSymbol,
-            propertyType: stepType,
-            externalLinkName: stepRuntime,
-            symbols: symbols,
-            interner: interner
-        )
+        if registerProperties {
+            registerProgressionProperty(
+                named: "first",
+                ownerSymbol: classSymbol,
+                propertyType: elementType,
+                externalLinkName: firstLastRuntime.0,
+                symbols: symbols,
+                interner: interner
+            )
+            registerProgressionProperty(
+                named: "last",
+                ownerSymbol: classSymbol,
+                propertyType: elementType,
+                externalLinkName: firstLastRuntime.1,
+                symbols: symbols,
+                interner: interner
+            )
+            registerProgressionProperty(
+                named: "step",
+                ownerSymbol: classSymbol,
+                propertyType: stepType,
+                externalLinkName: stepRuntime,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerProgressionMethod(
             named: "toList",
             ownerSymbol: classSymbol,

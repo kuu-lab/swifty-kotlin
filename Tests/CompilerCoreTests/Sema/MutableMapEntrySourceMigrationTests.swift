@@ -1,12 +1,79 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 /// KSP-1076: MutableMap.MutableEntry.setValue is a bundled source extension
 /// backed by the existing mutable-map entry runtime bridge.
 @Suite
 struct MutableMapEntrySourceMigrationTests {
     private let sourcePath = "__bundled_kotlin/collections/MutableMap/MutableEntry/MutableEntry.kt"
+
+    @Test(arguments: [false, true])
+    func mutableEntryInterfaceIsOwnedByBundledSource(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        try withTemporaryFiles(contents: [
+            """
+            fun <K, V> readOnly(entry: MutableMap.MutableEntry<K, V>): Map.Entry<K, V> = entry
+            fun key(entry: MutableMap.MutableEntry<String, Int>): String = entry.key
+            fun value(entry: MutableMap.MutableEntry<String, Int>): Int = entry.value
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let collections = ["kotlin", "collections"].map(ctx.interner.intern)
+            let owner = try #require(sema.symbols.lookup(fqName: collections + [ctx.interner.intern("MutableMap")]))
+            let fqName = collections + [ctx.interner.intern("MutableMap"), ctx.interner.intern("MutableEntry")]
+            let entry = try #require(sema.symbols.lookup(fqName: fqName))
+            #expect(sema.symbols.lookupAll(fqName: fqName).count == 1)
+            #expect(sema.symbols.symbol(entry)?.kind == .interface)
+            #expect(sema.symbols.parentSymbol(for: entry) == owner)
+            #expect(sema.types.nominalTypeParameterSymbols(for: entry).count == 2)
+            #expect(sema.types.nominalTypeParameterVariances(for: entry) == [.invariant, .invariant])
+            #expect(sema.symbols.isSourceBackedSymbol(entry))
+            #expect(sema.symbols.symbol(entry)?.flags.contains(.importedLibrary) == useArtifact)
+            #expect(sema.symbols.externalLinkName(for: entry) == nil)
+            if !useArtifact {
+                #expect(sema.symbols.symbol(entry)?.flags.contains(.synthetic) == false)
+                let fileID = try #require(sema.symbols.sourceFileID(for: entry))
+                #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/MutableMap.kt")
+            }
+            let readOnlyEntry = try #require(sema.symbols.lookup(
+                fqName: collections + [ctx.interner.intern("Map"), ctx.interner.intern("Entry")]
+            ))
+            #expect(sema.symbols.directSupertypes(for: entry).contains(readOnlyEntry))
+            let parameters = sema.types.nominalTypeParameterSymbols(for: entry)
+            let arguments = sema.symbols.supertypeTypeArgs(for: entry, supertype: readOnlyEntry)
+            #expect(arguments.count == parameters.count)
+            for (argument, parameter) in zip(arguments, parameters) {
+                let type: TypeID
+                switch argument {
+                case let .invariant(value), let .out(value): type = value
+                default:
+                    Issue.record("Expected MutableEntry's type parameter in Map.Entry supertype")
+                    continue
+                }
+                #expect(type == sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
+            }
+        }
+    }
+
+    @Test(arguments: ["Any, Int", "String, Any"])
+    func mutableEntryRejectsWidenedTypeArguments(typeArguments: String) throws {
+        let ctx = makeContextFromSource(
+            """
+            fun widen(entry: MutableMap.MutableEntry<String, Int>): MutableMap.MutableEntry<\(typeArguments)> = entry
+            """
+        )
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
 
     @Test
     func setValueResolvesToBundledSourceExtension() throws {

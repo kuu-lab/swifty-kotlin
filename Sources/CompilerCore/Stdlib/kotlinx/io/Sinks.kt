@@ -37,7 +37,7 @@ import kotlin.contracts.contract
  * @throws IOException when some I/O error occurs.
  */
 public fun Sink.writeShortLe(short: Short) {
-    this.writeShort(short.reverseBytes())
+    writeShort(short.reverseBytes())
 }
 
 /**
@@ -49,7 +49,7 @@ public fun Sink.writeShortLe(short: Short) {
  * @throws IOException when some I/O error occurs.
  */
 public fun Sink.writeIntLe(int: Int) {
-    this.writeInt(int.reverseBytes())
+    writeInt(int.reverseBytes())
 }
 
 /**
@@ -61,7 +61,7 @@ public fun Sink.writeIntLe(int: Int) {
  * @throws IOException when some I/O error occurs.
  */
 public fun Sink.writeLongLe(long: Long) {
-    this.writeLong(long.reverseBytes())
+    writeLong(long.reverseBytes())
 }
 
 /**
@@ -78,7 +78,7 @@ public fun Sink.writeDecimalLong(long: Long) {
     var v = long
     if (v == 0L) {
         // Both a shortcut and required since the following code can't handle zero.
-        this.writeByte('0'.code.toByte())
+        writeByte('0'.code.toByte())
         return
     }
 
@@ -91,7 +91,7 @@ public fun Sink.writeDecimalLong(long: Long) {
             val minValue = "-9223372036854775808"
             var i = 0
             while (i < minValue.length) {
-                this.writeByte(minValue[i].code.toByte())
+                writeByte(minValue[i].code.toByte())
                 i += 1
             }
             return
@@ -140,7 +140,7 @@ public fun Sink.writeDecimalLong(long: Long) {
     if (negative) {
         digits[0] = '-'.code.toByte()
     }
-    this.write(digits, 0, digits.size)
+    write(digits, 0, digits.size)
 }
 
 /**
@@ -157,7 +157,7 @@ public fun Sink.writeHexadecimalUnsignedLong(long: Long) {
     var v = long
     if (v == 0L) {
         // Both a shortcut and required since the following code can't handle zero.
-        this.writeByte('0'.code.toByte())
+        writeByte('0'.code.toByte())
         return
     }
 
@@ -168,7 +168,7 @@ public fun Sink.writeHexadecimalUnsignedLong(long: Long) {
         digits[pos] = HEX_DIGIT_CHARS[v.toInt().and(0xF)].code.toByte()
         v = v ushr 4
     }
-    this.write(digits, 0, digits.size)
+    write(digits, 0, digits.size)
 }
 
 /**
@@ -358,6 +358,6 @@ public inline fun Sink.writeToInternalBuffer(lambda: (Buffer) -> Unit) {
     contract {
         callsInPlace(lambda, InvocationKind.EXACTLY_ONCE)
     }
-    lambda(this.buffer)
-    this.hintEmit()
+    lambda(buffer)
+    hintEmit()
 }
