@@ -13,11 +13,10 @@ extension BuildASTPhase.ExpressionParser {
     ///   `x++`  ->  `{ val tmp = x; x += 1; tmp }`
     ///   `++x`  ->  `{ x += 1; x }`
     ///
-    /// For a bare name the marked assignment reuses `.compoundAssign`, which
-    /// already knows how to store back into locals, captured variables and
-    /// globals after the operator result is computed. Member (`obj.p++`) and
-    /// indexed (`a[i]++`) targets instead call `inc()` / `dec()` explicitly so
-    /// that a custom getter / `get()` runs exactly once.
+    /// Name and member targets reuse marked compound assignments. Postfix
+    /// member mutations cache the loaded property value so its getter runs once.
+    /// Indexed targets call `inc()` / `dec()` explicitly and cache the receiver,
+    /// indices and (for postfix) the loaded element.
     func tryParseIncrementDecrement(operand: ExprID) -> ExprID? {
         guard let opToken = current(), let op = compoundAssignOp(for: opToken.kind) else {
             return nil
