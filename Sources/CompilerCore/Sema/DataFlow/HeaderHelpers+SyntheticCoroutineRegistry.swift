@@ -496,6 +496,23 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(coroutineStartType, for: entrySymbol)
             }
         }
+        // `CoroutineStart.isLazy`: a compile-time-folded member. The enum
+        // entries are symbolic markers consumed by the launch/async start-mode
+        // rewrite and carry no distinct runtime value (name/ordinal/equality
+        // all collapse), so the property cannot be implemented as a runtime
+        // comparison. Reads lower to this external name and
+        // CoroutineLoweringPass rewrites each call to a Boolean constant from
+        // the referenced entry, mirroring the launcher fallback (an
+        // unresolved receiver folds to `false`, i.e. non-LAZY).
+        registerSyntheticObjectProperty(
+            ownerSymbol: coroutineStartSymbol,
+            ownerType: coroutineStartType,
+            name: "isLazy",
+            propertyType: types.booleanType,
+            externalLinkName: "kk_coroutine_start_is_lazy",
+            symbols: symbols,
+            interner: interner
+        )
         let channelType = types.make(.classType(ClassType(
             classSymbol: channelSymbol,
             args: [],
@@ -1219,6 +1236,21 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // KSP-1568: `awaitCancellation()` suspends for the coroutine's whole
+        // lifetime. It rewrites to `kk_await_cancellation`, which parks the
+        // continuation on the never-completing runtimeNonCancellableJob
+        // (upstream parks it for the job's whole lifetime); the suspend point
+        // unwinds only via cancellation of the awaiting coroutine.
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "awaitCancellation",
+            packageFQName: coroutinesPkg,
+            parameters: [],
+            returnType: types.nothingType,
+            externalLinkName: "kk_await_cancellation",
+            isSuspend: true,
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCoroutineTopLevelFunction(
             named: "ensureActive",
             packageFQName: coroutinesPkg,
@@ -1359,8 +1391,21 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(nonCancellableType, for: nonCancellableSymbol)
-        symbols.setDirectSupertypes([coroutineContextElementSymbol], for: nonCancellableSymbol)
-        types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: nonCancellableSymbol)
+        // KSP-1568: NonCancellable is now a bundled `object : AbstractCoroutineContextElement(Key)`
+        // (Stdlib/kotlinx/coroutines/NonCancellable.kt) implementing the
+        // degenerate always-active Job surface in source. The bundled decl is
+        // reused by ensureSyntheticObjectSymbol above and keeps the
+        // `kk_non_cancellable_instance` external link name so bare references
+        // still materialize the runtime job handle. Graft `Job` onto its
+        // supertypes so `val j: Job = NonCancellable` / Job-typed parameters
+        // conform, preferring the bundled AbstractCoroutineContextElement as
+        // the element supertype so the inherited `key` member keeps
+        // resolving.
+        let nonCancellableElementSupertype = symbols.lookup(
+            fqName: kotlinCoroutinesPkg + [interner.intern("AbstractCoroutineContextElement")]
+        ) ?? coroutineContextElementSymbol
+        symbols.setDirectSupertypes([nonCancellableElementSupertype, jobSymbol], for: nonCancellableSymbol)
+        types.setNominalDirectSupertypes([nonCancellableElementSupertype, jobSymbol], for: nonCancellableSymbol)
         symbols.setExternalLinkName("kk_non_cancellable_instance", for: nonCancellableSymbol)
 
         let coroutineContextKeySymbol = ensureInterfaceSymbol(

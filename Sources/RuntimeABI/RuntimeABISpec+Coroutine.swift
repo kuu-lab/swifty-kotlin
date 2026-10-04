@@ -1152,6 +1152,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_await_cancellation",
+            parameters: [
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_job_await_completion",
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
