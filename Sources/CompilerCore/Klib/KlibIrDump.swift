@@ -44,17 +44,17 @@ package enum KlibIrDump {
             out += "\(indent)class \(name(cls.nameIndex, module: module, fileIndex: fileIndex))"
             out += " kind=\(flags.classKind) \(flags.visibility) \(flags.modality)"
             if !supertypes.isEmpty { out += " : \(supertypes.joined(separator: ", "))" }
-            out += "\(symbolSuffix(cls.base, module: module, fileIndex: fileIndex))\n"
+            out += "\(try symbolSuffix(cls.base, module: module, fileIndex: fileIndex))\n"
             for member in cls.declarations {
                 try dumpDeclaration(member, module: module, fileIndex: fileIndex, indent: indent + "  ", into: &out)
             }
         case .constructor(let ctor):
             let base = ctor.base
-            out += "\(indent)constructor(\(try parameterSummary(base)))\(symbolSuffix(base.base, module: module, fileIndex: fileIndex)) body=\(base.bodyIndex.map(String.init) ?? "-")\n"
+            out += "\(indent)constructor(\(try parameterSummary(base)))\(try symbolSuffix(base.base, module: module, fileIndex: fileIndex)) body=\(base.bodyIndex.map(String.init) ?? "-")\n"
         case .enumEntry(let entry):
-            out += "\(indent)enum-entry \(name(entry.nameIndex, module: module, fileIndex: fileIndex))\(symbolSuffix(entry.base, module: module, fileIndex: fileIndex))\n"
+            out += "\(indent)enum-entry \(name(entry.nameIndex, module: module, fileIndex: fileIndex))\(try symbolSuffix(entry.base, module: module, fileIndex: fileIndex))\n"
         case .field(let field):
-            out += "\(indent)field \(try module.nameAndTypeDescription(field.nameType, fileIndex: fileIndex))\(symbolSuffix(field.base, module: module, fileIndex: fileIndex))\n"
+            out += "\(indent)field \(try module.nameAndTypeDescription(field.nameType, fileIndex: fileIndex))\(try symbolSuffix(field.base, module: module, fileIndex: fileIndex))\n"
         case .function(let function):
             try dumpFunction(function.base, label: "fun", module: module, fileIndex: fileIndex, indent: indent, into: &out)
             for override in function.overridden {
@@ -65,7 +65,16 @@ package enum KlibIrDump {
             out += property.backingField != nil ? " +field" : ""
             out += property.getter != nil ? " +getter" : ""
             out += property.setter != nil ? " +setter" : ""
-            out += "\(symbolSuffix(property.base, module: module, fileIndex: fileIndex))\n"
+            out += "\(try symbolSuffix(property.base, module: module, fileIndex: fileIndex))\n"
+            if let field = property.backingField {
+                out += "\(indent)  .field \(try module.nameAndTypeDescription(field.nameType, fileIndex: fileIndex))\(try symbolSuffix(field.base, module: module, fileIndex: fileIndex))\n"
+            }
+            if let getter = property.getter {
+                try dumpFunction(getter.base, label: ".get", module: module, fileIndex: fileIndex, indent: indent + "  ", into: &out)
+            }
+            if let setter = property.setter {
+                try dumpFunction(setter.base, label: ".set", module: module, fileIndex: fileIndex, indent: indent + "  ", into: &out)
+            }
         case .typeParameter(let parameter):
             out += "\(indent)type-parameter \(name(parameter.nameIndex, module: module, fileIndex: fileIndex))\n"
         case .variable(let variable):
@@ -75,7 +84,7 @@ package enum KlibIrDump {
         case .localDelegatedProperty(let delegated):
             out += "\(indent)local-delegated-property \(try module.nameAndTypeDescription(delegated.nameType, fileIndex: fileIndex))\n"
         case .typeAlias(let alias):
-            out += "\(indent)typealias \(try module.nameAndTypeDescription(alias.nameType, fileIndex: fileIndex))\(symbolSuffix(alias.base, module: module, fileIndex: fileIndex))\n"
+            out += "\(indent)typealias \(try module.nameAndTypeDescription(alias.nameType, fileIndex: fileIndex))\(try symbolSuffix(alias.base, module: module, fileIndex: fileIndex))\n"
         }
     }
 
@@ -100,7 +109,7 @@ package enum KlibIrDump {
             out += " typeParams=\(function.typeParameters.count)"
         }
         out += " body=\(function.bodyIndex.map(String.init) ?? "-")"
-        out += "\(symbolSuffix(function.base, module: module, fileIndex: fileIndex))\n"
+        out += "\(try symbolSuffix(function.base, module: module, fileIndex: fileIndex))\n"
     }
 
     private static func parameterSummary(_ function: KlibFunctionBase) throws -> String {
@@ -111,8 +120,9 @@ package enum KlibIrDump {
         (try? module.string(index, fileIndex: fileIndex)) ?? "<bad-string:\(index)>"
     }
 
-    private static func symbolSuffix(_ base: KlibDeclBase, module: KlibIrModule, fileIndex: Int) -> String {
-        " | \(base.symbol.kind) sig[\(base.symbol.signatureIndex)]"
+    private static func symbolSuffix(_ base: KlibDeclBase, module: KlibIrModule, fileIndex: Int) throws -> String {
+        let description = (try? module.symbolDescription(base.symbol, fileIndex: fileIndex)) ?? "?"
+        return " | \(base.symbol.kind) sig[\(base.symbol.signatureIndex)]=\(description)"
     }
 
     private static func typeSummary(_ type: KlibIrType, module: KlibIrModule, fileIndex: Int) throws -> String {

@@ -2863,6 +2863,21 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            // Resolution may narrow a literal only after choosing a vararg
+            // element type. Persist that type for KIR lowering and codegen.
+            if let signature = sema.symbols.functionSignature(for: chosen) {
+                for (index, argument) in args.enumerated() where !argument.isSpread {
+                    guard let parameterIndex = resolved.parameterMapping[index],
+                          signature.valueParameterIsVararg.indices.contains(parameterIndex),
+                          signature.valueParameterIsVararg[parameterIndex],
+                          parameterIndex < signature.parameterTypes.count
+                    else { continue }
+                    let parameterType = signature.parameterTypes[parameterIndex]
+                    let literal = integerLiteralValues(argument.expr, ast: ast)
+                    guard literal.signed != nil || literal.unsigned != nil else { continue }
+                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+                }
+            }
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
             // Mark the lambda only after overload resolution selects the bundled
