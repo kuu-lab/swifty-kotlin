@@ -97,6 +97,13 @@ struct CaptureAnalyzer {
                 }
 
             case let .localAssign(_, value, _):
+                // KSP-CAP-001: a bare write to an outer mutable property
+                // (`counter = 1`, no accompanying read anywhere in the body)
+                // must still register the symbol as captured, or
+                // `capturesMutableOuterProperty` (ObjectLiteralInference.swift)
+                // never fires and no outer-receiver capture slot is allocated --
+                // the KIR write then falls back to the literal's own receiver.
+                recordCapture(for: currentExprID)
                 visit(value)
 
             case let .memberAssign(receiver, _, value, _):

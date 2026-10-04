@@ -89,7 +89,21 @@ final class ExprTypeChecker {
             return stringType
 
         case let .nameRef(name, nameRange):
-            return inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
+            let nameType = inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
+            // `val f: Factory<Widget> = Widget`: a bare class name whose own type does not
+            // satisfy the expected type may still denote its companion object, which does.
+            if let expectedType,
+               !sema.types.isSubtype(nameType, expectedType),
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   id, currentType: nameType, ast: ast, sema: sema
+               )
+            {
+                if sema.types.isSubtype(companionType, expectedType) {
+                    return companionType
+                }
+                sema.bindings.bindExprType(id, type: nameType)
+            }
+            return nameType
 
         case let .forExpr(loopVariable, iterableExpr, bodyExpr, label, range):
             return driver.controlFlowChecker.inferForExpr(id, loopVariable: loopVariable, iterableExpr: iterableExpr, bodyExpr: bodyExpr, label: label, range: range, ctx: ctx, locals: &locals)
@@ -196,12 +210,17 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
-            // An unlabeled return in a lambda targets the surrounding named
-            // function. Its value must therefore be inferred against that
-            // function's return type, not the lambda's expected Boolean/result
-            // type (e.g. a predicate passed to an inline HOF).
+            // An unlabeled `return` always targets the enclosing named
+            // function, whether or not it sits inside a lambda -- so its
+            // value must be inferred against *that* function's declared
+            // return type, never the ambient `expectedType` threaded down
+            // through whatever expression happens to syntactically contain
+            // it (a lambda's own expected Boolean/result type, but equally
+            // an elvis/if/when/try branch's expected type propagated in from
+            // an outer assignment: `x = if (c) 1 else return null` inside a
+            // function returning `Int?` must check `return null` against
+            // `Int?`, not `x`'s declared `Int`).
             let returnExpectedType: TypeID? = if label == nil,
-                                                    ctx.lambdaDepth > 0,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
             {
                 enclosingFunctionReturnType
@@ -601,6 +620,54 @@ final class ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let containsName = interner.intern("contains")
+
+        // Nullable range operands must resolve the nullable extension before the
+        // primitive range fast paths erase their nullability.
+        let nullableRangeReceiver: TypeID? = {
+            guard sema.types.nullability(of: elementType) == .nullable else { return nil }
+            if let concrete = driver.callChecker.sourceLevelRangeMemberLookupType(
+                receiverExpr: containerExpr, receiverType: containerType, sema: sema, interner: interner
+            ) {
+                return concrete
+            }
+            for name in ["ClosedRange", "OpenEndRange"] {
+                guard let symbol = sema.symbols.lookup(fqName: ["kotlin", "ranges", name].map(interner.intern)) else { continue }
+                let rangeType = sema.types.make(.classType(ClassType(classSymbol: symbol, args: [.star], nullability: .nonNull)))
+                if sema.types.isSubtype(containerType, rangeType) { return containerType }
+            }
+            return nil
+        }()
+        if let sourceReceiver = nullableRangeReceiver {
+            let call = CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)])
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: containsName, receiverType: sourceReceiver, sema: sema, interner: interner
+            )
+            let memberResult = ctx.resolver.resolveCall(
+                candidates: members, call: call, expectedType: nil,
+                implicitReceiverType: sourceReceiver, ctx: ctx.semaCtx
+            )
+            let extensions = ctx.filterByVisibility(ctx.cachedScopeLookup(containsName)).visible.filter {
+                sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true
+                    && sema.symbols.functionSignature(for: $0)?.receiverType != nil
+                    && !isHiddenByDeprecatedAnnotation($0, symbols: sema.symbols)
+                    && !driver.callChecker.usesOnlyInputTypes($0, sema: sema)
+            }
+            let resolved = memberResult.chosenCallee != nil ? memberResult : ctx.resolver.resolveCall(
+                candidates: extensions, call: call, expectedType: nil,
+                implicitReceiverType: sourceReceiver, ctx: ctx.semaCtx
+            )
+            if let chosen = resolved.chosenCallee {
+                sema.bindings.bindCall(exprID, binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted { $0.key.rawValue < $1.key.rawValue }.map { $0.value },
+                    parameterMapping: resolved.parameterMapping
+                ))
+            } else if let diagnostic = resolved.diagnostic {
+                ctx.semaCtx.diagnostics.emit(diagnostic)
+            }
+            return
+        }
 
         // Range expressions carry an Int lowering type until their member call
         // is resolved. If a user operator extension is in scope, recover the

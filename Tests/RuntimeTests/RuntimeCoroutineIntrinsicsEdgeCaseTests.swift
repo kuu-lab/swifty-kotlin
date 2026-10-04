@@ -211,6 +211,32 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         #expect(result == 0, "Intercepting a null continuation must return 0")
     }
 
+    @Test(arguments: [kk_dispatcher_default(), kk_dispatcher_io(), kk_dispatcher_main()])
+    func nativeDispatcherUsesInterceptorInterfaceAdapters(dispatcher: Int) throws {
+        let interfaceID = Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor"))
+        let interceptRaw = try #require(runtimeDispatcherInterceptorMethod(dispatcher, interfaceID, 0))
+        #expect(kk_itable_lookup_dynamic(dispatcher, interfaceID, 0) == interceptRaw)
+        let intercept = unsafeBitCast(interceptRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var thrown = 42
+        #expect(intercept(dispatcher, 0, &thrown) == kk_continuation_interceptor_intercept_continuation(dispatcher, 0))
+        #expect(thrown == 0)
+        let continuation = runtimeRegisterObject(KKDispatchContinuation(context: nil, callback: { _ in }))
+        let intercepted = intercept(dispatcher, continuation, &thrown)
+        #expect(intercepted != 0 && intercepted != continuation)
+        #expect(thrown == 0)
+        let dispatcherObject = runtimeRegisterObject(RuntimeDispatcher(queue: .global(), tag: dispatcher))
+        #expect(runtimeDispatcherInterceptorMethod(dispatcherObject, interfaceID, 0) == interceptRaw)
+        let releaseRaw = try #require(runtimeDispatcherInterceptorMethod(dispatcher, interfaceID, 1))
+        let release = unsafeBitCast(releaseRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        thrown = 42
+        #expect(release(dispatcher, 0, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(runtimeDispatcherInterceptorMethod(dispatcher, interfaceID, 2) == nil)
+        #expect(runtimeDispatcherInterceptorMethod(dispatcher, interfaceID + 1, 0) == nil)
+        #expect(runtimeDispatcherInterceptorMethod(0, interfaceID, 0) == nil)
+        #expect(runtimeDispatcherInterceptorMethod(continuation, interfaceID, 0) == nil)
+    }
+
     // MARK: - CancellationException type identity
 
     @Test func cancellationExceptionAllocatePtrIsNonZero() {

@@ -686,11 +686,11 @@ extension BuildASTPhase.ExpressionParser {
         var catchClauses: [CatchClause] = []
         while matches(.keyword(.catch)) {
             let catchToken = consume()!
-            let (paramName, paramTypeName) = parseCatchParameter()
+            let (paramName, paramType) = parseCatchParameter()
             if let catchExpr = parseControlFlowBodyExpression() {
                 let clauseEnd = astArena.exprRange(catchExpr)?.end ?? catchToken.range.end
                 let clauseRange = SourceRange(start: catchToken.range.start, end: clauseEnd)
-                catchClauses.append(CatchClause(paramName: paramName, paramTypeName: paramTypeName, body: catchExpr, range: clauseRange))
+                catchClauses.append(CatchClause(paramName: paramName, paramType: paramType, body: catchExpr, range: clauseRange))
             } else {
                 break
             }
@@ -711,22 +711,19 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.tryExpr(body: bodyExpr, catchClauses: catchClauses, finallyExpr: finallyExpr, range: range))
     }
 
-    func parseCatchParameter() -> (paramName: InternedString?, paramTypeName: InternedString?) {
+    func parseCatchParameter() -> (paramName: InternedString?, paramType: TypeRefID?) {
         guard matches(.symbol(.lParen)) else {
             return (nil, nil)
         }
         _ = consume()
         var paramName: InternedString?
-        var paramTypeName: InternedString?
+        var paramType: TypeRefID?
         if case let .identifier(name) = current()?.kind {
             paramName = name
             _ = consume()
             if matches(.symbol(.colon)) {
-                _ = consume()
-                if case let .identifier(typeName) = current()?.kind {
-                    paramTypeName = typeName
-                    _ = consume()
-                }
+                let colonToken = consume()!
+                paramType = parseTypeReference(colonToken.range)
             }
         }
         var depth = 1
@@ -741,6 +738,6 @@ extension BuildASTPhase.ExpressionParser {
                 continue
             }
         }
-        return (paramName, paramTypeName)
+        return (paramName, paramType)
     }
 }

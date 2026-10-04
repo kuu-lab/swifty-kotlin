@@ -90,7 +90,9 @@ extension OverloadResolver {
                     substitution: substitution,
                     typeVarBySymbol: typeVarBySymbol
                 )
-                if !ctx.types.isSubtype(substitutedType, substitutedBound) {
+                if !ctx.types.isSubtype(substitutedType, substitutedBound),
+                   !ctx.diagnostics.isSuppressed(code: "KSWIFTK-SEMA-BOUND", range: range)
+                {
                     return Diagnostic(
                         severity: .error,
                         code: "KSWIFTK-SEMA-BOUND",

@@ -54,14 +54,11 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticRangeUntilFunction(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1281: no generic `T.rangeUntil` registration — the bundled
+        // `ranges/Stdlib.kt` declares it as Kotlin source. The bundledIndex
+        // skip-guard cannot see a type-parameter receiver, so the synthetic
+        // would survive alongside the source declaration and make generic
+        // `x..<y` calls ambiguous.
 
         // Byte/Short until produce Int ranges; mixed Int/Long calls widen to Long.
         registerSyntheticRangeUntilStub(
@@ -166,6 +163,7 @@ extension DataFlowSemaPhase {
             elementType: types.intType,
             stepType: types.intType,
             externalLinkName: "__kk_int_progression_fromClosedRange",
+            registerProperties: false,
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -352,104 +350,6 @@ extension DataFlowSemaPhase {
         return classSymbol
     }
 
-    private func registerSyntheticRangeUntilFunction(
-        rangesPackageSymbol: SymbolID,
-        rangesFQName: [InternedString],
-        openEndRangeSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern("rangeUntil")
-        let functionFQName = rangesFQName + [functionName]
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = functionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: typeParamFQName) {
-            typeParamSymbol = existing
-        } else {
-            typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let comparableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("Comparable"),
-        ]
-        guard let comparableSymbol = symbols.lookup(fqName: comparableFQName) else {
-            return
-        }
-        let comparableType = types.make(.classType(ClassType(
-            classSymbol: comparableSymbol,
-            args: [.in(typeParamType)],
-            nullability: .nonNull
-        )))
-        let openEndRangeType = types.make(.classType(ClassType(
-            classSymbol: openEndRangeSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == typeParamType
-                && signature.parameterTypes == [typeParamType]
-                && signature.returnType == openEndRangeType
-        }) {
-            return
-        }
-
-        let parameterName = interner.intern("that")
-        let parameterSymbol = symbols.define(
-            kind: .valueParameter,
-            name: parameterName,
-            fqName: functionFQName + [parameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(rangesPackageSymbol, for: functionSymbol)
-        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-        symbols.setExternalLinkName("__kk_op_rangeUntil", for: functionSymbol)
-        symbols.setTypeParameterUpperBounds([comparableType], for: typeParamSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: typeParamType,
-                parameterTypes: [typeParamType],
-                returnType: openEndRangeType,
-                valueParameterSymbols: [parameterSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParamSymbol],
-                typeParameterUpperBoundsList: [[comparableType]]
-            ),
-            for: functionSymbol
-        )
-    }
-
     private func registerSyntheticRangeUntilStub(
         ownerSymbol: SymbolID,
         receiverType: TypeID,
@@ -526,6 +426,7 @@ extension DataFlowSemaPhase {
         elementType: TypeID,
         stepType: TypeID,
         externalLinkName: String,
+        registerProperties: Bool = true,
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
         symbols: SymbolTable,
@@ -713,30 +614,32 @@ extension DataFlowSemaPhase {
             toListRuntime = "kk_range_toList"
         }
 
-        registerProgressionProperty(
-            named: "first",
-            ownerSymbol: classSymbol,
-            propertyType: elementType,
-            externalLinkName: firstLastRuntime.0,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "last",
-            ownerSymbol: classSymbol,
-            propertyType: elementType,
-            externalLinkName: firstLastRuntime.1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "step",
-            ownerSymbol: classSymbol,
-            propertyType: stepType,
-            externalLinkName: stepRuntime,
-            symbols: symbols,
-            interner: interner
-        )
+        if registerProperties {
+            registerProgressionProperty(
+                named: "first",
+                ownerSymbol: classSymbol,
+                propertyType: elementType,
+                externalLinkName: firstLastRuntime.0,
+                symbols: symbols,
+                interner: interner
+            )
+            registerProgressionProperty(
+                named: "last",
+                ownerSymbol: classSymbol,
+                propertyType: elementType,
+                externalLinkName: firstLastRuntime.1,
+                symbols: symbols,
+                interner: interner
+            )
+            registerProgressionProperty(
+                named: "step",
+                ownerSymbol: classSymbol,
+                propertyType: stepType,
+                externalLinkName: stepRuntime,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerProgressionMethod(
             named: "toList",
             ownerSymbol: classSymbol,

@@ -259,6 +259,65 @@ private func sharedDataFlowTryCatchCtx() throws -> (ctx: CompilationContext, pat
 }
 
 extension DataFlowAndSemaRegressionTests {
+    @Test func testQualifiedCatchTypesResolveExactPackage() throws {
+        try withTemporaryFiles(contents: [
+            "package first; class Error",
+            "package second; class Error",
+            """
+            fun caught() = try {
+                1
+            } catch (e: first.Error) {
+                2
+            } catch (e: second.Error) {
+                3
+            }
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0085", in: ctx.diagnostics.diagnostics)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let sourceFile = try #require(ctx.sourceManager.fileID(forPath: paths[2]))
+            let tryExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                guard ast.arena.exprRange(exprID)?.start.file == sourceFile else { return false }
+                if case .tryExpr = expr { return true }
+                return false
+            })
+            guard case let .tryExpr(_, clauses, _, _)? = ast.arena.expr(tryExpr) else {
+                Issue.record("Expected try expression")
+                return
+            }
+            #expect(clauses.count == 2)
+            for (clause, packageName) in zip(clauses, ["first", "second"]) {
+                let typeRef = try #require(clause.paramType)
+                guard let ref = ast.arena.typeRef(typeRef), case let .named(path, _, _) = ref else {
+                    Issue.record("Expected named catch parameter type")
+                    continue
+                }
+                #expect(path.map { ctx.interner.resolve($0) } == [packageName, "Error"])
+                let binding = try #require(sema.bindings.catchClauseBinding(for: clause.body))
+                guard case let .classType(type) = sema.types.kind(of: binding.parameterType) else {
+                    Issue.record("Expected nominal catch parameter type")
+                    continue
+                }
+                let symbol = try #require(sema.symbols.symbol(type.classSymbol))
+                #expect(symbol.fqName.map { ctx.interner.resolve($0) } == [packageName, "Error"])
+            }
+        }
+    }
+
+    @Test func testUnknownQualifiedCatchDoesNotUseShortNameFallback() throws {
+        try withTemporaryFiles(contents: [
+            "package known; class Error",
+            "fun caught() = try { 1 } catch (e: unknown.Error) { 2 }",
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0085" })
+        }
+    }
+
     @Test func testFunctionTypeParameterWithUpperBound() throws {
         let (ctx, paths) = try sharedDataFlowTryCatchCtx()
         let samplePath = paths[0]

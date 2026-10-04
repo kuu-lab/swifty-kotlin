@@ -24,19 +24,6 @@ extension KIRLoweringDriver {
         // already populated for the lazy-init guard to actually fire;
         // lowering member functions first left the registry empty for
         // their own enclosing companion.
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: symbol),
-           sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0 > 0
-        {
-            let companionType = sema.types.make(.classType(ClassType(
-                classSymbol: companionSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            declIDs.append(arena.appendDecl(.global(KIRGlobal(
-                symbol: companionSymbol,
-                type: companionType
-            ))))
-        }
         declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
             companionDeclID: classDecl.companionObject,
             ownerSymbol: symbol,
@@ -910,13 +897,9 @@ extension KIRLoweringDriver {
             }
         }
         guard !delegationTarget.isEmpty else { return }
-        var argIDs: [KIRExprID] = []
-        if let receiver = ctx.activeImplicitReceiverExprID() {
-            argIDs.append(receiver)
-        }
+        var loweredArgs: [KIRExprID] = []
         for arg in delegation.args {
-            let lowered = lowerExpr(arg.expr, shared: shared, emit: &body)
-            argIDs.append(lowered)
+            loweredArgs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
         }
         let delegationResultID = arena.appendTemporary(type: sema.types.unitType
         )
@@ -935,11 +918,100 @@ extension KIRLoweringDriver {
             // Any's compiler-provided constructor is allocation-only.
             return
         }
+        if delegation.kind == .super_,
+           let resolvedSymbol,
+           let receiver = ctx.activeImplicitReceiverExprID(),
+           let superclassSymbol = sema.symbols.parentSymbol(for: resolvedSymbol),
+           isRuntimeThrowableSuperConstructor(resolvedSymbol, sema: sema)
+        {
+            // `constructor(msg: String) : super(msg)` on an Exception subclass:
+            // the factory's box would be dropped, so copy its state instead.
+            emitRuntimeThrowableSuperInitialization(
+                superCtorSymbol: resolvedSymbol,
+                superclassSymbol: superclassSymbol,
+                receiver: receiver,
+                loweredArgs: loweredArgs,
+                spreadFlags: delegation.args.map(\.isSpread),
+                callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+                shared: shared,
+                body: &body
+            )
+            return
+        }
+        emitDelegatedConstructorCall(
+            target: resolvedSymbol,
+            receiver: ctx.activeImplicitReceiverExprID(),
+            loweredArgs: loweredArgs,
+            spreadFlags: delegation.args.map(\.isSpread),
+            callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+            result: delegationResultID,
+            shared: shared,
+            body: &body
+        )
+    }
+
+    /// Emits `this(...)` / `super(...)` as an ordinary constructor call: named
+    /// arguments, the default mask and vararg packing go through the same
+    /// normalization as a call site, and an omitted-default call is routed to
+    /// `<Class>$default`.
+    func emitDelegatedConstructorCall(
+        target: SymbolID?,
+        receiver: KIRExprID?,
+        loweredArgs: [KIRExprID],
+        spreadFlags: [Bool],
+        callBinding: CallBinding?,
+        result: KIRExprID,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        var argIDs: [KIRExprID] = []
+        if let receiver {
+            argIDs.append(receiver)
+        }
+        var defaultMask: Int64 = 0
+        if let target, let callBinding, callBinding.chosenCallee == target {
+            let normalized = callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgs,
+                callBinding: callBinding,
+                chosenCallee: target,
+                spreadFlags: spreadFlags,
+                shared: shared,
+                emit: &body
+            )
+            argIDs.append(contentsOf: normalized.arguments)
+            defaultMask = normalized.defaultMask
+        } else {
+            argIDs.append(contentsOf: loweredArgs)
+        }
+        if defaultMask != 0,
+           let target,
+           sema.symbols.externalLinkName(for: target)?.isEmpty ?? true,
+           let ownerName = sema.symbols.parentSymbol(for: target).flatMap({ sema.symbols.symbol($0)?.name })
+        {
+            callLowerer.appendDefaultMaskArgument(
+                defaultMask,
+                sema: sema,
+                arena: arena,
+                instructions: &body.instructions,
+                arguments: &argIDs
+            )
+            body.append(.call(
+                symbol: callSupportLowerer.defaultStubSymbol(for: target),
+                callee: shared.interner.intern(shared.interner.resolve(ownerName) + "$default"),
+                arguments: argIDs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
         body.append(.call(
-            symbol: resolvedSymbol,
+            symbol: target,
             callee: shared.interner.intern("<init>"),
             arguments: argIDs,
-            result: delegationResultID,
+            result: result,
             canThrow: false,
             thrownResult: nil
         ))

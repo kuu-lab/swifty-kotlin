@@ -22,11 +22,24 @@ private let runtimeThrowableToStringVtableMethod: @convention(c) (Int, UnsafeMut
 private let runtimeThrowableStackTraceVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =
     __kk_throwable_rawStackFrames
 
-// Keep these slots aligned with the bundled Throwable layout. The native
-// getStackTraceAddresses extension occupies slot 2, so toString is slot 1.
+private let runtimeThrowableMessageVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return __kk_throwable_message(raw)
+}
+
+private let runtimeThrowableCauseVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return __kk_throwable_cause(raw)
+}
+
+// Keep these slots aligned with the bundled Throwable layout: methods are
+// numbered first (getStackTrace, toString), then the open property getters
+// (message, cause).
 enum RuntimeThrowableVtableSlot {
     static let getStackTrace = 0
     static let toString = 1
+    static let message = 2
+    static let cause = 3
 }
 
 func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
@@ -48,9 +61,34 @@ func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
         return unsafeBitCast(runtimeThrowableStackTraceVtableMethod, to: Int.self)
     case RuntimeThrowableVtableSlot.toString:
         return unsafeBitCast(runtimeThrowableToStringVtableMethod, to: Int.self)
+    case RuntimeThrowableVtableSlot.message:
+        return unsafeBitCast(runtimeThrowableMessageVtableMethod, to: Int.self)
+    case RuntimeThrowableVtableSlot.cause:
+        return unsafeBitCast(runtimeThrowableCauseVtableMethod, to: Int.self)
     default:
         return nil
     }
+}
+
+/// `message` of a Kotlin-defined Throwable subclass, read through its vtable
+/// slot so an `override val message` is honoured; falls back to the stored
+/// constructor message when there is no override or the getter throws.
+func runtimeSourceThrowableMessage(_ raw: Int, object: RuntimeObjectBox) -> String? {
+    guard let methodRaw = runtimeThrowableVtableMethodRaw(raw, slot: RuntimeThrowableVtableSlot.message),
+          methodRaw != unsafeBitCast(runtimeThrowableMessageVtableMethod, to: Int.self)
+    else {
+        return object.throwableMessage
+    }
+    let method = unsafeBitCast(methodRaw, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    let messageRaw = method(raw, &thrown)
+    if thrown != 0 {
+        return object.throwableMessage
+    }
+    if messageRaw == runtimeNullSentinelInt || messageRaw == 0 {
+        return nil
+    }
+    return extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
 }
 
 func runtimeThrowableToString(_ receiver: Int) -> String? {
@@ -181,9 +219,9 @@ func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
     )
 }
 
-private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox) -> String {
+private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox, raw: Int) -> String {
     let typeName = runtimeSourceThrowableSimpleName(for: object.classID)
-    guard let message = object.throwableMessage else {
+    guard let message = runtimeSourceThrowableMessage(raw, object: object) else {
         return typeName
     }
     return "\(typeName): \(message)"
@@ -203,7 +241,7 @@ private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [St
         return [throwable.renderedMessage]
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        return [runtimeSourceThrowableHeader(from: object)]
+        return [runtimeSourceThrowableHeader(from: object, raw: throwableRaw)]
     }
     return []
 }
@@ -365,7 +403,7 @@ public func __kk_throwable_toString(
         }
         if let object {
             typeName = runtimeSourceThrowableQualifiedName(for: object.classID)
-            message = object.throwableMessage
+            message = runtimeSourceThrowableMessage(throwableRaw, object: object)
         } else {
             typeName = "kotlin.Throwable"
             message = nil
@@ -733,6 +771,8 @@ public func kk_string_from_flat(
     guard let data else {
         return 0
     }
+    // Identity is preserved when `kk_string_to_flat` registered the source
+    // box as the buffer's canonicalBox (generic AtomicReference<T> ABI).
     return runtimeFlatStringStorageRegistry.canonicalBoxRaw(
         for: data,
         length: length,
@@ -1236,6 +1276,23 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             return runtimeIsAssignable(
                 sourceTypeID: runtimeStableNominalTypeID(
                     fqName: "kotlin.ranges.ClosedFloatingPointRange"
+                ),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // Range iterator handles (`(1..5).iterator()`) are likewise registered
+        // without object type metadata. They are typed `kotlin.collections.Iterator`
+        // only: the element-specialized XIterator classes can't be honored
+        // because `nextInt()`/`nextChar()` member calls on an XIterator receiver
+        // lower to vtable/itable dispatch that an unregistered box cannot
+        // answer, so claiming them here would turn `is IntIterator` into a
+        // reachable dispatch trap. `kotlin.collections.Iterator` answers the
+        // interface checks (`is Iterator`, `as Iterator`) like kotlinc while
+        // `is IntIterator`/`is MutableIterator` stay false.
+        if runtimeRangeIteratorBox(from: value) != nil {
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStableNominalTypeID(
+                    fqName: "kotlin.collections.Iterator"
                 ),
                 targetTypeID: payload
             ) ? 1 : 0
@@ -2402,7 +2459,7 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
     }
     guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.count)."
+            message: "Index \(index) out of bounds for length \(array.count)"
         )
         return 0
     }
@@ -2431,7 +2488,7 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
     }
     guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.count)."
+            message: "Index \(index) out of bounds for length \(array.count)"
         )
         return 0
     }
@@ -2636,6 +2693,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let rendered = runtimeRenderIndexedValueObject(value, render: runtimeRenderAnyForPrint) {
         return rendered
+    }
+    if let resultBox = tryCast(raw, to: RuntimeResultBox.self) {
+        return runtimeResultToString(resultBox, render: runtimeRenderAnyForPrint)
     }
     return "<object \(raw)>"
 }

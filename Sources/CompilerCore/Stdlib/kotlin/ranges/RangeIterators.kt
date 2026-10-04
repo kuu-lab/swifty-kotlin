@@ -29,14 +29,14 @@ package kotlin.ranges
 // `a until b` (b <= a) with step 0 rather than with first/last bounds that
 // exclude each other (__kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
 
-internal class IntProgressionIterator(first: Int, last: Int, private val step: Int) : Iterator<Int> {
+internal class IntProgressionIterator(first: Int, last: Int, private val step: Int) : IntIterator() {
     private val finalElement: Int = last
     private var nextValue: Int = first
     private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
 
     override fun hasNext(): Boolean = hasNextValue
 
-    override fun next(): Int {
+    override fun nextInt(): Int {
         if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
@@ -46,14 +46,14 @@ internal class IntProgressionIterator(first: Int, last: Int, private val step: I
     }
 }
 
-internal class LongProgressionIterator(first: Long, last: Long, private val step: Long) : Iterator<Long> {
+internal class LongProgressionIterator(first: Long, last: Long, private val step: Long) : LongIterator() {
     private val finalElement: Long = last
     private var nextValue: Long = first
     private var hasNextValue: Boolean = if (step > 0L) first <= last else if (step < 0L) first >= last else false
 
     override fun hasNext(): Boolean = hasNextValue
 
-    override fun next(): Long {
+    override fun nextLong(): Long {
         if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
@@ -63,14 +63,14 @@ internal class LongProgressionIterator(first: Long, last: Long, private val step
     }
 }
 
-internal class CharProgressionIterator(first: Char, last: Char, private val step: Int) : Iterator<Char> {
+internal class CharProgressionIterator(first: Char, last: Char, private val step: Int) : CharIterator() {
     private val finalElement: Char = last
     private var nextValue: Char = first
     private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
 
     override fun hasNext(): Boolean = hasNextValue
 
-    override fun next(): Char {
+    override fun nextChar(): Char {
         if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
@@ -81,13 +81,7 @@ internal class CharProgressionIterator(first: Char, last: Char, private val step
 }
 
 public operator fun IntRange.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
-public operator fun IntProgression.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
-public operator fun LongRange.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step.toLong())
-// The Kotlin LongRange contract uses Long for step while this compiler's
-// residual LongProgression.step property is modelled as Int, so widen it here.
-public operator fun LongProgression.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step.toLong())
-public operator fun CharRange.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
-public operator fun CharProgression.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
+public operator fun LongRange.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step)
 
 internal class UIntProgressionIterator(first: UInt, last: UInt, private val step: Int) : Iterator<UInt> {
     private val finalElement: UInt = last

@@ -778,9 +778,8 @@ public external fun LongRange.reversed(): LongProgression
 // MARK: - LongProgression
 
 private fun longProgressionDescription(progression: LongProgression): String {
-    // Widen before negation so the existing Int-typed synthetic step also
-    // renders Int.MIN_VALUE as 2147483648 when used in an empty message.
-    val step = progression.step.toLong()
+    // Negate in Long so Long.MIN_VALUE still renders as a positive magnitude.
+    val step = progression.step
     return if (step > 0) {
         "${progression.first}..${progression.last} step $step"
     } else {
@@ -1818,21 +1817,23 @@ public fun ULongRange.lastOrNull(): ULong? = if (isEmpty()) null else last
 public fun ULongRange.sorted(): List<ULong> = if (step < 0) toList().reversed() else toList()
 
 // KSP-1292: Kotlin 2.3.10 widens unsigned values before using the native
-// ULong overload, preserving the exact range membership and boundary rules.
+// ULong membership rules. Do not recurse through `contains(ULong)` here:
+// overload resolution currently prefers `OpenEndRange.contains`, and
+// `endExclusive` cannot be represented when `last == ULong.MAX_VALUE`.
 @SinceKotlin("1.5")
-public operator fun ULongRange.contains(value: UByte): Boolean {
-    return contains(value.toULong())
-}
+public operator fun ULongRange.contains(value: UByte): Boolean =
+    ulongRangeContainsWidened(value.toULong())
 
 @SinceKotlin("1.5")
-public operator fun ULongRange.contains(value: UInt): Boolean {
-    return contains(value.toULong())
-}
+public operator fun ULongRange.contains(value: UInt): Boolean =
+    ulongRangeContainsWidened(value.toULong())
 
 @SinceKotlin("1.5")
-public operator fun ULongRange.contains(value: UShort): Boolean {
-    return contains(value.toULong())
-}
+public operator fun ULongRange.contains(value: UShort): Boolean =
+    ulongRangeContainsWidened(value.toULong())
+
+private fun ULongRange.ulongRangeContainsWidened(value: ULong): Boolean =
+    first <= last && value >= first && value <= last
 
 public fun ULongRange.count(): Int {
     val count: ULong = if (step > 0) {

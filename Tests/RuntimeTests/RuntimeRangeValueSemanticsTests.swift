@@ -48,6 +48,31 @@ struct RuntimeRangeValueSemanticsTests {
     }
 
     @Test
+    func charRangesAndProgressionsRenderCharactersAfterTypeErasure() throws {
+        let rangeRaw = kk_char_rangeTo(kk_box_char(97), kk_box_char(103))
+        let range = try #require(runtimeRangeBox(from: rangeRaw))
+        let ascendingRaw = __kk_char_range_step(rangeRaw, 3, nil)
+        let ascending = try #require(runtimeRangeBox(from: ascendingRaw))
+        let descending = RuntimeRangeBox(first: 104, last: 98, step: -3, kind: .charProgression)
+
+        #expect(runtimeRangeToString(range) == "a..g")
+        #expect(runtimeRangeToString(ascending) == "a..g step 3")
+        #expect(runtimeRangeToString(descending) == "h downTo b step 3")
+        #expect(runtimeRangeToString(RuntimeRangeBox(first: 0x03B1, last: 0x03B3, step: 1, kind: .charRange)) == "α..γ")
+        #expect(runtimeRangeToString(RuntimeRangeBox(first: 1, last: 3, step: 1, kind: .intRange)) == "1..3")
+        #expect(extractString(from: kk_any_to_string(kk_any_equals(rangeRaw, 1, ascendingRaw, 1), 2)) == "false")
+    }
+
+    @Test
+    func erasedCharEqualityPreservesRangeOverrides() {
+        let range = kk_char_rangeTo(kk_box_char(97), kk_box_char(99))
+        let progression = __kk_char_range_step(range, 1, nil)
+        #expect(kk_unbox_bool(kk_any_equals(progression, 1, range, 1)) == 1)
+        #expect(kk_unbox_bool(kk_any_equals(range, 1, progression, 1)) == 0)
+        #expect(kk_unbox_bool(kk_any_equals(progression, 1, kk_box_int_static(range), 0)) == 1)
+    }
+
+    @Test
     func nominalRangeKindsRemainDistinctInCollections() {
         let intRange = kk_op_rangeTo(1, 3)
         let sameIntRange = kk_op_rangeTo(1, 3)

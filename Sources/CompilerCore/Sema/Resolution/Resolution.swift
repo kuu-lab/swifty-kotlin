@@ -420,11 +420,47 @@ extension OverloadResolver {
             constraints.append(contentsOf: returnDecomposed)
         }
 
-        let solveResult = solveConstraints(
+        var solveResult = solveConstraints(
             constraints,
             solver: solver,
             typeSystem: ctx.types
         )
+        // Infer dependent parameters from concrete upper-bound projections, e.g.
+        // R = IntRange and R : ClosedRange<T> imply T = Int, even for a null argument.
+        for _ in 0 ..< signature.typeParameterSymbols.count {
+            guard case let .success(partial) = solveResult else { break }
+            var added = false
+            for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                guard let variable = typeVarBySymbol[symbol],
+                      let inferred = partial[variable],
+                      inferred != ctx.types.errorType
+                else { continue }
+                let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                    ? signature.typeParameterUpperBoundsList[index] : []
+                let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: symbol)
+                let bounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+                let dependentVariables = typeVarBySymbol.filter { $0.key != symbol }
+                for bound in bounds where containsTypeVariable(
+                    bound, typeVarBySymbol: dependentVariables, typeSystem: ctx.types
+                ) {
+                    let projected = decomposeSubtypeConstraint(
+                        subtype: inferred,
+                        supertype: bound,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: ctx.types,
+                        blameRange: call.range
+                    )
+                    for constraint in projected where !constraints.contains(where: {
+                        $0.kind == constraint.kind && $0.left == constraint.left && $0.right == constraint.right
+                    }) {
+                        constraints.append(constraint)
+                        added = true
+                    }
+                }
+            }
+            guard added else { break }
+            solveResult = solveConstraints(constraints, solver: solver, typeSystem: ctx.types)
+        }
         let substitution: [TypeVarID: TypeID]
         switch solveResult {
         case let .success(value):
@@ -505,6 +541,17 @@ extension OverloadResolver {
         }
         guard let implicitReceiverType else {
             return nil
+        }
+        // Infer a receiver parameter from the receiver itself, not a LUB of its
+        // separate bounds. Dependent bound arguments are projected after solving.
+        if case let .typeParam(parameter) = typeSystem.kind(of: receiverType),
+           typeVarBySymbol[parameter.symbol] != nil
+        {
+            return decomposeSubtypeConstraint(
+                subtype: implicitReceiverType, supertype: receiverType,
+                typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                blameRange: range
+            )
         }
         // Use decomposeSubtypeConstraint to properly extract type variables
         // from generic receiver types (e.g. Class<T>) so the solver can
@@ -633,7 +680,9 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
-            let argType = arg.type
+            let argType = isVararg[paramIndex] && !arg.isSpread
+                ? (varargIntegerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
+                : arg.type
 
             // A spread argument contributes the element type of its array to
             // the vararg parameter. Recover that type when possible so
@@ -681,6 +730,35 @@ extension OverloadResolver {
             return !(constraints.isEmpty && !call.args.isEmpty)
         }
         return true
+    }
+
+    /// Infer a vararg element against this candidate, rather than treating an
+    /// unsuffixed literal's previously inferred Int as its only possible type.
+    private func varargIntegerLiteralType(
+        _ argument: CallArg,
+        parameterType: TypeID,
+        types: TypeSystem
+    ) -> TypeID? {
+        guard case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(parameterType)) else {
+            return nil
+        }
+        if let value = argument.signedIntegerLiteral {
+            switch primitive {
+            case .byte where (-128...127).contains(value): return types.byteType
+            case .short where (-32768...32767).contains(value): return types.shortType
+            case .long: return types.longType
+            default: return nil
+            }
+        }
+        if let value = argument.unsignedIntegerLiteral {
+            switch primitive {
+            case .ubyte where value <= UInt64(UInt8.max): return types.ubyteType
+            case .ushort where value <= UInt64(UInt16.max): return types.ushortType
+            case .ulong: return types.ulongType
+            default: return nil
+            }
+        }
+        return nil
     }
 
     /// Returns the source-level element type represented by a spread argument.
@@ -831,12 +909,57 @@ extension OverloadResolver {
         if let chosen = pickMostSpecific(viable, typeSystem: typeSystem) {
             return chosen.toResolvedCall()
         }
+        if let chosen = preferredIntegerLiteralVararg(viable, call: call, types: typeSystem) {
+            return chosen.toResolvedCall()
+        }
         return errorResult(
             code: "KSWIFTK-SEMA-0003",
             message: "Ambiguous overload resolution.",
             range: call.range,
             secondaryRanges: candidateDeclSites(viable, typeSystem: typeSystem)
         )
+    }
+
+    /// Kotlin's integer-literal priority selects Int over other signed integer
+    /// overloads, and Short over Byte, when ordinary type subtyping cannot
+    /// distinguish otherwise-applicable vararg candidates.
+    private func preferredIntegerLiteralVararg(
+        _ candidates: [ViableCandidate],
+        call: CallExpr,
+        types: TypeSystem
+    ) -> ViableCandidate? {
+        guard !call.args.isEmpty,
+              call.args.allSatisfy({ $0.signedIntegerLiteral != nil && !$0.isSpread })
+        else { return nil }
+        var candidatesByPrimitive: [PrimitiveType: ViableCandidate] = [:]
+        for candidate in candidates {
+            let varargFlags = normalizeFlags(
+                candidate.signature.valueParameterIsVararg,
+                count: candidate.signature.parameterTypes.count
+            )
+            var primitiveForCandidate: PrimitiveType?
+            for (index, paramType) in candidate.instantiatedParameterTypes.enumerated() {
+                guard let paramIndex = candidate.parameterMapping[index],
+                      varargFlags.indices.contains(paramIndex), varargFlags[paramIndex],
+                      case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(paramType)),
+                      primitive == .int || primitive == .short || primitive == .byte || primitive == .long,
+                      primitiveForCandidate == nil || primitiveForCandidate == primitive
+                else { return nil }
+                primitiveForCandidate = primitive
+            }
+            guard let primitiveForCandidate,
+                  candidatesByPrimitive[primitiveForCandidate] == nil
+            else { return nil }
+            candidatesByPrimitive[primitiveForCandidate] = candidate
+        }
+        if let intCandidate = candidatesByPrimitive[.int] { return intCandidate }
+        if candidatesByPrimitive.count == 2,
+           let shortCandidate = candidatesByPrimitive[.short],
+           candidatesByPrimitive[.byte] != nil
+        {
+            return shortCandidate
+        }
+        return nil
     }
 
     /// ARCH-031: declaration sites of the ambiguous overload candidates,
@@ -1062,10 +1185,53 @@ extension OverloadResolver {
         if lhsOwnTypeParamCount != rhsOwnTypeParamCount {
             return lhsOwnTypeParamCount < rhsOwnTypeParamCount
         }
+        if hasMoreSpecificTypeParameterBounds(lhs.signature, than: rhs.signature, typeSystem: typeSystem) {
+            return true
+        }
         if lhs.usesVararg != rhs.usesVararg {
             return !lhs.usesVararg && rhs.usesVararg
         }
         return false
+    }
+
+    private func hasMoreSpecificTypeParameterBounds(
+        _ lhs: FunctionSignature,
+        than rhs: FunctionSignature,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        guard !lhs.typeParameterSymbols.isEmpty,
+              lhs.typeParameterSymbols.count == rhs.typeParameterSymbols.count,
+              let symbols = typeSystem.symbolTable
+        else { return false }
+        let rhsVariables = typeSystem.makeTypeVarBySymbol(rhs.typeParameterSymbols)
+        var renaming: [TypeVarID: TypeID] = [:]
+        for (left, right) in zip(lhs.typeParameterSymbols, rhs.typeParameterSymbols) {
+            guard let variable = rhsVariables[right] else { return false }
+            renaming[variable] = typeSystem.make(.typeParam(TypeParamType(symbol: left, nullability: .nonNull)))
+        }
+        func renamed(_ type: TypeID) -> TypeID {
+            typeSystem.substituteTypeParameters(in: type, substitution: renaming, typeVarBySymbol: rhsVariables)
+        }
+        // Compare bounds only for alpha-equivalent declaration shapes; concrete
+        // instantiations alone lose the distinction between T : Any and Comparable<T>.
+        guard lhs.parameterTypes == rhs.parameterTypes.map(renamed),
+              lhs.receiverType == rhs.receiverType.map(renamed)
+        else { return false }
+        func bounds(_ signature: FunctionSignature, _ index: Int) -> [TypeID] {
+            let declared = index < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[index] : []
+            let stored = symbols.typeParameterUpperBounds(for: signature.typeParameterSymbols[index])
+            let result = declared + stored.filter { !declared.contains($0) }
+            return result.isEmpty ? [typeSystem.nullableAnyType] : result
+        }
+        var strictlyMoreSpecific = false
+        for index in lhs.typeParameterSymbols.indices {
+            let left = typeSystem.glb(bounds(lhs, index))
+            let right = typeSystem.glb(bounds(rhs, index).map(renamed))
+            guard typeSystem.isSubtype(left, right) else { return false }
+            if !typeSystem.isSubtype(right, left) { strictlyMoreSpecific = true }
+        }
+        return strictlyMoreSpecific
     }
 
     /// Returns `true` if `signature` declares any receiver or parameter type

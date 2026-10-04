@@ -65,7 +65,7 @@ expr e@9:53 lambda params=[] body=e@9:55 label=compareBy type=(Int) -> Any?
 expr e@9:43 call callee=e@9:43#1 args=[_:e@9:53] type=kotlin.Comparator<Int> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};gen=1] targs=[Int]
 expr e@9:63 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-8
 expr e@9:63#1 memberCall recv=e@9:63 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@9:61 lambda params=[] body=e@9:63#1 label=maxOfWith type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any
+expr e@9:61 lambda params=[] body=e@9:63#1 label=maxOfWith type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
 expr e@9:26#1 memberCall recv=e@9:26 callee=maxOfWith args=[_:e@9:43,_:e@9:61] type=Int call=kotlin.collections.maxOfWith[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=kotlin.Comparator<in T2>,fn{p=kotlin.collections.Map.Entry<T0,T1>;ret=T2};gen=3] targs=[String,Int,Int]
 expr e@9:5 localDecl maxOfWith mutable=0 type=Int init=e@9:26#1 type=Unit ref=__local_7.maxOfWith[kind=local]
 expr e@10:33 name(values) type=kotlin.collections.Map<out String, Int> ref=mapMaxFamilySurface.$0.values[kind=vparam]
@@ -74,7 +74,7 @@ expr e@10:66 lambda params=[] body=e@10:68 label=compareBy type=(Int) -> Any?
 expr e@10:56 call callee=e@10:56#1 args=[_:e@10:66] type=kotlin.Comparator<Int> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};gen=1] targs=[Int]
 expr e@10:76 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-10
 expr e@10:76#1 memberCall recv=e@10:76 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@10:74 lambda params=[] body=e@10:76#1 label=maxOfWithOrNull type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any
+expr e@10:74 lambda params=[] body=e@10:76#1 label=maxOfWithOrNull type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
 expr e@10:33#1 memberCall recv=e@10:33 callee=maxOfWithOrNull args=[_:e@10:56,_:e@10:74] type=Int? call=kotlin.collections.maxOfWithOrNull[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=kotlin.Comparator<in T2>,fn{p=kotlin.collections.Map.Entry<T0,T1>;ret=T2};gen=3] targs=[String,Int,Int]
 expr e@10:5 localDecl maxOfWithOrNull mutable=0 type=Int? init=e@10:33#1 type=Unit ref=__local_8.maxOfWithOrNull[kind=local]
 expr e@11:43 name(values) type=kotlin.collections.Map<out String, Int> ref=mapMaxFamilySurface.$0.values[kind=vparam]

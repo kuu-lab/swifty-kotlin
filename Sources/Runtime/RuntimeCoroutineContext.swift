@@ -177,11 +177,12 @@ public func kk_context_fold(
     var acc = initial
     for elementRaw in runtimeCoroutineContextElementHandles(in: ctx) {
         var thrown = 0
-        acc = maybeUnbox(lambda(closureRaw, acc, elementRaw, &thrown))
+        let result = lambda(closureRaw, acc, elementRaw, &thrown)
         if thrown != 0 {
             outThrown?.pointee = thrown
-            return initial
+            return acc
         }
+        acc = maybeUnbox(result)
     }
     return acc
 }
@@ -254,6 +255,34 @@ public func kk_continuation_interceptor_intercept_continuation(
         return continuationRaw
     }
     return runtimeRegisterObject(interceptedObject)
+}
+
+func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
+    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")) else {
+        return nil
+    }
+    let isDispatcherObject = isRegisteredRuntimeObjectPointer(receiver)
+        && UnsafeMutableRawPointer(bitPattern: receiver).flatMap { tryCast($0, to: RuntimeDispatcher.self) } != nil
+    guard isDispatcherTag(receiver) || isDispatcherObject else {
+        return nil
+    }
+    // ContinuationInterceptor declares intercept/release before its context overrides.
+    switch methodSlot {
+    case 0:
+        let intercept: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, continuation, outThrown in
+            outThrown?.pointee = 0
+            return kk_continuation_interceptor_intercept_continuation(receiver, continuation)
+        }
+        return unsafeBitCast(intercept, to: Int.self)
+    case 1:
+        let release: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
+            outThrown?.pointee = 0
+            return 0
+        }
+        return unsafeBitCast(release, to: Int.self)
+    default:
+        return nil
+    }
 }
 
 /// Return the raw handle for a known context element matching the supplied key.
@@ -611,6 +640,28 @@ public func kk_dispatcher_main() -> Int {
     RuntimeDispatcherTag.mainDispatcher
 }
 
+// Memory-representation bridge: scheduler tags have no Kotlin vtable, while
+// source-defined MainCoroutineDispatcher implementations retain their getter.
+@_cdecl("__kk_dispatcher_immediate")
+public func kk_dispatcher_immediate(
+    _ dispatcher: Int, _ getterSlot: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if isDispatcherTag(dispatcher) { return dispatcher }
+    let fnPtr = kk_vtable_lookup(dispatcher, getterSlot)
+    let getter = unsafeBitCast(
+        fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = getter(dispatcher, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(
+            thrown, outThrown: outThrown, context: "MainCoroutineDispatcher.immediate"
+        )
+    }
+    return result
+}
+
 /// A simple heap-allocated, `@unchecked Sendable` box used to pass an integer
 /// result from a `DispatchQueue.async` closure back to the waiting thread in
 /// the non-coroutine (semaphore) fallback path of `kk_with_context`.
@@ -685,6 +736,16 @@ func kk_with_context_impl(
     // would lose the parent scope — breaking structured concurrency.
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = parentScope
+        // KUU-964: propagate the caller's Job the same way — withContext(context)
+        // without a Job element keeps the ambient Job, so `coroutineContext.job`
+        // resolves inside the block (kotlinx's contract). A Job element the
+        // context itself carries (e.g. NonCancellable) was already installed by
+        // `kk_with_context_full` and must not be clobbered.
+        if contState.jobHandle == nil {
+            contState.jobHandle = contState.scope?.job
+                ?? RuntimeContinuationState.current?.jobHandle
+                ?? RuntimeJobHandle.current
+        }
     }
 
     // NOTE: When the target queue is DispatchQueue.main and we are already on

@@ -491,9 +491,7 @@ struct NativeEmitter {
 
     /// Returns true for imported-library symbols that are expected to be
     /// backed by a global variable in the linked object (properties, fields,
-    /// backing fields, and top-level objects). Companion objects are excluded
-    /// because their functions are emitted as static-like receivers and they
-    /// do not allocate a singleton global.
+    /// backing fields, and source-backed singleton objects).
     private func shouldEmitImportedGlobalReference(for symbol: SymbolID) -> Bool {
         guard let sym = symbols?.symbol(symbol),
               sym.flags.contains(.importedLibrary)
@@ -504,14 +502,9 @@ struct NativeEmitter {
         case .property, .field, .backingField:
             return true
         case .object:
-            // Top-level object singletons have a global instance.
-            // Companion objects only need one when their virtual methods
-            // require a runtime receiver and vtable.
             if let parentID = symbols?.parentSymbol(for: symbol),
-               let parent = symbols?.symbol(parentID),
-               parent.kind != .package,
-               symbols?.nominalLayout(for: symbol)?.vtableSize ?? 0 == 0 {
-                return false
+               symbols?.companionObjectSymbol(for: parentID) == symbol {
+                return symbols?.companionObjectInitializerSymbol(for: parentID) != nil
             }
             // Synthetic singleton stubs (e.g. kotlin.system.System) have no
             // backing state and no initializer, so their global slot is never

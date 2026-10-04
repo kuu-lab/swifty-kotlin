@@ -263,7 +263,6 @@ package struct KnownCompilerNames {
     let dispatchers: InternedString
     let charsets: InternedString
     let throwable: InternedString
-    let exception: InternedString
     let cancellationException: InternedString
 
     let null: InternedString
@@ -365,6 +364,8 @@ package struct KnownCompilerNames {
     let binarySearch: InternedString
     let binarySearchBy: InternedString
     let chunked: InternedString
+    let coerceAtLeast: InternedString
+    let coerceAtMost: InternedString
     let coerceIn: InternedString
     let compareTo: InternedString
     let contains: InternedString
@@ -681,7 +682,6 @@ package struct KnownCompilerNames {
         dispatchers = interner.intern("Dispatchers")
         charsets = interner.intern("Charsets")
         throwable = interner.intern("Throwable")
-        exception = interner.intern("Exception")
         cancellationException = interner.intern("CancellationException")
 
         null = interner.intern("null")
@@ -853,6 +853,8 @@ package struct KnownCompilerNames {
         binarySearch = interner.intern("binarySearch")
         binarySearchBy = interner.intern("binarySearchBy")
         chunked = interner.intern("chunked")
+        coerceAtLeast = interner.intern("coerceAtLeast")
+        coerceAtMost = interner.intern("coerceAtMost")
         coerceIn = interner.intern("coerceIn")
         compareTo = interner.intern("compareTo")
         contains = interner.intern("contains")
@@ -1140,8 +1142,11 @@ package struct KnownCompilerNames {
         symbol.name == channel || symbolMatches(symbol, fqName: kotlinxCoroutinesChannelFQName)
     }
 
+    /// Only `Throwable` catches everything: `catch (e: Exception)` must still
+    /// let `Error` subclasses (`NotImplementedError`, `AssertionError`, user
+    /// `Error()` subclasses) propagate, so it needs the runtime type check.
     func isThrowableCatchAllSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == throwable || symbol.name == exception
+        symbol.name == throwable
     }
 
     func isCancellationExceptionSymbol(_ symbol: SemanticSymbol) -> Bool {

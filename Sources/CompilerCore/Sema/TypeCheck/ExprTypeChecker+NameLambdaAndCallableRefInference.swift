@@ -571,6 +571,31 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
+    /// Resolve the property read in a compound assignment through the existing
+    /// getter overload rules. Reserve the expression's call binding for its
+    /// arithmetic operator; lowering reads and writes the selected property.
+    private func resolveExtensionPropertyForCompoundAssignment(
+        id: ExprID,
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        let sema = ctx.sema
+        guard let propertyType = driver.callChecker.resolveExtensionPropertyGetter(
+            id: id,
+            calleeName: calleeName,
+            range: range,
+            receiverType: receiverType,
+            expectedType: nil,
+            ctx: ctx,
+            bindCall: false
+        ), let property = sema.bindings.identifierSymbol(for: id) else {
+            return nil
+        }
+        return (property, propertyType)
+    }
+
     /// Compound assignment through an explicit receiver, e.g. `obj.field += value`
     /// or `this.box.n += value`. Mirrors `inferCompoundAssignExpr`'s operator-overload
     /// resolution (`plusAssign` then binary-operator fallback) but resolves the
@@ -596,6 +621,12 @@ extension ExprTypeChecker {
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
+        ) ?? resolveExtensionPropertyForCompoundAssignment(
+            id: id,
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            range: range,
+            ctx: ctx
         ) else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
@@ -808,6 +839,17 @@ extension ExprTypeChecker {
             )
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
+        }
+        if let receiverType = ctx.implicitReceiverType {
+            candidates.removeAll { candidate in
+                guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
+                    return false
+                }
+                return !sema.types.isSubtype(
+                    sema.types.makeNonNullable(receiverType),
+                    sema.types.makeNonNullable(declaredReceiver)
+                )
+            }
         }
         if candidates.isEmpty {
             if let receiverType = ctx.implicitReceiverType,
@@ -1263,7 +1305,9 @@ extension ExprTypeChecker {
         bodyCtx = bodyCtx.enteringLambdaBody()
         // When the expected function type has a receiver (e.g. StringBuilder.() -> Unit),
         // set the implicit receiver so that unqualified member calls resolve correctly.
-        if let receiverType = expectedFunctionType?.receiver {
+        if let receiverType = expectedFunctionType?.receiver
+            ?? sema.bindings.coroutineScopeLambdaReceiverTypes[id]
+        {
             bodyCtx = bodyCtx.with(implicitReceiverType: receiverType)
             // The lambda's own receiver is its `this`: shadow the enclosing
             // function's receiver in `locals` (which `inferThisRefExpr` reads
@@ -1386,6 +1430,20 @@ extension ExprTypeChecker {
         }
 
         if let expectedType, let expectedFunctionType {
+            if let session = ctx.builderInference,
+               expectedFunctionType.returnType != sema.types.unitType,
+               session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
+            {
+                session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                    subtype: inferredBodyType,
+                    supertype: expectedFunctionType.returnType,
+                    typeVarBySymbol: session.typeVarBySymbol,
+                    typeSystem: sema.types,
+                    blameRange: ast.arena.exprRange(body)
+                ))
+                sema.bindings.bindExprType(id, type: expectedType)
+                return expectedType
+            }
             // Enhanced return type inference with Unit optimization
             let optimizedReturnType = inferOptimizedReturnType(
                 inferredBodyType: inferredBodyType,
@@ -2549,6 +2607,7 @@ extension ExprTypeChecker {
             return sema.types.errorType
         }
         if let thisLocal = locals[ctx.interner.intern("this")] {
+            sema.bindings.bindIdentifier(id, symbol: thisLocal.symbol)
             sema.bindings.bindExprType(id, type: thisLocal.type)
             return thisLocal.type
         }

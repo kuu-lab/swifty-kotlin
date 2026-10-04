@@ -448,7 +448,10 @@ extension DataFlowSemaPhase {
             var paths: [[InternedString]] = []
             if path.count == 1 {
                 if let currentPackageFQName,
-                   !currentPackageFQName.isEmpty
+                   !currentPackageFQName.isEmpty || symbols.lookupAll(fqName: path).contains(where: { symbolID in
+                       guard let symbol = symbols.symbol(symbolID) else { return false }
+                       return isNominalTypeSymbol(symbol.kind) && !symbol.flags.contains(.synthetic)
+                   })
                 {
                     paths.append(currentPackageFQName + path)
                 }
@@ -475,6 +478,21 @@ extension DataFlowSemaPhase {
                     // Wildcard imports rank below same-package and explicit
                     // imports, matching Kotlin's unqualified-name precedence.
                     paths.append(contentsOf: wildcardPaths)
+                }
+                // Header types are resolved before TypeCheck builds file scopes.
+                // Expand star imports here as well; otherwise a same-named
+                // stdlib class found by the short-name fallback can replace the
+                // imported class in a function signature (KUU-916).
+                if let shortName = path.first {
+                    for importDecl in imports where importDecl.alias == nil {
+                        let imported = symbols.lookupAll(fqName: importDecl.path)
+                        if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                            paths.append(importDecl.path + [shortName])
+                        }
+                    }
+                }
+                for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                    paths.append(defaultPackage + path)
                 }
                 // An unqualified root symbol is the final fallback. This ordering
                 // keeps an explicit import from being shadowed by a compatibility
@@ -512,6 +530,12 @@ extension DataFlowSemaPhase {
                           importDecl.path.last == firstComponent
                 {
                     candidatePaths.append(importDecl.path + tail)
+                }
+            }
+            for importDecl in imports where importDecl.alias == nil {
+                let imported = symbols.lookupAll(fqName: importDecl.path)
+                if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                    candidatePaths.append(importDecl.path + path)
                 }
             }
             // A nested type can be rooted in a default-imported declaration,

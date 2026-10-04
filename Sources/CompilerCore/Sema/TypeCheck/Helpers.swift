@@ -28,6 +28,38 @@ func nominalRangeElementType(
 }
 
 struct TypeCheckHelpers {
+    /// The companion object's type when `exprID` is a bare `ClassName` value
+    /// expression naming a class/interface/enum that has a companion object.
+    ///
+    /// Sema types such a name as the class's own nominal type so that
+    /// `ClassName.member()` keeps resolving through the companion. In Kotlin,
+    /// however, a bare class name used as a *value* denotes the companion object
+    /// (`val f: Factory<Widget> = Widget`, `makeTwo(Widget)`), and the lowering
+    /// already redirects it to the companion singleton. Value-position callers
+    /// use this to give the expression the companion's type -- which carries the
+    /// companion's supertypes -- and rebind the expression to it.
+    func retypeClassNameAsCompanionValue(
+        _ exprID: ExprID,
+        currentType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard case .nameRef = ast.arena.expr(exprID),
+              let boundSymbol = sema.bindings.identifierSymbols[exprID],
+              let boundInfo = sema.symbols.symbol(boundSymbol),
+              boundInfo.kind == .class || boundInfo.kind == .interface || boundInfo.kind == .enumClass,
+              let companionSymbol = sema.symbols.companionObjectSymbol(for: boundSymbol),
+              case let .classType(currentClass) = sema.types.kind(of: currentType),
+              currentClass.classSymbol == boundSymbol
+        else {
+            return nil
+        }
+        let companionType = sema.symbols.propertyType(for: companionSymbol)
+            ?? sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+        sema.bindings.bindExprType(exprID, type: companionType)
+        return companionType
+    }
+
     /// Per-compilation memoization for opt-in requirement derivation and
     /// annotation-class resolution (see `OptInResolutionCache`). A class, so
     /// copies of this struct and every `driver.helpers` call site share it.
@@ -56,7 +88,17 @@ struct TypeCheckHelpers {
         guard let symbolID = candidates.first else {
             return nil
         }
-        return sema.types.make(.classType(ClassType(classSymbol: symbolID, args: [], nullability: .nonNull)))
+        // Source-backed Deferred is generic (`Deferred<out T>`). An empty
+        // ClassType.args list is an arity mismatch and breaks `.await()`
+        // member matching after KSP-1564 / #7485.
+        let typeArguments: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbolID).map { _ in
+            .out(sema.types.anyType)
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbolID,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
     }
 
     func emitVisibilityError(
