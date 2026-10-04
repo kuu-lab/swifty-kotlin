@@ -69,12 +69,12 @@ extension CallTypeChecker {
         guard locals[calleeName] == nil else { return nil }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         let name = ctx.interner.resolve(calleeName)
-        guard name == "remove" || name == "iterator" else { return nil }
+        guard name == "remove" || name == "iterator" || name == "contains" else { return nil }
         guard !args.contains(where: { ctx.ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }) else {
             return nil
         }
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: ctx.interner)
-        guard receiverClassifier.isCollectionLikeType(nonNullReceiver) else { return nil }
+        guard name == "contains" || receiverClassifier.isCollectionLikeType(nonNullReceiver) else { return nil }
 
         var candidates = driver.helpers.collectMemberFunctionCandidates(
             named: calleeName,

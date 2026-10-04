@@ -323,6 +323,15 @@ extension CoroutineLoweringPass {
                 continue
             }
 
+            if let isLazyInstructions = rewriteCoroutineStartIsLazyCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            ) {
+                loweredBody.append(contentsOf: isLazyInstructions)
+                continue
+            }
+
             if let builderInstruction = rewriteCoroutineBuilderBuildCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
@@ -1178,6 +1187,31 @@ extension CoroutineLoweringPass {
             canThrow: false,
             thrownResult: nil
         )
+    }
+
+    /// `CoroutineStart.isLazy` is registered as a synthetic member property
+    /// with the `kk_coroutine_start_is_lazy` external link name. The enum
+    /// entries are symbolic markers with no distinct runtime value, so the
+    /// read folds here to a Boolean constant from the entry the receiver
+    /// refers to (the same compile-time resolution the launch/async
+    /// start-mode rewrite uses). A receiver that is not a compile-time-known
+    /// `CoroutineStart` entry folds to `false`, mirroring the launcher's
+    /// fallback-to-DEFAULT convention. `kk_coroutine_start_is_lazy` itself is
+    /// never emitted, so it needs no runtime entry point.
+    func rewriteCoroutineStartIsLazyCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction]? {
+        guard call.callee == rewrite.ctx.interner.intern("kk_coroutine_start_is_lazy"),
+              let result = call.result
+        else {
+            return nil
+        }
+        let entryName = call.arguments.first.flatMap {
+            coroutineStartEntryName($0, symbolByExprRaw: symbolByExprRaw, using: rewrite)
+        }
+        return [.constValue(result: result, value: .intLiteral(entryName == "LAZY" ? 1 : 0))]
     }
 
     func rewriteCoroutineBuilderBuildCall(
