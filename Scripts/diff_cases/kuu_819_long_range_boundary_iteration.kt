@@ -19,6 +19,13 @@ fun main() {
     while (it.hasNext()) println(it.next())
     println(it.hasNext())
 
+    // Keep the generic Iterable dispatch path working for a range value too.
+    val iterableRange: Iterable<Long> = Long.MAX_VALUE..Long.MAX_VALUE
+    val iterableIterator = iterableRange.iterator()
+    println(iterableIterator.hasNext())
+    println(iterableIterator.next())
+    println(iterableIterator.hasNext())
+
     // for-in over a boundary-ending range.
     for (v in Long.MAX_VALUE - 2L..Long.MAX_VALUE) println(v)
 
