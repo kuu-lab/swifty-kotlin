@@ -2785,7 +2785,28 @@ extension NativeEmitter {
                     }
                     return nil
                 }()
-                let virtualCallReturnsAggregate = calleeName == "get"
+                // The `Throwable.message` vtable slot uses the raw String?
+                // handle ABI: runtime-allocated exceptions answer it with a
+                // runtime bridge, and Kotlin getters are registered through a
+                // raw-return bridge (`appendObjectVtablePropertyAccessorRegistrations`).
+                let isThrowableMessageVirtualGetter: Bool = {
+                    guard case let .vtable(slot) = dispatch,
+                          calleeName == "get",
+                          argumentValues.count == 1,
+                          let symbols,
+                          let typeSystem,
+                          let receiverType = module.arena.exprType(receiver),
+                          case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
+                    else {
+                        return false
+                    }
+                    return symbols.throwableMessageGetterSlot(
+                        for: receiverClass.classSymbol,
+                        interner: interner
+                    ) == slot
+                }()
+                let virtualCallReturnsAggregate = !isThrowableMessageVirtualGetter
+                    && calleeName == "get"
                     && argumentValues.count == 1
                     && typeLowering != nil
                     && (virtualCallDeclaredAggregateResult
@@ -2873,6 +2894,7 @@ extension NativeEmitter {
                 // thrown channel. Keep the indirect function type consistent with
                 // that source-backed ABI (KSP-712).
                 let shouldAppendThrownChannel = usesThrownChannel
+                    || isThrowableMessageVirtualGetter
                     || isInternalCall
                     || sourceExternalCallSignature != nil
                     || virtualSourceCallSignature != nil
@@ -2927,8 +2949,15 @@ extension NativeEmitter {
                     false
                 }
 
-                let calleeFunction: LLVMFunction? = if let effectiveSymbol,
-                                                       let internalFunction = internalFunctions[effectiveSymbol]
+                let calleeFunction: LLVMFunction? = if isThrowableMessageVirtualGetter {
+                    // Only carries the indirect-call type `(Int, Int*) -> Int`.
+                    declareExternalFunction(
+                        named: "__kk_throwable_message__vslot",
+                        argumentCount: 1,
+                        appendThrownChannel: true
+                    )
+                } else if let effectiveSymbol,
+                          let internalFunction = internalFunctions[effectiveSymbol]
                 {
                     internalFunction
                 } else if let fallbackInternal {
@@ -3156,7 +3185,17 @@ extension NativeEmitter {
                 bindings.positionBuilder(builder, at: mergeBlock)
                 currentBlock = mergeBlock
                 let mergedValue: LLVMCAPIBindings.LLVMValueRef
-                if isRuntimeCallbackRawABIVirtualCall,
+                if isThrowableMessageVirtualGetter,
+                   let result,
+                   let vCallValue
+                {
+                    mergedValue = isStringAggregateExpr(result)
+                        ? bridgeRuntimeRawToStringAggregate(
+                            vCallValue,
+                            suffix: "\(instructionIndex)_virtual_throwable_message"
+                        ) ?? vCallValue
+                        : vCallValue
+                } else if isRuntimeCallbackRawABIVirtualCall,
                    let result,
                    isStringAggregateExpr(result),
                    let vCallValue
