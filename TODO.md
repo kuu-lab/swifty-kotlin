@@ -1893,9 +1893,10 @@
     - `kotlin.coroutines.CoroutineContext.minusKey` — fun CoroutineContext.minusKey(Key): CoroutineContext  -- `abstract fun minusKey(kotlin.coroutines/CoroutineContext.Key<*>): kotlin.coroutines/CoroutineContext`
     - `kotlin.coroutines.CoroutineContext.plus` — fun CoroutineContext.plus(CoroutineContext): CoroutineContext  -- `open fun plus(kotlin.coroutines/CoroutineContext): kotlin.coroutines/CoroutineContext`
 
-- [ ] KSP-1144: kotlin.coroutines.CoroutineContext.Element.Element の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1144: kotlin.coroutines.CoroutineContext.Element.Element の未実装 stdlib API を実装する（4 件）
+  - 完了根拠: KUU-695 / PR #7378 で 4 宣言を source 化済み。KUU-442 で source owner の一意性・Sema golden・既存単体 kotlinc diff を検証。
   - 対象: `kotlin.coroutines.CoroutineContext.Element` / receiver `Element`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/CoroutineContext/Element/Element.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/CoroutineContext.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_coroutines_CoroutineContext_Element_Element_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_coroutines_CoroutineContext_Element_Element_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_coroutines_CoroutineContext_Element_Element_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
