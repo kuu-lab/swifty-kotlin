@@ -475,6 +475,25 @@ extension DataFlowSemaPhase {
             }
         }
 
+        let isMutableSet = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "MutableSet"
+        if isMutableSet {
+            // Preserve add/remove/clear slots used by existing source Set bridges.
+            let bridgeMethods = ["add", "remove", "clear", "addAll", "removeAll", "retainAll"]
+            return methods.sorted { lhs, rhs in
+                func fixedSlot(_ method: SemanticSymbol) -> Int {
+                    guard symbols.isSourceBackedSymbol(method.id) else { return bridgeMethods.count }
+                    return bridgeMethods.firstIndex(of: interner.resolve(method.name)) ?? bridgeMethods.count
+                }
+                let lhsSlot = fixedSlot(lhs)
+                let rhsSlot = fixedSlot(rhs)
+                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
         let isSequence = nominalSymbol.fqName.count == 3
             && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
             && interner.resolve(nominalSymbol.fqName[1]) == "sequences"
