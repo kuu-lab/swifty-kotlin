@@ -2570,6 +2570,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
         // `x.also { ... }` / `x.run { ... }` resolve as ordinary member calls
@@ -3312,6 +3313,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(
             chosen: chosen,
