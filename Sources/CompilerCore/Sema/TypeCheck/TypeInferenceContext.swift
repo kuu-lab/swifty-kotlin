@@ -23,6 +23,8 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// while entering lambda literals so non-local return values are checked
     /// against the actual return target.
     var enclosingFunctionReturnType: TypeID?
+    var enclosingFunctionSymbol: SymbolID?
+    var enclosingLambdaExprIDs: [ExprID] = []
     /// When set, the specified block expression exports its local bindings to
     /// the outer locals map. Used for do-while body-to-condition visibility.
     var exportBlockLocalsForExpr: ExprID?
@@ -109,9 +111,10 @@ struct TypeInferenceContext: CustomStringConvertible {
         return copy
     }
 
-    func enteringLambdaBody() -> TypeInferenceContext {
+    func enteringLambdaBody(_ exprID: ExprID) -> TypeInferenceContext {
         var copy = self
         copy.lambdaDepth += 1
+        copy.enclosingLambdaExprIDs.append(exprID)
         // Lambda bodies open a new control-flow scope, like local function
         // bodies do: a `break`/`continue` written directly in a lambda cannot
         // reach a loop enclosing the lambda, because non-local break/continue
@@ -145,6 +148,8 @@ struct TypeInferenceContext: CustomStringConvertible {
         lambdaLabelStack: [InternedString]? = nil,
         lambdaDepth: Int? = nil,
         enclosingFunctionReturnType: TypeID?? = nil,
+        enclosingFunctionSymbol: SymbolID?? = nil,
+        enclosingLambdaExprIDs: [ExprID]? = nil,
         exportBlockLocalsForExpr: ExprID?? = nil,
         flowState: DataFlowState? = nil,
         currentDeclSymbol: SymbolID?? = nil,
@@ -170,6 +175,8 @@ struct TypeInferenceContext: CustomStringConvertible {
         if let enclosingFunctionReturnType {
             copy.enclosingFunctionReturnType = enclosingFunctionReturnType
         }
+        if let enclosingFunctionSymbol { copy.enclosingFunctionSymbol = enclosingFunctionSymbol }
+        if let enclosingLambdaExprIDs { copy.enclosingLambdaExprIDs = enclosingLambdaExprIDs }
         if let exportBlockLocalsForExpr { copy.exportBlockLocalsForExpr = exportBlockLocalsForExpr }
         if let flowState { copy.flowState = flowState }
         if let currentDeclSymbol { copy.currentDeclSymbol = currentDeclSymbol }

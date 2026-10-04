@@ -202,11 +202,17 @@ final class ExprTypeChecker {
             return driver.localDeclChecker.inferIndexedAssignExpr(id, receiverExpr: receiverExpr, indices: indices, valueExpr: valueExpr, range: range, ctx: ctx, locals: &locals)
 
         case let .returnExpr(value, label, range):
-            if let label, !ctx.hasLambdaLabel(label) {
+            let targetsFunction = label.map { label in
+                !ctx.hasLambdaLabel(label)
+                    && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
+            } ?? false
+            if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
+                sema.bindings.bindFunctionReturn(id, symbol: functionSymbol, lambdaPath: ctx.enclosingLambdaExprIDs)
+            } else if let label, !ctx.hasLambdaLabel(label) {
                 let labelName = interner.resolve(label)
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0042",
-                    "'return@\(labelName)' does not reference a valid enclosing lambda.",
+                    "'return@\(labelName)' does not reference a valid enclosing lambda or function.",
                     range: range
                 )
             }
@@ -220,7 +226,7 @@ final class ExprTypeChecker {
             // an outer assignment: `x = if (c) 1 else return null` inside a
             // function returning `Int?` must check `return null` against
             // `Int?`, not `x`'s declared `Int`).
-            let returnExpectedType: TypeID? = if label == nil,
+            let returnExpectedType: TypeID? = if label == nil || targetsFunction,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
             {
                 enclosingFunctionReturnType

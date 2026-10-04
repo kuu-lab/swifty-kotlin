@@ -557,7 +557,9 @@ extension LocalDeclTypeChecker {
             loopLabelStack: [],
             lambdaLabelStack: [],
             lambdaDepth: 0,
-            enclosingFunctionReturnType: resolvedReturnType
+            enclosingFunctionReturnType: resolvedReturnType,
+            enclosingFunctionSymbol: funSymbol,
+            enclosingLambdaExprIDs: []
         )
         for (i, param) in valueParams.enumerated() {
             bodyLocals[param.name] = (parameterTypes[i], paramSymbols[i], false, true)

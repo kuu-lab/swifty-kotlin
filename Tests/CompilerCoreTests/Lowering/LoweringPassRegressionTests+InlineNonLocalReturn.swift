@@ -4,6 +4,44 @@ import Foundation
 import Testing
 
 extension LoweringPassRegressionTests {
+    @Test
+    func testFunctionNameLabeledReturnLowersAsNonLocalReturn() throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        inline fun String.tryIt(block: () -> Unit) { block() }
+        fun named(): Int {
+            invokeBlock { return@named 17 }
+            return -1
+        }
+        fun extensionCall(s: String) {
+            s.tryIt { return@extensionCall }
+        }
+        fun lambdaLocal() {
+            invokeBlock { return@invokeBlock }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try requireTestValue(ctx.kir, "expected KIR module")
+        let lambdas = module.arena.declarations.compactMap { $0.function }.filter {
+            ctx.interner.resolve($0.name).hasPrefix("kk_lambda")
+        }
+        let nonLocalLambdas = lambdas.filter { function in
+            function.body.contains { if case .nonLocalReturn = $0 { return true }; return false }
+        }
+        #expect(nonLocalLambdas.count == 2)
+        #expect(nonLocalLambdas.allSatisfy(\.isInlineOnly))
+        #expect(lambdas.filter { !$0.isInlineOnly }.count == 1)
+        try LoweringPhase().run(ctx)
+        for name in ["named", "extensionCall", "lambdaLocal"] {
+            let function = module.arena.declarations.compactMap { $0.function }.first {
+                ctx.interner.resolve($0.name) == name
+            }
+            #expect(function != nil)
+            #expect(function?.body.contains { if case .nonLocalReturn = $0 { return true }; return false } == false)
+        }
+    }
+
 
     // MARK: - BUG-209: source lambda returns
 

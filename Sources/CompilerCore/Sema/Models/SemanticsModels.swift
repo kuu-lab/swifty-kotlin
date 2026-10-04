@@ -1550,6 +1550,9 @@ public final class SymbolTable {
 public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
+    /// Lambda boundaries crossed by a return targeting an enclosing named function.
+    /// Validated after overload resolution has bound the containing calls.
+    public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
     public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
@@ -1737,6 +1740,11 @@ public final class BindingTable {
 
     public func bindIdentifier(_ expr: ExprID, symbol: SymbolID) {
         identifierSymbols[expr] = symbol
+    }
+
+    func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
+        identifierSymbols[expr] = symbol
+        functionReturnLambdaPaths[expr] = lambdaPath
     }
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {
