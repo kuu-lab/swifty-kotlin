@@ -1579,6 +1579,19 @@ extension CallTypeChecker {
             }
         }
 
+        if !isSuperCall,
+           let local = locals[calleeName],
+           let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
+           extensionSyntheticFallbackReceiverMatches(
+               callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
+           ),
+           !allCandidates.contains(where: {
+               sema.symbols.functionSignature(for: $0)?.receiverType == nil
+           })
+        {
+            allCandidates = [local.symbol]
+        }
+
         // Direct member lookup and short-name extension recovery can bypass
         // cachedScopeLookup, which normally removes an expect declaration once
         // its matching actual is linked. Apply the same rule before resolving

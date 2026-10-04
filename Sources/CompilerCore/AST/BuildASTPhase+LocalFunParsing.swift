@@ -33,17 +33,16 @@ extension BuildASTPhase {
 
         let funTokens = Array(statementTokens[startIndex...])
 
-        guard let nameToken = funTokens.dropFirst().first(where: { token in
-            TypeRefParserCore.isDeclarationNameToken(token.kind)
-        }),
-            let name = internedIdentifier(from: nameToken, interner: interner)
+        guard let lParenIndex = functionParameterOpenParenIndex(in: funTokens),
+              let nameToken = funTokens[..<lParenIndex].last(where: { token in
+                  TypeRefParserCore.isDeclarationNameToken(token.kind)
+              }),
+              let name = internedIdentifier(from: nameToken, interner: interner)
         else {
             return nil
         }
 
-        guard let lParenIndex = funTokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else {
-            return nil
-        }
+        let receiverType = declarationReceiverType(from: funTokens, interner: interner, astArena: astArena)
 
         var valueParams: [ValueParamDecl] = []
         var depth = BracketDepth()
@@ -110,6 +109,7 @@ extension BuildASTPhase {
         let range = SourceRange(start: head.range.start, end: end)
         return astArena.appendExpr(.localFunDecl(
             name: name,
+            receiverType: receiverType,
             valueParams: valueParams,
             returnType: returnType,
             body: body,
