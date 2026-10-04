@@ -200,8 +200,6 @@ public fun <T> Flow<T>.conflate(): Flow<T> = this
 
 public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> = this
 
-public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> = this
-
 // `cancellable` is the exception to the pass-throughs above: it composes the
 // retained collect/emit core with `ensureActive`, so a collector running in a
 // cancelled coroutine stops between elements instead of draining the upstream
@@ -297,18 +295,4 @@ public suspend fun <T> Flow<T>.retryWhen(
             attempt += 1
         }
     }
-}
-
-// `onEmpty` signature adaptation (KSP-1577): upstream's action runs with a
-// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). There is no
-// FlowCollector type on this surface, so — like `catch`/`onCompletion` above —
-// the receiver is dropped and the action cannot emit fallback elements. The
-// action's result is typed `Any` (as `coroutineScope`'s block is): a strict
-// `() -> Unit` parameter does not accept a plain zero-parameter lambda.
-public suspend fun <T> Flow<T>.onEmpty(action: suspend () -> Any): Flow<T> {
-    val items = this.toList()
-    if (items.isEmpty()) {
-        action()
-    }
-    return items.asFlow()
 }

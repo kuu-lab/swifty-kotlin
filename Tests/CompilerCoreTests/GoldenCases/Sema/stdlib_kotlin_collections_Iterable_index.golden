@@ -24,7 +24,7 @@ expr e@9:24 lambda params=[] body=e@9:26#1 label=indexOfLast type=(Int) -> Boole
 expr e@9:5#1 memberCall recv=e@9:5 callee=indexOfLast args=[_:e@9:24] type=Int call=kotlin.collections.indexOfLast[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=Boolean};gen=1] targs=[Int]
 expr e@10:5 name(list) type=kotlin.collections.List<Int> ref=probe.$0.list[kind=vparam]
 expr e@10:18 int(1) type=Int
-expr e@10:5#1 memberCall recv=e@10:5 callee=indexOf args=[_:e@10:18] type=Int call=kotlin.collections.indexOf[kind=fun;recv=kotlin.collections.List<T0>;params=T0;gen=1] targs=[Int]
+expr e@10:5#1 memberCall recv=e@10:5 callee=indexOf args=[_:e@10:18] type=Int call=kotlin.collections.List.indexOf[kind=fun;recv=kotlin.collections.List<T0>;params=T0;gen=1] targs=[Int]
 expr e@11:5 name(list) type=kotlin.collections.List<Int> ref=probe.$0.list[kind=vparam]
 expr e@11:25 name(it) type=Int ref=s-2
 expr e@11:30 int(0) type=Int

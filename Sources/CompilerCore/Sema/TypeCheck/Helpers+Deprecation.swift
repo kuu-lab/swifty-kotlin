@@ -611,6 +611,25 @@ func isHiddenByDeprecatedAnnotation(_ symbol: SymbolID, symbols: SymbolTable) ->
     guard let annotation = symbols.annotations(for: symbol).first(where: {
         KnownCompilerAnnotation.deprecated.matches($0.annotationFQName)
     }) else { return false }
+    if let since = symbols.annotations(for: symbol).first(where: {
+        KnownCompilerAnnotation.deprecatedSinceKotlin.matches($0.annotationFQName)
+    }) {
+        for (index, argument) in since.arguments.enumerated() {
+            let pieces = argument.split(separator: "=", maxSplits: 1).map(String.init)
+            let value: String
+            if pieces.count == 2 {
+                guard pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == "hiddenSince" else { continue }
+                value = pieces[1]
+            } else {
+                guard index == 2 else { continue }
+                value = argument
+            }
+            let version = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"' \t\n"))
+            if let parsed = KotlinCompilerVersion(rawValue: version), parsed <= kotlinApiVersion {
+                return true
+            }
+        }
+    }
     for (index, argument) in annotation.arguments.enumerated() {
         let pieces = argument.split(separator: "=", maxSplits: 1).map(String.init)
         let value: String

@@ -392,5 +392,109 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
             expected: "30\n"
         )
     }
+
+    // KSP-CAP-001 (follow-up): a *bare* (unqualified) read of an enclosing
+    // class's mutable property from inside an object literal's member
+    // function previously crashed with `KSWIFTK-RUNTIME-0001:
+    // kk_array_get_inbounds precondition failed`. Such a read resolves
+    // through plain lexical scope lookup rather than
+    // `resolveImplicitReceiverMember`, so it never set
+    // `implicitReceiverMemberNames` and the generic field-offset read
+    // fallback in ExprLowerer+ControlFlowAndBlocks.swift used the object
+    // literal's own receiver with the enclosing class's field offset instead
+    // of walking the already-captured outer-receiver chain.
+    @Test
+    func testCodegenObjectLiteralMemberFunctionBareReadsOuterMutableProperty() throws {
+        let source = """
+        class Outer(val tag: String) {
+            var counter: Int = 5
+            fun make(): Int {
+                val obj = object {
+                    fun show(): Int {
+                        return counter
+                    }
+                }
+                return obj.show()
+            }
+        }
+
+        fun main() {
+            val o = Outer("hello")
+            println(o.make())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralBareReadOuterMutablePropertyExecution",
+            expected: "5\n"
+        )
+    }
+
+    // KSP-CAP-001 (follow-up): a bare *write-only* reference (no read of the
+    // same property anywhere in the object literal's body) was invisible to
+    // `CaptureAnalyzer.collectCapturedOuterSymbols`, which only recorded
+    // `.nameRef` reads -- so `capturesMutableOuterProperty` never fired, no
+    // capture slot was allocated, and the write landed on the object
+    // literal's own (much smaller) instance, throwing an unhandled
+    // out-of-bounds exception.
+    @Test
+    func testCodegenObjectLiteralMemberFunctionBareWriteOnlyToOuterMutableProperty() throws {
+        let source = """
+        class Outer(val tag: String) {
+            var counter: Int = 5
+            fun make(): Int {
+                val obj = object {
+                    fun bump() {
+                        counter = 42
+                    }
+                }
+                obj.bump()
+                return this.counter
+            }
+        }
+
+        fun main() {
+            val o = Outer("hello")
+            println(o.make())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralBareWriteOnlyOuterMutablePropertyExecution",
+            expected: "42\n"
+        )
+    }
+
+    // Companion to the write-only case above, for `+=` instead of `=`.
+    @Test
+    func testCodegenObjectLiteralMemberFunctionBareCompoundAssignOnlyToOuterMutableProperty() throws {
+        let source = """
+        class Outer(val tag: String) {
+            var counter: Int = 5
+            fun make(): Int {
+                val obj = object {
+                    fun bump() {
+                        counter += 1
+                    }
+                }
+                obj.bump()
+                return this.counter
+            }
+        }
+
+        fun main() {
+            val o = Outer("hello")
+            println(o.make())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralBareCompoundAssignOnlyOuterMutablePropertyExecution",
+            expected: "6\n"
+        )
+    }
 }
 #endif

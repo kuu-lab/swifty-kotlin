@@ -47,6 +47,35 @@ public struct IndexedCompoundAssignOperatorBinding {
     }
 }
 
+/// The operator applied to the *element* of `a[i] op= v` / `a[i]++` when the
+/// element type defines it (`plusAssign`, `plus`, `inc`, ...), as opposed to
+/// the builtin numeric/String arithmetic. Bound separately from the `get()`
+/// call binding, which already occupies `callBindings[expr]`.
+public struct IndexedCompoundAssignElementOperatorBinding {
+    public enum Kind {
+        /// `plusAssign`-style operator returning Unit: mutates the element
+        /// in place, so no `set()` write-back follows.
+        case inPlace
+        /// `plus`-style binary operator: `a[i] = a[i].plus(v)`.
+        case binary
+        /// `inc()` / `dec()` for `a[i]++` / `a[i]--`; takes no argument.
+        case incrementDecrement
+    }
+
+    public let call: CallBinding
+    public let kind: Kind
+    /// The `get()` result type the operator is applied to.
+    public let elementType: TypeID
+    public let resultType: TypeID
+
+    public init(call: CallBinding, kind: Kind, elementType: TypeID, resultType: TypeID) {
+        self.call = call
+        self.kind = kind
+        self.elementType = elementType
+        self.resultType = resultType
+    }
+}
+
 public struct LoopIterationBinding {
     public let iteratorCall: CallBinding?
     public let hasNextCall: CallBinding

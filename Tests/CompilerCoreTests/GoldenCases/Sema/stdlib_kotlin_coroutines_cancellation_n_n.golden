@@ -8,7 +8,7 @@ file fstdlib_kotlin_coroutines_cancellation_n_n package=_
 expr e@4:17 call callee=e@4:17#1 args=[] type=kotlin.coroutines.cancellation.CancellationException call=kotlin.coroutines.cancellation.CancellationException.<init>[kind=ctor;recv=kotlin.coroutines.cancellation.CancellationException;params=]
 expr e@4:5 localDecl noArg mutable=0 type=_ init=e@4:17 type=Unit ref=__local_0.noArg[kind=local]
 expr e@5:41 string(message) type=String
-expr e@5:19 call callee=e@5:19#1 args=[_:e@5:41] type=kotlin.coroutines.cancellation.CancellationException call=kotlin.coroutines.cancellation.CancellationException.<init>[kind=ctor;params=String]
+expr e@5:19 call callee=e@5:19#1 args=[_:e@5:41] type=kotlin.coroutines.cancellation.CancellationException call=kotlin.coroutines.cancellation.CancellationException.<init>[kind=ctor;recv=kotlin.coroutines.cancellation.CancellationException;params=String?]
 expr e@5:5 localDecl message mutable=0 type=_ init=e@5:19 type=Unit ref=__local_1.message[kind=local]
 expr e@6:64 string(cause) type=String
 expr e@6:39 call callee=e@6:39#1 args=[_:e@6:64] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>[kind=ctor;recv=kotlin.IllegalArgumentException;params=String?]
@@ -17,7 +17,7 @@ expr e@6:5 localDecl cause mutable=0 type=_ init=e@6:17 type=Unit ref=__local_2.
 expr e@7:49 string(both) type=String
 expr e@7:82 string(root) type=String
 expr e@7:57 call callee=e@7:57#1 args=[_:e@7:82] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>[kind=ctor;recv=kotlin.IllegalArgumentException;params=String?]
-expr e@7:27 call callee=e@7:27#1 args=[_:e@7:49,_:e@7:57] type=kotlin.coroutines.cancellation.CancellationException call=kotlin.coroutines.cancellation.CancellationException.<init>[kind=ctor;params=String,kotlin.Throwable?]
+expr e@7:27 call callee=e@7:27#1 args=[_:e@7:49,_:e@7:57] type=kotlin.coroutines.cancellation.CancellationException call=kotlin.coroutines.cancellation.CancellationException.<init>[kind=ctor;recv=kotlin.coroutines.cancellation.CancellationException;params=String?,kotlin.Throwable?]
 expr e@7:5 localDecl messageAndCause mutable=0 type=_ init=e@7:27 type=Unit ref=__local_3.messageAndCause[kind=local]
 expr e@9:35 name(null) type=Nothing?
 expr e@9:35#1 asCast expr=e@9:35 type=kotlin.Throwable? type=kotlin.Throwable?

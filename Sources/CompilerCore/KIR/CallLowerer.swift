@@ -768,7 +768,15 @@ final class CallLowerer {
             }
             return loweredCollectionFactory
         }
+        // Numeric conversions take no value parameters, so a resolved callee
+        // that consumes the single argument (e.g. an implicit-receiver
+        // `toInt(radix)` inside a `String` extension) is a real call, not a
+        // conversion of that argument.
+        let chosenConsumesArgument = chosen
+            .flatMap { sema.symbols.functionSignature(for: $0) }
+            .map { $0.parameterTypes.count == args.count } ?? false
         if args.count == 1,
+           !chosenConsumesArgument,
            let loweredNumericConversion = lowerTopLevelNumericConversionCall(
                sourceCalleeName: sourceCalleeName,
                argumentExpr: args[0].expr,
@@ -971,142 +979,27 @@ final class CallLowerer {
                   !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor
         {
-            // Constructor calls need an allocated object as the implicit receiver (p0).
-            // Allocate via kk_object_new(slotCount) and prepend it to the argument list.
-            // Derive slot count from NominalLayout.instanceSizeWords of the owning class.
-            let allocType = boundType ?? sema.types.anyType
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            var slotCount: Int64 = 1
-            var ownerNominalSymbol: SymbolID?
-            if let parentClassID = sema.symbols.parentSymbol(for: chosen),
-               let layout = sema.symbols.nominalLayout(for: parentClassID)
-            {
-                ownerNominalSymbol = parentClassID
-                slotCount = Int64(max(layout.instanceSizeWords, 1))
-            }
-            let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: intType)
-            instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
-            let classIDValue: Int64 = if let ownerNominalSymbol {
-                RuntimeTypeCheckToken.stableNominalTypeID(symbol: ownerNominalSymbol, sema: sema, interner: interner)
-            } else {
-                0
-            }
-            let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
-            instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-            let allocatedObj = arena.appendTemporary(type: allocType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_object_new"),
-                arguments: [slotCountExpr, classIDExpr],
-                result: allocatedObj,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let ownerNominalSymbol {
-                if sema.symbols.symbol(ownerNominalSymbol)?.flags.contains(.dataType) == true {
-                    let registerDataClassResult = arena.appendTemporary(type: intType)
-                    emitNonThrowingCall(
-                        callee: interner.intern("kk_runtime_register_data_class"),
-                        arg: classIDExpr,
-                        result: registerDataClassResult,
-                        into: &instructions
-                    )
-                    if let fieldMask = dataClassFieldSlotMask(owner: ownerNominalSymbol, sema: sema) {
-                        let maskExpr = arena.appendExpr(.intLiteral(fieldMask), type: intType)
-                        instructions.append(.constValue(result: maskExpr, value: .intLiteral(fieldMask)))
-                        let registerFieldsResult = arena.appendTemporary(type: intType)
-                        instructions.append(.call(
-                            symbol: nil,
-                            callee: interner.intern("kk_runtime_register_data_class_fields"),
-                            arguments: [classIDExpr, maskExpr],
-                            result: registerFieldsResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                    }
-                }
-                let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                    symbol: ownerNominalSymbol,
-                    sema: sema,
-                    interner: interner
-                )
-                appendNominalSupertypeEdgeRegistrations(
-                    childSymbol: ownerNominalSymbol,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                appendObjectItableMethodRegistrations(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    driver: driver,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                appendObjectVtableMethodRegistrations(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    driver: driver,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                appendObjectAnyToStringRegistration(
-                    objectValue: allocatedObj,
-                    nominalSymbol: ownerNominalSymbol,
-                    driver: driver,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                // REFL-005: Register KClass metadata for this nominal type.
-                emitKClassMetadataRegistration(
-                    objectSymbol: ownerNominalSymbol,
-                    typeID: childTypeID,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                if let throwableSymbol = sema.symbols.lookup(
-                    fqName: [interner.intern("kotlin"), interner.intern("Throwable")]
-                ) {
-                    let ownerType = sema.types.make(.classType(ClassType(
-                        classSymbol: ownerNominalSymbol,
-                        args: [],
-                        nullability: .nonNull
-                    )))
-                    let throwableType = sema.types.make(.classType(ClassType(
-                        classSymbol: throwableSymbol,
-                        args: [],
-                        nullability: .nonNull
-                    )))
-                    // Capture a Kotlin-defined Throwable subclass at allocation time,
-                    // before its constructor body can observe the receiver.
-                    if sema.types.isSubtype(ownerType, throwableType) {
-                        let captureResult = arena.appendTemporary(type: intType)
-                        emitNonThrowingCall(
-                            callee: interner.intern("__kk_throwable_captureStackTrace"),
-                            arg: allocatedObj,
-                            result: captureResult,
-                            into: &instructions
-                        )
-                    }
-                }
-            }
+            // Constructor calls need an allocated object as the implicit receiver.
+            // Resolve an inner class's enclosing instance from the active receiver.
+            let allocatedObj = allocateAndRegisterConstructedObject(
+                chosen: chosen,
+                boundType: boundType,
+                outerReceiver: driver.ctx.activeImplicitReceiverExprID(),
+                driver: driver,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             // KUU-555: a local class's `<init>` runs as an independent KIR
             // function — materialize captured outer locals into the fresh
             // instance's fields here, where the enclosing scope's locals are
             // still active (same convention as object-literal capture
             // materialization in `lowerStoredObjectLiteralExpr`).
-            if let ownerNominalSymbol,
+            if let ownerNominalSymbol = sema.symbols.parentSymbol(for: chosen),
                let layout = sema.symbols.nominalLayout(for: ownerNominalSymbol)
             {
+                let intType = sema.types.make(.primitive(.int, .nonNull))
                 for capturedSymbol in sema.bindings.objectLiteralCaptureSymbols(for: ownerNominalSymbol) {
                     guard let fieldOffset = layout.fieldOffsets[capturedSymbol],
                           let captureValue = driver.lambdaLowerer.captureValueExpr(
@@ -1158,6 +1051,8 @@ final class CallLowerer {
                 // its enclosing class. The literal is the active receiver while
                 // lowering its member body, so use the captured enclosing receiver
                 // when the callee's owner is available as a captured local value.
+                // (An inner class's own enclosing instance isn't captured this
+                // way -- it's resolved through the `$outer` chain below instead.)
                 if let owner = sema.symbols.parentSymbol(for: chosen),
                    owner != driver.ctx.activeImplicitReceiverSymbol(),
                    let capturedReceiver = driver.ctx.localValue(for: owner)
@@ -1178,6 +1073,25 @@ final class CallLowerer {
                     thrownResult: nil
                 ))
                 implicitReceiver = receiver
+            }
+            // An inner class's active implicit receiver is the inner instance,
+            // but an unqualified call to a member declared on an enclosing
+            // class must use that enclosing instance as its dispatch receiver.
+            // Resolve through the same `$outer` chain used by field accesses;
+            // for ordinary subtype/interface dispatch the helper returns the
+            // existing receiver unchanged.
+            if let owner = sema.symbols.parentSymbol(for: chosen),
+               let receiver = implicitReceiver,
+               let ownerReceiver = resolveOuterChainValue(
+                   from: receiver,
+                   to: owner,
+                   sema: sema,
+                   arena: arena,
+                   interner: interner,
+                   instructions: &instructions
+               )
+            {
+                implicitReceiver = ownerReceiver
             }
             if let implicitReceiver {
                 finalArgIDs.insert(implicitReceiver, at: 0)
@@ -1211,7 +1125,7 @@ final class CallLowerer {
             // remapped ABI entry points must remain direct calls.
             if let implicitReceiver,
                implicitReceiverRuntimeCallee == nil,
-               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true,
+               !kirIsRuntimeBridgedCallee(chosen, sema: sema),
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
                    calleeName: sourceCalleeName,
@@ -1546,6 +1460,12 @@ final class CallLowerer {
                 return interner.intern("kk_suspend_function_invoke")
             case 2:
                 return interner.intern("kk_suspend_function_invoke_2")
+            case 3:
+                return interner.intern("kk_suspend_function_invoke_3")
+            case 4:
+                return interner.intern("kk_suspend_function_invoke_4")
+            case 5:
+                return interner.intern("kk_suspend_function_invoke_5")
             default:
                 return nil
             }
@@ -1584,7 +1504,12 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
+            "__kk_channel_result_get_or_throw",
             "__kk_synchronized",
+            "__kk_cancellable_continuation_resume",
+            "__kk_cancellable_continuation_invoke_on_cancellation",
+            "__kk_cancellable_continuation_complete_resume",
+            "__kk_cancellable_continuation_get_result",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
             "__kk_mutable_list_add_at",
@@ -1645,6 +1570,7 @@ final class CallLowerer {
 
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
         [
+            "__kk_channel_result_get_or_throw",
             "kk_runtime_result_get_or_else",
             "kk_runtime_result_get_or_throw",
             "kk_runtime_result_map",
@@ -1653,6 +1579,10 @@ final class CallLowerer {
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
             "__kk_synchronized",
+            "__kk_cancellable_continuation_resume",
+            "__kk_cancellable_continuation_invoke_on_cancellation",
+            "__kk_cancellable_continuation_complete_resume",
+            "__kk_cancellable_continuation_get_result",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "__kk_mutable_list_removeAt",

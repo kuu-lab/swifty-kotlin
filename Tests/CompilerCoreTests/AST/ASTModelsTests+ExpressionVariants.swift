@@ -350,7 +350,8 @@ extension ASTModelsTests {
         let bodyID = arena.appendExpr(.intLiteral(1, r))
         let catchBodyID = arena.appendExpr(.intLiteral(2, r))
         let finallyID = arena.appendExpr(.intLiteral(3, r))
-        let catchClause = CatchClause(paramName: interner.intern("e"), paramTypeName: interner.intern("Exception"), body: catchBodyID, range: r)
+        let paramType = arena.appendTypeRef(.named(path: [interner.intern("Exception")], args: [], nullable: false))
+        let catchClause = CatchClause(paramName: interner.intern("e"), paramType: paramType, body: catchBodyID, range: r)
 
         let tryExpr = Expr.tryExpr(body: bodyID, catchClauses: [catchClause], finallyExpr: finallyID, range: r)
         if case let .tryExpr(b, cc, f, _) = tryExpr {

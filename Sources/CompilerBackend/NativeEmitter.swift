@@ -36,6 +36,7 @@ struct NativeEmitter {
         "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
         "kk_function_invoke_5",
         "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
+        "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5",
     ]
 
     /// Quick lookup for runtime ABI function specs by symbol name.
@@ -143,6 +144,10 @@ struct NativeEmitter {
         }
 
         let notNullCallee = interner.intern("kk_op_notnull")
+        let packedValueCallees: Set<InternedString> = [
+            interner.intern("kk_array_set"),
+            interner.intern("kk_coroutine_launcher_arg_set"),
+        ]
         let lambdaSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
             guard case let .function(function) = declaration,
                   interner.resolve(function.name).hasPrefix("kk_lambda_")
@@ -175,6 +180,11 @@ struct NativeEmitter {
             for instruction in function.body {
                 switch instruction {
                 case let .call(_, callee, arguments, _, _, _, _, _):
+                    // Imported inline bodies pack captured lambdas into closure
+                    // fields or launcher slots before invoking them as function values.
+                    if packedValueCallees.contains(callee), arguments.count == 3 {
+                        collectSymbolRefs(reaching: arguments[2], lambdaOnly: true)
+                    }
                     guard let callbackPositions = callbackArgumentPositionsByCallee[callee] else {
                         continue
                     }
@@ -491,9 +501,7 @@ struct NativeEmitter {
 
     /// Returns true for imported-library symbols that are expected to be
     /// backed by a global variable in the linked object (properties, fields,
-    /// backing fields, and top-level objects). Companion objects are excluded
-    /// because their functions are emitted as static-like receivers and they
-    /// do not allocate a singleton global.
+    /// backing fields, and source-backed singleton objects).
     private func shouldEmitImportedGlobalReference(for symbol: SymbolID) -> Bool {
         guard let sym = symbols?.symbol(symbol),
               sym.flags.contains(.importedLibrary)
@@ -504,14 +512,9 @@ struct NativeEmitter {
         case .property, .field, .backingField:
             return true
         case .object:
-            // Top-level object singletons have a global instance.
-            // Companion objects only need one when their virtual methods
-            // require a runtime receiver and vtable.
             if let parentID = symbols?.parentSymbol(for: symbol),
-               let parent = symbols?.symbol(parentID),
-               parent.kind != .package,
-               symbols?.nominalLayout(for: symbol)?.vtableSize ?? 0 == 0 {
-                return false
+               symbols?.companionObjectSymbol(for: parentID) == symbol {
+                return symbols?.companionObjectInitializerSymbol(for: parentID) != nil
             }
             // Synthetic singleton stubs (e.g. kotlin.system.System) have no
             // backing state and no initializer, so their global slot is never
@@ -663,7 +666,10 @@ struct NativeEmitter {
             return lhs.global.symbol.rawValue < rhs.global.symbol.rawValue
         }
         for (slotName, global) in globalDecls {
+            // `.klib` globals keep the imported flag but own their storage
+            // here — their bodies were materialized into this compilation.
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
+                && symbols?.isKlibDefinedGlobal(global.symbol) != true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if isImported {
                     // Imported globals are defined in another object file.

@@ -239,7 +239,9 @@ struct JobComprehensiveTests {
 
         #expect(kk_job_is_active(jobHandle) == 0)
         #expect(kk_job_is_completed(jobHandle) == 1)
-        #expect(kk_job_is_cancelled(jobHandle) == 0)
+        // kotlinx.coroutines Job.isCancelled is true after completeExceptionally
+        // as well as explicit cancel; kk_job_is_cancelled follows that.
+        #expect(kk_job_is_cancelled(jobHandle) == 1)
         #expect(kk_job_is_failed(jobHandle) == 1)
 
         // Clean up

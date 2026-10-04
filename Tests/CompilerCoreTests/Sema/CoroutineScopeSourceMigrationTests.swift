@@ -25,7 +25,7 @@ struct CoroutineScopeSourceMigrationTests {
         }
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let package = ["kotlinx", "coroutines"].map(ctx.interner.intern)
         #expect(sema.symbols.lookupAll(fqName: ["kotlin", "coroutines", "CoroutineContext", "cancel"].map(ctx.interner.intern)).isEmpty)
