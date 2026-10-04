@@ -1102,9 +1102,10 @@
     - `kotlin.collections.AbstractMap.values` — val AbstractMap.values: Collection  -- `open val values`
   - 2026-09-26 完了: 監査エントリは stale（audit 2026-08-16 生成、KSP-928 #6153 が 2026-09-05 に `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMap.kt` を追加済み）。10 シンボルは既に source-backed 実装済みで canonical signature も一致（監査側 `open` は実装側 `override` と等価 — interface メンバの override は暗黙 open）。`__kk_*`/`kk_*` bridge、Synthetic stub、RuntimeABISpec エントリ、name-string 特例は対象シンボルに存在しない（`__kk_map_entries` は equals が外部 Map 実装と比較する共有 bridge、`__kk_map_*` は Map 実現用の既存 export として維持）。Sema golden と diff case を追加した。
 
-- [ ] KSP-1045: kotlin.collections.ArrayList top-level の未実装 stdlib API を実装する（3 件）
+- [~] KSP-1045: kotlin.collections.ArrayList top-level の未実装 stdlib API を実装する（3 件）
+  - KUU-434 focused補完: canonical owner は `ArrayList/ArrayList.kt`（別名 owner を新設しない）。baseline native は `ArrayList(-1)` を受理、kotlinc 2.3.10 は `IllegalArgumentException` と実行確認。ArrayList 固有の容量 constructor を throwing な `__kk_array_list_new_checked` に接続し、容量 hint は引き続き無視する。負容量・引数の一度だけの評価・typed catch/finally・0/正容量・copy 独立性の native 回帰と `array_list_initial_capacity.kt` を追加。全 Golden／全 diff の完了ゲートは未実行のため `[~]` を維持。
   - 対象: `kotlin.collections.ArrayList` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayList/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayList/ArrayList.kt`（canonical owner）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_ArrayList_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_ArrayList_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_ArrayList_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
