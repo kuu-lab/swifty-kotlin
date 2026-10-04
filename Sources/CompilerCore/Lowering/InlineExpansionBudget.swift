@@ -27,7 +27,8 @@ final class InlineExpansionBudget {
     }
 
     func enter(_ function: KIRFunction, arena: KIRArena) -> Bool {
-        guard !ancestry.contains(function.symbol), nesting < limits.nesting,
+        guard consumeWork(ancestry.count, arena: arena),
+              !ancestry.contains(function.symbol), nesting < limits.nesting,
               function.body.count <= limits.instructions,
               consumeWork(max(1, function.body.count), arena: arena)
         else { return false }
@@ -44,5 +45,10 @@ final class InlineExpansionBudget {
     func permitsOutput(_ count: Int, arena: KIRArena) -> Bool {
         count <= limits.instructions
             && arena.expressions.count - initialExpressionCount <= limits.expressions
+    }
+
+    func permitsAdditional(_ count: Int, outputCount: Int, arena: KIRArena) -> Bool {
+        count <= limits.instructions - outputCount
+            && count <= limits.expressions - (arena.expressions.count - initialExpressionCount)
     }
 }

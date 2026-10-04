@@ -7,6 +7,14 @@ struct InlineExpansion {
     /// True when the expansion contains normal return terminators (returnValue/returnUnit)
     /// that need to be converted to exit-label jumps in the NLR path.
     let hasNormalReturn: Bool
+    var callAncestries: [Int: [SymbolID]] = [:]
+
+    var callPaths: [[SymbolID]] {
+        instructions.enumerated().compactMap { offset, instruction in
+            guard case .call = instruction else { return nil }
+            return callAncestries[offset] ?? []
+        }
+    }
 }
 
 final class InlineLoweringPass: LoweringPass {
@@ -99,13 +107,17 @@ final class InlineLoweringPass: LoweringPass {
             let outputStart = loweredBody.instructions.count
             let ancestry = pending[instructionIndex]
             var expandedSymbol: SymbolID?
+            var emittedCallAncestries: [Int: [SymbolID]] = [:]
             var retryInvoke = false
             defer {
                 if let ancestry {
                     for offset in outputStart ..< loweredBody.instructions.count {
                         guard case .call = loweredBody.instructions[offset] else { continue }
                         if let expandedSymbol {
-                            nextPending[offset] = ancestry + [expandedSymbol]
+                            let path = emittedCallAncestries[offset] ?? (ancestry + [expandedSymbol])
+                            if budget.consumeWork(path.count, arena: module.arena) {
+                                nextPending[offset] = path
+                            }
                         } else if retryInvoke {
                             nextPending[offset] = ancestry
                         }
@@ -125,7 +137,9 @@ final class InlineLoweringPass: LoweringPass {
                 continue
             }
 
-            guard let ancestry, budget.permitsOutput(loweredBody.instructions.count, arena: module.arena) else {
+            guard let ancestry,
+                  budget.consumeWork(ancestry.count, arena: module.arena),
+                  budget.permitsOutput(loweredBody.instructions.count, arena: module.arena) else {
                 loweredBody.append(instruction)
                 continue
             }
@@ -149,6 +163,14 @@ final class InlineLoweringPass: LoweringPass {
                 }
                 let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
                     .map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+                guard budget.permitsAdditional(
+                    captureArgs.count + resolvedArguments.count,
+                    outputCount: loweredBody.instructions.count, arena: module.arena
+                ) else {
+                    loweredBody.append(instruction)
+                    retryInvoke = false
+                    continue
+                }
                 // A lambda spliced into an already-inlined generic body reads
                 // its arguments from erased (type-parameter) slots, so unbox
                 // them for the lambda's own concrete parameter types.
@@ -173,7 +195,15 @@ final class InlineLoweringPass: LoweringPass {
                         callerThrownResult: callerThrownResult,
                         labels: &labels
                     )
-                    loweredBody.append(contentsOf: reroutedInstructions)
+                    let paths = lambdaExpansion.callPaths
+                    var callIndex = 0
+                    for instruction in reroutedInstructions {
+                        if case .call = instruction {
+                            emittedCallAncestries[loweredBody.instructions.count] = paths[callIndex]
+                            callIndex += 1
+                        }
+                        loweredBody.append(instruction)
+                    }
                     didExpand = true
                     expandedSymbol = lambdaFunction.symbol
                     if let throwDispatchLabel {
@@ -234,7 +264,14 @@ final class InlineLoweringPass: LoweringPass {
             // boxed representation chosen there; this expansion cannot
             // re-specialize them. Box primitive arguments that flow into an
             // erased parameter so the splice honours that representation.
-            let expansionArguments = InlineErasedLambdaABI.usesErasedLambdaABI(inlineTarget, ctx: ctx)
+            let usesErasedABI = InlineErasedLambdaABI.usesErasedLambdaABI(inlineTarget, ctx: ctx)
+            guard !usesErasedABI || budget.permitsAdditional(
+                arguments.count, outputCount: loweredBody.instructions.count, arena: module.arena
+            ) else {
+                loweredBody.append(instruction)
+                continue
+            }
+            let expansionArguments = usesErasedABI
                 ? InlineErasedLambdaABI.boxPrimitiveArgumentsForErasedParameters(
                     arguments: arguments,
                     inlineTarget: inlineTarget,
@@ -273,6 +310,8 @@ final class InlineLoweringPass: LoweringPass {
                 callerThrownResult: callerThrownResult,
                 labels: &labels
             )
+            let callPaths = expansion.callPaths
+            var callIndex = 0
 
             if expansion.hasNonLocalReturn {
                 // The expansion contains non-local returns from lambdas.
@@ -289,6 +328,13 @@ final class InlineLoweringPass: LoweringPass {
                 var afterTerminator = false
 
                 for expandedInstruction in reroutedInstructions {
+                    let callPath: [SymbolID]?
+                    if case .call = expandedInstruction {
+                        callPath = callPaths[callIndex]
+                        callIndex += 1
+                    } else {
+                        callPath = nil
+                    }
                     // Skip unreachable instructions after a terminator until
                     // the next label starts a new block.
                     if afterTerminator {
@@ -327,6 +373,9 @@ final class InlineLoweringPass: LoweringPass {
                         }
                         // returnIfEqual is conditional, so it does NOT set afterTerminator.
                     default:
+                        if let callPath {
+                            emittedCallAncestries[loweredBody.instructions.count] = callPath
+                        }
                         loweredBody.append(expandedInstruction)
                     }
                 }
@@ -350,7 +399,13 @@ final class InlineLoweringPass: LoweringPass {
                         return true
                     }
                 }
-                loweredBody.append(contentsOf: filtered)
+                for instruction in filtered {
+                    if case .call = instruction {
+                        emittedCallAncestries[loweredBody.instructions.count] = callPaths[callIndex]
+                        callIndex += 1
+                    }
+                    loweredBody.append(instruction)
+                }
             }
 
             // If any throw inside the expansion was redirected to the caller's

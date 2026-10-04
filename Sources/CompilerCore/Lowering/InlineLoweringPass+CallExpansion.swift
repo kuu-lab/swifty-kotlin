@@ -27,6 +27,7 @@ extension InlineLoweringPass {
         let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
         guard budget.enter(inlineTarget, arena: module.arena) else { return nil }
         defer { budget.leave() }
+        guard budget.permitsAdditional(arguments.count, outputCount: 0, arena: module.arena) else { return nil }
 
         let parameterValues = Dictionary(uniqueKeysWithValues: zip(inlineTarget.params.map(\.symbol), arguments))
 
@@ -84,6 +85,7 @@ extension InlineLoweringPass {
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var unitResultAliasExprs: Set<KIRExprID> = []
         var lowered = KIRLoweringEmitContext()
+        var callAncestries: [Int: [SymbolID]] = [:]
         lowered.instructions.reserveCapacity(inlineTarget.body.count)
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
@@ -130,6 +132,14 @@ extension InlineLoweringPass {
         let sequenceGenerateCallee = ctx.interner.intern("__kk_sequence_generate")
         for instruction in inlineTarget.body {
             guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
+            let outputStart = lowered.instructions.count
+            defer {
+                for offset in outputStart ..< lowered.instructions.count {
+                    if case .call = lowered.instructions[offset], callAncestries[offset] == nil {
+                        callAncestries[offset] = budget.ancestry
+                    }
+                }
+            }
             switch instruction {
             case .beginBlock, .endBlock:
                 continue
@@ -220,6 +230,10 @@ extension InlineLoweringPass {
                 )
 
             case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+                guard budget.permitsAdditional(
+                    args.count + (result == nil ? 0 : 2) + (thrownResult == nil ? 0 : 1),
+                    outputCount: lowered.instructions.count, arena: module.arena
+                ) else { return nil }
                 let calleeStr = ctx.interner.resolve(callee)
                 // Attempt to inline a lambda argument passed to this inline function.
                 let resolvedLambdaParamSymbol: SymbolID? = if let symbol, lambdaParamSymbols.contains(symbol) {
@@ -271,6 +285,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            callAncestries: &callAncestries,
                             into: &lowered
                         )
                         if let result {
@@ -335,6 +350,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            callAncestries: &callAncestries,
                             into: &lowered
                         )
                         if let result {
@@ -630,7 +646,8 @@ extension InlineLoweringPass {
             instructions: lowered.instructions,
             returnedExpr: returnedExpr,
             hasNonLocalReturn: hasNonLocalReturn,
-            hasNormalReturn: hasNormalReturn
+            hasNormalReturn: hasNormalReturn,
+            callAncestries: callAncestries
         )
     }
 

@@ -453,6 +453,19 @@ struct InlineTerminationContractTests {
             return interner.resolve(callee)
         }
         #expect(targets == ["leaf"])
+        let firstBody = try #require(mainDecl).body
+        let repeatedModule = makeModule(decls)
+        let repeatedDiagnostics = DiagnosticEngine()
+        try InlineLoweringPass().run(
+            module: repeatedModule,
+            ctx: makeContext(diagnostics: repeatedDiagnostics, interner: interner)
+        )
+        let repeatedMain = repeatedModule.arena.declarations.compactMap { declaration -> KIRFunction? in
+            guard case let .function(function) = declaration, function.symbol == main.symbol else { return nil }
+            return function
+        }.first
+        #expect(try #require(repeatedMain).body == firstBody)
+        #expect(!repeatedDiagnostics.hasError)
     }
 
     // MARK: - Residue scope
@@ -522,6 +535,41 @@ struct InlineTerminationContractTests {
     }
 
     @Test
+    func testCallerSuppliedLambdaCanNestTheSameInlineFunction() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let module = makeModule([])
+        let parameter = SymbolID(rawValue: 10)
+        let parameterExpr = module.arena.appendExpr(.symbolRef(parameter), type: nil)
+        let innerExpr = module.arena.appendExpr(.symbolRef(SymbolID(rawValue: 3)), type: nil)
+        let outerExpr = module.arena.appendExpr(.symbolRef(SymbolID(rawValue: 2)), type: nil)
+        let value = module.arena.appendExpr(.intLiteral(42), type: types.intType)
+        let once = makeFunction("once", symbol: 1, interner: interner, types: types, body: [
+            .constValue(result: parameterExpr, value: .symbolRef(parameter)),
+            call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [parameterExpr]),
+            .returnUnit,
+        ], isInline: true, params: [KIRParameter(symbol: parameter, type: types.unitType)])
+        let outer = makeFunction("outer", symbol: 2, interner: interner, types: types, body: [
+            call(to: once.symbol, callee: "once", interner: interner, arguments: [innerExpr]), .returnUnit,
+        ])
+        let inner = makeFunction("inner", symbol: 3, interner: interner, types: types, body: [
+            .constValue(result: value, value: .intLiteral(42)), .nonLocalReturn(value),
+        ])
+        for function in [once, outer, inner] { _ = module.arena.appendDecl(.function(function)) }
+        let caller = makeFunction("caller", symbol: 4, interner: interner, types: types, body: [
+            call(to: once.symbol, callee: "once", interner: interner, arguments: [outerExpr]), .returnUnit,
+        ])
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let expanded = InlineLoweringPass().inlineTransform(
+            function: caller, index: index, inlineFunctionsByName: index.inlineFunctionsByName,
+            module: module, ctx: makeContext(diagnostics: DiagnosticEngine(), interner: interner), unitType: types.unitType
+        )
+        #expect(callTargets(of: expanded, interner: interner).isEmpty)
+        #expect(expanded.body.contains { if case .returnValue = $0 { return true }; return false })
+        #expect(!expanded.body.contains { if case .nonLocalReturn = $0 { return true }; return false })
+    }
+
+    @Test
     func testRecursiveLambdaInvocationStopsWithoutGrowingArena() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -544,7 +592,59 @@ struct InlineTerminationContractTests {
         #expect(!diagnostics.hasError)
     }
 
-    @Test(arguments: ["work", "instructions", "expressions"])
+    @Test
+    func testAncestryChecksConsumeTheWorkBudget() {
+        let arena = KIRArena()
+        var limits = InlineExpansionBudget.Limits()
+        limits.work = 16
+        let budget = InlineExpansionBudget(arena: arena, limits: limits)
+        budget.ancestry = (0 ..< 17).map { SymbolID(rawValue: Int32($0)) }
+        let function = makeFunction(
+            "empty", symbol: 100, interner: StringInterner(), types: TypeSystem(), body: []
+        )
+        #expect(!budget.enter(function, arena: arena))
+        #expect(budget.work <= limits.work)
+    }
+
+    @Test
+    func testErasedArgumentBoxingIsAdmittedBeforeAllocating() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let diagnostics = DiagnosticEngine()
+        let importedSymbol = symbols.define(
+            kind: .function, name: interner.intern("importedHOF"), fqName: [interner.intern("importedHOF")],
+            declSite: nil, visibility: .public, flags: [.inlineFunction, .importedLibrary]
+        )
+        let callbackType = types.make(.functionType(FunctionType(params: [], returnType: types.unitType)))
+        let module = makeModule([])
+        let arguments = (0 ..< 64).map { module.arena.appendExpr(.intLiteral(Int64($0)), type: types.intType) }
+            + [module.arena.appendTemporary(type: callbackType)]
+        let params = (0 ..< 64).map { KIRParameter(symbol: SymbolID(rawValue: Int32(100 + $0)), type: types.anyType) }
+            + [KIRParameter(symbol: SymbolID(rawValue: 200), type: callbackType)]
+        let target = KIRFunction(
+            symbol: importedSymbol, name: interner.intern("importedHOF"), params: params,
+            returnType: types.unitType, body: [.returnUnit], isSuspend: false, isInline: true
+        )
+        _ = module.arena.appendDecl(.function(target))
+        let caller = makeFunction("caller", symbol: 300, interner: interner, types: types, body: [
+            call(to: importedSymbol, callee: "importedHOF", interner: interner, arguments: arguments), .returnUnit,
+        ])
+        let sema = makeSemaModule(symbols: symbols, types: types, diagnostics: diagnostics).ctx
+        let ctx = makeKIRContext(moduleName: "budget", interner: interner, sema: sema, diagnostics: diagnostics)
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let initialExpressions = module.arena.expressions.count
+        var limits = InlineExpansionBudget.Limits()
+        limits.expressions = 0
+        let expanded = InlineLoweringPass().inlineTransform(
+            function: caller, index: index, inlineFunctionsByName: index.inlineFunctionsByName,
+            module: module, ctx: ctx, unitType: types.unitType, expansionLimits: limits
+        )
+        #expect(expanded.body == caller.body)
+        #expect(module.arena.expressions.count == initialExpressions)
+    }
+
+    @Test(arguments: ["work", "instructions", "expressions", "nesting"])
     func testCallerBudgetsLeaveDiagnosableMandatoryResidue(resource: String) throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -564,6 +664,7 @@ struct InlineTerminationContractTests {
         switch resource {
         case "work": limits.work = 1
         case "instructions": limits.instructions = 1
+        case "nesting": limits.nesting = 0
         default: limits.expressions = 0
         }
         let diagnostics = DiagnosticEngine()

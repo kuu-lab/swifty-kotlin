@@ -16,10 +16,18 @@ fun escape(): Int {
     return -1
 }
 
+inline fun once(block: () -> Unit) { block() }
+
+fun nestedEscape(): Int {
+    once { once { return 42 } }
+    return 0
+}
+
 fun main() {
     println(stage01(0) { it * 2 })
     println(stage01(5) { stage01(it) { nested -> nested + 1 } })
     println(escape())
+    println(nestedEscape())
     try {
         stage01(0) { throw IllegalStateException("deep-inline") }
     } catch (error: IllegalStateException) {
