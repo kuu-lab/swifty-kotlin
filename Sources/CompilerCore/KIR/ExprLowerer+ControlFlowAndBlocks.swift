@@ -785,9 +785,25 @@ extension ExprLowerer {
                 // written, so reading it here would yield garbage. Those dispatch to
                 // the getter accessor in the branch below, matching the explicit
                 // `this.size` path in CallLowerer+MemberPropertyReads.swift.
+                //
+                // KSP-CAP-001: a bare read of this kind resolved via plain scope
+                // lookup rather than `resolveImplicitReceiverMember` (see
+                // `inferNameRefExpr`), so it never set `implicitReceiverMemberNames`
+                // and skipped the STDLIB-004 branch above, which is the only other
+                // place that calls `implicitReceiverExprID(forProperty:)`. Without
+                // it here too, an object-literal member function reading an
+                // enclosing class's mutable property would use its own `this`
+                // (`activeImplicitReceiverExprID`) with the enclosing class's field
+                // offset -- the same wrong-receiver/offset mismatch PR #7186 fixed
+                // for inner classes, but for object literals' bare mutable-property
+                // reads. Mirror the write side (`.localAssign`'s field-offset branch
+                // below), which already walks the captured outer-receiver chain.
                 if let sym = sema.symbols.symbol(symbol),
                    sym.kind == .property || sym.kind == .field || sym.kind == .backingField,
-                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                       forProperty: symbol,
+                       sema: sema
+                   ),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
                    ownerKind == .class || ownerKind == .interface,
@@ -848,7 +864,10 @@ extension ExprLowerer {
                 // resolves through the active receiver's instance layout.
                 if let sym = sema.symbols.symbol(symbol),
                    sym.kind == .property,
-                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                       forProperty: symbol,
+                       sema: sema
+                   ),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
                    ownerKind == .class,
