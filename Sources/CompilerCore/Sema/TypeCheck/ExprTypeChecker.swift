@@ -89,7 +89,21 @@ final class ExprTypeChecker {
             return stringType
 
         case let .nameRef(name, nameRange):
-            return inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
+            let nameType = inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
+            // `val f: Factory<Widget> = Widget`: a bare class name whose own type does not
+            // satisfy the expected type may still denote its companion object, which does.
+            if let expectedType,
+               !sema.types.isSubtype(nameType, expectedType),
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   id, currentType: nameType, ast: ast, sema: sema
+               )
+            {
+                if sema.types.isSubtype(companionType, expectedType) {
+                    return companionType
+                }
+                sema.bindings.bindExprType(id, type: nameType)
+            }
+            return nameType
 
         case let .forExpr(loopVariable, iterableExpr, bodyExpr, label, range):
             return driver.controlFlowChecker.inferForExpr(id, loopVariable: loopVariable, iterableExpr: iterableExpr, bodyExpr: bodyExpr, label: label, range: range, ctx: ctx, locals: &locals)
@@ -196,12 +210,17 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
-            // An unlabeled return in a lambda targets the surrounding named
-            // function. Its value must therefore be inferred against that
-            // function's return type, not the lambda's expected Boolean/result
-            // type (e.g. a predicate passed to an inline HOF).
+            // An unlabeled `return` always targets the enclosing named
+            // function, whether or not it sits inside a lambda -- so its
+            // value must be inferred against *that* function's declared
+            // return type, never the ambient `expectedType` threaded down
+            // through whatever expression happens to syntactically contain
+            // it (a lambda's own expected Boolean/result type, but equally
+            // an elvis/if/when/try branch's expected type propagated in from
+            // an outer assignment: `x = if (c) 1 else return null` inside a
+            // function returning `Int?` must check `return null` against
+            // `Int?`, not `x`'s declared `Int`).
             let returnExpectedType: TypeID? = if label == nil,
-                                                    ctx.lambdaDepth > 0,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
             {
                 enclosingFunctionReturnType
