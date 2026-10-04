@@ -1515,6 +1515,32 @@ extension ExprLowerer {
                     )
                 )
                 driver.ctx.appendGeneratedCallableDecl(localFunDeclID)
+
+                // Call sites route an omitted-argument call through `<name>$default`;
+                // top-level/member functions get that stub from module lowering, but
+                // a local function is only reachable from here.
+                let localFunDefaults = localFunValueParams.map(\.defaultValue)
+                if let sig, localFunDefaults.contains(where: { $0 != nil }) {
+                    let stubID = driver.callSupportLowerer.generateDefaultStubFunction(
+                        originalSymbol: symbol,
+                        originalName: localFunName,
+                        signature: sig,
+                        defaultExpressions: localFunDefaults,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        captures: captureBindings.map { binding in
+                            DefaultStubCapture(
+                                capturedSymbol: binding.capturedSymbol,
+                                param: binding.param,
+                                isBoxedMutable: boxedCaptureSymbols.contains(binding.capturedSymbol)
+                            )
+                        }
+                    )
+                    driver.ctx.appendGeneratedCallableDecl(stubID)
+                }
             }
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))

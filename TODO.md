@@ -1412,7 +1412,7 @@
     - `kotlin.concurrent.AtomicLong.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
   - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicLong/Stdlib.kt` に `public external fun AtomicLong(value: Long): AtomicLong` を `@KsSymbolName("kk_atomic_long_create")` で source-backed 実装として追加した（KSP-1087 の AtomicInt / KSP-1093 の AtomicLongArray と同じ top-level factory 規約）。`AtomicLong(value)` 呼び出しは overload resolution の duplicate-signature フィルタで residual synthetic `<init>(Long)` が除かれ source fun に束縛される。`kk_atomic_long_create` Runtime 関数 / RuntimeABISpec エントリ / 合成 `<init>(Long)` 登録は残余 scalar surface（value プロパティ・コアメソッド群）との共有のため保持し、name-string 特例は無し。
 
-- [ ] KSP-1092: kotlin.concurrent.AtomicLong.AtomicLong の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1092: kotlin.concurrent.AtomicLong.AtomicLong の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.concurrent.AtomicLong` / receiver `AtomicLong`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicLong/AtomicLong.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1426,6 +1426,7 @@
     - `kotlin.concurrent.AtomicLong.getAndIncrement` — fun AtomicLong.getAndIncrement(): Long  -- `final fun getAndIncrement(): kotlin/Long`
     - `kotlin.concurrent.AtomicLong.toString` — fun AtomicLong.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicLong.value` — val AtomicLong.value: Long  -- `final var value`
+  - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicLong/AtomicLong.kt` に source-backed class 宣言へ移し、`compareAndExchange` / `getAndAdd` / `getAndDecrement` / `getAndIncrement` / `toString` / `var value` の 6 件を class member として実装した。各 member は `__kk_atomic_long_*` private external bridge に委譲し、`value` は `__kk_atomic_long_load` / `__kk_atomic_long_store` に接続する。残りの合成 stub（`AtomicLong(Long)` コンストラクタ、load/store/exchange/compareAndSet/fetch*/increment*/decrement* 系、`AtomicMigration.kt` の top-level wrapper）は継続利用のため保持。name-string 特例は無し。
 
 - [x] KSP-1093: kotlin.concurrent.AtomicLongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.AtomicLongArray` / top-level
@@ -1481,13 +1482,15 @@
   - 完了根拠: `AtomicNativePtr/AtomicNativePtr.kt` に `@Volatile var value` と `getAndSet` / `compareAndSet` / `compareAndExchange` / `toString` を source-backed member として追加し、class 宣言を `AtomicNativePtr/Stdlib.kt` から実装ファイルへ移した（`Stdlib.kt` は top-level factory を持たないため削除）。secondary constructor の `val value = value` が self-binding で backing を保存していなかった既存不具合は、primary constructor パラメータ + メンバ初期化式の形に変えて解消し、`DetachedObjectGraph.attach()` の往復で実行確認した。対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、name-string 特例は存在せず削除対象なし。
   - 完了確認（2026-09-27）: Sema Golden 全体、`AtomicTopLevelSourceTests`、`AtomicNativePtrConstructorSourceTests`、`swift build`、`bash Scripts/check_todo_ids.sh`、`bash Scripts/validate_runtime_abi_links.sh`、`git diff --check`、対象 diff ケース（`SKIP-DIFF (DEBT-DIFF-001)` として skip）を確認。全 Swift テスト・全 Golden・全 diff ケースは未実行（CI に委譲）。なお `AtomicTopLevelSourceTests` / `AtomicNativePtrConstructorSourceTests` は #7275 で削除済み（golden / diff ケースが代替カバレッジ）。
 
-- [ ] KSP-1097: kotlin.concurrent.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1097: kotlin.concurrent.AtomicReference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.AtomicReference` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicReference/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_AtomicReference_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicReference_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicReference_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠 (2026-09-27): `kotlin/concurrent/AtomicReference/AtomicReference.kt`（KSP-1098 が同名 package に class 宣言を置いたため `Stdlib.kt` ではなく同ファイルへ統合）に `@KsSymbolName("kk_atomic_ref_create")` 付き bodiless `public constructor(value: T)` を source-backed 実装として追加し、`kotlin/concurrent/Stdlib.kt` の arity-0 shell を除去した（Triple / ULongRange / KSP-1095 AtomicNativePtr と同じ規約）。残留する合成 ctor の二重登録を防ぐため `BundledDeclarationIndex` が bundled class の `<init>` arity を索引するようにし（AST パスは `collectBundledNominalMembers`、artifact 取込パスは `makeMemberKey` の `.constructor` 追加でカバー）、`registerAtomicConstructor` に `shouldSkipRegistration` ガードを追加。`kk_atomic_ref_create` Runtime 関数 / RuntimeABISpec エントリは `<init>` が再利用する既存 link として保持。`load` / `store` / `exchange` の残余 synthetic surface は据え置き。name-string 特例は無し（`CallTypeChecker` / `CallSupportLowerer` の `kk_atomic_ref_array_of` 特例は配列ファクトリのもので対象外）。
+  - 完了確認（2026-10-02）: Sema Golden 全体、`swift build`、`bash Scripts/check_todo_ids.sh`、`bash Scripts/validate_runtime_abi_links.sh`、`git diff --check` を確認。JVM kotlinc に Kotlin/Native-only API がないため diff case は `DEBT-DIFF-001` の `SKIP-DIFF` とした。bookkeeping 系 Sema テスト（#7275 で削除済みの family）は追加せず、golden / diff case と既存 `AtomicReferenceSourceMigrationTests` でカバー。
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicReference.<init>` — constructor ()  -- `constructor <init>(#A)`
 
@@ -2424,7 +2427,7 @@
   - 同 PR のバグ修正: `--stdlib-library`（.kklib artifact）モードで `object : ObservableProperty(v)` の無名オブジェクトが super constructor を呼ばず `value` がゼロ初期化のまま残る実コンパイラバグを発見。`emitObjectLiteralSuperConstructorCall`（ObjectLiteralLowerer）と `emitNamedObjectSuperConstructorCall`（KIRLoweringDriver+ObjectInitializer）が、super ctor の `externalLinkName` が非空なら無条件に skip しており、imported .kklib ctor（artifact object 側に実 body を持つ）への call が一度も emit されなかった。named class 側の `emitSuperConstructorDelegation` と同じく「`synthetic` かつ source-backed でない stub」＋ runtime factory ctor（`__kk_*_new` 系）は引き続き skip し、source-backed ctor の非空 externalLinkName は artifact への link として call を emit するよう修正した。回帰は `stdlib_kotlin_properties_ObservableProperty_n_n` diff case で固定。
   - 検証: `swift build` PASS、`stdlib_kotlin_properties_ObservableProperty_n_n` diff case PASS（kotlinc と一致）、object literal 既存 diff case 4件（object_literal_class_inheritance / object_literal_qualified_this_property_initializer / object_literal_mutable_iterator / mock_objects）PASS、Sema golden suite（820件、対象 golden を含む）PASS、`check_todo_ids.sh` PASS、`validate_runtime_abi_links.sh` PASS、`git diff --check` PASS。全 Golden（Lexer/Parser/Diagnostics）・全 diff・全 Swift テストは未実行（CI に委譲）。
 
-- [ ] KSP-1281: kotlin.ranges top-level の未実装 stdlib API を実装する（21 件）
+- [x] KSP-1281: kotlin.ranges top-level の未実装 stdlib API を実装する（21 件）
   - 対象: `kotlin.ranges` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2901,9 +2904,9 @@
     - `kotlin.ranges.ULongRange.start` — val ULongRange.start: ULong  -- `final val start`
     - `kotlin.ranges.ULongRange.toString` — fun ULongRange.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1322: kotlin.ranges.ULongRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1322: kotlin.ranges.ULongRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.ULongRange.Companion` / receiver `Companion`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ULongRange/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ULongRange/Stdlib.kt`（既存 companion object に追加。拡張プロパティ receiver `ULongRange.Companion` は現在の型解決で使えないため）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_ULongRange_Companion_Companion_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ranges_ULongRange_Companion_Companion_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ranges_ULongRange_Companion_Companion_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。

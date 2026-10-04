@@ -1321,9 +1321,39 @@ func resolveVirtualDispatchKind(
         )
     }
     if parentSymbol.kind == .class {
+        // KSP-1281: members of the range/progression classes are never
+        // vtable-dispatchable. Their values are runtime `RuntimeRangeBox`
+        // handles, not heap objects carrying a KTypeInfo vtable, so
+        // `kk_vtable_lookup` traps on the receiver. The paired Range classes
+        // are `final` and the progressions have `internal` constructors, so
+        // no user subtype can ever materialize as a real object — the only
+        // subtype a progression can gain (e.g. `UIntRange : UIntProgression`)
+        // is box-backed itself. Direct calls to the resolved source member
+        // lower through the `kk_range_*` handle bridges and are correct.
+        if isRuntimeRangeBoxNominal(parentSymbol, interner: interner) { return nil }
         return resolveVtableDispatchKind(callee: callee, parentID: parentID, layout: layout, sema: sema)
     }
     return nil
+}
+
+/// Whether `symbol` is one of the `kotlin.ranges` progression/range classes
+/// whose values the runtime represents as `RuntimeRangeBox` handles rather
+/// than real heap objects — a `vtable` dispatch on such an owner can never
+/// resolve a slot (`kk_vtable_lookup` traps on the raw handle).
+private func isRuntimeRangeBoxNominal(_ symbol: SemanticSymbol, interner: StringInterner) -> Bool {
+    let fqName = symbol.fqName
+    guard fqName.count == 3,
+          fqName[0] == interner.intern("kotlin"),
+          fqName[1] == interner.intern("ranges")
+    else { return false }
+    switch interner.resolve(fqName[2]) {
+    case "IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange",
+         "IntProgression", "LongProgression", "CharProgression",
+         "UIntProgression", "ULongProgression":
+        return true
+    default:
+        return false
+    }
 }
 
 private func resolveItableDispatchKind(
