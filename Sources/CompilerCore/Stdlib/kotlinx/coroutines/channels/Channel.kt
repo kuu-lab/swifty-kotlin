@@ -45,6 +45,9 @@ private external fun Channel<*>.__kkChannelTrySend(element: Any?): ChannelResult
 @KsSymbolName("__kk_channel_close_cause")
 private external fun Channel<*>.__kkChannelCloseCause(cause: Throwable?): Int
 
+@KsSymbolName("__kk_channel_cancel")
+private external fun Channel<*>.__kkChannelCancel(cause: Throwable?): Int
+
 @KsSymbolName("kk_channel_is_closed_for_send")
 private external fun SendChannel<*>.__kkSendChannelIsClosedForSend(): Int
 
@@ -94,11 +97,12 @@ public val Channel<*>.isEmpty: Boolean
 
 /**
  * Cancels this channel with an optional [cause]. Matches upstream
- * `ReceiveChannel.cancel`: closes the channel for new elements and, when no
- * cause is given, substitutes a default `CancellationException`.
+ * `ReceiveChannel.cancel`: closes the channel for new elements, discards
+ * buffered elements, and substitutes a default `CancellationException` when
+ * no cause is given.
  */
 public fun Channel<*>.cancel(cause: CancellationException? = null): Unit {
-    this.__kkChannelCloseCause(cause ?: CancellationException())
+    this.__kkChannelCancel(cause ?: CancellationException("Channel was cancelled"))
 }
 
 /**

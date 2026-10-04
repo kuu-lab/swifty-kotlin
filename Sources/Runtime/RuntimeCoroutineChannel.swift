@@ -96,6 +96,9 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     private var buffer = RuntimeFIFOQueue<Int>()
     let capacity: Int
     private(set) var closed = false
+    /// `true` when the channel was closed via `cancel(cause:)` (buffer
+    /// discarded) rather than `close(cause:)` (buffer drains normally).
+    private(set) var cancelled = false
     /// The `Throwable` handle passed to `close(cause:)` / `cancel(cause:)`,
     /// or `0` when the channel is still open or was closed without a cause.
     /// Retained so result-returning operations (`trySend` and friends) can
@@ -449,10 +452,52 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
         for handler in pendingCloseHandlers {
             guard handler.fnPtr != 0 else { continue }
+            // `invokeOnClose` receives the close cause (null when none),
+            // matching kotlinx's `invokeOnClose(handler: (Throwable?) -> Unit)`.
             _ = runtimeInvokeCollectionLambda1MaybeWrapped(
                 fnPtr: handler.fnPtr,
                 closureRaw: handler.closureRaw,
-                value: runtimeNullSentinelInt,
+                value: closeCause != 0 ? closeCause : runtimeNullSentinelInt,
+                outThrown: nil
+            )
+        }
+        return true
+    }
+
+    /// `ReceiveChannel.cancel(cause:)`: like `close`, but the buffered
+    /// elements are discarded immediately instead of draining first
+    /// (upstream `cancelInternal`). Suspended waiters wake with `.cancelled`.
+    @discardableResult
+    func cancel(cause: Int = 0) -> Bool {
+        lock.lock()
+        if closed {
+            lock.unlock()
+            return false
+        }
+        closed = true
+        cancelled = true
+        closeCause = cause == runtimeNullSentinelInt ? 0 : cause
+        _ = buffer.drain()
+        let pendingSenders = senderQueue.drain()
+        let pendingReceivers = receiverQueue.drain()
+        let pendingCloseHandlers = closeHandlers
+        closeHandlers.removeAll()
+        lock.unlock()
+
+        for sender in pendingSenders {
+            sender.cancelledWakeup = true
+            resumeSender(sender)
+        }
+        for receiver in pendingReceivers {
+            receiver.cancelledWakeup = true
+            resumeReceiver(receiver)
+        }
+        for handler in pendingCloseHandlers {
+            guard handler.fnPtr != 0 else { continue }
+            _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+                fnPtr: handler.fnPtr,
+                closureRaw: handler.closureRaw,
+                value: closeCause != 0 ? closeCause : runtimeNullSentinelInt,
                 outThrown: nil
             )
         }
@@ -463,18 +508,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     ///
     /// Returns `true` when the handler was queued and will run on the first
     /// close.  When the channel is already closed the handler is invoked
-    /// inline with a nil cause, matching kotlinx.coroutines semantics, and
-    /// `false` is returned.
+    /// inline with the retained close cause, matching kotlinx.coroutines
+    /// semantics, and `false` is returned.
     @discardableResult
     func addCloseHandler(fnPtr: Int, closureRaw: Int) -> Bool {
         lock.lock()
         if closed {
+            let retainedCause = closeCause
             lock.unlock()
             guard fnPtr != 0 else { return false }
             _ = runtimeInvokeCollectionLambda1MaybeWrapped(
                 fnPtr: fnPtr,
                 closureRaw: closureRaw,
-                value: runtimeNullSentinelInt,
+                value: retainedCause != 0 ? retainedCause : runtimeNullSentinelInt,
                 outThrown: nil
             )
             return false
@@ -492,12 +538,12 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     }
 
     /// `true` when no element is currently receivable: the buffer is drained
-    /// and no suspended sender is waiting to hand off a value.
-    /// Matches Kotlin's `ReceiveChannel.isEmpty` contract.
+    /// and no suspended sender is waiting to hand off a value. A closed
+    /// channel is never `isEmpty` upstream (its receive side is done).
     func isEmptySnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return buffer.isEmpty && senderQueue.isEmpty
+        return !closed && buffer.isEmpty && senderQueue.isEmpty
     }
 
     /// Cancel all suspended senders and receivers.  This is called when a
@@ -811,10 +857,9 @@ public func kk_channel_close_cause(_ handle: Int) -> Int {
     return channel.closeCauseSnapshot()
 }
 
-/// Close-with-cause bridge for Kotlin's `SendChannel.close(cause:)` and
-/// `ReceiveChannel.cancel(cause:)`. `cause` is a `Throwable` object handle or
-/// 0.  Returns 1 the first time the channel actually closes, 0 when it was
-/// already closed.
+/// Close-with-cause bridge for Kotlin's `SendChannel.close(cause:)`.
+/// `cause` is a `Throwable` object handle or 0.  Returns 1 the first time the
+/// channel actually closes, 0 when it was already closed.
 @_cdecl("__kk_channel_close_cause")
 public func kk_channel_close_cause(_ handle: Int, _ cause: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
@@ -822,6 +867,18 @@ public func kk_channel_close_cause(_ handle: Int, _ cause: Int) -> Int {
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
     return channel.close(cause: cause) ? 1 : 0
+}
+
+/// `ReceiveChannel.cancel(cause:)` bridge: closes the channel and discards
+/// buffered elements (upstream `cancelInternal`), unlike `close` which keeps
+/// them receivable. Suspended waiters wake with `.cancelled`.
+@_cdecl("__kk_channel_cancel")
+public func __kk_channel_cancel(_ handle: Int, _ cause: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_cancel received invalid channel handle")
+    }
+    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
+    return channel.cancel(cause: cause) ? 1 : 0
 }
 
 // MARK: - ChannelResult Box (KSP-1572; close-cause extension KSP-1571)

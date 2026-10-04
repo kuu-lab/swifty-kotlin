@@ -74,8 +74,8 @@ fun main() = runBlocking {
     println("ch6 closed: ${ch6.isClosedForSend}")
 
     // 7. consume returns a value, then its implicit cancel closes the channel
-    //    with a default CancellationException; remaining buffered elements stay
-    //    (JVM semantics: cancel does not discard the buffer).
+    //    with a default CancellationException and discards the buffer
+    //    (JVM semantics: cancel drains nothing; isEmpty is false on closed).
     val ch7 = Channel<Int>(3)
     ch7.send(5)
     ch7.send(6)
@@ -85,7 +85,10 @@ fun main() = runBlocking {
     }
     println("consume first: $first")
     println("ch7 cancelled: ${ch7.isClosedForSend}")
-    println("ch7 still has element: ${!ch7.isEmpty}")
+    println("ch7 isEmpty: ${ch7.isEmpty}")
+    val r7 = ch7.tryReceive()
+    println("ch7 receive closed: ${r7.isClosed}")
+    println("ch7 cancel cause: ${r7.exceptionOrNull()?.message}")
 
     // 8. closed-without-cause result: trySend wraps a ClosedSendChannelException
     //    as the close cause (upstream sendException semantics)
@@ -100,6 +103,15 @@ fun main() = runBlocking {
     } catch (e: ClosedSendChannelException) {
         println("r8 getOrThrow threw: ${e.message}")
     }
+
+    // 9. invokeOnClose delivers the close cause to the handler
+    val ch9 = Channel<Int>()
+    ch9.invokeOnClose { println("onClose cause: ${it?.message}") }
+    ch9.close(IllegalStateException("boom"))
+
+    val ch10 = Channel<Int>()
+    ch10.invokeOnClose { println("onClose null: ${it == null}") }
+    ch10.close()
 
     // NOTE: ChannelResult.success/failure/closed are @InternalCoroutinesApi
     // upstream — the kotlinc reference refuses user calls, so they are

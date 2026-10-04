@@ -8,6 +8,7 @@
 package kotlinx.coroutines.channels
 
 import kotlin.internal.KsSymbolName
+import kotlinx.coroutines.InternalCoroutinesApi
 
 // KSP-1571/KSP-1572: ChannelResult is an opaque runtime box (operation status
 // plus the received element and the retained close cause) produced by the
@@ -91,18 +92,21 @@ public class ChannelResult<out T> private constructor() {
         /**
          * Wraps [value] in a successful result.
          */
+        @InternalCoroutinesApi
         public fun <T> success(value: T): ChannelResult<T> =
             __kkChannelResultCreate(KK_CHANNEL_RESULT_STATUS_SUCCESS, value, null)
 
         /**
          * A failure without a close cause.
          */
+        @InternalCoroutinesApi
         public fun <T> failure(): ChannelResult<T> =
             __kkChannelResultCreate(KK_CHANNEL_RESULT_STATUS_FAILED, null, null)
 
         /**
          * A failure caused by channel closure with an optional [cause].
          */
+        @InternalCoroutinesApi
         public fun <T> closed(cause: Throwable?): ChannelResult<T> =
             __kkChannelResultCreate(KK_CHANNEL_RESULT_STATUS_CLOSED, null, cause)
     }
@@ -112,7 +116,9 @@ public class ChannelResult<out T> private constructor() {
             return "Closed(${exceptionOrNull()})"
         }
         if (isFailure) {
-            return "Failed"
+            // Upstream's generic failure holds the `Failed` singleton as its
+            // value, so it prints as `Value(Failed)`.
+            return "Value(Failed)"
         }
         return "Value(${getOrNull()})"
     }

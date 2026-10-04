@@ -2644,7 +2644,7 @@ struct StdlibArtifactRegressionTests {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "trySend ok: true\nclose(cause): true\nclosed: true\ncause: boom\nsum: 3\nempty: true\nps: ok\nps closed: false\ngot: 11\ndone\n")
+            #expect(normalizedStdout == "trySend ok: true\nclose(cause): true\nclosed: true\ncause: boom\nsum: 3\nempty: false\nps: ok\nps closed: false\ngot: 11\ndone\n")
         }
     }
 

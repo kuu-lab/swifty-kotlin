@@ -100,6 +100,10 @@ public extension RuntimeABISpec {
             p("handle", .intptr),
             p("cause", .intptr),
         ], isThrowing: false),
+        abiParitySpec("__kk_channel_cancel", parameters: [
+            p("handle", .intptr),
+            p("cause", .intptr),
+        ], isThrowing: false),
         // KSP-1571: ChannelResult box accessors added on top of KSP-1572's
         // box-returning `__kk_channel_*` bridges (registered in the Coroutine
         // section): `cause` reads the retained close cause and `create` backs
