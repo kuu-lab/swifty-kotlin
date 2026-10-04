@@ -1,18 +1,28 @@
 /// Higher-order collection call rewrites split out from
 /// `CollectionLiteralLoweringPass+CallRewrite.swift`.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteHigherOrderCollectionCall(
         callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
         canThrow: Bool,
         thrownResult: KIRExprID?,
-        function: KIRFunction,
         module: KIRModule,
+        ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
+        if let receiverCandidate = arguments.first {
+            classifyTrackedExprByStaticType(
+                receiverCandidate,
+                module: module,
+                sema: ctx.sema,
+                lookup: lookup,
+                state: &state
+            )
+        }
+
         if rewriteCoreHigherOrderCollectionCall(
             callee: callee,
             arguments: arguments,
@@ -34,21 +44,7 @@ extension CollectionLiteralLoweringPass {
             canThrow: canThrow,
             thrownResult: thrownResult,
             module: module,
-            lookup: lookup,
-            state: &state,
-            loweredBody: &loweredBody
-        ) {
-            return true
-        }
-
-        if rewriteExtremaHigherOrderCollectionCall(
-            callee: callee,
-            arguments: arguments,
-            result: result,
-            canThrow: canThrow,
-            thrownResult: thrownResult,
-            function: function,
-            module: module,
+            ctx: ctx,
             lookup: lookup,
             state: &state,
             loweredBody: &loweredBody

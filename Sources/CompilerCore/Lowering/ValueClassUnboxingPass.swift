@@ -15,6 +15,8 @@
 /// This pass must run **before** PropertyLoweringPass and ABILoweringPass.
 final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     static let name = "ValueClassUnboxing"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .valueClassUnboxed
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         guard let sema = ctx.sema else { return false }
@@ -23,7 +25,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             guard case let .nominalType(nominal) = decl else { continue }
             guard let sym = symbols.symbol(nominal.symbol),
                   sym.flags.contains(.valueType),
-                  symbols.valueClassUnderlyingType(for: nominal.symbol) != nil
+                  symbols.effectiveValueClassUnderlyingType(for: nominal.symbol) != nil
             else { continue }
             return true
         }
@@ -48,7 +50,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             guard case let .nominalType(nominal) = decl else { continue }
             guard let sym = symbols.symbol(nominal.symbol),
                   sym.flags.contains(.valueType),
-                  symbols.valueClassUnderlyingType(for: nominal.symbol) != nil
+                  symbols.effectiveValueClassUnderlyingType(for: nominal.symbol) != nil
             else { continue }
 
             valueClassSymbols.insert(nominal.symbol)
@@ -84,15 +86,22 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 kk_object_new: kk_object_new,
                 kk_array_get_inbounds: kk_array_get_inbounds
             )
-            updated.replaceBody(newBody)
+            updated.replaceBody(newBody, locations: function.instructionLocations)
             return updated
         }
 
         module.recordLowering(Self.name)
     }
 
-    /// Returns true if the given expression has a type that is a non-null
-    /// value class instance.
+    /// Returns true if the given expression has a type that is a value class
+    /// instance. Nullable value-class-typed expressions are included: a
+    /// `kk_array_get_inbounds` property read only ever appears on a receiver
+    /// Kotlin's type checker has already proven non-null at that point (e.g.
+    /// the non-null branch of a safe call, or the result of `maxByOrNull`
+    /// right after its `jumpIfNotNull` guard) — the KIR type itself just
+    /// hasn't been narrowed. Requiring `.nonNull` here made those reads fall
+    /// through to the generic call fallback and crash on the unboxed raw
+    /// value instead of being rewritten to a plain copy.
     private func isValueClassExpr(
         _ expr: KIRExprID,
         arena: KIRArena,
@@ -101,7 +110,6 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     ) -> Bool {
         guard let type = arena.exprType(expr) else { return false }
         if case let .classType(classType) = types.kind(of: type),
-           classType.nullability == .nonNull,
            valueClassSymbols.contains(classType.classSymbol)
         {
             return true
@@ -237,7 +245,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
 
             // Rewrite value class constructor calls:
             // call <init>(allocObj, value) -> result  =>  copy(value, result)
-            case let .call(symbol, callee, arguments, callResult, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+            case let .call(symbol, callee, arguments, callResult, canThrow, thrownResult, isSuperCall, _):
                 if let symbol, valueClassCtors.contains(symbol),
                    let callResult
                 {
@@ -260,6 +268,13 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                    isValueClassExpr(arguments[0], arena: arena, types: types, valueClassSymbols: valueClassSymbols)
                 {
                     result.append(.copy(from: arguments[0], to: callResult))
+                    continue
+                }
+                // Remove auxiliary calls that consume the removed value-class
+                // allocation (e.g. kk_object_register_any_to_string): the
+                // unboxed value has no heap object to register.
+                if let objectArg = arguments.first, allocExprs.contains(objectArg) {
+                    result.append(.nop)
                     continue
                 }
                 result.append(.call(

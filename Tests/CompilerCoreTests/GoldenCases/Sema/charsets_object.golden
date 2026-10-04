@@ -1,53 +1,57 @@
-symbol fq=__local_0.bytes kind=local vis=private flags=_ type=kotlin.ByteArray
-symbol fq=__local_1.s1 kind=local vis=private flags=_ type=String
-symbol fq=__local_2.s2 kind=local vis=private flags=_ type=String
-symbol fq=__local_3.s3 kind=local vis=private flags=_ type=String
-symbol fq=__local_4.s4 kind=local vis=private flags=_ type=String
-symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
-symbol fq=kotlin.byteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.ByteArray vararg=[1]
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.Charset kind=class vis=public flags=synthetic type=kotlin.text.Charset
-symbol fq=kotlin.text.Charsets kind=object vis=public flags=synthetic type=kotlin.text.Charsets
-symbol fq=kotlin.text.Charsets.ISO_8859_1 kind=property vis=public flags=synthetic type=kotlin.text.Charset
-symbol fq=kotlin.text.Charsets.US_ASCII kind=property vis=public flags=synthetic type=kotlin.text.Charset
-symbol fq=kotlin.text.Charsets.UTF_8 kind=property vis=public flags=synthetic type=kotlin.text.Charset
-symbol fq=kotlin.text.decodeToString#0 kind=function vis=public flags=_ sig=recv=kotlin.ByteArray params=[] ret=String
-symbol fq=kotlin.text.decodeToString#3 kind=function vis=public flags=_ sig=recv=kotlin.ByteArray params=[kotlin.text.Charset] ret=String
-symbol fq=kotlin.text.decodeToString.$0.charset kind=valueParameter vis=private flags=_
-symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
-  decl d0 fun main sym=main
-expr e0 int(72) type=Int
-expr e1 int(101) type=Int
-expr e2 int(108) type=Int
-expr e3 int(108) type=Int
-expr e4 int(111) type=Int
-expr e5 call callee=e6 args=[_:e0,_:e1,_:e2,_:e3,_:e4] type=kotlin.ByteArray call=kotlin.byteArrayOf
-expr e7 localDecl bytes mutable=0 type=_ init=e5 type=Unit ref=__local_0.bytes
-expr e8 name(bytes) type=kotlin.ByteArray ref=__local_0.bytes
-expr e9 memberCall recv=e8 callee=decodeToString args=[] type=String call=kotlin.text.decodeToString#0
-expr e10 localDecl s1 mutable=0 type=_ init=e9 type=Unit ref=__local_1.s1
-expr e11 name(bytes) type=kotlin.ByteArray ref=__local_0.bytes
-expr e12 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets
-expr e13 memberCall recv=e12 callee=UTF_8 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_8
-expr e14 memberCall recv=e11 callee=decodeToString args=[_:e13] type=String call=kotlin.text.decodeToString#3
-expr e15 localDecl s2 mutable=0 type=_ init=e14 type=Unit ref=__local_2.s2
-expr e16 name(bytes) type=kotlin.ByteArray ref=__local_0.bytes
-expr e17 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets
-expr e18 memberCall recv=e17 callee=ISO_8859_1 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.ISO_8859_1
-expr e19 memberCall recv=e16 callee=decodeToString args=[_:e18] type=String call=kotlin.text.decodeToString#3
-expr e20 localDecl s3 mutable=0 type=_ init=e19 type=Unit ref=__local_3.s3
-expr e21 name(bytes) type=kotlin.ByteArray ref=__local_0.bytes
-expr e22 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets
-expr e23 memberCall recv=e22 callee=US_ASCII args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.US_ASCII
-expr e24 memberCall recv=e21 callee=decodeToString args=[_:e23] type=String call=kotlin.text.decodeToString#3
-expr e25 localDecl s4 mutable=0 type=_ init=e24 type=Unit ref=__local_4.s4
-expr e26 name(s1) type=String ref=__local_1.s1
-expr e27 call callee=e28 args=[_:e26] type=Unit call=kotlin.io.println#1
-expr e29 name(s2) type=String ref=__local_2.s2
-expr e30 call callee=e31 args=[_:e29] type=Unit call=kotlin.io.println#1
-expr e32 name(s3) type=String ref=__local_3.s3
-expr e33 call callee=e34 args=[_:e32] type=Unit call=kotlin.io.println#1
-expr e35 name(s4) type=String ref=__local_4.s4
-expr e36 call callee=e37 args=[_:e35] type=Unit call=kotlin.io.println#1
+symbol fq=__local_0.utf8[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_1.utf16[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_2.usAscii[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_3.iso88591[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_4.utf16be[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_5.utf16le[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_6.utf32[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_7.utf32be[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_8.utf32le[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fcharsets_object package=_
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@7:25 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@7:25#1 memberCall recv=e@7:25 callee=UTF_8 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_8[kind=prop]
+expr e@7:5 localDecl utf8 mutable=0 type=Charset init=e@7:25#1 type=Unit ref=__local_0.utf8[kind=local]
+expr e@8:26 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@8:26#1 memberCall recv=e@8:26 callee=UTF_16 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16[kind=prop]
+expr e@8:5 localDecl utf16 mutable=0 type=Charset init=e@8:26#1 type=Unit ref=__local_1.utf16[kind=local]
+expr e@9:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@9:28#1 memberCall recv=e@9:28 callee=US_ASCII args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.US_ASCII[kind=prop]
+expr e@9:5 localDecl usAscii mutable=0 type=Charset init=e@9:28#1 type=Unit ref=__local_2.usAscii[kind=local]
+expr e@10:29 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@10:29#1 memberCall recv=e@10:29 callee=ISO_8859_1 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.ISO_8859_1[kind=prop]
+expr e@10:5 localDecl iso88591 mutable=0 type=Charset init=e@10:29#1 type=Unit ref=__local_3.iso88591[kind=local]
+expr e@11:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@11:28#1 memberCall recv=e@11:28 callee=UTF_16BE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16BE[kind=prop]
+expr e@11:5 localDecl utf16be mutable=0 type=Charset init=e@11:28#1 type=Unit ref=__local_4.utf16be[kind=local]
+expr e@12:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@12:28#1 memberCall recv=e@12:28 callee=UTF_16LE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16LE[kind=prop]
+expr e@12:5 localDecl utf16le mutable=0 type=Charset init=e@12:28#1 type=Unit ref=__local_5.utf16le[kind=local]
+expr e@13:26 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@13:26#1 memberCall recv=e@13:26 callee=UTF_32 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32[kind=prop]
+expr e@13:5 localDecl utf32 mutable=0 type=Charset init=e@13:26#1 type=Unit ref=__local_6.utf32[kind=local]
+expr e@14:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@14:28#1 memberCall recv=e@14:28 callee=UTF_32BE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32BE[kind=prop]
+expr e@14:5 localDecl utf32be mutable=0 type=Charset init=e@14:28#1 type=Unit ref=__local_7.utf32be[kind=local]
+expr e@15:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
+expr e@15:28#1 memberCall recv=e@15:28 callee=UTF_32LE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32LE[kind=prop]
+expr e@15:5 localDecl utf32le mutable=0 type=Charset init=e@15:28#1 type=Unit ref=__local_8.utf32le[kind=local]
+expr e@16:13 name(utf8) type=kotlin.text.Charset ref=__local_0.utf8[kind=local]
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@17:13 name(utf16) type=kotlin.text.Charset ref=__local_1.utf16[kind=local]
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@18:13 name(usAscii) type=kotlin.text.Charset ref=__local_2.usAscii[kind=local]
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@19:13 name(iso88591) type=kotlin.text.Charset ref=__local_3.iso88591[kind=local]
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@20:13 name(utf16be) type=kotlin.text.Charset ref=__local_4.utf16be[kind=local]
+expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@21:13 name(utf16le) type=kotlin.text.Charset ref=__local_5.utf16le[kind=local]
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@22:13 name(utf32) type=kotlin.text.Charset ref=__local_6.utf32[kind=local]
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@23:13 name(utf32be) type=kotlin.text.Charset ref=__local_7.utf32be[kind=local]
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@24:13 name(utf32le) type=kotlin.text.Charset ref=__local_8.utf32le[kind=local]
+expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

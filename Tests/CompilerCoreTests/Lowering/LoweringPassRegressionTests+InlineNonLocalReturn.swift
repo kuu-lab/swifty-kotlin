@@ -5,11 +5,94 @@ import Testing
 
 extension LoweringPassRegressionTests {
 
+    // MARK: - BUG-209: source lambda returns
+
+    @Test
+    func testBug209LowersUnlabeledLambdaReturnAsNonLocalReturn() throws {
+        let source = """
+            inline fun myRepeat(times: Int, action: (Int) -> Unit) {
+                var i = 0
+                while (i < times) {
+                    action(i)
+                    i += 1
+                }
+            }
+
+            inline fun cross(crossinline action: () -> Unit) { action() }
+            inline fun no(noinline action: () -> Unit) { action() }
+
+            fun unlabeled(): Int {
+                myRepeat(10) { i -> if (i == 3) return i }
+                return -1
+            }
+
+            fun labeled(): Int {
+                myRepeat(10) { i -> if (i == 3) return@myRepeat }
+                return 42
+            }
+            """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        guard let module = ctx.kir else {
+            Issue.record("expected KIR module")
+            return
+        }
+        let crossSymbol = ctx.sema?.symbols.lookupByShortName(ctx.interner.intern("cross")).first
+        let noSymbol = ctx.sema?.symbols.lookupByShortName(ctx.interner.intern("no")).first
+        #expect(ctx.sema?.symbols.functionSignature(for: crossSymbol ?? .invalid)?.valueParameterAllowsNonLocalReturn == [false])
+        #expect(ctx.sema?.symbols.functionSignature(for: noSymbol ?? .invalid)?.valueParameterAllowsNonLocalReturn == [false])
+        let lambdaFunctions = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            guard case let .function(function) = declaration,
+                  ctx.interner.resolve(function.name).hasPrefix("kk_lambda")
+            else {
+                return nil
+            }
+            return function
+        }
+        let lambdasWithNonLocalReturn = lambdaFunctions.filter { function in
+            function.body.contains { instruction in
+                if case .nonLocalReturn = instruction { return true }
+                return false
+            }
+        }
+        #expect(lambdasWithNonLocalReturn.count == 1)
+        #expect(lambdasWithNonLocalReturn.first?.isInlineOnly == true,
+                "A lambda carrying nonLocalReturn must never be emitted standalone")
+        #expect(lambdaFunctions.filter { function in
+            !function.body.contains { instruction in
+                if case .nonLocalReturn = instruction { return true }
+                return false
+            }
+        }.allSatisfy { !$0.isInlineOnly },
+        "A lambda that only has a normal or labeled return must remain emittable")
+        #expect(lambdasWithNonLocalReturn.first?.body.contains { instruction in
+            if case .returnValue = instruction { return true }
+            return false
+        } == true, "The implicit lambda tail return must remain a normal return")
+
+        try LoweringPhase().run(ctx)
+
+        let loweredFunctions = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            guard case let .function(function) = declaration else { return nil }
+            return function
+        }
+        let unlabeledFunction = loweredFunctions.first { ctx.interner.resolve($0.name) == "unlabeled" }
+        let labeledFunction = loweredFunctions.first { ctx.interner.resolve($0.name) == "labeled" }
+        #expect(unlabeledFunction != nil)
+        #expect(labeledFunction != nil)
+        #expect(unlabeledFunction?.body.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        } == false, "InlineLowering must consume BUG-209 nonLocalReturn instructions")
+        #expect(labeledFunction?.body.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        } == false, "return@myRepeat must stay lambda-local")
+    }
+
     // MARK: - Non-local return: basic conversion
 
-    /// When an inline function body contains a `nonLocalReturn`, the inline
-    /// lowering pass should convert it into a real `returnValue` / `returnUnit`
-    /// in the caller's body.
     @Test
     func testInlineLoweringConvertsNonLocalReturnValueToCallerReturn() throws {
         let interner = StringInterner()
@@ -20,7 +103,6 @@ extension LoweringPassRegressionTests {
         let inlineSym = SymbolID(rawValue: 401)
         let inlineParamSym = SymbolID(rawValue: 402)
 
-        // Inline function body: load the parameter, then non-local return it.
         let inlineArgExpr = arena.appendExpr(.temporary(0))
         let callerArg = arena.appendExpr(.temporary(1))
         let callerResult = arena.appendExpr(.temporary(2))
@@ -32,7 +114,6 @@ extension LoweringPassRegressionTests {
             returnType: types.make(.primitive(.int, .nonNull)),
             body: [
                 .constValue(result: inlineArgExpr, value: .symbolRef(inlineParamSym)),
-                // This non-local return should become a real return in the caller.
                 .nonLocalReturn(inlineArgExpr),
             ],
             isSuspend: false,
@@ -54,7 +135,6 @@ extension LoweringPassRegressionTests {
                     canThrow: false,
                     thrownResult: nil
                 ),
-                // This returnValue should still be present after inlining.
                 .returnValue(callerResult),
             ],
             isSuspend: false,
@@ -68,40 +148,19 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNonLocalReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNonLocalReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
-        // The non-local return should have been converted to a real returnValue.
-        // We expect at least 2: one from the non-local return conversion and one
-        // from the caller's own return statement.
         let returnValues = loweredCaller.body.compactMap { instruction -> KIRExprID? in
             guard case let .returnValue(expr) = instruction else { return nil }
             return expr
         }
         #expect(returnValues.count >= 2, "Expected returnValue from both non-local return conversion and caller's own return")
 
-        // The inlined call should be removed (no call to 'runAndReturn').
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("runAndReturn"), "Inline call should be expanded")
 
-        // No residual nonLocalReturn instructions should remain.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
@@ -111,8 +170,6 @@ extension LoweringPassRegressionTests {
 
     // MARK: - Non-local return Unit
 
-    /// A non-local return with nil value (Unit return) should become returnUnit
-    /// in the caller.
     @Test
     func testInlineLoweringConvertsNonLocalReturnUnitToCallerReturnUnit() throws {
         let interner = StringInterner()
@@ -163,39 +220,19 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNonLocalReturnUnit",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNonLocalReturnUnit")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
-        // Should have at least 2 returnUnit instructions: one from the non-local
-        // return conversion and one from the caller's own return statement.
         let returnUnitCount = loweredCaller.body.filter { instruction in
             if case .returnUnit = instruction { return true }
             return false
         }.count
         #expect(returnUnitCount >= 2, "Expected returnUnit from both non-local return conversion and caller's own return")
 
-        // The inlined call should be removed (no call to 'earlyExit').
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("earlyExit"), "Inline call should be expanded")
 
-        // No residual nonLocalReturn.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
@@ -205,8 +242,6 @@ extension LoweringPassRegressionTests {
 
     // MARK: - Non-local return with mixed body (normal path + non-local path)
 
-    /// When an inline function contains both a normal code path and a
-    /// non-local return path, both should be present in the lowered output.
     @Test
     func testInlineLoweringPreservesMixedNormalAndNonLocalReturnPaths() throws {
         let interner = StringInterner()
@@ -272,28 +307,10 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineMixedReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineMixedReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
-        // Should have returnValue instructions from both the non-local
-        // return path and the caller's own return.
         let returnValues = loweredCaller.body.compactMap { instruction -> KIRExprID? in
             guard case let .returnValue(expr) = instruction else { return nil }
             return expr
@@ -303,33 +320,25 @@ extension LoweringPassRegressionTests {
             "Expected returns from both non-local path and caller's own return"
         )
 
-        // An exit label should be emitted (dynamically allocated above existing labels).
-        // With label remapping, the inline body's label 10 is remapped into the
-        // caller's namespace, and the exit label is allocated after all remapped labels.
         let labels = loweredCaller.body.compactMap { instruction -> Int32? in
             guard case let .label(id) = instruction else { return nil }
             return id
         }
-        // Expect at least 2 labels: one from the remapped inline body and the exit label.
         #expect(labels.count >= 2, "Expected remapped body label and exit label")
-        // All labels should be unique (no collisions from remapping).
         #expect(Set(labels).count == labels.count, "All labels should be unique after remapping")
 
-        // No residual nonLocalReturn.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
         }
         #expect(!hasNonLocalReturn, "nonLocalReturn should have been lowered away")
 
-        // The inlined call should be removed.
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("conditionalReturn"))
     }
 
     // MARK: - Existing inline tests still pass (no regression)
 
-    /// Inline expansion without nonLocalReturn should work exactly as before.
     @Test
     func testInlineLoweringWithoutNonLocalReturnIsUnchanged() throws {
         let interner = StringInterner()
@@ -381,42 +390,20 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNoNonLocal",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNoNonLocal")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
-        // Inline call should be expanded -- no call to addOne remains.
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("addOne"))
         #expect(calleeNames.contains("kk_op_add"))
 
-        // No nonLocalReturn instructions.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
         }
         #expect(!hasNonLocalReturn)
 
-        // No exit labels from non-local return handling should be present.
-        // The inline function body has no labels, so exit labels would be
-        // allocated starting from 0. With no non-local returns, no exit
-        // labels should be emitted at all.
         let labels = loweredCaller.body.compactMap { instruction -> Int32? in
             guard case let .label(id) = instruction else { return nil }
             return id
@@ -426,9 +413,6 @@ extension LoweringPassRegressionTests {
 
     // MARK: - Unit inline body with mixed control flow (NLR + returnUnit in branches)
 
-    /// When an inline function returns Unit and has one branch with nonLocalReturn
-    /// and another branch with returnUnit, the returnUnit branch should jump to
-    /// an exit label (not fall through into subsequent code).
     @Test
     func testInlineLoweringUnitBodyWithMixedNonLocalAndNormalReturn() throws {
         let interner = StringInterner()
@@ -496,40 +480,19 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineUnitMixedReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineUnitMixedReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
-        // The inline call should be expanded.
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("maybeExit"), "Inline call should be expanded")
 
-        // No residual nonLocalReturn.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
         }
         #expect(!hasNonLocalReturn, "nonLocalReturn should have been lowered away")
 
-        // The normal-return branch (returnUnit from inline body) should have
-        // been converted to a jump to the exit label. Verify that a jump
-        // instruction exists targeting a label that also appears in the body.
         let labels = Set(loweredCaller.body.compactMap { instruction -> Int32? in
             guard case let .label(id) = instruction else { return nil }
             return id
@@ -538,13 +501,10 @@ extension LoweringPassRegressionTests {
             guard case let .jump(target) = instruction else { return nil }
             return target
         })
-        // There should be at least one exit label that is targeted by a jump.
         let exitLabelsWithIncomingEdges = labels.intersection(jumpTargets)
         #expect(!exitLabelsWithIncomingEdges.isEmpty,
                 "Expected an exit label with incoming jump from the normal-return branch")
 
-        // Should have at least one returnUnit (from the NLR path converting
-        // nonLocalReturn(nil) into a real returnUnit).
         let returnUnitCount = loweredCaller.body.filter { instruction in
             if case .returnUnit = instruction { return true }
             return false

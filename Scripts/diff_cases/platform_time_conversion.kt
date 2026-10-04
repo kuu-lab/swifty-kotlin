@@ -1,3 +1,7 @@
+// SKIP-DIFF (DEBT-DIFF-007): CLEANUP-STUB-126 removes the JVM-only
+// java.time / java.util.concurrent.TimeUnit synthetic surface from kswiftc.
+// kotlinc can compile this JVM interop probe, but it remains intentionally
+// excluded from candidate/reference diff as a target-out case.
 import java.time.Duration as JavaDuration
 import java.time.Instant as JavaInstant
 import java.util.concurrent.TimeUnit
@@ -25,7 +29,7 @@ fun main() {
     val javaInstant: JavaInstant = instant.toJavaInstant()
     val instantRoundTrip = javaInstant.toKotlinInstant()
     println(instantRoundTrip.epochSeconds == 1L)
-    println(instantRoundTrip.nanoOfSecond == 234_000_000)
+    println(instantRoundTrip.nanosecondsOfSecond == 234_000_000)
 
     val duration = 1_500.milliseconds
     val javaDuration: JavaDuration = duration.toJavaDuration()

@@ -1,7 +1,5 @@
-// SKIP-DIFF: Duration.toString() formats differ — kotlinc uses "1m 30s" but KSwiftK uses "90s"
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.hours
 
 fun main() {
@@ -17,6 +15,15 @@ fun main() {
     val d3 = 500.milliseconds
     println(d3.inWholeMilliseconds)
     println(d3.inWholeSeconds)
+
+    val precise = 2500.milliseconds
+    println(precise.inWholeSeconds)
+    println(precise.inWholeMilliseconds)
+
+    val threeHours = 3.hours
+    println(threeHours.inWholeHours)
+    println(threeHours.inWholeMinutes)
+    println(threeHours.inWholeSeconds)
 
     // STDLIB-TIME-082: advanced properties
     val neg = (-30).seconds

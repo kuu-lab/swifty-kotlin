@@ -1,4 +1,7 @@
+
 import kotlin.time.*
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 fun main() {
     val measured = measureTimedValue {
@@ -14,9 +17,9 @@ fun main() {
     val epoch = Instant.fromEpochMilliseconds(0)
     val later = epoch + 1500.milliseconds
     println(later.epochSeconds)
-    println(later.nanoOfSecond)
+    println(later.nanosecondsOfSecond)
 
     val earlier = later - 2.seconds
     println(earlier.epochSeconds)
-    println(earlier.nanoOfSecond)
+    println(earlier.nanosecondsOfSecond)
 }

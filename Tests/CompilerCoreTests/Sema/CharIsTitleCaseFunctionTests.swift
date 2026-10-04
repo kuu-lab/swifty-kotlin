@@ -8,37 +8,24 @@ import Testing
 /// `kk_char_isTitleCase`.
 @Suite
 struct CharIsTitleCaseFunctionTests {
-    @Test func testIsTitleCaseResolvesOnCharLiteralReceiver() throws {
+    @Test func testIsTitleCaseResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun isTitleOfLiteral(): Boolean {
             return 'A'.isTitleCase()
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected isTitleCase to type-check on a Char literal, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testIsTitleCaseResolvesOnCharParameterReceiver() throws {
-        let ctx = makeContextFromSource("""
         fun isTitle(ch: Char): Boolean {
             return ch.isTitleCase()
         }
         """)
+
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected isTitleCase to type-check on a Char parameter, got: \(errors.map { "\($0.code): \($0.message)" })"
+            "Expected isTitleCase to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    @Test func testIsTitleCaseLinksToCorrectRuntimeSymbol() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
         let sema = try #require(ctx.sema)
         let fq = ["kotlin", "text", "isTitleCase"].map { ctx.interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)

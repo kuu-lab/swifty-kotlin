@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "arraylist_subclass_unsupported.kt",
+      "range": {
+        "start": { "line": 7, "character": 0 },
+        "end": { "line": 9, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-FINAL",
+      "source": "kswiftk",
+      "message": "Cannot inherit from final class 'kotlin.collections.ArrayList'. Mark it as 'open' to allow subclassing.",
+      "codeActions": [{ "title": "Remove 'final' modifier from base declaration", "kind": "quickfix" }]
+    }
+  ]
+}

@@ -11,9 +11,15 @@ import CompilerCore
 final class LinkPhase: CompilerPhase {
     static let name = "Link"
 
-    /// Linux links share one Swift autolink stub per target triple under `TMPDIR/kswiftk-link-stubs`.
-    /// Guard creation with a file lock so parallel Swift test workers in separate processes
-    /// cannot race on the same stub path and hand `swiftc` a torn or empty file.
+    /// Linux links emit a Swift autolink stub that pulls in runtime dependencies. The stub is
+    /// written to a per-`LinkPhase` private temporary directory
+    /// (`TMPDIR/kswiftk-link-stubs-<uid>-<pid>-<uuid>`, mode 0700). Because every compilation
+    /// uses its own directory, parallel `kswiftc` processes and Swift test workers never share
+    /// the same stub path. The complete link operation is still guarded by a per-target
+    /// cross-process toolchain lock on Linux because concurrent `swiftc` invocations can
+    /// interfere on self-hosted runners. The directory is created with `mkdir(0700)` and
+    /// validated to be owned by the current user with no group/other permissions, so a local
+    /// attacker cannot tamper with the build input.
     private static let linuxAutolinkStubContents = """
     import Dispatch
     import Foundation
@@ -25,6 +31,9 @@ final class LinkPhase: CompilerPhase {
         _ = DispatchSemaphore(value: 0)
     }
     """
+
+    private let stubLock = NSLock()
+    private var stubDirectory: URL?
 
     init() {}
 
@@ -67,12 +76,30 @@ final class LinkPhase: CompilerPhase {
     }
 
     private func performLink(objectPath: String, entrySymbol: String, ctx: CompilationContext) throws {
-        let autoLinkedObjects = discoverLibraryObjects(searchPaths: ctx.options.searchPaths)
+        let autoLinkedObjects = discoverLibraryObjects(searchPaths: ctx.options.effectiveLibrarySearchPaths)
         do {
-            let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(target: ctx.options.target)
+            let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(
+                target: ctx.options.target,
+                configuration: .release
+            )
             let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target)
                 .emit(entrySymbol: entrySymbol, outputPath: ctx.options.outputPath)
+            let entryWrapperDirectoryPath = URL(fileURLWithPath: entryWrapperObjectPath)
+                .deletingLastPathComponent()
+                .path
+            defer {
+                try? FileManager.default.removeItem(atPath: entryWrapperDirectoryPath)
+            }
             let autolinkStubPath = try emitSwiftAutolinkStubIfNeeded(target: ctx.options.target)
+            var stubDirectoryPath: String?
+            if let autolinkStubPath {
+                stubDirectoryPath = URL(fileURLWithPath: autolinkStubPath).deletingLastPathComponent().path
+            }
+            defer {
+                if let stubDirectoryPath {
+                    try? FileManager.default.removeItem(atPath: stubDirectoryPath)
+                }
+            }
             let linkInputs = buildLinkInputs(
                 objectPath: objectPath, entryWrapperObjectPath: entryWrapperObjectPath,
                 runtimeObjects: runtimeObjects, autoLinkedObjects: autoLinkedObjects
@@ -105,38 +132,52 @@ final class LinkPhase: CompilerPhase {
             return nil
         }
 
-        let stubDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("kswiftk-link-stubs", isDirectory: true)
-        try FileManager.default.createDirectory(at: stubDirectory, withIntermediateDirectories: true)
+        stubLock.lock()
+        defer { stubLock.unlock() }
+
+        let stubDirectory = try secureStubDirectory()
 
         let targetKey = CodegenRuntimeSupport.stableFNV1a64Hex(CodegenRuntimeSupport.targetTripleString(target))
         let stubName = "runtime-autolink-\(targetKey).swift"
         let stubURL = stubDirectory.appendingPathComponent(stubName)
-        let lockURL = stubDirectory.appendingPathComponent("runtime-autolink-\(targetKey).lock")
-        try withFileLock(at: lockURL) {
-            let currentContents = try? String(contentsOf: stubURL, encoding: .utf8)
-            if currentContents != Self.linuxAutolinkStubContents {
-                try Self.linuxAutolinkStubContents.write(to: stubURL, atomically: true, encoding: .utf8)
-            }
+        let currentContents = try? String(contentsOf: stubURL, encoding: .utf8)
+        if currentContents != Self.linuxAutolinkStubContents {
+            try Self.linuxAutolinkStubContents.write(to: stubURL, atomically: true, encoding: .utf8)
         }
         return stubURL.path
     }
 
-    private func withFileLock<T>(at lockURL: URL, body: () throws -> T) throws -> T {
-        let descriptor = lockURL.path.withCString { path in
-            open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+    private func secureStubDirectory() throws -> URL {
+        if let cached = stubDirectory {
+            return cached
         }
-        guard descriptor >= 0 else {
-            throw LinkPhaseFileLockError.systemCallFailed("open", errno)
-        }
-        defer { close(descriptor) }
 
-        guard flock(descriptor, LOCK_EX) == 0 else {
-            throw LinkPhaseFileLockError.systemCallFailed("flock", errno)
+        let uid = getuid()
+        let pid = getpid()
+        let uuid = UUID().uuidString
+        let stubDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kswiftk-link-stubs-\(uid)-\(pid)-\(uuid)", isDirectory: true)
+        let path = stubDirectory.path
+        guard path.withCString({ mkdir($0, S_IRWXU) }) == 0 else {
+            throw LinkPhaseStubError.systemCallFailed("mkdir", errno)
         }
-        defer { _ = flock(descriptor, LOCK_UN) }
 
-        return try body()
+        var info = stat()
+        guard path.withCString({ lstat($0, &info) }) == 0 else {
+            throw LinkPhaseStubError.systemCallFailed("lstat", errno)
+        }
+        guard (info.st_mode & S_IFMT) == S_IFDIR else {
+            throw LinkPhaseStubError.insecurePath(path, "not a directory")
+        }
+        guard info.st_uid == uid else {
+            throw LinkPhaseStubError.insecurePath(path, "unexpected owner")
+        }
+        guard (info.st_mode & (S_IRWXG | S_IRWXO)) == 0 else {
+            throw LinkPhaseStubError.insecurePath(path, "group/other permissions are not allowed")
+        }
+
+        self.stubDirectory = stubDirectory
+        return stubDirectory
     }
 
     private func buildLinkInputs(
@@ -175,11 +216,16 @@ final class LinkPhase: CompilerPhase {
         fileFacadeNamesByFileID: [Int32: String]
     ) -> String? {
         let knownNames = KnownCompilerNames(interner: interner)
+        let mainNameResolved = interner.resolve(knownNames.main)
         for decl in kir.arena.declarations {
             guard case let .function(function) = decl else {
                 continue
             }
-            if function.name == knownNames.main {
+            // Compare interned IDs first; fall back to the resolved string so
+            // an entry point is found even if `main` was interned on a
+            // different code path and received a distinct `InternedString`.
+            if function.name == knownNames.main
+                || (!mainNameResolved.isEmpty && interner.resolve(function.name) == mainNameResolved) {
                 return CodegenSymbolSupport.cFunctionSymbol(
                     for: function,
                     interner: interner,
@@ -193,7 +239,17 @@ final class LinkPhase: CompilerPhase {
     func linkerDriverArgs(for target: TargetTriple) -> [String] {
         var args = ["-target", linkerTargetTriple(target)]
         if target.os.hasPrefix("linux") {
-            args.append(contentsOf: ["-Xlinker", "-no-pie", "-parse-as-library"])
+            // ELF dead stripping requires section-level garbage collection. Runtime functions
+            // referenced by direct calls or generated dispatch tables remain reachable.
+            args.append(contentsOf: [
+                "-Xlinker", "--gc-sections",
+                "-Xlinker", "-no-pie",
+                "-parse-as-library",
+            ])
+        } else if target.vendor == "apple", target.os == "macosx" {
+            // Keep functions reached through generated vtable/itable data while removing
+            // unreferenced runtime atoms from the executable.
+            args.append(contentsOf: ["-Xlinker", "-dead_strip"])
         }
         return args
     }
@@ -209,9 +265,10 @@ final class LinkPhase: CompilerPhase {
         return CodegenRuntimeSupport.targetTripleString(target)
     }
 
-    private func discoverLibraryObjects(searchPaths: [String]) -> [String] {
+    func discoverLibraryObjects(searchPaths: [String]) -> [String] {
         let fileManager = FileManager.default
-        var libraryDirs: Set<String> = []
+        var libraryDirs: [String] = []
+        var libraryDirSeen: Set<String> = []
         for rawPath in searchPaths {
             let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
             var isDirectory: ObjCBool = false
@@ -219,23 +276,32 @@ final class LinkPhase: CompilerPhase {
                 continue
             }
             if path.hasSuffix(".kklib") {
-                libraryDirs.insert(path)
+                if libraryDirSeen.insert(path).inserted {
+                    libraryDirs.append(path)
+                }
                 continue
             }
             guard let entries = try? fileManager.contentsOfDirectory(atPath: path) else {
                 continue
             }
             for entry in entries where entry.hasSuffix(".kklib") {
-                libraryDirs.insert(URL(fileURLWithPath: path).appendingPathComponent(entry).standardizedFileURL.path)
+                let fullPath = URL(fileURLWithPath: path).appendingPathComponent(entry).standardizedFileURL.path
+                if libraryDirSeen.insert(fullPath).inserted {
+                    libraryDirs.append(fullPath)
+                }
             }
         }
 
         var collected: [String] = []
         var seen: Set<String> = []
-        for libraryDir in libraryDirs.sorted() {
+        for libraryDir in libraryDirs {
             for objectPath in objectPaths(from: libraryDir) {
-                let absolutePath = URL(fileURLWithPath: objectPath).standardizedFileURL.path
-                guard fileManager.fileExists(atPath: absolutePath) else {
+                let rootURL = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
+                guard let absolutePath = containedRegularFileURL(
+                    URL(fileURLWithPath: objectPath),
+                    under: rootURL,
+                    fileManager: fileManager
+                )?.path else {
                     continue
                 }
                 if seen.insert(absolutePath).inserted {
@@ -248,16 +314,22 @@ final class LinkPhase: CompilerPhase {
 
     private func objectPaths(from libraryDir: String) -> [String] {
         let fileManager = FileManager.default
-        let manifestPath = URL(fileURLWithPath: libraryDir).appendingPathComponent("manifest.json").path
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)),
+        let libraryRoot = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
+        let manifestURL = libraryRoot.appendingPathComponent("manifest.json")
+        if let safeManifestURL = containedRegularFileURL(manifestURL, under: libraryRoot, fileManager: fileManager),
+           let data = try? Data(contentsOf: safeManifestURL),
            let manifest = try? JSONDecoder().decode(LibraryManifest.self, from: data),
            let manifestObjects = manifest.objects
         {
-            let libraryDirNormalized = URL(fileURLWithPath: libraryDir).standardized.path
             let mapped = manifestObjects
                 .filter { !$0.isEmpty }
-                .map { URL(fileURLWithPath: libraryDir).appendingPathComponent($0).standardized.path }
-                .filter { $0.hasPrefix(libraryDirNormalized + "/") }
+                .compactMap {
+                    containedRegularFileURL(
+                        libraryRoot.appendingPathComponent($0),
+                        under: libraryRoot,
+                        fileManager: fileManager
+                    )?.path
+                }
             if !mapped.isEmpty {
                 return mapped
             }
@@ -270,17 +342,42 @@ final class LinkPhase: CompilerPhase {
         return entries
             .filter { $0.hasSuffix(".o") }
             .sorted()
-            .map { URL(fileURLWithPath: objectsDir).appendingPathComponent($0).path }
+            .compactMap {
+                containedRegularFileURL(
+                    URL(fileURLWithPath: objectsDir).appendingPathComponent($0),
+                    under: libraryRoot,
+                    fileManager: fileManager
+                )?.path
+            }
+    }
+
+    private func containedRegularFileURL(
+        _ candidate: URL,
+        under root: URL,
+        fileManager: FileManager
+    ) -> URL? {
+        let resolved = candidate.resolvingSymlinksInPath().standardizedFileURL
+        let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard resolved.path.hasPrefix(rootPath),
+              let attributes = try? fileManager.attributesOfItem(atPath: resolved.path),
+              attributes[.type] as? FileAttributeType == .typeRegular
+        else {
+            return nil
+        }
+        return resolved
     }
 }
 
-private enum LinkPhaseFileLockError: Error, CustomStringConvertible {
+private enum LinkPhaseStubError: Error, CustomStringConvertible {
     case systemCallFailed(String, Int32)
+    case insecurePath(String, String)
 
     var description: String {
         switch self {
         case let .systemCallFailed(operation, errorCode):
             return "\(operation) failed: \(String(cString: strerror(errorCode)))"
+        case let .insecurePath(path, reason):
+            return "insecure path '\(path)': \(reason)"
         }
     }
 }

@@ -1,4 +1,3 @@
-// SKIP-DIFF: advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
 import kotlinx.coroutines.*
 
 // TEST-CORO-003: withContext switching — change dispatcher within a coroutine,

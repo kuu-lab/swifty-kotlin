@@ -14,11 +14,50 @@ final class RuntimeRegexBox {
     /// `Set<RegexOption>`.
     let optionOrdinals: Set<Int>
 
+    /// Guards the lazily-initialized caches below. `regex`/`pattern`/`optionOrdinals`
+    /// are immutable, so each cached value is computed once and stays stable.
+    private let cacheLock = NSLock()
+    /// Outer optional tracks whether computation ran; the inner value is the
+    /// compiled anchored regex or nil when wrapping the pattern fails to compile.
+    private var cachedAnchoredRegex: NSRegularExpression??
+    private var cachedNamedGroupNames: [String]?
+
     init(regex: NSRegularExpression, pattern: String, canonEq: Bool = false, optionOrdinals: Set<Int> = []) {
         self.regex = regex
         self.pattern = pattern
         self.canonEq = canonEq
         self.optionOrdinals = optionOrdinals
+    }
+
+    /// Anchored `\A(?:pattern)\z` variant of `regex` used by `matches` /
+    /// `matchEntire`, compiled once on first use.
+    ///
+    /// Wrapping the effective compiled pattern makes alternation backtrack when an
+    /// earlier branch only matches a prefix (for example, `a|ab` against `ab`).
+    /// `.anchorsMatchLines` and `.ignoreMetacharacters` are stripped so the
+    /// `\A` / `\z` wrapper always binds to the full string and is parsed as
+    /// regex syntax rather than literal text. nil when the wrapped pattern fails
+    /// to compile.
+    var anchoredRegex: NSRegularExpression? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = cachedAnchoredRegex { return cached }
+        let effectivePattern = "\\A(?:\(regex.pattern))\\z"
+        let anchoredOptions = regex.options.subtracting([.anchorsMatchLines, .ignoreMetacharacters])
+        let compiled = try? NSRegularExpression(pattern: effectivePattern, options: anchoredOptions)
+        cachedAnchoredRegex = .some(compiled)
+        return compiled
+    }
+
+    /// Named capture-group declarations in `pattern`, extracted once on first use
+    /// instead of rescanning the pattern for every produced MatchResult.
+    var namedGroupNames: [String] {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = cachedNamedGroupNames { return cached }
+        let names = extractNamedGroupNames(from: pattern)
+        cachedNamedGroupNames = names
+        return names
     }
 
     /// Returns the input string NFC-normalized if `canonEq` is enabled,
@@ -44,8 +83,13 @@ final class RuntimeMatchResultBox {
     let groups: [RuntimeMatchGroupBox?]
     /// Named capture group name -> group index mapping.
     let namedGroups: [String: Int]
+    /// Names declared by the pattern, including groups that did not participate.
+    let namedGroupNames: Set<String>
     /// The original input string (for next() iteration).
     let inputString: String?
+    /// UTF-16 length of `inputString`, cached so the next() chain does not
+    /// recompute it on every step. Unused when `inputString` is nil.
+    let inputUTF16Count: Int
     /// The end position in the input string where this match ended (UTF-16 offset, for next() iteration).
     let matchEndOffset: Int
     /// The regex box used to produce this match (for next() iteration).
@@ -56,7 +100,9 @@ final class RuntimeMatchResultBox {
         groupValues: [String],
         groups: [RuntimeMatchGroupBox?] = [],
         namedGroups: [String: Int] = [:],
+        namedGroupNames: Set<String> = [],
         inputString: String? = nil,
+        inputUTF16Count: Int? = nil,
         matchEndOffset: Int = 0,
         regexBox: RuntimeRegexBox? = nil
     ) {
@@ -64,7 +110,9 @@ final class RuntimeMatchResultBox {
         self.groupValues = groupValues
         self.groups = groups
         self.namedGroups = namedGroups
+        self.namedGroupNames = namedGroupNames
         self.inputString = inputString
+        self.inputUTF16Count = inputUTF16Count ?? inputString?.utf16.count ?? 0
         self.matchEndOffset = matchEndOffset
         self.regexBox = regexBox
     }
@@ -84,28 +132,6 @@ final class RuntimeMatchGroupBox {
     }
 }
 
-/// Runtime box for `kotlin.text.MatchResult.Destructured`.
-/// Wraps a MatchResultBox to provide component1()..component9() destructuring access.
-final class RuntimeMatchResultDestructuredBox {
-    let matchResult: RuntimeMatchResultBox
-
-    init(matchResult: RuntimeMatchResultBox) {
-        self.matchResult = matchResult
-    }
-}
-
-/// Runtime box for `kotlin.text.MatchGroupCollection`.
-/// Wraps the groups array and named-group mapping from a MatchResult.
-final class RuntimeMatchGroupCollectionBox {
-    let groups: [RuntimeMatchGroupBox?]
-    let namedGroups: [String: Int]
-
-    init(groups: [RuntimeMatchGroupBox?], namedGroups: [String: Int]) {
-        self.groups = groups
-        self.namedGroups = namedGroups
-    }
-}
-
 // MARK: - Private Helpers
 
 /// Fixed ICU/NSRegularExpression pattern that never matches any input.
@@ -120,8 +146,12 @@ final class RuntimeMatchGroupCollectionBox {
 /// syntax, so `NSRegularExpression` compilation cannot fail for this literal.
 private enum RegexNeverMatch {
     static let expression: NSRegularExpression = {
-        // swiftlint:disable:next force_try
-        try! NSRegularExpression(pattern: "(?!)", options: [])
+        // "(?!)" is a static literal independent of user input — provably valid
+        // ICU/POSIX syntax. If this fails, Foundation itself is broken.
+        guard let expression = try? NSRegularExpression(pattern: "(?!)", options: []) else {
+            preconditionFailure("KSwiftK: static never-match regex (?!) failed to compile — Foundation/ICU broken")
+        }
+        return expression
     }()
 }
 
@@ -129,6 +159,15 @@ private func regexStringFromRaw(_ raw: Int) -> String? {
     if raw == runtimeNullSentinelInt { return nil }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return extractString(from: pointer)
+}
+
+private func regexStringFromFlat(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> String {
+    runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
 }
 
 private func regexMakeStringRaw(_ value: String) -> Int {
@@ -158,10 +197,74 @@ private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
     return tryCast(pointer, to: RuntimeMatchResultBox.self)
 }
 
+/// Compiles `pattern` with NSRegularExpression, substituting a valid
+/// equivalent for the empty pattern.
+///
+/// Kotlin's `Regex("")` is a legal pattern that matches the empty string at
+/// every position. `NSRegularExpression` rejects an empty pattern string, so
+/// the equivalent non-capturing empty group `(?:)` is compiled instead.
+private func compileRegexPattern(_ pattern: String, options: NSRegularExpression.Options) throws -> NSRegularExpression {
+    try NSRegularExpression(pattern: pattern.isEmpty ? "(?:)" : pattern, options: options)
+}
+
+/// Defense-in-depth bounds for regex evaluation.
+///
+/// The runtime applies these caps on top of ICU / `NSRegularExpression` to keep
+/// catastrophic-backtracking inputs from hanging the calling thread
+/// indefinitely. Kotlin/JVM does not impose these bounds; they are a KSwiftK
+/// runtime safety measure.
+///
+/// - `KSWIFTK_REGEX_TIMEOUT_MS`: per-operation wall-clock timeout in
+///   milliseconds. The default is 30000ms (30s) — generous enough that
+///   legitimate matches over large inputs complete well within it, while still
+///   bounding catastrophic backtracking that would otherwise never return. A
+///   value `<= 0` disables the timeout entirely and restores unbounded behavior.
+/// - `KSWIFTK_REGEX_MAX_INPUT_LENGTH`: optional maximum input length in UTF-16
+///   units. The default is `0`, which disables the cap. Any positive value
+///   enables a fail-closed precheck that treats oversized inputs as no match.
+///
+/// When a timeout or size cap trips, bulk operations such as replace and split
+/// fail closed and return the original input unchanged rather than hanging or
+/// producing partial output. Tune or disable the limits with the environment
+/// variables above.
+private enum RegexEvaluationLimits {
+    static let matchTimeout: TimeInterval = {
+        let environment = ProcessInfo.processInfo.environment
+        guard let rawValue = environment["KSWIFTK_REGEX_TIMEOUT_MS"] else {
+            return 30.0
+        }
+        guard let timeoutMs = Double(rawValue), timeoutMs > 0 else { return 0.0 }
+        return timeoutMs / 1000.0
+    }()
+
+    static let maxInputLength: Int = {
+        let environment = ProcessInfo.processInfo.environment
+        guard let rawValue = environment["KSWIFTK_REGEX_MAX_INPUT_LENGTH"],
+              let inputLength = Int(rawValue),
+              inputLength > 0 else {
+            return 0
+        }
+        return inputLength
+    }()
+
+    static var isTimeoutEnabled: Bool {
+        matchTimeout > 0
+    }
+}
+
+/// Detector for `(?<name>...)` named-group declarations, compiled once
+/// process-wide — ICU compilation dwarfs the cost of the pattern scan itself.
+private enum RegexNamedGroupDetector {
+    static let expression: NSRegularExpression? = try? NSRegularExpression(
+        pattern: "\\(\\?<([a-zA-Z_][a-zA-Z0-9_]*)>",
+        options: []
+    )
+}
+
 /// Extracts named capture group names from a regex pattern string.
 /// Matches `(?<name>...)` syntax used by both Kotlin and NSRegularExpression.
 private func extractNamedGroupNames(from pattern: String) -> [String] {
-    guard let detector = try? NSRegularExpression(pattern: "\\(\\?<([a-zA-Z_][a-zA-Z0-9_]*)>", options: []) else {
+    guard let detector = RegexNamedGroupDetector.expression else {
         return []
     }
     let nsRange = NSRange(pattern.startIndex..., in: pattern)
@@ -174,9 +277,200 @@ private func extractNamedGroupNames(from pattern: String) -> [String] {
     }
 }
 
-private func makeMatchResult(from result: NSTextCheckingResult, in str: String, regexBox: RuntimeRegexBox? = nil) -> RuntimeMatchResultBox {
-    let matchRange = Range(result.range, in: str)!
+private enum RegexReplacementTemplateError: Error {
+    case missingGroup(Int)
+    case illegalArgument(String)
+}
+
+private func asciiDecimalDigit(_ character: Character) -> Int? {
+    guard character.unicodeScalars.count == 1,
+          let scalar = character.unicodeScalars.first,
+          scalar.value >= 48,
+          scalar.value <= 57
+    else {
+        return nil
+    }
+    return Int(scalar.value - 48)
+}
+
+/// Validates the replacement-template grammar used by java.util.regex.Matcher.
+/// Foundation treats invalid references as literals or empty strings, so this
+/// check must run before handing the template to NSRegularExpression.
+private func validateRegexReplacementTemplate(
+    _ template: String,
+    match: NSTextCheckingResult,
+    namedGroupNames: Set<String>
+) throws {
+    let groupCount = max(0, match.numberOfRanges - 1)
+    var index = template.startIndex
+
+    while index < template.endIndex {
+        switch template[index] {
+        case "\\":
+            let escapedIndex = template.index(after: index)
+            guard escapedIndex < template.endIndex else {
+                throw RegexReplacementTemplateError.illegalArgument(
+                    "character to be escaped is missing"
+                )
+            }
+            index = template.index(after: escapedIndex)
+        case "$":
+            let referenceIndex = template.index(after: index)
+            guard referenceIndex < template.endIndex else {
+                throw RegexReplacementTemplateError.illegalArgument(
+                    "Illegal group reference: group index is missing"
+                )
+            }
+
+            if template[referenceIndex] == "{" {
+                let nameStart = template.index(after: referenceIndex)
+                guard let closingIndex = template[nameStart...].firstIndex(of: "}") else {
+                    throw RegexReplacementTemplateError.illegalArgument(
+                        "named capturing group is missing trailing '}'"
+                    )
+                }
+                let name = String(template[nameStart ..< closingIndex])
+                guard !name.isEmpty else {
+                    throw RegexReplacementTemplateError.illegalArgument(
+                        "named capturing group has 0 length name"
+                    )
+                }
+                guard namedGroupNames.contains(name) else {
+                    throw RegexReplacementTemplateError.illegalArgument(
+                        "No group with name {\(name)}"
+                    )
+                }
+                index = template.index(after: closingIndex)
+                continue
+            }
+
+            guard let firstDigit = asciiDecimalDigit(template[referenceIndex]) else {
+                throw RegexReplacementTemplateError.illegalArgument("Illegal group reference")
+            }
+
+            var reference = firstDigit
+            var digitIndex = template.index(after: referenceIndex)
+            while digitIndex < template.endIndex,
+                  let digit = asciiDecimalDigit(template[digitIndex]),
+                  groupCount >= digit,
+                  reference <= (groupCount - digit) / 10
+            {
+                reference = reference * 10 + digit
+                digitIndex = template.index(after: digitIndex)
+            }
+
+            guard reference <= groupCount else {
+                throw RegexReplacementTemplateError.missingGroup(reference)
+            }
+            index = digitIndex
+        default:
+            index = template.index(after: index)
+        }
+    }
+}
+
+private func propagateRegexReplacementTemplateError(
+    _ error: RegexReplacementTemplateError,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let thrown: Int
+    switch error {
+    case .missingGroup(let index):
+        thrown = runtimeAllocateIndexOutOfBoundsException(message: "No group \(index)")
+    case .illegalArgument(let message):
+        thrown = runtimeAllocateIllegalArgumentException(message: message)
+    }
+    runtimePropagateThrownOrTrap(
+        thrown,
+        outThrown: outThrown,
+        context: "Regex replacement template"
+    )
+    return 0
+}
+
+/// Maps each named capture group declared by `regexBox` to its numeric group
+/// index in `result`, by matching the named range to a numbered group range.
+private func namedCaptureGroupIndexMap(
+    from result: NSTextCheckingResult,
+    regexBox: RuntimeRegexBox
+) -> [String: Int] {
+    var namedGroups: [String: Int] = [:]
+    for name in regexBox.namedGroupNames {
+        let namedRange = result.range(withName: name)
+        guard namedRange.location != NSNotFound else { continue }
+        for groupIndex in 1 ..< result.numberOfRanges where result.range(at: groupIndex) == namedRange {
+            namedGroups[name] = groupIndex
+            break
+        }
+    }
+    return namedGroups
+}
+
+/// Kotlin/Java replacement strings expand `${name}` (and `${n}`) to capture
+/// groups. `NSRegularExpression.replacementString` only understands `$n`, so
+/// rewrite the Kotlin form before handing the template to Foundation.
+private func expandNamedGroupReferences(in template: String, namedGroups: [String: Int]) -> String {
+    var result = ""
+    var index = template.startIndex
+    while index < template.endIndex {
+        let character = template[index]
+        if character == "\\" {
+            result.append(character)
+            let next = template.index(after: index)
+            guard next < template.endIndex else { break }
+            result.append(template[next])
+            index = template.index(after: next)
+            continue
+        }
+        if character == "$" {
+            let afterDollar = template.index(after: index)
+            if afterDollar < template.endIndex, template[afterDollar] == "{" {
+                let nameStart = template.index(after: afterDollar)
+                if let closing = template[nameStart...].firstIndex(of: "}") {
+                    let name = String(template[nameStart..<closing])
+                    if let groupIndex = replacementGroupIndex(name, namedGroups: namedGroups) {
+                        result.append("$\(groupIndex)")
+                        index = template.index(after: closing)
+                        continue
+                    }
+                }
+            }
+        }
+        result.append(character)
+        index = template.index(after: index)
+    }
+    return result
+}
+
+private func replacementGroupIndex(_ name: String, namedGroups: [String: Int]) -> Int? {
+    if let number = Int(name), number >= 0 {
+        return number
+    }
+    return namedGroups[name]
+}
+
+private func applyRegexReplacementTemplate(
+    _ regex: NSRegularExpression,
+    match: NSTextCheckingResult,
+    in str: String,
+    template: String,
+    regexBox: RuntimeRegexBox
+) -> String {
+    let namedGroups = namedCaptureGroupIndexMap(from: match, regexBox: regexBox)
+    let expanded = expandNamedGroupReferences(in: template, namedGroups: namedGroups)
+    return regex.replacementString(for: match, in: str, offset: 0, template: expanded)
+}
+
+/// `inputUTF16Count` may carry the caller's already-computed UTF-16 length of
+/// `str`; omitting it recomputes it once here.
+private func makeMatchResult(from result: NSTextCheckingResult, in str: String, regexBox: RuntimeRegexBox? = nil, inputUTF16Count: Int? = nil) -> RuntimeMatchResultBox {
+    // NSRegularExpression only returns matches whose ranges are within the matched string,
+    // so this conversion should never fail in practice.
+    guard let matchRange = Range(result.range, in: str) else {
+        return RuntimeMatchResultBox(value: "", groupValues: [])
+    }
     let value = String(str[matchRange])
+    let utf16Count = inputUTF16Count ?? str.utf16.count
 
     var groupValues: [String] = []
     var groups: [RuntimeMatchGroupBox?] = []
@@ -185,10 +479,10 @@ private func makeMatchResult(from result: NSTextCheckingResult, in str: String, 
         if groupRange.location != NSNotFound, let range = Range(groupRange, in: str) {
             let groupValue = String(str[range])
             groupValues.append(groupValue)
-            // Compute UTF-16 based indices matching Kotlin's String indexing
-            let utf16Start = range.lowerBound.samePosition(in: str.utf16) ?? str.utf16.startIndex
-            let startIndex = str.utf16.distance(from: str.utf16.startIndex, to: utf16Start)
-            let endIndex = startIndex + str[range].utf16.count - 1
+            // NSTextCheckingResult locations/lengths are already UTF-16 offsets
+            // matching Kotlin's String indexing.
+            let startIndex = groupRange.location
+            let endIndex = groupRange.location + groupRange.length - 1
             groups.append(RuntimeMatchGroupBox(value: groupValue, rangeStart: startIndex, rangeEnd: endIndex))
         } else {
             groupValues.append("")
@@ -198,95 +492,219 @@ private func makeMatchResult(from result: NSTextCheckingResult, in str: String, 
 
     // Build named group mapping
     var namedGroups: [String: Int] = [:]
+    var namedGroupNames: Set<String> = []
     if let regexBox = regexBox {
-        let names = extractNamedGroupNames(from: regexBox.pattern)
-        for name in names {
-            let namedRange = result.range(withName: name)
-            guard namedRange.location != NSNotFound else { continue }
-            for groupIndex in 1 ..< result.numberOfRanges where result.range(at: groupIndex) == namedRange {
-                namedGroups[name] = groupIndex
-                break
-            }
-        }
+        namedGroupNames = Set(regexBox.namedGroupNames)
+        namedGroups = namedCaptureGroupIndexMap(from: result, regexBox: regexBox)
     }
 
-    // Compute UTF-16 offset of the match end position for next() iteration
-    let matchEnd: Int
-    if let range = Range(result.range, in: str) {
-        let utf16End = range.upperBound.samePosition(in: str.utf16) ?? str.utf16.endIndex
-        matchEnd = str.utf16.distance(from: str.utf16.startIndex, to: utf16End)
-    } else {
-        matchEnd = 0
-    }
+    // UTF-16 offset of the match end position for next() iteration
+    let matchEnd = result.range.location + result.range.length
 
     return RuntimeMatchResultBox(
         value: value,
         groupValues: groupValues,
         groups: groups,
         namedGroups: namedGroups,
+        namedGroupNames: namedGroupNames,
         inputString: str,
+        inputUTF16Count: utf16Count,
         matchEndOffset: matchEnd,
         regexBox: regexBox
     )
 }
 
+private func boundedFirstMatch(
+    _ regex: NSRegularExpression,
+    in str: String,
+    options: NSRegularExpression.MatchingOptions,
+    range: NSRange
+) -> NSTextCheckingResult? {
+    if RegexEvaluationLimits.maxInputLength > 0, range.length > RegexEvaluationLimits.maxInputLength {
+        return nil
+    }
+    guard RegexEvaluationLimits.isTimeoutEnabled else {
+        return regex.firstMatch(in: str, options: options, range: range)
+    }
+
+    let deadline = Date().addingTimeInterval(RegexEvaluationLimits.matchTimeout)
+    let matchingOptions = options.union(.reportProgress)
+    var firstMatch: NSTextCheckingResult?
+    regex.enumerateMatches(in: str, options: matchingOptions, range: range) { result, flags, stop in
+        if flags.contains(.progress) {
+            if Date() >= deadline {
+                stop.pointee = true
+            }
+            return
+        }
+
+        if let result {
+            firstMatch = result
+            stop.pointee = true
+        }
+    }
+    return firstMatch
+}
+
+private func boundedMatches(
+    _ regex: NSRegularExpression,
+    in str: String,
+    options: NSRegularExpression.MatchingOptions,
+    range: NSRange
+) -> [NSTextCheckingResult]? {
+    if RegexEvaluationLimits.maxInputLength > 0, range.length > RegexEvaluationLimits.maxInputLength {
+        return nil
+    }
+    guard RegexEvaluationLimits.isTimeoutEnabled else {
+        return regex.matches(in: str, options: options, range: range)
+    }
+
+    let deadline = Date().addingTimeInterval(RegexEvaluationLimits.matchTimeout)
+    let matchingOptions = options.union(.reportProgress)
+    var matches: [NSTextCheckingResult] = []
+    var timedOut = false
+    regex.enumerateMatches(in: str, options: matchingOptions, range: range) { result, flags, stop in
+        if flags.contains(.progress) {
+            if Date() >= deadline {
+                timedOut = true
+                stop.pointee = true
+            }
+            return
+        }
+
+        if let result {
+            matches.append(result)
+        }
+    }
+    return timedOut ? nil : matches
+}
+
 // MARK: - STDLIB-100: Regex constructor, matches, contains
 
-@_cdecl("kk_regex_create")
-public func kk_regex_create(_ patternRaw: Int) -> Int {
-    let pattern = regexStringFromRaw(patternRaw) ?? ""
-    guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-        // Invalid user pattern — substitute a never-match regex (see RegexNeverMatch).
-        return registerRuntimeObject(RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: pattern))
+@_cdecl("__kk_regex_create_flat")
+public func kk_regex_create_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeRegexCreate(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        outThrown: outThrown
+    )
+}
+
+
+private func runtimeRegexCreate(pattern: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let regex = try? compileRegexPattern(pattern, options: []) else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Illegal pattern: \(pattern)"
+        )
+        return 0
     }
     return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern))
 }
 
-@_cdecl("kk_string_matches_regex")
-public func kk_string_matches_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
-    let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    let match = regexBox.regex.firstMatch(in: str, options: [.anchored], range: range)
-    let fullMatch = match != nil && match!.range.length == range.length
-    return kk_box_bool(fullMatch ? 1 : 0)
+@_cdecl("__kk_string_matches_regex_flat")
+public func kk_string_matches_regex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ regexRaw: Int
+) -> Int {
+    runtimeStringMatchesRegex(
+        regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        regexRaw
+    )
 }
 
-@_cdecl("kk_string_contains_regex")
-public func kk_string_contains_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+private func runtimeStringMatchesRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
+    guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
+    let str = regexBox.normalizeIfNeeded(rawStr)
+    guard let anchoredRegex = regexBox.anchoredRegex else {
+        return kk_box_bool(0)
+    }
+    let range = NSRange(str.startIndex..., in: str)
+    let match = boundedFirstMatch(anchoredRegex, in: str, options: [], range: range)
+    return kk_box_bool(match != nil ? 1 : 0)
+}
+
+@_cdecl("__kk_string_contains_regex_flat")
+public func kk_string_contains_regex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ regexRaw: Int
+) -> Int {
+    runtimeStringContainsRegex(
+        regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        regexRaw
+    )
+}
+
+private func runtimeStringContainsRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
-    let match = regexBox.regex.firstMatch(in: str, options: [], range: range)
+    let match = boundedFirstMatch(regexBox.regex, in: str, options: [], range: range)
     return kk_box_bool(match != nil ? 1 : 0)
 }
 
 // MARK: - STDLIB-101: Regex.find / Regex.findAll
 
-@_cdecl("kk_regex_find")
-public func kk_regex_find(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+@_cdecl("__kk_regex_find_flat")
+public func kk_regex_find_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexFind(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+
+private func runtimeRegexFind(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeNullSentinelInt }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
-    guard let result = regexBox.regex.firstMatch(in: str, options: [], range: range) else {
+    guard let result = boundedFirstMatch(regexBox.regex, in: str, options: [], range: range) else {
         return runtimeNullSentinelInt
     }
     let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox)
     return registerRuntimeObject(matchResult)
 }
 
-@_cdecl("kk_regex_findAll")
-public func kk_regex_findAll(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+@_cdecl("__kk_regex_findAll_flat")
+public func kk_regex_findAll_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexFindAll(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeRegexFindAll(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeListRaw([]) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
-    let results = regexBox.regex.matches(in: str, options: [], range: range)
+    let results = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let results else { return regexMakeListRaw([]) }
+    let utf16Count = str.utf16.count
     let matchResults = results.map { result -> Int in
-        let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox)
+        let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox, inputUTF16Count: utf16Count)
         return registerRuntimeObject(matchResult)
     }
     return regexMakeListRaw(matchResults)
@@ -294,31 +712,89 @@ public func kk_regex_findAll(_ regexRaw: Int, _ strRaw: Int) -> Int {
 
 // MARK: - STDLIB-102: String.replace(Regex) / String.split(Regex)
 
-@_cdecl("kk_string_replace_regex")
-public func kk_string_replace_regex(_ strRaw: Int, _ regexRaw: Int, _ replacementRaw: Int) -> Int {
+@_cdecl("__kk_string_replace_regex")
+public func kk_string_replace_regex(
+    _ strRaw: Int,
+    _ regexRaw: Int,
+    _ replacementRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let rawStr = regexStringFromRaw(strRaw) ?? ""
     let replacement = regexStringFromRaw(replacementRaw) ?? ""
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringRaw(rawStr) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
-    let result = regexBox.regex.stringByReplacingMatches(in: str, options: [], range: range, withTemplate: replacement)
+    let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let matches else {
+        return regexMakeStringRaw(rawStr)
+    }
+    if matches.isEmpty {
+        return regexMakeStringRaw(str)
+    }
+    do {
+        try validateRegexReplacementTemplate(
+            replacement,
+            match: matches[0],
+            namedGroupNames: Set(regexBox.namedGroupNames)
+        )
+    } catch let error as RegexReplacementTemplateError {
+        return propagateRegexReplacementTemplateError(error, outThrown: outThrown)
+    } catch {
+        return propagateRegexReplacementTemplateError(
+            .illegalArgument("Invalid replacement template"),
+            outThrown: outThrown
+        )
+    }
+    var result = ""
+    var lastEnd = str.startIndex
+    for match in matches {
+        guard let matchRange = Range(match.range, in: str) else { continue }
+        result.append(String(str[lastEnd ..< matchRange.lowerBound]))
+        let templateResult = applyRegexReplacementTemplate(
+            regexBox.regex,
+            match: match,
+            in: str,
+            template: replacement,
+            regexBox: regexBox
+        )
+        result.append(templateResult)
+        lastEnd = matchRange.upperBound
+    }
+    result.append(String(str[lastEnd...]))
     return regexMakeStringRaw(result)
 }
 
-@_cdecl("kk_string_split_regex")
-public func kk_string_split_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+@_cdecl("__kk_string_split_regex_flat")
+public func kk_string_split_regex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ regexRaw: Int
+) -> Int {
+    runtimeStringSplitRegex(
+        regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        regexRaw
+    )
+}
+
+
+private func runtimeStringSplitRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringListRaw([rawStr]) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
-    let matches = regexBox.regex.matches(in: str, options: [], range: range)
+    let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let matches else {
+        return regexMakeStringListRaw([rawStr])
+    }
     if matches.isEmpty {
         return regexMakeStringListRaw([str])
     }
     var parts: [String] = []
     var lastEnd = str.startIndex
     for match in matches {
-        let matchRange = Range(match.range, in: str)!
+        guard let matchRange = Range(match.range, in: str) else { continue }
         parts.append(String(str[lastEnd ..< matchRange.lowerBound]))
         lastEnd = matchRange.upperBound
     }
@@ -328,7 +804,7 @@ public func kk_string_split_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
 
 // MARK: - STDLIB-351: Regex.replace(input) { matchResult -> replacement }
 
-@_cdecl("kk_regex_replace_lambda")
+@_cdecl("__kk_regex_replace_lambda")
 public func kk_regex_replace_lambda(
     _ regexRaw: Int,
     _ strRaw: Int,
@@ -340,14 +816,16 @@ public func kk_regex_replace_lambda(
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return strRaw }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
-    let matches = regexBox.regex.matches(in: str, options: [], range: range)
+    let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let matches else { return strRaw }
     if matches.isEmpty { return strRaw }
     var result = ""
     var lastEnd = str.startIndex
+    let utf16Count = str.utf16.count
     for match in matches {
-        let matchRange = Range(match.range, in: str)!
+        guard let matchRange = Range(match.range, in: str) else { continue }
         result.append(String(str[lastEnd ..< matchRange.lowerBound]))
-        let matchResult = makeMatchResult(from: match, in: str, regexBox: regexBox)
+        let matchResult = makeMatchResult(from: match, in: str, regexBox: regexBox, inputUTF16Count: utf16Count)
         let matchResultRaw = registerRuntimeObject(matchResult)
         var thrown = 0
         let replacementRaw = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: matchResultRaw, outThrown: &thrown)
@@ -365,16 +843,34 @@ public func kk_regex_replace_lambda(
 
 // MARK: - STDLIB-350: Regex.matchEntire
 
-@_cdecl("kk_regex_matchEntire")
-public func kk_regex_matchEntire(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+@_cdecl("__kk_regex_matchEntire_flat")
+public func kk_regex_matchEntire_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexMatchEntire(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+
+private func runtimeRegexMatchEntire(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeNullSentinelInt }
     let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    guard let result = regexBox.regex.firstMatch(in: str, options: [], range: range) else {
+    guard let anchoredRegex = regexBox.anchoredRegex else {
         return runtimeNullSentinelInt
     }
-    let matchRange = Range(result.range, in: str)!
+    let range = NSRange(str.startIndex..., in: str)
+    guard let result = boundedFirstMatch(anchoredRegex, in: str, options: [], range: range) else {
+        return runtimeNullSentinelInt
+    }
+    guard let matchRange = Range(result.range, in: str) else {
+        return runtimeNullSentinelInt
+    }
     guard matchRange.lowerBound == str.startIndex && matchRange.upperBound == str.endIndex else {
         return runtimeNullSentinelInt
     }
@@ -385,29 +881,29 @@ public func kk_regex_matchEntire(_ regexRaw: Int, _ strRaw: Int) -> Int {
 // MARK: - STDLIB-480: Regex(pattern, option) / Regex.containsMatchIn
 
 // Named constants for Kotlin `RegexOption` enum ordinals.
-// These must stay in sync with the enum entry registration order in
-// `HeaderHelpers+SyntheticRegexStubs.swift` (`ensureRegexOptionEnumClass`).
-private let kRegexOptionOrdinalLiteral  = 3
+// These must stay in sync with the enum entry declaration order in
+// `Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt`.
+private let kRegexOptionOrdinalLiteral  = 2
 private let kRegexOptionOrdinalCanonEq  = 6
 
 /// Maps a Kotlin `RegexOption` enum ordinal to `NSRegularExpression.Options`.
 ///
 /// **Coupling note**: The ordinal values here must stay in sync with the
-/// enum entry registration order in
-/// `HeaderHelpers+SyntheticRegexStubs.swift` (`ensureRegexOptionEnumClass`).
+/// enum entry declaration order in
+/// `Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt`.
 /// The canonical order is defined by Kotlin's `kotlin.text.RegexOption`:
-///   0 = IGNORE_CASE, 1 = MULTILINE, 2 = DOT_MATCHES_ALL,
-///   3 = LITERAL, 4 = UNIX_LINES, 5 = COMMENTS, 6 = CANON_EQ
+///   0 = IGNORE_CASE, 1 = MULTILINE, 2 = LITERAL, 3 = UNIX_LINES,
+///   4 = COMMENTS, 5 = DOT_MATCHES_ALL, 6 = CANON_EQ
 /// If the compiler-side entry order changes, these ordinals must be updated
 /// to match.
 private func nsRegexOption(fromOrdinal ordinal: Int) -> NSRegularExpression.Options {
     switch ordinal {
     case 0: return .caseInsensitive          // IGNORE_CASE
     case 1: return .anchorsMatchLines        // MULTILINE
-    case 2: return .dotMatchesLineSeparators  // DOT_MATCHES_ALL
     case kRegexOptionOrdinalLiteral: return []  // LITERAL (handled via escapedPattern)
-    case 4: return .useUnixLineSeparators        // UNIX_LINES
-    case 5: return .allowCommentsAndWhitespace   // COMMENTS
+    case 3: return .useUnixLineSeparators        // UNIX_LINES
+    case 4: return .allowCommentsAndWhitespace   // COMMENTS
+    case 5: return .dotMatchesLineSeparators     // DOT_MATCHES_ALL
     case kRegexOptionOrdinalCanonEq: return []   // CANON_EQ (handled via NFC normalization)
     default:
         assertionFailure("KSwiftK: unknown RegexOption ordinal \(ordinal) – compiler/runtime enum mismatch?")
@@ -415,43 +911,114 @@ private func nsRegexOption(fromOrdinal ordinal: Int) -> NSRegularExpression.Opti
     }
 }
 
-/// Applies LITERAL escaping and CANON_EQ normalization, compiles the pattern,
-/// and falls back to a never-matching regex on compile failure.
+/// Applies LITERAL escaping and CANON_EQ normalization and compiles the pattern.
+/// Returns `nil` and sets `outThrown` to an `IllegalArgumentException` on compile failure.
 private func createRegexBox(
     pattern: String,
     isLiteral: Bool,
     options: NSRegularExpression.Options,
-    optionOrdinals: Set<Int>
-) -> RuntimeRegexBox {
+    optionOrdinals: Set<Int>,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> RuntimeRegexBox? {
     let canonEq = optionOrdinals.contains(kRegexOptionOrdinalCanonEq)
     let normalizedPattern = canonEq ? pattern.precomposedStringWithCanonicalMapping : pattern
     let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: normalizedPattern) : normalizedPattern
-    guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: options) else {
-        return RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
+    guard let regex = try? compileRegexPattern(effectivePattern, options: options) else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Illegal pattern: \(pattern)"
+        )
+        return nil
     }
     return RuntimeRegexBox(regex: regex, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
 }
 
 
-@_cdecl("kk_regex_create_with_option")
-public func kk_regex_create_with_option(_ patternRaw: Int, _ optionRaw: Int) -> Int {
-    let pattern = regexStringFromRaw(patternRaw) ?? ""
+
+@_cdecl("__kk_regex_create_with_option_flat")
+public func kk_regex_create_with_option_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeRegexCreateWithOption(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionRaw: optionRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("__kk_string_toRegex_with_option_flat")
+public func kk_string_toRegex_with_option_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeRegexCreateWithOption(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionRaw: optionRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     let ordinal = Int(kk_unbox_int(optionRaw))
-    let box = createRegexBox(
+    guard let box = createRegexBox(
         pattern: pattern,
         isLiteral: ordinal == kRegexOptionOrdinalLiteral,
         options: nsRegexOption(fromOrdinal: ordinal),
-        optionOrdinals: [ordinal]
-    )
+        optionOrdinals: [ordinal],
+        outThrown: outThrown
+    ) else {
+        return 0
+    }
     return registerRuntimeObject(box)
 }
+
 
 /// Creates a Regex from a pattern and a `Set<RegexOption>`.
 /// Iterates the set elements, unboxes each as an ordinal, and combines the
 /// corresponding `NSRegularExpression.Options`.
-@_cdecl("kk_regex_create_with_options")
-public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int) -> Int {
-    let pattern = regexStringFromRaw(patternRaw) ?? ""
+@_cdecl("__kk_regex_create_with_options_flat")
+public func kk_regex_create_with_options_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionsSetRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeRegexCreateWithOptions(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionsSetRaw: optionsSetRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("__kk_string_toRegex_with_options_flat")
+public func kk_string_toRegex_with_options_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionsSetRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeRegexCreateWithOptions(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionsSetRaw: optionsSetRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeRegexCreateWithOptions(pattern: String, optionsSetRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     var combined: NSRegularExpression.Options = []
     var isLiteral = false
     var storedOrdinals: Set<Int> = []
@@ -463,321 +1030,264 @@ public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int
             combined.insert(nsRegexOption(fromOrdinal: ordinal))
         }
     }
-    let box = createRegexBox(pattern: pattern, isLiteral: isLiteral, options: combined, optionOrdinals: storedOrdinals)
+    guard let box = createRegexBox(
+        pattern: pattern, isLiteral: isLiteral, options: combined, optionOrdinals: storedOrdinals, outThrown: outThrown
+    ) else {
+        return 0
+    }
     return registerRuntimeObject(box)
 }
 
-@_cdecl("kk_regex_containsMatchIn")
-public func kk_regex_containsMatchIn(_ regexRaw: Int, _ inputRaw: Int) -> Int {
-    let rawInput = regexStringFromRaw(inputRaw) ?? ""
+@_cdecl("__kk_regex_containsMatchIn_flat")
+public func kk_regex_containsMatchIn_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexContainsMatchIn(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeRegexContainsMatchIn(_ regexRaw: Int, input rawInput: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let input = regexBox.normalizeIfNeeded(rawInput)
     let range = NSRange(input.startIndex..., in: input)
-    let match = regexBox.regex.firstMatch(in: input, options: [], range: range)
+    let match = boundedFirstMatch(regexBox.regex, in: input, options: [], range: range)
     return kk_box_bool(match != nil ? 1 : 0)
 }
 
 // MARK: - STDLIB-103: String.toRegex() / Regex.pattern
 
-@_cdecl("kk_string_toRegex")
-public func kk_string_toRegex(_ strRaw: Int) -> Int {
-    kk_regex_create(strRaw)
+@_cdecl("__kk_string_toRegex_flat")
+public func kk_string_toRegex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeRegexCreate(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        outThrown: outThrown
+    )
 }
 
-// MARK: - STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
 
-@_cdecl("kk_string_toRegex_with_option")
-public func kk_string_toRegex_with_option(_ strRaw: Int, _ optionRaw: Int) -> Int {
-    kk_regex_create_with_option(strRaw, optionRaw)
-}
+// MARK: - KSP-486: raw regex / match data bridges
+//
+// The public `Regex.pattern` / `Regex.options` / `Regex.groupNames` accessors and
+// the whole MatchResult / MatchGroup / MatchGroupCollection / Destructured API
+// live in `Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt`. Only the raw
+// data that the Foundation match engine owns is exposed here.
 
-@_cdecl("kk_string_toRegex_with_options")
-public func kk_string_toRegex_with_options(_ strRaw: Int, _ optionsRaw: Int) -> Int {
-    kk_regex_create_with_options(strRaw, optionsRaw)
-}
-
-@_cdecl("kk_regex_pattern")
-public func kk_regex_pattern(_ regexRaw: Int) -> Int {
+@_cdecl("__kk_regex_pattern")
+public func __kk_regex_pattern(_ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringRaw("") }
     return regexMakeStringRaw(regexBox.pattern)
 }
 
-/// Regex.options: Set<RegexOption>
-/// Returns the set of RegexOption ordinals (boxed as ints) this regex was created with.
-@_cdecl("kk_regex_options")
-public func kk_regex_options(_ regexRaw: Int) -> Int {
-    guard let regexBox = regexBoxFromRaw(regexRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
+/// Bit mask of the Kotlin `RegexOption` ordinals this regex was created with
+/// (bit `n` set means the option with ordinal `n` is present).
+@_cdecl("__kk_regex_option_mask")
+public func __kk_regex_option_mask(_ regexRaw: Int) -> Int {
+    guard let regexBox = regexBoxFromRaw(regexRaw) else { return 0 }
+    var mask = 0
+    for ordinal in regexBox.optionOrdinals where ordinal >= 0 && ordinal < Int.bitWidth - 1 {
+        mask |= 1 << ordinal
     }
-    let boxedOrdinals = regexBox.optionOrdinals.sorted().map { kk_box_int($0) }
-    return registerRuntimeObject(RuntimeSetBox(elements: boxedOrdinals))
+    return mask
 }
 
-// MARK: - STDLIB-101: MatchResult properties
+// MARK: - STDLIB-101: MatchResult raw group data
 
-@_cdecl("kk_match_result_value")
-public func kk_match_result_value(_ matchRaw: Int) -> Int {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return regexMakeStringRaw("") }
-    return regexMakeStringRaw(matchResult.value)
+/// Number of groups in the match, including group 0 (the entire match).
+@_cdecl("__kk_match_result_group_count")
+public func __kk_match_result_group_count(_ matchRaw: Int) -> Int {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return 0 }
+    return matchResult.groupValues.count
 }
 
-@_cdecl("kk_match_result_groupValues")
-public func kk_match_result_groupValues(_ matchRaw: Int) -> Int {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return regexMakeStringListRaw([]) }
-    return regexMakeStringListRaw(matchResult.groupValues)
-}
-
-// MARK: - MatchResult.groups / MatchGroupCollection / MatchGroup
-
-@_cdecl("kk_match_result_groups")
-public func kk_match_result_groups(_ matchRaw: Int) -> Int {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw) else {
-        return registerRuntimeObject(RuntimeMatchGroupCollectionBox(groups: [], namedGroups: [:]))
-    }
-    let collection = RuntimeMatchGroupCollectionBox(
-        groups: matchResult.groups,
-        namedGroups: matchResult.namedGroups
-    )
-    return registerRuntimeObject(collection)
-}
-
-private func matchGroupCollectionBoxFromRaw(_ raw: Int) -> RuntimeMatchGroupCollectionBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(pointer, to: RuntimeMatchGroupCollectionBox.self)
-}
-
-private func matchGroupBoxFromRaw(_ raw: Int) -> RuntimeMatchGroupBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(pointer, to: RuntimeMatchGroupBox.self)
-}
-
-/// MatchGroupCollection.get(name: String) -> MatchGroup?
-@_cdecl("kk_match_group_collection_get")
-public func kk_match_group_collection_get(_ collectionRaw: Int, _ nameRaw: Int) -> Int {
-    guard let collection = matchGroupCollectionBoxFromRaw(collectionRaw) else {
-        return runtimeNullSentinelInt
-    }
-    guard let name = regexStringFromRaw(nameRaw) else {
-        return runtimeNullSentinelInt
-    }
-    guard let groupIndex = collection.namedGroups[name],
-          groupIndex < collection.groups.count,
-          let group = collection.groups[groupIndex] else {
-        return runtimeNullSentinelInt
-    }
-    return registerRuntimeObject(group)
-}
-
-/// MatchGroup.value: String
-@_cdecl("kk_match_group_value")
-public func kk_match_group_value(_ groupRaw: Int) -> Int {
-    guard let group = matchGroupBoxFromRaw(groupRaw) else { return regexMakeStringRaw("") }
-    return regexMakeStringRaw(group.value)
-}
-
-/// MatchGroup.range: IntRange
-@_cdecl("kk_match_group_range")
-public func kk_match_group_range(_ groupRaw: Int) -> Int {
-    guard let group = matchGroupBoxFromRaw(groupRaw) else {
-        return registerRuntimeObject(RuntimeRangeBox(first: 0, last: -1, step: 1))
-    }
-    return registerRuntimeObject(RuntimeRangeBox(first: group.rangeStart, last: group.rangeEnd, step: 1))
-}
-
-// MARK: - STDLIB-REGEX-095: MatchResult complete implementation
-
-/// MatchResult.range: IntRange — the range of the entire match.
-@_cdecl("kk_match_result_range")
-public func kk_match_result_range(_ matchRaw: Int) -> Int {
+/// Text of group [index], or the empty string when the group is absent.
+@_cdecl("__kk_match_result_group_value")
+public func __kk_match_result_group_value(_ matchRaw: Int, _ index: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
-          let group0 = matchResult.groups.first,
-          let g = group0 else {
-        return registerRuntimeObject(RuntimeRangeBox(first: 0, last: -1, step: 1))
+          index >= 0, index < matchResult.groupValues.count else {
+        return regexMakeStringRaw("")
     }
-    return registerRuntimeObject(RuntimeRangeBox(first: g.rangeStart, last: g.rangeEnd, step: 1))
+    return regexMakeStringRaw(matchResult.groupValues[index])
 }
 
-/// MatchResult.component1() — the entire match value (destructuring).
-@_cdecl("kk_match_result_component1")
-public func kk_match_result_component1(_ matchRaw: Int) -> Int {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return regexMakeStringRaw("") }
-    return regexMakeStringRaw(matchResult.value)
+/// UTF-16 start offset of group [index], or -1 when the group did not participate.
+@_cdecl("__kk_match_result_group_start")
+public func __kk_match_result_group_start(_ matchRaw: Int, _ index: Int) -> Int {
+    guard let group = matchResultGroup(matchRaw, index) else { return -1 }
+    return group.rangeStart
 }
 
-/// MatchResult.component2() — the first capture group value (destructuring).
-@_cdecl("kk_match_result_component2")
-public func kk_match_result_component2(_ matchRaw: Int) -> Int {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return regexMakeStringRaw("") }
-    let firstGroup = matchResult.groupValues.count > 1 ? matchResult.groupValues[1] : ""
-    return regexMakeStringRaw(firstGroup)
+/// UTF-16 end offset (inclusive) of group [index], or -1 when the group did not participate.
+@_cdecl("__kk_match_result_group_end")
+public func __kk_match_result_group_end(_ matchRaw: Int, _ index: Int) -> Int {
+    guard let group = matchResultGroup(matchRaw, index) else { return -1 }
+    return group.rangeEnd
+}
+
+/// Index of the capture group named [nameRaw], or -1 when there is no such group.
+@_cdecl("__kk_match_result_group_index_of_name")
+public func __kk_match_result_group_index_of_name(_ matchRaw: Int, _ nameRaw: Int) -> Int {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw),
+          let name = regexStringFromRaw(nameRaw),
+          let index = matchResult.namedGroups[name] else {
+        return -1
+    }
+    return index
+}
+
+/// Whether the regex pattern declares a capture group named [nameRaw].
+@_cdecl("__kk_match_result_has_named_group")
+public func __kk_match_result_has_named_group(_ matchRaw: Int, _ nameRaw: Int) -> Int {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw),
+          let name = regexStringFromRaw(nameRaw) else {
+        return 0
+    }
+    return matchResult.namedGroupNames.contains(name) ? 1 : 0
+}
+
+@_cdecl("__kk_match_result_group_index_of_name_flat")
+public func __kk_match_result_group_index_of_name_flat(
+    _ matchRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return -1 }
+    let name = regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return matchResult.namedGroups[name] ?? -1
+}
+
+private func matchResultGroup(_ matchRaw: Int, _ index: Int) -> RuntimeMatchGroupBox? {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw),
+          index >= 0, index < matchResult.groups.count else {
+        return nil
+    }
+    return matchResult.groups[index]
 }
 
 /// MatchResult.next() — returns the next MatchResult in the input, or null.
-@_cdecl("kk_match_result_next")
-public func kk_match_result_next(_ matchRaw: Int) -> Int {
+///
+/// Continues on the original input from the previous match's exclusive UTF-16
+/// end (one unit later after a zero-length match), including a zero-width
+/// search at end of string so `$` and empty patterns can still match there.
+/// `NSRegularExpression` treats the search-range start as `^` / `$` and hides
+/// lookbehind / `\b` unless `.withoutAnchoringBounds` and `.withTransparentBounds`
+/// are set.
+@_cdecl("__kk_match_result_next")
+public func __kk_match_result_next(_ matchRaw: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
           let inputString = matchResult.inputString,
           let regexBox = matchResult.regexBox else {
         return runtimeNullSentinelInt
     }
-    let startOffset = matchResult.matchEndOffset
-    let isZeroLengthMatch = matchResult.value.isEmpty
-    let effectiveOffset = isZeroLengthMatch ? startOffset + 1 : startOffset
-    // Convert UTF-16 offset to String.Index
-    guard let utf16StartIdx = inputString.utf16.index(
-        inputString.utf16.startIndex,
-        offsetBy: effectiveOffset,
-        limitedBy: inputString.utf16.endIndex
+    let offset = matchResult.matchEndOffset + (matchResult.value.isEmpty ? 1 : 0)
+    let utf16Count = matchResult.inputUTF16Count
+    guard offset <= utf16Count else { return runtimeNullSentinelInt }
+    let range = NSRange(location: offset, length: utf16Count - offset)
+    guard let result = boundedFirstMatch(
+        regexBox.regex,
+        in: inputString,
+        options: [.withoutAnchoringBounds, .withTransparentBounds],
+        range: range
     ) else {
         return runtimeNullSentinelInt
     }
-    guard let startIdx = utf16StartIdx.samePosition(in: inputString),
-          startIdx < inputString.endIndex else {
-        return runtimeNullSentinelInt
-    }
-    let searchStr = String(inputString[startIdx...])
-    let nsRange = NSRange(searchStr.startIndex..., in: searchStr)
-    guard let result = regexBox.regex.firstMatch(in: searchStr, options: [], range: nsRange) else {
-        return runtimeNullSentinelInt
-    }
-    let nextMatchResult = makeMatchResultWithOffset(
-        from: result,
-        in: searchStr,
-        inputOffset: effectiveOffset,
-        regexBox: regexBox,
-        fullInput: inputString
-    )
-    return registerRuntimeObject(nextMatchResult)
-}
-
-/// MatchGroupCollection[index]: MatchGroup? — integer index access.
-@_cdecl("kk_match_group_collection_get_at")
-public func kk_match_group_collection_get_at(_ collectionRaw: Int, _ index: Int) -> Int {
-    guard let collection = matchGroupCollectionBoxFromRaw(collectionRaw) else {
-        return runtimeNullSentinelInt
-    }
-    guard index >= 0, index < collection.groups.count else {
-        return runtimeNullSentinelInt
-    }
-    guard let group = collection.groups[index] else {
-        return runtimeNullSentinelInt
-    }
-    return registerRuntimeObject(group)
-}
-
-/// MatchGroupCollection.size: Int — number of groups (including group 0 = full match).
-@_cdecl("kk_match_group_collection_size")
-public func kk_match_group_collection_size(_ collectionRaw: Int) -> Int {
-    guard let collection = matchGroupCollectionBoxFromRaw(collectionRaw) else { return 0 }
-    return collection.groups.count
-}
-
-// MARK: - Private helper for next() with offset-adjusted ranges
-
-private func makeMatchResultWithOffset(
-    from result: NSTextCheckingResult,
-    in str: String,
-    inputOffset: Int,
-    regexBox: RuntimeRegexBox?,
-    fullInput: String
-) -> RuntimeMatchResultBox {
-    let matchRange = Range(result.range, in: str)!
-    let value = String(str[matchRange])
-
-    var groupValues: [String] = []
-    var groups: [RuntimeMatchGroupBox?] = []
-    for i in 0 ..< result.numberOfRanges {
-        let groupRange = result.range(at: i)
-        if groupRange.location != NSNotFound, let range = Range(groupRange, in: str) {
-            let groupValue = String(str[range])
-            groupValues.append(groupValue)
-            let utf16Start = range.lowerBound.samePosition(in: str.utf16) ?? str.utf16.startIndex
-            let localStart = str.utf16.distance(from: str.utf16.startIndex, to: utf16Start)
-            let startIndex = inputOffset + localStart
-            let endIndex = startIndex + str[range].utf16.count - 1
-            groups.append(RuntimeMatchGroupBox(value: groupValue, rangeStart: startIndex, rangeEnd: endIndex))
-        } else {
-            groupValues.append("")
-            groups.append(nil)
-        }
-    }
-
-    var namedGroups: [String: Int] = [:]
-    if let regexBox = regexBox {
-        let names = extractNamedGroupNames(from: regexBox.pattern)
-        for name in names {
-            let namedRange = result.range(withName: name)
-            guard namedRange.location != NSNotFound else { continue }
-            for groupIndex in 1 ..< result.numberOfRanges where result.range(at: groupIndex) == namedRange {
-                namedGroups[name] = groupIndex
-                break
-            }
-        }
-    }
-
-    // Compute match end offset in full input's UTF-16
-    let utf16End = matchRange.upperBound.samePosition(in: str.utf16) ?? str.utf16.endIndex
-    let localEnd = str.utf16.distance(from: str.utf16.startIndex, to: utf16End)
-    let matchEnd = inputOffset + localEnd
-
-    return RuntimeMatchResultBox(
-        value: value,
-        groupValues: groupValues,
-        groups: groups,
-        namedGroups: namedGroups,
-        inputString: fullInput,
-        matchEndOffset: matchEnd,
-        regexBox: regexBox
-    )
+    return registerRuntimeObject(makeMatchResult(from: result, in: inputString, regexBox: regexBox, inputUTF16Count: utf16Count))
 }
 
 // MARK: - STDLIB-REGEX-094: Regex.fromLiteral / Regex.matches / String.replaceFirst(Regex)
 
 /// Regex.Companion.fromLiteral(literal: String) -> Regex
-/// Creates a Regex that matches the literal string (all special chars are escaped).
-/// The first argument is the Companion object receiver (ignored; companion singleton).
-@_cdecl("kk_regex_from_literal")
-public func kk_regex_from_literal(_ companionRef: Int, _ literalRaw: Int) -> Int {
-    let literal = regexStringFromRaw(literalRaw) ?? ""
-    let escapedPattern = NSRegularExpression.escapedPattern(for: literal)
-    guard let regex = try? NSRegularExpression(pattern: escapedPattern, options: []) else {
-        return registerRuntimeObject(RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: literal))
-    }
-    return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: escapedPattern))
+///
+/// Kotlin's `fromLiteral` is `Regex(literal, RegexOption.LITERAL)`: keep the
+/// original literal as `.pattern` / `toString()`, and escape only when compiling
+/// the Foundation matcher. The first argument is the Companion receiver
+/// (ignored; companion singleton).
+@_cdecl("__kk_regex_from_literal_flat")
+public func kk_regex_from_literal_flat(
+    _ companionRef: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    _ = companionRef
+    return runtimeRegexFromLiteral(
+        regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeRegexFromLiteral(_ literal: String) -> Int {
+    let optionOrdinals: Set<Int> = [kRegexOptionOrdinalLiteral]
+    let box = createRegexBox(
+        pattern: literal,
+        isLiteral: true,
+        options: [],
+        optionOrdinals: optionOrdinals,
+        outThrown: nil
+    ) ?? RuntimeRegexBox(
+        regex: RegexNeverMatch.expression,
+        pattern: literal,
+        optionOrdinals: optionOrdinals
+    )
+    return registerRuntimeObject(box)
 }
 
 /// String.replaceFirst(regex: Regex, replacement: String) -> String
 /// Replaces only the first match of the regex in the string.
-@_cdecl("kk_string_replaceFirst_regex")
-public func kk_string_replaceFirst_regex(_ strRaw: Int, _ regexRaw: Int, _ replacementRaw: Int) -> Int {
+@_cdecl("__kk_string_replaceFirst_regex")
+public func kk_string_replaceFirst_regex(
+    _ strRaw: Int,
+    _ regexRaw: Int,
+    _ replacementRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let rawStr = regexStringFromRaw(strRaw) ?? ""
     let replacement = regexStringFromRaw(replacementRaw) ?? ""
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringRaw(rawStr) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
-    guard let match = regexBox.regex.firstMatch(in: str, options: [], range: range),
+    guard let match = boundedFirstMatch(regexBox.regex, in: str, options: [], range: range),
           let matchRange = Range(match.range, in: str) else {
         return regexMakeStringRaw(str)
     }
-    let templateResult = regexBox.regex.replacementString(for: match, in: str, offset: 0, template: replacement)
+    do {
+        try validateRegexReplacementTemplate(
+            replacement,
+            match: match,
+            namedGroupNames: Set(regexBox.namedGroupNames)
+        )
+    } catch let error as RegexReplacementTemplateError {
+        return propagateRegexReplacementTemplateError(error, outThrown: outThrown)
+    } catch {
+        return propagateRegexReplacementTemplateError(
+            .illegalArgument("Invalid replacement template"),
+            outThrown: outThrown
+        )
+    }
+    let templateResult = applyRegexReplacementTemplate(
+        regexBox.regex,
+        match: match,
+        in: str,
+        template: replacement,
+        regexBox: regexBox
+    )
     var result = str
     result.replaceSubrange(matchRange, with: templateResult)
     return regexMakeStringRaw(result)
-}
-
-// MARK: - STDLIB-REGEX-097: Regex.groupNames
-
-/// Regex.groupNames: Set<String>
-/// Returns the set of named capture group names defined in the regex pattern.
-@_cdecl("kk_regex_group_names")
-public func kk_regex_group_names(_ regexRaw: Int) -> Int {
-    guard let regexBox = regexBoxFromRaw(regexRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
-    }
-    let names = extractNamedGroupNames(from: regexBox.pattern)
-    let nameRaws = names.map(regexMakeStringRaw)
-    let setBox = RuntimeSetBox(elements: nameRaws)
-    return registerRuntimeObject(setBox)
 }
 
 // MARK: - STDLIB-REGEX-098: Regex.matches(input)
@@ -802,86 +1312,45 @@ public func kk_regex_group_names(_ regexRaw: Int) -> Int {
 ///   directly. `.ignoreMetacharacters` is stripped from the anchored options
 ///   (it is never set in practice, but removing it defensively ensures the
 ///   `\A(?:...)\z` wrapper is always parsed as regex syntax, not literal text.
-@_cdecl("kk_regex_matches")
-public func kk_regex_matches(_ regexRaw: Int, _ inputRaw: Int) -> Int {
-    let rawInput = regexStringFromRaw(inputRaw) ?? ""
+@_cdecl("__kk_regex_matches_flat")
+public func kk_regex_matches_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexMatches(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeRegexMatches(_ regexRaw: Int, input rawInput: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let input = regexBox.normalizeIfNeeded(rawInput)
-    // Use the effective (compiled) pattern stored in the NSRegularExpression. For
-    // LITERAL regexes this is already the pre-escaped form, so embedding it directly
-    // inside \A(?:...)\z is safe. Strip .anchorsMatchLines so \A/\z bind to the
-    // string boundaries rather than line boundaries, and strip .ignoreMetacharacters
-    // (defensive) so the wrapper syntax is always interpreted as real regex syntax.
-    let effectivePattern = "\\A(?:\(regexBox.regex.pattern))\\z"
-    let anchoredOptions = regexBox.regex.options.subtracting([.anchorsMatchLines, .ignoreMetacharacters])
-    guard let anchoredRegex = try? NSRegularExpression(
-        pattern: effectivePattern,
-        options: anchoredOptions
-    ) else { return kk_box_bool(0) }
+    guard let anchoredRegex = regexBox.anchoredRegex else { return kk_box_bool(0) }
     let range = NSRange(input.startIndex..., in: input)
-    let matched = anchoredRegex.firstMatch(in: input, options: [], range: range) != nil
+    let matched = boundedFirstMatch(anchoredRegex, in: input, options: [], range: range) != nil
     return kk_box_bool(matched ? 1 : 0)
 }
 
 // MARK: - STDLIB-TEXT-TYPE-010: MatchResult.Destructured
 
-private func matchResultDestructuredBoxFromRaw(_ raw: Int) -> RuntimeMatchResultDestructuredBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(pointer, to: RuntimeMatchResultDestructuredBox.self)
-}
+// `MatchResult.Destructured` carries no state beyond the match it destructures,
+// so it is represented by the MatchResult object itself. `component1()`..
+// `component9()` are derived in Kotlin from the raw group values above.
 
 /// MatchResult.destructured: MatchResult.Destructured
-/// Wraps the MatchResult in a Destructured box for capture-group destructuring.
-@_cdecl("kk_match_result_destructured")
-public func kk_match_result_destructured(_ matchRaw: Int) -> Int {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw) else {
-        let empty = RuntimeMatchResultBox(value: "", groupValues: [])
-        return registerRuntimeObject(RuntimeMatchResultDestructuredBox(matchResult: empty))
-    }
-    return registerRuntimeObject(RuntimeMatchResultDestructuredBox(matchResult: matchResult))
+@_cdecl("__kk_match_result_destructured")
+public func __kk_match_result_destructured(_ matchRaw: Int) -> Int {
+    guard matchResultBoxFromRaw(matchRaw) != nil else { return runtimeNullSentinelInt }
+    return matchRaw
 }
 
 /// MatchResult.Destructured.match: MatchResult
-@_cdecl("kk_match_result_destructured_match")
-public func kk_match_result_destructured_match(_ destructuredRaw: Int) -> Int {
-    guard let destructured = matchResultDestructuredBoxFromRaw(destructuredRaw) else {
-        return runtimeNullSentinelInt
-    }
-    return registerRuntimeObject(destructured.matchResult)
+@_cdecl("__kk_match_result_destructured_match")
+public func __kk_match_result_destructured_match(_ destructuredRaw: Int) -> Int {
+    guard matchResultBoxFromRaw(destructuredRaw) != nil else { return runtimeNullSentinelInt }
+    return destructuredRaw
 }
-
-/// Returns the Nth capture group value from the Destructured box (1-indexed, skipping group 0).
-private func destructuredComponentValue(_ destructuredRaw: Int, index: Int) -> Int {
-    guard let destructured = matchResultDestructuredBoxFromRaw(destructuredRaw) else {
-        return regexMakeStringRaw("")
-    }
-    let groupValues = destructured.matchResult.groupValues
-    return regexMakeStringRaw(index < groupValues.count ? groupValues[index] : "")
-}
-
-@_cdecl("kk_match_result_destructured_component1")
-public func kk_match_result_destructured_component1(_ d: Int) -> Int { destructuredComponentValue(d, index: 1) }
-
-@_cdecl("kk_match_result_destructured_component2")
-public func kk_match_result_destructured_component2(_ d: Int) -> Int { destructuredComponentValue(d, index: 2) }
-
-@_cdecl("kk_match_result_destructured_component3")
-public func kk_match_result_destructured_component3(_ d: Int) -> Int { destructuredComponentValue(d, index: 3) }
-
-@_cdecl("kk_match_result_destructured_component4")
-public func kk_match_result_destructured_component4(_ d: Int) -> Int { destructuredComponentValue(d, index: 4) }
-
-@_cdecl("kk_match_result_destructured_component5")
-public func kk_match_result_destructured_component5(_ d: Int) -> Int { destructuredComponentValue(d, index: 5) }
-
-@_cdecl("kk_match_result_destructured_component6")
-public func kk_match_result_destructured_component6(_ d: Int) -> Int { destructuredComponentValue(d, index: 6) }
-
-@_cdecl("kk_match_result_destructured_component7")
-public func kk_match_result_destructured_component7(_ d: Int) -> Int { destructuredComponentValue(d, index: 7) }
-
-@_cdecl("kk_match_result_destructured_component8")
-public func kk_match_result_destructured_component8(_ d: Int) -> Int { destructuredComponentValue(d, index: 8) }
-
-@_cdecl("kk_match_result_destructured_component9")
-public func kk_match_result_destructured_component9(_ d: Int) -> Int { destructuredComponentValue(d, index: 9) }

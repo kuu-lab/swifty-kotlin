@@ -1,86 +1,8 @@
-
 final class ObjectLiteralLowerer {
     unowned let driver: KIRLoweringDriver
 
     init(driver: KIRLoweringDriver) {
         self.driver = driver
-    }
-
-    private func dataClassPropertyNames(
-        ownerSymbol: SymbolID,
-        sema: SemaModule
-    ) -> [InternedString] {
-        guard let owner = sema.symbols.symbol(ownerSymbol),
-              owner.flags.contains(.dataType)
-        else {
-            return []
-        }
-
-        let primaryParameterNames: [InternedString] = sema.symbols.children(ofFQName: owner.fqName)
-            .compactMap { sema.symbols.symbol($0) }
-            .filter { $0.kind == .constructor }
-            .min { lhs, rhs in
-                let lhsOffset = lhs.declSite?.start.offset ?? Int.max
-                let rhsOffset = rhs.declSite?.start.offset ?? Int.max
-                if lhsOffset != rhsOffset {
-                    return lhsOffset < rhsOffset
-                }
-                return lhs.id.rawValue < rhs.id.rawValue
-            }
-            .flatMap { constructor in
-                sema.symbols.functionSignature(for: constructor.id)?.valueParameterSymbols.compactMap { paramID in
-                    sema.symbols.symbol(paramID)?.name
-                }
-            } ?? []
-
-        guard !primaryParameterNames.isEmpty else {
-            return []
-        }
-
-        let propertiesByName = Dictionary(
-            sema.symbols.children(ofFQName: owner.fqName)
-                .compactMap { sema.symbols.symbol($0) }
-                .filter { $0.kind == .property && !$0.flags.contains(.synthetic) }
-                .map { ($0.name, $0.name) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return primaryParameterNames.compactMap { propertiesByName[$0] }
-    }
-
-    private func emitDataClassFieldRegistration(
-        objectSymbol: SymbolID,
-        classID: Int64,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) {
-        let propertyNames = dataClassPropertyNames(ownerSymbol: objectSymbol, sema: sema)
-        guard !propertyNames.isEmpty else {
-            return
-        }
-
-        let intType = sema.types.intType
-        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
-        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
-
-        for (index, propertyName) in propertyNames.enumerated() {
-            let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
-            instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
-
-            let nameExpr = arena.appendExpr(.stringLiteral(propertyName), type: intType)
-            instructions.append(.constValue(result: nameExpr, value: .stringLiteral(propertyName)))
-
-            let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_json_register_data_class_field_name"),
-                arguments: [classIDExpr, indexExpr, nameExpr],
-                result: registerResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
     }
 
     func lowerObjectLiteralExpr(
@@ -124,7 +46,7 @@ final class ObjectLiteralLowerer {
             interner: interner
         )
 
-        let objectValue = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: objectValueType)
+        let objectValue = arena.appendTemporary(type: objectValueType)
         instructions.append(.call(
             symbol: symbols.constructorSymbol,
             callee: symbols.constructorName,
@@ -134,6 +56,120 @@ final class ObjectLiteralLowerer {
             thrownResult: nil
         ))
         return objectValue
+    }
+
+    /// KUU-555: lowers a `class`/`object` declared as a block statement.
+    /// A local `object` materializes its singleton right at the declaration
+    /// site (exactly like an object literal) and binds it to the declared
+    /// name's symbol; a local `class` only emits its nominal/member/`<init>`
+    /// declarations — instances come from later `Local(...)` call exprs,
+    /// which take the normal constructor-call path in `CallLowerer`.
+    func lowerLocalNominalDeclExpr(
+        _ exprID: ExprID,
+        declID: DeclID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let unitExpr = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unitExpr, value: .unit))
+        guard let decl = ast.arena.decl(declID),
+              let ownerSymbol = sema.bindings.declSymbols[declID]
+        else {
+            return unitExpr
+        }
+        switch decl {
+        case let .objectDecl(objectDecl):
+            // Nested member/accessor function emissions reset the scope
+            // (`resetScopeForFunction`) while lowering their own bodies —
+            // restore the enclosing scope afterwards so this decl's own
+            // instance binding and any outer locals it captures survive.
+            let nominalScopeSnapshot = driver.ctx.saveScope()
+            let objectValue = lowerStoredObjectLiteralExpr(
+                    exprID,
+                    objectDecl: objectDecl,
+                    objectSymbol: ownerSymbol,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            driver.ctx.restoreScope(nominalScopeSnapshot)
+            // `Local` references lower as locals — bind the symbol to the
+            // materialized singleton value.
+            driver.ctx.setLocalValue(objectValue, for: ownerSymbol)
+
+        case let .classDecl(classDecl):
+            // Same scope protection as the object path: member and
+            // constructor body emissions below reset the scope.
+            let nominalScopeSnapshot = driver.ctx.saveScope()
+            defer { driver.ctx.restoreScope(nominalScopeSnapshot) }
+            guard ensureObjectLiteralNominalDecl(
+                exprID: exprID,
+                objectSymbol: ownerSymbol,
+                arena: arena
+            ) else {
+                break
+            }
+            let ownerFQName = sema.symbols.symbol(ownerSymbol)?.fqName ?? []
+            if !classDecl.memberFunctions.isEmpty {
+                let (_, allDecls) = driver.memberLowerer.lowerMemberDecls(
+                    memberFunctions: classDecl.memberFunctions,
+                    memberProperties: [],
+                    nestedClasses: [],
+                    nestedObjects: [],
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
+                for memberDeclID in allDecls {
+                    driver.ctx.appendGeneratedCallableDecl(memberDeclID)
+                }
+            }
+            lowerObjectLiteralPropertyAccessors(
+                classDecl.memberProperties,
+                ownerFQName: ownerFQName,
+                objectSymbol: ownerSymbol,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let initName = interner.intern("<init>")
+            let ctorFQName = ownerFQName + [initName]
+            if let ctorSymbol = sema.symbols.lookupAll(fqName: ctorFQName).first(where: {
+                sema.symbols.symbol($0)?.kind == .constructor
+            }) {
+                let ctorDecls = driver.lowerConstructor(
+                    ctorSymbol: ctorSymbol,
+                    ctorFQName: ctorFQName,
+                    classDecl: classDecl,
+                    ownerSymbol: ownerSymbol,
+                    shared: KIRLoweringSharedContext(
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers
+                    )
+                )
+                for ctorDeclID in ctorDecls {
+                    driver.ctx.appendGeneratedCallableDecl(ctorDeclID)
+                }
+            }
+
+        default:
+            break
+        }
+        return unitExpr
     }
 
     private func lowerStoredObjectLiteralExpr(
@@ -148,7 +184,32 @@ final class ObjectLiteralLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let objectValueType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-        ensureObjectLiteralNominalDecl(exprID: exprID, objectSymbol: objectSymbol, arena: arena)
+        let emittedNominal = ensureObjectLiteralNominalDecl(exprID: exprID, objectSymbol: objectSymbol, arena: arena)
+        if emittedNominal {
+            lowerObjectLiteralMemberFunctions(
+                objectDecl,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            // BUG-141: object-literal member properties are not lowered through
+            // MemberLowerer above (memberProperties: []), so synthesize a getter
+            // accessor for each property that overrides an interface property.
+            // appendObjectItableMethodRegistrations registers these getters into
+            // the interface itable so an interface-typed receiver can read them.
+            lowerObjectLiteralPropertyAccessors(
+                objectDecl.memberProperties,
+                ownerFQName: sema.symbols.symbol(objectSymbol)?.fqName ?? [objectDecl.name],
+                objectSymbol: objectSymbol,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+        }
 
         let intType = sema.types.intType
         let layout = sema.symbols.nominalLayout(for: objectSymbol)
@@ -164,7 +225,7 @@ final class ObjectLiteralLowerer {
         let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
 
-        let objectValue = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: objectValueType)
+        let objectValue = arena.appendTemporary(type: objectValueType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_object_new"),
@@ -182,19 +243,130 @@ final class ObjectLiteralLowerer {
             interner: interner,
             instructions: &instructions
         )
+        appendObjectItableMethodRegistrations(
+            objectValue: objectValue,
+            nominalSymbol: objectSymbol,
+            driver: driver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        appendObjectVtableMethodRegistrations(
+            objectValue: objectValue,
+            nominalSymbol: objectSymbol,
+            driver: driver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        emitObjectLiteralSuperConstructorCall(
+            objectDecl,
+            objectSymbol: objectSymbol,
+            objectValue: objectValue,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        // KSP-CAP-001: materialize outer locals/parameters and any enclosing
+        // receiver captured by this object's member functions into instance fields, while the
+        // *enclosing* function's implicit receiver and locals are still
+        // active (needed so `captureValueExpr` can resolve a captured outer
+        // `this` correctly) -- i.e. before `setImplicitReceiver` below
+        // switches the active receiver over to this object literal itself.
+        let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: objectSymbol)
+        for capturedSymbol in capturedSymbols {
+            guard let fieldOffset = layout?.fieldOffsets[capturedSymbol],
+                  let captureValue = driver.lambdaLowerer.captureValueExpr(
+                      for: capturedSymbol,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+            else {
+                continue
+            }
+            let captureOffsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+            instructions.append(.constValue(result: captureOffsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [objectValue, captureOffsetExpr, captureValue],
+                result: captureSetResult,
+                canThrow: true,
+                thrownResult: nil
+            ))
+        }
 
         let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
         let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
+        let savedQualifiedThisReceivers = driver.ctx.saveQualifiedThisReceivers()
+        if let savedReceiverExprID,
+           let receiverType = arena.exprType(savedReceiverExprID),
+           let receiverLabel = RuntimeTypeCheckToken.simpleName(
+               of: receiverType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            driver.ctx.setQualifiedThisReceiver(
+                savedReceiverExprID,
+                for: interner.intern(receiverLabel)
+            )
+        }
         driver.ctx.setImplicitReceiver(symbol: objectSymbol, exprID: objectValue)
         defer {
+            driver.ctx.restoreQualifiedThisReceivers(savedQualifiedThisReceivers)
             driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
         }
 
         for propertyDeclID in objectDecl.memberProperties {
             guard let propertySymbol = sema.bindings.declSymbols[propertyDeclID],
                   let decl = ast.arena.decl(propertyDeclID),
-                  case let .propertyDecl(propertyDecl) = decl,
-                  let initializer = propertyDecl.initializer,
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            if propertyDecl.delegateExpression != nil {
+                // BUG-267: run the same delegate-expression initialization a
+                // named class performs in its constructor, storing the
+                // delegate instance into the object's `$delegate_<name>`
+                // field. The object literal is the active implicit receiver
+                // here, so `emitFieldStore` lands at the layout offset.
+                _ = objectLiteralDelegateStorageSymbol(
+                    for: propertySymbol,
+                    propertyDecl: propertyDecl,
+                    ownerFQName: sema.symbols.symbol(objectSymbol)?.fqName ?? [objectDecl.name],
+                    objectSymbol: objectSymbol,
+                    sema: sema,
+                    interner: interner
+                )
+                var emitContext = KIRLoweringEmitContext(instructions)
+                driver.emitDelegatePropertyInitializer(
+                    propertyDecl: propertyDecl,
+                    propSymbol: propertySymbol,
+                    sema: sema,
+                    arena: arena,
+                    shared: KIRLoweringSharedContext(
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers
+                    ),
+                    body: &emitContext
+                )
+                instructions = emitContext.instructions
+                continue
+            }
+            guard let initializer = propertyDecl.initializer,
                   let fieldOffset = layout?.fieldOffsets[sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol]
             else {
                 continue
@@ -210,7 +382,7 @@ final class ObjectLiteralLowerer {
             )
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-            let unusedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
@@ -224,6 +396,176 @@ final class ObjectLiteralLowerer {
         return objectValue
     }
 
+    /// KSP-CAP-018: emits the implicit `super(...)` call of an object
+    /// literal's superclass, e.g. `object : Base(x) { ... }`. Kotlin runs the
+    /// superclass constructor before the object literal's own initializers,
+    /// so the superclass's property initializers and `init` blocks — which
+    /// write into the same instance at the layout offsets the object literal
+    /// inherits — must execute here. Without this call an object literal
+    /// instance keeps the zeroed defaults for every inherited property (same
+    /// root cause as BUG-155/PR #5506's `emitSuperConstructorDelegation` for
+    /// named classes; object literals never went through that fix since they
+    /// have no user-written constructor of their own).
+    private func emitObjectLiteralSuperConstructorCall(
+        _ objectDecl: ObjectDecl,
+        objectSymbol: SymbolID,
+        objectValue: KIRExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let superclassSymbol = sema.symbols.directSupertypes(for: objectSymbol).first(where: {
+            let kind = sema.symbols.symbol($0)?.kind
+            return kind == .class || kind == .enumClass
+        }),
+        let superclassInfo = sema.symbols.symbol(superclassSymbol)
+        else {
+            return
+        }
+        let candidates = sema.symbols.lookupAll(fqName: superclassInfo.fqName + [interner.intern("<init>")])
+        guard let superCtorSymbol = driver.resolveObjectSuperConstructor(
+            candidates: candidates,
+            argExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
+            sema: sema
+        )
+        else {
+            return
+        }
+        // Source-backed constructors — bundled stdlib or imported .kklib
+        // declarations — carry a linkable external body, so their non-empty
+        // externalLinkName must not suppress the call (the same rule
+        // emitSuperConstructorDelegation applies for named classes). Only
+        // synthetic shells with no real body and runtime factory constructors
+        // (whose ABI returns a fresh box instead of initializing `this`) are
+        // skipped.
+        guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
+            || sema.symbols.isSourceBackedSymbol(superCtorSymbol),
+            !driver.callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema)
+        else {
+            return
+        }
+        if sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true,
+           sema.symbols.parentSymbol(for: superCtorSymbol) == sema.types.anyClassSymbol
+        {
+            // Any's compiler-provided constructor has no body to delegate to.
+            return
+        }
+
+        var argIDs: [KIRExprID] = [objectValue]
+        for arg in objectDecl.superTypeConstructorArgs {
+            argIDs.append(driver.lowerExpr(
+                arg.expr, ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
+            ))
+        }
+
+        let resultID = arena.appendTemporary(type: sema.types.unitType)
+        instructions.append(.call(
+            symbol: superCtorSymbol,
+            callee: interner.intern("<init>"),
+            arguments: argIDs,
+            result: resultID,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
+    /// KSP-CAP-001: re-establishes an object literal's captured outer values
+    /// and receiver inside one of its own member functions.
+    ///
+    /// Member functions are lowered as independent top-level KIR functions
+    /// (`MemberLowerer.lowerSingleMemberFunction` resets `driver.ctx`'s
+    /// scope per function, the same way `LambdaLowerer` does per lambda), so
+    /// a captured symbol's KIR value from the enclosing function is not
+    /// visible here on its own, so the capture must be read back from the instance
+    /// field it was stored into at construction time (see the capture loop
+    /// in `lowerStoredObjectLiteralExpr` above), then re-registered with
+    /// `driver.ctx` so ordinary `nameRef` lowering finds it exactly as if it
+    /// were a plain local.
+    func restoreObjectLiteralCaptures(
+        forMemberFunction functionSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: functionSymbol) else {
+            return
+        }
+        let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: ownerSymbol)
+        guard !capturedSymbols.isEmpty,
+              let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+              let layout = sema.symbols.nominalLayout(for: ownerSymbol)
+        else {
+            return
+        }
+
+        let intType = sema.types.intType
+        for capturedSymbol in capturedSymbols {
+            guard let fieldOffset = layout.fieldOffsets[capturedSymbol] else {
+                continue
+            }
+            let isMutableLocal = sema.symbols.symbol(capturedSymbol).map {
+                $0.kind == .local && $0.flags.contains(.mutable)
+            } ?? false
+            // A mutable capture's field holds the boxed cell itself (see
+            // `LambdaLowerer.captureValueExpr`), not the logical value, so
+            // the load must be typed generically; only the box's contents
+            // are typed `logicalType`, once unwrapped on actual reads/writes.
+            let logicalType = sema.bindings.capturedLocalType(for: capturedSymbol)
+                ?? driver.lambdaLowerer.typeForSymbolReference(capturedSymbol, sema: sema)
+            let loadedType = isMutableLocal ? sema.types.anyType : logicalType
+
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let loadedExpr = arena.appendTemporary(type: loadedType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiverExprID, offsetExpr],
+                result: loadedExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if isMutableLocal {
+                driver.ctx.setMutableCaptureCell(loadedExpr, for: capturedSymbol)
+            } else {
+                driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
+            }
+            driver.ctx.setLocalDeclaredType(logicalType, for: capturedSymbol)
+            if let capturedReceiver = sema.bindings.objectLiteralCapturedReceiver(for: ownerSymbol),
+               capturedReceiver.receiverSymbol == capturedSymbol
+            {
+                driver.ctx.setCapturedOuterReceiver(loadedExpr, for: capturedReceiver.ownerSymbol)
+            }
+        }
+    }
+
+    func implicitReceiverExprID(forProperty symbol: SymbolID, sema: SemaModule) -> KIRExprID? {
+        guard let propertyOwner = sema.symbols.parentSymbol(for: symbol),
+              let functionSymbol = driver.ctx.currentFunctionSymbol,
+              let objectOwner = sema.symbols.parentSymbol(for: functionSymbol),
+              let capturedReceiver = sema.bindings.objectLiteralCapturedReceiver(for: objectOwner)
+        else {
+            return driver.ctx.activeImplicitReceiverExprID()
+        }
+        var visited: Set<SymbolID> = []
+        var pending = [capturedReceiver.ownerSymbol]
+        while let owner = pending.popLast() {
+            guard visited.insert(owner).inserted else { continue }
+            if owner == propertyOwner,
+               let receiverExprID = driver.ctx.capturedOuterReceiverExprID(for: capturedReceiver.ownerSymbol)
+            {
+                return receiverExprID
+            }
+            pending.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        }
+        return driver.ctx.activeImplicitReceiverExprID()
+    }
+
     private func registerObjectLiteralSupertypes(
         objectSymbol: SymbolID,
         objectValue _: KIRExprID,
@@ -232,39 +574,18 @@ final class ObjectLiteralLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        let intType = sema.types.intType
         let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: objectSymbol,
             sema: sema,
             interner: interner
         )
-        let childExpr = arena.appendExpr(.intLiteral(childTypeID), type: intType)
-        instructions.append(.constValue(result: childExpr, value: .intLiteral(childTypeID)))
-
-        for superSymbol in sema.symbols.directSupertypes(for: objectSymbol) {
-            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                symbol: superSymbol,
-                sema: sema,
-                interner: interner
-            )
-            let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-            instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-            let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
-            let superKind = sema.symbols.symbol(superSymbol)?.kind
-            let registerCallee: InternedString = if superKind == .interface {
-                interner.intern("kk_type_register_iface")
-            } else {
-                interner.intern("kk_type_register_super")
-            }
-            instructions.append(.call(
-                symbol: nil,
-                callee: registerCallee,
-                arguments: [childExpr, parentExpr],
-                result: registerResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
+        appendNominalSupertypeEdgeRegistrations(
+            childSymbol: objectSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
 
         // REFL-004: Register KClass binary metadata for this type.
         registerKClassMetadata(
@@ -279,7 +600,7 @@ final class ObjectLiteralLowerer {
 
     // MARK: - REFL-004: KClass Binary Metadata Registration
 
-    /// Emits a call to `kk_kclass_register_metadata` to register compile-time
+    /// Emits a call to `__kk_kclass_register_metadata` to register compile-time
     /// metadata for a nominal type so that `KClass` instances can query it at runtime.
     private func registerKClassMetadata(
         objectSymbol: SymbolID,
@@ -383,25 +704,16 @@ final class ObjectLiteralLowerer {
         let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)
         instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
 
-        // Call kk_kclass_register_metadata.
-        let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        // Call __kk_kclass_register_metadata.
+        let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_kclass_register_metadata"),
+            callee: interner.intern("__kk_kclass_register_metadata"),
             arguments: [typeTokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
             result: registerResult,
             canThrow: false,
             thrownResult: nil
         ))
-
-        emitDataClassFieldRegistration(
-            objectSymbol: objectSymbol,
-            classID: typeID,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        )
 
         // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(
@@ -418,12 +730,210 @@ final class ObjectLiteralLowerer {
         exprID: ExprID,
         objectSymbol: SymbolID,
         arena: KIRArena
-    ) {
+    ) -> Bool {
         guard driver.ctx.markObjectLiteralEmitted(exprID) else {
-            return
+            return false
         }
         let nominalDeclID = arena.appendDecl(.nominalType(KIRNominalType(symbol: objectSymbol)))
         driver.ctx.appendGeneratedCallableDecl(nominalDeclID)
+        return true
+    }
+
+    private func lowerObjectLiteralMemberFunctions(
+        _ objectDecl: ObjectDecl,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind]
+    ) {
+        guard !objectDecl.memberFunctions.isEmpty else {
+            return
+        }
+        let (_, allDecls) = driver.memberLowerer.lowerMemberDecls(
+            memberFunctions: objectDecl.memberFunctions,
+            memberProperties: [],
+            nestedClasses: [],
+            nestedObjects: [],
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers
+        )
+        for declID in allDecls {
+            driver.ctx.appendGeneratedCallableDecl(declID)
+        }
+    }
+
+    /// BUG-141: emit accessor functions for object-literal member properties
+    /// that override an interface property, so they can be dispatched through
+    /// the interface itable. Stored properties get a field-reading getter;
+    /// custom-getter properties reuse their explicit getter body.
+    ///
+    /// KSP-CAP-018: also emits the `set` accessor for a property that declares
+    /// one. The assignment path already lowered `obj.prop = v` to `call set`,
+    /// so a custom setter used to fail at link time with an undefined `_set`.
+    private func lowerObjectLiteralPropertyAccessors(
+        _ memberProperties: [DeclID],
+        ownerFQName: [InternedString],
+        objectSymbol: SymbolID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind]
+    ) {
+        guard !memberProperties.isEmpty else {
+            return
+        }
+        var allDecls: [KIRDeclID] = []
+        for propertyDeclID in memberProperties {
+            guard let propertySymbol = sema.bindings.declSymbols[propertyDeclID],
+                  let decl = ast.arena.decl(propertyDeclID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+            // BUG-267: delegated properties get their accessors synthesized
+            // through the same getValue/setValue convention as named-class
+            // members (`MemberLowerer.lowerDelegateAccessor`). Both read
+            // paths — explicit `o.x` and implicit reads inside member
+            // functions — lower to `call get`/`call set` on this accessor;
+            // the delegate instance lives in the object's `$delegate_<name>`
+            // field (stored in `lowerStoredObjectLiteralExpr`).
+            if let delegateExpr = propertyDecl.delegateExpression {
+                let delegateStorageSymbol = objectLiteralDelegateStorageSymbol(
+                    for: propertySymbol,
+                    propertyDecl: propertyDecl,
+                    ownerFQName: ownerFQName,
+                    objectSymbol: objectSymbol,
+                    sema: sema,
+                    interner: interner
+                )
+                let delegateKind = StdlibDelegateKind.detect(
+                    delegateExpr: delegateExpr, ast: ast, interner: interner
+                )
+                driver.memberLowerer.lowerDelegateAccessor(
+                    propertySymbol: propertySymbol,
+                    propertyType: propertyType,
+                    delegateStorageSymbol: delegateStorageSymbol,
+                    delegateKind: delegateKind,
+                    accessorKind: .getter,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
+                if propertyDecl.isVar {
+                    driver.memberLowerer.lowerDelegateAccessor(
+                        propertySymbol: propertySymbol,
+                        propertyType: propertyType,
+                        delegateStorageSymbol: delegateStorageSymbol,
+                        delegateKind: delegateKind,
+                        accessorKind: .setter,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                }
+                continue
+            }
+            // Object-literal member properties are not flagged `.overrideMember`
+            // in Sema, so every non-delegated property gets a getter accessor;
+            // the itable registration only wires up the ones that match an
+            // interface property, and any extra getter is simply unused.
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                driver.memberLowerer.lowerAccessorBody(
+                    accessorBody: getter.body,
+                    propertySymbol: propertySymbol,
+                    propertyType: propertyType,
+                    accessorKind: .getter,
+                    setterParamName: nil,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    allDecls: &allDecls
+                )
+            } else {
+                driver.memberLowerer.synthesizeStoredPropertyGetterAccessor(
+                    propertySymbol: propertySymbol,
+                    ownerSymbol: objectSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
+            }
+            if let setter = propertyDecl.setter, setter.body != .unit {
+                driver.memberLowerer.lowerAccessorBody(
+                    accessorBody: setter.body,
+                    propertySymbol: propertySymbol,
+                    propertyType: propertyType,
+                    accessorKind: .setter,
+                    setterParamName: setter.parameterName,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    allDecls: &allDecls
+                )
+            } else if propertyDecl.isVar {
+                // Setter counterpart of the stored getter accessor above: a
+                // plain `var` (no custom setter body) still needs a real
+                // setter accessor function registered so a write through an
+                // interface-typed receiver can dispatch to this object
+                // literal's own storage, the same way its getter already does.
+                driver.memberLowerer.synthesizeStoredPropertySetterAccessor(
+                    propertySymbol: propertySymbol,
+                    ownerSymbol: objectSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
+            }
+        }
+        for declID in allDecls {
+            driver.ctx.appendGeneratedCallableDecl(declID)
+        }
+    }
+
+    /// BUG-267: resolves the `$delegate_<name>` storage symbol Sema registers
+    /// for an object-literal delegated property (`ensureObjectLiteralSymbol`).
+    /// The fallback define mirrors `MemberLowerer`'s define-on-demand path for
+    /// named classes so lowering stays total if the Sema invariant is ever
+    /// bypassed (e.g. a synthetic AST built without the full inference pass).
+    private func objectLiteralDelegateStorageSymbol(
+        for propertySymbol: SymbolID,
+        propertyDecl: PropertyDecl,
+        ownerFQName: [InternedString],
+        objectSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID {
+        if let existing = sema.symbols.delegateStorageSymbol(for: propertySymbol) {
+            return existing
+        }
+        let storageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+        let storageSymbol = sema.symbols.define(
+            kind: .field,
+            name: storageName,
+            fqName: ownerFQName + [storageName],
+            declSite: propertyDecl.range,
+            visibility: .private,
+            flags: []
+        )
+        sema.symbols.setParentSymbol(objectSymbol, for: storageSymbol)
+        sema.symbols.setDelegateStorageSymbol(storageSymbol, for: propertySymbol)
+        return storageSymbol
     }
 
     private func syntheticObjectLiteralSymbols(
@@ -465,7 +975,7 @@ final class ObjectLiteralLowerer {
         let storageSlotCount = max(1, superTypeCount)
         let slotCountExpr = arena.appendExpr(.intLiteral(Int64(storageSlotCount)), type: intType)
         let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
-        let objectEntityExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: objectValueType)
+        let objectEntityExpr = arena.appendTemporary(type: objectValueType)
         var body: [KIRInstruction] = [.beginBlock]
         body.append(.constValue(result: slotCountExpr, value: .intLiteral(Int64(storageSlotCount))))
         body.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
@@ -477,6 +987,15 @@ final class ObjectLiteralLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        appendObjectVtableMethodRegistrations(
+            objectValue: objectEntityExpr,
+            nominalSymbol: symbols.nominalSymbol,
+            driver: driver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        )
         body.append(.returnValue(objectEntityExpr))
         body.append(.endBlock)
 

@@ -1,0 +1,17 @@
+fun main() {
+    val empty = ushortArrayOf()
+    val zero = 0.toUShort()
+    val maximum = 65535.toUShort()
+    val values = ushortArrayOf(zero, maximum)
+    val spreadValues = ushortArrayOf(1.toUShort(), 2.toUShort())
+    val spread = ushortArrayOf(zero, *spreadValues, maximum)
+    println(empty.size)
+    println(values.size)
+    println(values[0])
+    println(values[1])
+    println(spread.size)
+    println(spread[0])
+    println(spread[1])
+    println(spread[2])
+    println(spread[3])
+}

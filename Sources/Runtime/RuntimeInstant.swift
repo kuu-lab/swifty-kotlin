@@ -58,6 +58,98 @@ private func runtimeInstantBox(from raw: Int) -> RuntimeInstantBox? {
     return tryCast(ptr, to: RuntimeInstantBox.self)
 }
 
+private func runtimeInstantFloorDiv(_ value: Int64, _ divisor: Int64) -> Int64 {
+    let quotient = value / divisor
+    let remainder = value % divisor
+    return remainder < 0 ? quotient - 1 : quotient
+}
+
+private func runtimeInstantTwoDigits(_ number: Int64) -> String {
+    number < 10 ? "0\(number)" : "\(number)"
+}
+
+private func runtimeInstantYearString(_ year: Int64) -> String {
+    if year >= 0 && year < 1_000 {
+        return String(year + 10_000).dropFirst().description
+    }
+    if year < 0 && year > -1_000 {
+        return "-\(String(-year + 10_000).dropFirst())"
+    }
+    return year >= 10_000 ? "+\(year)" : "\(year)"
+}
+
+/// Renders an Instant using Kotlin 2.3.10's ISO-8601 UTC representation.
+/// This path is used when an Instant reaches Any.toString() or print through
+/// runtime dynamic dispatch, where the Kotlin source extension is not called.
+func runtimeInstantToString(_ instant: RuntimeInstantBox) -> String {
+    let secondsPerDay: Int64 = 86_400
+    let epochDays = runtimeInstantFloorDiv(instant.epochSeconds, secondsPerDay)
+    let secondsOfDay = instant.epochSeconds - epochDays * secondsPerDay
+
+    var zeroDay = epochDays + 719_528
+    zeroDay -= 60
+    var adjust: Int64 = 0
+    if zeroDay < 0 {
+        let adjustCycles = (zeroDay + 1) / 146_097 - 1
+        adjust = adjustCycles * 400
+        zeroDay += -adjustCycles * 146_097
+    }
+    var yearEstimate = (400 * zeroDay + 591) / 146_097
+    var dayOfYearEstimate = zeroDay -
+        (365 * yearEstimate + yearEstimate / 4 - yearEstimate / 100 + yearEstimate / 400)
+    if dayOfYearEstimate < 0 {
+        yearEstimate -= 1
+        dayOfYearEstimate = zeroDay -
+            (365 * yearEstimate + yearEstimate / 4 - yearEstimate / 100 + yearEstimate / 400)
+    }
+    yearEstimate += adjust
+    let marchDayOfYear = Int(dayOfYearEstimate)
+    let marchMonth = (marchDayOfYear * 5 + 2) / 153
+    let month = (marchMonth + 2) % 12 + 1
+    let day = marchDayOfYear - (marchMonth * 306 + 5) / 10 + 1
+    let year = yearEstimate + Int64(marchMonth / 10)
+
+    let hour = secondsOfDay / 3_600
+    let secondWithoutHours = secondsOfDay - hour * 3_600
+    let minute = secondWithoutHours / 60
+    let second = secondWithoutHours - minute * 60
+
+    var rendered = runtimeInstantYearString(year)
+    rendered += "-\(runtimeInstantTwoDigits(Int64(month)))"
+    rendered += "-\(runtimeInstantTwoDigits(Int64(day)))"
+    rendered += "T\(runtimeInstantTwoDigits(hour))"
+    rendered += ":\(runtimeInstantTwoDigits(minute))"
+    rendered += ":\(runtimeInstantTwoDigits(second))"
+    if instant.nanoOfSecond != 0 {
+        let nano = Int64(instant.nanoOfSecond)
+        let fraction: Int64
+        let digits: Int64
+        if nano % 1_000_000 == 0 {
+            fraction = nano / 1_000_000
+            digits = 3
+        } else if nano % 1_000 == 0 {
+            fraction = nano / 1_000
+            digits = 6
+        } else {
+            fraction = nano
+            digits = 9
+        }
+        let padded = "\(fraction + Int64(pow10: digits))"
+        rendered += ".\(padded.dropFirst())"
+    }
+    return rendered + "Z"
+}
+
+private extension Int64 {
+    init(pow10 exponent: Int64) {
+        switch exponent {
+        case 3: self = 1_000
+        case 6: self = 1_000_000
+        default: self = 1_000_000_000
+        }
+    }
+}
+
 private func runtimeTimeSourceClockBox(from raw: Int) -> RuntimeTimeSourceClockBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeTimeSourceClockBox.self)
@@ -194,12 +286,10 @@ public func kk_instant_is_distant_future(_ instantRaw: Int) -> Int {
 @_cdecl("kk_instant_plus_duration")
 public func kk_instant_plus_duration(_ instantRaw: Int, _ durationRaw: Int) -> Int {
     guard let ibox = runtimeInstantBox(from: instantRaw),
-          let ptr = UnsafeMutableRawPointer(bitPattern: durationRaw),
-          let dbox = tryCast(ptr, to: RuntimeDurationBox.self)
+          let durationNs = runtimeDurationNanosecondsValue(from: durationRaw)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_plus_duration received invalid handle")
     }
-    let durationNs = dbox.nanoseconds
     let addedSec = durationNs / 1_000_000_000
     let addedNano = Int32(durationNs % 1_000_000_000)
     let result = RuntimeInstantBox(
@@ -215,12 +305,10 @@ public func kk_instant_plus_duration(_ instantRaw: Int, _ durationRaw: Int) -> I
 @_cdecl("kk_instant_minus_duration")
 public func kk_instant_minus_duration(_ instantRaw: Int, _ durationRaw: Int) -> Int {
     guard let ibox = runtimeInstantBox(from: instantRaw),
-          let ptr = UnsafeMutableRawPointer(bitPattern: durationRaw),
-          let dbox = tryCast(ptr, to: RuntimeDurationBox.self)
+          let durationNs = runtimeDurationNanosecondsValue(from: durationRaw)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_minus_duration received invalid handle")
     }
-    let durationNs = dbox.nanoseconds
     let subSec = durationNs / 1_000_000_000
     let subNano = Int32(durationNs % 1_000_000_000)
     let result = RuntimeInstantBox(
@@ -252,11 +340,14 @@ public func kk_instant_compare(_ aRaw: Int, _ bRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - until() — Duration between two Instants
+// MARK: - Duration between two Instants
 
 /// Returns the Duration from this Instant until the other Instant.
 ///
-/// Kotlin: instant.until(other)
+/// Bridges Kotlin's `operator fun Instant.minus(other: Instant): Duration`
+/// (called as `other.__kk_instant_until(this)`, since this bridge computes
+/// `to - from`) and `Instant.elapsed()` (called as
+/// `this.__kk_instant_until(Instant.now())`).
 @_cdecl("kk_instant_until")
 public func kk_instant_until(_ fromRaw: Int, _ toRaw: Int) -> Int {
     guard let fromBox = runtimeInstantBox(from: fromRaw),
@@ -268,29 +359,5 @@ public func kk_instant_until(_ fromRaw: Int, _ toRaw: Int) -> Int {
     let nanoDiff = Int64(toBox.nanoOfSecond) - Int64(fromBox.nanoOfSecond)
     let secNs = saturatingMultiply(secDiff, 1_000_000_000)
     let totalNs = saturatingAdd(secNs, nanoDiff)
-    let durationBox = RuntimeDurationBox(nanoseconds: totalNs)
-    return registerRuntimeObject(durationBox)
-}
-
-// MARK: - elapsed() — Duration from Instant to now
-
-/// Returns the Duration from this Instant until the current wall-clock time.
-///
-/// Kotlin: instant.elapsed()
-@_cdecl("kk_instant_elapsed")
-public func kk_instant_elapsed(_ instantRaw: Int) -> Int {
-    guard let instantBox = runtimeInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_elapsed received invalid Instant handle")
-    }
-    let now = Date()
-    let interval = now.timeIntervalSince1970
-    let nowEpochSec = Int64(interval)
-    let nowFracSec = interval - Double(nowEpochSec)
-    let nowNano = Int32(nowFracSec * 1_000_000_000)
-    let nowBox = RuntimeInstantBox(epochSeconds: nowEpochSec, nanoOfSecond: nowNano)
-    let secDiff = saturatingAdd(nowBox.epochSeconds, -instantBox.epochSeconds)
-    let nanoDiff = Int64(nowBox.nanoOfSecond) - Int64(instantBox.nanoOfSecond)
-    let secNs = saturatingMultiply(secDiff, 1_000_000_000)
-    let totalNs = saturatingAdd(secNs, nanoDiff)
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: totalNs))
+    return Int(truncatingIfNeeded: totalNs)
 }

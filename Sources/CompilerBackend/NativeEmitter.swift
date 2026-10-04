@@ -1,6 +1,22 @@
 import Foundation
+import RuntimeABI
 
 import CompilerCore
+
+/// Counter for deterministic generated names in LLVM IR output.
+final class GeneratedNameCounter {
+    private var value: Int32 = 0
+
+    func next() -> Int32 {
+        let current = value
+        value += 1
+        return current
+    }
+
+    func nextName(_ prefix: String) -> String {
+        "\(prefix)\(next())"
+    }
+}
 
 struct NativeEmitter {
     /// DWARF constants used across the emitter.
@@ -9,15 +25,34 @@ struct NativeEmitter {
     /// DW_ATE_signed – DWARF attribute encoding for signed integers.
     static let dwarfATESigned: UInt32 = 5
 
-    /// Known void, zero-argument runtime callees (hoisted to avoid repeated allocation).
-    static let knownVoidNoArgCallees: Set<String> = [
-        "kk_print_noarg",
-        "kk_println_newline",
+    /// Legacy void/no-argument runtime call set retained for ABI compatibility.
+    /// Print and println are source-backed, so this intentionally stays empty.
+    static let knownVoidNoArgCallees: Set<String> = []
+
+    // These calls receive a function value as their first argument; the KIR
+    // symbol is only an inline-lowering hint and never a direct native callee.
+    static let functionValueInvokeCallees: Set<String> = [
+        "kk_function_invoke", "kk_function_invoke_0",
+        "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
+        "kk_function_invoke_5",
+        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
     ]
+
+    /// Quick lookup for runtime ABI function specs by symbol name.
+    static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
+        Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
+    }()
 
     struct LLVMFunction {
         let value: LLVMCAPIBindings.LLVMValueRef
         let type: LLVMCAPIBindings.LLVMTypeRef
+    }
+
+    /// Lookup key used to resolve internal functions by either their KIR name
+    /// or generated C symbol name plus user parameter count.
+    struct FunctionLookupKey: Hashable {
+        let name: String
+        let parameterCount: Int
     }
 
     struct DebugInfoContext {
@@ -36,6 +71,8 @@ struct NativeEmitter {
     let bindings: LLVMCAPIBindings
     let module: KIRModule
     let interner: StringInterner
+    let typeSystem: TypeSystem?
+    let symbols: SymbolTable?
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
@@ -52,6 +89,8 @@ struct NativeEmitter {
         bindings: LLVMCAPIBindings,
         module: KIRModule,
         interner: StringInterner,
+        typeSystem: TypeSystem? = nil,
+        symbols: SymbolTable? = nil,
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
@@ -64,11 +103,291 @@ struct NativeEmitter {
         self.bindings = bindings
         self.module = module
         self.interner = interner
+        self.typeSystem = typeSystem
+        self.symbols = symbols
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
         self.linkOnceODRSymbols = linkOnceODRSymbols
+    }
+
+    private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
+        Self.collectRuntimeCallbackRawABISymbols(module: module, interner: interner, symbols: symbols)
+    }
+
+    static func collectRuntimeCallbackRawStringReturnSymbols(
+        module: KIRModule,
+        interner: StringInterner,
+        typeSystem: TypeSystem?,
+        symbols: SymbolTable? = nil
+    ) -> Set<SymbolID> {
+        let rawSymbols = collectRuntimeCallbackRawABISymbols(module: module, interner: interner, symbols: symbols)
+        guard let typeSystem else { return [] }
+        return Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .function(function) = declaration else { return nil }
+            guard rawSymbols.contains(function.symbol) else { return nil }
+            guard case .stringStruct = typeSystem.kind(of: function.returnType) else { return nil }
+            return function.symbol
+        })
+    }
+
+    static func collectRuntimeCallbackRawABISymbols(
+        module: KIRModule,
+        interner: StringInterner,
+        symbols: SymbolTable? = nil
+    ) -> Set<SymbolID> {
+        let callbackArgumentPositionsByCallee = runtimeCallbackArgumentPositionsByCallee(interner: interner)
+        guard !callbackArgumentPositionsByCallee.isEmpty else {
+            return []
+        }
+
+        let notNullCallee = interner.intern("kk_op_notnull")
+        let lambdaSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .function(function) = declaration,
+                  interner.resolve(function.name).hasPrefix("kk_lambda_")
+            else { return nil }
+            return function.symbol
+        })
+        var rawSymbols: Set<SymbolID> = []
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration else {
+                continue
+            }
+            let aliasSources = Self.valueAliasSources(in: function.body, notNullCallee: notNullCallee)
+            // A callback value can reach its sink through `!!`, local aliases and
+            // if/when merge copies. Follow those back to the literal `symbolRef`
+            // so the lambda gets the flat callback ABI that `kk_function_invoke_*`
+            // expects.
+            func collectSymbolRefs(reaching root: KIRExprID, lambdaOnly: Bool) {
+                var visited: Set<KIRExprID> = []
+                var pending = [root]
+                while let exprID = pending.popLast() {
+                    guard visited.insert(exprID).inserted else { continue }
+                    if case let .symbolRef(symbol)? = module.arena.expr(exprID),
+                       !lambdaOnly || lambdaSymbols.contains(symbol)
+                    {
+                        rawSymbols.insert(symbol)
+                    }
+                    pending.append(contentsOf: aliasSources[exprID] ?? [])
+                }
+            }
+            for instruction in function.body {
+                switch instruction {
+                case let .call(_, callee, arguments, _, _, _, _, _):
+                    guard let callbackPositions = callbackArgumentPositionsByCallee[callee] else {
+                        continue
+                    }
+                    for position in callbackPositions where arguments.indices.contains(position) {
+                        collectSymbolRefs(reaching: arguments[position], lambdaOnly: false)
+                    }
+
+                case let .returnValue(value):
+                    // A lambda returned as a function value is invoked by the caller
+                    // through `kk_function_invoke_*`, so it must use the callback ABI.
+                    collectSymbolRefs(reaching: value, lambdaOnly: true)
+
+                default:
+                    continue
+                }
+            }
+        }
+        if !rawSymbols.isEmpty {
+            // Dispatch declarations and concrete overrides must share the callback ABI
+            // when a same-shaped implementation is registered for reflection.
+            struct FunctionABIKey: Hashable {
+                let name: InternedString
+                let parameterCount: Int
+            }
+
+            var rawCallbackKeys: Set<FunctionABIKey> = []
+            for declaration in module.arena.declarations {
+                guard case let .function(function) = declaration,
+                      rawSymbols.contains(function.symbol),
+                      Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner)
+                else {
+                    continue
+                }
+                rawCallbackKeys.insert(FunctionABIKey(
+                    name: function.name,
+                    parameterCount: function.params.count
+                ))
+            }
+            for declaration in module.arena.declarations {
+                guard case let .function(function) = declaration else {
+                    continue
+                }
+                let key = FunctionABIKey(name: function.name, parameterCount: function.params.count)
+                if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner) {
+                    rawSymbols.insert(function.symbol)
+                }
+            }
+        }
+
+        // Throwable.toString uses the runtime's raw string-handle ABI for both
+        // the bundled implementation and Kotlin-defined overrides. This keeps
+        // the vtable slot ABI uniform with the runtime bridge; call sites bridge
+        // the raw handle back to the Kotlin String aggregate.
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration,
+                  isThrowableToStringFunction(function, interner: interner, symbols: symbols)
+            else {
+                continue
+            }
+            rawSymbols.insert(function.symbol)
+        }
+
+        return rawSymbols
+    }
+
+    /// Maps each expression to the expressions whose value it may carry through
+    /// value-preserving instructions (`copy`, `nullAssert`, `kk_op_notnull`).
+    private static func valueAliasSources(
+        in body: [KIRInstruction],
+        notNullCallee: InternedString
+    ) -> [KIRExprID: [KIRExprID]] {
+        var sources: [KIRExprID: [KIRExprID]] = [:]
+        for instruction in body {
+            switch instruction {
+            case let .copy(from, to):
+                sources[to, default: []].append(from)
+            case let .nullAssert(operand, result):
+                sources[result, default: []].append(operand)
+            case let .call(_, callee, arguments, result, _, _, _, _):
+                if callee == notNullCallee, arguments.count == 1, let result {
+                    sources[result, default: []].append(arguments[0])
+                }
+            default:
+                continue
+            }
+        }
+        return sources
+    }
+
+    private static func isThrowableToStringFunction(
+        _ function: KIRFunction,
+        interner: StringInterner,
+        symbols: SymbolTable?
+    ) -> Bool {
+        guard interner.resolve(function.name) == "toString",
+              let symbols,
+              isThrowableToStringSymbol(function.symbol, interner: interner, symbols: symbols)
+        else {
+            return false
+        }
+        return true
+    }
+
+    static func isThrowableToStringSymbol(
+        _ symbol: SymbolID,
+        interner: StringInterner,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let owner = symbols.parentSymbol(for: symbol) else {
+            return false
+        }
+        return isThrowableClassSymbol(owner, interner: interner, symbols: symbols)
+    }
+
+    static func isThrowableType(
+        _ type: TypeID?,
+        typeSystem: TypeSystem,
+        interner: StringInterner,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let type,
+              case let .classType(classType) = typeSystem.kind(of: type)
+        else {
+            return false
+        }
+        return isThrowableClassSymbol(
+            classType.classSymbol,
+            interner: interner,
+            symbols: symbols
+        )
+    }
+
+    private static func isThrowableClassSymbol(
+        _ symbol: SymbolID,
+        interner: StringInterner,
+        symbols: SymbolTable
+    ) -> Bool {
+        let throwableFQName = ["kotlin", "Throwable"]
+        var visited: Set<SymbolID> = []
+        var pending = [symbol]
+        while let candidate = pending.popLast() {
+            guard visited.insert(candidate).inserted,
+                  let symbolInfo = symbols.symbol(candidate)
+            else {
+                continue
+            }
+            if symbolInfo.fqName.map(interner.resolve) == throwableFQName {
+                return true
+            }
+            pending.append(contentsOf: symbols.directSupertypes(for: candidate))
+        }
+        return false
+    }
+
+    private static func isSyntheticCallbackFunction(
+        _ function: KIRFunction,
+        symbols: SymbolTable?,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbols else { return true }
+        guard let symbolInfo = symbols.symbol(function.symbol) else { return false }
+        return symbolInfo.flags.contains(.synthetic)
+    }
+
+    private static func runtimeCallbackArgumentPositionsByCallee(
+        interner: StringInterner
+    ) -> [InternedString: [Int]] {
+        var positionsByCallee: [InternedString: [Int]] = [:]
+        for spec in RuntimeABISpec.allFunctions {
+            if spec.name == "kk_object_register_itable_method"
+                || spec.name == "kk_object_register_vtable_method"
+                || spec.name == "kk_object_register_any_to_string"
+                || spec.name.hasPrefix("__kk_kfunction_create")
+                || spec.name == "__kk_kconstructor_create" {
+                continue
+            }
+            var positions: [Int] = []
+            var abiIndex = 0
+            var kirIndex = 0
+            while abiIndex < spec.parameters.count {
+                let parameter = spec.parameters[abiIndex]
+                let name = parameter.name.lowercased()
+                // bodyRaw: kk_function_create_* stores adapter/lambda bodies invoked via
+                // kk_function_invoke, which uses the flat intptr callback ABI.
+                // selFn/cFn: comparator selector/comparator function pointers passed to
+                // RuntimeCollectionLambda1-compatible callbacks (e.g. kk_list_sortedBy).
+                if name.contains("fnptr") || name == "functionraw" || name == "bodyraw" || name.hasSuffix("fn") {
+                    positions.append(kirIndex)
+                }
+                if abiIndex + 3 < spec.parameters.count,
+                   name.hasSuffix("data")
+                {
+                    let prefix = String(name.dropLast("data".count))
+                    let lengthName = spec.parameters[abiIndex + 1].name.lowercased()
+                    let byteCountName = spec.parameters[abiIndex + 2].name.lowercased()
+                    let hashName = spec.parameters[abiIndex + 3].name.lowercased()
+                    if lengthName == "\(prefix)length",
+                       byteCountName == "\(prefix)bytecount",
+                       hashName == "\(prefix)hash"
+                    {
+                        kirIndex += 1
+                        abiIndex += 4
+                        continue
+                    }
+                }
+                kirIndex += 1
+                abiIndex += 1
+            }
+            if !positions.isEmpty {
+                positionsByCallee[interner.intern(spec.name)] = positions
+            }
+        }
+        return positionsByCallee
     }
 
     func emitLLVMIR(outputPath: String) throws {
@@ -78,13 +397,29 @@ struct NativeEmitter {
             bindings.disposeContext(built.context)
         }
 
-        guard let llvmIR = bindings.printModule(built.module) else {
-            throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
-        }
-        do {
-            try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-        } catch {
-            throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+        let triple = targetTripleString()
+        // LLVM's target registry and module printing both touch process-global
+        // state on Linux, so keep the entire target-and-print sequence under the
+        // same process lock used for object emission.
+        try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+            bindings.setTarget(built.module, triple: triple)
+
+            if optLevel != .O0 {
+                let targetMachine = try configuredTargetMachine(for: built.module)
+                defer { bindings.disposeTargetMachine(targetMachine) }
+                if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+                    throw LLVMBackendError.nativeEmissionFailed(error)
+                }
+            }
+
+            guard let llvmIR = bindings.printModule(built.module) else {
+                throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
+            }
+            do {
+                try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+            } catch {
+                throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+            }
         }
     }
 
@@ -95,8 +430,26 @@ struct NativeEmitter {
             bindings.disposeContext(built.context)
         }
 
+        // LLVM target registration and native emission use process-global state
+        // on Linux. Keep module construction parallel, but serialize only the
+        // target-machine section that is not thread-safe.
+        try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+            let targetMachine = try configuredTargetMachine(for: built.module)
+            defer { bindings.disposeTargetMachine(targetMachine) }
+
+            if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+                throw LLVMBackendError.nativeEmissionFailed(error)
+            }
+
+            if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
+                throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+            }
+        }
+    }
+
+    private func configuredTargetMachine(for llvmModule: LLVMCAPIBindings.LLVMModuleRef) throws -> LLVMCAPIBindings.LLVMTargetMachineRef {
         var triple = targetTripleString()
-        bindings.setTarget(built.module, triple: triple)
+        bindings.setTarget(llvmModule, triple: triple)
 
         var targetMachine = bindings.createTargetMachine(triple: triple, optLevel: optLevel)
         if targetMachine == nil,
@@ -105,21 +458,160 @@ struct NativeEmitter {
            hostTriple != triple
         {
             triple = hostTriple
-            bindings.setTarget(built.module, triple: triple)
+            bindings.setTarget(llvmModule, triple: triple)
             targetMachine = bindings.createTargetMachine(triple: hostTriple, optLevel: optLevel)
         }
-
         guard let targetMachine else {
             throw LLVMBackendError.nativeEmissionFailed("failed to create LLVM target machine")
         }
-        defer { bindings.disposeTargetMachine(targetMachine) }
-
-        guard bindings.applyTargetMachine(targetMachine, to: built.module) else {
+        guard bindings.applyTargetMachine(targetMachine, to: llvmModule) else {
+            bindings.disposeTargetMachine(targetMachine)
             throw LLVMBackendError.nativeEmissionFailed("failed to apply target data layout")
         }
+        return targetMachine
+    }
 
-        if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
-            throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+    /// Returns a stable C-compatible LLVM global slot name for the given symbol.
+    /// For globals with a known fully-qualified name (e.g. properties and object
+    /// singletons) the name is derived from that FQN so that a precompiled
+    /// library and its consumers refer to the same storage. Otherwise it falls
+    /// back to the raw symbol identifier for backwards compatibility.
+    fileprivate func stableGlobalSlotName(for symbol: SymbolID) -> String {
+        if let sym = symbols?.symbol(symbol) {
+            let fqn = sym.fqName.compactMap { interner.resolve($0) }.joined(separator: ".")
+            if !fqn.isEmpty {
+                let sanitized = fqn.map { c in
+                    c.isLetter || c.isNumber || c == "_" ? String(c) : "_"
+                }.joined()
+                return "kk_global_root_slot_\(sanitized)"
+            }
+        }
+        return "kk_global_root_slot_\(max(0, Int(symbol.rawValue)))"
+    }
+
+    /// Returns true for imported-library symbols that are expected to be
+    /// backed by a global variable in the linked object (properties, fields,
+    /// backing fields, and top-level objects). Companion objects are excluded
+    /// because their functions are emitted as static-like receivers and they
+    /// do not allocate a singleton global.
+    private func shouldEmitImportedGlobalReference(for symbol: SymbolID) -> Bool {
+        guard let sym = symbols?.symbol(symbol),
+              sym.flags.contains(.importedLibrary)
+        else {
+            return false
+        }
+        switch sym.kind {
+        case .property, .field, .backingField:
+            return true
+        case .object:
+            // Top-level object singletons have a global instance.
+            // Companion objects only need one when their virtual methods
+            // require a runtime receiver and vtable.
+            if let parentID = symbols?.parentSymbol(for: symbol),
+               let parent = symbols?.symbol(parentID),
+               parent.kind != .package,
+               symbols?.nominalLayout(for: symbol)?.vtableSize ?? 0 == 0 {
+                return false
+            }
+            // Synthetic singleton stubs (e.g. kotlin.system.System) have no
+            // backing state and no initializer, so their global slot is never
+            // emitted. Returning zero for their symbolRef is safe because the
+            // only uses are as receivers for static-like runtime bridges that
+            // discard the receiver.
+            if symbols?.objectInitializerSymbol(for: symbol) == nil,
+               symbols?.externalLinkName(for: symbol)?.isEmpty != false,
+               symbols?.nominalLayout(for: symbol)?.instanceFieldCount == 0 {
+                return false
+            }
+            return true
+        case .class, .interface, .enumClass, .annotationClass, .typeAlias,
+             .function, .constructor, .typeParameter, .valueParameter,
+             .local, .label, .package:
+            return false
+        }
+    }
+
+    /// Residual synthetic objects (for example `kotlin.system.System`) have no
+    /// object initializer in the precompiled stdlib artifact. Their singleton
+    /// receiver is only an ABI handle, so a consumer may keep an unresolved
+    /// weak root slot instead of requiring a definition that the artifact
+    /// intentionally does not export.
+    private func shouldUseWeakImportedGlobalReference(for symbol: SymbolID) -> Bool {
+        guard let symbols else { return false }
+        return Self.shouldUseWeakImportedObjectGlobalReference(for: symbol, symbols: symbols)
+    }
+
+    /// Returns the weak-linkage decision for an imported object global.
+    /// A non-package parent is not sufficient to identify a companion object:
+    /// regular nested objects must use their own initializer metadata.
+    static func shouldUseWeakImportedObjectGlobalReference(
+        for symbol: SymbolID,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let sym = symbols.symbol(symbol), sym.kind == .object else {
+            return false
+        }
+        if let parentID = symbols.parentSymbol(for: symbol),
+           symbols.companionObjectSymbol(for: parentID) == symbol
+        {
+            return symbols.companionObjectInitializerSymbol(for: parentID) == nil
+        }
+        return symbols.objectInitializerSymbol(for: symbol) == nil
+    }
+
+    /// Ensures that any imported-library global referenced by `loadGlobal`,
+    /// `storeGlobal`, or `symbolRef` has an LLVM global declaration in the
+    /// current module. Without this, the backend silently emits zero for
+    /// references to globals defined in a precompiled `.kklib` (e.g.
+    /// `Uuid.Companion.NIL`) because those globals are not present in the
+    /// current module's KIR global declarations.
+    private func ensureImportedGlobalReferences(
+        module: KIRModule,
+        llvmModule: LLVMCAPIBindings.LLVMModuleRef,
+        int64Type: LLVMCAPIBindings.LLVMTypeRef,
+        globalVariables: inout [SymbolID: LLVMCAPIBindings.LLVMValueRef]
+    ) {
+        var referencedSymbols: Set<SymbolID> = []
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration else {
+                continue
+            }
+            for instruction in function.body {
+                switch instruction {
+                case let .loadGlobal(_, symbol), let .storeGlobal(_, symbol):
+                    referencedSymbols.insert(symbol)
+                case let .constValue(_, .symbolRef(symbol)):
+                    referencedSymbols.insert(symbol)
+                default:
+                    break
+                }
+            }
+        }
+        for expr in module.arena.expressions {
+            if case let .symbolRef(symbol) = expr {
+                referencedSymbols.insert(symbol)
+            }
+        }
+        let sortedReferencedSymbols = referencedSymbols
+            .map { (slotName: stableGlobalSlotName(for: $0), symbol: $0) }
+            .sorted { $0.slotName < $1.slotName }
+        for (slotName, symbol) in sortedReferencedSymbols {
+            guard globalVariables[symbol] == nil,
+                  shouldEmitImportedGlobalReference(for: symbol) || shouldUseWeakImportedGlobalReference(for: symbol)
+            else {
+                continue
+            }
+            if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
+                if shouldUseWeakImportedGlobalReference(for: symbol) {
+                    bindings.setWeakAnyLinkage(llvmGlobal)
+                    if let zero = bindings.constInt(int64Type, value: 0) {
+                        bindings.setInitializer(llvmGlobal, value: zero)
+                    }
+                } else {
+                    bindings.setExternalLinkage(llvmGlobal)
+                }
+                globalVariables[symbol] = llvmGlobal
+            }
         }
     }
 
@@ -135,9 +627,6 @@ struct NativeEmitter {
             throw LLVMBackendError.nativeEmissionFailed("LLVMModuleCreateWithNameInContext returned null")
         }
 
-        let triple = targetTripleString()
-        bindings.setTarget(llvmModule, triple: triple)
-
         guard let int64Type = bindings.int64Type(context: context) else {
             bindings.disposeModule(llvmModule)
             bindings.disposeContext(context)
@@ -148,38 +637,74 @@ struct NativeEmitter {
             bindings.disposeContext(context)
             throw LLVMBackendError.nativeEmissionFailed("LLVMPointerType returned null")
         }
+        let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
+        let runtimeCallbackRawABISymbols = collectRuntimeCallbackRawABISymbols()
 
-        do {
-            try defineWeakFrameRuntimeStubs(
-                module: llvmModule,
-                context: context,
-                int64Type: int64Type
-            )
-        } catch {
-            bindings.disposeModule(llvmModule)
-            bindings.disposeContext(context)
-            throw error
+        func isStringAggregateType(_ type: TypeID?) -> Bool {
+            guard let type,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: type)
+            else {
+                return false
+            }
+            return typeLowering != nil
         }
 
         // Create LLVM global variables for each KIR global declaration.
+        // Globals that back properties/singletons shared across .kklib modules
+        // are named by their stable fully-qualified name so a consumer object
+        // can reference the same storage defined in the library object.
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
-        for declaration in module.arena.declarations {
-            guard case let .global(global) = declaration else {
-                continue
-            }
-            let slotName = "kk_global_root_slot_\(max(0, Int(global.symbol.rawValue)))"
+        let globalDecls = module.arena.declarations.compactMap { decl -> (slotName: String, global: KIRGlobal)? in
+            guard case let .global(global) = decl else { return nil }
+            return (stableGlobalSlotName(for: global.symbol), global)
+        }.sorted { lhs, rhs in
+            if lhs.slotName != rhs.slotName { return lhs.slotName < rhs.slotName }
+            return lhs.global.symbol.rawValue < rhs.global.symbol.rawValue
+        }
+        for (slotName, global) in globalDecls {
+            let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
-                bindings.setInternalLinkage(llvmGlobal)
-                if let zero = bindings.constInt(int64Type, value: 0) {
-                    bindings.setInitializer(llvmGlobal, value: zero)
+                if isImported {
+                    // Imported globals are defined in another object file.
+                    if shouldUseWeakImportedGlobalReference(for: global.symbol) {
+                        bindings.setWeakAnyLinkage(llvmGlobal)
+                        if let zero = bindings.constInt(int64Type, value: 0) {
+                            bindings.setInitializer(llvmGlobal, value: zero)
+                        }
+                    } else {
+                        bindings.setExternalLinkage(llvmGlobal)
+                    }
+                } else {
+                    // Use linkonce_odr so multiple compilation units (e.g. a
+                    // precompiled stdlib .kklib and a consuming module) can each
+                    // contain a tentative definition of the same global; the
+                    // linker keeps one copy and all references resolve to it.
+                    bindings.setLinkOnceODRLinkage(llvmGlobal)
+                    if let zero = bindings.constInt(int64Type, value: 0) {
+                        bindings.setInitializer(llvmGlobal, value: zero)
+                    }
                 }
                 llvmGlobalVariables[global.symbol] = llvmGlobal
             }
         }
 
+        // Imported-library globals (e.g. `Uuid.Companion.NIL`) are referenced by
+        // `loadGlobal`/`symbolRef` in the consumer module but are not present in
+        // the consumer's KIR global declarations because they live in the
+        // precompiled `.kklib`. Emit external declarations for them so the backend
+        // resolves them to the library definition instead of returning zero.
+        ensureImportedGlobalReferences(
+            module: module,
+            llvmModule: llvmModule,
+            int64Type: int64Type,
+            globalVariables: &llvmGlobalVariables
+        )
+
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
+        var internalSignatures: [SymbolID: (parameters: [TypeID], returnType: TypeID)] = [:]
+        var internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]] = [:]
         var emittableFunctions: [(KIRFunction, String)] = []
-        var functionDeclInfo: [(SymbolID, String, Int)] = []
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
@@ -190,12 +715,33 @@ struct NativeEmitter {
             let functionName = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
-            var parameterTypes = Array(repeating: int64Type, count: function.params.count)
+            let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
+            var parameterTypes = function.params.map {
+                if usesRuntimeCallbackRawABI {
+                    return int64Type
+                }
+                return loweredLLVMType(
+                    for: $0.type,
+                    lowering: typeLowering,
+                    defaultType: int64Type
+                )
+            }
             parameterTypes.append(outThrownPointerType)
+            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI && isStringAggregateType(function.returnType)
+            let returnType = if returnsRawStringRuntimeCallback {
+                int64Type
+            } else {
+                loweredLLVMType(
+                    for: function.returnType,
+                    lowering: typeLowering,
+                    defaultType: int64Type
+                )
+            }
 
-            guard let functionType = bindings.functionType(returnType: int64Type, parameters: parameterTypes, isVarArg: false),
+            guard let functionType = bindings.functionType(returnType: returnType, parameters: parameterTypes, isVarArg: false),
                   let functionValue = bindings.addFunction(module: llvmModule, name: functionName, functionType: functionType)
             else {
                 bindings.disposeModule(llvmModule)
@@ -206,41 +752,15 @@ struct NativeEmitter {
                 bindings.setLinkOnceODRLinkage(functionValue)
             }
             internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)
+            internalSignatures[function.symbol] = (function.params.map(\.type), function.returnType)
+            let functionLookupKey = FunctionLookupKey(name: interner.resolve(function.name), parameterCount: function.params.count)
+            let cSymbolLookupKey = FunctionLookupKey(name: functionName, parameterCount: function.params.count)
+            internalFunctionsByLookupKey[functionLookupKey, default: []].append(function)
+            internalFunctionsByLookupKey[cSymbolLookupKey, default: []].append(function)
             emittableFunctions.append((function, functionName))
-            functionDeclInfo.append((function.symbol, functionName, function.params.count))
         }
 
-        let globalSlotNames: [(SymbolID, String)] = llvmGlobalVariables.map { symbol, _ in
-            (symbol, "kk_global_root_slot_\(max(0, Int(symbol.rawValue)))")
-        }
-
-        // Parallel codegen is disabled: LLVMLinkModules2 requires source and
-        // destination modules to share the same LLVMContext.  Per-function
-        // contexts produce cross-context type references that segfault on link.
-        let canParallelize = false
-
-        if canParallelize {
-            for (_, llvmGlobal) in llvmGlobalVariables {
-                bindings.setExternalLinkage(llvmGlobal)
-            }
-            do {
-                try emitFunctionBodiesParallel(
-                    emittableFunctions: emittableFunctions,
-                    mainModule: llvmModule,
-                    mainContext: context,
-                    functionDeclInfo: functionDeclInfo,
-                    globalSlotNames: globalSlotNames,
-                    triple: triple
-                )
-            } catch {
-                bindings.disposeModule(llvmModule)
-                bindings.disposeContext(context)
-                throw error
-            }
-            for (_, llvmGlobal) in llvmGlobalVariables {
-                bindings.setInternalLinkage(llvmGlobal)
-            }
-        } else {
+        do {
             let diContext: DebugInfoContext? = (debugInfo && bindings.debugLocationAvailable)
                 ? createDebugInfoContext(
                     llvmModule: llvmModule,
@@ -249,18 +769,30 @@ struct NativeEmitter {
                 )
                 : nil
 
+            let nameCounter = GeneratedNameCounter()
+            emittableFunctions.sort { $0.1 < $1.1 }
             for (function, _) in emittableFunctions {
                 guard let llvmFunction = internalFunctions[function.symbol] else { continue }
                 do {
+                    let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
+                    let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
+                        && isStringAggregateType(function.returnType)
                     try emitFunctionBody(
                         function: function,
                         llvmFunction: llvmFunction,
                         llvmModule: llvmModule,
                         context: context,
                         int64Type: int64Type,
+                        typeLowering: typeLowering,
                         outThrownPointerType: outThrownPointerType,
                         internalFunctions: internalFunctions,
+                        internalSignatures: internalSignatures,
+                        internalFunctionsByLookupKey: internalFunctionsByLookupKey,
                         globalVariables: llvmGlobalVariables,
+                        runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
+                        usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,
+                        returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback,
+                        nameCounter: nameCounter,
                         diContext: diContext
                     )
                 } catch {
@@ -293,166 +825,6 @@ struct NativeEmitter {
         )
 
         return (context: context, module: llvmModule)
-    }
-
-    private func emitFunctionBodiesParallel(
-        emittableFunctions: [(KIRFunction, String)],
-        mainModule: LLVMCAPIBindings.LLVMModuleRef,
-        mainContext: LLVMCAPIBindings.LLVMContextRef,
-        functionDeclInfo: [(SymbolID, String, Int)],
-        globalSlotNames: [(SymbolID, String)],
-        triple: String
-    ) throws {
-        let count = emittableFunctions.count
-
-        final class ParallelEmissionWork: @unchecked Sendable {
-            let bindings: LLVMCAPIBindings
-            let emitter: NativeEmitter
-            let emittableFunctions: [(KIRFunction, String)]
-            let functionDeclInfo: [(SymbolID, String, Int)]
-            let globalSlotNames: [(SymbolID, String)]
-            let triple: String
-            let linkOnceODRSymbols: Set<SymbolID>
-
-            private let lock = NSLock()
-            var perFunctionContexts: [LLVMCAPIBindings.LLVMContextRef?]
-            var perFunctionModules: [LLVMCAPIBindings.LLVMModuleRef?]
-            var firstError: Error?
-
-            init(
-                bindings: LLVMCAPIBindings,
-                emitter: NativeEmitter,
-                emittableFunctions: [(KIRFunction, String)],
-                functionDeclInfo: [(SymbolID, String, Int)],
-                globalSlotNames: [(SymbolID, String)],
-                triple: String,
-                linkOnceODRSymbols: Set<SymbolID>
-            ) {
-                self.bindings = bindings
-                self.emitter = emitter
-                self.emittableFunctions = emittableFunctions
-                self.functionDeclInfo = functionDeclInfo
-                self.globalSlotNames = globalSlotNames
-                self.triple = triple
-                self.linkOnceODRSymbols = linkOnceODRSymbols
-                self.perFunctionContexts = Array(repeating: nil, count: emittableFunctions.count)
-                self.perFunctionModules = Array(repeating: nil, count: emittableFunctions.count)
-            }
-
-            func emitFunction(at index: Int) {
-                lock.lock()
-                let hasError = firstError != nil
-                lock.unlock()
-                if hasError { return }
-
-                let (function, _) = emittableFunctions[index]
-                do {
-                    guard let funcContext = bindings.createContext() else {
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: context creation failed")
-                    }
-                    guard let funcModule = bindings.createModule(name: "pf_\(index)", context: funcContext) else {
-                        bindings.disposeContext(funcContext)
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: module creation failed")
-                    }
-                    bindings.setTarget(funcModule, triple: triple)
-
-                    guard let localInt64 = bindings.int64Type(context: funcContext) else {
-                        bindings.disposeModule(funcModule)
-                        bindings.disposeContext(funcContext)
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: int64 type failed")
-                    }
-                    guard let localPtrType = bindings.pointerType(localInt64, addressSpace: 0) else {
-                        bindings.disposeModule(funcModule)
-                        bindings.disposeContext(funcContext)
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: pointer type failed")
-                    }
-
-                    var localFunctions: [SymbolID: NativeEmitter.LLVMFunction] = [:]
-                    for (symbol, name, paramCount) in functionDeclInfo {
-                        var paramTypes = Array(repeating: localInt64 as LLVMCAPIBindings.LLVMTypeRef?, count: paramCount)
-                        paramTypes.append(localPtrType)
-                        guard let fType = bindings.functionType(returnType: localInt64, parameters: paramTypes, isVarArg: false),
-                              let fValue = bindings.addFunction(module: funcModule, name: name, functionType: fType)
-                        else { continue }
-                        if linkOnceODRSymbols.contains(symbol) {
-                            bindings.setLinkOnceODRLinkage(fValue)
-                        }
-                        localFunctions[symbol] = NativeEmitter.LLVMFunction(value: fValue, type: fType)
-                    }
-
-                    var localGlobals: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
-                    for (symbol, slotName) in globalSlotNames {
-                        if let g = bindings.addGlobal(module: funcModule, type: localInt64, name: slotName) {
-                            localGlobals[symbol] = g
-                        }
-                    }
-
-                    guard let llvmFunc = localFunctions[function.symbol] else {
-                        bindings.disposeModule(funcModule)
-                        bindings.disposeContext(funcContext)
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: target function not found")
-                    }
-
-                    try emitter.emitFunctionBody(
-                        function: function,
-                        llvmFunction: llvmFunc,
-                        llvmModule: funcModule,
-                        context: funcContext,
-                        int64Type: localInt64,
-                        outThrownPointerType: localPtrType,
-                        internalFunctions: localFunctions,
-                        globalVariables: localGlobals,
-                        diContext: nil
-                    )
-
-                    lock.lock()
-                    perFunctionContexts[index] = funcContext
-                    perFunctionModules[index] = funcModule
-                    lock.unlock()
-                } catch {
-                    lock.lock()
-                    if firstError == nil { firstError = error }
-                    lock.unlock()
-                }
-            }
-        }
-
-        let work = ParallelEmissionWork(
-            bindings: bindings,
-            emitter: self,
-            emittableFunctions: emittableFunctions,
-            functionDeclInfo: functionDeclInfo,
-            globalSlotNames: globalSlotNames,
-            triple: triple,
-            linkOnceODRSymbols: linkOnceODRSymbols
-        )
-
-        DispatchQueue.concurrentPerform(iterations: count) { index in
-            work.emitFunction(at: index)
-        }
-
-        if let error = work.firstError {
-            for i in 0..<count {
-                if let m = work.perFunctionModules[i] { bindings.disposeModule(m) }
-                if let c = work.perFunctionContexts[i] { bindings.disposeContext(c) }
-            }
-            throw error
-        }
-
-        for i in 0..<count {
-            guard let funcModule = work.perFunctionModules[i],
-                  let funcContext = work.perFunctionContexts[i]
-            else { continue }
-            if !bindings.linkModules(mainModule, source: funcModule) {
-                bindings.disposeContext(funcContext)
-                for j in (i + 1)..<count {
-                    if let m = work.perFunctionModules[j] { bindings.disposeModule(m) }
-                    if let c = work.perFunctionContexts[j] { bindings.disposeContext(c) }
-                }
-                throw LLVMBackendError.nativeEmissionFailed("parallel: module linking failed at index \(i)")
-            }
-            bindings.disposeContext(funcContext)
-        }
     }
 
     /// Creates debug info metadata (DIBuilder, compile unit, file, subprograms)
@@ -563,15 +935,23 @@ struct NativeEmitter {
         internalFunctions: [SymbolID: LLVMFunction]
     ) -> [SymbolID: LLVMCAPIBindings.LLVMMetadataRef] {
         var subprograms: [SymbolID: LLVMCAPIBindings.LLVMMetadataRef] = [:]
-        for declaration in module.arena.declarations {
-            guard case let .function(function) = declaration,
-                  let llvmFunction = internalFunctions[function.symbol]
-            else { continue }
-            let functionName = CodegenSymbolSupport.cFunctionSymbol(
+        let functions = module.arena.declarations.compactMap { decl -> (name: String, function: KIRFunction)? in
+            guard case let .function(function) = decl,
+                  internalFunctions[function.symbol] != nil
+            else { return nil }
+            let name = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
+            return (name, function)
+        }.sorted { lhs, rhs in
+            if lhs.name != rhs.name { return lhs.name < rhs.name }
+            return lhs.function.symbol.rawValue < rhs.function.symbol.rawValue
+        }
+        for (functionName, function) in functions {
+            guard let llvmFunction = internalFunctions[function.symbol] else { continue }
             var lineNo: UInt32 = 0
             var funcDIFile = diFile
             if let sourceRange = function.sourceRange, let sourceManager {
@@ -613,70 +993,6 @@ struct NativeEmitter {
         {
             bindings.addModuleFlag(llvmModule, behavior: 1, key: "Dwarf Version", value: dwarfVersionMD)
         }
-    }
-
-    func defineWeakFrameRuntimeStubs(
-        module: LLVMCAPIBindings.LLVMModuleRef,
-        context: LLVMCAPIBindings.LLVMContextRef,
-        int64Type: LLVMCAPIBindings.LLVMTypeRef
-    ) throws {
-        _ = try defineWeakRuntimeFunction(
-            named: "kk_register_frame_map",
-            argumentCount: 2,
-            module: module,
-            context: context,
-            int64Type: int64Type
-        )
-        _ = try defineWeakRuntimeFunction(
-            named: "kk_push_frame",
-            argumentCount: 2,
-            module: module,
-            context: context,
-            int64Type: int64Type
-        )
-        _ = try defineWeakRuntimeFunction(
-            named: "kk_pop_frame",
-            argumentCount: 0,
-            module: module,
-            context: context,
-            int64Type: int64Type
-        )
-    }
-
-    func defineWeakRuntimeFunction(
-        named name: String,
-        argumentCount: Int,
-        module: LLVMCAPIBindings.LLVMModuleRef,
-        context: LLVMCAPIBindings.LLVMContextRef,
-        int64Type: LLVMCAPIBindings.LLVMTypeRef
-    ) throws -> LLVMFunction {
-        let parameterTypes = Array(repeating: int64Type, count: max(0, argumentCount))
-        guard let functionType = bindings.functionType(
-            returnType: int64Type,
-            parameters: parameterTypes,
-            isVarArg: false
-        ) else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to create runtime function type for '\(name)'")
-        }
-        guard let functionValue = bindings.getNamedFunction(module: module, name: name)
-            ?? bindings.addFunction(module: module, name: name, functionType: functionType)
-        else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to define weak runtime stub '\(name)'")
-        }
-        bindings.setWeakAnyLinkage(functionValue)
-
-        guard let builder = bindings.createBuilder(context: context) else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to create builder for runtime stub '\(name)'")
-        }
-        defer { bindings.disposeBuilder(builder) }
-
-        guard let entry = bindings.appendBasicBlock(context: context, function: functionValue, name: "entry") else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to create runtime stub block for '\(name)'")
-        }
-        bindings.positionBuilder(builder, at: entry)
-        let zero = bindings.constInt(int64Type, value: 0) ?? bindings.getUndef(type: int64Type)
-        _ = bindings.buildRet(builder, value: zero)
-        return LLVMFunction(value: functionValue, type: functionType)
     }
 
     func targetTripleString() -> String {

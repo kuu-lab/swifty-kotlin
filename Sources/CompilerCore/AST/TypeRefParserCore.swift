@@ -29,8 +29,42 @@ enum TypeRefParserCore {
         let consumed: Int
     }
 
+    /// Maximum recursion/nesting depth allowed while parsing a type reference.
+    /// Guards the mutually recursive type parser against unbounded native stack
+    /// growth on deeply nested untrusted source (a stack-overflow DoS).
+    // Function-type recursion retains several native frames per nested type.
+    // Keep enough headroom for the smaller stacks used by macOS test workers.
+    static let maxRecursionDepth = 32
+
+    private static func reportTypeRecursionDepthExceeded(
+        diagnostics: DiagnosticEngine?,
+        range: SourceRange?
+    ) {
+        diagnostics?.error(
+            "KSWIFTK-PARSE-TYPE-DEPTH",
+            "Type nesting is too deep (exceeded maximum depth of \(maxRecursionDepth))",
+            range: range
+        )
+    }
+
     static func isTypeLikeNameToken(_ kind: TokenKind) -> Bool {
         isTypeNameToken(kind, options: .declaration)
+    }
+
+    /// True for a token that may name a declaration.
+    ///
+    /// This is deliberately wider than `isTypeLikeNameToken`: that predicate
+    /// answers for a *type* position, where `out` is the declaration-site
+    /// variance modifier and must stay reserved (`List<out T>`). A declaration
+    /// *name* position has no variance, so `out` is an ordinary identifier
+    /// there — `val out = 1` and `fun out() = 1` are valid Kotlin. `in` is not
+    /// added: it is a hard keyword, so naming something `in` needs backticks,
+    /// which arrive as `.backtickedIdentifier`.
+    static func isDeclarationNameToken(_ kind: TokenKind) -> Bool {
+        if case .softKeyword(.out) = kind {
+            return true
+        }
+        return isTypeLikeNameToken(kind)
     }
 
     static func parseTypeRefPrefix(
@@ -38,7 +72,8 @@ enum TypeRefParserCore {
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        recursionDepth: Int = 0
     ) -> TypeRefParseResult? {
         guard !tokens.isEmpty else {
             return nil
@@ -50,7 +85,8 @@ enum TypeRefParserCore {
             interner: interner,
             astArena: astArena,
             options: options,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth
         ) else {
             return nil
         }
@@ -63,15 +99,25 @@ enum TypeRefParserCore {
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine?
+        diagnostics: DiagnosticEngine?,
+        recursionDepth: Int
     ) -> (ref: TypeRefID, next: Int)? {
+        guard recursionDepth <= maxRecursionDepth else {
+            reportTypeRecursionDepthExceeded(
+                diagnostics: diagnostics,
+                range: start < tokens.count ? tokens[start].range : nil
+            )
+            return nil
+        }
+
         guard let first = parseSingleTypeRefPrefix(
             tokens,
             from: start,
             interner: interner,
             astArena: astArena,
             options: options,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth
         ) else {
             return nil
         }
@@ -88,7 +134,8 @@ enum TypeRefParserCore {
                 interner: interner,
                 astArena: astArena,
                 options: options,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth
             ) else {
                 next = saved
                 break
@@ -111,9 +158,18 @@ enum TypeRefParserCore {
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine?
+        diagnostics: DiagnosticEngine?,
+        recursionDepth: Int
     ) -> (ref: TypeRefID, next: Int)? {
         guard start < tokens.count else {
+            return nil
+        }
+
+        guard recursionDepth <= maxRecursionDepth else {
+            reportTypeRecursionDepthExceeded(
+                diagnostics: diagnostics,
+                range: start < tokens.count ? tokens[start].range : nil
+            )
             return nil
         }
 
@@ -126,7 +182,7 @@ enum TypeRefParserCore {
                 interner: interner,
                 allowUseSiteTarget: false
             ) {
-                if parsedAnnotation.hadInvalidUseSiteTarget {
+                if parsedAnnotation.invalidUseSiteTargetRange != nil {
                     diagnostics?.error(
                         "KSWIFTK-PARSE-TYPE-ANNOTATION",
                         "Use-site targets are not allowed on type annotations.",
@@ -149,7 +205,8 @@ enum TypeRefParserCore {
                           reserveVarianceKeywords: options.reserveVarianceKeywords,
                           allowTypeAnnotations: true
                       ),
-                      diagnostics: diagnostics
+                      diagnostics: diagnostics,
+                      recursionDepth: recursionDepth + 1
                   )
             else {
                 return nil
@@ -165,10 +222,45 @@ enum TypeRefParserCore {
                interner: interner,
                astArena: astArena,
                options: options,
-               diagnostics: diagnostics
+               diagnostics: diagnostics,
+               recursionDepth: recursionDepth
            )
         {
             return functionType
+        }
+
+        // Parenthesized type group: `(Type)`, most commonly used to allow a
+        // trailing `?` to bind to an entire function type rather than just its
+        // return type — `((Int) -> Int)?` is a nullable function type, while
+        // `(Int) -> Int?` is a non-nullable function returning `Int?`. Kotlin's
+        // grammar allows this grouping around any type, not just function
+        // types, so this is attempted whenever `(` did not already parse as a
+        // function type above.
+        if tokens[start].kind == .symbol(.lParen),
+           let closeParen = findMatchingCloseParen(in: tokens, from: start),
+           let inner = parseTypeRefPrefix(
+               tokens,
+               from: start + 1,
+               interner: interner,
+               astArena: astArena,
+               options: options,
+               diagnostics: diagnostics,
+               recursionDepth: recursionDepth + 1
+           ),
+           inner.next == closeParen
+        {
+            var next = closeParen + 1
+            var ref = inner.ref
+            if next < tokens.count, tokens[next].kind == .symbol(.question) {
+                next += 1
+                ref = nullableVariant(of: ref, astArena: astArena)
+            }
+            if next < tokens.count, tokens[next].kind == .symbol(.arrow) {
+                // `(T) -> U` reaching here means the caller disallowed function
+                // types; returning just `T` would leave `-> U` dangling.
+                return nil
+            }
+            return (ref, next)
         }
 
         guard let firstName = identifier(
@@ -191,7 +283,8 @@ enum TypeRefParserCore {
                        interner: interner,
                        astArena: astArena,
                        options: options,
-                       diagnostics: diagnostics
+                       diagnostics: diagnostics,
+                       recursionDepth: recursionDepth
                    )
         {
             typeArgs = parsedArgs.args
@@ -215,7 +308,8 @@ enum TypeRefParserCore {
                        interner: interner,
                        astArena: astArena,
                        options: options,
-                       diagnostics: diagnostics
+                       diagnostics: diagnostics,
+                       recursionDepth: recursionDepth
                    )
                 {
                     typeArgs = parsedArgs.args
@@ -242,7 +336,8 @@ enum TypeRefParserCore {
                 interner: interner,
                 astArena: astArena,
                 options: options,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth
             ) {
                 return receiverFnType
             }
@@ -264,11 +359,20 @@ enum TypeRefParserCore {
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine?
+        diagnostics: DiagnosticEngine?,
+        recursionDepth: Int
     ) -> (args: [TypeArgRef], next: Int)? {
         guard start < tokens.count,
               tokens[start].kind == .symbol(.lessThan)
         else {
+            return nil
+        }
+
+        guard recursionDepth <= maxRecursionDepth else {
+            reportTypeRecursionDepthExceeded(
+                diagnostics: diagnostics,
+                range: start < tokens.count ? tokens[start].range : nil
+            )
             return nil
         }
 
@@ -318,7 +422,8 @@ enum TypeRefParserCore {
                 interner: interner,
                 astArena: astArena,
                 options: options,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1
             ) else {
                 return nil
             }
@@ -341,8 +446,17 @@ enum TypeRefParserCore {
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine?
+        diagnostics: DiagnosticEngine?,
+        recursionDepth: Int
     ) -> (ref: TypeRefID, next: Int)? {
+        guard recursionDepth <= maxRecursionDepth else {
+            reportTypeRecursionDepthExceeded(
+                diagnostics: diagnostics,
+                range: start < tokens.count ? tokens[start].range : nil
+            )
+            return nil
+        }
+
         var next = start
         var contextReceivers: [TypeRefID] = []
 
@@ -352,7 +466,8 @@ enum TypeRefParserCore {
             interner: interner,
             astArena: astArena,
             options: options,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth
         ) {
             contextReceivers = parsedContext.refs
             next = parsedContext.next
@@ -378,7 +493,7 @@ enum TypeRefParserCore {
             // a named type for a receiver function type like `suspend StringBuilder.() -> Unit`.
             // Try to parse a named type as receiver.
             if let receiverParse = parseNamedTypeOnly(
-                tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics
+                tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
             ),
                receiverParse.next + 1 < tokens.count,
                tokens[receiverParse.next].kind == .symbol(.dot),
@@ -393,7 +508,8 @@ enum TypeRefParserCore {
                     interner: interner,
                     astArena: astArena,
                     options: options,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth
                 )
             }
             return nil
@@ -409,10 +525,62 @@ enum TypeRefParserCore {
             return nil
         }
 
+        // `(T)?` denotes a nullable type when the parenthesized group is
+        // followed by `?` rather than `->`, e.g. `((Int) -> Int)?` (KUU-644).
+        if closeParen + 1 < tokens.count,
+           tokens[closeParen + 1].kind == .symbol(.question),
+           let inner = parseTypeRefPrefix(
+               tokens,
+               from: next + 1,
+               interner: interner,
+               astArena: astArena,
+               options: options,
+               diagnostics: diagnostics,
+               recursionDepth: recursionDepth + 1
+           ),
+           inner.next == closeParen,
+           let nullableRef = wrapTypeRefInGroup(
+               inner.ref,
+               astArena: astArena,
+               contextReceivers: contextReceivers,
+               isSuspend: isSuspend,
+               nullable: true
+           )
+        {
+            var end = closeParen + 1
+            while end < tokens.count, tokens[end].kind == .symbol(.question) {
+                end += 1
+            }
+            return (nullableRef, end)
+        }
+
         guard closeParen + 1 < tokens.count,
               tokens[closeParen + 1].kind == .symbol(.arrow)
         else {
-            return nil
+            // A `(` group that is not a function parameter list is a
+            // parenthesized type: `(T)` is `T`, so `((Int) -> Int)` still
+            // resolves to a function type.
+            guard let inner = parseTypeRefPrefix(
+                tokens,
+                from: next + 1,
+                interner: interner,
+                astArena: astArena,
+                options: options,
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1
+            ),
+                  inner.next == closeParen,
+                  let grouped = wrapTypeRefInGroup(
+                      inner.ref,
+                      astArena: astArena,
+                      contextReceivers: contextReceivers,
+                      isSuspend: isSuspend,
+                      nullable: false
+                  )
+            else {
+                return nil
+            }
+            return (grouped, closeParen + 1)
         }
 
         guard let params = parseFunctionParamRefs(
@@ -421,7 +589,8 @@ enum TypeRefParserCore {
             interner: interner,
             astArena: astArena,
             options: options,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth
         ) else {
             return nil
         }
@@ -433,7 +602,8 @@ enum TypeRefParserCore {
             interner: interner,
             astArena: astArena,
             options: options,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth + 1
         ) else {
             return nil
         }
@@ -450,19 +620,71 @@ enum TypeRefParserCore {
         return (ref, returnRef.next)
     }
 
+    /// Re-append `ref` absorbing an outer `suspend`/`context` prefix and the
+    /// `(T)` parenthesized group's optional `?` nullability mark.
+    private static func wrapTypeRefInGroup(
+        _ refID: TypeRefID,
+        astArena: ASTArena,
+        contextReceivers: [TypeRefID],
+        isSuspend: Bool,
+        nullable: Bool
+    ) -> TypeRefID? {
+        guard let ref = astArena.typeRef(refID) else {
+            return nil
+        }
+        if !nullable, contextReceivers.isEmpty, !isSuspend {
+            return refID
+        }
+        switch ref {
+        case let .named(path, args, innerNullable):
+            return astArena.appendTypeRef(.named(path: path, args: args, nullable: innerNullable || nullable))
+        case let .functionType(innerContextReceivers, receiver, params, returnType, innerIsSuspend, innerNullable):
+            return astArena.appendTypeRef(.functionType(
+                contextReceivers: contextReceivers + innerContextReceivers,
+                receiver: receiver,
+                params: params,
+                returnType: returnType,
+                isSuspend: isSuspend || innerIsSuspend,
+                nullable: innerNullable || nullable
+            ))
+        case let .annotated(base, annotations):
+            guard let wrappedBase = wrapTypeRefInGroup(
+                base,
+                astArena: astArena,
+                contextReceivers: contextReceivers,
+                isSuspend: isSuspend,
+                nullable: nullable
+            ) else {
+                return nil
+            }
+            return astArena.appendTypeRef(.annotated(base: wrappedBase, annotations: annotations))
+        case .intersection:
+            return nullable ? nil : refID
+        }
+    }
+
     private static func parseContextFunctionTypeParams(
         _ tokens: [Token],
         from start: Int,
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine?
+        diagnostics: DiagnosticEngine?,
+        recursionDepth: Int
     ) -> (refs: [TypeRefID], next: Int)? {
         guard start < tokens.count,
               case .softKeyword(.context) = tokens[start].kind,
               start + 1 < tokens.count,
               tokens[start + 1].kind == .symbol(.lParen)
         else {
+            return nil
+        }
+
+        guard recursionDepth <= maxRecursionDepth else {
+            reportTypeRecursionDepthExceeded(
+                diagnostics: diagnostics,
+                range: start < tokens.count ? tokens[start].range : nil
+            )
             return nil
         }
 
@@ -486,7 +708,8 @@ enum TypeRefParserCore {
                               interner: interner,
                               astArena: astArena,
                               options: options,
-                              diagnostics: diagnostics
+                              diagnostics: diagnostics,
+                              recursionDepth: recursionDepth + 1
                           ),
                           parsed.next == next
                     else {
@@ -503,7 +726,8 @@ enum TypeRefParserCore {
                           interner: interner,
                           astArena: astArena,
                           options: options,
-                          diagnostics: diagnostics
+                          diagnostics: diagnostics,
+                          recursionDepth: recursionDepth + 1
                       ),
                       parsed.next == next
                 else {
@@ -528,27 +752,44 @@ enum TypeRefParserCore {
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine?
+        diagnostics: DiagnosticEngine?,
+        recursionDepth: Int
     ) -> [TypeRefID]? {
+        guard recursionDepth <= maxRecursionDepth else {
+            reportTypeRecursionDepthExceeded(
+                diagnostics: diagnostics,
+                range: range.lowerBound < tokens.count ? tokens[range.lowerBound].range : nil
+            )
+            return nil
+        }
+
         guard !range.isEmpty else {
             return []
         }
 
         var refs: [TypeRefID] = []
         var segmentStart = range.lowerBound
+        var labelColonIndex: Int?
         var depth = BuildASTPhase.BracketDepth()
 
         for index in range {
             let token = tokens[index]
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
-                guard segmentStart < index,
+                let typeStart = parameterTypeStart(
+                    tokens: tokens,
+                    segmentStart: segmentStart,
+                    segmentEnd: index,
+                    labelColonIndex: labelColonIndex
+                )
+                guard typeStart < index,
                       let parsed = parseTypeRefPrefix(
                           tokens,
-                          from: segmentStart,
+                          from: typeStart,
                           interner: interner,
                           astArena: astArena,
                           options: options,
-                          diagnostics: diagnostics
+                          diagnostics: diagnostics,
+                          recursionDepth: recursionDepth + 1
                       ),
                       parsed.next == index
                 else {
@@ -556,21 +797,33 @@ enum TypeRefParserCore {
                 }
                 refs.append(parsed.ref)
                 segmentStart = index + 1
+                labelColonIndex = nil
                 continue
+            }
+            if token.kind == .symbol(.colon), depth.isAtTopLevel, labelColonIndex == nil {
+                labelColonIndex = index
             }
             depth.track(token.kind)
         }
 
         if segmentStart < range.upperBound {
-            guard let parsed = parseTypeRefPrefix(
-                tokens,
-                from: segmentStart,
-                interner: interner,
-                astArena: astArena,
-                options: options,
-                diagnostics: diagnostics
-            ),
-                parsed.next == range.upperBound
+            let typeStart = parameterTypeStart(
+                tokens: tokens,
+                segmentStart: segmentStart,
+                segmentEnd: range.upperBound,
+                labelColonIndex: labelColonIndex
+            )
+            guard typeStart < range.upperBound,
+                  let parsed = parseTypeRefPrefix(
+                      tokens,
+                      from: typeStart,
+                      interner: interner,
+                      astArena: astArena,
+                      options: options,
+                      diagnostics: diagnostics,
+                      recursionDepth: recursionDepth + 1
+                  ),
+                  parsed.next == range.upperBound
             else {
                 return nil
             }
@@ -578,6 +831,54 @@ enum TypeRefParserCore {
         }
 
         return refs
+    }
+
+    /// Kotlin function type parameters may have an optional documentation-only
+    /// parameter label (`name: Type`). When a top-level colon is present in a
+    /// parameter segment and the preceding token is a valid parameter name, the
+    /// type starts after the colon. Otherwise the whole segment is the type.
+    private static func parameterTypeStart(
+        tokens: [Token],
+        segmentStart: Int,
+        segmentEnd: Int,
+        labelColonIndex: Int?
+    ) -> Int {
+        guard let colonIndex = labelColonIndex,
+              colonIndex > segmentStart,
+              colonIndex < segmentEnd
+        else {
+            return segmentStart
+        }
+        let nameIndex = colonIndex - 1
+        switch tokens[nameIndex].kind {
+        case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
+            return colonIndex + 1
+        default:
+            return segmentStart
+        }
+    }
+
+    /// Returns a `TypeRefID` equivalent to `ref` but with its `nullable` flag
+    /// set, rebuilding the arena entry when necessary. Used when a `?` suffix
+    /// follows a parenthesized type group, e.g. `((Int) -> Int)?`.
+    private static func nullableVariant(of ref: TypeRefID, astArena: ASTArena) -> TypeRefID {
+        switch astArena.typeRef(ref) {
+        case let .named(path, args, nullable):
+            return nullable ? ref : astArena.appendTypeRef(.named(path: path, args: args, nullable: true))
+        case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable):
+            return nullable ? ref : astArena.appendTypeRef(.functionType(
+                contextReceivers: contextReceivers,
+                receiver: receiver,
+                params: params,
+                returnType: returnType,
+                isSuspend: isSuspend,
+                nullable: true
+            ))
+        case let .annotated(base, annotations):
+            return astArena.appendTypeRef(.annotated(base: nullableVariant(of: base, astArena: astArena), annotations: annotations))
+        case .intersection, .none:
+            return ref
+        }
     }
 
     private static func findMatchingCloseParen(in tokens: [Token], from openIndex: Int) -> Int? {
@@ -641,11 +942,20 @@ enum TypeRefParserCore {
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine?
+        diagnostics: DiagnosticEngine?,
+        recursionDepth: Int
     ) -> (ref: TypeRefID, next: Int)? {
         guard start < tokens.count,
               let firstName = identifier(from: tokens[start], interner: interner, options: options)
         else {
+            return nil
+        }
+
+        guard recursionDepth <= maxRecursionDepth else {
+            reportTypeRecursionDepthExceeded(
+                diagnostics: diagnostics,
+                range: start < tokens.count ? tokens[start].range : nil
+            )
             return nil
         }
 
@@ -656,7 +966,7 @@ enum TypeRefParserCore {
         if next < tokens.count,
            tokens[next].kind == .symbol(.lessThan),
            let parsedArgs = parseTypeArgRefsPrefix(
-               tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics
+               tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
            )
         {
             typeArgs = parsedArgs.args
@@ -676,7 +986,7 @@ enum TypeRefParserCore {
                 if next < tokens.count,
                    tokens[next].kind == .symbol(.lessThan),
                    let parsedArgs = parseTypeArgRefsPrefix(
-                       tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics
+                       tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
                    )
                 {
                     typeArgs = parsedArgs.args
@@ -701,11 +1011,20 @@ enum TypeRefParserCore {
         interner: StringInterner,
         astArena: ASTArena,
         options: Options,
-        diagnostics: DiagnosticEngine?
+        diagnostics: DiagnosticEngine?,
+        recursionDepth: Int
     ) -> (ref: TypeRefID, next: Int)? {
         guard parenStart < tokens.count,
               tokens[parenStart].kind == .symbol(.lParen)
         else {
+            return nil
+        }
+
+        guard recursionDepth <= maxRecursionDepth else {
+            reportTypeRecursionDepthExceeded(
+                diagnostics: diagnostics,
+                range: parenStart < tokens.count ? tokens[parenStart].range : nil
+            )
             return nil
         }
 
@@ -725,7 +1044,8 @@ enum TypeRefParserCore {
             interner: interner,
             astArena: astArena,
             options: options,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth
         ) else {
             return nil
         }
@@ -737,7 +1057,8 @@ enum TypeRefParserCore {
             interner: interner,
             astArena: astArena,
             options: options,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth + 1
         ) else {
             return nil
         }

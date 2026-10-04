@@ -3,4 +3,7 @@ fun main() {
     println(sequenceOf("a", "b", "c").joinToString("-"))
     println(listOf<String>().asSequence().joinToString(prefix = "<", postfix = ">"))
     println(sequenceOf(1, 2, 3).joinToString(separator = ":", prefix = "[", postfix = "]"))
+    println(sequenceOf(1, 2, 3).joinToString { (it * 10).toString() })
+    println(sequenceOf(1, 2, 3).joinToString(",") { (it * 10).toString() })
+    println(sequenceOf(1, 2, 3).joinToString(",", "[", "]") { (it * 10).toString() })
 }

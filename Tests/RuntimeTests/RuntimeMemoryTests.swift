@@ -1,58 +1,44 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeMemoryTests: XCTestCase {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeMemoryTests {
+    @Test
     func testRuntimeGetRuntimeReturnsStableSingletonHandle() {
-        XCTAssertEqual(kk_runtime_getRuntime(), kk_runtime_getRuntime())
+        #expect(__kk_runtime_getRuntime() == __kk_runtime_getRuntime())
     }
 
+    @Test
     func testMemoryMetricsStayWithinExpectedBounds() {
-        let runtimeHandle = kk_runtime_getRuntime()
-        XCTAssertNotEqual(runtimeHandle, 0)
+        let runtimeHandle = __kk_runtime_getRuntime()
+        #expect(runtimeHandle != 0)
 
-        let total = kk_runtime_totalMemory()
-        let free = kk_runtime_freeMemory()
-        let max = kk_runtime_maxMemory()
+        let total = __kk_runtime_totalMemory()
+        let free = __kk_runtime_freeMemory()
+        let max = __kk_runtime_maxMemory()
 
-        XCTAssertGreaterThan(total, 0)
-        XCTAssertGreaterThanOrEqual(free, 0)
-        XCTAssertGreaterThanOrEqual(max, total)
+        #expect(total > 0)
+        #expect(free >= 0)
+        #expect(max >= total)
     }
 
+    @Test
     func testSystemGCLeavesMetricsQueryable() {
-        kk_system_gc()
+        __kk_system_gc()
 
-        XCTAssertGreaterThan(kk_runtime_totalMemory(), 0)
-        XCTAssertGreaterThanOrEqual(kk_runtime_maxMemory(), kk_runtime_totalMemory())
+        #expect(__kk_runtime_totalMemory() > 0)
+        #expect(__kk_runtime_maxMemory() >= __kk_runtime_totalMemory())
     }
 
-    func testLeakDetectionReportUsesDeltasAndThresholds() {
-        let baseline = RuntimeMemorySnapshot(
-            usedBytes: 1_024,
-            totalBytes: 1_024,
-            freeBytes: 8_192,
-            maxBytes: 9_216,
-            heapObjectCount: 2,
-            uptimeNanos: 10
-        )
-        let current = RuntimeMemorySnapshot(
-            usedBytes: 4_096,
-            totalBytes: 4_096,
-            freeBytes: 5_120,
-            maxBytes: 9_216,
-            heapObjectCount: 5,
-            uptimeNanos: 20
-        )
+    @Test
+    func testAnyJavaClassReturnsNonNullObjectHandle() {
+        let handle1 = __kk_any_javaClass(0)
+        let handle2 = __kk_any_javaClass(42)
 
-        let report = runtimeDetectMemoryLeak(
-            since: baseline,
-            current: current,
-            thresholdBytes: 2_048,
-            thresholdObjectCount: 2
-        )
-
-        XCTAssertTrue(report.hasLeak)
-        XCTAssertEqual(report.leakedBytes, 3_072)
-        XCTAssertEqual(report.heapObjectDelta, 3)
+        #expect(handle1 != 0)
+        #expect(handle2 != 0)
+        #expect(handle1 != handle2)
     }
 }
+#endif

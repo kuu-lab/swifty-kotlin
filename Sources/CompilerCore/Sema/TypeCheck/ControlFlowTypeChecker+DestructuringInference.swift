@@ -47,17 +47,15 @@ extension ControlFlowTypeChecker {
                     signature: signature,
                     sema: sema
                 )
+                sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
             } else {
-                // Fallback: try to find componentN via scope lookup
-                let scopeCandidates = sema.symbols.lookupAll(fqName: [componentName]).filter { symbolID in
-                    guard let symbol = sema.symbols.symbol(symbolID),
-                          symbol.kind == .function,
-                          let sig = sema.symbols.functionSignature(for: symbolID)
-                    else {
-                        return false
-                    }
-                    return sig.receiverType != nil
-                }
+                // Fallback: componentN declared as an operator extension rather than
+                // a member (e.g. the bundled `MatchResult.Destructured.componentN`).
+                let scopeCandidates = componentOperatorExtensionCandidates(
+                    named: componentName,
+                    receiverType: rhsType,
+                    ctx: ctx
+                )
                 if let candidate = scopeCandidates.first,
                    let signature = sema.symbols.functionSignature(for: candidate)
                 {
@@ -67,6 +65,7 @@ extension ControlFlowTypeChecker {
                         signature: signature,
                         sema: sema
                     )
+                    sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
                 } else if isDataClassType(rhsType, sema: sema) {
                     // Data class componentN() is synthesized during lowering; fall back to Any
                     componentType = sema.types.anyType
@@ -113,13 +112,23 @@ extension ControlFlowTypeChecker {
         let interner = ctx.interner
 
         let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        // `until` desugars to a memberCall (infix function), not a `.binary` range op,
+        // so the AST-shape check alone misses it; fall back to the semantic flag that
+        // markRangeCallBindings sets when resolving such calls.
         let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
+            || sema.bindings.isRangeExpr(iterableExpr)
         let elementType: TypeID = bindLoopIterationOperators(
             exprID: id,
             iterableType: iterableType,
             range: range,
             ctx: ctx
-        ) ?? driver.helpers.iterableElementType(for: iterableType, isRangeExpr: isRangeExpr, sema: sema, interner: interner) ?? {
+        ) ?? driver.helpers.iterableElementType(
+            for: iterableType,
+            isRangeExpr: isRangeExpr,
+            isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
+            sema: sema,
+            interner: interner
+        ) ?? {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0087",
                 "Cannot determine element type for destructuring in for-loop.",
@@ -143,6 +152,10 @@ extension ControlFlowTypeChecker {
                 receiverType: elementType,
                 sema: sema,
                 interner: interner
+            ) + componentOperatorExtensionCandidates(
+                named: componentName,
+                receiverType: elementType,
+                ctx: ctx
             )
 
             let componentType: TypeID
@@ -207,10 +220,47 @@ extension ControlFlowTypeChecker {
         }
     }
 
+    /// `componentN` functions declared as extensions on `receiverType` (member
+    /// lookup only finds them when they are declared inside the class). Scope
+    /// lookup goes first so imported operator extensions win; the short-name
+    /// sweep then recovers extensions that are visible without an import, such
+    /// as the bundled `MatchResult.Destructured.componentN`.
+    func componentOperatorExtensionCandidates(
+        named componentName: InternedString,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+
+        func matchesReceiver(_ candidate: SymbolID, requireOperator: Bool) -> Bool {
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  !requireOperator || symbol.flags.contains(.operatorFunction),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullReceiver,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+
+        let scoped = ctx.filterByVisibility(ctx.cachedScopeLookup(componentName)).visible
+            .filter { matchesReceiver($0, requireOperator: true) }
+        if !scoped.isEmpty {
+            return scoped
+        }
+        return sema.symbols.lookupByShortName(componentName)
+            .filter { matchesReceiver($0, requireOperator: false) }
+            .sorted { $0.rawValue < $1.rawValue }
+    }
+
     private func isDataClassType(_ type: TypeID, sema: SemaModule) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: type),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return symbol.flags.contains(.dataType)
@@ -252,14 +302,64 @@ extension ControlFlowTypeChecker {
         // call substituteTypeParameters.
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
 
-        // Use the TypeSystem's record of the class's own type-parameter symbols
-        // (e.g. [A, B] for Pair) to match each concrete type arg to a TypeVarID.
+        // A bare type-parameter type argument (e.g. the `K` in `Map.Entry<K, V>`)
+        // names the symbol the return type is actually parameterized over. This is
+        // the receiver class's own nominal K/V when componentN is declared as a
+        // genuine member reusing those symbols (the historical synthetic Map.Entry
+        // stubs), but is a distinct, freshly-declared K/V when componentN is a
+        // standalone generic extension such as the bundled
+        // `operator fun <K, V> Map.Entry<K, V>.component1(): K`. Reading the symbol
+        // straight out of the declared receiver's own type argument — rather than
+        // assuming it matches the receiver class's nominal parameters — keeps both
+        // shapes working.
+        func typeParamSymbol(in arg: TypeArg) -> SymbolID? {
+            let typeID: TypeID
+            switch arg {
+            case let .invariant(t): typeID = t
+            case let .out(t): typeID = t
+            case let .in(t): typeID = t
+            case .star: return nil
+            }
+            guard case let .typeParam(typeParam) = sema.types.kind(of: typeID) else { return nil }
+            return typeParam.symbol
+        }
+
+        // Inherited members such as Map.Entry.key are declared on a supertype, so
+        // lift the concrete receiver arguments through the nominal inheritance edge
+        // before building the substitution.
+        let declaredReceiver: (args: [TypeArg], paramSymbols: [SymbolID?])? = {
+            guard let receiverType = signature.receiverType,
+                  case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+            else {
+                return nil
+            }
+            let liftedArgs = sema.types.liftedNominalSupertypeArgs(
+                from: classType.classSymbol,
+                childArgs: classType.args,
+                to: receiverClassType.classSymbol
+            ) ?? classType.args
+            return (liftedArgs, receiverClassType.args.map(typeParamSymbol))
+        }()
+        let receiverArgs = declaredReceiver?.args ?? classType.args
+        let declaredParamSymbols = declaredReceiver?.paramSymbols ?? []
+        // Fallback for the rare shape where the declared receiver's type argument
+        // isn't a bare type-parameter reference (so `typeParamSymbol` found
+        // nothing): fall back to the receiver class's own nominal parameters,
+        // which is what this substitution relied on before extension componentN
+        // declarations existed.
         let classOwnParamSymbols = sema.types.nominalTypeParameterSymbols(for: classType.classSymbol)
 
         var substitution: [TypeVarID: TypeID] = [:]
-        for (index, arg) in classType.args.enumerated() {
+        for (index, arg) in receiverArgs.enumerated() {
             let tpSymbol: SymbolID
-            if index < classOwnParamSymbols.count {
+            if index < declaredParamSymbols.count,
+               let symbol = declaredParamSymbols[index],
+               typeVarBySymbol[symbol] != nil
+            {
+                tpSymbol = symbol
+            } else if index < classOwnParamSymbols.count,
+                      typeVarBySymbol[classOwnParamSymbols[index]] != nil
+            {
                 tpSymbol = classOwnParamSymbols[index]
             } else if index < signature.classTypeParameterCount,
                       index < signature.typeParameterSymbols.count

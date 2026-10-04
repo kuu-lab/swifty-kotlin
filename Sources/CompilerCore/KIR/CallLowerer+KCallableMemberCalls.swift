@@ -5,21 +5,30 @@
 extension CallLowerer {
     // MARK: - KProperty member access lowering (PROP-007)
 
-    private func isKPropertyReceiverType(
+    private func isKCallableReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        let nonNullType = sema.types.makeNonNullable(receiverType)
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         let resolvedName = interner.resolve(symbol.name)
-        return resolvedName == "KProperty" || resolvedName == "KProperty0"
-            || resolvedName == "KProperty1" || resolvedName == "KCallable"
-            || resolvedName == "KMutableProperty" || resolvedName == "KMutableProperty0"
+        return resolvedName == "KCallable"
+            || resolvedName == "KFunction"
+            || resolvedName == "KFunction0"
+            || resolvedName == "KFunction1"
+            || resolvedName == "KFunction2"
+            || resolvedName == "KFunction3"
+            || resolvedName == "KProperty"
+            || resolvedName == "KProperty0"
+            || resolvedName == "KProperty1"
+            || resolvedName == "KProperty2"
+            || resolvedName == "KMutableProperty"
+            || resolvedName == "KMutableProperty0"
             || resolvedName == "KMutableProperty1"
+            || resolvedName == "KMutableProperty2"
     }
 
     func tryLowerKPropertyMemberAccess(
@@ -34,9 +43,14 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let calleeStr = interner.resolve(calleeName)
-        guard calleeStr == "name" else { return nil }
+        guard calleeStr == "name" || calleeStr == "returnType" else { return nil }
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        guard isKPropertyReceiverType(receiverType, sema: sema, interner: interner) else { return nil }
+        guard isKCallableReceiverType(receiverType, sema: sema, interner: interner) else { return nil }
+        guard let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+              !sema.symbols.isSourceBackedSymbol(propertySymbol)
+        else {
+            return nil
+        }
 
         // Lower the receiver expression.
         let receiverID = driver.exprLowerer.lowerExpr(
@@ -46,20 +60,48 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.types.make(.primitive(.string, .nonNull))
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: resultType
-        )
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_kproperty_stub_name"),
-            arguments: [receiverID],
+            ?? (calleeStr == "name" ? sema.types.stringType : sema.types.anyType)
+        let result = arena.appendTemporary(type: resultType)
+        emitNonThrowingCall(
+            callee: interner.intern(
+                calleeStr == "name" ? "__kk_kcallable_get_name" : "__kk_kcallable_get_return_type"
+            ),
+            arg: receiverID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
+    }
+
+    /// Emits a KCallable metadata property after the safe-call null check has
+    /// already passed.
+    func tryLowerKCallableNameAccess(
+        propertySymbol: SymbolID?,
+        receiverType: TypeID,
+        receiverID: KIRExprID,
+        result: KIRExprID,
+        calleeName: InternedString,
+        sema: SemaModule,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        let memberName = interner.resolve(calleeName)
+        guard (memberName == "name" || memberName == "returnType"),
+              let propertySymbol,
+              !sema.symbols.isSourceBackedSymbol(propertySymbol),
+              isKCallableReceiverType(receiverType, sema: sema, interner: interner)
+        else {
+            return false
+        }
+        emitNonThrowingCall(
+            callee: interner.intern(
+                memberName == "name" ? "__kk_kcallable_get_name" : "__kk_kcallable_get_return_type"
+            ),
+            arg: receiverID,
+            result: result,
+            into: &instructions
+        )
+        return true
     }
 
     // MARK: - KFunction member access lowering (STDLIB-REFLECT-063)
@@ -71,8 +113,7 @@ extension CallLowerer {
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
         // Check for KFunction class types.
-        if case let .classType(classType) = sema.types.kind(of: nonNullType),
-           let symbol = sema.symbols.symbol(classType.classSymbol)
+        if let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema)
         {
             let resolvedName = interner.resolve(symbol.name)
             return resolvedName == "KFunction" || resolvedName == "KFunction0"
@@ -89,12 +130,12 @@ extension CallLowerer {
 
     /// Known KFunction member names and their corresponding runtime function.
     private static let kFunctionMemberMap: [String: String] = [
-        "name": "kk_kfunction_get_name",
-        "returnType": "kk_kfunction_get_return_type",
-        "parameters": "kk_kfunction_get_parameters",
-        "valueParameters": "kk_kfunction_get_value_parameters",
-        "isSuspend": "kk_kfunction_is_suspend",
-        "type": "kk_kfunction_get_type",
+        "name": "__kk_kcallable_get_name",
+        "returnType": "__kk_kcallable_get_return_type",
+        "parameters": "__kk_kfunction_get_parameters",
+        "valueParameters": "__kk_kfunction_get_value_parameters",
+        "isSuspend": "__kk_kfunction_is_suspend",
+        "type": "__kk_kfunction_get_type",
     ]
 
     func tryLowerKFunctionMemberAccess(
@@ -110,6 +151,12 @@ extension CallLowerer {
     ) -> KIRExprID? {
         let calleeStr = interner.resolve(calleeName)
         guard let runtimeFunc = Self.kFunctionMemberMap[calleeStr] else { return nil }
+        if (calleeStr == "name" || calleeStr == "returnType"),
+           let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           sema.symbols.isSourceBackedSymbol(propertySymbol)
+        {
+            return nil
+        }
 
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         guard isKFunctionReceiverType(receiverType, sema: sema, interner: interner) else { return nil }
@@ -122,18 +169,14 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: resultType
+        let result = arena.appendTemporary(type: resultType
         )
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern(runtimeFunc),
-            arguments: [receiverID],
+            arg: receiverID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 
@@ -145,9 +188,7 @@ extension CallLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return interner.resolve(symbol.name) == "KParameter"
@@ -155,11 +196,11 @@ extension CallLowerer {
 
     /// Known KParameter member names and their corresponding runtime function.
     private static let kParameterMemberMap: [String: String] = [
-        "index": "kk_kparameter_get_index",
-        "name": "kk_kparameter_get_name",
-        "type": "kk_kparameter_get_type",
-        "isOptional": "kk_kparameter_is_optional",
-        "kind": "kk_kparameter_get_kind",
+        "index": "__kk_kparameter_get_index",
+        "name": "__kk_kparameter_get_name",
+        "type": "__kk_kparameter_get_type",
+        "isOptional": "__kk_kparameter_is_optional",
+        "kind": "__kk_kparameter_get_kind",
     ]
 
     func tryLowerKParameterMemberAccess(
@@ -186,18 +227,14 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: resultType
+        let result = arena.appendTemporary(type: resultType
         )
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern(runtimeFunc),
-            arguments: [receiverID],
+            arg: receiverID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 
@@ -241,24 +278,20 @@ extension CallLowerer {
         // Choose the appropriate arity-specific call.
         let callCallee: String
         switch argExprs.count {
-        case 0: callCallee = "kk_kfunction_call_0"
-        case 1: callCallee = "kk_kfunction_call_1"
-        case 2: callCallee = "kk_kfunction_call_2"
-        case 3: callCallee = "kk_kfunction_call_3"
-        default: callCallee = "kk_kfunction_call_vararg"
+        case 0: callCallee = "__kk_kfunction_call_0"
+        case 1: callCallee = "__kk_kfunction_call_1"
+        case 2: callCallee = "__kk_kfunction_call_2"
+        case 3: callCallee = "__kk_kfunction_call_3"
+        default: callCallee = "__kk_kfunction_call_vararg"
         }
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
 
         if argExprs.count <= 3 {
             // Direct arity-specific call: kk_kfunction_call_N(handle, arg1, ..., outThrown)
-            let thrownResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
             )
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: resultType
+            let result = arena.appendTemporary(type: resultType
             )
             instructions.append(.call(
                 symbol: nil,
@@ -270,27 +303,21 @@ extension CallLowerer {
             ))
             return result
         } else {
-            // Vararg path: pack args into a list, call kk_kfunction_call_vararg.
+            // Vararg path: pack args into a list, call __kk_kfunction_call_vararg.
             // First, create a runtime list with the args.
-            let listExpr = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.anyType
+            let listExpr = arena.appendTemporary(type: sema.types.anyType
             )
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_list_of"),
+                callee: interner.intern("__kk_list_of"),
                 arguments: argExprs,
                 result: listExpr,
                 canThrow: false,
                 thrownResult: nil
             ))
-            let thrownResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
             )
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: resultType
+            let result = arena.appendTemporary(type: resultType
             )
             instructions.append(.call(
                 symbol: nil,

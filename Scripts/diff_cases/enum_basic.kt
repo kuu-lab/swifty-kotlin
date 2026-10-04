@@ -4,7 +4,7 @@ enum class Color(val rgb: Int) {
     BLUE(0x0000FF);
     
     companion object {
-        fun fromRgb(rgb: Int): Color? = values.find { it.rgb == rgb }
+        fun fromRgb(rgb: Int): Color? = entries.find { it.rgb == rgb }
     }
 }
 

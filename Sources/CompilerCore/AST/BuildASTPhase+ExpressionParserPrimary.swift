@@ -2,6 +2,8 @@ import Foundation
 
 extension BuildASTPhase.ExpressionParser {
     func parsePrimary() -> ExprID? {
+        defer { leaveRecursion() }
+        guard enterRecursion() else { return nil }
         guard let token = current() else {
             return nil
         }
@@ -43,6 +45,19 @@ extension BuildASTPhase.ExpressionParser {
             return parsePrimaryThis(token)
         case .keyword(.object):
             return parseObjectLiteral()
+        case .keyword(.suspend) where peek(1)?.kind == .symbol(.lBrace):
+            // `suspend { ... }` is a suspend-modified lambda literal, not a
+            // call to a function named `suspend` — distinct from `suspend`
+            // used as a declaration modifier (`suspend fun f() {}`), which
+            // is never followed directly by `{`.
+            let suspendStart = token.range.start
+            _ = consume()
+            return parseLambdaLiteral(start: suspendStart)
+        case .keyword(.fun) where peek(1)?.kind == .symbol(.lParen):
+            // Anonymous function expression: `fun(params): RetType { body }`.
+            // Distinct from `fun` as a declaration modifier/keyword, which is
+            // never followed directly by `(` (a name always comes first).
+            return parseAnonymousFunctionLiteral()
         case let .keyword(keyword):
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(keyword.rawValue), token.range))
@@ -70,11 +85,8 @@ extension BuildASTPhase.ExpressionParser {
         case let .intLiteral(text):
             _ = consume()
             let value = parseSignedLiteral(text, range: token.range) ?? 0
-            // Hex/bin literals whose value exceeds Int32 range are auto-promoted to Long in Kotlin
-            let lower = text.lowercased()
-            if (lower.hasPrefix("0x") || lower.hasPrefix("0b"))
-                && (value > Int64(Int32.max) || value < Int64(Int32.min))
-            {
+            // Unsuffixed integer literals widen to Long when they do not fit Int32.
+            if value > Int64(Int32.max) || value < Int64(Int32.min) {
                 return astArena.appendExpr(.longLiteral(value, token.range))
             }
             return astArena.appendExpr(.intLiteral(value, token.range))
@@ -197,7 +209,12 @@ extension BuildASTPhase.ExpressionParser {
         if magnitude <= UInt64(Int64.max) {
             return Int64(magnitude)
         }
-        return Int64(bitPattern: magnitude)
+        diagnostics?.error(
+            "KSWIFTK-LEX-0002",
+            "Signed literal overflow.",
+            range: range
+        )
+        return nil
     }
 
     private func parsePrimaryIdentifier(_ token: Token) -> ExprID? {
@@ -404,106 +421,6 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func decodeEscapedStringSegment(_ segment: String) -> String {
-        var result = ""
-        var index = segment.startIndex
-
-        func advance(_ current: String.Index, by offset: Int) -> String.Index {
-            segment.index(current, offsetBy: offset, limitedBy: segment.endIndex) ?? segment.endIndex
-        }
-
-        while index < segment.endIndex {
-            let character = segment[index]
-            guard character == "\\" else {
-                result.append(character)
-                index = segment.index(after: index)
-                continue
-            }
-
-            let escapeIndex = segment.index(after: index)
-            guard escapeIndex < segment.endIndex else {
-                result.append("\\")
-                break
-            }
-
-            let escape = segment[escapeIndex]
-            switch escape {
-            case "n":
-                result.append("\n")
-                index = segment.index(after: escapeIndex)
-            case "t":
-                result.append("\t")
-                index = segment.index(after: escapeIndex)
-            case "r":
-                result.append("\r")
-                index = segment.index(after: escapeIndex)
-            case "\"":
-                result.append("\"")
-                index = segment.index(after: escapeIndex)
-            case "'":
-                result.append("'")
-                index = segment.index(after: escapeIndex)
-            case "\\":
-                result.append("\\")
-                index = segment.index(after: escapeIndex)
-            case "$":
-                result.append("$")
-                index = segment.index(after: escapeIndex)
-            case "b":
-                result.append("\u{08}")
-                index = segment.index(after: escapeIndex)
-            case "u":
-                let hexStart = segment.index(after: escapeIndex)
-                let hexEnd = advance(hexStart, by: 4)
-                let hexDigits = String(segment[hexStart ..< hexEnd])
-                if hexDigits.count == 4,
-                   let scalarValue = UInt32(hexDigits, radix: 16)
-                {
-                    if (0xD800 ... 0xDBFF).contains(scalarValue),
-                       hexEnd < segment.endIndex,
-                       segment[hexEnd] == "\\"
-                    {
-                        let nextEscapeIndex = segment.index(after: hexEnd)
-                        if nextEscapeIndex < segment.endIndex,
-                           segment[nextEscapeIndex] == "u"
-                        {
-                            let lowStart = segment.index(after: nextEscapeIndex)
-                            let lowEnd = advance(lowStart, by: 4)
-                            let lowDigits = String(segment[lowStart ..< lowEnd])
-                            if lowDigits.count == 4,
-                               let lowValue = UInt32(lowDigits, radix: 16),
-                               (0xDC00 ... 0xDFFF).contains(lowValue)
-                            {
-                                let highTenBits = scalarValue - 0xD800
-                                let lowTenBits = lowValue - 0xDC00
-                                let combined = 0x10000 + (highTenBits << 10) + lowTenBits
-                                if let scalar = UnicodeScalar(combined) {
-                                    result.unicodeScalars.append(scalar)
-                                    index = lowEnd
-                                    continue
-                                }
-                            }
-                        }
-                    }
-
-                    if let scalar = UnicodeScalar(scalarValue) {
-                        result.unicodeScalars.append(scalar)
-                        index = hexEnd
-                    } else {
-                        result.append("\\")
-                        result.append("u")
-                        index = segment.index(after: escapeIndex)
-                    }
-                } else {
-                    result.append("\\")
-                    result.append("u")
-                    index = segment.index(after: escapeIndex)
-                }
-            default:
-                result.append(escape)
-                index = segment.index(after: escapeIndex)
-            }
-        }
-
-        return result
+        decodeKotlinStringEscapes(segment)
     }
 }

@@ -55,6 +55,9 @@ struct MetadataSerializerTests {
         #expect(record.valueClassUnderlyingTypeSig == nil)
         #expect(record.sealedSubclassFQNames.isEmpty)
         #expect(record.annotations.isEmpty)
+        #expect(record.propertyReceiverTypeSignature == nil)
+        #expect(record.propertyGetterExternalLinkName == nil)
+        #expect(!record.isMutable)
     }
 
     @Test func testMetadataRecordWithAllFields() {
@@ -80,7 +83,11 @@ struct MetadataSerializerTests {
             annotations: [MetadataAnnotationRecord(annotationFQName: "kotlin.Deprecated")],
             isValueClass: true,
             valueClassUnderlyingTypeSig: "I",
-            sealedSubclassFQNames: ["com.example.SubA", "com.example.SubB"]
+            sealedSubclassFQNames: ["com.example.SubA", "com.example.SubB"],
+            propertyReceiverTypeSignature: "Lkotlin/reflect/KClass<*>;",
+            propertyGetterExternalLinkName: "kk_fn_get_abc",
+            propertySetterExternalLinkName: "kk_fn_set_abc",
+            isMutable: true
         )
         #expect(record.kind == .class)
         #expect(record.mangledName == "_KK_mod__Foo__C__abc")
@@ -101,6 +108,10 @@ struct MetadataSerializerTests {
         #expect(record.valueClassUnderlyingTypeSig == "I")
         #expect(record.sealedSubclassFQNames == ["com.example.SubA", "com.example.SubB"])
         #expect(record.annotations.count == 1)
+        #expect(record.propertyReceiverTypeSignature == "Lkotlin/reflect/KClass<*>;")
+        #expect(record.propertyGetterExternalLinkName == "kk_fn_get_abc")
+        #expect(record.propertySetterExternalLinkName == "kk_fn_set_abc")
+        #expect(record.isMutable)
     }
 
     // MARK: - MetadataAnnotationRecord
@@ -357,6 +368,132 @@ struct MetadataSerializerTests {
         #expect(record.valueClassUnderlyingTypeSig == nil)
     }
 
+    @Test func testBuildRecordsCanExportSyntheticNominalAnchorsOnly() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let kotlin = interner.intern("kotlin")
+
+        let charSequence = symbols.define(
+            kind: .interface,
+            name: interner.intern("CharSequence"),
+            fqName: [kotlin, interner.intern("CharSequence")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        let range = symbols.define(
+            kind: .class,
+            name: interner.intern("IntRange"),
+            fqName: [kotlin, interner.intern("ranges"), interner.intern("IntRange")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        let first = symbols.define(
+            kind: .property,
+            name: interner.intern("first"),
+            fqName: [kotlin, interner.intern("ranges"), interner.intern("IntRange"), interner.intern("first")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setNominalLayout(
+            NominalLayout(
+                objectHeaderWords: 2,
+                instanceFieldCount: 1,
+                instanceSizeWords: 3,
+                fieldOffsets: [first: 2],
+                vtableSlots: [first: 0],
+                itableSlots: [charSequence: 0],
+                superClass: nil
+            ),
+            for: range
+        )
+        let function = symbols.define(
+            kind: .function,
+            name: interner.intern("syntheticFunction"),
+            fqName: [kotlin, interner.intern("syntheticFunction")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: [],
+                returnType: types.unitType,
+                isSuspend: false
+            ),
+            for: function
+        )
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Stdlib",
+            interner: interner,
+            functionLinkNames: [:],
+            includeSynthetic: false,
+            includeSyntheticNominalAnchors: true
+        )
+
+        #expect(records.map(\.fqName) == ["kotlin.CharSequence", "kotlin.ranges.IntRange"])
+        #expect(records.map(\.kind) == [.interface, .class])
+        #expect(records.allSatisfy { !$0.mangledName.isEmpty })
+        let charSequenceRecord = try #require(records.first { $0.fqName == "kotlin.CharSequence" })
+        #expect(charSequenceRecord.declaredInstanceSizeWords == nil)
+        let intRange = try #require(records.first { $0.fqName == "kotlin.ranges.IntRange" })
+        #expect(intRange.declaredFieldCount == 1)
+        #expect(intRange.declaredInstanceSizeWords == 3)
+        #expect(intRange.declaredVtableSize == 1)
+        #expect(intRange.declaredItableSize == 1)
+        #expect(records.allSatisfy { $0.fieldOffsets == nil })
+        #expect(records.allSatisfy { $0.vtableSlots == nil })
+        #expect(records.allSatisfy { $0.itableSlots == nil })
+    }
+
+    @Test func testSerializeVTableSlotsUsesOwningPropertyForSyntheticGetter() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let demo = interner.intern("demo")
+        let boxName = interner.intern("Box")
+        let valueName = interner.intern("value")
+
+        let box = symbols.define(
+            kind: .class,
+            name: boxName,
+            fqName: [demo, boxName],
+            declSite: nil,
+            visibility: .public
+        )
+        let value = symbols.define(
+            kind: .property,
+            name: valueName,
+            fqName: [demo, boxName, valueName],
+            declSite: nil,
+            visibility: .protected,
+            flags: [.abstractType]
+        )
+        symbols.setParentSymbol(box, for: value)
+        symbols.setPropertyType(types.intType, for: value)
+
+        let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: value)
+        let serialized = encoder.serializeVTableSlots(
+            [getter: 3],
+            symbols: symbols,
+            interner: interner,
+            includedSymbolIDs: Set<SymbolID>(),
+            mangler: NameMangler(),
+            types: types
+        )
+
+        #expect(serialized == "v2:pget:demo.Box.value@3")
+    }
+
     @Test func testSerializeMultipleRecords() {
         let encoder = MetadataEncoder()
         let records = [
@@ -413,6 +550,198 @@ struct MetadataSerializerTests {
         #expect(records[0].fieldOffsets == "x@0")
         #expect(records[0].vtableSlots == "bar@0")
         #expect(records[0].itableSlots == "baz@0")
+    }
+
+    @Test func testPropertyAccessorLinkRoundTrips() {
+        // A `var` property emits both accessor link names; dropping the setter
+        // link makes `a.prop = x` fail to link on the consumer side.
+        let encoder = MetadataEncoder()
+        let decoder = MetadataDecoder()
+        let record = MetadataRecord(
+            kind: .property,
+            mangledName: "_KK_test__x__P__I",
+            fqName: "test.x",
+            typeSignature: "I",
+            propertyGetterExternalLinkName: "kk_fn_x_get",
+            propertySetterExternalLinkName: "kk_fn_x_set",
+            isMutable: true
+        )
+        let records = decoder.decode(encoder.serialize([record]))
+        #expect(records.count == 1)
+        #expect(records[0].propertyGetterExternalLinkName == "kk_fn_x_get")
+        #expect(records[0].propertySetterExternalLinkName == "kk_fn_x_set")
+        #expect(records[0].isMutable)
+    }
+
+    @Test func testBuildRecordsPreservesNominalSupertypeSignaturesForNonGenericClass() {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let kotlin = interner.intern("kotlin")
+        let myPack = interner.intern("test")
+
+        let enumBase = symbols.define(
+            kind: .class,
+            name: interner.intern("Enum"),
+            fqName: [kotlin, interner.intern("Enum")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        let typeParamE = symbols.define(
+            kind: .typeParameter,
+            name: interner.intern("E"),
+            fqName: [kotlin, interner.intern("Enum"), interner.intern("E")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        types.setNominalTypeParameterSymbols([typeParamE], for: enumBase)
+
+        let myEnum = symbols.define(
+            kind: .enumClass,
+            name: interner.intern("MyEnum"),
+            fqName: [myPack, interner.intern("MyEnum")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        symbols.setDirectSupertypes([enumBase], for: myEnum)
+        let myEnumType = types.make(.classType(ClassType(classSymbol: myEnum, args: [], nullability: .nonNull)))
+        let superArgs: [TypeArg] = [.invariant(myEnumType)]
+        types.setNominalSupertypeTypeArgs(superArgs, for: myEnum, supertype: enumBase)
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "TestModule",
+            interner: interner,
+            functionLinkNames: [:],
+            includeSynthetic: false,
+            includeSyntheticNominalAnchors: false
+        )
+
+        let myEnumRecord = records.first { $0.fqName == "test.MyEnum" }
+        #expect(myEnumRecord != nil)
+        #expect(myEnumRecord?.nominalSupertypeSignatures.isEmpty == false)
+    }
+
+    /// `$enumConstructorProperty$` helpers are the only representation of an
+    /// enum constructor-property read; without export, consumers of a .kklib
+    /// emit an unresolvable placeholder call (undefined symbol at link time).
+    @Test func testEnumConstructorPropertyHelperIsExportedForSourceBackedEnum() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let kotlin = interner.intern("kotlin")
+        let native = interner.intern("native")
+        let site = CompilerCore.SourceRange(start: CompilerCore.SourceLocation(file: FileID(rawValue: 1), offset: 0), end: CompilerCore.SourceLocation(file: FileID(rawValue: 1), offset: 1))
+
+        let enumSymbol = symbols.define(
+            kind: .enumClass,
+            name: interner.intern("CpuArchitecture"),
+            fqName: [kotlin, native, interner.intern("CpuArchitecture")],
+            declSite: site,
+            visibility: .public
+        )
+        let propSymbol = symbols.define(
+            kind: .property,
+            name: interner.intern("bitness"),
+            fqName: [kotlin, native, interner.intern("CpuArchitecture"), interner.intern("bitness")],
+            declSite: site,
+            visibility: .public
+        )
+        symbols.setParentSymbol(enumSymbol, for: propSymbol)
+
+        let helperName = interner.intern("$enumConstructorProperty$bitness")
+        let helperSymbol = symbols.define(
+            kind: .function,
+            name: helperName,
+            fqName: [kotlin, native, interner.intern("CpuArchitecture"), helperName],
+            declSite: site,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(enumSymbol, for: helperSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [types.anyType], returnType: types.intType, isSuspend: false),
+            for: helperSymbol
+        )
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Stdlib",
+            interner: interner,
+            functionLinkNames: [helperSymbol: "kk_fn__enumConstructorProperty_bitness_42"],
+            includeNonPublic: true,
+            includeSynthetic: false
+        )
+
+        let helperRecord = try #require(records.first { $0.fqName == "kotlin.native.CpuArchitecture.$enumConstructorProperty$bitness" })
+        #expect(helperRecord.externalLinkName == "kk_fn__enumConstructorProperty_bitness_42")
+    }
+
+    /// Bundled stdlib enums may reuse a synthetic nominal shell (synthetic
+    /// flag + nil declSite) while remaining source-backed via a tracked
+    /// sourceFileID. Their ctor-prop helpers must still export.
+    @Test func testEnumConstructorPropertyHelperIsExportedForShellBackedEnum() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let kotlin = interner.intern("kotlin")
+        let site = CompilerCore.SourceRange(start: CompilerCore.SourceLocation(file: FileID(rawValue: 1), offset: 0), end: CompilerCore.SourceLocation(file: FileID(rawValue: 1), offset: 1))
+
+        let enumSymbol = symbols.define(
+            kind: .enumClass,
+            name: interner.intern("TransferMode"),
+            fqName: [kotlin, interner.intern("TransferMode")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setSourceFileID(FileID(rawValue: 7), for: enumSymbol)
+
+        let helperName = interner.intern("$enumConstructorProperty$value")
+        let helperSymbol = symbols.define(
+            kind: .function,
+            name: helperName,
+            fqName: [kotlin, interner.intern("TransferMode"), helperName],
+            declSite: site,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(enumSymbol, for: helperSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [types.anyType], returnType: types.anyType, isSuspend: false),
+            for: helperSymbol
+        )
+        // A synthetic helper without the ctor-prop prefix stays excluded.
+        let otherHelper = symbols.define(
+            kind: .function,
+            name: interner.intern("$otherHelper"),
+            fqName: [kotlin, interner.intern("TransferMode"), interner.intern("$otherHelper")],
+            declSite: site,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(enumSymbol, for: otherHelper)
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Stdlib",
+            interner: interner,
+            functionLinkNames: [helperSymbol: "kk_fn__enumConstructorProperty_value_9"],
+            includeNonPublic: true,
+            includeSynthetic: false
+        )
+
+        #expect(records.contains { $0.fqName == "kotlin.TransferMode.$enumConstructorProperty$value" })
+        #expect(!records.contains { $0.fqName == "kotlin.TransferMode.$otherHelper" })
     }
 }
 #endif

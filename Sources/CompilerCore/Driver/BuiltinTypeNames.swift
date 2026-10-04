@@ -13,6 +13,8 @@ struct BuiltinTypeNames {
     let ulong: InternedString
     let ubyte: InternedString
     let ushort: InternedString
+    let byte: InternedString
+    let short: InternedString
     let any: InternedString
     let number: InternedString
     let unit: InternedString
@@ -21,6 +23,12 @@ struct BuiltinTypeNames {
     let null: InternedString
 
     init(interner: StringInterner) {
+        self = interner.cachedBuiltinTypeNames {
+            Self(uncachedInterner: interner)
+        }
+    }
+
+    private init(uncachedInterner interner: StringInterner) {
         self.int = interner.intern("Int")
         self.long = interner.intern("Long")
         self.float = interner.intern("Float")
@@ -32,6 +40,8 @@ struct BuiltinTypeNames {
         self.ulong = interner.intern("ULong")
         self.ubyte = interner.intern("UByte")
         self.ushort = interner.intern("UShort")
+        self.byte = interner.intern("Byte")
+        self.short = interner.intern("Short")
         self.any = interner.intern("Any")
         self.number = interner.intern("Number")
         self.unit = interner.intern("Unit")
@@ -48,11 +58,12 @@ struct BuiltinTypeNames {
         if name == double { return .double }
         if name == boolean { return .boolean }
         if name == char { return .char }
-        if name == string { return .string }
         if name == uint { return .uint }
         if name == ulong { return .ulong }
         if name == ubyte { return .ubyte }
         if name == ushort { return .ushort }
+        if name == byte { return .byte }
+        if name == short { return .short }
         return nil
     }
 
@@ -62,10 +73,19 @@ struct BuiltinTypeNames {
         nullability: Nullability = .nonNull,
         types: TypeSystem
     ) -> TypeID? {
+        if name == string {
+            return types.withNullability(nullability, for: types.stringType)
+        }
         if let prim = primitiveType(for: name) {
             return types.withNullability(nullability, for: types.make(.primitive(prim, .nonNull)))
         }
-        if name == any || name == number {
+        if name == any {
+            return nullability == .nullable ? types.nullableAnyType : types.anyType
+        }
+        if name == number {
+            if let numberSym = types.numberClassSymbol {
+                return types.make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: nullability)))
+            }
             return nullability == .nullable ? types.nullableAnyType : types.anyType
         }
         if name == unit { return types.unitType }

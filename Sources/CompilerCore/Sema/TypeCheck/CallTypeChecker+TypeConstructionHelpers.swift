@@ -142,46 +142,81 @@ extension CallTypeChecker {
     }
 
     func inferSyntheticMapKeyValueTypes(
-        from args: [CallArgument],
-        ctx: TypeInferenceContext,
-        locals: inout LocalBindings
+        from argTypes: [TypeID],
+        ctx: TypeInferenceContext
     ) -> (keyType: TypeID, valueType: TypeID)? {
         let sema = ctx.sema
         let interner = ctx.interner
-        let ast = ctx.ast
+        let pairFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("Pair"),
+        ]
+        guard let pairSymbol = sema.symbols.lookup(fqName: pairFQName) else {
+            return nil
+        }
+
         var keyTypes: [TypeID] = []
         var valueTypes: [TypeID] = []
-
-        for argument in args {
-            guard let expr = ast.arena.expr(argument.expr) else { return nil }
-            switch expr {
-            case let .memberCall(receiver, callee, _, pairArgs, _)
-                where callee == KnownCompilerNames(interner: interner).to && pairArgs.count == 1:
-                let keyType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
-                let valueType = driver.inferExpr(pairArgs[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
-                keyTypes.append(keyType)
-                valueTypes.append(valueType)
-            case let .call(calleeExpr, _, pairArgs, _):
-                guard pairArgs.count == 2,
-                      let callee = ast.arena.expr(calleeExpr),
-                      case let .nameRef(name, _) = callee,
-                      name == KnownCompilerNames(interner: interner).to
-                else {
-                    return nil
-                }
-                let keyType = driver.inferExpr(pairArgs[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
-                let valueType = driver.inferExpr(pairArgs[1].expr, ctx: ctx, locals: &locals, expectedType: nil)
-                keyTypes.append(keyType)
-                valueTypes.append(valueType)
-            default:
+        for type in argTypes {
+            guard case let .classType(classType) = sema.types.kind(of: type),
+                  classType.classSymbol == pairSymbol,
+                  classType.args.count == 2
+            else {
                 return nil
             }
+            func projected(_ arg: TypeArg) -> TypeID {
+                switch arg {
+                case let .invariant(t), let .out(t), let .in(t):
+                    return t
+                case .star:
+                    return sema.types.anyType
+                }
+            }
+            keyTypes.append(projected(classType.args[0]))
+            valueTypes.append(projected(classType.args[1]))
         }
 
         guard !keyTypes.isEmpty, !valueTypes.isEmpty else {
             return nil
         }
         return (sema.types.lub(keyTypes), sema.types.lub(valueTypes))
+    }
+
+    func inferMapTypeArgumentsFromConstructorArgument(
+        from argTypes: [TypeID],
+        ctx: TypeInferenceContext
+    ) -> (keyType: TypeID, valueType: TypeID)? {
+        guard argTypes.count == 1,
+              case let .classType(argumentClass) = ctx.sema.types.kind(of: argTypes[0])
+        else {
+            return nil
+        }
+        let interner = ctx.interner
+        let mapSymbol = ctx.sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Map"),
+        ])
+        guard let mapSymbol,
+              let mapArgs = ctx.sema.types.liftedNominalSupertypeArgs(
+                  from: argumentClass.classSymbol,
+                  childArgs: argumentClass.args,
+                  to: mapSymbol
+              ),
+              mapArgs.count == 2
+        else {
+            return nil
+        }
+
+        func projected(_ arg: TypeArg) -> TypeID {
+            switch arg {
+            case let .invariant(type), let .in(type), let .out(type):
+                return type
+            case .star:
+                return ctx.sema.types.anyType
+            }
+        }
+        return (projected(mapArgs[0]), projected(mapArgs[1]))
     }
 
     func makeSyntheticMutableListType(
@@ -276,6 +311,27 @@ extension CallTypeChecker {
         )))
     }
 
+    func makeSyntheticHashSetType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        let hashSetFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("HashSet"),
+        ]
+        guard let hashSetSymbol = symbols.lookup(fqName: hashSetFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: hashSetSymbol,
+            args: [.invariant(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
     func makeSyntheticLinkedHashSetType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -341,37 +397,155 @@ extension CallTypeChecker {
         )))
     }
 
+    func makeSourceBackedHashMapType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        keyType: TypeID,
+        valueType: TypeID
+    ) -> TypeID {
+        let hashMapFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("HashMap"),
+        ]
+        guard let hashMapSymbol = symbols.lookup(fqName: hashMapFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: hashMapSymbol,
+            args: [.invariant(keyType), .invariant(valueType)],
+            nullability: .nonNull
+        )))
+    }
+
+    // KUU-556: LinkedHashMap is now a real HashMap subclass (LinkedHashMap.kt),
+    // not a MutableMap typealias, so its constructor call needs its own
+    // nominal type the same way makeSourceBackedHashMapType does.
+    func makeSourceBackedLinkedHashMapType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        keyType: TypeID,
+        valueType: TypeID
+    ) -> TypeID {
+        let linkedHashMapFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("LinkedHashMap"),
+        ]
+        guard let linkedHashMapSymbol = symbols.lookup(fqName: linkedHashMapFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: linkedHashMapSymbol,
+            args: [.invariant(keyType), .invariant(valueType)],
+            nullability: .nonNull
+        )))
+    }
+
     func applyContractEffects(
         chosen: SymbolID,
         args: [CallArgument],
-        argTypes: [TypeID],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        applyContractCallsInPlaceEffects(chosen: chosen, args: args, ctx: ctx, locals: &locals)
+        let sema = ctx.sema
+        guard let signature = sema.symbols.functionSignature(for: chosen) else {
+            return
+        }
+        let parameterIndex: Int
+        if let effect = sema.symbols.contractNonNullEffect(for: chosen),
+           effect.appliesOnAnyReturn,
+           let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+           index < args.count,
+           index < signature.parameterTypes.count
+        {
+            parameterIndex = index
+        } else if let effect = sema.symbols.contractConditionEffect(for: chosen),
+                  // STDLIB-591: only `returns() implies (condition)` (any normal
+                  // return) is handled here; `returns(true/false) implies (...)`
+                  // would need to correlate with how the call's own result is
+                  // branched on at the use site, which this post-call helper
+                  // doesn't have visibility into.
+                  effect.returnsValue == nil,
+                  effect.conditionParameterIndex < args.count,
+                  effect.conditionParameterIndex < signature.parameterTypes.count
+        {
+            parameterIndex = effect.conditionParameterIndex
+        } else {
+            return
+        }
+        let conditionExpr = args[parameterIndex].expr
+        // Synthetic precondition effects describe a Boolean condition, while
+        // source-backed contract effects point directly at the nullable
+        // argument from a returns() implies clause.
+        let narrowedState: DataFlowState
+        if signature.parameterTypes[parameterIndex] == sema.types.booleanType {
+            let branch = ctx.dataFlow.branchOnCondition(
+                conditionExpr,
+                base: ctx.flowState,
+                locals: locals,
+                ast: ctx.ast,
+                sema: sema,
+                interner: ctx.interner,
+                scope: ctx.scope
+            )
+            narrowedState = branch.trueState
+        } else {
+            narrowedState = ctx.dataFlow.narrowNonNull(
+                conditionExpr,
+                base: ctx.flowState,
+                locals: locals,
+                ast: ctx.ast,
+                sema: sema,
+                interner: ctx.interner
+            )
+        }
+        driver.exprChecker.applyFlowStateToLocals(
+            narrowedState,
+            locals: &locals,
+            sema: sema
+        )
+    }
+
+    /// STDLIB-592 definite assignment: when `chosen` declares
+    /// `contract { callsInPlace(param, EXACTLY_ONCE) }` (or `AT_LEAST_ONCE`) for one
+    /// of its lambda parameters, the argument lambda's body is guaranteed to run to
+    /// completion at least once as part of this call. Fold the outer-scope locals
+    /// that lambda body unconditionally initialized (recorded by
+    /// `inferLambdaLiteralExpr`) back into the call site's own definite-assignment
+    /// state -- the same way a plain sequential block would.
+    /// `AT_MOST_ONCE`/`UNKNOWN` do not guarantee the lambda runs at all, so they are
+    /// skipped.
+    private func applyContractCallsInPlaceEffects(
+        chosen: SymbolID,
+        args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
         let sema = ctx.sema
-        guard let effect = sema.symbols.contractNonNullEffect(for: chosen),
-              effect.appliesOnAnyReturn,
-              let parameterIndex = sema.symbols.functionSignature(for: chosen)?
-              .valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
-              parameterIndex < args.count,
-              parameterIndex < argTypes.count
+        let effects = sema.symbols.contractCallsInPlaceEffects(for: chosen)
+        guard !effects.isEmpty,
+              let signature = sema.symbols.functionSignature(for: chosen)
         else {
             return
         }
-        let conditionExpr = args[parameterIndex].expr
-        let branch = ctx.dataFlow.branchOnCondition(
-            conditionExpr,
-            base: ctx.flowState,
-            locals: locals,
-            ast: ctx.ast,
-            sema: sema,
-            interner: ctx.interner,
-            scope: ctx.scope
-        )
-        driver.exprChecker.applyFlowStateToLocals(
-            branch.trueState,
-            locals: &locals,
-            sema: sema
-        )
+        for effect in effects {
+            guard effect.kind == .exactlyOnce || effect.kind == .atLeastOnce,
+                  let parameterIndex = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+                  args.indices.contains(parameterIndex)
+            else {
+                continue
+            }
+            let initializedSymbols = Set(
+                sema.bindings.contractCallsInPlaceInitializedSymbols(for: args[parameterIndex].expr)
+            )
+            guard !initializedSymbols.isEmpty else { continue }
+            for (name, local) in locals where !local.isInitialized && initializedSymbols.contains(local.symbol) {
+                locals[name] = (local.type, local.symbol, local.isMutable, true)
+            }
+        }
     }
 }

@@ -1,179 +1,301 @@
 package kotlin.sequences
 
-// MIGRATION-SEQ-005
-// Sequence window/limiting HOFs migrated to Kotlin source.
-// Migration source: Sources/Runtime/RuntimeSequence.swift
-// Functions: take, takeWhile, drop, dropWhile, chunked, windowed,
-//            zip, zipWithNext, distinct, distinctBy
-//
-// NOTE: Not yet wired into the compiler pipeline.
-// The Sema layer (HeaderHelpers+SyntheticSequenceTerminalStubs.swift,
-// HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift) still synthesises
-// stubs that route these call sites to kk_* ABI functions. This file is the
-// migration target; wiring (and removal of synthetic stubs) happens in a
-// follow-up RF-STDLIB task.
-
-// ── take ──────────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Sequence<T>.take(n: Int): Sequence<T>
-// ABI counterpart: kk_sequence_take
-//
-// Returns a lazy sequence containing the first n elements.
-// Throws IllegalArgumentException if n < 0.
+// MIGRATION-SEQ-005 / KSP-441
+// Sequence window, limiting, and zip/distinct HOFs implemented as lazy
+// object-expression pipelines.  This replaces the previous runtime-bridge
+// based implementation so that source-backed Sequence objects can be chained.
 
 public fun <T> Sequence<T>.take(n: Int): Sequence<T> {
     require(n >= 0) { "Requested element count $n is less than zero." }
-    return sequence {
-        var count = 0
-        val iter = this@take.iterator()
-        while (count < n && iter.hasNext()) {
-            yield(iter.next())
-            count++
-        }
-    }
-}
+    val source = this
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> = object : Iterator<T> {
+            val sourceIterator = source.iterator()
+            var remaining = n
 
-// ── takeWhile ─────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Sequence<T>.takeWhile(predicate: (T) -> Boolean): Sequence<T>
-// ABI counterpart: kk_sequence_takeWhile
-//
-// Returns a lazy sequence containing elements as long as the predicate returns true.
-// Stops at the first element that does not satisfy the predicate.
+            override fun hasNext(): Boolean = remaining > 0 && sourceIterator.hasNext()
 
-public fun <T> Sequence<T>.takeWhile(predicate: (T) -> Boolean): Sequence<T> {
-    return sequence {
-        var yielding = true
-        val iter = this@takeWhile.iterator()
-        while (yielding && iter.hasNext()) {
-            val element = iter.next()
-            if (predicate(element)) {
-                yield(element)
-            } else {
-                yielding = false
+            override fun next(): T {
+                if (remaining == 0 || !sourceIterator.hasNext()) {
+                    throw NoSuchElementException()
+                }
+                remaining = remaining - 1
+                return sourceIterator.next()
             }
         }
     }
 }
 
-// ── drop ──────────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Sequence<T>.drop(n: Int): Sequence<T>
-// ABI counterpart: kk_sequence_drop
-//
-// Returns a lazy sequence that skips the first n elements.
-// Throws IllegalArgumentException if n < 0.
+public fun <T> Sequence<T>.takeWhile(predicate: (T) -> Boolean): Sequence<T> {
+    val source = this
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> = object : Iterator<T> {
+            val sourceIterator = source.iterator()
+            var nextState = -2
+            var nextItem: T? = null
+
+            fun compute() {
+                if (nextState == 0 || nextState == -1) return
+                if (sourceIterator.hasNext()) {
+                    val item = sourceIterator.next()
+                    if (predicate(item)) {
+                        nextItem = item
+                        nextState = 0
+                    } else {
+                        nextState = -1
+                    }
+                } else {
+                    nextState = -1
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                compute()
+                return nextState == 0
+            }
+
+            override fun next(): T {
+                compute()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                @Suppress("UNCHECKED_CAST")
+                val result = nextItem as T
+                nextItem = null
+                return result
+            }
+        }
+    }
+}
 
 public fun <T> Sequence<T>.drop(n: Int): Sequence<T> {
     require(n >= 0) { "Requested element count $n is less than zero." }
-    return sequence {
-        var skipped = 0
-        val iter = this@drop.iterator()
-        while (iter.hasNext()) {
-            val element = iter.next()
-            if (skipped >= n) {
-                yield(element)
-            } else {
-                skipped++
+    val source = this
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> = object : Iterator<T> {
+            val sourceIterator = source.iterator()
+            var remaining = n
+            var nextState = -2
+            var nextItem: T? = null
+
+            fun compute() {
+                if (nextState == 0 || nextState == -1) return
+                while (remaining > 0 && sourceIterator.hasNext()) {
+                    sourceIterator.next()
+                    remaining = remaining - 1
+                }
+                if (sourceIterator.hasNext()) {
+                    nextItem = sourceIterator.next()
+                    nextState = 0
+                } else {
+                    nextState = -1
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                compute()
+                return nextState == 0
+            }
+
+            override fun next(): T {
+                compute()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                @Suppress("UNCHECKED_CAST")
+                val result = nextItem as T
+                nextItem = null
+                return result
             }
         }
     }
 }
-
-// ── dropWhile ─────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Sequence<T>.dropWhile(predicate: (T) -> Boolean): Sequence<T>
-// ABI counterpart: kk_sequence_dropWhile
-//
-// Returns a lazy sequence that skips elements as long as the predicate returns true,
-// then yields all remaining elements.
 
 public fun <T> Sequence<T>.dropWhile(predicate: (T) -> Boolean): Sequence<T> {
-    return sequence {
-        var dropping = true
-        val iter = this@dropWhile.iterator()
-        while (iter.hasNext()) {
-            val element = iter.next()
-            if (dropping && predicate(element)) {
-                // skip
-            } else {
-                dropping = false
-                yield(element)
+    val source = this
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> = object : Iterator<T> {
+            val sourceIterator = source.iterator()
+            var dropped = false
+            var nextState = -2
+            var nextItem: T? = null
+
+            fun ensureNext() {
+                if (nextState == 0 || nextState == -1) return
+                if (dropped) {
+                    if (sourceIterator.hasNext()) {
+                        nextItem = sourceIterator.next()
+                        nextState = 0
+                    } else {
+                        nextState = -1
+                    }
+                    return
+                }
+                while (sourceIterator.hasNext()) {
+                    val item = sourceIterator.next()
+                    if (!predicate(item)) {
+                        dropped = true
+                        nextItem = item
+                        nextState = 0
+                        return
+                    }
+                }
+                nextState = -1
+            }
+
+            override fun hasNext(): Boolean {
+                ensureNext()
+                return nextState == 0
+            }
+
+            override fun next(): T {
+                ensureNext()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                @Suppress("UNCHECKED_CAST")
+                val result = nextItem as T
+                nextItem = null
+                return result
             }
         }
     }
 }
 
-// ── chunked ───────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Sequence<T>.chunked(size: Int): Sequence<List<T>>
-// ABI counterpart: kk_sequence_chunked
-//
-// Splits a sequence into lists each not exceeding the given size.
-// The last list may be shorter if the sequence size is not divisible by size.
+internal fun checkWindowSizeStep(size: Int, step: Int) {
+    if (size <= 0 || step <= 0) {
+        val message = if (size != step) {
+            "Both size $size and step $step must be greater than zero."
+        } else {
+            "size $size must be greater than zero."
+        }
+        throw IllegalArgumentException(message)
+    }
+}
 
 public fun <T> Sequence<T>.chunked(size: Int): Sequence<List<T>> {
-    require(size > 0) { "size must be positive, but was $size" }
-    return sequence {
-        var chunk = mutableListOf<T>()
-        for (element in this@chunked) {
-            chunk.add(element)
-            if (chunk.size == size) {
-                yield(chunk)
-                chunk = mutableListOf()
+    checkWindowSizeStep(size, size)
+    val source = this
+    return object : Sequence<List<T>> {
+        override fun iterator(): Iterator<List<T>> = object : Iterator<List<T>> {
+            val sourceIterator = source.iterator()
+
+            override fun hasNext(): Boolean = sourceIterator.hasNext()
+
+            override fun next(): List<T> {
+                if (!sourceIterator.hasNext()) throw NoSuchElementException()
+                val chunk = mutableListOf<T>()
+                var i = 0
+                while (i < size && sourceIterator.hasNext()) {
+                    chunk.add(sourceIterator.next())
+                    i = i + 1
+                }
+                return chunk
             }
         }
-        if (chunk.size > 0) yield(chunk)
     }
 }
 
 public fun <T, R> Sequence<T>.chunked(size: Int, transform: (List<T>) -> R): Sequence<R> {
-    require(size > 0) { "size must be positive, but was $size" }
-    return sequence {
-        var chunk = mutableListOf<T>()
-        for (element in this@chunked) {
-            chunk.add(element)
-            if (chunk.size == size) {
-                yield(transform(chunk))
-                chunk = mutableListOf()
+    checkWindowSizeStep(size, size)
+    val source = this
+    return object : Sequence<R> {
+        override fun iterator(): Iterator<R> = object : Iterator<R> {
+            val sourceIterator = source.iterator()
+
+            override fun hasNext(): Boolean = sourceIterator.hasNext()
+
+            override fun next(): R {
+                if (!sourceIterator.hasNext()) throw NoSuchElementException()
+                val chunk = mutableListOf<T>()
+                var i = 0
+                while (i < size && sourceIterator.hasNext()) {
+                    chunk.add(sourceIterator.next())
+                    i = i + 1
+                }
+                return transform(chunk)
             }
         }
-        if (chunk.size > 0) yield(transform(chunk))
     }
 }
-
-// ── windowed ──────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib:
-//   fun <T> Sequence<T>.windowed(size, step, partialWindows): Sequence<List<T>>
-// ABI counterpart: kk_sequence_windowed
-//
-// Returns a lazy sequence of sliding windows of the given size, advancing by step
-// each time. Collects elements eagerly so random-access indexing is available.
 
 public fun <T> Sequence<T>.windowed(
     size: Int,
     step: Int = 1,
     partialWindows: Boolean = false
 ): Sequence<List<T>> {
-    require(size > 0) { "size must be positive, but was $size" }
-    require(step > 0) { "step must be positive, but was $step" }
-    return sequence {
-        val elements = mutableListOf<T>()
-        for (element in this@windowed) { elements.add(element) }
-        var i = 0
-        while (i < elements.size) {
-            val end = if (i + size <= elements.size) i + size else elements.size
-            if (end - i == size || partialWindows) {
-                val window = mutableListOf<T>()
-                var j = i
-                while (j < end) {
-                    window.add(elements[j])
-                    j++
+    checkWindowSizeStep(size, step)
+    val source = this
+    return object : Sequence<List<T>> {
+        override fun iterator(): Iterator<List<T>> = object : Iterator<List<T>> {
+            val sourceIterator = source.iterator()
+            val buffer = mutableListOf<T>()
+            var nextWindow: List<T>? = null
+            var nextState = -2
+
+            fun fill() {
+                while (buffer.size < size && sourceIterator.hasNext()) {
+                    buffer.add(sourceIterator.next())
                 }
-                yield(window)
             }
-            i += step
+
+            fun advanceStep() {
+                var i = 0
+                while (i < step && (buffer.isNotEmpty() || sourceIterator.hasNext())) {
+                    if (buffer.isNotEmpty()) {
+                        buffer.removeAt(0)
+                    } else {
+                        sourceIterator.next()
+                    }
+                    i = i + 1
+                }
+                // step > size: the buffer only ever holds up to `size` elements,
+                // so once it's drained the remaining `step - size` elements to
+                // skip before the next window must be pulled directly from the
+                // source and discarded (otherwise they wrongly reappear at the
+                // front of the next window's buffer fill).
+                while (i < step && sourceIterator.hasNext()) {
+                    sourceIterator.next()
+                    i = i + 1
+                }
+            }
+
+            fun makeWindow(): List<T> {
+                val result = mutableListOf<T>()
+                var i = 0
+                while (i < buffer.size) {
+                    result.add(buffer[i])
+                    i = i + 1
+                }
+                return result
+            }
+
+            fun compute() {
+                if (nextState == 0 || nextState == -1) return
+                fill()
+                if (buffer.size == size) {
+                    nextWindow = makeWindow()
+                    advanceStep()
+                    nextState = 0
+                } else if (partialWindows && buffer.isNotEmpty()) {
+                    nextWindow = makeWindow()
+                    advanceStep()
+                    nextState = 0
+                } else {
+                    nextState = -1
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                compute()
+                return nextState == 0
+            }
+
+            override fun next(): List<T> {
+                compute()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                val result = nextWindow!!
+                nextWindow = null
+                return result
+            }
         }
     }
 }
@@ -184,130 +306,298 @@ public fun <T, R> Sequence<T>.windowed(
     partialWindows: Boolean = false,
     transform: (List<T>) -> R
 ): Sequence<R> {
-    require(size > 0) { "size must be positive, but was $size" }
-    require(step > 0) { "step must be positive, but was $step" }
-    return sequence {
-        val elements = mutableListOf<T>()
-        for (element in this@windowed) { elements.add(element) }
-        var i = 0
-        while (i < elements.size) {
-            val end = if (i + size <= elements.size) i + size else elements.size
-            if (end - i == size || partialWindows) {
-                val window = mutableListOf<T>()
-                var j = i
-                while (j < end) {
-                    window.add(elements[j])
-                    j++
+    checkWindowSizeStep(size, step)
+    val source = this
+    return object : Sequence<R> {
+        override fun iterator(): Iterator<R> = object : Iterator<R> {
+            val sourceIterator = source.iterator()
+            val buffer = mutableListOf<T>()
+            var nextResult: R? = null
+            var nextState = -2
+
+            fun fill() {
+                while (buffer.size < size && sourceIterator.hasNext()) {
+                    buffer.add(sourceIterator.next())
                 }
-                yield(transform(window))
             }
-            i += step
+
+            fun advanceStep() {
+                var i = 0
+                while (i < step && (buffer.isNotEmpty() || sourceIterator.hasNext())) {
+                    if (buffer.isNotEmpty()) {
+                        buffer.removeAt(0)
+                    } else {
+                        sourceIterator.next()
+                    }
+                    i = i + 1
+                }
+                // step > size: the buffer only ever holds up to `size` elements,
+                // so once it's drained the remaining `step - size` elements to
+                // skip before the next window must be pulled directly from the
+                // source and discarded (otherwise they wrongly reappear at the
+                // front of the next window's buffer fill).
+                while (i < step && sourceIterator.hasNext()) {
+                    sourceIterator.next()
+                    i = i + 1
+                }
+            }
+
+            fun makeWindow(): List<T> {
+                val result = mutableListOf<T>()
+                var i = 0
+                while (i < buffer.size) {
+                    result.add(buffer[i])
+                    i = i + 1
+                }
+                return result
+            }
+
+            fun compute() {
+                if (nextState == 0 || nextState == -1) return
+                fill()
+                if (buffer.size == size) {
+                    nextResult = transform(makeWindow())
+                    advanceStep()
+                    nextState = 0
+                } else if (partialWindows && buffer.isNotEmpty()) {
+                    nextResult = transform(makeWindow())
+                    advanceStep()
+                    nextState = 0
+                } else {
+                    nextState = -1
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                compute()
+                return nextState == 0
+            }
+
+            override fun next(): R {
+                compute()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                val result = nextResult!!
+                nextResult = null
+                return result
+            }
         }
     }
 }
 
-// ── zip ───────────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T, R> Sequence<T>.zip(other: Sequence<R>): Sequence<Pair<T, R>>
-// ABI counterpart: kk_sequence_zip
-//
-// Merges two sequences into a sequence of pairs. The result length equals
-// the shorter of the two sequences.
-
 public fun <T, R> Sequence<T>.zip(other: Sequence<R>): Sequence<Pair<T, R>> {
-    return sequence {
-        val iter1 = this@zip.iterator()
-        val iter2 = other.iterator()
-        while (iter1.hasNext() && iter2.hasNext()) {
-            yield(Pair(iter1.next(), iter2.next()))
+    val source = this
+    return object : Sequence<Pair<T, R>> {
+        override fun iterator(): Iterator<Pair<T, R>> = object : Iterator<Pair<T, R>> {
+            val left = source.iterator()
+            val right = other.iterator()
+
+            override fun hasNext(): Boolean = left.hasNext() && right.hasNext()
+
+            override fun next(): Pair<T, R> {
+                if (!hasNext()) throw NoSuchElementException()
+                return Pair(left.next(), right.next())
+            }
         }
     }
 }
 
 public fun <T, R, V> Sequence<T>.zip(other: Sequence<R>, transform: (T, R) -> V): Sequence<V> {
-    return sequence {
-        val iter1 = this@zip.iterator()
-        val iter2 = other.iterator()
-        while (iter1.hasNext() && iter2.hasNext()) {
-            yield(transform(iter1.next(), iter2.next()))
+    val source = this
+    return object : Sequence<V> {
+        override fun iterator(): Iterator<V> = object : Iterator<V> {
+            val left = source.iterator()
+            val right = other.iterator()
+
+            override fun hasNext(): Boolean = left.hasNext() && right.hasNext()
+
+            override fun next(): V {
+                if (!hasNext()) throw NoSuchElementException()
+                return transform(left.next(), right.next())
+            }
         }
     }
 }
 
-// ── zipWithNext ───────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Sequence<T>.zipWithNext(): Sequence<Pair<T, T>>
-// ABI counterparts: kk_sequence_zipWithNext, kk_sequence_zipWithNextTransform
-//
-// Returns a lazy sequence of pairs of adjacent elements.
-// An empty or single-element sequence produces an empty result.
-
 public fun <T> Sequence<T>.zipWithNext(): Sequence<Pair<T, T>> {
-    return sequence {
-        val iter = this@zipWithNext.iterator()
-        if (iter.hasNext()) {
-            var current = iter.next()
-            while (iter.hasNext()) {
-                val next = iter.next()
-                yield(Pair(current, next))
-                current = next
+    val source = this
+    return object : Sequence<Pair<T, T>> {
+        override fun iterator(): Iterator<Pair<T, T>> = object : Iterator<Pair<T, T>> {
+            val sourceIterator = source.iterator()
+            var first = true
+            var previous: T? = null
+            var nextPair: Pair<T, T>? = null
+            var nextState = -2
+
+            fun compute() {
+                if (nextState == 0 || nextState == -1) return
+                if (first) {
+                    if (sourceIterator.hasNext()) {
+                        previous = sourceIterator.next()
+                        first = false
+                    } else {
+                        nextState = -1
+                        return
+                    }
+                }
+                if (sourceIterator.hasNext()) {
+                    val current = sourceIterator.next()
+                    @Suppress("UNCHECKED_CAST")
+                    val prev = previous as T
+                    nextPair = Pair(prev, current)
+                    previous = current
+                    nextState = 0
+                } else {
+                    nextState = -1
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                compute()
+                return nextState == 0
+            }
+
+            override fun next(): Pair<T, T> {
+                compute()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                val result = nextPair!!
+                nextPair = null
+                return result
             }
         }
     }
 }
 
 public fun <T, R> Sequence<T>.zipWithNext(transform: (T, T) -> R): Sequence<R> {
-    return sequence {
-        val iter = this@zipWithNext.iterator()
-        if (iter.hasNext()) {
-            var current = iter.next()
-            while (iter.hasNext()) {
-                val next = iter.next()
-                yield(transform(current, next))
-                current = next
+    val source = this
+    return object : Sequence<R> {
+        override fun iterator(): Iterator<R> = object : Iterator<R> {
+            val sourceIterator = source.iterator()
+            var first = true
+            var previous: T? = null
+            var nextResult: R? = null
+            var nextState = -2
+
+            fun compute() {
+                if (nextState == 0 || nextState == -1) return
+                if (first) {
+                    if (sourceIterator.hasNext()) {
+                        previous = sourceIterator.next()
+                        first = false
+                    } else {
+                        nextState = -1
+                        return
+                    }
+                }
+                if (sourceIterator.hasNext()) {
+                    val current = sourceIterator.next()
+                    @Suppress("UNCHECKED_CAST")
+                    val prev = previous as T
+                    nextResult = transform(prev, current)
+                    previous = current
+                    nextState = 0
+                } else {
+                    nextState = -1
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                compute()
+                return nextState == 0
+            }
+
+            override fun next(): R {
+                compute()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                val result = nextResult!!
+                nextResult = null
+                return result
             }
         }
     }
 }
-
-// ── distinct ──────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Sequence<T>.distinct(): Sequence<T>
-// ABI counterpart: kk_sequence_distinct
-//
-// Returns a lazy sequence containing only distinct elements.
-// Uses structural equality (==) for comparison and tracks seen elements
-// using a list to preserve encounter order.
 
 public fun <T> Sequence<T>.distinct(): Sequence<T> {
-    return sequence {
-        val seen = mutableListOf<T>()
-        for (element in this@distinct) {
-            if (!seen.contains(element)) {
-                seen.add(element)
-                yield(element)
+    val source = this
+    val seen = mutableListOf<Any?>()
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> = object : Iterator<T> {
+            val sourceIterator = source.iterator()
+            var nextState = -2
+            var nextItem: T? = null
+
+            fun compute() {
+                if (nextState == 0 || nextState == -1) return
+                while (sourceIterator.hasNext()) {
+                    val item = sourceIterator.next()
+                    val key = item as Any?
+                    if (!seen.contains(key)) {
+                        seen.add(key)
+                        nextItem = item
+                        nextState = 0
+                        return
+                    }
+                }
+                nextState = -1
+            }
+
+            override fun hasNext(): Boolean {
+                compute()
+                return nextState == 0
+            }
+
+            override fun next(): T {
+                compute()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                @Suppress("UNCHECKED_CAST")
+                val result = nextItem as T
+                nextItem = null
+                return result
             }
         }
     }
 }
 
-// ── distinctBy ────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T, K> Sequence<T>.distinctBy(selector: (T) -> K): Sequence<T>
-// ABI counterpart: kk_sequence_distinctBy
-//
-// Returns a lazy sequence containing only elements with distinct keys as
-// returned by the selector function. When two elements have the same key,
-// the first one encountered is yielded.
-
 public fun <T, K> Sequence<T>.distinctBy(selector: (T) -> K): Sequence<T> {
-    return sequence {
-        val keys = mutableListOf<K>()
-        for (element in this@distinctBy) {
-            val key = selector(element)
-            if (!keys.contains(key)) {
-                keys.add(key)
-                yield(element)
+    val source = this
+    val seen = mutableListOf<Any?>()
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> = object : Iterator<T> {
+            val sourceIterator = source.iterator()
+            var nextState = -2
+            var nextItem: T? = null
+
+            fun compute() {
+                if (nextState == 0 || nextState == -1) return
+                while (sourceIterator.hasNext()) {
+                    val item = sourceIterator.next()
+                    val key = selector(item) as Any?
+                    if (!seen.contains(key)) {
+                        seen.add(key)
+                        nextItem = item
+                        nextState = 0
+                        return
+                    }
+                }
+                nextState = -1
+            }
+
+            override fun hasNext(): Boolean {
+                compute()
+                return nextState == 0
+            }
+
+            override fun next(): T {
+                compute()
+                if (nextState != 0) throw NoSuchElementException()
+                nextState = -2
+                @Suppress("UNCHECKED_CAST")
+                val result = nextItem as T
+                nextItem = null
+                return result
             }
         }
     }

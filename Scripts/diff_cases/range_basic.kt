@@ -1,3 +1,4 @@
+
 fun main() {
     // Constructor: start..end
     val r = 1..10
@@ -7,9 +8,9 @@ fun main() {
     println(r.last)
     println(r.step)
 
-    // Properties: start, end (aliases for first, last)
+    // Properties: start, endInclusive (aliases for first, last)
     println(r.start)
-    println(r.end)
+    println(r.endInclusive)
 
     // Contains: in operator, contains(), isEmpty()
     println(5 in r)
@@ -21,7 +22,7 @@ fun main() {
 
     // Converting: toList(), toIntArray()
     println(r.toList())
-    val arr = r.toIntArray()
+    val arr = r.toList().toIntArray()
     println(arr.size)
     println(arr[0])
     println(arr[9])

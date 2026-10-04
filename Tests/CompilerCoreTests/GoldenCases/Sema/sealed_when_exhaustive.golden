@@ -1,21 +1,21 @@
-symbol fq=Circle kind=class vis=public flags=_
-symbol fq=Rectangle kind=class vis=public flags=_
-symbol fq=Shape kind=class vis=public flags=sealedType|abstractType|openType
-symbol fq=Triangle kind=class vis=public flags=_
-symbol fq=describeShape kind=function vis=public flags=_ sig=recv=_ params=[Shape] ret=String
-symbol fq=describeShape.$0.s kind=valueParameter vis=private flags=_
-file f13 package=_
-  decl d0 class Shape sym=Shape
-  decl d1 class Circle sym=Circle
-  decl d2 class Rectangle sym=Rectangle
-  decl d3 class Triangle sym=Triangle
-  decl d4 fun describeShape sym=describeShape
-expr e0 name(s) type=Shape ref=describeShape.$0.s
-expr e1 isCheck expr=e0 type=t0 type=Boolean
-expr e2 string(circle) type=String
-expr e3 isCheck expr=e0 type=t1 type=Boolean
-expr e4 string(rectangle) type=String
-expr e5 isCheck expr=e0 type=t2 type=Boolean
-expr e6 string(triangle) type=String
-expr e7 when subject=e0 branches=[e1->e2,e3->e4,e5->e6] else=_ type=String
-expr e8 return value=e7 type=Nothing
+symbol fq=Circle[kind=class] kind=class vis=public flags=_
+symbol fq=Rectangle[kind=class] kind=class vis=public flags=_
+symbol fq=Shape[kind=class] kind=class vis=public flags=sealedType|abstractType|openType
+symbol fq=Triangle[kind=class] kind=class vis=public flags=_
+symbol fq=describeShape.$0.s[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=describeShape[kind=fun;params=Shape] kind=function vis=public flags=_ sig=recv=_ params=[Shape] ret=String
+file fsealed_when_exhaustive package=_
+  decl Shape[kind=class] class Shape sym=Shape[kind=class]
+  decl Circle[kind=class] class Circle sym=Circle[kind=class]
+  decl Rectangle[kind=class] class Rectangle sym=Rectangle[kind=class]
+  decl Triangle[kind=class] class Triangle sym=Triangle[kind=class]
+  decl describeShape[kind=fun;params=Shape] fun describeShape sym=describeShape[kind=fun;params=Shape]
+expr e@7:18 name(s) type=Shape ref=describeShape.$0.s[kind=vparam]
+expr e@7:18#1 isCheck expr=e@7:18 type=Circle type=Boolean
+expr e@8:22 string(circle) type=String
+expr e@7:18#2 isCheck expr=e@7:18 type=Rectangle type=Boolean
+expr e@9:25 string(rectangle) type=String
+expr e@7:18#3 isCheck expr=e@7:18 type=Triangle type=Boolean
+expr e@10:24 string(triangle) type=String
+expr e@7:12 when subject=e@7:18 branches=[e@7:18#1->e@8:22,e@7:18#2->e@9:25,e@7:18#3->e@10:24] else=_ type=String
+expr e@7:5 return value=e@7:12 type=Nothing

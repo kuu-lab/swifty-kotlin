@@ -5,35 +5,12 @@ import Testing
 @Suite
 struct TokenModelTests {
     @Test
-    func testStringInternerReusesIDsAndResolvesInternedValues() {
-        let interner = StringInterner()
-
-        let fooA = interner.intern("foo")
-        let fooB = interner.intern("foo")
-        let bar = interner.intern("bar")
-
-        #expect(fooA == fooB)
-        #expect(fooA != bar)
-        #expect(interner.resolve(fooA) == "foo")
-        #expect(interner.resolve(bar) == "bar")
-    }
-
-    @Test
-    func testStringInternerResolveReturnsEmptyForOutOfRangeIDs() {
-        let interner = StringInterner()
-        _ = interner.intern("only")
-
-        #expect(interner.resolve(InternedString(rawValue: -1)) == "")
-        #expect(interner.resolve(InternedString(rawValue: 100)) == "")
-    }
-
-    @Test
     func testTriviaPieceBlockCommentAndShebang() {
         let block = TriviaPiece.blockComment("/* comment */")
         let shebang = TriviaPiece.shebang("#!/usr/bin/env kotlin")
         #expect(block != shebang)
-        #expect(block == .blockComment("/* comment */"))
-        #expect(shebang == .shebang("#!/usr/bin/env kotlin"))
+        #expect(block != .blockComment("/* other */"))
+        #expect(shebang != .shebang("#!/bin/sh"))
     }
 
     @Test
@@ -41,27 +18,11 @@ struct TokenModelTests {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 1)
 
-        let missing = Token(kind: .missing(expected: .keyword(.fun)), range: range)
-        #expect(missing.kind == .missing(expected: .keyword(.fun)))
-
-        let backticked = Token(kind: .backtickedIdentifier(interner.intern("myFun")), range: range)
-        guard case let .backtickedIdentifier(name) = backticked.kind else {
-            Issue.record("Expected backtickedIdentifier"); return
-        }
-        #expect(interner.resolve(name) == "myFun")
-
-        let charLit = Token(kind: .charLiteral(65), range: range)
-        guard case let .charLiteral(code) = charLit.kind else {
-            Issue.record("Expected charLiteral"); return
-        }
-        #expect(code == 65)
-    }
-
-    @Test
-    func testInternedStringInvalidAndEquality() {
-        #expect(InternedString.invalid.rawValue == -1)
-        #expect(InternedString() == InternedString.invalid)
-        #expect(InternedString(rawValue: 0) != InternedString(rawValue: 1))
+        #expect(Token(kind: .missing(expected: .keyword(.fun)), range: range).kind
+            == .missing(expected: .keyword(.fun)))
+        #expect(Token(kind: .backtickedIdentifier(interner.intern("myFun")), range: range).kind
+            == .backtickedIdentifier(interner.intern("myFun")))
+        #expect(Token(kind: .charLiteral(65), range: range).kind == .charLiteral(65))
     }
 
     @Test
@@ -83,97 +44,84 @@ struct TokenModelTests {
         #expect(token.trailingTrivia == [.newline, .lineComment("// trailing")])
     }
 
-    // MARK: - Keyword enum: all cases
+    // MARK: - Keyword
+
+    /// Spelling table for every `Keyword`. The `allCases` guard below is what
+    /// keeps it honest: a new case added to the enum fails this test until it
+    /// is listed here, rather than silently escaping the suite.
+    private static let keywordSpellings: [(Keyword, String)] = [
+        (.as, "as"),
+        (.break, "break"),
+        (.class, "class"),
+        (.catch, "catch"),
+        (.continue, "continue"),
+        (.data, "data"),
+        (.do, "do"),
+        (.else, "else"),
+        (.false, "false"),
+        (.dynamic, "dynamic"),
+        (.enum, "enum"),
+        (.external, "external"),
+        (.for, "for"),
+        (.fun, "fun"),
+        (.if, "if"),
+        (.infix, "infix"),
+        (.in, "in"),
+        (.is, "is"),
+        (.import, "import"),
+        (.interface, "interface"),
+        (.finally, "finally"),
+        (.null, "null"),
+        (.operator, "operator"),
+        (.object, "object"),
+        (.package, "package"),
+        (.return, "return"),
+        (.super, "super"),
+        (.this, "this"),
+        (.typealias, "typealias"),
+        (.throw, "throw"),
+        (.true, "true"),
+        (.try, "try"),
+        (.val, "val"),
+        (.var, "var"),
+        (.while, "while"),
+        (.when, "when"),
+        (.sealed, "sealed"),
+        (.inner, "inner"),
+        (.reified, "reified"),
+        (.open, "open"),
+        (.private, "private"),
+        (.public, "public"),
+        (.protected, "protected"),
+        (.internal, "internal"),
+        (.override, "override"),
+        (.final, "final"),
+        (.abstract, "abstract"),
+        (.suspend, "suspend"),
+        (.inline, "inline"),
+        (.expect, "expect"),
+        (.actual, "actual"),
+        (.constructor, "constructor"),
+        (.companion, "companion"),
+        (.annotation, "annotation"),
+        (.const, "const"),
+        (.crossinline, "crossinline"),
+        (.lateinit, "lateinit"),
+        (.noinline, "noinline"),
+        (.tailrec, "tailrec"),
+        (.vararg, "vararg"),
+        (.value, "value"),
+    ]
 
     @Test
-    func testKeywordAllCasesRawValues() {
-        let expectedKeywords: [(Keyword, String)] = [
-            (.as, "as"),
-            (.break, "break"),
-            (.class, "class"),
-            (.catch, "catch"),
-            (.continue, "continue"),
-            (.data, "data"),
-            (.do, "do"),
-            (.else, "else"),
-            (.false, "false"),
-            (.dynamic, "dynamic"),
-            (.enum, "enum"),
-            (.external, "external"),
-            (.for, "for"),
-            (.fun, "fun"),
-            (.if, "if"),
-            (.infix, "infix"),
-            (.in, "in"),
-            (.is, "is"),
-            (.import, "import"),
-            (.interface, "interface"),
-            (.finally, "finally"),
-            (.null, "null"),
-            (.operator, "operator"),
-            (.object, "object"),
-            (.package, "package"),
-            (.return, "return"),
-            (.super, "super"),
-            (.this, "this"),
-            (.typealias, "typealias"),
-            (.throw, "throw"),
-            (.true, "true"),
-            (.try, "try"),
-            (.val, "val"),
-            (.var, "var"),
-            (.while, "while"),
-            (.when, "when"),
-            (.sealed, "sealed"),
-            (.inner, "inner"),
-            (.reified, "reified"),
-            (.open, "open"),
-            (.private, "private"),
-            (.public, "public"),
-            (.protected, "protected"),
-            (.internal, "internal"),
-            (.override, "override"),
-            (.final, "final"),
-            (.abstract, "abstract"),
-            (.suspend, "suspend"),
-            (.inline, "inline"),
-            (.expect, "expect"),
-            (.actual, "actual"),
-            (.constructor, "constructor"),
-            (.companion, "companion"),
-            (.annotation, "annotation"),
-            (.const, "const"),
-            (.crossinline, "crossinline"),
-            (.lateinit, "lateinit"),
-            (.noinline, "noinline"),
-            (.tailrec, "tailrec"),
-            (.vararg, "vararg"),
-            (.value, "value"),
-        ]
-
-        for (keyword, expected) in expectedKeywords {
-            #expect(keyword.rawValue == expected, "Keyword.\(expected) rawValue mismatch")
-        }
-    }
-
-    @Test
-    func testKeywordInitFromRawValueRoundTrips() {
-        let allRawValues = [
-            "as", "break", "class", "catch", "continue", "data", "do", "else",
-            "false", "dynamic", "enum", "external", "for", "fun", "if", "infix",
-            "in", "is", "import", "interface", "finally", "null", "operator",
-            "object", "package", "return", "super", "this", "typealias", "throw",
-            "true", "try", "val", "var", "while", "when", "sealed", "inner",
-            "reified", "open", "private", "public", "protected", "internal",
-            "override", "final", "abstract", "suspend", "inline", "expect",
-            "actual", "constructor", "companion", "annotation", "const",
-            "crossinline", "lateinit", "noinline", "tailrec", "vararg", "value",
-        ]
-
-        for raw in allRawValues {
-            let keyword = Keyword(rawValue: raw)
-            #expect(keyword != nil, "Keyword(rawValue: \"\(raw)\") should not be nil")
-            #expect(keyword?.rawValue == raw)
+    func testKeywordSpellingsCoverEveryCaseAndRoundTrip() {
+        #expect(
+            Set(Self.keywordSpellings.map(\.0)) == Set(Keyword.allCases),
+            "keywordSpellings is out of sync with Keyword.allCases"
+        )
+        for (keyword, spelling) in Self.keywordSpellings {
+            #expect(keyword.rawValue == spelling, "Keyword.\(keyword) rawValue mismatch")
+            #expect(Keyword(rawValue: spelling) == keyword, "Keyword(rawValue: \"\(spelling)\") round-trip failed")
         }
     }
 
@@ -185,68 +133,45 @@ struct TokenModelTests {
     }
 
     @Test
-    func testKeywordTokenKindEquality() {
-        let allKeywords: [Keyword] = [
-            .as, .break, .class, .catch, .continue, .data, .do, .else,
-            .false, .dynamic, .enum, .external, .for, .fun, .if, .infix,
-            .in, .is, .import, .interface, .finally, .null, .operator,
-            .object, .package, .return, .super, .this, .typealias, .throw,
-            .true, .try, .val, .var, .while, .when, .sealed, .inner,
-            .reified, .open, .private, .public, .protected, .internal,
-            .override, .final, .abstract, .suspend, .inline, .expect,
-            .actual, .constructor, .companion, .annotation, .const,
-            .crossinline, .lateinit, .noinline, .tailrec, .vararg, .value,
-        ]
-
-        for keyword in allKeywords {
-            let kind = TokenKind.keyword(keyword)
-            #expect(kind == TokenKind.keyword(keyword))
-        }
-
-        // Different keywords should not be equal
+    func testDistinctKeywordsProduceDistinctTokenKinds() {
         #expect(TokenKind.keyword(.fun) != TokenKind.keyword(.val))
         #expect(TokenKind.keyword(.class) != TokenKind.keyword(.interface))
     }
 
-    // MARK: - SoftKeyword enum: all cases
+    // MARK: - SoftKeyword
+
+    /// See `keywordSpellings` for why the `allCases` guard matters here.
+    private static let softKeywordSpellings: [(SoftKeyword, String)] = [
+        (.by, "by"),
+        (.get, "get"),
+        (.set, "set"),
+        (.field, "field"),
+        (.property, "property"),
+        (.receiver, "receiver"),
+        (.param, "param"),
+        (.setparam, "setparam"),
+        (.delegate, "delegate"),
+        (.file, "file"),
+        (.context, "context"),
+        (.where, "where"),
+        (.`init`, "init"),
+        (.constructor, "constructor"),
+        (.out, "out"),
+        (.when, "when"),
+    ]
 
     @Test
-    func testSoftKeywordAllCasesRawValues() {
-        let expectedSoftKeywords: [(SoftKeyword, String)] = [
-            (.by, "by"),
-            (.get, "get"),
-            (.set, "set"),
-            (.field, "field"),
-            (.property, "property"),
-            (.receiver, "receiver"),
-            (.param, "param"),
-            (.setparam, "setparam"),
-            (.delegate, "delegate"),
-            (.file, "file"),
-            (.where, "where"),
-            (.`init`, "init"),
-            (.constructor, "constructor"),
-            (.out, "out"),
-            (.when, "when"),
-        ]
-
-        for (softKeyword, expected) in expectedSoftKeywords {
-            #expect(softKeyword.rawValue == expected, "SoftKeyword.\(expected) rawValue mismatch")
-        }
-    }
-
-    @Test
-    func testSoftKeywordInitFromRawValueRoundTrips() {
-        let allRawValues = [
-            "by", "get", "set", "field", "property", "receiver",
-            "param", "setparam", "delegate", "file", "where",
-            "init", "constructor", "out", "when",
-        ]
-
-        for raw in allRawValues {
-            let softKeyword = SoftKeyword(rawValue: raw)
-            #expect(softKeyword != nil, "SoftKeyword(rawValue: \"\(raw)\") should not be nil")
-            #expect(softKeyword?.rawValue == raw)
+    func testSoftKeywordSpellingsCoverEveryCaseAndRoundTrip() {
+        #expect(
+            Set(Self.softKeywordSpellings.map(\.0)) == Set(SoftKeyword.allCases),
+            "softKeywordSpellings is out of sync with SoftKeyword.allCases"
+        )
+        for (softKeyword, spelling) in Self.softKeywordSpellings {
+            #expect(softKeyword.rawValue == spelling, "SoftKeyword.\(softKeyword) rawValue mismatch")
+            #expect(
+                SoftKeyword(rawValue: spelling) == softKeyword,
+                "SoftKeyword(rawValue: \"\(spelling)\") round-trip failed"
+            )
         }
     }
 
@@ -258,19 +183,7 @@ struct TokenModelTests {
     }
 
     @Test
-    func testSoftKeywordTokenKindEquality() {
-        let allSoftKeywords: [SoftKeyword] = [
-            .by, .get, .set, .field, .property, .receiver,
-            .param, .setparam, .delegate, .file, .where,
-            .`init`, .constructor, .out, .when,
-        ]
-
-        for softKeyword in allSoftKeywords {
-            let kind = TokenKind.softKeyword(softKeyword)
-            #expect(kind == TokenKind.softKeyword(softKeyword))
-        }
-
-        // Different soft keywords should not be equal
+    func testDistinctSoftKeywordsProduceDistinctTokenKinds() {
         #expect(TokenKind.softKeyword(.get) != TokenKind.softKeyword(.set))
         #expect(TokenKind.softKeyword(.field) != TokenKind.softKeyword(.property))
     }

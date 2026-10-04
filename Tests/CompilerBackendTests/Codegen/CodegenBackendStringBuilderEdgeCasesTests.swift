@@ -1,0 +1,513 @@
+#if canImport(Testing)
+@testable import CompilerCore
+@testable import CompilerBackend
+import Foundation
+import Testing
+
+@Suite
+struct CodegenBackendStringBuilderEdgeCasesTests {
+
+    @Test
+    func testCodegenCompilesStringBuilderAppendRangeEdgeCases() throws {
+        let source = """
+        fun main() {
+            println(StringBuilder("hello").appendRange("WORLD", 1, 4).toString())
+
+            val sb = StringBuilder("01")
+            sb.appendRange("abcd", 0, 2)
+            println(sb.toString())
+
+            val implicit = with(StringBuilder("rust")) {
+                appendRange("SWIFT", 1, 4)
+                toString()
+            }
+            println(implicit)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderAppendRangeEdgeCases",
+            expected:
+                """
+                helloORL
+                01ab
+                rustWIF
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesStringBuilderDeleteAtEdgeCases() throws {
+        let source = """
+        fun main() {
+            println(StringBuilder("abc").deleteAt(1).toString())
+
+            val sb = StringBuilder("xy")
+            sb.deleteAt(0)
+            println(sb.toString())
+
+            val implicit = with(StringBuilder("rust")) {
+                deleteAt(1)
+                toString()
+            }
+            println(implicit)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderDeleteAtEdgeCases",
+            expected:
+                """
+                ac
+                y
+                rst
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesStringBuilderDeleteRangeEdgeCases() throws {
+        let source = """
+        fun main() {
+            println(StringBuilder("abcdef").deleteRange(1, 4).toString())
+
+            val sb = StringBuilder("012345")
+            sb.deleteRange(2, 5)
+            println(sb.toString())
+
+            val implicit = with(StringBuilder("abcdef")) {
+                deleteRange(0, 2)
+                toString()
+            }
+            println(implicit)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderDeleteRangeEdgeCases",
+            expected:
+                """
+                aef
+                015
+                cdef
+                """
+                + "\n"
+        )
+    }
+
+    // STDLIB-TEXT-FN-024: insert
+    @Test
+    func testCodegenCompilesStringBuilderInsertEdgeCases() throws {
+        let source = """
+        fun main() {
+            println(StringBuilder("ac").insert(1, "b").toString())
+
+            val sb = StringBuilder("bd")
+            sb.insert(0, "a")
+            sb.insert(2, "c")
+            println(sb.toString())
+
+            val implicit = with(StringBuilder("xz")) {
+                insert(1, "y")
+                toString()
+            }
+            println(implicit)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderInsertEdgeCases",
+            expected:
+                """
+                abc
+                abcd
+                xyz
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesStringBuilderInsertRangeEdgeCases() throws {
+        let source = """
+        fun main() {
+            println(StringBuilder("ab").insertRange(1, "WXYZ", 1, 3).toString())
+
+            val sb = StringBuilder("01")
+            sb.insertRange(2, "abcd", 0, 2)
+            println(sb.toString())
+
+            val implicit = with(StringBuilder("rust")) {
+                insertRange(0, "SWIFT", 1, 4)
+                toString()
+            }
+            println(implicit)
+
+            // KUU-641: insertRange must accept any CharSequence, not only String.
+            val dst = StringBuilder("abc")
+            val src = StringBuilder("XYZ")
+            dst.insertRange(1, src, 0, 2)
+            println(dst.toString())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderInsertRangeEdgeCases",
+            expected:
+                """
+                aXYb
+                01ab
+                WIFrust
+                aXYbc
+                """
+                + "\n"
+        )
+    }
+
+    // KUU-641: StringBuilder.reverse() must keep UTF-16 surrogate pairs intact.
+    @Test
+    func testCodegenStringBuilderReversePreservesSurrogatePairs() throws {
+        let source = """
+        fun main() {
+            val paired = StringBuilder("a\\uD800\\uDC00b")
+            paired.reverse()
+            println(paired[0] == 'b')
+            println(paired[1] == '\\uD800')
+            println(paired[2] == '\\uDC00')
+            println(paired[3] == 'a')
+
+            val unpaired = StringBuilder("\\uDC00\\uD800")
+            unpaired.reverse()
+            println(unpaired[0] == '\\uD800')
+            println(unpaired[1] == '\\uDC00')
+
+            println(StringBuilder("abc").reverse().toString())
+            println(StringBuilder("x").reverse().toString())
+            println(StringBuilder("").reverse().toString().length)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderReverseSurrogatePairs",
+            expected:
+                """
+                true
+                true
+                true
+                true
+                true
+                true
+                cba
+                x
+                0
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesStringBuilderSetRangeEdgeCases() throws {
+        let source = """
+        fun main() {
+            println(StringBuilder("abcd").setRange(1, 3, "XYZ").toString())
+
+            val sb = StringBuilder("012345")
+            sb.setRange(2, 5, "AB")
+            println(sb.toString())
+
+            val implicit = with(StringBuilder("rust")) {
+                setRange(0, 2, "SW")
+                toString()
+            }
+            println(implicit)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderSetRangeEdgeCases",
+            expected:
+                """
+                aXYZd
+                01AB5
+                SWst
+                """
+                + "\n"
+        )
+    }
+
+    // STDLIB-TEXT-FN-003: Typed append overloads for StringBuilder
+    @Test
+    func testCodegenCompilesStringBuilderTypedAppendOverloads() throws {
+        let source = """
+        fun main() {
+            val sb = StringBuilder()
+            sb.append("hello")
+            sb.append(' ')
+            sb.append(true)
+            sb.append(' ')
+            sb.append(42)
+            sb.append(' ')
+            sb.append(100L)
+            println(sb.toString())
+
+            val sb2 = StringBuilder()
+            sb2.append(3.14)
+            println(sb2.toString())
+
+            val sb3 = StringBuilder()
+            val nullStr: String? = null
+            sb3.append(nullStr)
+            println(sb3.toString())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderTypedAppendOverloads",
+            expected:
+                """
+                hello true 42 100
+                3.14
+                null
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesAppendableAppendOverloads() throws {
+        let source = """
+        import kotlin.text.Appendable
+
+        fun main() {
+            val sb = StringBuilder()
+            val target: Appendable = sb
+            target.append('a')
+            target.append("bc")
+            target.append("def", 1, 3)
+            println(sb.toString())
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "AppendableAppendOverloads", expected: "abcef\n")
+    }
+
+    // DEBT-RT-001: StringBuilder bounds checks throw catchable IndexOutOfBoundsException.
+    @Test
+    func testCodegenStringBuilderInsertOutOfBoundsThrowsIndexOutOfBoundsException() throws {
+        let source = """
+        fun main() {
+            try {
+                StringBuilder("hello").insert(99, "x")
+                println("insert: no exception")
+            } catch (e: IndexOutOfBoundsException) {
+                println("insert: caught")
+            }
+
+            try {
+                StringBuilder("hello").insert(99, 'x')
+                println("insertChar: no exception")
+            } catch (e: IndexOutOfBoundsException) {
+                println("insertChar: caught")
+            }
+
+            try {
+                StringBuilder("hello").insert(99, true)
+                println("insertBoolean: no exception")
+            } catch (e: IndexOutOfBoundsException) {
+                println("insertBoolean: caught")
+            }
+
+            try {
+                StringBuilder("hello").insert(99, 3.14f)
+                println("insertFloat: no exception")
+            } catch (e: IndexOutOfBoundsException) {
+                println("insertFloat: caught")
+            }
+
+            try {
+                StringBuilder("hello").insert(99, 2.718)
+                println("insertDouble: no exception")
+            } catch (e: IndexOutOfBoundsException) {
+                println("insertDouble: caught")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderInsertOOB",
+            expected:
+                """
+                insert: caught
+                insertChar: caught
+                insertBoolean: caught
+                insertFloat: caught
+                insertDouble: caught
+                """
+                + "\n"
+        )
+    }
+
+    // Regression: StringBuilder(capacity: Int) used to crash (SIGSEGV) because the
+    // Int argument was routed through the String-taking native constructor, which
+    // reinterpreted the raw capacity value as a string data pointer.
+    @Test
+    func testCodegenCompilesStringBuilderCapacityConstructor() throws {
+        let source = """
+        fun main() {
+            val sb = StringBuilder(16)
+            sb.append("hello")
+            println(sb.toString())
+
+            println(StringBuilder(8).append("world").toString())
+
+            val implicit = with(StringBuilder(4)) {
+                append("cap")
+                toString()
+            }
+            println(implicit)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderCapacityConstructor",
+            expected:
+                """
+                hello
+                world
+                cap
+                """
+                + "\n"
+        )
+    }
+
+    // BUG-044: StringBuilder instances are constructed via a dedicated
+    // runtime entry point (kk_string_builder_new/_from_string_flat) that
+    // bypasses the normal kk_object_new class-construction path, so they
+    // never received the kk_type_register_super/kk_object_register_itable_iface
+    // registrations that make `is`/`as` work for a hand-rolled runtime
+    // object. `sb is CharSequence`/`sb is Appendable` fell through to
+    // kk_op_is's exception-hierarchy fallback and always returned false.
+    @Test
+    func testCodegenStringBuilderIsCharSequenceAndAppendable() throws {
+        let source = """
+        fun main() {
+            val sb = StringBuilder("hello")
+            println(sb is CharSequence)
+            println(sb is Appendable)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderIsCharSequenceAndAppendable",
+            expected:
+                """
+                true
+                true
+                """
+                + "\n"
+        )
+    }
+
+    // BUG-044 follow-up: `buildStringBuilder { ... }` (unlike `buildString { ... }`,
+    // which converts to a String via `.toString()` before returning) hands back
+    // the StringBuilder itself, constructed via the separate `kk_build_string_builder`
+    // DSL entry point (RuntimeBuilderDSL.swift), not the `kk_string_builder_new*`
+    // constructors the above test exercises. It needs the same
+    // runtimeRegisterStringBuilderType registration independently.
+    @Test
+    func testCodegenBuildStringBuilderResultIsCharSequenceAndAppendable() throws {
+        let source = """
+        fun main() {
+            val sb = buildStringBuilder { append("hello") }
+            println(sb is CharSequence)
+            println(sb is Appendable)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "BuildStringBuilderResultIsCharSequenceAndAppendable",
+            expected:
+                """
+                true
+                true
+                """
+                + "\n"
+        )
+    }
+
+    // BUG-043: Inside `buildString { ... }` / `buildStringBuilder { ... }`, member
+    // calls on the implicit StringBuilder receiver other than the six that used to
+    // be rewritten to the global builder-state DSL (append/appendLine/insert/
+    // delete/length/appendRange) fell back to the source-backed StringBuilder
+    // methods, but the DSL executor passed `0` as the implicit receiver, leaving
+    // `this` an invalid handle and corrupting execution at runtime. The
+    // StringBuilder source migration removed the global builder-state path
+    // entirely: `buildString`/`buildStringBuilder` are now plain Kotlin that
+    // construct a real StringBuilder object and invoke the receiver lambda with
+    // that object as `this`. This pins the previously-broken methods
+    // (reverse/clear/toString/deleteAt/deleteCharAt/setCharAt/set/get/capacity/
+    // ensureCapacity/trimToSize/setRange/deleteRange) through the builder lambda
+    // so the regression cannot return. `replace`/`insertRange` are omitted here
+    // because they currently fail overload resolution on an *implicit* receiver
+    // (even inside a plain `with(StringBuilder()) { ... }`); that is a separate
+    // pre-existing Sema issue unrelated to the BUG-043 runtime `this` handle.
+    @Test
+    func testCodegenBuildStringReceiverMethodsUseValidThisHandle() throws {
+        let source = """
+        fun main() {
+            println(buildString { append("x"); reverse() })
+            println(buildString { append("abc"); reverse() })
+            println(buildString { append("abc"); clear(); append("z") })
+            println(buildString { append("abc"); deleteAt(1) })
+            println(buildString { append("abc"); deleteCharAt(0) })
+            println(buildString { append("abc"); setCharAt(1, 'Y') })
+            println(buildString { append("abc"); set(2, 'Z') })
+            println(buildString { append("abc"); append(get(1)) })
+            println(buildString { append("ab"); append(capacity() > 0) })
+            println(buildString { append("ab"); ensureCapacity(64); trimToSize(); append("c") })
+            println(buildString { append("abcd"); setRange(1, 3, "XY") })
+            println(buildString { append("abcd"); deleteRange(1, 3) })
+            println(buildString { append("hello"); append(toString().length) })
+            println(buildStringBuilder { append("hi"); reverse() }.toString())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "BuildStringReceiverMethodsUseValidThisHandle",
+            expected:
+                """
+                x
+                cba
+                z
+                ac
+                bc
+                aYc
+                abZ
+                abcb
+                abtrue
+                abc
+                aXYd
+                ad
+                hello5
+                ih
+                """
+                + "\n"
+        )
+    }
+}
+#endif

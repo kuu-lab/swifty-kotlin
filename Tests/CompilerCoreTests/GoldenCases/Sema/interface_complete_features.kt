@@ -4,8 +4,11 @@ interface InterfaceProperties {
     val abstractVal: String
     var abstractVar: Int
     
-    val concreteVal: String = "default"
-    var concreteVar: Int = 42
+    val concreteVal: String
+        get() = "default"
+    var concreteVar: Int
+        get() = 42
+        set(value) {}
     
     val computedVal: String
         get() = "computed"

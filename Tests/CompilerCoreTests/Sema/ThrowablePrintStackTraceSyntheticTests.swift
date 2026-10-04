@@ -3,23 +3,24 @@ import Testing
 
 @Suite
 struct ThrowablePrintStackTraceSyntheticTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
+    private static let fixture = SemaFixture(surface: "Throwable")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), "Expected Throwable surface to resolve cleanly, got: \(diagnostics)")
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test
     func testPrintStackTraceMemberFunctionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinPackage = ["kotlin"].map { interner.intern($0) }
         let throwableSymbol = try #require(sema.symbols.lookup(
             fqName: kotlinPackage + [interner.intern("Throwable")]
@@ -30,12 +31,19 @@ struct ThrowablePrintStackTraceSyntheticTests {
             nullability: .nonNull
         )))
 
-        let printStackTraceSymbol = try #require(sema.symbols.lookup(
-            fqName: kotlinPackage + [interner.intern("Throwable"), interner.intern("printStackTrace")]
-        ))
+        let printStackTraceSymbol = try #require(
+            sema.symbols.lookupAll(
+                fqName: kotlinPackage + [interner.intern("printStackTrace")]
+            ).first { symbolID in
+                sema.symbols.symbol(symbolID)?.kind == .function
+                    && sema.symbols.functionSignature(for: symbolID)?.receiverType == throwableType
+            },
+            "Expected kotlin.Throwable.printStackTrace extension function"
+        )
         let signature = try #require(sema.symbols.functionSignature(for: printStackTraceSymbol))
 
-        #expect(sema.symbols.externalLinkName(for: printStackTraceSymbol) == "kk_throwable_printStackTrace")
+        let symbol = try #require(sema.symbols.symbol(printStackTraceSymbol))
+        #expect(!symbol.flags.contains(.synthetic))
         #expect(signature.receiverType == throwableType)
         #expect(signature.parameterTypes == [])
         #expect(signature.returnType == sema.types.unitType)

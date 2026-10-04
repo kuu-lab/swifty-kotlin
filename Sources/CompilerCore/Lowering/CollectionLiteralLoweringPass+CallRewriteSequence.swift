@@ -1,6 +1,6 @@
 /// Sequence-producing and sequence-consuming call rewrites split out from
 /// `CollectionLiteralLoweringPass+CallRewrite.swift`.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequenceCollectionCall(
         symbol: SymbolID?,
         callee: InternedString,
@@ -13,7 +13,7 @@ extension CollectionLiteralLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         if rewriteSequencePipelineCall(
             symbol: symbol,
@@ -33,6 +33,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         if rewriteSequenceTerminalCall(
+            symbol: symbol,
             callee: callee,
             arguments: arguments,
             result: result,
@@ -47,19 +48,6 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
-        if rewriteArrayConversionCall(
-            callee: callee,
-            arguments: arguments,
-            result: result,
-            thrownResult: thrownResult,
-            module: module,
-            lookup: lookup,
-            state: &state,
-            loweredBody: &loweredBody
-        ) {
-            return true
-        }
-
         if rewriteSequenceBuilderCall(
             symbol: symbol,
             callee: callee,
@@ -67,6 +55,8 @@ extension CollectionLiteralLoweringPass {
             result: result,
             canThrow: canThrow,
             thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
             lookup: lookup,
             state: &state,
             loweredBody: &loweredBody

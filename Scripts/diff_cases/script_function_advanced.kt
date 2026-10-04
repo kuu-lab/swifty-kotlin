@@ -1,4 +1,3 @@
-// SKIP-DIFF
 fun<T> List<T>.firstOrNull(predicate: (T) -> Boolean): T? {
     for (item in this) {
         if (predicate(item)) return item

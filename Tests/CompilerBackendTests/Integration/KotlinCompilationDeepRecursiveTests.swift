@@ -1,10 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class KotlinCompilationDeepRecursiveTests: XCTestCase {
-    func testCompileDeepRecursiveFunctionBasicUsage() throws {
+@Suite
+struct KotlinCompilationDeepRecursiveTests {
+    @Test func testCompileDeepRecursiveFunctionBasicUsage() throws {
         try assertKotlinCompilesToKIR("""
         class Node(val next: Node?)
 
@@ -17,7 +19,7 @@ final class KotlinCompilationDeepRecursiveTests: XCTestCase {
         """)
     }
 
-    func testCompileDeepRecursiveFunctionExplicitParamName() throws {
+    @Test func testCompileDeepRecursiveFunctionExplicitParamName() throws {
         try assertKotlinCompilesToKIR("""
         class Node(val next: Node?)
 
@@ -30,7 +32,21 @@ final class KotlinCompilationDeepRecursiveTests: XCTestCase {
         """)
     }
 
-    func testCompileDeepRecursiveFunctionBasicObjectEmission() throws {
+    // Captures travel as closureRaw into the trampoline launcher-arg prefix
+    // (capture, scope, value). Without that slot the capture and the scope
+    // receiver share a parameter.
+    @Test func testCompileDeepRecursiveFunctionCapturingBlock() throws {
+        try assertKotlinCompilesToObject("""
+        fun probe(step: Int): Int {
+            val countDown = DeepRecursiveFunction<Int, Int> { n ->
+                if (n <= 0) 0 else callRecursive(n - step) + 1
+            }
+            return countDown(9)
+        }
+        """)
+    }
+
+    @Test func testCompileDeepRecursiveFunctionBasicObjectEmission() throws {
         try assertKotlinCompilesToObject("""
         class Node(val next: Node?)
 
@@ -43,3 +59,4 @@ final class KotlinCompilationDeepRecursiveTests: XCTestCase {
         """)
     }
 }
+#endif

@@ -1,0 +1,18 @@
+symbol fq=golden.sema.configureNumberHexFormatBuilder.$0.builder[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.configureNumberHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.NumberHexFormat.Builder] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat.NumberHexFormat.Builder] ret=Any?
+file fstdlib_kotlin_text_HexFormat_NumberHexFormat_Builder_Builder_n package=golden.sema
+  decl golden.sema.configureNumberHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.NumberHexFormat.Builder] fun configureNumberHexFormatBuilder sym=golden.sema.configureNumberHexFormatBuilder[kind=fun;params=kotlin.text.HexFormat.NumberHexFormat.Builder]
+expr e@4:5 name(builder) type=kotlin.text.HexFormat.NumberHexFormat.Builder ref=golden.sema.configureNumberHexFormatBuilder.$0.builder[kind=vparam]
+expr e@4:25 int(4) type=Int
+expr e@4:5#1 memberAssign recv=e@4:5 callee=minLength value=e@4:25 type=Unit ref=kotlin.text.HexFormat.NumberHexFormat.Builder.minLength[kind=prop]
+expr e@5:5 name(builder) type=kotlin.text.HexFormat.NumberHexFormat.Builder ref=golden.sema.configureNumberHexFormatBuilder.$0.builder[kind=vparam]
+expr e@5:22 string(0x) type=String
+expr e@5:5#1 memberAssign recv=e@5:5 callee=prefix value=e@5:22 type=Unit ref=kotlin.text.HexFormat.NumberHexFormat.Builder.prefix[kind=prop]
+expr e@6:5 name(builder) type=kotlin.text.HexFormat.NumberHexFormat.Builder ref=golden.sema.configureNumberHexFormatBuilder.$0.builder[kind=vparam]
+expr e@6:34 bool(true) type=Boolean
+expr e@6:5#1 memberAssign recv=e@6:5 callee=removeLeadingZeros value=e@6:34 type=Unit ref=kotlin.text.HexFormat.NumberHexFormat.Builder.removeLeadingZeros[kind=prop]
+expr e@7:5 name(builder) type=kotlin.text.HexFormat.NumberHexFormat.Builder ref=golden.sema.configureNumberHexFormatBuilder.$0.builder[kind=vparam]
+expr e@7:22 string(h) type=String
+expr e@7:5#1 memberAssign recv=e@7:5 callee=suffix value=e@7:22 type=Unit ref=kotlin.text.HexFormat.NumberHexFormat.Builder.suffix[kind=prop]
+expr e@8:12 name(builder) type=kotlin.text.HexFormat.NumberHexFormat.Builder ref=golden.sema.configureNumberHexFormatBuilder.$0.builder[kind=vparam]
+expr e@8:5 return value=e@8:12 type=Nothing

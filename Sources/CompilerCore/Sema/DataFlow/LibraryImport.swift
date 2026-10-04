@@ -6,6 +6,24 @@ extension DataFlowSemaPhase {
         let inlineKIRDir: String?
         let moduleName: String?
         let isValid: Bool
+        var topLevelInitializerLinkName: String? = nil
+    }
+
+    struct LibraryImportDeferredWork {
+        let pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])]
+        let importedBindings: [ImportedLibraryBinding]
+        /// The stdlib artifact's module name, already interned and validated
+        /// against its manifest.json by the loop below. Callers that need to
+        /// filter symbols by stdlib-module membership (e.g.
+        /// `mergeImportedStdlibSymbolsIntoBundledIndex`) should use this
+        /// instead of re-reading and re-parsing manifest.json themselves: a
+        /// second independent read has no diagnostic on failure and is
+        /// redundant with the validation already performed here.
+        let stdlibModuleName: InternedString?
+        /// Kotlin `.klib` modules discovered on the search path: manifest
+        /// parsed and version-gated, container kept open for the IR import
+        /// stages that follow.
+        let klibModules: [KlibModule]
     }
 
     func loadImportedLibrarySymbols(
@@ -14,14 +32,154 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        importedInlineFunctions: ImportedInlineFunctionStore,
         cache: LibraryMetadataCache? = nil
-    ) {
-        let libraryDirs = discoverLibraryDirectories(searchPaths: options.searchPaths)
+    ) -> LibraryImportDeferredWork {
+        // Imported function bounds may refer to java.io.Closeable before the
+        // synthetic FileIO registration phase creates its compatibility anchor.
+        _ = ensureJavaIOCloseableCompatibilityAnchor(
+            symbols: symbols,
+            interner: interner
+        )
+        let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
+        var klibModules: [KlibModule] = []
+        var stdlibArtifactLoaded = false
+        var stdlibModuleName: InternedString?
+
+        func isStdlibArtifact(_ libraryDir: String) -> Bool {
+            guard let stdlibLibraryPath = options.stdlibLibraryPath else { return false }
+            return URL(fileURLWithPath: libraryDir).standardizedFileURL.path
+                == URL(fileURLWithPath: stdlibLibraryPath).standardizedFileURL.path
+        }
+
+        func registerRecords(
+            _ records: [ImportedLibrarySymbolRecord],
+            metadataPath: String,
+            libraryModuleFQN: InternedString?,
+            inlineKIRDir: String?,
+            stdlibArtifact: Bool
+        ) {
+            for record in records {
+                registerRecord(
+                    record,
+                    metadataPath: metadataPath,
+                    libraryModuleFQN: libraryModuleFQN,
+                    inlineKIRDir: inlineKIRDir,
+                    stdlibArtifact: stdlibArtifact
+                )
+            }
+        }
+
+        func registerRecord(
+            _ record: ImportedLibrarySymbolRecord,
+            metadataPath: String,
+            libraryModuleFQN: InternedString?,
+            inlineKIRDir: String?,
+            stdlibArtifact: Bool
+        ) {
+            guard !record.fqName.isEmpty else {
+                return
+            }
+            let name = record.fqName.last ?? interner.intern("_")
+            var flags: SymbolFlags = [.synthetic, .importedLibrary]
+            if record.isSuspend, record.kind == .function {
+                flags.insert(.suspendFunction)
+            }
+            if record.isInline, record.kind == .function {
+                flags.insert(.inlineFunction)
+            }
+            if record.isOperator, record.kind == .function {
+                flags.insert(.operatorFunction)
+            }
+            // Overrides must stay marked so member lookup can shadow the
+            // supertype declaration instead of reporting an ambiguity.
+            // Properties/fields override too (for example
+            // `AbstractMap.size`), so the flag is not function-only.
+            if record.isOverride,
+               record.kind == .function || record.kind == .property || record.kind == .field {
+                flags.insert(.overrideMember)
+            }
+            if record.isDataClass {
+                flags.insert(.dataType)
+            }
+            if record.isOpenClass {
+                flags.insert(.openType)
+            }
+            switch record.modality {
+            case .abstract:
+                flags.insert(.abstractType)
+            case .open:
+                flags.insert(.openType)
+            case .final:
+                break
+            }
+            if record.isSealedClass {
+                flags.insert(.sealedType)
+            }
+            if record.isFunInterface, record.kind == .interface {
+                flags.insert(.funInterface)
+            }
+            if record.isValueClass {
+                flags.insert(.valueType)
+            }
+            if record.isFunInterface {
+                flags.insert(.funInterface)
+            }
+            if record.isExpect {
+                flags.insert(.expectDeclaration)
+            }
+            if record.isActual {
+                flags.insert(.actualDeclaration)
+            }
+            if record.isMutable, record.kind == .property || record.kind == .field {
+                flags.insert(.mutable)
+            }
+            let symbol = symbols.define(
+                kind: record.kind,
+                name: name,
+                fqName: record.fqName,
+                declSite: nil,
+                visibility: record.visibility,
+                flags: flags
+            )
+            if let libraryModuleFQN {
+                symbols.setModuleFQN(libraryModuleFQN, for: symbol)
+            }
+            importedBindings.append(ImportedLibraryBinding(
+                record: record,
+                symbol: symbol,
+                metadataPath: metadataPath,
+                inlineKIRDir: inlineKIRDir,
+                isStdlibArtifact: stdlibArtifact
+            ))
+        }
 
         for libraryDir in libraryDirs {
+            if libraryDir.hasSuffix(".klib") {
+                if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
+                    klibModules.append(module)
+                    let stdlibArtifact = isStdlibArtifact(libraryDir)
+                    if stdlibArtifact {
+                        stdlibArtifactLoaded = true
+                        stdlibModuleName = interner.intern(module.uniqueName)
+                    }
+                    registerRecords(
+                        materializeKlibRecords(
+                            module: module,
+                            interner: interner,
+                            diagnostics: diagnostics
+                        ),
+                        metadataPath: "\(libraryDir)/ir",
+                        libraryModuleFQN: interner.intern(module.uniqueName),
+                        inlineKIRDir: nil,
+                        stdlibArtifact: stdlibArtifact
+                    )
+                }
+                continue
+            }
+            let stdlibArtifact = isStdlibArtifact(libraryDir)
             let manifestInfo: LibraryManifestInfo
             if let cached = cache?.cachedManifestInfo(libraryDir: libraryDir, target: options.target) {
                 manifestInfo = cached
@@ -29,15 +187,40 @@ extension DataFlowSemaPhase {
                 manifestInfo = resolveLibraryManifestInfo(
                     libraryDir: libraryDir,
                     currentTarget: options.target,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    isStdlibArtifact: stdlibArtifact
                 )
                 cache?.cacheManifestInfo(manifestInfo, libraryDir: libraryDir, target: options.target)
+            }
+            if stdlibArtifact {
+                stdlibArtifactLoaded = manifestInfo.isValid
             }
             guard manifestInfo.isValid else {
                 continue
             }
+            if let linkName = manifestInfo.topLevelInitializerLinkName,
+               !linkName.isEmpty,
+               let moduleName = manifestInfo.moduleName {
+                let name = interner.intern("__kk_library_top_level_init_\(moduleName)")
+                let symbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: [interner.intern(moduleName), name],
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setFunctionSignature(
+                    FunctionSignature(parameterTypes: [], returnType: types.unitType),
+                    for: symbol
+                )
+                symbols.setExternalLinkName(linkName, for: symbol)
+            }
             let metadataPath = manifestInfo.metadataPath
             let libraryModuleFQN: InternedString? = manifestInfo.moduleName.map { interner.intern($0) }
+            if stdlibArtifact {
+                stdlibModuleName = libraryModuleFQN
+            }
             let records: [ImportedLibrarySymbolRecord]
             if let cached = cache?.cachedMetadataRecords(metadataPath: metadataPath, interner: interner) {
                 records = cached
@@ -53,73 +236,158 @@ extension DataFlowSemaPhase {
                 cache?.cacheMetadataRecords(records, metadataPath: metadataPath, interner: interner)
             }
 
-            for record in records {
-                guard !record.fqName.isEmpty else {
-                    continue
-                }
-                let name = record.fqName.last ?? interner.intern("_")
-                var flags: SymbolFlags = [.synthetic]
-                if record.isSuspend, record.kind == .function {
-                    flags.insert(.suspendFunction)
-                }
-                if record.isInline, record.kind == .function {
-                    flags.insert(.inlineFunction)
-                }
-                if record.isDataClass {
-                    flags.insert(.dataType)
-                }
-                if record.isSealedClass {
-                    flags.insert(.sealedType)
-                }
-                if record.isValueClass {
-                    flags.insert(.valueType)
-                }
-                if record.isExpect {
-                    flags.insert(.expectDeclaration)
-                }
-                if record.isActual {
-                    flags.insert(.actualDeclaration)
-                }
-                let symbol = symbols.define(
-                    kind: record.kind,
-                    name: name,
-                    fqName: record.fqName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: flags
-                )
-                if let libraryModuleFQN {
-                    symbols.setModuleFQN(libraryModuleFQN, for: symbol)
-                }
-                importedBindings.append(ImportedLibraryBinding(
-                    record: record,
-                    symbol: symbol,
-                    metadataPath: metadataPath,
-                    inlineKIRDir: manifestInfo.inlineKIRDir
-                ))
+            registerRecords(
+                records,
+                metadataPath: metadataPath,
+                libraryModuleFQN: libraryModuleFQN,
+                inlineKIRDir: manifestInfo.inlineKIRDir,
+                stdlibArtifact: stdlibArtifact
+            )
+        }
+
+        if options.stdlibLibraryPath != nil && !stdlibArtifactLoaded {
+            diagnostics.error(
+                "KSWIFTK-LIB-0020",
+                "Stdlib library artifact '\(options.stdlibLibraryPath!)' could not be loaded",
+                range: nil
+            )
+            return LibraryImportDeferredWork(pendingSupertypeEdges: [], importedBindings: [], stdlibModuleName: nil, klibModules: [])
+        }
+
+        var externalLinkNameToSymbol: [String: SymbolID] = [:]
+        var importedSymbolByFQName: [String: SymbolID] = [:]
+        for binding in importedBindings {
+            if let linkName = binding.record.externalLinkName, !linkName.isEmpty {
+                externalLinkNameToSymbol[linkName] = binding.symbol
+            }
+            // Inline bodies can call a default stub whose signature is restored
+            // below. Resolve it to that symbol so ABI lowering retains the
+            // parameter and return types, including the flat String ABI.
+            if let linkName = binding.record.defaultStubExternalLinkName, !linkName.isEmpty {
+                externalLinkNameToSymbol[linkName] = SyntheticSymbolScheme.defaultStubSymbol(for: binding.symbol)
+            }
+            let fQName = binding.record.fqName
+                .map { interner.resolve($0) }
+                .joined(separator: ".")
+            if !fQName.isEmpty {
+                importedSymbolByFQName[fQName] = binding.symbol
             }
         }
 
+        // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: a function's type parameter is
+        // "phantom" when it never appears in its receiver, value parameters,
+        // or return type (only inside the function body via explicit type
+        // arguments, e.g. `kotlin.native.concurrent.callContinuation1<T1>`).
+        // `importedFunctionSignature`/`collectTypeParameterSymbols` rebuild
+        // `typeParameterSymbols` by structurally scanning the decoded function
+        // type, so phantom parameters are silently dropped. Every declared
+        // type parameter (phantom or not) is independently exported as its
+        // own `.typeParameter`-kind record with fqName
+        // `<ownerFQName>.$<producerSymbolID>.<paramName>` (see
+        // HeaderCollection.swift's `$\(symbol.rawValue)` namespace segment),
+        // so group those records by owner FQ name to recover at least the
+        // correct total COUNT of declared type parameters. The `$<id>`
+        // disambiguator itself is a producer-internal id with no stable
+        // meaning on the consumer side, so this is restricted to owner FQ
+        // names with exactly one function/constructor binding -- an
+        // overloaded name could mix phantom parameters from different
+        // overloads and there is no reliable way to tell them apart.
+        var functionBindingCountByFQName: [[InternedString]: Int] = [:]
+        var typeParameterBindingSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
         for binding in importedBindings {
+            switch binding.record.kind {
+            case .function, .constructor:
+                functionBindingCountByFQName[binding.record.fqName, default: 0] += 1
+            case .typeParameter:
+                let fqName = binding.record.fqName
+                guard fqName.count >= 3, interner.resolve(fqName[fqName.count - 2]).hasPrefix("$") else {
+                    continue
+                }
+                let ownerFQName = Array(fqName.dropLast(2))
+                typeParameterBindingSymbolsByOwnerFQName[ownerFQName, default: []].append(binding.symbol)
+            default:
+                break
+            }
+        }
+        let phantomTypeParameterSymbolsByOwnerFQName = typeParameterBindingSymbolsByOwnerFQName.filter {
+            functionBindingCountByFQName[$0.key] == 1
+        }
+
+        // Property getter accessors are synthesized while applying their
+        // property records. Import those records before inline function bodies
+        // so a producer getter link (for example Lazy.value) resolves to the
+        // consumer-side accessor symbol when the inline virtual call is parsed.
+        let propertyBindingsWithGetter = importedBindings.filter { binding in
+            (binding.record.kind == .property || binding.record.kind == .field)
+                && binding.record.propertyGetterExternalLinkName?.isEmpty == false
+        }
+        for binding in propertyBindingsWithGetter {
             applyImportedBinding(
                 binding,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions,
+                importedInlineFunctions: importedInlineFunctions,
                 pendingSupertypeEdges: &pendingSupertypeEdges,
-                cache: cache
+                cache: cache,
+                isStdlibArtifact: binding.isStdlibArtifact,
+                phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
+            )
+        }
+        for binding in propertyBindingsWithGetter {
+            guard let getterLink = binding.record.propertyGetterExternalLinkName,
+                  let getterSymbol = symbols.extensionPropertyGetterAccessor(for: binding.symbol)
+            else {
+                continue
+            }
+            externalLinkNameToSymbol[getterLink] = getterSymbol
+        }
+
+        let preloadedGetterBindingSymbols = Set(propertyBindingsWithGetter.map(\.symbol))
+        for binding in importedBindings where !preloadedGetterBindingSymbols.contains(binding.symbol) {
+            applyImportedBinding(
+                binding,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner,
+                importedInlineFunctions: importedInlineFunctions,
+                pendingSupertypeEdges: &pendingSupertypeEdges,
+                cache: cache,
+                isStdlibArtifact: binding.isStdlibArtifact,
+                phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
         }
 
         var syntheticPackagePaths: Set<[InternedString]> = []
         var syntheticPackageModules: [[InternedString]: InternedString] = [:]
-        for binding in importedBindings where binding.record.kind != .package {
+        // STDLIB-SHARED-011: Type/value parameters and local symbols belong to a
+        // real owner; their FQ name prefixes must not be synthesised as packages.
+        let packageOwnerRecordKinds: Set<SymbolKind> = [
+            .class, .interface, .object, .enumClass, .annotationClass,
+            .typeAlias, .function, .property, .constructor
+        ]
+        for binding in importedBindings
+            where binding.record.kind != .package
+            && packageOwnerRecordKinds.contains(binding.record.kind)
+        {
             let fq = binding.record.fqName
             let moduleFQN = symbols.moduleFQN(for: binding.symbol)
             for length in 1 ..< fq.count {
                 let prefix = Array(fq.prefix(length))
+                // Constructors are named below their nominal owner (for
+                // example, `pkg.Type.<init>`). Keep that owner path nominal
+                // when it already exists; package-level functions may legally
+                // share the same FQ-name prefix as a class and still require
+                // a package symbol for import resolution.
+                if binding.record.kind == .constructor,
+                   prefix == Array(fq.dropLast()),
+                   symbols.lookupAll(fqName: prefix).contains(where: { id in
+                    symbols.symbol(id)?.kind != .package
+                }) {
+                    continue
+                }
                 syntheticPackagePaths.insert(prefix)
                 if let moduleFQN {
                     syntheticPackageModules[prefix] = moduleFQN
@@ -147,7 +415,35 @@ extension DataFlowSemaPhase {
             }
         }
 
-        for edge in pendingSupertypeEdges {
+        // Bind the resolution context for deferred inline-body parses only
+        // after every binding has been applied, so a lazy parse resolves
+        // callees against the final link-name and FQ-name maps — exactly the
+        // maps the eager parse observed.
+        importedInlineFunctions.bindParseContext(
+            types: types,
+            interner: interner,
+            diagnostics: diagnostics,
+            externalLinkNameToSymbol: externalLinkNameToSymbol,
+            importedSymbolByFQName: importedSymbolByFQName
+        )
+
+        return LibraryImportDeferredWork(
+            pendingSupertypeEdges: pendingSupertypeEdges,
+            importedBindings: importedBindings,
+            stdlibModuleName: stdlibModuleName,
+            klibModules: klibModules
+        )
+    }
+
+    func applyImportedLibraryDeferredWork(
+        _ work: LibraryImportDeferredWork,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        for edge in work.pendingSupertypeEdges {
             guard let superSymbol = symbols.lookupAll(fqName: edge.superFQName)
                 .compactMap({ symbols.symbol($0) })
                 .first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id
@@ -163,18 +459,48 @@ extension DataFlowSemaPhase {
             }
         }
 
-        for binding in importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+            applyImportedNominalGenerics(
+                binding,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+
+        // Resolve companion object references so ClassName.member() shorthand works.
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+            if let companionFQName = binding.record.companionObjectFQName,
+               let companionSymbol = symbols.lookupAll(fqName: companionFQName)
+                   .compactMap({ symbols.symbol($0) })
+                   .first(where: { $0.kind == .object || $0.kind == .class || $0.kind == .interface })?.id
+            {
+                symbols.setCompanionObjectSymbol(companionSymbol, for: binding.symbol)
+            }
+        }
+
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
             applyImportedNominalLayout(
                 record: binding.record,
                 symbol: binding.symbol,
                 symbols: symbols,
+                types: types,
                 diagnostics: diagnostics,
-                metadataPath: binding.metadataPath
+                metadataPath: binding.metadataPath,
+                interner: interner
             )
         }
 
+        applyImportedObjectAndCompanionInitializerSymbols(
+            work: work,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
         // P5-78: resolve sealed subclass FQ names to SymbolIDs for cross-module exhaustiveness
-        for binding in importedBindings where binding.record.isSealedClass && !binding.record.sealedSubclassFQNames.isEmpty {
+        for binding in work.importedBindings where binding.record.isSealedClass && !binding.record.sealedSubclassFQNames.isEmpty {
             let resolvedSubclasses: [SymbolID] = binding.record.sealedSubclassFQNames.compactMap { subFQName in
                 symbols.lookupAll(fqName: subFQName)
                     .compactMap { symbols.symbol($0) }
@@ -190,6 +516,526 @@ extension DataFlowSemaPhase {
                 symbols.setSealedSubclasses([], for: binding.symbol)
             }
         }
+
+        // Imported enum classes have no AST declarations, so the per-decl enum
+        // member synthesis in HeaderCollection never runs for them. Register
+        // the implicit enum API (name/ordinal, values(), valueOf(_:), entries)
+        // here so it resolves on the artifact path as well. Lowering reuses
+        // these symbols when it synthesizes their KIR bodies
+        // (DataEnumSealedSynthesisPass looks them up by FQ name and owner).
+        applyImportedEnumSyntheticMembers(
+            work: work,
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex
+        )
+    }
+
+    /// Registers the implicit enum members that HeaderCollection normally
+    /// creates from an enum declaration for enums that only exist as imported
+    /// library records. Mirrors `collectSyntheticEnumEntryProperties`,
+    /// `collectSyntheticEnumValuesMember`, and
+    /// `collectSyntheticEnumCompanionMembers`, including the source-path flag
+    /// set so golden rendering matches between the two paths.
+    private func applyImportedEnumSyntheticMembers(
+        work: LibraryImportDeferredWork,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        let stringType = types.stringType
+        let intType = types.make(.primitive(.int, .nonNull))
+        let enumEntriesSymbol = symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("enums"),
+            interner.intern("EnumEntries"),
+        ])
+        let arraySymbol = symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("Array"),
+        ])
+
+        for binding in work.importedBindings where binding.record.kind == .enumClass {
+            let enumSymbol = binding.symbol
+            let enumFQName = binding.record.fqName
+            let enumType = types.make(.classType(ClassType(
+                classSymbol: enumSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+
+            for (memberName, memberType) in [
+                (interner.intern("name"), stringType),
+                (interner.intern("ordinal"), intType),
+            ] {
+                let memberFQName = enumFQName + [memberName]
+                guard symbols.lookupAll(fqName: memberFQName).allSatisfy({
+                    symbols.symbol($0)?.kind != .property
+                }) else {
+                    continue
+                }
+                let propertySymbol = symbols.define(
+                    kind: .property,
+                    name: memberName,
+                    fqName: memberFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(enumSymbol, for: propertySymbol)
+                symbols.setPropertyType(memberType, for: propertySymbol)
+            }
+
+            // Mirror `collectSyntheticEnumValuesMember`: skip `values` when a
+            // source-backed declaration already owns the class-name API for
+            // this enum (for example `RequiresOptIn.Level.values()`).
+            let valuesName = interner.intern("values")
+            let valuesFQName = enumFQName + [valuesName]
+            if !bundledIndex.contains(ownerFQName: enumFQName, name: valuesName, arity: 0),
+               symbols.lookupAll(fqName: valuesFQName).allSatisfy({
+                symbols.symbol($0)?.kind != .function
+            }), let arraySymbol {
+                let arrayType = types.make(.classType(ClassType(
+                    classSymbol: arraySymbol,
+                    args: [.invariant(enumType)],
+                    nullability: .nonNull
+                )))
+                let valuesSymbol = symbols.define(
+                    kind: .function,
+                    name: valuesName,
+                    fqName: valuesFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(enumSymbol, for: valuesSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: arrayType,
+                        isSuspend: false
+                    ),
+                    for: valuesSymbol
+                )
+            }
+
+            let companionSymbol: SymbolID
+            if let existingCompanion = symbols.companionObjectSymbol(for: enumSymbol) {
+                companionSymbol = existingCompanion
+            } else {
+                let companionName = interner.intern("Companion")
+                let companionFQName = enumFQName + [companionName]
+                if let found = symbols.lookupAll(fqName: companionFQName).first(where: {
+                    symbols.symbol($0)?.kind == .object
+                }) {
+                    companionSymbol = found
+                } else {
+                    companionSymbol = symbols.define(
+                        kind: .object,
+                        name: companionName,
+                        fqName: companionFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic]
+                    )
+                    symbols.setParentSymbol(enumSymbol, for: companionSymbol)
+                }
+                symbols.setCompanionObjectSymbol(companionSymbol, for: enumSymbol)
+            }
+            guard let companionInfo = symbols.symbol(companionSymbol) else {
+                continue
+            }
+            let companionFQName = companionInfo.fqName
+            let companionType = types.make(.classType(ClassType(
+                classSymbol: companionSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+
+            let valueOfName = interner.intern("valueOf")
+            let valueOfFQName = companionFQName + [valueOfName]
+            if symbols.lookupAll(fqName: valueOfFQName).allSatisfy({
+                symbols.symbol($0)?.kind != .function
+            }) {
+                let paramName = interner.intern("name")
+                let paramSymbol = symbols.define(
+                    kind: .valueParameter,
+                    name: paramName,
+                    fqName: valueOfFQName + [paramName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                let valueOfSymbol = symbols.define(
+                    kind: .function,
+                    name: valueOfName,
+                    fqName: valueOfFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(companionSymbol, for: valueOfSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: companionType,
+                        parameterTypes: [stringType],
+                        returnType: enumType,
+                        isSuspend: false,
+                        valueParameterSymbols: [paramSymbol],
+                        valueParameterHasDefaultValues: [false],
+                        valueParameterIsVararg: [false]
+                    ),
+                    for: valueOfSymbol
+                )
+            }
+
+            if let enumEntriesSymbol {
+                let entriesName = interner.intern("entries")
+                let entriesFQName = companionFQName + [entriesName]
+                if symbols.lookupAll(fqName: entriesFQName).allSatisfy({
+                    symbols.symbol($0)?.kind != .property
+                }) {
+                    let entriesType = types.make(.classType(ClassType(
+                        classSymbol: enumEntriesSymbol,
+                        args: [.invariant(enumType)],
+                        nullability: .nonNull
+                    )))
+                    let entriesSymbol = symbols.define(
+                        kind: .property,
+                        name: entriesName,
+                        fqName: entriesFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic, .static]
+                    )
+                    symbols.setParentSymbol(companionSymbol, for: entriesSymbol)
+                    symbols.setPropertyType(entriesType, for: entriesSymbol)
+                }
+            }
+        }
+    }
+
+    /// Normalizes imported member signatures after synthetic bundled anchors
+    /// have been registered. Those anchors may provide the consumer's actual
+    /// owner type-parameter symbols, which are not available during the
+    /// initial library-record pass.
+    func normalizeImportedLibraryMemberSignatures(
+        _ work: LibraryImportDeferredWork,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        let cache = LibraryMetadataCache()
+        for binding in work.importedBindings {
+            switch binding.record.kind {
+            case .function, .constructor:
+                guard let signature = symbols.functionSignature(for: binding.symbol) else {
+                    continue
+                }
+                let normalize: (TypeID) -> TypeID = { type in
+                    self.normalizeImportedOwnerTypeParameters(
+                        type,
+                        record: binding.record,
+                        symbols: symbols,
+                        types: types,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        metadataPath: binding.metadataPath,
+                        cache: cache,
+                        allowPlaceholders: binding.isStdlibArtifact
+                    )
+                }
+                let ownerTypeParameters = symbols.parentSymbol(for: binding.symbol)
+                    .map { types.nominalTypeParameterSymbols(for: $0) } ?? []
+                let ownerCount = min(signature.classTypeParameterCount, ownerTypeParameters.count)
+                let normalizedTypeParameterSymbols = ownerCount == 0
+                    ? signature.typeParameterSymbols
+                    : Array(ownerTypeParameters.prefix(ownerCount))
+                        + signature.typeParameterSymbols.dropFirst(ownerCount)
+                let normalizedUpperBoundsList = signature.typeParameterUpperBoundsList.map { $0.map(normalize) }
+                for index in 0 ..< min(signature.classTypeParameterCount, normalizedTypeParameterSymbols.count) {
+                    guard index < normalizedUpperBoundsList.count else {
+                        continue
+                    }
+                    let upperBounds = normalizedUpperBoundsList[index]
+                    let typeParameterSymbol = normalizedTypeParameterSymbols[index]
+                    if !upperBounds.isEmpty,
+                       symbols.typeParameterUpperBounds(for: typeParameterSymbol).isEmpty
+                    {
+                        symbols.setTypeParameterUpperBounds(upperBounds, for: typeParameterSymbol)
+                    }
+                }
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: signature.receiverType.map(normalize),
+                        parameterTypes: signature.parameterTypes.map(normalize),
+                        returnType: normalize(signature.returnType),
+                        isSuspend: signature.isSuspend,
+                        canThrow: signature.canThrow,
+                        valueParameterSymbols: signature.valueParameterSymbols,
+                        valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                        valueParameterIsVararg: signature.valueParameterIsVararg,
+                        typeParameterSymbols: normalizedTypeParameterSymbols,
+                        reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                        typeParameterUpperBoundsList: normalizedUpperBoundsList,
+                        classTypeParameterCount: signature.classTypeParameterCount
+                    ),
+                    for: binding.symbol
+                )
+            case .property, .field:
+                let propertyType = importedPropertyType(
+                    record: binding.record,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    metadataPath: binding.metadataPath,
+                    cache: cache,
+                    allowPlaceholders: binding.isStdlibArtifact
+                )
+                symbols.setPropertyType(propertyType, for: binding.symbol)
+            default:
+                continue
+            }
+        }
+    }
+
+    /// Restores the generic shape of an imported nominal type: its own type
+    /// parameters (with declared variance) and the type arguments it passes to
+    /// each generic supertype. Without them a `class Sub<T> : Base<T>` read back
+    /// from metadata behaves like a raw type, so `Sub<Int>` neither lifts to
+    /// `Base<Int>` nor substitutes `T` in its members' signatures.
+    private func applyImportedNominalGenerics(
+        _ binding: ImportedLibraryBinding,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        let record = binding.record
+        let decode: (String) -> ClassType? = { token in
+            guard let decoded = self.decodeImportedTypeSignature(
+                token: token,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                diagnostics: diagnostics,
+                metadataPath: binding.metadataPath,
+                ownerFQName: record.fqName,
+                allowPlaceholders: binding.isStdlibArtifact
+            ), case let .classType(classType) = types.kind(of: decoded) else {
+                return nil
+            }
+            return classType
+        }
+
+        if types.nominalTypeParameterSymbols(for: binding.symbol).isEmpty,
+           let selfSignature = record.nominalTypeParametersSignature,
+           let selfType = decode(selfSignature)
+        {
+            var typeParameterSymbols: [SymbolID] = []
+            var variances: [TypeVariance] = []
+            var isValid = true
+            arguments: for arg in selfType.args {
+                let argType: TypeID
+                switch arg {
+                case let .invariant(type):
+                    argType = type
+                    variances.append(.invariant)
+                case let .out(type):
+                    argType = type
+                    variances.append(.out)
+                case let .in(type):
+                    argType = type
+                    variances.append(.in)
+                case .star:
+                    isValid = false
+                    break arguments
+                }
+                guard case let .typeParam(typeParam) = types.kind(of: argType) else {
+                    isValid = false
+                    break arguments
+                }
+                typeParameterSymbols.append(typeParam.symbol)
+            }
+            if isValid && !typeParameterSymbols.isEmpty {
+                types.setNominalTypeParameterSymbols(typeParameterSymbols, for: binding.symbol)
+                if variances.contains(where: { $0 != .invariant }) {
+                    types.setNominalTypeParameterVariances(variances, for: binding.symbol)
+                }
+            }
+        }
+
+        // The nominal's own type parameters may already be bound to real
+        // declaration symbols (e.g. `kotlin.Enum<T>` declared by the bundled
+        // source shell) while the metadata signatures spell them as synthetic
+        // `T<n>` symbols. `liftedNominalSupertypeArgs` substitutes by the
+        // registered symbols, so rewrite the synthetic ones to the registered
+        // ones or `Enum<Color>` would lift to `Comparable<T<n>>` instead of
+        // `Comparable<Color>`.
+        let syntheticToRegisteredParameters = importedSyntheticToRegisteredTypeParameters(
+            record: record,
+            registeredSymbols: types.nominalTypeParameterSymbols(for: binding.symbol),
+            decode: decode,
+            types: types
+        )
+        for supertypeSignature in record.nominalSupertypeSignatures {
+            guard let supertype = decode(supertypeSignature),
+                  !supertype.args.isEmpty,
+                  types.nominalSupertypeTypeArgs(for: binding.symbol, supertype: supertype.classSymbol).isEmpty
+            else {
+                continue
+            }
+            let args = syntheticToRegisteredParameters.map { mapping in
+                supertype.args.map { types.substitutingTypeParameterSymbols($0, mapping: mapping) }
+            } ?? supertype.args
+            types.setNominalSupertypeTypeArgs(args, for: binding.symbol, supertype: supertype.classSymbol)
+        }
+
+        if binding.record.kind == .enumClass,
+           let enumBaseSymbol = symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("Enum"),
+           ]),
+           symbols.directSupertypes(for: binding.symbol).contains(enumBaseSymbol),
+           types.nominalSupertypeTypeArgs(for: binding.symbol, supertype: enumBaseSymbol).isEmpty
+        {
+            let enumType = types.make(.classType(ClassType(
+                classSymbol: binding.symbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let enumTypeArg: [TypeArg] = [.invariant(enumType)]
+            symbols.setSupertypeTypeArgs(enumTypeArg, for: binding.symbol, supertype: enumBaseSymbol)
+            types.setNominalSupertypeTypeArgs(enumTypeArg, for: binding.symbol, supertype: enumBaseSymbol)
+        }
+    }
+
+    /// Maps the synthetic type-parameter symbols spelled by an imported
+    /// nominal's `typeParamsSig` to the symbols already registered for it, by
+    /// position. Returns `nil` when there is nothing to rewrite (no registered
+    /// parameters, no self signature, or both spellings already agree).
+    private func importedSyntheticToRegisteredTypeParameters(
+        record: ImportedLibrarySymbolRecord,
+        registeredSymbols: [SymbolID],
+        decode: (String) -> ClassType?,
+        types: TypeSystem
+    ) -> [SymbolID: SymbolID]? {
+        guard !registeredSymbols.isEmpty,
+              let selfSignature = record.nominalTypeParametersSignature,
+              let selfType = decode(selfSignature),
+              selfType.args.count == registeredSymbols.count
+        else {
+            return nil
+        }
+        var mapping: [SymbolID: SymbolID] = [:]
+        for (arg, registered) in zip(selfType.args, registeredSymbols) {
+            switch arg {
+            case let .invariant(type), let .out(type), let .in(type):
+                guard case let .typeParam(typeParam) = types.kind(of: type) else { return nil }
+                if typeParam.symbol != registered {
+                    mapping[typeParam.symbol] = registered
+                }
+            case .star:
+                return nil
+            }
+        }
+        return mapping.isEmpty ? nil : mapping
+    }
+
+    /// Synthesizes function symbols for precompiled object/companion initializers
+    /// discovered in library metadata so that consumers can call them before user `main`.
+    private func applyImportedObjectAndCompanionInitializerSymbols(
+        work: LibraryImportDeferredWork,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+            let record = binding.record
+            let ownerSymbol = binding.symbol
+
+            if record.kind == .object,
+               let linkName = record.objectInitializerLinkName,
+               !linkName.isEmpty
+            {
+                let name = interner.intern("__object_init")
+                let fqName = record.fqName + [name]
+                let initSymbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: types.unitType
+                    ),
+                    for: initSymbol
+                )
+                symbols.setExternalLinkName(linkName, for: initSymbol)
+                symbols.setObjectInitializerSymbol(initSymbol, for: ownerSymbol)
+            }
+
+            if record.kind == .object,
+               let linkName = record.objectLazyInitializerLinkName,
+               !linkName.isEmpty
+            {
+                let name = interner.intern(linkName)
+                let fqName = record.fqName + [interner.intern("__object_lazy_init")]
+                let initSymbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: types.unitType
+                    ),
+                    for: initSymbol
+                )
+                symbols.setExternalLinkName(linkName, for: initSymbol)
+                symbols.setObjectLazyInitializerSymbol(initSymbol, for: ownerSymbol)
+            }
+
+            if let linkName = record.companionInitializerLinkName,
+               !linkName.isEmpty,
+               symbols.companionObjectSymbol(for: ownerSymbol) != nil
+            {
+                let name = interner.intern("__companion_init")
+                let fqName = record.fqName + [name]
+                let initSymbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: types.unitType
+                    ),
+                    for: initSymbol
+                )
+                symbols.setExternalLinkName(linkName, for: initSymbol)
+                symbols.setCompanionObjectInitializerSymbol(initSymbol, for: ownerSymbol)
+            }
+        }
     }
 
     struct ImportedFieldOffsetEntry {
@@ -202,6 +1048,8 @@ extension DataFlowSemaPhase {
         let arity: Int
         let isSuspend: Bool
         let slot: Int
+        let typeSignature: String?
+        let propertyAccessorKind: PropertyAccessorKind?
     }
 
     struct ImportedITableSlotEntry {
@@ -211,29 +1059,192 @@ extension DataFlowSemaPhase {
 
     struct ImportedLibrarySymbolRecord {
         let kind: SymbolKind
+        let visibility: Visibility
         let mangledName: String
         let fqName: [InternedString]
         let arity: Int
         let isSuspend: Bool
         let isInline: Bool
+        let isOperator: Bool
+        let isOverride: Bool
+        let valueParameterIsVararg: [Bool]
+        let valueParameterAllowsNonLocalReturn: [Bool]
+        let valueParameterHasDefaultValues: [Bool]
+        /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect
+        /// decoded from metadata, `nil` where the parameter has none.
+        let valueParameterCallsInPlaceKinds: [InvocationKind?]
+        let canThrow: Bool
+        let valueParameterNames: [String]
+        let reifiedTypeParameterIndices: Set<Int>
         let typeSignature: String?
+        let typeParameterUpperBoundsSignatures: [[String]]
+        /// The callable's type parameters in declaration order, encoded as
+        /// `T<rawID>` tokens (including any leading owner type parameters of
+        /// member callables). Present on artifacts emitted by compilers that
+        /// serialize `callTParams`; empty for older artifacts, where the
+        /// structural scan plus the phantom-count fallback apply instead.
+        let callableTypeParameterSignatures: [String]
+        let defaultStubExternalLinkName: String?
         let externalLinkName: String?
         let declaredFieldCount: Int?
         let declaredInstanceSizeWords: Int?
         let declaredVtableSize: Int?
         let declaredItableSize: Int?
         let superFQName: [InternedString]?
+        let superFQNames: [[InternedString]]?
+        let companionObjectFQName: [InternedString]?
         let fieldOffsets: [ImportedFieldOffsetEntry]
         let vtableSlots: [ImportedVTableSlotEntry]
         let itableSlots: [ImportedITableSlotEntry]
+        let objectInitializerLinkName: String?
+        let companionInitializerLinkName: String?
+        let objectLazyInitializerLinkName: String?
+        let enumStaticInitLinkName: String?
         let isDataClass: Bool
+        let isOpenClass: Bool
+        let modality: MetadataModality
         let isSealedClass: Bool
+        let isFunInterface: Bool
         let isValueClass: Bool
         let isExpect: Bool
         let isActual: Bool
         let valueClassUnderlyingTypeSig: String?
         let annotations: [MetadataAnnotationRecord]
         let sealedSubclassFQNames: [[InternedString]]
+        let propertyReceiverTypeSignature: String?
+        let propertyGetterExternalLinkName: String?
+        let propertySetterExternalLinkName: String?
+        let abiReturnTypeSignature: String?
+        let propertyGetterAbiReturnTypeSignature: String?
+        let isMutable: Bool
+        let nominalTypeParametersSignature: String?
+        /// Generic self-signature of the nominal owner, when this record is a
+        /// member. It lets imported member types replace metadata placeholders
+        /// with the owner's actual type-parameter symbols.
+        let ownerNominalTypeParametersSignature: String?
+        let nominalSupertypeSignatures: [String]
+        let constValueLiteral: String?
+        /// Declaration-order type parameters of a nominal type, encoded as
+        /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`).
+        let nominalTypeParameters: String?
+
+        init(
+            kind: SymbolKind,
+            visibility: Visibility = .public,
+            mangledName: String = "",
+            fqName: [InternedString] = [],
+            arity: Int = 0,
+            isSuspend: Bool = false,
+            isInline: Bool = false,
+            isOperator: Bool = false,
+            isOverride: Bool = false,
+            valueParameterIsVararg: [Bool] = [],
+            valueParameterAllowsNonLocalReturn: [Bool] = [],
+            valueParameterHasDefaultValues: [Bool] = [],
+            valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
+            canThrow: Bool = false,
+            valueParameterNames: [String] = [],
+            reifiedTypeParameterIndices: Set<Int> = [],
+            typeSignature: String? = nil,
+            typeParameterUpperBoundsSignatures: [[String]] = [],
+            callableTypeParameterSignatures: [String] = [],
+            defaultStubExternalLinkName: String? = nil,
+            externalLinkName: String? = nil,
+            declaredFieldCount: Int? = nil,
+        declaredInstanceSizeWords: Int? = nil,
+        declaredVtableSize: Int? = nil,
+        declaredItableSize: Int? = nil,
+        superFQName: [InternedString]? = nil,
+        superFQNames: [[InternedString]]? = nil,
+            companionObjectFQName: [InternedString]? = nil,
+            fieldOffsets: [ImportedFieldOffsetEntry] = [],
+            vtableSlots: [ImportedVTableSlotEntry] = [],
+        itableSlots: [ImportedITableSlotEntry] = [],
+        objectInitializerLinkName: String? = nil,
+        companionInitializerLinkName: String? = nil,
+        objectLazyInitializerLinkName: String? = nil,
+        enumStaticInitLinkName: String? = nil,
+        isDataClass: Bool = false,
+        isOpenClass: Bool = false,
+        modality: MetadataModality = .final,
+        isSealedClass: Bool = false,
+        isFunInterface: Bool = false,
+            isValueClass: Bool = false,
+            isExpect: Bool = false,
+            isActual: Bool = false,
+            valueClassUnderlyingTypeSig: String? = nil,
+            annotations: [MetadataAnnotationRecord] = [],
+            sealedSubclassFQNames: [[InternedString]] = [],
+            propertyReceiverTypeSignature: String? = nil,
+            propertyGetterExternalLinkName: String? = nil,
+            propertySetterExternalLinkName: String? = nil,
+            abiReturnTypeSignature: String? = nil,
+            propertyGetterAbiReturnTypeSignature: String? = nil,
+            isMutable: Bool = false,
+        nominalTypeParametersSignature: String? = nil,
+        ownerNominalTypeParametersSignature: String? = nil,
+        nominalSupertypeSignatures: [String] = [],
+            constValueLiteral: String? = nil,
+            nominalTypeParameters: String? = nil
+        ) {
+            self.kind = kind
+            self.visibility = visibility
+            self.mangledName = mangledName
+            self.fqName = fqName
+            self.arity = arity
+            self.isSuspend = isSuspend
+            self.isInline = isInline
+            self.isOperator = isOperator
+            self.isOverride = isOverride
+            self.valueParameterIsVararg = valueParameterIsVararg
+            self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
+            self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+            self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
+            self.canThrow = canThrow
+            self.valueParameterNames = valueParameterNames
+            self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
+            self.typeSignature = typeSignature
+            self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
+            self.callableTypeParameterSignatures = callableTypeParameterSignatures
+            self.defaultStubExternalLinkName = defaultStubExternalLinkName
+            self.externalLinkName = externalLinkName
+            self.declaredFieldCount = declaredFieldCount
+            self.declaredInstanceSizeWords = declaredInstanceSizeWords
+        self.declaredVtableSize = declaredVtableSize
+        self.declaredItableSize = declaredItableSize
+        self.superFQName = superFQName
+        self.superFQNames = superFQNames
+            self.companionObjectFQName = companionObjectFQName
+            self.fieldOffsets = fieldOffsets
+            self.vtableSlots = vtableSlots
+            self.itableSlots = itableSlots
+        self.objectInitializerLinkName = objectInitializerLinkName
+        self.companionInitializerLinkName = companionInitializerLinkName
+        self.objectLazyInitializerLinkName = objectLazyInitializerLinkName
+        self.enumStaticInitLinkName = enumStaticInitLinkName
+        self.isDataClass = isDataClass
+        self.isOpenClass = isOpenClass
+        self.modality = modality
+        self.isSealedClass = isSealedClass
+        self.isFunInterface = isFunInterface
+            self.isValueClass = isValueClass
+            self.isExpect = isExpect
+            self.isActual = isActual
+            self.valueClassUnderlyingTypeSig = valueClassUnderlyingTypeSig
+            self.annotations = annotations
+            self.sealedSubclassFQNames = sealedSubclassFQNames
+            self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
+            self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
+            self.propertySetterExternalLinkName = propertySetterExternalLinkName
+            self.abiReturnTypeSignature = abiReturnTypeSignature
+            self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
+            self.isMutable = isMutable
+        self.nominalTypeParametersSignature = nominalTypeParametersSignature
+        self.ownerNominalTypeParametersSignature = ownerNominalTypeParametersSignature
+            self.nominalSupertypeSignatures = nominalSupertypeSignatures
+            self.constValueLiteral = constValueLiteral
+            self.nominalTypeParameters = nominalTypeParameters
+        }
     }
 
     struct ImportedLibraryBinding {
@@ -241,6 +1252,7 @@ extension DataFlowSemaPhase {
         let symbol: SymbolID
         let metadataPath: String
         let inlineKIRDir: String?
+        let isStdlibArtifact: Bool
     }
 
     /// Walk a decoded type and collect all synthetic type parameter symbols
@@ -271,7 +1283,7 @@ extension DataFlowSemaPhase {
             }
         case let .kClassType(kc):
             collectSyntheticTypeParamsRecursive(kc.argument, types: types, base: base, into: &collected)
-        case .primitive, .any, .unit, .nothing, .error:
+        case .stringStruct, .primitive, .any, .unit, .nothing, .error:
             break
         }
     }
@@ -320,9 +1332,11 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        importedInlineFunctions: ImportedInlineFunctionStore,
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])],
-        cache: LibraryMetadataCache?
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool,
+        phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -339,19 +1353,38 @@ extension DataFlowSemaPhase {
             types: types,
             diagnostics: diagnostics,
             interner: interner,
-            importedInlineFunctions: &importedInlineFunctions,
-            cache: cache
+            importedInlineFunctions: importedInlineFunctions,
+            cache: cache,
+            isStdlibArtifact: isStdlibArtifact,
+            phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
         )
-        applyImportedValueClassMetadata(binding, symbols: symbols, types: types, diagnostics: diagnostics, interner: interner)
+        applyImportedValueClassMetadata(
+            binding,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            isStdlibArtifact: isStdlibArtifact
+        )
         applyImportedTypeAliasMetadata(
             binding,
             symbols: symbols,
             types: types,
             diagnostics: diagnostics,
             interner: interner,
-            cache: cache
+            cache: cache,
+            isStdlibArtifact: isStdlibArtifact
         )
-        applyImportedNominalMetadata(binding, symbols: symbols, pendingSupertypeEdges: &pendingSupertypeEdges)
+        applyImportedNominalMetadata(
+            binding,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            cache: cache,
+            isStdlibArtifact: isStdlibArtifact,
+            pendingSupertypeEdges: &pendingSupertypeEdges
+        )
     }
 
     private func applyImportedBindingMetadata(
@@ -370,7 +1403,7 @@ extension DataFlowSemaPhase {
         symbol: SymbolID,
         symbols: SymbolTable
     ) {
-        guard record.kind == .function || record.kind == .property || record.kind == .field,
+        guard record.kind == .function || record.kind == .property || record.kind == .field || record.kind == .constructor,
               record.fqName.count >= 2
         else {
             return
@@ -394,31 +1427,87 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction],
-        cache: LibraryMetadataCache?
+        importedInlineFunctions: ImportedInlineFunctionStore,
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool = false,
+        phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
     ) {
         let record = binding.record
         let symbol = binding.symbol
 
-        if record.kind == .function {
+        if record.kind == .function || record.kind == .constructor {
             let signature = importedFunctionSignature(
                 record: record,
+                ownerSymbol: symbol,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
                 metadataPath: binding.metadataPath,
-                cache: cache
+                cache: cache,
+                allowPlaceholders: isStdlibArtifact,
+                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? []
             )
             symbols.setFunctionSignature(signature, for: symbol)
+            // Extension functions are represented as package-level FQ names in
+            // metadata, but source compilation attaches them to their nominal
+            // receiver for member fallback/dispatch lookup. Reconstruct that
+            // ownership from the decoded receiver type so imported stdlib
+            // extensions (for example Sequence.chunked/windowed) follow the
+            // same resolution path as bundled source declarations.
+            if let receiverType = signature.receiverType,
+               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
+               let receiverSymbol = symbols.symbol(receiverClassType.classSymbol),
+               isNominalLayoutTargetSymbol(receiverSymbol.kind)
+            {
+                symbols.setParentSymbol(receiverSymbol.id, for: symbol)
+            }
+            if let defaultStubLink = record.defaultStubExternalLinkName, !defaultStubLink.isEmpty,
+               signature.valueParameterHasDefaultValues.contains(true)
+            {
+                let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol)
+                symbols.setExternalLinkName(defaultStubLink, for: stubSymbol)
+                let intType = types.intType
+                let reifiedCount = signature.reifiedTypeParameterIndices.count
+                let stubParameterTypes = signature.parameterTypes + Array(repeating: intType, count: reifiedCount) + [intType]
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: signature.receiverType,
+                        parameterTypes: stubParameterTypes,
+                        returnType: signature.returnType,
+                        isSuspend: false,
+                        canThrow: signature.canThrow,
+                        valueParameterHasDefaultValues: [],
+                        valueParameterIsVararg: signature.valueParameterIsVararg
+                            + Array(repeating: false, count: reifiedCount + 1),
+                        typeParameterSymbols: signature.typeParameterSymbols,
+                        reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices
+                    ),
+                    for: stubSymbol
+                )
+            }
+            if let abiSig = record.abiReturnTypeSignature,
+               let abiReturnType = decodeImportedTypeSignature(
+                   token: abiSig,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner,
+                   diagnostics: diagnostics,
+                   metadataPath: binding.metadataPath,
+                   ownerFQName: record.fqName,
+                   cache: cache,
+                   allowPlaceholders: isStdlibArtifact
+               )
+            {
+                symbols.setFunctionABIReturnType(abiReturnType, for: symbol)
+            }
             importInlineFunctionIfNeeded(
                 binding,
                 symbol: symbol,
                 signature: signature,
-                types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions
+                importedInlineFunctions: importedInlineFunctions
             )
             return
         }
@@ -433,19 +1522,218 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             interner: interner,
             metadataPath: binding.metadataPath,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: isStdlibArtifact
         )
         symbols.setPropertyType(propertyType, for: symbol)
+
+        // `const val` values are inlined at every use site, so carry the literal
+        // across the library boundary instead of reading the (never initialized)
+        // global slot of a precompiled library.
+        if let constValueLiteral = record.constValueLiteral,
+           let constValue = MetadataConstValueCoder.decode(constValueLiteral, interner: { interner.intern($0) })
+        {
+            symbols.setConstValueExprKind(constValue, for: symbol)
+        }
+
+        // Restore extension property accessor(s). Extension properties are
+        // compiled as precompiled getter functions in the artifact objects;
+        // we synthesize the accessor symbol and point it at that link name.
+        if let receiverSig = record.propertyReceiverTypeSignature,
+           let receiverType = decodeImportedTypeSignature(
+               token: receiverSig,
+               symbols: symbols,
+               types: types,
+               interner: interner,
+               diagnostics: diagnostics,
+               metadataPath: binding.metadataPath,
+               ownerFQName: record.fqName,
+               cache: cache,
+               allowPlaceholders: isStdlibArtifact
+           )
+        {
+            symbols.setExtensionPropertyReceiverType(receiverType, for: symbol)
+
+            // Match the source-path convention: the accessor's short name is
+            // `get` while its FQ name is `<property>.$get` (HeaderCollection).
+            let getName = interner.intern("get")
+            let getterFQName = record.fqName + [interner.intern("$get")]
+            let getterSymbol = symbols.define(
+                kind: .function,
+                name: getName,
+                fqName: getterFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(symbol, for: getterSymbol)
+            symbols.setAccessorOwnerProperty(symbol, for: getterSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [],
+                    returnType: propertyType
+                ),
+                for: getterSymbol
+            )
+            symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: symbol)
+            if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
+                symbols.setExternalLinkName(getterLink, for: getterSymbol)
+            }
+            if let getterAbiSig = record.propertyGetterAbiReturnTypeSignature,
+               let getterAbiReturnType = decodeImportedTypeSignature(
+                   token: getterAbiSig,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner,
+                   diagnostics: diagnostics,
+                   metadataPath: binding.metadataPath,
+                   ownerFQName: record.fqName,
+                   cache: cache,
+                   allowPlaceholders: isStdlibArtifact
+               )
+            {
+                symbols.setFunctionABIReturnType(getterAbiReturnType, for: getterSymbol)
+            }
+
+            if record.isMutable {
+                let setName = interner.intern("set")
+                let setterFQName = record.fqName + [interner.intern("$set")]
+                let setterSymbol = symbols.define(
+                    kind: .function,
+                    name: setName,
+                    fqName: setterFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(symbol, for: setterSymbol)
+                symbols.setAccessorOwnerProperty(symbol, for: setterSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [propertyType],
+                        returnType: types.unitType
+                    ),
+                    for: setterSymbol
+                )
+                symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
+                if let setterLink = record.propertySetterExternalLinkName, !setterLink.isEmpty {
+                    symbols.setExternalLinkName(setterLink, for: setterSymbol)
+                }
+            }
+        }
+        // Member and top-level properties with custom getters also carry a
+        // precompiled getter link name. Restore a synthetic accessor so reads
+        // route through it instead of through a global slot the artifact never
+        // allocates.
+        // A nominal owner is restored by restoreImportedParentSymbol before this
+        // runs, so an owner that is absent or a package means the property is
+        // top-level and its getter takes no receiver.
+        let getterOwnerInfo = symbols.parentSymbol(for: symbol).flatMap { symbols.symbol($0) }
+        if record.propertyGetterExternalLinkName != nil,
+           record.propertyReceiverTypeSignature == nil,
+           getterOwnerInfo == nil || getterOwnerInfo?.kind == .package
+               || getterOwnerInfo?.kind == .class || getterOwnerInfo?.kind == .enumClass
+               || getterOwnerInfo?.kind == .interface
+               || getterOwnerInfo?.kind == .object
+        {
+            symbols.setPropertyHasCustomGetter(true, for: symbol)
+            let ownerType: TypeID? = getterOwnerInfo.flatMap { ownerInfo in
+                ownerInfo.kind == .package
+                    ? nil
+                    : types.make(.classType(ClassType(classSymbol: ownerInfo.id, args: [], nullability: .nonNull)))
+            }
+            let getName = interner.intern("get")
+            let getterFQName = record.fqName + [interner.intern("$get")]
+            let getterSymbol = symbols.define(
+                kind: .function,
+                name: getName,
+                fqName: getterFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(symbol, for: getterSymbol)
+            symbols.setAccessorOwnerProperty(symbol, for: getterSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: ownerType,
+                    parameterTypes: [],
+                    returnType: propertyType
+                ),
+                for: getterSymbol
+            )
+            symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: symbol)
+            if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
+                symbols.setExternalLinkName(getterLink, for: getterSymbol)
+            }
+            if let getterAbiSig = record.propertyGetterAbiReturnTypeSignature,
+               let getterAbiReturnType = decodeImportedTypeSignature(
+                   token: getterAbiSig,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner,
+                   diagnostics: diagnostics,
+                   metadataPath: binding.metadataPath,
+                   ownerFQName: record.fqName,
+                   cache: cache,
+                   allowPlaceholders: isStdlibArtifact
+               )
+            {
+                symbols.setFunctionABIReturnType(getterAbiReturnType, for: getterSymbol)
+            }
+        }
+        // `var` properties with a custom setter carry the precompiled setter
+        // link for the same reason as the getter: without it a consumer's
+        // `a.prop = x` lowers to a call named `set` and fails to link.
+        let setterOwnerInfo = symbols.parentSymbol(for: symbol).flatMap { symbols.symbol($0) }
+        if record.isMutable,
+           let setterLink = record.propertySetterExternalLinkName,
+           !setterLink.isEmpty,
+           record.propertyReceiverTypeSignature == nil,
+           setterOwnerInfo == nil || setterOwnerInfo?.kind == .package
+               || setterOwnerInfo?.kind == .class || setterOwnerInfo?.kind == .enumClass
+               || setterOwnerInfo?.kind == .interface
+               || setterOwnerInfo?.kind == .object
+        {
+            let ownerType: TypeID? = setterOwnerInfo.flatMap { ownerInfo in
+                ownerInfo.kind == .package
+                    ? nil
+                    : types.make(.classType(ClassType(classSymbol: ownerInfo.id, args: [], nullability: .nonNull)))
+            }
+            let setName = interner.intern("set")
+            let setterFQName = record.fqName + [interner.intern("$set")]
+            let setterSymbol = symbols.define(
+                kind: .function,
+                name: setName,
+                fqName: setterFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(symbol, for: setterSymbol)
+            symbols.setAccessorOwnerProperty(symbol, for: setterSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: ownerType,
+                    parameterTypes: [propertyType],
+                    returnType: types.unitType
+                ),
+                for: setterSymbol
+            )
+            symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
+            symbols.setExternalLinkName(setterLink, for: setterSymbol)
+        }
     }
 
     private func importInlineFunctionIfNeeded(
         _ binding: ImportedLibraryBinding,
         symbol: SymbolID,
         signature: FunctionSignature,
-        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction]
+        importedInlineFunctions: ImportedInlineFunctionStore
     ) {
         let record = binding.record
         guard record.isInline,
@@ -455,20 +1743,62 @@ extension DataFlowSemaPhase {
             return
         }
 
-        let inlinePath = URL(fileURLWithPath: inlineDir)
-            .appendingPathComponent(record.mangledName + ".kirbin")
-            .path
-        guard let inlineFunction = parseImportedInlineFunction(
-            path: inlinePath,
-            importedSymbol: symbol,
-            parameterCount: max(0, signature.parameterTypes.count),
-            types: types,
-            interner: interner,
-            diagnostics: diagnostics
-        ) else {
+        let fileName = MetadataEncoder.inlineKIRFileName(for: record.mangledName)
+        let inlineDirURL = URL(fileURLWithPath: inlineDir).resolvingSymlinksInPath().standardizedFileURL
+        let inlinePathURL = inlineDirURL
+            .appendingPathComponent(fileName)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        let inlinePath = inlinePathURL.path
+        let inlineDirResolved = inlineDirURL.path
+        guard inlinePath.hasPrefix(inlineDirResolved.hasSuffix("/") ? inlineDirResolved : inlineDirResolved + "/") else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0019",
+                "Inline KIR path for '\(record.mangledName)' escapes inline directory",
+                range: nil
+            )
             return
         }
-        importedInlineFunctions[symbol] = inlineFunction
+        let inlineAttributes = try? FileManager.default.attributesOfItem(atPath: inlinePath)
+        guard inlineAttributes?[.type] as? FileAttributeType == .typeRegular else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0019",
+                "Inline KIR path for '\(record.mangledName)' is missing or is not a regular file",
+                range: nil
+            )
+            return
+        }
+        guard FileManager.default.fileExists(atPath: inlinePath) else {
+            let recordFQName = record.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            if binding.isStdlibArtifact {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0023",
+                    "Stdlib artifact is missing inline KIR for '" + recordFQName + "': " + inlinePath,
+                    range: nil
+                )
+            } else {
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0002",
+                    "Unable to read inline KIR artifact: " + inlinePath,
+                    range: nil
+                )
+            }
+            return
+        }
+        // Defer the read + KIR parse to first expansion: most imported inline
+        // bodies are never spliced into a caller, so parsing ~every artifact
+        // at import is wasted work. The descriptor carries what the lazy
+        // parse needs that the symbol table cannot rebuild here — the
+        // resolved path, the signature captured at binding time, and the
+        // declared name (`record.fqName.last` is what `nameB64` serializes).
+        importedInlineFunctions.register(
+            ImportedInlineFunctionStore.Descriptor(
+                path: inlinePath,
+                signature: signature,
+                name: record.fqName.last ?? interner.intern("_")
+            ),
+            for: symbol
+        )
     }
 
     private func applyImportedValueClassMetadata(
@@ -476,7 +1806,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        isStdlibArtifact: Bool = false
     ) {
         let record = binding.record
         guard record.isValueClass else {
@@ -491,7 +1822,8 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner,
                 metadataPath: binding.metadataPath,
-                ownerFQName: record.fqName
+                ownerFQName: record.fqName,
+                allowPlaceholders: isStdlibArtifact
             )
             if let underlyingType {
                 symbols.setValueClassUnderlyingType(underlyingType, for: binding.symbol)
@@ -513,7 +1845,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        cache: LibraryMetadataCache?
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool = false
     ) {
         let record = binding.record
         guard record.kind == .typeAlias else {
@@ -527,7 +1860,8 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             interner: interner,
             metadataPath: binding.metadataPath,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: isStdlibArtifact
         )
         guard let underlyingType else {
             return
@@ -542,11 +1876,40 @@ extension DataFlowSemaPhase {
     private func applyImportedNominalMetadata(
         _ binding: ImportedLibraryBinding,
         symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool,
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])]
     ) {
         let record = binding.record
         guard isNominalLayoutTargetSymbol(record.kind) else {
             return
+        }
+
+        applyImportedNominalTypeParameters(
+            binding,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            cache: cache,
+            isStdlibArtifact: isStdlibArtifact
+        )
+
+        // Restore the parent link for imported nominal types (e.g. nested enum
+        // classes like Base64.PaddingOption). Without this, member lookup on
+        // the nested owner fails and the consumer falls back to treating the
+        // nested type as a constructor call, breaking enum entry references.
+        if record.fqName.count >= 2 {
+            let ownerFQName = Array(record.fqName.dropLast())
+            let ownerCandidates = symbols.lookupAll(fqName: ownerFQName).compactMap { symbols.symbol($0) }
+            if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
+                symbols.setParentSymbol(packageOwner.id, for: binding.symbol)
+            } else if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
+                symbols.setParentSymbol(ownerSymbol, for: binding.symbol)
+            }
         }
 
         let hasLayoutHint =
@@ -565,8 +1928,82 @@ extension DataFlowSemaPhase {
                 for: binding.symbol
             )
         }
-        if let superFQName = record.superFQName, !superFQName.isEmpty {
+        let allSuperFQNames = record.superFQNames ?? record.superFQName.map { [$0] } ?? []
+        for superFQName in allSuperFQNames where !superFQName.isEmpty {
             pendingSupertypeEdges.append((subtype: binding.symbol, superFQName: superFQName))
         }
+
+        // Import the precompiled enum static initializer link so the consumer
+        // can call it before `main`, ensuring enum entry globals are initialized.
+        if record.kind == .enumClass,
+           let enumStaticInitLink = record.enumStaticInitLinkName,
+           !enumStaticInitLink.isEmpty
+        {
+            let initName = interner.intern("__enum_static_init")
+            let initFQName = record.fqName + [initName]
+            let initSymbol = symbols.define(
+                kind: .function,
+                name: initName,
+                fqName: initFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setExternalLinkName(enumStaticInitLink, for: initSymbol)
+            symbols.setParentSymbol(binding.symbol, for: initSymbol)
+            symbols.setEnumStaticInitSymbol(initSymbol, for: binding.symbol)
+        }
+    }
+
+    /// Restores the declaration-order type parameters of an imported generic
+    /// nominal type. Without them the consumer treats the type as non-generic,
+    /// so explicit type arguments (`ArrayDeque<Int>()`) and member type
+    /// substitution fail to resolve.
+    private func applyImportedNominalTypeParameters(
+        _ binding: ImportedLibraryBinding,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool
+    ) {
+        guard let encoded = binding.record.nominalTypeParameters, !encoded.isEmpty else {
+            return
+        }
+
+        var typeParameterSymbols: [SymbolID] = []
+        var variances: [TypeVariance] = []
+        for entry in encoded.split(separator: ",") {
+            let parts = entry.split(separator: ":", maxSplits: 1)
+            guard let token = parts.first,
+                  let decoded = decodeImportedTypeSignature(
+                      token: String(token),
+                      symbols: symbols,
+                      types: types,
+                      interner: interner,
+                      diagnostics: diagnostics,
+                      metadataPath: binding.metadataPath,
+                      ownerFQName: binding.record.fqName,
+                      cache: cache,
+                      allowPlaceholders: isStdlibArtifact
+                  ),
+                  case let .typeParam(typeParam) = types.kind(of: decoded)
+            else {
+                return
+            }
+            typeParameterSymbols.append(typeParam.symbol)
+            switch parts.count > 1 ? String(parts[1]) : "i" {
+            case "o": variances.append(.out)
+            case "n": variances.append(.in)
+            default: variances.append(.invariant)
+            }
+        }
+
+        guard !typeParameterSymbols.isEmpty else {
+            return
+        }
+        types.setNominalTypeParameterSymbols(typeParameterSymbols, for: binding.symbol)
+        types.setNominalTypeParameterVariances(variances, for: binding.symbol)
     }
 }

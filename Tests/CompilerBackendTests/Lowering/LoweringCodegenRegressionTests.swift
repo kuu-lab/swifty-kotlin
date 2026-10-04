@@ -1,16 +1,24 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class LoweringCodegenRegressionTests: XCTestCase {
-    func testKxMiniRunBlockingDelayExecutableReturnsExpectedExitCode() throws {
+@Suite
+struct LoweringCodegenRegressionTests {
+    @Test
+    func testKxMiniRunBlockingDelayExecutableProducesSuspendResult() throws {
+        // The suspend result is observed on stdout rather than through the
+        // process status: `main`'s own value is discarded by the entry wrapper
+        // (see `testEntryWrapperDiscardsNonUnitMainResult`).
         let source = """
         suspend fun delayedValue(): Int {
             delay(1)
             return 42
         }
-        fun main(): Any? = runBlocking(delayedValue)
+        fun main() {
+            println(runBlocking(delayedValue))
+        }
         """
 
         try withTemporaryFile(contents: source) { path in
@@ -24,21 +32,19 @@ final class LoweringCodegenRegressionTests: XCTestCase {
                 emit: .executable,
                 outputPath: outputPath
             )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            try CodegenPhase().run(ctx)
-            try LinkPhase().run(ctx)
-
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            try runToLowering(ctx)
             do {
-                _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                XCTFail("Expected non-zero exit")
-                return
-            } catch let CommandRunnerError.nonZeroExit(failed) {
-                XCTAssertEqual(failed.exitCode, 42)
+                try CodegenPhase().run(ctx)
+                try LinkPhase().run(ctx)
             } catch {
-                XCTFail("Unexpected error: \(error)")
+                Issue.record("Compilation failed: \(error); diagnostics: \(ctx.diagnostics.diagnostics)")
+                return
             }
+
+            #expect(FileManager.default.fileExists(atPath: outputPath))
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.stdout.trimmingCharacters(in: .newlines) == "42")
         }
     }
 }
+#endif

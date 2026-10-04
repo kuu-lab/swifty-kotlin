@@ -1,4 +1,3 @@
-// SKIP-DIFF
 // STDLIB-REFL-173: compiler plugin API baseline
 // Exercises CommandProcessor, ExtensionRegistrar, IrGenerationExtension,
 // ClassBuilderInterceptor, and plugin metadata storage in a self-contained
@@ -140,5 +139,8 @@ fun main() {
     println("extensions=${meta?.registeredExtensions?.joinToString(",")}")
     println("generatedModules=${meta?.generatedModules?.joinToString(",")}")
     println("interceptedClasses=${meta?.interceptedClasses?.joinToString(",")}")
-    println("options=${meta?.options?.entries?.sortedBy { it.key }?.joinToString(",") { "${it.key}=${it.value}" }}")
+    val optionsSummary = meta?.options?.entries?.let { entries ->
+        entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }
+    }
+    println("options=$optionsSummary")
 }

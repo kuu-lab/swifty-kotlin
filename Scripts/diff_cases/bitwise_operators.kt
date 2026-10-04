@@ -1,3 +1,4 @@
+
 fun main() {
     // Existing bitwise operators
     println("=== Bitwise Operators (Int) ===")
@@ -69,9 +70,9 @@ fun main() {
     
     // Comparison with different types
     println("=== Comparison Operators (Mixed Types) ===")
-    println(5 == 5L)
-    println(5.0 == 5)
-    println(5.5f < 6.0)
+    println(5.toLong() == 5L)
+    println(5.0 == 5.toDouble())
+    println(5.5f < 6.0f)
     
     // Boolean logical operators
     println("=== Boolean Logical Operators ===")
@@ -89,7 +90,7 @@ fun main() {
     val charA = 'A'
     val charB = 'B'
     println(charA + " test")
-    println(charA.rangeTo('D'))
+    println((charA..'D').toList())
     println(charA < charB)
     println(charA <= charB)
     println(charA > charB)

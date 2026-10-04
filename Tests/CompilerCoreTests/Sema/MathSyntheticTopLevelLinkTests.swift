@@ -5,14 +5,92 @@ import Testing
 
 @Suite
 struct MathSyntheticTopLevelLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private static let sharedUsageSources = [
+        #"""
+        import kotlin.math.*
+
+        fun topLevelCalls(x: Int, y: Double): Double {
+            val ai = abs(-x)
+            val ad = abs(y)
+            return sqrt(ad * ad) + ad.pow(2.0) + ceil(ad) + floor(ad) + round(ad)
+        }
+        """#,
+        #"""
+        import kotlin.math.*
+
+        fun precisionHelpers(x: Double, y: Float) {
+            val a = x.ulp
+            val b = x.nextUp()
+            val c = x.nextDown()
+            val d = y.ulp
+            val e = y.nextUp()
+            val f = y.nextDown()
+        }
+        """#,
+        #"""
+        import kotlin.math.*
+
+        fun extensionProperties(i: Int, l: Long, f: Float, d: Double) {
+            val ai = i.absoluteValue
+            val al = l.absoluteValue
+            val af = f.absoluteValue
+            val ad = d.absoluteValue
+            val si = i.sign
+            val sl = l.sign
+            val sf = f.sign
+            val sd = d.sign
+            val uf = f.ulp
+            val ud = d.ulp
+        }
+        """#,
+        #"""
+        import kotlin.math.*
+
+        fun doublePow(): Double = 2.0.pow(3.0)
+        """#,
+        #"""
+        import kotlin.math.*
+
+        fun remainingFloatingCalls(d: Double, f: Float, i: Int) {
+            val ieeeD = d.IEEErem(d)
+            val ieeeF = f.IEEErem(f)
+            val nextD = d.nextTowards(d)
+            val nextF = f.nextTowards(f)
+            val powF = f.pow(f)
+            val powDI = d.pow(i)
+            val powFI = f.pow(i)
+        }
+        """#,
+    ]
+
+    private static nonisolated(unsafe) var _sharedUsage: (CompilationContext, [String])?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
+    }
+
+    private func sharedUsage() throws -> (CompilationContext, [String]) {
+        if let cached = Self._sharedUsage { return cached }
+        var result: (CompilationContext, [String])?
+        try withTemporaryFiles(contents: Self.sharedUsageSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = (ctx, paths)
+        }
+        let shared = try #require(result)
+        Self._sharedUsage = shared
+        return shared
     }
 
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
@@ -40,200 +118,147 @@ struct MathSyntheticTopLevelLinkTests {
         return nil
     }
 
-    @Test func testMathTopLevelSymbolsLinkToRuntimeFunctions() throws {
-        let (sema, interner) = try makeSema()
+    @Test func testMathTopLevelSymbolsAreKotlinSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
 
-        let expected: [String: String] = [
-            "sqrt": "kk_math_sqrt",
-            "pow": "kk_math_pow",
-            "ceil": "kk_math_ceil",
-            "floor": "kk_math_floor",
-            "round": "kk_math_round",
+        let expected: [String: String?] = [
+            "sqrt": nil,
         ]
 
         for (name, expectedLink) in expected {
             #expect(
                 externalLink(for: name, sema: sema, interner: interner) == expectedLink,
-                "\(name) in kotlin.math should link to runtime"
+                "\(name) in kotlin.math should be Kotlin-source backed"
             )
         }
     }
 
-    // STDLIB-500..509: Float overloads resolve alongside Double overloads
-    @Test func testFloatMathOverloadsHaveExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+    // KSP-637: Float overloads resolve alongside Double overloads without
+    // exposing the internal native bridge as the public symbol link.
+    @Test func testFloatMathOverloadsAreKotlinSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
 
-        // Each of these names should have at least two overloads registered
-        // (Double and Float). Verify the Float variant has a link name.
-        let floatOverloads: [(String, String)] = [
-            ("sin", "kk_math_sin_float"),
-            ("cos", "kk_math_cos_float"),
-            ("tan", "kk_math_tan_float"),
-            ("asin", "kk_math_asin_float"),
-            ("acos", "kk_math_acos_float"),
-            ("atan", "kk_math_atan_float"),
-            ("atan2", "kk_math_atan2_float"),
-            ("sqrt", "kk_math_sqrt_float"),
-            ("round", "kk_math_round_float"),
-            ("ceil", "kk_math_ceil_float"),
-            ("floor", "kk_math_floor_float"),
-            ("abs", "kk_math_abs_float"),
-            ("exp", "kk_math_exp_float"),
-            ("expm1", "kk_math_expm1_float"),
-            ("ln", "kk_math_ln_float"),
-            ("ln1p", "kk_math_ln1p_float"),
-            ("log2", "kk_math_log2_float"),
-            ("log10", "kk_math_log10_float"),
-            ("log", "kk_math_log_float"),
-            ("sign", "kk_math_sign_float"),
-            ("hypot", "kk_math_hypot_float"),
-        ]
-
-        for (name, expectedLink) in floatOverloads {
+        for name in [
+            "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqrt",
+            "exp", "expm1", "ln", "ln1p", "log2", "log10", "log", "hypot",
+        ] {
             let fq = ["kotlin", "math", name].map { interner.intern($0) }
             let allSymbols = sema.symbols.lookupAll(fqName: fq)
-            let hasFloatLink = allSymbols.contains { sym in
-                sema.symbols.externalLinkName(for: sym) == expectedLink
+            let publicSymbols = allSymbols.filter { symbolID in
+                sema.symbols.symbol(symbolID)?.visibility == .public
             }
             #expect(
-                hasFloatLink,
-                "Float overload for \(name) should link to \(expectedLink)"
+                publicSymbols.count >= 2,
+                "Expected Double and Float source overloads for \(name)"
+            )
+            #expect(
+                publicSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil },
+                "Public \(name) overloads must not carry a runtime link"
             )
         }
     }
 
     @Test func testMathTopLevelCallsResolveWithKotlinMathImport() throws {
-        let source = """
-        import kotlin.math.*
+        let (ctx, paths) = try sharedUsage()
+        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: paths[0]))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        var absCalls: [ExprID] = []
+        var callByName: [String: [ExprID]] = [:]
 
-        fun sample(x: Int, y: Double): Double {
-            val ai = abs(-x)
-            val ad = abs(y)
-            return sqrt(ad * ad) + pow(ad, 2.0) + ceil(ad) + floor(ad) + round(ad)
+        for exprIndex in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(exprIndex))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .call(calleeExpr, _, _, _) = expr,
+                  case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
+                  ast.arena.exprRange(exprID)?.start.file == sourceFileID
+            else { continue }
+            let name = ctx.interner.resolve(calleeName)
+            callByName[name, default: []].append(exprID)
+            if name == "abs" {
+                absCalls.append(exprID)
+            }
         }
-        """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        #expect(absCalls.count == 2, "Expected int and double abs calls")
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            var absCalls: [ExprID] = []
-            var callByName: [String: [ExprID]] = [:]
+        for absCall in absCalls {
+            let chosenCallee = try #require(
+                sema.bindings.callBinding(for: absCall)?.chosenCallee,
+                "Expected chosen callee for abs"
+            )
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                "abs is Kotlin-source backed and must not carry a runtime link"
+            )
+        }
 
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID) else { continue }
-                guard case let .call(calleeExpr, _, _, _) = expr else { continue }
-                guard case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr) else { continue }
-                let name = ctx.interner.resolve(calleeName)
-                callByName[name, default: []].append(exprID)
-                if name == "abs" {
-                    absCalls.append(exprID)
-                }
-            }
+        let expectedOrder: [(String, String?)] = [
+            ("sqrt", nil),
+            ("ceil", nil),
+            ("floor", nil),
+            ("round", nil),
+        ]
+        var consumedByName: [String: Int] = [:]
 
-            #expect(absCalls.count == 2, "Expected int and double abs calls")
-
-            let expectedOrder: [(String, String)] = [
-                ("abs", "kk_math_abs_int"),
-                ("abs", "kk_math_abs"),
-                ("sqrt", "kk_math_sqrt"),
-                ("pow", "kk_math_pow"),
-                ("ceil", "kk_math_ceil"),
-                ("floor", "kk_math_floor"),
-                ("round", "kk_math_round"),
-            ]
-            var consumedByName: [String: Int] = [:]
-
-            for (index, expected) in expectedOrder.enumerated() {
-                let (name, expectedLink) = expected
-                let callExpr: ExprID = {
-                    if name == "abs" {
-                        return absCalls[index == 0 ? 0 : 1]
-                    }
-                    let selectedIndex = consumedByName[name, default: 0]
-                    consumedByName[name] = selectedIndex + 1
-                    let candidates = callByName[name] ?? []
-                    return candidates[selectedIndex]
-                }()
-
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected chosen callee for \(name)"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == expectedLink,
-                    "Expected \(name) to resolve"
-                )
-            }
+        for expected in expectedOrder {
+            let (name, expectedLink) = expected
+            let selectedIndex = consumedByName[name, default: 0]
+            consumedByName[name] = selectedIndex + 1
+            let candidates = try #require(callByName[name])
+            let callExpr = try #require(
+                candidates.indices.contains(selectedIndex) ? candidates[selectedIndex] : nil,
+                "Expected call expression for \(name)"
+            )
+            let chosenCallee = try #require(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected chosen callee for \(name)"
+            )
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == expectedLink,
+                "Expected \(name) to resolve"
+            )
         }
     }
 
-    @Test func testFloatingPrecisionHelpersResolveWithKotlinMathImport() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun sample(x: Double, y: Float) {
-            val a = ulp(x)
-            val b = nextUp(x)
-            val c = nextDown(x)
-            val d = ulp(y)
-            val e = nextUp(y)
-            val f = nextDown(y)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let expectedLinks = [
-                "kk_double_ulp",
-                "kk_double_nextUp",
-                "kk_double_nextDown",
-                "kk_float_ulp",
-                "kk_float_nextUp",
-                "kk_float_nextDown",
-            ]
-
-            var resolvedLinks: [String] = []
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                else { continue }
-                let name = ctx.interner.resolve(calleeName)
-                guard ["ulp", "nextUp", "nextDown"].contains(name),
-                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                      let link = sema.symbols.externalLinkName(for: chosenCallee)
-                else { continue }
+    @Test func testFloatingPrecisionHelpersAreSourceBackedWithKotlinMathImport() throws {
+        let (ctx, paths) = try sharedUsage()
+        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: paths[1]))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        var resolvedLinks: [String] = []
+        var resolvedCount = 0
+        for exprIndex in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(exprIndex))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, calleeName, _, _, _) = expr,
+                  ast.arena.exprRange(exprID)?.start.file == sourceFileID,
+                  ["ulp", "nextUp", "nextDown"].contains(ctx.interner.resolve(calleeName)),
+                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
+            else { continue }
+            resolvedCount += 1
+            if let link = sema.symbols.externalLinkName(for: chosenCallee) {
                 resolvedLinks.append(link)
             }
-
-            for expected in expectedLinks {
-                #expect(resolvedLinks.contains(expected), "Expected \(expected) to be resolved")
-            }
         }
+
+        #expect(resolvedCount == 6, "Expected all six precision helpers to resolve")
+        #expect(resolvedLinks.isEmpty, "Source-backed precision helpers must not carry runtime links")
     }
 
     @Test func testMathExtensionPropertySymbolsUseOfficialShape() throws {
-        let (sema, interner) = try makeSema()
-        let expected: [(String, TypeID, TypeID, String)] = [
-            ("absoluteValue", sema.types.doubleType, sema.types.doubleType, "kk_math_abs"),
-            ("absoluteValue", sema.types.floatType, sema.types.floatType, "kk_math_abs_float"),
-            ("absoluteValue", sema.types.intType, sema.types.intType, "kk_math_abs_int"),
-            ("absoluteValue", sema.types.longType, sema.types.longType, "kk_math_abs_long"),
-            ("sign", sema.types.doubleType, sema.types.doubleType, "kk_math_sign"),
-            ("sign", sema.types.floatType, sema.types.floatType, "kk_math_sign_float"),
-            ("sign", sema.types.intType, sema.types.intType, "kk_math_sign_int"),
-            ("sign", sema.types.longType, sema.types.intType, "kk_math_sign_long"),
-            ("ulp", sema.types.doubleType, sema.types.doubleType, "kk_double_ulp"),
-            ("ulp", sema.types.floatType, sema.types.floatType, "kk_float_ulp"),
+        let (sema, interner) = try sharedSema()
+        let expected: [(String, TypeID, TypeID, String?)] = [
+            ("absoluteValue", sema.types.doubleType, sema.types.doubleType, nil),
+            ("absoluteValue", sema.types.floatType, sema.types.floatType, nil),
+            ("absoluteValue", sema.types.intType, sema.types.intType, nil),
+            ("absoluteValue", sema.types.longType, sema.types.longType, nil),
+            ("sign", sema.types.doubleType, sema.types.doubleType, nil),
+            ("sign", sema.types.floatType, sema.types.floatType, nil),
+            ("sign", sema.types.intType, sema.types.intType, nil),
+            ("sign", sema.types.longType, sema.types.intType, nil),
+            ("ulp", sema.types.doubleType, sema.types.doubleType, nil),
+            ("ulp", sema.types.floatType, sema.types.floatType, nil),
         ]
 
         for (name, receiverType, returnType, expectedLink) in expected {
@@ -252,154 +277,75 @@ struct MathSyntheticTopLevelLinkTests {
     }
 
     @Test func testMathExtensionPropertiesResolveWithKotlinMathImport() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun sample(i: Int, l: Long, f: Float, d: Double) {
-            val ai = i.absoluteValue
-            val al = l.absoluteValue
-            val af = f.absoluteValue
-            val ad = d.absoluteValue
-            val si = i.sign
-            val sl = l.sign
-            val sf = f.sign
-            val sd = d.sign
-            val uf = f.ulp
-            val ud = d.ulp
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(!(ctx.diagnostics.hasError), "Expected math extension properties to resolve without diagnostics.")
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let propertyNames: Set<String> = ["absoluteValue", "sign", "ulp"]
-            var resolvedLinks: [String] = []
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .memberCall(_, calleeName, _, _, _) = expr,
-                      propertyNames.contains(ctx.interner.resolve(calleeName)),
-                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                      let link = sema.symbols.externalLinkName(for: chosenCallee)
-                else {
-                    continue
-                }
-                resolvedLinks.append(link)
+        let (ctx, paths) = try sharedUsage()
+        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: paths[2]))
+        #expect(!(ctx.diagnostics.hasError), "Expected math extension properties to resolve without diagnostics.")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let propertyNames: Set<String> = ["absoluteValue", "sign", "ulp"]
+        var resolvedLinks: [String] = []
+        for exprIndex in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(exprIndex))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, calleeName, _, _, _) = expr,
+                  ast.arena.exprRange(exprID)?.start.file == sourceFileID,
+                  propertyNames.contains(ctx.interner.resolve(calleeName)),
+                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                  let link = sema.symbols.externalLinkName(for: chosenCallee)
+            else {
+                continue
             }
-
-            for expectedLink in [
-                "kk_math_abs_int",
-                "kk_math_abs_long",
-                "kk_math_abs_float",
-                "kk_math_abs",
-                "kk_math_sign_int",
-                "kk_math_sign_long",
-                "kk_math_sign_float",
-                "kk_math_sign",
-                "kk_float_ulp",
-                "kk_double_ulp",
-            ] {
-                #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
-            }
+            resolvedLinks.append(link)
         }
+
+        #expect(resolvedLinks.isEmpty, "Math extension properties are Kotlin-source backed, got \(resolvedLinks)")
     }
 
-    @Test func testDoublePowMemberCallResolvesViaMathExtensionStub() throws {
-        let source = """
-        import kotlin.math.*
+    @Test func testDoublePowMemberCallResolvesViaKotlinSource() throws {
+        let (ctx, paths) = try sharedUsage()
+        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: paths[3]))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected Double.pow member call to resolve without diagnostics.")
 
-        fun sample(): Double {
-            return 2.0.pow(3.0)
-        }
-        """
+        let callExpr = try #require(
+            firstExprID(in: ast) { exprID, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr,
+                      ast.arena.exprRange(exprID)?.start.file == sourceFileID else { return false }
+                return ctx.interner.resolve(callee) == "pow"
+            },
+            "Expected pow member call expression"
+        )
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            #expect(!(ctx.diagnostics.hasError), "Expected Double.pow member call to resolve without diagnostics.")
-
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "pow"
-                },
-                "Expected pow member call expression"
-            )
-
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected chosen callee for Double.pow"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_math_pow"
-            )
-        }
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            "Expected chosen callee for Double.pow"
+        )
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
     }
 
     @Test func testRemainingFloatingMathMemberCallsResolveViaDefaultImport() throws {
-        let source = """
-        import kotlin.math.*
+        let (ctx, paths) = try sharedUsage()
+        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: paths[4]))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected remaining math member calls to resolve without diagnostics.")
 
-        fun sample(d: Double, f: Float, i: Int) {
-            val ieeeD = d.IEEErem(d)
-            val ieeeF = f.IEEErem(f)
-            val nextD = d.nextTowards(d)
-            val nextF = f.nextTowards(f)
-            val powF = f.pow(f)
-            val powDI = d.pow(i)
-            val powFI = f.pow(i)
-            val signD = d.withSign(d)
-            val signDI = d.withSign(i)
-            val signF = f.withSign(f)
-            val signFI = f.withSign(i)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            #expect(!(ctx.diagnostics.hasError), "Expected remaining math member calls to resolve without diagnostics.")
-
-            var resolvedLinks: [String] = []
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .memberCall(_, calleeName, _, _, _) = expr,
-                      ["IEEErem", "nextTowards", "pow", "withSign"].contains(ctx.interner.resolve(calleeName)),
-                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                      let link = sema.symbols.externalLinkName(for: chosenCallee)
-                else {
-                    continue
-                }
-                resolvedLinks.append(link)
+        var resolvedCount = 0
+        for exprIndex in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(exprIndex))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, calleeName, _, _, _) = expr,
+                  ast.arena.exprRange(exprID)?.start.file == sourceFileID,
+                  ["IEEErem", "nextTowards", "pow"].contains(ctx.interner.resolve(calleeName)),
+                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
+            else {
+                continue
             }
-
-            for expectedLink in [
-                "kk_math_IEEErem",
-                "kk_math_IEEErem_float",
-                "kk_math_nextTowards",
-                "kk_math_nextTowards_float",
-                "kk_math_pow_float",
-                "kk_math_pow_int",
-                "kk_math_pow_float_int",
-                "kk_math_withSign",
-                "kk_math_withSign_int",
-                "kk_math_withSign_float",
-                "kk_math_withSign_float_int",
-            ] {
-                #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
-            }
+            resolvedCount += 1
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         }
+        #expect(resolvedCount == 7, "Expected all seven migrated member calls to resolve")
     }
 }
 #endif

@@ -35,7 +35,7 @@ public struct SyntaxNode: Equatable {
     public let kind: SyntaxKind
     public let range: SourceRange
     public let firstChildIndex: Int32
-    public let childCount: Int16
+    public let childCount: Int32
 }
 
 /// Concurrency model:
@@ -56,7 +56,7 @@ public final class SyntaxArena: @unchecked Sendable {
     public func appendNode(kind: SyntaxKind, range: SourceRange, _ children: [SyntaxChild]) -> NodeID {
         let start = Int32(self.children.count)
         self.children.append(contentsOf: children)
-        let childCount = Int16(children.count)
+        let childCount = Int32(children.count)
         let nodeID = Int32(nodes.count)
         let node = SyntaxNode(
             kind: kind,

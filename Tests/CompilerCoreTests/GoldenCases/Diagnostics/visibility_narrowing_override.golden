@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "visibility_narrowing_override.kt",
+      "range": {
+        "start": { "line": 9, "character": 4 },
+        "end": { "line": 9, "character": 51 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-VISIBILITY",
+      "source": "kswiftk",
+      "message": "'describe' cannot override 'Vehicle.describe' because it has private visibility, which is more restrictive than the public visibility of the overridden member.",
+      "codeActions": []
+    },
+    {
+      "file": "visibility_narrowing_override.kt",
+      "range": {
+        "start": { "line": 13, "character": 4 },
+        "end": { "line": 13, "character": 49 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-VISIBILITY",
+      "source": "kswiftk",
+      "message": "'info' cannot override 'Vehicle.info' because it has private visibility, which is more restrictive than the protected visibility of the overridden member.",
+      "codeActions": []
+    }
+  ]
+}

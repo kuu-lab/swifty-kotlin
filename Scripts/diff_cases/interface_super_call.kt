@@ -15,7 +15,7 @@ class D : B, C {
 }
 
 class E : B, C {
-    override fun greet(): String = "D: " + super.greet()
+    override fun greet(): String = "E: " + super<B>.greet()
 }
 
 class F : B {

@@ -24,7 +24,7 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Emits a `kk_kproperty_stub_create(name, returnType)` call and returns the result expression ID.
+    /// Emits a `__kk_kproperty_stub_create(name, returnType)` call and returns the result expression ID.
     func emitKPropertyStubCreate(
         propertyName: InternedString,
         propertyType: TypeID,
@@ -36,23 +36,23 @@ extension KIRLoweringDriver {
         let arena = shared.arena
         let propertyNameExprID = arena.appendExpr(
             .stringLiteral(propertyName),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         body.append(.constValue(result: propertyNameExprID, value: .stringLiteral(propertyName)))
-        let returnTypeSig = interner.intern(sema.types.renderType(propertyType))
+        let returnTypeSig = interner.intern(
+            sema.types.displayName(of: propertyType, symbols: sema.symbols, interner: interner)
+        )
         let returnTypeExprID = arena.appendExpr(
             .stringLiteral(returnTypeSig),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
-        let kPropertyExprID = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
+        let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(
             .call(
                 symbol: nil,
-                callee: interner.intern("kk_kproperty_stub_create"),
+                callee: interner.intern("__kk_kproperty_stub_create"),
                 arguments: [propertyNameExprID, returnTypeExprID],
                 result: kPropertyExprID,
                 canThrow: false,
@@ -63,7 +63,8 @@ extension KIRLoweringDriver {
     }
 
     /// Emits the full provideDelegate flow for top-level properties: store raw delegate,
-    /// build thisRef + KProperty stub, call provideDelegate, wrap result in kk_custom_delegate_create.
+    /// build thisRef + KProperty stub, call provideDelegate, and store its result as the
+    /// actual delegate (getValue/setValue resolve directly against that value).
     func emitProvideDelegateInit(
         delegateObjExpr: KIRExprID,
         symbol: SymbolID,
@@ -102,9 +103,7 @@ extension KIRLoweringDriver {
 
         // Call provideDelegate(thisRef, kProperty) on the raw delegate.
         let provideDelegateName = interner.intern("provideDelegate")
-        let provideDelegateResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
+        let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
         initInstructions.append(
             .call(
@@ -120,7 +119,8 @@ extension KIRLoweringDriver {
         initInstructions.append(.storeGlobal(value: provideDelegateResult, symbol: delegateStorageSymbol))
     }
 
-    /// Emits the simple delegate init: just wrap in kk_custom_delegate_create.
+    /// Emits the simple delegate init: stores the raw delegate object directly
+    /// (getValue/setValue resolve directly against that value).
     func emitSimpleDelegateInit(
         delegateObjExpr: KIRExprID,
         delegateStorageSymbol: SymbolID,
@@ -128,15 +128,5 @@ extension KIRLoweringDriver {
         emit initInstructions: inout KIRLoweringEmitContext
     ) {
         initInstructions.append(.storeGlobal(value: delegateObjExpr, symbol: delegateStorageSymbol))
-    }
-}
-
-extension ABILoweringPass {
-    static func kPropertyStubCallees(_ interner: StringInterner) -> Set<InternedString> {
-        [
-            interner.intern("kk_kproperty_stub_create"),
-            interner.intern("kk_kproperty_stub_name"),
-            interner.intern("kk_kproperty_stub_return_type"),
-        ]
     }
 }

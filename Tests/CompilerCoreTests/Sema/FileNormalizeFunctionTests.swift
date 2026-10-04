@@ -7,123 +7,124 @@ import Testing
 ///
 /// Verifies that the synthetic `normalize` member registered on the
 /// `java.io.File` synthetic class (see
-/// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileIOStubs.swift`)
+/// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJavaIOStreamStubs.swift`)
 /// resolves through Sema and binds to the runtime helper `kk_file_normalize`
 /// listed in `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 @Suite
 struct FileNormalizeFunctionTests {
 
-    // MARK: - Basic resolution
+    // MARK: - Consolidated runSema clean tests
 
-    @Test func testFileNormalizeResolves() throws {
-        let source = """
-        import java.io.File
+    @Test
+    func testRunSemaClean() throws {
 
-        fun normalize(file: File): File {
-            return file.normalize()
-        }
+        let sources: [String] = [
+            // testFileNormalizeResolves
+            """
+            package sample0
 
-        fun main() {
-            println(normalize(File("/tmp/./sub/../file.txt")).path)
-        }
-        """
+                    import java.io.File
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+                    fun normalizedFile(file: File): File {
+                        return file.normalize()
+                    }
+
+                    fun main() {
+                        println(normalizedFile(File("/tmp/./sub/../file.txt")).path)
+                    }
+
+            """,
+            // testFileNormalizeCallExpressionIsTypedAsFile
+            """
+            package sample1
+
+                    import java.io.File
+
+                    fun normalized(file: File): File {
+                        val result: File = file.normalize()
+                        return result
+                    }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
             try runSema(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(
-                errors.isEmpty,
-                "File.normalize() should resolve cleanly, got: \(errors.map { "\($0.code): \($0.message)" })"
-            )
-        }
-    }
-
-    // MARK: - Return type is File
-
-    @Test func testFileNormalizeCallExpressionIsTypedAsFile() throws {
-        let source = """
-        import java.io.File
-
-        fun normalized(file: File): File {
-            val result: File = file.normalize()
-            return result
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "File.normalize() should type-check as File: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-
-            let interner = ctx.interner
-            let sema = try #require(ctx.sema)
-            let fileSymbol = try #require(
-                sema.symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
-            )
-            let fileType = sema.types.make(
-                .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
-            )
 
             let ast = try #require(ctx.ast)
-            let normalizeCallExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
-                let exprID = ExprID(rawValue: Int32(index))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .memberCall(_, callee, _, _, _) = expr,
-                      interner.resolve(callee) == "normalize"
-                else {
-                    return nil
-                }
-                return exprID
-            }
-            #expect(!normalizeCallExprs.isEmpty, "Expected at least one normalize call expression")
-            for callExpr in normalizeCallExprs {
-                #expect(
-                    sema.bindings.exprTypes[callExpr] == fileType,
-                    "File.normalize() call expression must be typed as File"
-                )
-            }
-        }
-    }
 
-    // MARK: - Symbol registration and runtime link name
-
-    @Test func testFileNormalizeSignatureAndRuntimeLinkName() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            let sema = try #require(ctx.sema)
 
             let interner = ctx.interner
-            let sema = try #require(ctx.sema)
-            let symbols = sema.symbols
-            let types = sema.types
 
-            let fileSymbol = try #require(
-                symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
-            )
-            let fileType = types.make(
-                .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
-            )
+            // === testFileNormalizeResolves ===
 
-            let candidates = symbols.lookupAll(
-                fqName: ["java", "io", "File", "normalize"].map(interner.intern)
-            )
+            do {
 
-            let normalizeOverload = try #require(candidates.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == fileType
-                    && signature.parameterTypes.isEmpty
-                    && signature.returnType == fileType
-            }, "Expected a normalize overload with () -> File signature")
+                let sample0Path = paths[0]
 
-            #expect(
-                symbols.externalLinkName(for: normalizeOverload) == "kk_file_normalize",
-                "File.normalize() should bind to runtime helper kk_file_normalize"
-            )
+
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                // KSP-483: the top-level helper must not be named `normalize` — that
+                // now collides with the Kotlin-source `File.normalize()` extension
+                // function bundled from Stdlib/kotlin/io/Files.kt.
+                    let errors = sample0Diagnostics.filter { $0.severity == .error }
+                    #expect(
+                        errors.isEmpty,
+                        "File.normalize() should resolve cleanly, got: \(errors.map { "\($0.code): \($0.message)" })"
+                    )
+
+            }
+
+            // === testFileNormalizeCallExpressionIsTypedAsFile ===
+
+            do {
+
+                let sample1Path = paths[1]
+
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                #expect(
+                    !sample1Diagnostics.contains { $0.severity == .error },
+                    "File.normalize() should type-check as File: \(sample1Diagnostics.map(\.message))"
+                )
+
+                let fileSymbol = try #require(
+                    sema.symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
+                )
+                let fileType = sema.types.make(
+                    .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
+                )
+
+                let normalizeCallExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                    let exprID = ExprID(rawValue: Int32(index))
+                    guard let expr = ast.arena.expr(exprID),
+                          case let .memberCall(_, callee, _, _, _) = expr,
+                          interner.resolve(callee) == "normalize"
+                    else {
+                        return nil
+                    }
+                    return exprID
+                }
+                #expect(!normalizeCallExprs.isEmpty, "Expected at least one normalize call expression")
+                for callExpr in normalizeCallExprs {
+                    #expect(
+                        sema.bindings.exprTypes[callExpr] == fileType,
+                        "File.normalize() call expression must be typed as File"
+                    )
+                }
+
+            }
+
         }
     }
+
 }
+
 #endif

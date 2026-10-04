@@ -1,0 +1,1093 @@
+
+/// Synthetic stdlib stubs for `kotlin.native.concurrent` (STDLIB-NATIVE-CONCURRENT-002).
+///
+/// Registers:
+///   - KSP-1216 package-level nominal anchors whose constructors and members are owned by follow-up tasks
+///   - `Continuation0` / `Continuation1` / `Continuation2` classes
+///   - `FreezingException` class with native constructor surface
+///   - `InvalidMutabilityException` class with native constructor surface
+///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
+///   - `Future<T>` value-class anchor and the residual `Future(Int)` constructor
+///   - `@ObsoleteWorkersApi` marker annotation
+///   - `TransferMode` nominal anchor for the early `Worker.execute` registration
+///   - `@ThreadLocal` annotation (PROPERTY/CLASS target, native variant)
+
+private enum NativeConcurrentRegistrationStep: CaseIterable {
+    case topLevelNominalAnchors
+    case continuationTypes
+    case freezingException
+    case invalidMutabilityException
+    case worker
+    case future
+    case markerAnnotations
+}
+
+extension DataFlowSemaPhase {
+    func registerSyntheticNativeConcurrentStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let nativeConcurrentPkg = ensurePackage(
+            path: ["kotlin", "native", "concurrent"],
+            symbols: symbols,
+            interner: interner
+        )
+        let nativeConcurrentPkgSymbol = symbols.lookup(fqName: nativeConcurrentPkg)
+
+        // TransferMode is source-backed. Keep only the early nominal anchor
+        // because Worker.execute is registered before bundled headers are collected.
+        let transferModeSymbol = ensureNativeConcurrentEnum(
+            named: "TransferMode",
+            entries: [],
+            in: nativeConcurrentPkg,
+            pkgSymbol: nativeConcurrentPkgSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+        let transferModeType = types.make(.classType(ClassType(
+            classSymbol: transferModeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        // FutureState is source-backed. Keep only its early nominal anchor here
+        // because Worker/Future registration runs before bundled headers are collected.
+        let futureStateSymbol = ensureNativeConcurrentEnum(
+            named: "FutureState",
+            entries: [],
+            in: nativeConcurrentPkg,
+            pkgSymbol: nativeConcurrentPkgSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+        let futureStateType = types.make(.classType(ClassType(
+            classSymbol: futureStateSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        for step in NativeConcurrentRegistrationStep.allCases {
+            registerNativeConcurrentStep(
+                step,
+                packageFQName: nativeConcurrentPkg,
+                pkgSymbol: nativeConcurrentPkgSymbol,
+                transferModeType: transferModeType,
+                futureStateType: futureStateType,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
+            fqName: nativeConcurrentPkg + [interner.intern("ThreadLocal")]
+        ) {
+            registerNativeThreadLocalAnnotationConstructor(
+                packageFQName: nativeConcurrentPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
+    }
+}
+
+
+extension DataFlowSemaPhase {
+    private func registerNativeConcurrentStep(
+        _ step: NativeConcurrentRegistrationStep,
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        transferModeType: TypeID,
+        futureStateType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        switch step {
+        case .topLevelNominalAnchors:
+            registerNativeConcurrentTopLevelNominalAnchors(
+                packageFQName: packageFQName,
+                pkgSymbol: pkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        case .continuationTypes:
+            registerNativeConcurrentContinuationTypes(
+                packageFQName: packageFQName,
+                pkgSymbol: pkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        case .freezingException:
+            registerNativeConcurrentFreezingException(
+                packageFQName: packageFQName,
+                pkgSymbol: pkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        case .invalidMutabilityException:
+            registerNativeConcurrentInvalidMutabilityException(
+                packageFQName: packageFQName,
+                pkgSymbol: pkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        case .worker:
+            registerNativeConcurrentWorker(
+                packageFQName: packageFQName,
+                pkgSymbol: pkgSymbol,
+                transferModeType: transferModeType,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        case .future:
+            registerNativeConcurrentFuture(
+                packageFQName: packageFQName,
+                pkgSymbol: pkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        case .markerAnnotations:
+            registerNativeConcurrentMarkerAnnotations(
+                packageFQName: packageFQName,
+                pkgSymbol: pkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
+    }
+
+    /// Registers only the package-level class identities that still lack
+    /// bundled Kotlin declarations.
+    private func registerNativeConcurrentTopLevelNominalAnchors(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        // AtomicInt now owns its source-backed constructor (KSP-1220) and
+        // AtomicLong is source-backed by KSP-1222 in Atomics.kt.
+        // AtomicInt receiver members reuse the source-backed class through
+        // KSP-1221 extensions.
+        // AtomicNativePtr is intentionally excluded: it is already
+        // source-backed by KSP-1224 (same file).
+        // FreezableAtomicReference is intentionally excluded: it is already
+        // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/
+        // Atomics.kt). AtomicReference is intentionally excluded: it is
+        // already source-backed by KSP-1226 (same file).
+
+        // DetachedObjectGraph is source-backed by ObjectTransfer.kt. Its
+        // internal storage and receiver members are owned by KSP-1235; the
+        // public constructors remain the separate KSP-1234 surface.
+
+        // MutableData is intentionally excluded: it is already source-backed
+        // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData.kt).
+        // WorkerBoundReference is intentionally excluded: it is already fully
+        // source-backed by KSP-1252 (constructor) and KSP-1253 (value /
+        // valueOrNull / worker), both in Stdlib/kotlin/native/concurrent/
+        // WorkerBoundReference.kt.
+
+        // NativePtr is the opaque representation used by two internal KSP-1216
+        // functions. Its own members remain outside this API slice.
+        let nativeInternalPkg = ensurePackage(
+            path: ["kotlin", "native", "internal"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerNativeConcurrentNominalAnchor(
+            named: "NativePtr",
+            packageFQName: nativeInternalPkg,
+            pkgSymbol: symbols.lookup(fqName: nativeInternalPkg),
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    private func registerNativeConcurrentNominalAnchor(
+        named name: String,
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        typeParameter: (name: String, variance: TypeVariance, upperBound: TypeID)? = nil,
+        annotations: [MetadataAnnotationRecord] = [],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let className = interner.intern(name)
+        let classFQName = packageFQName + [className]
+        let classSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: classFQName),
+           symbols.symbol(existing)?.kind == .class
+        {
+            classSymbol = existing
+        } else {
+            classSymbol = symbols.define(
+                kind: .class,
+                name: className,
+                fqName: classFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: classSymbol)
+        }
+
+        let classType: TypeID
+        if let typeParameter {
+            let typeParameterName = interner.intern(typeParameter.name)
+            let typeParameterFQName = classFQName + [typeParameterName]
+            let typeParameterSymbol: SymbolID
+            if let existing = symbols.lookup(fqName: typeParameterFQName) {
+                typeParameterSymbol = existing
+            } else {
+                typeParameterSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: typeParameterName,
+                    fqName: typeParameterFQName,
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+            }
+            symbols.setParentSymbol(classSymbol, for: typeParameterSymbol)
+            symbols.setTypeParameterUpperBounds([typeParameter.upperBound], for: typeParameterSymbol)
+            types.setNominalTypeParameterSymbols([typeParameterSymbol], for: classSymbol)
+            types.setNominalTypeParameterVariances([typeParameter.variance], for: classSymbol)
+            let typeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: typeParameterSymbol,
+                nullability: .nonNull
+            )))
+            classType = types.make(.classType(ClassType(
+                classSymbol: classSymbol,
+                args: [.invariant(typeParameterType)],
+                nullability: .nonNull
+            )))
+        } else {
+            classType = types.make(.classType(ClassType(
+                classSymbol: classSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+        symbols.setPropertyType(classType, for: classSymbol)
+        appendNativeConcurrentMetadataAnnotations(annotations, to: classSymbol, symbols: symbols)
+    }
+
+    private func registerNativeConcurrentMarkerAnnotations(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let obsoleteWorkersApiSymbol = ensureAnnotationClassSymbol(
+            named: "ObsoleteWorkersApi",
+            in: packageFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: obsoleteWorkersApiSymbol)
+        }
+        appendNativeConcurrentMetadataAnnotations(
+            [
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.RequiresOptIn",
+                    arguments: [
+                        "message = \"Workers API is obsolete and will be replaced with threads eventually\"",
+                        "level = RequiresOptIn.Level.WARNING",
+                    ]
+                ),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.annotation.Target",
+                    arguments: [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.ANNOTATION_CLASS",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.FIELD",
+                        "AnnotationTarget.LOCAL_VARIABLE",
+                        "AnnotationTarget.VALUE_PARAMETER",
+                        "AnnotationTarget.CONSTRUCTOR",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY_GETTER",
+                        "AnnotationTarget.PROPERTY_SETTER",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+                ),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.annotation.Retention",
+                    arguments: ["AnnotationRetention.BINARY"]
+                ),
+                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.SinceKotlin",
+                    arguments: ["version = \"1.9\""]
+                ),
+            ],
+            to: obsoleteWorkersApiSymbol,
+            symbols: symbols
+        )
+
+        let obsoleteWorkersApiType = types.make(.classType(ClassType(
+            classSymbol: obsoleteWorkersApiSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        registerNativeConcurrentConstructor(
+            ownerSymbol: obsoleteWorkersApiSymbol,
+            ownerType: obsoleteWorkersApiType,
+            parameters: [],
+            defaultValues: [],
+            symbols: symbols,
+            interner: interner
+        )
+
+        // The bundled declaration owns @ThreadLocal in regular compilation.
+        // The synthetic annotation remains available without the stdlib.
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
+            fqName: packageFQName + [interner.intern("ThreadLocal")]
+        ) {
+            let threadLocalNativeAnnotationSymbol = ensureAnnotationClassSymbol(
+                named: "ThreadLocal",
+                in: packageFQName,
+                symbols: symbols,
+                interner: interner
+            )
+            if let pkgSymbol {
+                symbols.setParentSymbol(pkgSymbol, for: threadLocalNativeAnnotationSymbol)
+            }
+            appendNativeConcurrentAnnotationMetadata(
+                to: threadLocalNativeAnnotationSymbol,
+                targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
+                retention: "AnnotationRetention.BINARY",
+                symbols: symbols
+            )
+        }
+    }
+}
+
+/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Continuation0/1/2 classes.
+///
+/// `callContinuation0/1/2` are no longer registered here — KSP-1217 moved them to
+/// bundled Kotlin source (`Stdlib/kotlin/native/concurrent/Continuation.kt`).
+///
+/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
+extension DataFlowSemaPhase {
+
+    // MARK: - Continuation0 / Continuation1 / Continuation2
+
+    func registerNativeConcurrentContinuationTypes(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let nullableCOpaquePointerType = types.makeNullable(nativeConcurrentCOpaquePointerType(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ))
+        let invokerCallbackType = types.make(.functionType(FunctionType(
+            params: [nullableCOpaquePointerType],
+            returnType: types.unitType
+        )))
+        let cFunctionType = nativeConcurrentCFunctionType(
+            functionType: invokerCallbackType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let invokerType = nativeConcurrentCPointerType(
+            pointeeType: cFunctionType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        registerNativeConcurrentContinuationType(
+            name: "Continuation0",
+            typeParameterNames: [],
+            packageFQName: packageFQName,
+            pkgSymbol: pkgSymbol,
+            invokerType: invokerType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerNativeConcurrentContinuationType(
+            name: "Continuation1",
+            typeParameterNames: ["T1"],
+            packageFQName: packageFQName,
+            pkgSymbol: pkgSymbol,
+            invokerType: invokerType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerNativeConcurrentContinuationType(
+            name: "Continuation2",
+            typeParameterNames: ["T1", "T2"],
+            packageFQName: packageFQName,
+            pkgSymbol: pkgSymbol,
+            invokerType: invokerType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    private func registerNativeConcurrentContinuationType(
+        name: String,
+        typeParameterNames: [String],
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        invokerType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let continuationName = interner.intern(name)
+        let continuationFQName = packageFQName + [continuationName]
+        let continuationSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: continuationFQName), symbols.symbol(existing)?.kind == .class {
+            continuationSymbol = existing
+        } else {
+            continuationSymbol = symbols.define(
+                kind: .class,
+                name: continuationName,
+                fqName: continuationFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: continuationSymbol)
+        }
+
+        let typeParameterSymbols = typeParameterNames.map { typeParameterName in
+            let internedName = interner.intern(typeParameterName)
+            let fqName = continuationFQName + [internedName]
+            if let existing = symbols.lookup(fqName: fqName) {
+                return existing
+            }
+            let symbol = symbols.define(
+                kind: .typeParameter,
+                name: internedName,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            symbols.setParentSymbol(continuationSymbol, for: symbol)
+            return symbol
+        }
+        let typeParameterTypes = typeParameterSymbols.map { symbol in
+            types.make(.typeParam(TypeParamType(symbol: symbol, nullability: .nonNull)))
+        }
+        let continuationType = types.make(.classType(ClassType(
+            classSymbol: continuationSymbol,
+            args: typeParameterTypes.map { .invariant($0) },
+            nullability: .nonNull
+        )))
+        types.setNominalTypeParameterSymbols(typeParameterSymbols, for: continuationSymbol)
+        types.setNominalTypeParameterVariances(
+            Array(repeating: .invariant, count: typeParameterSymbols.count),
+            for: continuationSymbol
+        )
+        symbols.setPropertyType(continuationType, for: continuationSymbol)
+        appendNativeConcurrentMetadataAnnotations(
+            [
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: ["message = \"This API is deprecated without replacement\""]
+                ),
+            ],
+            to: continuationSymbol,
+            symbols: symbols
+        )
+
+        let blockType = types.make(.functionType(FunctionType(
+            params: typeParameterTypes,
+            returnType: types.unitType
+        )))
+        registerNativeConcurrentContinuationFunctionSupertype(
+            ownerSymbol: continuationSymbol,
+            functionArity: typeParameterTypes.count,
+            functionArgumentTypes: typeParameterTypes,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerNativeConcurrentConstructor(
+            ownerSymbol: continuationSymbol,
+            ownerType: continuationType,
+            parameters: [
+                (name: "block", type: blockType),
+                (name: "invoker", type: invokerType),
+                (name: "singleShot", type: types.booleanType),
+            ],
+            defaultValues: [false, false, true],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: typeParameterSymbols.count,
+            symbols: symbols,
+            interner: interner
+        )
+        registerNativeConcurrentMemberFunction(
+            ownerSymbol: continuationSymbol,
+            ownerType: continuationType,
+            name: "dispose",
+            returnType: types.unitType,
+            parameters: [],
+            defaultValues: [],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: typeParameterSymbols.count,
+            symbols: symbols,
+            interner: interner
+        )
+        registerNativeConcurrentMemberFunction(
+            ownerSymbol: continuationSymbol,
+            ownerType: continuationType,
+            name: "invoke",
+            returnType: types.unitType,
+            parameters: typeParameterTypes.enumerated().map { index, type in
+                (name: "p\(index + 1)", type: type)
+            },
+            defaultValues: [],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: typeParameterSymbols.count,
+            flags: [.synthetic, .operatorFunction, .overrideMember, .openType],
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+}
+
+/// Synthetic stdlib stubs for `kotlin.native.concurrent`: FreezingException and InvalidMutabilityException classes.
+///
+/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
+extension DataFlowSemaPhase {
+
+    // MARK: - FreezingException
+
+    func registerNativeConcurrentFreezingException(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let exceptionName = interner.intern("FreezingException")
+        let exceptionFQName = packageFQName + [exceptionName]
+        let exceptionSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: exceptionFQName), symbols.symbol(existing)?.kind == .class {
+            exceptionSymbol = existing
+        } else {
+            exceptionSymbol = symbols.define(
+                kind: .class,
+                name: exceptionName,
+                fqName: exceptionFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: exceptionSymbol)
+        }
+
+        let exceptionType = types.make(.classType(ClassType(
+            classSymbol: exceptionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(exceptionType, for: exceptionSymbol)
+
+        let runtimeExceptionSymbol = nativeConcurrentClassSymbol(
+            packagePath: ["kotlin"],
+            name: "RuntimeException",
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.setDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
+        types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
+        // The exact constructor is owned by the bundled Kotlin declaration and
+        // its runtime bridge. Keep only this nominal anchor for source reuse.
+    }
+
+    // MARK: - InvalidMutabilityException
+
+    func registerNativeConcurrentInvalidMutabilityException(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let exceptionName = interner.intern("InvalidMutabilityException")
+        let exceptionFQName = packageFQName + [exceptionName]
+        let exceptionSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: exceptionFQName), symbols.symbol(existing)?.kind == .class {
+            exceptionSymbol = existing
+        } else {
+            exceptionSymbol = symbols.define(
+                kind: .class,
+                name: exceptionName,
+                fqName: exceptionFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: exceptionSymbol)
+        }
+
+        let exceptionType = types.make(.classType(ClassType(
+            classSymbol: exceptionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(exceptionType, for: exceptionSymbol)
+
+        let runtimeExceptionSymbol = nativeConcurrentClassSymbol(
+            packagePath: ["kotlin"],
+            name: "RuntimeException",
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.setDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
+        types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
+        appendNativeConcurrentMetadataAnnotations(
+            [MetadataAnnotationRecord(annotationFQName: "kotlin.experimental.ExperimentalNativeApi")],
+            to: exceptionSymbol,
+            symbols: symbols
+        )
+
+        // The bundled class owns its bridged constructor. Retain this residual
+        // constructor only when compiling without the bundled stdlib.
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(fqName: exceptionFQName) {
+            registerNativeConcurrentConstructor(
+                ownerSymbol: exceptionSymbol,
+                ownerType: exceptionType,
+                externalLinkName: "__kk_invalid_mutability_exception_new_message",
+                parameters: [(name: "message", type: types.stringType)],
+                defaultValues: [false],
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+}
+
+/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Worker nominal shell
+/// with the Companion object anchor and the retained isTerminated compatibility
+/// property.
+///
+/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
+extension DataFlowSemaPhase {
+
+    // MARK: - Worker
+
+    func registerNativeConcurrentWorker(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        transferModeType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let workerName = interner.intern("Worker")
+        let workerFQName = packageFQName + [workerName]
+
+        let workerSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: workerFQName), symbols.symbol(existing)?.kind == .class {
+            workerSymbol = existing
+        } else {
+            workerSymbol = symbols.define(
+                kind: .class,
+                name: workerName,
+                fqName: workerFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: workerSymbol)
+        }
+        let workerType = types.make(.classType(ClassType(
+            classSymbol: workerSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(workerType, for: workerSymbol)
+        symbols.insertFlags(.valueType, for: workerSymbol)
+        symbols.setValueClassUnderlyingType(types.intType, for: workerSymbol)
+        appendNativeConcurrentMetadataAnnotations(
+            [MetadataAnnotationRecord(annotationFQName: "kotlin.native.concurrent.ObsoleteWorkersApi")],
+            to: workerSymbol,
+            symbols: symbols
+        )
+        registerNativeConcurrentWorkerConstructor(
+            ownerSymbol: workerSymbol,
+            ownerType: workerType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        // Worker companion object: anchors the source-backed Worker.Companion
+        // extensions (KSP-1251, Stdlib/kotlin/native/concurrent/Worker.kt).
+        let companionName = interner.intern("Companion")
+        let companionFQName = workerFQName + [companionName]
+        let companionSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: companionFQName) {
+            companionSymbol = existing
+        } else {
+            companionSymbol = symbols.define(
+                kind: .object,
+                name: companionName,
+                fqName: companionFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        symbols.setParentSymbol(workerSymbol, for: companionSymbol)
+        symbols.setCompanionObjectSymbol(companionSymbol, for: workerSymbol)
+        let companionType = types.make(.classType(ClassType(
+            classSymbol: companionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(companionType, for: companionSymbol)
+
+        // Worker.isTerminated: Boolean (property)
+        registerNativeConcurrentReadOnlyProperty(
+            ownerSymbol: workerSymbol,
+            name: "isTerminated",
+            propertyType: types.booleanType,
+            getterLinkName: "kk_worker_is_terminated",
+            symbols: symbols,
+            interner: interner
+        )
+
+    }
+
+    private func registerNativeConcurrentWorkerConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let initName = interner.intern("<init>")
+        let constructorFQName = ownerInfo.fqName + [initName]
+        let parameterTypes = [types.intType]
+        guard symbols.lookupAll(fqName: constructorFQName).first(where: { id in
+            guard symbols.symbol(id)?.kind == .constructor,
+                  let signature = symbols.functionSignature(for: id)
+            else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes
+        }) == nil else {
+            return
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: .internal,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+
+        let idName = interner.intern("id")
+        let idSymbol = symbols.define(
+            kind: .valueParameter,
+            name: idName,
+            fqName: constructorFQName + [idName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(constructorSymbol, for: idSymbol)
+        symbols.setPropertyType(types.intType, for: idSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: parameterTypes,
+                returnType: ownerType,
+                valueParameterSymbols: [idSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false]
+            ),
+            for: constructorSymbol
+        )
+        appendNativeConcurrentMetadataAnnotations(
+            [MetadataAnnotationRecord(annotationFQName: "kotlin.PublishedApi")],
+            to: constructorSymbol,
+            symbols: symbols
+        )
+    }
+}
+
+/// Synthetic stdlib stubs for `kotlin.native.concurrent`: `<T>.freeze()` and
+/// `Any?.isFrozen` legacy-memory-manager surfaces.
+///
+/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
+extension DataFlowSemaPhase {
+
+    // MARK: - freeze / isFrozen
+
+    func registerNativeConcurrentFreezeAndIsFrozen(
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let freezeName = interner.intern("freeze")
+        let freezeFQName = packageFQName + [freezeName]
+        let typeParameterName = interner.intern("T")
+        let typeParameterFQName = freezeFQName + [typeParameterName]
+        let typeParameterSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: typeParameterFQName) {
+            typeParameterSymbol = existing
+        } else {
+            typeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParameterName,
+                fqName: typeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+        }
+        symbols.setTypeParameterUpperBounds([types.anyType], for: typeParameterSymbol)
+        let typeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameterSymbol,
+            nullability: .nonNull
+        )))
+
+        registerNativeConcurrentPackageFunction(
+            named: "freeze",
+            packageFQName: packageFQName,
+            receiverType: typeParameterType,
+            returnType: typeParameterType,
+            parameters: [],
+            typeParameterSymbols: [typeParameterSymbol],
+            annotations: [
+                nativeConcurrentDeprecatedErrorAnnotation(
+                    message: "Support for the legacy memory manager has been completely removed. Usages of this function can be safely dropped.",
+                    replaceWith: "this"
+                ),
+            ],
+            externalLinkName: "kk_freeze_object",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerNativeConcurrentPackageExtensionProperty(
+            named: "isFrozen",
+            packageFQName: packageFQName,
+            receiverType: types.nullableAnyType,
+            returnType: types.booleanType,
+            annotations: [
+                nativeConcurrentDeprecatedErrorAnnotation(
+                    message: "Support for the legacy memory manager has been completely removed. Consequently, this property is always `false`.",
+                    replaceWith: "false"
+                ),
+            ],
+            externalLinkName: "kk_is_frozen",
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+    private func registerNativeConcurrentPackageExtensionProperty(
+        named name: String,
+        packageFQName: [InternedString],
+        receiverType: TypeID,
+        returnType: TypeID,
+        annotations: [MetadataAnnotationRecord] = [],
+        externalLinkName: String? = nil,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let propertyName = interner.intern(name)
+        let propertyFQName = packageFQName + [propertyName]
+        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { id in
+            symbols.symbol(id)?.kind == .property
+                && symbols.extensionPropertyReceiverType(for: id) == receiverType
+        }) {
+            symbols.setPropertyType(returnType, for: existing)
+            appendNativeConcurrentMetadataAnnotations(annotations, to: existing, symbols: symbols)
+            if let externalLinkName {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
+            if let getterSymbol = symbols.extensionPropertyGetterAccessor(for: existing) {
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [],
+                        returnType: returnType
+                    ),
+                    for: getterSymbol
+                )
+                appendNativeConcurrentMetadataAnnotations(annotations, to: getterSymbol, symbols: symbols)
+                if let externalLinkName {
+                    symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
+                }
+            }
+            return
+        }
+
+        let propertySymbol = symbols.define(
+            kind: .property,
+            name: propertyName,
+            fqName: propertyFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: propertySymbol)
+        }
+        symbols.setPropertyType(returnType, for: propertySymbol)
+        symbols.setExtensionPropertyReceiverType(receiverType, for: propertySymbol)
+        appendNativeConcurrentMetadataAnnotations(annotations, to: propertySymbol, symbols: symbols)
+        if let externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
+        }
+
+        let getterAccessorName = interner.intern("$get")
+        let getterSymbol = symbols.define(
+            kind: .function,
+            name: getterAccessorName,
+            fqName: propertyFQName + [getterAccessorName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(propertySymbol, for: getterSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [],
+                returnType: returnType
+            ),
+            for: getterSymbol
+        )
+        appendNativeConcurrentMetadataAnnotations(annotations, to: getterSymbol, symbols: symbols)
+        if let externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
+        }
+        symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: propertySymbol)
+        symbols.setAccessorOwnerProperty(propertySymbol, for: getterSymbol)
+    }
+}
+
+/// Residual synthetic support for the source-backed `Future<T>` value class.
+///
+/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
+extension DataFlowSemaPhase {
+
+    // MARK: - Future<T>
+
+    func registerNativeConcurrentFuture(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let futureName = interner.intern("Future")
+        let futureFQName = packageFQName + [futureName]
+
+        let futureSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: futureFQName), symbols.symbol(existing)?.kind == .class {
+            futureSymbol = existing
+        } else {
+            futureSymbol = symbols.define(
+                kind: .class,
+                name: futureName,
+                fqName: futureFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: futureSymbol)
+        }
+
+        // Future is a value class over the runtime handle. Its constructor must
+        // preserve the supplied Int instead of allocating a separate object.
+        symbols.insertFlags(.valueType, for: futureSymbol)
+        symbols.setValueClassUnderlyingType(types.intType, for: futureSymbol)
+
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = futureFQName + [typeParamName]
+        let typeParamSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: typeParamFQName) {
+            typeParamSymbol = existing
+        } else {
+            typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: typeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let futureType = types.make(.classType(ClassType(
+            classSymbol: futureSymbol,
+            args: [.invariant(typeParamType)],
+            nullability: .nonNull
+        )))
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: futureSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: futureSymbol)
+        symbols.setPropertyType(futureType, for: futureSymbol)
+
+        // The runtime creates handles with kk_future_new(); this constructor
+        // wraps an existing handle and therefore has no runtime link.
+        registerNativeConcurrentConstructor(
+            ownerSymbol: futureSymbol,
+            ownerType: futureType,
+            visibility: .internal,
+            annotations: [MetadataAnnotationRecord(annotationFQName: "kotlin.PublishedApi")],
+            parameters: [(name: "id", type: types.intType)],
+            defaultValues: [false],
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // The public Future members are implemented by the bundled Kotlin
+        // source in Future/Future.kt. Keep only the constructor above: it is
+        // the residual handle-wrapping surface established by KSP-1239.
+    }
+}

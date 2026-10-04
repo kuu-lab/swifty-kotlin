@@ -4,32 +4,6 @@
     {
       "file": "experimental_markers_unsigned_types.kt",
       "range": {
-        "start": { "line": 15, "character": 0 },
-        "end": { "line": 16, "character": 26 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-TYPE-0001",
-      "source": "kswiftk",
-      "message": "Type constraint could not be satisfied.",
-      "codeActions": []
-    },
-    {
-      "file": "experimental_markers_unsigned_types.kt",
-      "range": {
-        "start": { "line": 18, "character": 0 },
-        "end": { "line": 19, "character": 28 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-TYPE-0001",
-      "source": "kswiftk",
-      "message": "Type constraint could not be satisfied.",
-      "codeActions": []
-    },
-    {
-      "file": "experimental_markers_unsigned_types.kt",
-      "range": {
         "start": { "line": 23, "character": 4 },
         "end": { "line": 23, "character": 13 }
       },

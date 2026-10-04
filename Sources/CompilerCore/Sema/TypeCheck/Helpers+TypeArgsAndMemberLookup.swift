@@ -1,9 +1,13 @@
 
 extension TypeCheckHelpers {
-    private struct MemberDispatchKey: Hashable {
+    private struct MemberDispatchKey: Hashable, CustomStringConvertible {
         let name: InternedString
         let parameterTypes: [TypeID]
         let isSuspend: Bool
+
+        var description: String {
+            return "\(name):\(parameterTypes.count)"
+        }
     }
 
     func substituteAliasArg(
@@ -54,6 +58,8 @@ extension TypeCheckHelpers {
         switch types.kind(of: typeID) {
         case let .primitive(p, _):
             return types.make(.primitive(p, .nullable))
+        case .stringStruct:
+            return types.makeNullable(typeID)
         case let .classType(ct):
             return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: .nullable)))
         case let .typeParam(tp):
@@ -96,14 +102,30 @@ extension TypeCheckHelpers {
     }
 
     /// Variance position when walking a type for use-site projection checks.
+    ///
+    /// `.invariant` represents a position that is simultaneously covariant and contravariant
+    /// (e.g. an invariant class type parameter). Any use-site projection through such a slot
+    /// is unsound, so both `out` and `in` projections are rejected when the position is invariant.
     private enum AliasVariancePosition {
         case out
         case contravariant
+        case invariant
 
         var flipped: AliasVariancePosition {
             switch self {
             case .out: .contravariant
             case .contravariant: .out
+            case .invariant: .invariant
+            }
+        }
+
+        /// Compose this outer position with a class type parameter's declaration-site variance.
+        /// Mirrors standard variance composition: out*out=out, out*in=in, **invariant=invariant.
+        func composed(with declaredVariance: TypeVariance) -> AliasVariancePosition {
+            switch declaredVariance {
+            case .out: self
+            case .in: flipped
+            case .invariant: .invariant
             }
         }
     }
@@ -177,8 +199,10 @@ extension TypeCheckHelpers {
                 range: range
             )
         case let .classType(classType):
-            for arg in classType.args {
-                let (innerType, innerPosition) = projectedAliasTypeArg(arg, position: position)
+            let paramVariances = sema.types.nominalTypeParameterVariances(for: classType.classSymbol)
+            for (index, arg) in classType.args.enumerated() {
+                let paramVariance: TypeVariance = index < paramVariances.count ? paramVariances[index] : .invariant
+                let (innerType, innerPosition) = projectedAliasTypeArg(arg, position: position, declaredVariance: paramVariance)
                 guard let innerType else { continue }
                 checkAliasUnderlyingTypeVariance(
                     innerType,
@@ -248,18 +272,21 @@ extension TypeCheckHelpers {
                     range: range
                 )
             }
-        case .error, .unit, .nothing, .any, .primitive:
+        case .error, .unit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }
 
     private func projectedAliasTypeArg(
         _ arg: TypeArg,
-        position: AliasVariancePosition
+        position: AliasVariancePosition,
+        declaredVariance: TypeVariance = .invariant
     ) -> (TypeID?, AliasVariancePosition) {
         switch arg {
         case let .invariant(type):
-            (type, position)
+            // No explicit use-site projection: effective position is determined by composing
+            // the outer position with the class parameter's declaration-site variance.
+            (type, position.composed(with: declaredVariance))
         case let .out(type):
             (type, position)
         case let .in(type):
@@ -278,8 +305,12 @@ extension TypeCheckHelpers {
         let violation: (code: String, message: String)? = switch (projection, position) {
         case (.out, .contravariant):
             ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'out' but occurs in 'in' position")
+        case (.out, .invariant):
+            ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'out' but occurs in invariant position")
         case (.in, .out):
             ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'in' but occurs in 'out' position")
+        case (.in, .invariant):
+            ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'in' but occurs in invariant position")
         default:
             nil
         }
@@ -313,6 +344,7 @@ extension TypeCheckHelpers {
         }
     }
 
+
     func compoundAssignToBinaryOp(_ op: CompoundAssignOp) -> BinaryOp {
         switch op {
         case .plusAssign: .add
@@ -325,6 +357,8 @@ extension TypeCheckHelpers {
 
     func nominalSymbol(of type: TypeID, types: TypeSystem) -> SymbolID? {
         switch types.kind(of: type) {
+        case .unit:
+            return types.unitClassSymbol
         case let .classType(classType):
             return classType.classSymbol
         case let .intersection(parts):
@@ -342,32 +376,62 @@ extension TypeCheckHelpers {
 
     /// Collects all nominal symbols from a type, including all parts of an intersection.
     /// For type parameters, follows upper bounds to discover interface symbols.
-    func allNominalSymbols(of type: TypeID, types: TypeSystem, symbols: SymbolTable) -> [SymbolID] {
+    func allNominalSymbols(
+        of type: TypeID,
+        types: TypeSystem,
+        symbols: SymbolTable,
+        interner: StringInterner? = nil
+    ) -> [SymbolID] {
         var visited = Set<SymbolID>()
-        return allNominalSymbolsImpl(of: type, types: types, symbols: symbols, visited: &visited)
+        return allNominalSymbolsImpl(
+            of: type, types: types, symbols: symbols, interner: interner, visited: &visited
+        )
     }
 
     private func allNominalSymbolsImpl(
         of type: TypeID,
         types: TypeSystem,
         symbols: SymbolTable,
+        interner: StringInterner?,
         visited: inout Set<SymbolID>
     ) -> [SymbolID] {
         switch types.kind(of: type) {
+        case .unit:
+            return types.unitClassSymbol.map { [$0] } ?? []
         case let .classType(classType):
             return [classType.classSymbol]
+        case let .primitive(primitive, _):
+            // Primitive values use dedicated TypeIDs, but their synthetic class
+            // symbols carry the compiler-owned Comparable conformance and source
+            // member surface needed for ordinary member lookup.
+            guard let interner,
+                  let primitiveSymbol = symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern(primitive.kotlinName)
+            ]) else {
+                return []
+            }
+            return [primitiveSymbol]
         case .kClassType:
             if let kClassSymbol = types.kClassInterfaceSymbol {
                 return [kClassSymbol]
             }
             return []
         case let .intersection(parts):
-            return parts.flatMap { allNominalSymbolsImpl(of: $0, types: types, symbols: symbols, visited: &visited) }
+            return parts.flatMap {
+                allNominalSymbolsImpl(
+                    of: $0, types: types, symbols: symbols, interner: interner, visited: &visited
+                )
+            }
         case let .typeParam(typeParam):
             // Guard against cycles (e.g. T : U, U : T).
             guard visited.insert(typeParam.symbol).inserted else { return [] }
             let bounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
-            return bounds.flatMap { allNominalSymbolsImpl(of: $0, types: types, symbols: symbols, visited: &visited) }
+            return bounds.flatMap {
+                allNominalSymbolsImpl(
+                    of: $0, types: types, symbols: symbols, interner: interner, visited: &visited
+                )
+            }
         default:
             return []
         }
@@ -378,9 +442,15 @@ extension TypeCheckHelpers {
         receiverType: TypeID,
         sema: SemaModule,
         allowedOwnerSymbols: Set<SymbolID>? = nil,
+        includeUnattachedPackageExtensions: Bool = false,
         interner: StringInterner
     ) -> [SymbolID] {
-        let nominalRoots = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
+        let nominalRoots = allNominalSymbols(
+            of: receiverType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner
+        )
 
         var ownerQueue: [(owner: SymbolID, depth: Int)] = nominalRoots.map { ($0, 0) }
         var visitedOwners: Set<SymbolID> = []
@@ -464,10 +534,16 @@ extension TypeCheckHelpers {
                 guard seenCandidates.insert(candidate).inserted,
                       let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      sema.symbols.parentSymbol(for: candidate) == owner,
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let signatureReceiverType = signature.receiverType
                 else {
+                    continue
+                }
+                let parentMatchesOwner = sema.symbols.parentSymbol(for: candidate) == owner
+                let isUnattachedPackageExtension = includeUnattachedPackageExtensions
+                    && sema.symbols.parentSymbol(for: candidate) == nil
+                    && sema.symbols.symbol(owner)?.kind == .package
+                guard parentMatchesOwner || isUnattachedPackageExtension else {
                     continue
                 }
                 if requireReceiverSubtype,
@@ -498,9 +574,10 @@ extension TypeCheckHelpers {
         }
 
         let receiverKind = sema.types.kind(of: receiverType)
-        if ownersInLookupOrder.isEmpty, case .primitive = receiverKind {
-            // Primitive receivers have no nominal owners, so probe the synthetic stdlib
-            // packages that host their extension members.
+        if case .primitive = receiverKind {
+            // Primitive receivers may also have a nominal compatibility symbol (for
+            // example the compiler-owned Comparable conformance). Probe the synthetic
+            // stdlib packages as well so extension overloads remain visible.
             let primitiveExtensionPackages: [[InternedString]] = [
                 [interner.intern("kotlin")],
                 [interner.intern("kotlin"), interner.intern("ranges")],
@@ -643,7 +720,7 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    private func resolveMemberPropertyType(
+    func resolveMemberPropertyType(
         _ propertyType: TypeID,
         receiverType: TypeID,
         ownerSymbol: SymbolID,

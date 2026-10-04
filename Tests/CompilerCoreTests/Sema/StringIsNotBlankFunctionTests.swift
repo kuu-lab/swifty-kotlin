@@ -4,8 +4,7 @@ import Testing
 /// STDLIB-TEXT-FN-029: Validates that `isNotBlank` resolves through Sema for
 /// both `String` and `CharSequence` receivers, returning a non-null `Boolean`.
 ///
-/// The runtime helper is `kk_string_isNotBlank` and the Sema-side extension
-/// stub is registered in `HeaderHelpers+SyntheticStringStubs.swift`.
+/// Both String and CharSequence receivers are implemented in bundled Kotlin source.
 @Suite
 struct StringIsNotBlankFunctionTests {
     @Test func testIsNotBlankFunctionResolvesInSource() throws {
@@ -28,11 +27,6 @@ struct StringIsNotBlankFunctionTests {
             errors.isEmpty,
             "Expected isNotBlank to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
-
-    @Test func testIsNotBlankStringExtensionHasRuntimeLink() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
 
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
@@ -42,8 +36,8 @@ struct StringIsNotBlankFunctionTests {
             "Expected kotlin.text.isNotBlank to be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_isNotBlank",
-            "Expected isNotBlank extension to link to kk_string_isNotBlank"
+            sema.symbols.externalLinkName(for: symbol) == nil,
+            "Expected isNotBlank extension to be bundled Kotlin without a C external link"
         )
     }
 }

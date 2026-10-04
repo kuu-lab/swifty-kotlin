@@ -4,41 +4,13 @@ import Testing
 
 @Suite
 struct ReflectKClassCastSyntheticTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                Comment(rawValue: "Expected KClass.cast source to type-check, got: \(ctx.diagnostics.diagnostics)")
-            )
-            result = try (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
+    private static let fixture = SemaFixture(surface: "KClass.cast")
 
-    @Test func testKClassCastSyntheticStubLinksToRuntimeABI() throws {
-        let (sema, interner) = try makeSema()
-        let fqName = ["kotlin", "reflect", "KClass", "cast"].map { interner.intern($0) }
-        let castSymbol = try #require(
-            sema.symbols.lookupAll(fqName: fqName).first { symbolID in
-                sema.symbols.externalLinkName(for: symbolID) == "kk_kclass_cast"
-            },
-            "Expected kotlin.reflect.KClass.cast to link to kk_kclass_cast"
-        )
-        let signature = try #require(sema.symbols.functionSignature(for: castSymbol))
-
-        #expect(signature.canThrow)
-        #expect(signature.parameterTypes == [sema.types.nullableAnyType])
-        #expect(signature.classTypeParameterCount == 1)
-        #expect(signature.typeParameterSymbols.count == 1)
-        #expect(signature.valueParameterSymbols.count == 1)
-        if case .typeParam = sema.types.kind(of: signature.returnType) {
-            // Expected: KClass<T>.cast(value) returns T.
-        } else {
-            Issue.record("Expected KClass.cast return type to be the receiver type parameter")
-        }
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test func testKClassCastInfersReceiverArgumentReturnTypes() throws {

@@ -48,11 +48,12 @@ struct TypeSystemTests {
     @Test
     func testMakeAllPrimitiveTypes() {
         let ts = TypeSystem()
-        let primitives: [PrimitiveType] = [.boolean, .char, .int, .long, .float, .double, .string]
+        let primitives: [PrimitiveType] = [.boolean, .char, .int, .long, .float, .double]
         for prim in primitives {
             let id = ts.make(.primitive(prim, .nonNull))
             #expect(ts.kind(of: id) == .primitive(prim, .nonNull))
         }
+        #expect(ts.stringType != TypeID.invalid)
     }
 
     @Test
@@ -113,7 +114,7 @@ struct TypeSystemTests {
     func testMakeIntersectionType() {
         let ts = TypeSystem()
         let a = ts.make(.primitive(.int, .nonNull))
-        let b = ts.make(.primitive(.string, .nonNull))
+        let b = ts.stringType
         let id = ts.make(.intersection([a, b]))
         if case let .intersection(parts) = ts.kind(of: id) {
             #expect(parts.count == 2)
@@ -192,7 +193,7 @@ struct TypeSystemTests {
     func testDifferentPrimitivesNotSubtype() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         #expect(!(ts.isSubtype(intType, stringType)))
     }
 
@@ -336,7 +337,7 @@ struct TypeSystemTests {
     func testLubOfMixedTypesReturnsAny() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         #expect(ts.lub([intType, stringType]) == ts.anyType)
     }
 
@@ -358,8 +359,72 @@ struct TypeSystemTests {
     func testLubOfNullableTypesReturnsNullableAny() {
         let ts = TypeSystem()
         let nullableInt = ts.make(.primitive(.int, .nullable))
-        let nullableString = ts.make(.primitive(.string, .nullable))
+        let nullableString = ts.makeNullable(ts.stringType)
         #expect(ts.lub([nullableInt, nullableString]) == ts.nullableAnyType)
+    }
+
+    // MARK: - lub() nearest-common-supertype fallback (residual of #6456)
+
+    @Test
+    func testLubOfNumericPrimitivesReturnsNumber() {
+        let ts = TypeSystem()
+        let numberSymbol = SymbolID(rawValue: 100)
+        ts.numberClassSymbol = numberSymbol
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let longType = ts.make(.primitive(.long, .nonNull))
+        // Neither Int nor Long is a subtype of the other, so their only
+        // common ancestor besides Any is kotlin.Number. Regression for
+        // KSWIFTK-TYPE-0001 on `val n: Number = pick(1, 2L)` (T's lower
+        // bounds [Int, Long] used to widen straight to Any).
+        let result = ts.lub([intType, longType])
+        if case let .classType(ct) = ts.kind(of: result) {
+            #expect(ct.classSymbol == numberSymbol)
+            #expect(ct.nullability == .nonNull)
+        } else {
+            Issue.record("Expected classType(Number) for lub of Int and Long, got \(ts.renderType(result))")
+        }
+    }
+
+    @Test
+    func testLubOfNumericPrimitivesWithNullableNothingReturnsNullableNumber() {
+        let ts = TypeSystem()
+        let numberSymbol = SymbolID(rawValue: 100)
+        ts.numberClassSymbol = numberSymbol
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let longType = ts.make(.primitive(.long, .nonNull))
+        let result = ts.lub([intType, longType, ts.nullableNothingType])
+        if case let .classType(ct) = ts.kind(of: result) {
+            #expect(ct.classSymbol == numberSymbol)
+            #expect(ct.nullability == .nullable)
+        } else {
+            Issue.record("Expected classType(Number?) for lub of Int, Long and Nothing?, got \(ts.renderType(result))")
+        }
+    }
+
+    @Test
+    func testLubOfDominatingBoundReturnsThatBoundEvenWhenNotFirst() {
+        let ts = TypeSystem()
+        let numberSymbol = SymbolID(rawValue: 100)
+        ts.numberClassSymbol = numberSymbol
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let longType = ts.make(.primitive(.long, .nonNull))
+        let numberType = ts.make(.classType(ClassType(classSymbol: numberSymbol, args: [], nullability: .nonNull)))
+        // Number already dominates Int and Long even though it isn't the
+        // first element; unlike the narrower pre-existing `.typeParam`-only
+        // check, this must not depend on input order.
+        #expect(ts.lub([intType, longType, numberType]) == numberType)
+        #expect(ts.lub([intType, numberType, longType]) == numberType)
+    }
+
+    @Test
+    func testLubOfNumericPrimitivesWithoutNumberSymbolFallsBackToAny() {
+        let ts = TypeSystem()
+        // numberClassSymbol left nil, e.g. a phase before header
+        // registration has run: must not crash and must keep the old,
+        // safe (if imprecise) Any fallback.
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let longType = ts.make(.primitive(.long, .nonNull))
+        #expect(ts.lub([intType, longType]) == ts.anyType)
     }
 
     @Test
@@ -386,7 +451,7 @@ struct TypeSystemTests {
     func testGlbOfDifferentTypesReturnsIntersection() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let result = ts.glb([intType, stringType])
         if case let .intersection(parts) = ts.kind(of: result) {
             #expect(parts.count == 2)
@@ -560,7 +625,7 @@ struct TypeSystemTests {
     func testMakeKClassTypeDistinctArguments() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let kClassInt = ts.makeKClassType(argument: intType)
         let kClassString = ts.makeKClassType(argument: stringType)
         #expect(kClassInt != kClassString)
@@ -604,7 +669,7 @@ struct TypeSystemTests {
     func testKClassSubtypingDifferentArguments() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let kClassInt = ts.makeKClassType(argument: intType)
         let kClassString = ts.makeKClassType(argument: stringType)
         // Even with covariance, unrelated arguments are not compatible.
@@ -726,7 +791,7 @@ struct TypeSystemTests {
     func testLubKClassDifferentArguments() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let kClassInt = ts.makeKClassType(argument: intType)
         let kClassString = ts.makeKClassType(argument: stringType)
         // lub(KClass<Int>, KClass<String>) should be KClass<lub(Int,String)>

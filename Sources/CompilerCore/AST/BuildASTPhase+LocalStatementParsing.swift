@@ -30,12 +30,13 @@ extension BuildASTPhase {
         }
 
         // Check for destructuring declaration: val (a, b) = expr
-        if let destructuringResult = parseDestructuringDeclarationExpr(
+        if let destructuringResult = Self.parseDestructuringDeclarationExpr(
             from: statementTokens,
             startIndex: startIndex,
             isMutable: isMutable,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ) {
             return destructuringResult
         }
@@ -44,13 +45,15 @@ extension BuildASTPhase {
             interner: interner,
             astArena: astArena,
             parseExpression: { tokens in
-                ExpressionParser(tokens: tokens, interner: interner, astArena: astArena).parse()
+                ExpressionParser(
+                    tokens: tokens, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { typeTokens in
                 self.parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
             },
             resolveDeclarationName: { token, interner in
-                guard self.isTypeLikeNameToken(token.kind) else {
+                guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {
                     return nil
                 }
                 return self.internedIdentifier(from: token, interner: interner)
@@ -72,7 +75,9 @@ extension BuildASTPhase {
             interner: interner,
             astArena: astArena,
             parseExpression: { tokens in
-                ExpressionParser(tokens: tokens, interner: interner, astArena: astArena).parse()
+                ExpressionParser(
+                    tokens: tokens, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil }
@@ -84,14 +89,53 @@ extension BuildASTPhase {
         )
     }
 
+    /// Parse destructuring declaration: `val (a, b, _) = expr` from a whole
+    /// statement token group, skipping any leading declaration modifiers.
+    /// Returns nil if the tokens don't match the destructuring pattern.
+    static func parseDestructuringDeclarationStatement(
+        from statementTokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena,
+        diagnostics: DiagnosticEngine? = nil
+    ) -> ExprID? {
+        var startIndex = 0
+        while startIndex < statementTokens.count,
+              case let .keyword(keyword) = statementTokens[startIndex].kind,
+              KotlinParser.isDeclarationModifierKeyword(keyword)
+        {
+            startIndex += 1
+        }
+        guard startIndex < statementTokens.count else {
+            return nil
+        }
+        let isMutable: Bool
+        switch statementTokens[startIndex].kind {
+        case .keyword(.val):
+            isMutable = false
+        case .keyword(.var):
+            isMutable = true
+        default:
+            return nil
+        }
+        return parseDestructuringDeclarationExpr(
+            from: statementTokens,
+            startIndex: startIndex,
+            isMutable: isMutable,
+            interner: interner,
+            astArena: astArena,
+            diagnostics: diagnostics
+        )
+    }
+
     /// Parse destructuring declaration: `val (a, b, _) = expr`
     /// Returns nil if the tokens don't match the destructuring pattern.
-    func parseDestructuringDeclarationExpr(
+    static func parseDestructuringDeclarationExpr(
         from statementTokens: [Token],
         startIndex: Int,
         isMutable: Bool,
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        diagnostics: DiagnosticEngine? = nil
     ) -> ExprID? {
         // After val/var keyword, expect `(` — but the CST parser may insert
         // a `missing(identifier)` token before it when it expects a property name.
@@ -152,6 +196,16 @@ extension BuildASTPhase {
             case let .backtickedIdentifier(name):
                 names.append(name)
                 idx += 1
+            case let .keyword(keyword):
+                // Contextual keywords like `value` (used in `value class`) are
+                // valid identifiers here, mirroring `internedIdentifier(from:)`.
+                names.append(interner.intern(keyword.rawValue))
+                idx += 1
+            case let .softKeyword(soft):
+                // Soft keywords like `field`/`get`/`set` are valid identifiers
+                // here, mirroring `internedIdentifier(from:)`.
+                names.append(interner.intern(soft.rawValue))
+                idx += 1
             default:
                 // Skip type annotations (`: Type`) after variable names
                 if token.kind == .symbol(.colon) {
@@ -193,7 +247,9 @@ extension BuildASTPhase {
         guard !initializerTokens.isEmpty else {
             return nil
         }
-        let parser = ExpressionParser(tokens: initializerTokens[...], interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: initializerTokens[...], interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let initializerExpr = parser.parse() else {
             return nil
         }

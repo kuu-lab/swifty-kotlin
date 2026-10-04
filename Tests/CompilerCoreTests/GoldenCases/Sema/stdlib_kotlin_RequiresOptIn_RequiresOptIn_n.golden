@@ -1,0 +1,5 @@
+symbol fq=golden.sema.RequiresOptInMarker[kind=anno] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.useRequiresOptInMarker[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_RequiresOptIn_RequiresOptIn_n package=golden.sema
+  decl golden.sema.RequiresOptInMarker[kind=anno] class RequiresOptInMarker sym=golden.sema.RequiresOptInMarker[kind=anno]
+  decl golden.sema.useRequiresOptInMarker[kind=fun;params=] fun useRequiresOptInMarker sym=golden.sema.useRequiresOptInMarker[kind=fun;params=]

@@ -1,8 +1,10 @@
 // STDLIB-TEXT-FN-016: String.equals(other: String?)
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeStringEqualsTests: XCTestCase {
+@Suite
+struct RuntimeStringEqualsTests {
     private func runtimeString(_ text: String) -> Int {
         text.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
@@ -17,28 +19,95 @@ final class RuntimeStringEqualsTests: XCTestCase {
         kk_unbox_bool(raw) != 0
     }
 
+    private func withFlatStrings<T>(
+        _ lhs: String,
+        _ rhs: String,
+        _ body: (
+            UnsafePointer<UInt8>?, Int, Int, Int,
+            UnsafePointer<UInt8>?, Int, Int, Int
+        ) -> T
+    ) -> T {
+        let lhsBytes = Array(lhs.utf8)
+        let rhsBytes = Array(rhs.utf8)
+        return lhsBytes.withUnsafeBufferPointer { lhsBuffer in
+            rhsBytes.withUnsafeBufferPointer { rhsBuffer in
+                body(
+                    lhsBuffer.baseAddress,
+                    lhs.unicodeScalars.count,
+                    lhsBytes.count,
+                    0,
+                    rhsBuffer.baseAddress,
+                    rhs.unicodeScalars.count,
+                    rhsBytes.count,
+                    0
+                )
+            }
+        }
+    }
+
+    @Test
     func testEqualsSameContent() {
-        XCTAssertTrue(boolValue(kk_string_equals(runtimeString("hello"), runtimeString("hello"))))
+        #expect(boolValue(kk_string_equals(runtimeString("hello"), runtimeString("hello"))))
     }
 
+    @Test
+    func testFlatRoundTripPreservesStringHandleIdentity() {
+        let original = runtimeString("atomic-reference")
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let flatData = kk_string_to_flat(original, &length, &byteCount, &hash)
+        let roundTrip = kk_string_from_flat(flatData, length, byteCount, hash)
+
+        #expect(roundTrip == original)
+        #expect(roundTrip != runtimeString("atomic-reference"))
+    }
+
+    @Test
     func testEqualsDifferentContent() {
-        XCTAssertFalse(boolValue(kk_string_equals(runtimeString("hello"), runtimeString("world"))))
+        #expect(!boolValue(kk_string_equals(runtimeString("hello"), runtimeString("world"))))
     }
 
+    @Test
     func testEqualsEmptyStrings() {
-        XCTAssertTrue(boolValue(kk_string_equals(runtimeString(""), runtimeString(""))))
+        #expect(boolValue(kk_string_equals(runtimeString(""), runtimeString(""))))
     }
 
+    @Test
     func testEqualsOtherNull() {
-        XCTAssertFalse(boolValue(kk_string_equals(runtimeString("hello"), runtimeNullSentinelInt)))
+        #expect(!boolValue(kk_string_equals(runtimeString("hello"), runtimeNullSentinelInt)))
     }
 
+    @Test
     func testEqualsCaseSensitive() {
-        XCTAssertFalse(boolValue(kk_string_equals(runtimeString("abc"), runtimeString("ABC"))))
+        #expect(!boolValue(kk_string_equals(runtimeString("abc"), runtimeString("ABC"))))
     }
 
+    @Test
     func testEqualsUnicode() {
-        XCTAssertTrue(boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("こんにちは"))))
-        XCTAssertFalse(boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("さようなら"))))
+        #expect(boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("こんにちは"))))
+        #expect(!boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("さようなら"))))
+    }
+
+    @Test
+    func testEqualsUsesUTF16CodeUnitsInsteadOfCanonicalEquivalence() {
+        let composed = runtimeString("é")
+        let decomposed = runtimeString("e\u{301}")
+        #expect(!boolValue(kk_string_equals(composed, decomposed)))
+
+        withFlatStrings("Å", "Å") { lhsData, lhsLength, lhsByteCount, lhsHash,
+                                     rhsData, rhsLength, rhsByteCount, rhsHash in
+            #expect(__kk_string_equals_flat(
+                lhsData,
+                lhsLength,
+                lhsByteCount,
+                lhsHash,
+                rhsData,
+                rhsLength,
+                rhsByteCount,
+                rhsHash
+            ) == 0)
+        }
     }
 }
+#endif

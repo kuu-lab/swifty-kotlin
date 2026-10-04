@@ -1,20 +1,40 @@
 import Foundation
 
+/// A source edit that can be applied by a diagnostic code action.
+public struct DiagnosticTextEdit: Hashable, Sendable {
+    /// The source range to replace. An empty range represents insertion.
+    public let range: SourceRange
+    /// The replacement text, or an empty string for deletion.
+    public let newText: String
+
+    public init(range: SourceRange, newText: String) {
+        self.range = range
+        self.newText = newText
+    }
+}
+
 /// Describes a single code action (quick-fix) that an LSP client can offer to the user.
-public struct DiagnosticCodeAction: Equatable, Sendable {
+public struct DiagnosticCodeAction: Hashable, Sendable {
     /// Human-readable title shown in the editor UI.
     public let title: String
     /// LSP code action kind (e.g. "quickfix", "refactor").
     public let kind: String
+    /// Edits that make this action applicable to the diagnostic's source.
+    public let edits: [DiagnosticTextEdit]
 
-    public init(title: String, kind: String = "quickfix") {
+    public init(
+        title: String,
+        kind: String = "quickfix",
+        edits: [DiagnosticTextEdit] = []
+    ) {
         self.title = title
         self.kind = kind
+        self.edits = edits
     }
 }
 
 /// Metadata describing a registered diagnostic code.
-struct DiagnosticDescriptor: Equatable, Sendable {
+struct DiagnosticDescriptor: Equatable, Sendable, CustomStringConvertible {
     /// The canonical code string (e.g. "KSWIFTK-SEMA-0014").
     let code: String
     /// Which compiler pass this diagnostic originates from.
@@ -25,6 +45,10 @@ struct DiagnosticDescriptor: Equatable, Sendable {
     let summary: String
     /// Default code actions (quick-fixes) available for this diagnostic.
     let codeActions: [DiagnosticCodeAction]
+
+    var description: String {
+        return "[\(code)] \(defaultSeverity): \(summary)"
+    }
 
     init(
         code: String,
@@ -48,7 +72,6 @@ struct DiagnosticDescriptor: Equatable, Sendable {
 /// CORO, BACKEND, LINK, PIPELINE, ICE) and `{CODE}` is a numeric or mnemonic
 /// identifier unique within that pass.
 enum DiagnosticRegistry {
-    /// All registered diagnostic descriptors, keyed by their code string.
     static let descriptors: [String: DiagnosticDescriptor] = {
         var map: [String: DiagnosticDescriptor] = [:]
         for descriptor in allDescriptors {
@@ -82,6 +105,8 @@ enum DiagnosticRegistry {
 
     private static let suppressionAliases: [String: [String]] = [
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
+        "INVISIBLE_MEMBER": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
+        "INVISIBLE_REFERENCE": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
         "DEPRECATION": ["KSWIFTK-SEMA-DEPRECATED"],
         "DEPRECATION_ERROR": ["KSWIFTK-SEMA-DEPRECATED"],
         "OPT_IN_USAGE": ["KSWIFTK-SEMA-OPT-IN"],
@@ -124,6 +149,12 @@ enum DiagnosticRegistry {
             pass: "LEX",
             defaultSeverity: .error,
             summary: "Malformed number literal (overflow or bad format)."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LEX-0007",
+            pass: "LEX",
+            defaultSeverity: .error,
+            summary: "String template nesting exceeds the supported depth."
         ),
     ]
 
@@ -179,6 +210,24 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Malformed statement."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0012",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expression nesting exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0013",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Structured syntax nesting exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-TYPE-DEPTH",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Type nesting exceeds the maximum supported depth."
+        ),
     ]
 
     // MARK: - Semantic analysis pass (SEMA)
@@ -209,6 +258,24 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Missing return type annotation.",
             codeActions: [DiagnosticCodeAction(title: "Add explicit return type annotation")]
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0007",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Reserved bundled stdlib annotation used outside bundled stdlib."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0008",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Reserved external declaration used outside bundled stdlib."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0009",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Function declaration requires a body."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0013",
@@ -267,6 +334,12 @@ enum DiagnosticRegistry {
             summary: "Type mismatch in argument."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0026",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0031",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -297,6 +370,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Invalid operator application."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0044",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot access internal member of the bundled stdlib."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0050",
@@ -468,10 +547,46 @@ enum DiagnosticRegistry {
             summary: "Property in object literal must have a type annotation or initializer."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0102",
+            pass: "SEMA",
+            defaultSeverity: .warning,
+            summary: "Synthetic stdlib stub duplicates a bundled Kotlin source declaration."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0103",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Property delegate type is missing a 'getValue' operator function."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0104",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Mutable property delegate type is missing a 'setValue' operator function."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-TAILREC",
             pass: "SEMA",
             defaultSeverity: .warning,
             summary: "Function marked 'tailrec' but last expression is not a self-recursive call."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-CYCLE",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cyclic supertype reference detected during nominal layout synthesis."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-DEPTH",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Inheritance chain exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-COUNT",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Nominal type count exceeds the supported maximum."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0171",
@@ -538,6 +653,19 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Type argument does not satisfy upper bound constraint."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0305",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Type parameter's upper bounds combine two or more mutually exclusive class types."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0306",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Super-call omits an argument with a default value.",
+            codeActions: [DiagnosticCodeAction(title: "Specify all arguments explicitly")]
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
@@ -646,6 +774,30 @@ enum DiagnosticRegistry {
             defaultSeverity: .warning,
             summary: "Library discovery: search path warning."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0025",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib container is unreadable."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0026",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib manifest is missing or invalid."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0027",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib version is unsupported."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0028",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib recognized; declaration import pending."
+        ),
     ]
 
     // MARK: - KIR generation pass (KIR)
@@ -661,7 +813,13 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-KIR-0002",
             pass: "KIR",
             defaultSeverity: .error,
-            summary: "emitCustomDelegateInit called for a property without a delegate expression."
+            summary: "emitDelegateInit called for a property without a delegate expression."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-KIR-0003",
+            pass: "KIR",
+            defaultSeverity: .error,
+            summary: "KIR verifier detected a malformed function body."
         ),
     ]
 
@@ -685,6 +843,17 @@ enum DiagnosticRegistry {
             pass: "CORO",
             defaultSeverity: .error,
             summary: "Coroutine lowering failure."
+        ),
+    ]
+
+    // MARK: - Inline lowering pass (INL)
+
+    static let inlDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-INL-0001",
+            pass: "INL",
+            defaultSeverity: .error,
+            summary: "Mandatory inline expansion left an unexpanded call to a bodyless callee."
         ),
     ]
 
@@ -755,6 +924,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Codegen phase failed to emit requested artifacts."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PIPELINE-0005",
+            pass: "PIPELINE",
+            defaultSeverity: .error,
+            summary: "Per-file diagnostic limit reached; further diagnostics were suppressed."
+        ),
     ]
 
     // MARK: - Internal compiler error (ICE)
@@ -768,6 +943,35 @@ enum DiagnosticRegistry {
         ),
     ]
 
+    // MARK: - Source loading pass (SOURCE)
+
+    static let sourceDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SOURCE-0001",
+            pass: "SOURCE",
+            defaultSeverity: .error,
+            summary: "No input files were specified."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SOURCE-0002",
+            pass: "SOURCE",
+            defaultSeverity: .error,
+            summary: "Cannot read input file."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SOURCE-0101",
+            pass: "SOURCE",
+            defaultSeverity: .error,
+            summary: "Bundled stdlib resource directory is missing."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SOURCE-0102",
+            pass: "SOURCE",
+            defaultSeverity: .error,
+            summary: "Failed to read bundled stdlib source."
+        ),
+    ]
+
     // MARK: - Aggregate
 
     static let allDescriptors: [DiagnosticDescriptor] =
@@ -777,9 +981,11 @@ enum DiagnosticRegistry {
             + typeDescriptors
             + libDescriptors
             + kirDescriptors
+            + inlDescriptors
             + coroDescriptors
             + backendDescriptors
             + linkDescriptors
             + pipelineDescriptors
             + iceDescriptors
+            + sourceDescriptors
 }

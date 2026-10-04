@@ -1,4 +1,3 @@
-// SKIP-DIFF
 fun greet(name: String): String {
     return "Hello, $name!"
 }

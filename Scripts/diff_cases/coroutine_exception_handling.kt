@@ -1,4 +1,3 @@
-// SKIP-DIFF: advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
 import kotlinx.coroutines.*
 
 // TEST-CORO-003: Exception handling in coroutines — CoroutineExceptionHandler,

@@ -23,6 +23,17 @@ fun main() {
     val utf16leBytes = "ab".toByteArray(Charsets.UTF_16LE)
     println(utf16leBytes.size)
 
+    // Non-ASCII bytes must retain Kotlin's signed Byte representation.
+    val utf8NonASCII = "é".toByteArray(Charsets.UTF_8)
+    println(utf8NonASCII.contentToString())
+    println(utf8NonASCII[0])
+
+    val latin1NonASCII = "é".toByteArray(Charsets.ISO_8859_1)
+    println(latin1NonASCII.contentToString())
+
+    val utf16NonASCII = "é".toByteArray(Charsets.UTF_16)
+    println(utf16NonASCII.contentToString())
+
     // encodeToByteArray (always UTF-8)
     val encoded = "hello".encodeToByteArray()
     println(encoded.size)

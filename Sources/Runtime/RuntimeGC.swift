@@ -15,7 +15,7 @@ struct FrameMapDescriptorC {
     let rootOffsets: UnsafePointer<Int32>?
 }
 
-/// Cache key for `kk_kclass_create`.
+/// Cache key for `__kk_kclass_create`.
 /// `typeToken` uniquely identifies a `KClass<T>` at runtime, so caching by it
 /// alone ensures stable hits across repeated evaluations.
 struct KClassCacheKey: Hashable {
@@ -25,17 +25,53 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
+    /// singleton or a dedicated runtime registry rather than passRetained.
+    var borrowedObjectPointers: Set<UInt> = []
+    /// Canonical boxed Unit pointer, retained in `objectPointers` across GC resets.
+    var unitBoxPointer: UInt? = nil
     var globalRootSlots: Set<UInt> = []
     var frameMaps: [UInt32: [Int32]] = [:]
     var activeFrames: [ActiveFrameRecord] = []
     var coroutineRoots: Set<UInt> = []
-    var pinnedObjects: Set<UInt> = []
+    /// Per-target refcount for `kotlin.native.ref.Pinned<T>` (kk_pin_object/
+    /// kk_unpin_object). Every pin call returns an independent `RuntimePinnedBox`
+    /// handle, so the same target may be pinned by several handles at once;
+    /// the GC root must survive until the last handle unpins. A plain
+    /// membership set would let one handle's unpin drop the root while a
+    /// sibling pin is still held, leaving it dangling into freed memory.
+    var pinnedObjectCounts: [UInt: Int] = [:]
+    /// Per-target refcount for `kotlinx.cinterop.StableRef` (kk_stable_ref_create/
+    /// _dispose). The same target object may be wrapped by several
+    /// independent StableRef handles at once — see kk_stable_ref_create.
+    var stableRefCounts: [UInt: Int] = [:]
 }
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
+    var kTypeProjectionStarRaw: Int?
+    var enumEntriesCache: [Int64: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
+    var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
+    /// Set once the static reflection hierarchy edges are in `typeParents`;
+    /// cleared with `typeParents` so a metadata reset re-registers them.
+    var reflectionTypeEdgesRegistered = false
+    /// Same idea as `reflectionTypeEdgesRegistered`, for the boxed-primitive
+    /// `Number`/`Comparable` edges `RuntimePrimitiveNominalTypeIDs` installs.
+    var primitiveTypeEdgesRegistered = false
+    /// Same idea, for the range/progression nominal edges
+    /// `registerRangeTypeEdgesOnce` installs (RuntimeRangeValueSemantics.swift).
+    var rangeTypeEdgesRegistered = false
+    var dataClassIDs: Set<Int64> = []
+    /// Bitmask of object slot indices holding primary-constructor properties, per data class.
+    /// Absent entries mean "every stored slot participates" (legacy registration).
+    var dataClassFieldMasks: [Int64: Int64] = [:]
+    var objectVtableMethods: [UInt: [Int: Int]] = [:]
+    var objectEqualsOverrides: [UInt: Int] = [:]
+    var objectHashCodeOverrides: [UInt: Int] = [:]
+    var objectAnyToStringMethods: [UInt: Int] = [:]
+    var valueClassAnyToStringMethods: [Int64: Int] = [:]
     var objectItableMethods: [UInt: [UInt64: Int]] = [:]
     var objectInterfaceSlots: [UInt: [Int64: Int]] = [:]
 }
@@ -51,7 +87,6 @@ struct ThreadLocalState {
 }
 
 struct DelegateState {
-    var customDelegateBoxes: [UInt: RuntimeCustomDelegateBox] = [:]
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
 }
 
@@ -70,6 +105,11 @@ final class RuntimeStorageBox: @unchecked Sendable {
 
     let coroutineSuspendedBox = RuntimeStringBox("COROUTINE_SUSPENDED")
     let flowStopSentinelBox = RuntimeStringBox("FLOW_STOP_SENTINEL")
+    /// Sentinel returned via callerState.resume(with:) when a lazy sequence
+    /// coroutine reaches the end of the builder lambda.  Callers compare the
+    /// resumed value against kk_sequence_completed_sentinel() to distinguish
+    /// "done" from a real element (CORO-004 infrastructure).
+    let sequenceCompletedBox = RuntimeStringBox("SEQUENCE_COMPLETED")
 
     @discardableResult
     @inline(__always)
@@ -130,6 +170,13 @@ let kkObjMarkFlag: UInt32 = 1 << 0
 
 private let runtimeGCDefaultTargetHeapBytes = 100 * 1024 * 1024
 
+// KSP-1263 defaults: this runtime processes finalizers synchronously during
+// `kk_gc_collect` rather than dispatching batches to the main thread, so
+// these knobs are tunable state without an independent scheduler backing them.
+private let runtimeGCDefaultMainThreadFinalizerBatchSize = 100
+private let runtimeGCDefaultMainThreadFinalizerMaxTimeInTaskNs = 10_000_000 // 10ms
+private let runtimeGCDefaultMainThreadFinalizerMinTimeBetweenTasksNs = 0
+
 private final class RuntimeGCTuningState: @unchecked Sendable {
     private let lock = NSLock()
     private var targetHeapBytes = runtimeGCDefaultTargetHeapBytes
@@ -138,11 +185,20 @@ private final class RuntimeGCTuningState: @unchecked Sendable {
         runtimeGCDefaultTargetHeapBytes,
         Int(clamping: ProcessInfo.processInfo.physicalMemory)
     )
+    private var mainThreadFinalizerProcessorBatchSize = runtimeGCDefaultMainThreadFinalizerBatchSize
+    private var mainThreadFinalizerProcessorMaxTimeInTaskNs = runtimeGCDefaultMainThreadFinalizerMaxTimeInTaskNs
+    private var mainThreadFinalizerProcessorMinTimeBetweenTasksNs = runtimeGCDefaultMainThreadFinalizerMinTimeBetweenTasksNs
 
     func currentTargetHeapBytes() -> Int {
         lock.lock()
         defer { lock.unlock() }
         return targetHeapBytes
+    }
+
+    func setTargetHeapBytes(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        targetHeapBytes = value
     }
 
     func currentTargetHeapUtilization() -> Double {
@@ -151,10 +207,72 @@ private final class RuntimeGCTuningState: @unchecked Sendable {
         return targetHeapUtilization
     }
 
+    func setTargetHeapUtilization(_ value: Double) {
+        lock.lock()
+        defer { lock.unlock() }
+        targetHeapUtilization = value
+    }
+
     func currentMaxHeapBytes() -> Int {
         lock.lock()
         defer { lock.unlock() }
         return maxHeapBytes
+    }
+
+    func setMaxHeapBytes(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        maxHeapBytes = value
+    }
+
+    /// Restores every tuning knob to its process-startup default. Called by
+    /// `.runtimeIsolation(.gcOnly)` test resets so a test that mutates a knob
+    /// cannot leak state into an unrelated test running later in the same process.
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        targetHeapBytes = runtimeGCDefaultTargetHeapBytes
+        targetHeapUtilization = 0.5
+        maxHeapBytes = max(
+            runtimeGCDefaultTargetHeapBytes,
+            Int(clamping: ProcessInfo.processInfo.physicalMemory)
+        )
+    }
+
+    func currentMainThreadFinalizerProcessorBatchSize() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return mainThreadFinalizerProcessorBatchSize
+    }
+
+    func setMainThreadFinalizerProcessorBatchSize(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        mainThreadFinalizerProcessorBatchSize = value
+    }
+
+    func currentMainThreadFinalizerProcessorMaxTimeInTaskNs() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return mainThreadFinalizerProcessorMaxTimeInTaskNs
+    }
+
+    func setMainThreadFinalizerProcessorMaxTimeInTaskNs(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        mainThreadFinalizerProcessorMaxTimeInTaskNs = value
+    }
+
+    func currentMainThreadFinalizerProcessorMinTimeBetweenTasksNs() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return mainThreadFinalizerProcessorMinTimeBetweenTasksNs
+    }
+
+    func setMainThreadFinalizerProcessorMinTimeBetweenTasksNs(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        mainThreadFinalizerProcessorMinTimeBetweenTasksNs = value
     }
 }
 
@@ -182,8 +300,14 @@ public func kk_alloc(_ size: UInt32, _ typeInfo: UnsafeRawPointer) -> UnsafeMuta
     return ptr
 }
 
+// `_ gcRaw: Int = 0` carries the `GC` object receiver that bundled-source member
+// `external fun`/property-accessor calls pass across the ABI (see Platform.kt's
+// identical bridge functions). The default keeps every pre-existing zero-argument
+// Swift call site (tests, `RuntimeMemory.swift`) source-compatible: Swift call
+// sites fill the default at compile time, while compiled Kotlin always supplies it.
 @_cdecl("kk_gc_collect")
-public func kk_gc_collect() {
+public func kk_gc_collect(_ gcRaw: Int = 0) {
+    _ = gcRaw
     let threadLocalRoots = runtimeStorage.withThreadLocalLock { state in
         state.threadLocalValues
     }
@@ -193,24 +317,105 @@ public func kk_gc_collect() {
 }
 
 @_cdecl("kk_gc_schedule")
-public func kk_gc_schedule() -> Int {
+public func kk_gc_schedule(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
     kk_gc_collect()
     return 0
 }
 
 @_cdecl("kk_gc_target_heap_bytes")
-public func kk_gc_target_heap_bytes() -> Int {
-    runtimeGCTuningState.currentTargetHeapBytes()
+public func kk_gc_target_heap_bytes(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
+    return runtimeGCTuningState.currentTargetHeapBytes()
 }
 
+@_cdecl("kk_gc_target_heap_bytes_set")
+public func kk_gc_target_heap_bytes_set(_ gcRaw: Int, _ value: Int) -> Int {
+    _ = gcRaw
+    runtimeGCTuningState.setTargetHeapBytes(value)
+    return 0
+}
+
+// `kk_gc_target_heap_utilization` used to return a genuine Swift `Double`, but
+// every external-fun call this compiler emits passes Double/Float as their raw
+// IEEE bit pattern packed into an `Int` (there is no floating-point LLVM type in
+// the backend at all - see e.g. `__kk_math_sqrt`). Once this property became a
+// real bundled-source declaration instead of a synthetic sema stub, a genuine
+// `Double` return would read back as a garbage register value. Fixed here to use
+// the same bit-pattern convention as every other Double-typed external fun.
 @_cdecl("kk_gc_target_heap_utilization")
-public func kk_gc_target_heap_utilization() -> Double {
-    runtimeGCTuningState.currentTargetHeapUtilization()
+public func kk_gc_target_heap_utilization(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
+    return kk_double_to_bits(runtimeGCTuningState.currentTargetHeapUtilization())
+}
+
+@_cdecl("kk_gc_target_heap_utilization_set")
+public func kk_gc_target_heap_utilization_set(_ gcRaw: Int, _ value: Int) -> Int {
+    _ = gcRaw
+    runtimeGCTuningState.setTargetHeapUtilization(kk_bits_to_double(value))
+    return 0
 }
 
 @_cdecl("kk_gc_max_heap_bytes")
-public func kk_gc_max_heap_bytes() -> Int {
-    runtimeGCTuningState.currentMaxHeapBytes()
+public func kk_gc_max_heap_bytes(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
+    return runtimeGCTuningState.currentMaxHeapBytes()
+}
+
+@_cdecl("kk_gc_max_heap_bytes_set")
+public func kk_gc_max_heap_bytes_set(_ gcRaw: Int, _ value: Int) -> Int {
+    _ = gcRaw
+    runtimeGCTuningState.setMaxHeapBytes(value)
+    return 0
+}
+
+// KSP-1263: kotlin.native.runtime.GC.MainThreadFinalizerProcessor bridges.
+// This target always processes finalizers, so `available` is unconditionally
+// true; the remaining members are plain tunable state (see the state comment
+// above `RuntimeGCTuningState`).
+@_cdecl("kk_gc_main_thread_finalizer_processor_available")
+public func kk_gc_main_thread_finalizer_processor_available(_ receiverRaw: Int) -> Int {
+    _ = receiverRaw
+    return 1
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_batch_size_load")
+public func kk_gc_main_thread_finalizer_processor_batch_size_load(_ receiverRaw: Int) -> Int {
+    _ = receiverRaw
+    return runtimeGCTuningState.currentMainThreadFinalizerProcessorBatchSize()
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_batch_size_store")
+public func kk_gc_main_thread_finalizer_processor_batch_size_store(_ receiverRaw: Int, _ value: Int) -> Int {
+    _ = receiverRaw
+    runtimeGCTuningState.setMainThreadFinalizerProcessorBatchSize(value)
+    return 0
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_max_time_in_task_load")
+public func kk_gc_main_thread_finalizer_processor_max_time_in_task_load(_ receiverRaw: Int) -> Int {
+    _ = receiverRaw
+    return runtimeGCTuningState.currentMainThreadFinalizerProcessorMaxTimeInTaskNs()
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_max_time_in_task_store")
+public func kk_gc_main_thread_finalizer_processor_max_time_in_task_store(_ receiverRaw: Int, _ value: Int) -> Int {
+    _ = receiverRaw
+    runtimeGCTuningState.setMainThreadFinalizerProcessorMaxTimeInTaskNs(value)
+    return 0
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_min_time_between_tasks_load")
+public func kk_gc_main_thread_finalizer_processor_min_time_between_tasks_load(_ receiverRaw: Int) -> Int {
+    _ = receiverRaw
+    return runtimeGCTuningState.currentMainThreadFinalizerProcessorMinTimeBetweenTasksNs()
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store")
+public func kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store(_ receiverRaw: Int, _ value: Int) -> Int {
+    _ = receiverRaw
+    runtimeGCTuningState.setMainThreadFinalizerProcessorMinTimeBetweenTasksNs(value)
+    return 0
 }
 
 // (a) RF-DEAD-002: 配線予定 → GC global root API (CInterop / native global 変数サポート)
@@ -310,61 +515,127 @@ public func kk_runtime_force_reset() {
     runtimeResetDebugState()
 }
 
+/// `objectPointers` is deliberately preserved: every entry is a box the runtime
+/// still holds a `passRetained` reference to, so dropping the entry reclaims
+/// nothing and only makes a live handle unresolvable. Test isolation resets run
+/// while other suites of the same process still own such handles, and an
+/// unresolvable live handle surfaces as a KSWIFTK-RUNTIME-0001 invalid-handle
+/// panic (invalid range/array/string handle). Entries are removed by whoever
+/// releases the box.
 func kk_runtime_reset_gc() {
     runtimeStorage.withGCLock { state in
         for (_, object) in state.heapObjects {
             object.pointer.deallocate()
         }
         state.heapObjects.removeAll(keepingCapacity: false)
-        state.objectPointers.removeAll(keepingCapacity: false)
         state.globalRootSlots.removeAll(keepingCapacity: false)
         state.frameMaps.removeAll(keepingCapacity: false)
         state.activeFrames.removeAll(keepingCapacity: false)
         state.coroutineRoots.removeAll(keepingCapacity: false)
-        state.pinnedObjects.removeAll(keepingCapacity: false)
+        state.pinnedObjectCounts.removeAll(keepingCapacity: false)
+        state.stableRefCounts.removeAll(keepingCapacity: false)
     }
+    runtimeGCTuningState.reset()
+    resetCaseInsensitiveOrderCache()
 }
 
 func kk_runtime_reset_metadata() {
-    runtimeStorage.withMetadataLock { state in
-        for (_, kclassRaw) in state.kClassBoxCache {
-            if let ptr = UnsafeMutableRawPointer(bitPattern: kclassRaw) {
-                Unmanaged<RuntimeKClassBox>.fromOpaque(ptr).release()
-            }
+    let cachedReflectionBoxes = runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
+        var boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+        if let starRaw = state.kTypeProjectionStarRaw,
+           let pointer = UnsafeMutableRawPointer(bitPattern: starRaw) {
+            boxes.append(pointer)
         }
         state.kClassBoxCache.removeAll(keepingCapacity: false)
+        state.kTypeProjectionStarRaw = nil
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
+        state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
+        state.reflectionTypeEdgesRegistered = false
+        state.primitiveTypeEdgesRegistered = false
+        state.rangeTypeEdgesRegistered = false
+        state.dataClassIDs.removeAll(keepingCapacity: false)
+        state.dataClassFieldMasks.removeAll(keepingCapacity: false)
+        state.objectVtableMethods.removeAll(keepingCapacity: false)
+        state.objectEqualsOverrides.removeAll(keepingCapacity: false)
+        state.objectHashCodeOverrides.removeAll(keepingCapacity: false)
+        state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
+        state.valueClassAnyToStringMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
+        return boxes
     }
+    releaseRegisteredRuntimeBoxes(cachedReflectionBoxes)
     runtimeKClassMetadataRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
 }
 
+func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
+    runtimeStorage.withMetadataLock { state in
+        state.kClassBoxCache = state.kClassBoxCache.filter { _, raw in
+            UInt(bitPattern: raw) != key
+        }
+        if state.kTypeProjectionStarRaw == Int(bitPattern: key) {
+            state.kTypeProjectionStarRaw = nil
+        }
+        state.objectTypeByPointer.removeValue(forKey: key)
+        state.arrayTypeIDsByPointer.removeValue(forKey: key)
+        state.objectVtableMethods.removeValue(forKey: key)
+        state.objectEqualsOverrides.removeValue(forKey: key)
+        state.objectHashCodeOverrides.removeValue(forKey: key)
+        state.objectAnyToStringMethods.removeValue(forKey: key)
+        state.objectItableMethods.removeValue(forKey: key)
+        state.objectInterfaceSlots.removeValue(forKey: key)
+    }
+}
+
 func kk_runtime_reset_flow() {
-    runtimeStorage.withFlowLock { state in
+    let flowKeys = runtimeStorage.withFlowLock { state -> [UInt] in
+        let keys = Array(state.flowHandles.keys)
         state.flowHandles.removeAll(keepingCapacity: false)
         state.flowRetainCounts.removeAll(keepingCapacity: false)
+        return keys
+    }
+    runtimeStorage.withGCLock { state in
+        for key in flowKeys {
+            state.objectPointers.remove(key)
+            state.borrowedObjectPointers.remove(key)
+        }
     }
 }
 
 func kk_runtime_reset_thread_local() {
-    runtimeStorage.withThreadLocalLock { state in
-        for threadLocalRaw in state.threadLocalBoxes {
-            if let ptr = UnsafeMutableRawPointer(bitPattern: threadLocalRaw) {
-                Unmanaged<AnyObject>.fromOpaque(ptr).release()
-            }
-        }
+    let boxes = runtimeStorage.withThreadLocalLock { state -> [UnsafeMutableRawPointer] in
+        let boxes = state.threadLocalBoxes.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
         state.threadLocalBoxes.removeAll(keepingCapacity: false)
         state.threadLocalValues.removeAll(keepingCapacity: false)
+        return boxes
+    }
+    releaseRegisteredRuntimeBoxes(boxes)
+}
+
+/// Release boxes registered in `objectPointers`, dropping their registration
+/// first so no handle can resolve to the freed memory.
+private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]) {
+    guard !pointers.isEmpty else {
+        return
+    }
+    runtimeStorage.withGCLock { state in
+        for pointer in pointers {
+            state.objectPointers.remove(UInt(bitPattern: pointer))
+        }
+    }
+    for pointer in pointers {
+        // Primitive box handles registered under tagged bits need the base
+        // object pointer for ARC release.
+        let base = runtimePrimitiveBoxBasePointer(from: Int(bitPattern: pointer)) ?? pointer
+        Unmanaged<AnyObject>.fromOpaque(base).release()
     }
 }
 
 func kk_runtime_reset_delegate() {
     runtimeStorage.withDelegateLock { state in
-        state.customDelegateBoxes.removeAll(keepingCapacity: false)
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
     }
 }
@@ -399,6 +670,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
             header.pointee.flags &= ~kkObjMarkFlag
             survivors[key] = object
         } else {
+            removeRuntimeObjectMetadata(forObjectKey: key)
             object.pointer.deallocate()
         }
     }
@@ -436,8 +708,15 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
         worklist.append(ptr)
     }
 
-    for pinned in state.pinnedObjects {
+    for pinned in state.pinnedObjectCounts.keys {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: pinned) else {
+            continue
+        }
+        worklist.append(ptr)
+    }
+
+    for stableRefTarget in state.stableRefCounts.keys {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: stableRefTarget) else {
             continue
         }
         worklist.append(ptr)

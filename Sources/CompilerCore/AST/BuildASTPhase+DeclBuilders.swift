@@ -1,5 +1,62 @@
 
 extension BuildASTPhase {
+    /// Returns the index of the `class` keyword that introduces a class declaration,
+    /// skipping `Foo::class` class-literal expressions that appear before the declaration.
+    private func classDeclarationKeywordIndex(in tokens: [Token]) -> Int? {
+        firstTopLevelKeywordIndex(in: tokens, matching: [.class]) { previousToken in
+            previousToken.kind == .symbol(.doubleColon)
+        }
+    }
+
+    private static let declarationIntroducerKeywords: Set<Keyword> = [
+        .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import,
+    ]
+
+    /// Scans `tokens` from the start, tracking balanced bracket depth, and
+    /// returns the index of the first top-level keyword that matches one of
+    /// `keywords`. This avoids treating keywords inside annotation arguments
+    /// (e.g. `::class` in `@file:OptIn(...::class)`) as declaration introducers.
+    /// `skippingIfPrecededBy`, when provided, rejects a match whose immediately
+    /// preceding token satisfies it (e.g. `::` before `class`, to skip class-literal
+    /// expressions like `Foo::class`) and keeps scanning for the next candidate.
+    func firstTopLevelKeywordIndex(
+        in tokens: [Token],
+        matching keywords: Set<Keyword>,
+        skippingIfPrecededBy isExcludedPredecessor: ((Token) -> Bool)? = nil
+    ) -> Int? {
+        var depth = BracketDepth()
+        var previousToken: Token?
+        for (index, token) in tokens.enumerated() {
+            depth.track(token.kind)
+            let isExcluded = previousToken.map { isExcludedPredecessor?($0) ?? false } ?? false
+            if depth.isAtTopLevel,
+               case let .keyword(keyword) = token.kind,
+               keywords.contains(keyword),
+               !isExcluded {
+                return index
+            }
+            previousToken = token
+        }
+        return nil
+    }
+
+    /// Returns the index of the next top-level keyword after `startIndex`.
+    func firstTopLevelKeywordIndex(
+        in tokens: [Token],
+        after startIndex: Int
+    ) -> Int? {
+        var depth = BracketDepth()
+        for (index, token) in tokens.enumerated() {
+            depth.track(token.kind)
+            if index > startIndex,
+               depth.isAtTopLevel,
+               case .keyword = token.kind {
+                return index
+            }
+        }
+        return nil
+    }
+
     func makeClassDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> ClassDecl {
         let node = arena.node(nodeID)
         let primaryConstructorParams = declarationValueParameters(
@@ -12,7 +69,8 @@ extension BuildASTPhase {
         let constructorProperties = primaryConstructorPropertyDecls(
             from: primaryConstructorParams,
             classRange: node.range,
-            astArena: astArena
+            astArena: astArena,
+            interner: interner
         )
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let whereClauses = declarationWhereClauses(from: nodeID, in: arena, interner: interner, astArena: astArena)
@@ -27,14 +85,21 @@ extension BuildASTPhase {
             isInner: modifiers.contains(.inner),
             typeParams: typeParams,
             primaryConstructorParams: primaryConstructorParams,
-            primaryConstructorModifiers: declarationPrimaryConstructorModifiers(from: nodeID, in: arena),
+            primaryConstructorModifiers: declarationPrimaryConstructorModifiers(
+                from: nodeID, in: arena, interner: interner
+            ),
             primaryConstructorAnnotations: declarationPrimaryConstructorAnnotations(from: nodeID, in: arena, interner: interner),
-            hasPrimaryConstructorSyntax: declarationHasPrimaryConstructorSyntax(from: nodeID, in: arena),
+            hasPrimaryConstructorSyntax: declarationHasPrimaryConstructorSyntax(
+                from: nodeID, in: arena, interner: interner
+            ),
             superTypeEntries: declarationSuperTypeEntries(from: nodeID, in: arena, interner: interner, astArena: astArena),
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
-            enumEntries: declarationEnumEntries(from: nodeID, in: arena, interner: interner),
+            enumEntries: declarationEnumEntries(from: nodeID, in: arena, interner: interner, astArena: astArena, diagnostics: diagnostics),
             initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),
-            classBodyInitOrder: declarationClassBodyInitOrder(from: nodeID, in: arena, interner: interner),
+            classBodyInitOrder: declarationClassBodyInitOrder(
+                from: nodeID, in: arena, interner: interner,
+                constructorPropertyCount: constructorProperties.count
+            ),
             secondaryConstructors: declarationSecondaryConstructors(from: nodeID, in: arena, interner: interner, astArena: astArena),
             memberFunctions: members.functions,
             memberProperties: constructorProperties + members.properties,
@@ -44,158 +109,96 @@ extension BuildASTPhase {
         )
     }
 
+    /// Scans the primary-constructor header of a class — from the class name up
+    /// to `constructor`/`(`/`:`/`{` — collecting annotations and candidate modifier
+    /// tokens along the way, so the two extractors below share one walk instead of
+    /// each re-scanning the header independently.
+    private struct PrimaryConstructorHeaderScan {
+        var annotations: [AnnotationNode] = []
+        var modifiers: Modifiers = []
+        var sawConstructorKeyword = false
+    }
+
+    private func scanPrimaryConstructorHeader(
+        classIndex: Int, in tokens: [Token], interner: StringInterner
+    ) -> PrimaryConstructorHeaderScan {
+        var scan = PrimaryConstructorHeaderScan()
+        var index = classIndex + 1
+        var sawClassName = false
+        var depth = BracketDepth()
+        while index < tokens.count {
+            let token = tokens[index]
+            if !sawClassName {
+                if case .identifier = token.kind {
+                    sawClassName = true
+                } else if case .backtickedIdentifier = token.kind {
+                    sawClassName = true
+                }
+                index += 1
+                continue
+            }
+            if depth.isAtTopLevel {
+                switch token.kind {
+                case .keyword(.constructor), .softKeyword(.constructor):
+                    scan.sawConstructorKeyword = true
+                    return scan
+                case .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
+                    return scan
+                case .symbol(.at):
+                    if let parsed = AnnotationParsingSupport.parseAnnotation(
+                        from: tokens, start: index, interner: interner, allowUseSiteTarget: false
+                    ) {
+                        scan.annotations.append(parsed.annotation)
+                        index = parsed.nextIndex
+                    } else {
+                        index += 1
+                    }
+                    continue
+                default:
+                    break
+                }
+                if let modifier = modifier(from: token) {
+                    scan.modifiers.insert(modifier)
+                }
+            }
+            depth.track(token.kind)
+            index += 1
+        }
+        return scan
+    }
+
     /// Extracts annotations placed on the primary constructor in a class header,
     /// e.g. `class Foo @Inject constructor()`.
-    func declarationPrimaryConstructorAnnotations(
+    private func declarationPrimaryConstructorAnnotations(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> [AnnotationNode] {
         let tokens = collectTokens(from: nodeID, in: arena)
-        var sawClassKeyword = false
-        var sawClassName = false
-        var angleBracketDepth = 0
-        var annotations: [AnnotationNode] = []
-        var index = 0
-
-        while index < tokens.count {
-            let token = tokens[index]
-            if !sawClassKeyword {
-                if case .keyword(.class) = token.kind { sawClassKeyword = true }
-                index += 1
-                continue
-            }
-            if !sawClassName {
-                if case .identifier = token.kind { sawClassName = true }
-                else if case .backtickedIdentifier = token.kind { sawClassName = true }
-                index += 1
-                continue
-            }
-            if token.kind == .symbol(.lessThan) { angleBracketDepth += 1; index += 1; continue }
-            if token.kind == .symbol(.greaterThan) { angleBracketDepth = max(0, angleBracketDepth - 1); index += 1; continue }
-            if angleBracketDepth > 0 { index += 1; continue }
-            switch token.kind {
-            case .keyword(.constructor), .softKeyword(.constructor),
-                 .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
-                return annotations
-            case .symbol(.at):
-                if let parsed = AnnotationParsingSupport.parseAnnotation(
-                    from: tokens, start: index, interner: interner, allowUseSiteTarget: false
-                ) {
-                    annotations.append(parsed.annotation)
-                    index = parsed.nextIndex
-                } else {
-                    index += 1
-                }
-                continue
-            default:
-                break
-            }
-            index += 1
+        guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
+            return []
         }
-        return annotations
+        return scanPrimaryConstructorHeader(classIndex: classIndex, in: tokens, interner: interner).annotations
     }
 
     /// Extracts modifiers attached to the primary constructor declaration in a
     /// class header, e.g. `class Foo private constructor()`.
-    func declarationPrimaryConstructorModifiers(from nodeID: NodeID, in arena: SyntaxArena) -> Modifiers {
+    private func declarationPrimaryConstructorModifiers(
+        from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
+    ) -> Modifiers {
         let tokens = collectTokens(from: nodeID, in: arena)
-        var sawClassKeyword = false
-        var sawClassName = false
-        var angleBracketDepth = 0
-        var constructorModifiers: Modifiers = []
-
-        for token in tokens {
-            if !sawClassKeyword {
-                if case .keyword(.class) = token.kind {
-                    sawClassKeyword = true
-                }
-                continue
-            }
-            if !sawClassName {
-                switch token.kind {
-                case .identifier, .backtickedIdentifier:
-                    sawClassName = true
-                default:
-                    break
-                }
-                continue
-            }
-            if token.kind == .symbol(.lessThan) {
-                angleBracketDepth += 1
-                continue
-            }
-            if token.kind == .symbol(.greaterThan) {
-                angleBracketDepth = max(0, angleBracketDepth - 1)
-                continue
-            }
-            if angleBracketDepth > 0 {
-                continue
-            }
-            switch token.kind {
-            case .keyword(.constructor), .softKeyword(.constructor):
-                return constructorModifiers
-            case .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
-                return []
-            default:
-                break
-            }
-            if let modifier = modifier(from: token) {
-                constructorModifiers.insert(modifier)
-            }
+        guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
+            return []
         }
-
-        return []
+        let scan = scanPrimaryConstructorHeader(classIndex: classIndex, in: tokens, interner: interner)
+        return scan.sawConstructorKeyword ? scan.modifiers : []
     }
 
     /// Detects whether the class header contains explicit constructor parentheses,
     /// distinguishing `class Foo()` from `class Foo`.
-    ///
-    /// This uses token-level scanning because the CST does not distinguish
-    /// "no primary constructor" from "primary constructor with zero parameters";
-    /// both produce an empty `primaryConstructorParams` array. The function
-    /// scans tokens after the `class` keyword, skipping type-parameter angle
-    /// brackets (`<…>`), and returns `true` if it encounters `(` before `:` or `{`.
-    ///
-    /// Examples:
-    /// - `class Foo()` → `true`
-    /// - `class Foo`   → `false`
-    /// - `class Foo<T>()` → `true`
-    /// - `class Foo<T>` → `false`
-    /// - `class Foo : Bar` → `false`
-    ///
-    /// Limitation: nested generic bounds (e.g. `class Foo<T: List<Int>>()`) use
-    /// `<` and `>` tokens that are tracked via depth counting; the lexer does not
-    /// emit `>>` as a single token, so this is handled correctly.
-    func declarationHasPrimaryConstructorSyntax(from nodeID: NodeID, in arena: SyntaxArena) -> Bool {
+    private func declarationHasPrimaryConstructorSyntax(
+        from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
+    ) -> Bool {
         let tokens = collectTokens(from: nodeID, in: arena)
-        // Skip past the class keyword and name (and optional type params in `<>`).
-        // A `(` before any `:` or `{` indicates primary constructor syntax.
-        var angleBracketDepth = 0
-        var pastClassName = false
-        for token in tokens {
-            if !pastClassName {
-                if case .keyword(.class) = token.kind {
-                    pastClassName = true
-                }
-                continue
-            }
-            // Skip type parameter angle brackets: `class Foo<T>(...)`
-            if token.kind == .symbol(.lessThan) {
-                angleBracketDepth += 1
-                continue
-            }
-            if token.kind == .symbol(.greaterThan) {
-                angleBracketDepth = max(0, angleBracketDepth - 1)
-                continue
-            }
-            if angleBracketDepth > 0 { continue }
-            if case .symbol(.lParen) = token.kind {
-                return true
-            }
-            if token.kind == .symbol(.colon) || token.kind == .symbol(.lBrace) {
-                return false
-            }
-        }
-        return false
+        return classPrimaryConstructorOpenParenIndex(in: tokens, interner: interner) != nil
     }
 
     func makeInterfaceDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> InterfaceDecl {
@@ -227,13 +230,20 @@ extension BuildASTPhase {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
+        let superTypeEntries = declarationSuperTypeEntries(
+            from: nodeID,
+            in: arena,
+            interner: interner,
+            astArena: astArena
+        )
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
         return ObjectDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
             modifiers: modifiers,
             annotations: annotations,
-            superTypes: declarationSuperTypes(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            superTypes: superTypeEntries.map(\.typeRef),
+            superTypeConstructorArgs: superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? [],
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
             initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),
             classBodyInitOrder: declarationClassBodyInitOrder(from: nodeID, in: arena, interner: interner),
@@ -253,13 +263,15 @@ extension BuildASTPhase {
         let functionName = declarationFunctionName(from: nodeID, in: arena, interner: interner)
         let valueParams = declarationValueParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let explicitReceiverType = declarationReceiverType(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        let contextReceiverTypes = declarationContextReceiverTypes(
+        let contextReceivers = declarationContextReceivers(
             from: nodeID,
             in: arena,
             interner: interner,
             astArena: astArena
         )
-        let receiverType = explicitReceiverType ?? contextReceiverTypes.first
+        // Do not promote a context receiver to `receiverType`: that would
+        // overwrite a member function's class `this` with the context type.
+        let receiverType = explicitReceiverType
         let returnType = declarationReturnType(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let body = declarationBody(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
@@ -273,6 +285,7 @@ extension BuildASTPhase {
             annotations: annotations,
             typeParams: typeParams,
             receiverType: receiverType,
+            contextReceivers: contextReceivers,
             valueParams: valueParams,
             returnType: returnType,
             body: body,
@@ -287,17 +300,38 @@ extension BuildASTPhase {
         let accessors = declarationPropertyAccessors(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let delegateExpr = declarationDelegateExpression(from: nodeID, in: arena, interner: interner, astArena: astArena)
 
-        // When a delegate expression exists, the trailing lambda body (e.g. `lazy { body }`)
-        // is a block child of the property node that `propertyHeadTokens` excludes.
-        // Extract it here so KIR lowering can create the lambda function from it.
+        // When a delegate expression contains a trailing lambda, reuse its
+        // parsed body here so KIR lowering can create the lambda function from
+        // the same AST nodes as ordinary call-argument checking.
         var delegateBody: FunctionBody?
-        if delegateExpr != nil {
-            // Find the block child node — this is the trailing lambda body.
-            for child in arena.children(of: nodeID) {
-                if case let .node(childID) = child, arena.node(childID).kind == .block {
-                    let exprs = blockExpressions(from: childID, in: arena, interner: interner, astArena: astArena)
-                    delegateBody = .block(exprs, arena.node(childID).range)
-                    break
+        var delegateBodyParams: [InternedString] = []
+        if let delegateExpr {
+            if let parsed = delegateLambda(from: delegateExpr, astArena: astArena) {
+                // Reuse the lambda body already parsed as a call argument for KIR
+                // lowering; reparsing the same block would create a second AST
+                // copy whose bindings are not visible to the lowering path.
+                delegateBodyParams = parsed.params
+                delegateBody = parsed.body
+            } else if let blockChildID = arena.children(of: nodeID).compactMap({ child -> NodeID? in
+                guard case let .node(childID) = child, arena.node(childID).kind == .block else {
+                    return nil
+                }
+                return childID
+            }).first {
+                // A parameterized trailing lambda (`{ prop, old, new -> ... }`)
+                // cannot be recovered from the CST statement nodes: the
+                // parameter list and the arrow form their own statement node
+                // that the block-statement parser cannot make sense of. Re-parse
+                // the block's tokens as a lambda literal so both the parameter
+                // names and the real body statements survive.
+                if let parsed = delegateLambdaFromBlockTokens(
+                    blockNodeID: blockChildID, in: arena, interner: interner, astArena: astArena
+                ) {
+                    delegateBodyParams = parsed.params
+                    delegateBody = parsed.body
+                } else {
+                    let exprs = blockExpressions(from: blockChildID, in: arena, interner: interner, astArena: astArena)
+                    delegateBody = .block(exprs, arena.node(blockChildID).range)
                 }
             }
         }
@@ -330,9 +364,89 @@ extension BuildASTPhase {
             setter: accessors.setter,
             delegateExpression: delegateExpr,
             delegateBody: delegateBody,
+            delegateBodyParams: delegateBodyParams,
             receiverType: receiverType,
             explicitBackingField: explicitField
         )
+    }
+
+    /// Extracts the trailing lambda already parsed into a delegate call.
+    /// Delegate lowering consumes `delegateBody`, so it must point at the same
+    /// AST body that Sema checks as the call argument rather than a separately
+    /// parsed copy.
+    private func delegateLambda(
+        from delegateExpr: ExprID,
+        astArena: ASTArena
+    ) -> (params: [InternedString], body: FunctionBody)? {
+        let args: [CallArgument]
+        switch astArena.expr(delegateExpr) {
+        case let .call(_, _, callArgs, _):
+            args = callArgs
+        case let .memberCall(_, _, _, memberArgs, _):
+            args = memberArgs
+        default:
+            return nil
+        }
+
+        guard let argument = args.last,
+              case let .lambdaLiteral(params, bodyExprID, _, _) = astArena.expr(argument.expr)
+        else {
+            return nil
+        }
+        guard let bodyExpr = astArena.expr(bodyExprID) else { return nil }
+        if case let .blockExpr(statements, trailingExpr, range) = bodyExpr {
+            var expressions = statements
+            if let trailingExpr {
+                expressions.append(trailingExpr)
+            }
+            return (params, .block(expressions, range))
+        }
+        guard let range = astArena.exprRange(bodyExprID) else { return nil }
+        return (params, .expr(bodyExprID, range))
+    }
+
+    /// Re-parses a delegate property's trailing-lambda block from its tokens so
+    /// that a declared parameter list (`{ prop, old, new -> ... }`) is preserved.
+    /// Returns `nil` for parameterless lambdas, which the CST statement nodes
+    /// already describe correctly.
+    private func delegateLambdaFromBlockTokens(
+        blockNodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> (params: [InternedString], body: FunctionBody)? {
+        let tokens = collectTokens(from: blockNodeID, in: arena)
+        guard let last = tokens.last,
+              tokens.contains(where: { $0.kind == .symbol(.arrow) })
+        else {
+            return nil
+        }
+        let eofRange = SourceRange(start: last.range.end, end: last.range.end)
+        let parser = ExpressionParser(
+            tokens: (tokens + [Token(kind: .eof, range: eofRange)])[...],
+            interner: interner,
+            astArena: astArena,
+            diagnostics: diagnostics
+        )
+        guard let lambdaExprID = parser.parseLambdaLiteral(),
+              let lambdaExpr = astArena.expr(lambdaExprID),
+              case let .lambdaLiteral(params, bodyExprID, _, _) = lambdaExpr,
+              !params.isEmpty,
+              let bodyExpr = astArena.expr(bodyExprID)
+        else {
+            return nil
+        }
+        if case let .blockExpr(statements, trailingExpr, range) = bodyExpr {
+            var exprs = statements
+            if let trailingExpr {
+                exprs.append(trailingExpr)
+            }
+            return (params, .block(exprs, range))
+        }
+        guard let range = astArena.exprRange(bodyExprID) else {
+            return nil
+        }
+        return (params, .expr(bodyExprID, range))
     }
 
     func makeTypeAliasDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> TypeAliasDecl {
@@ -350,27 +464,38 @@ extension BuildASTPhase {
         )
     }
 
-    func declarationTypeAliasRHS(
+    private func declarationTypeAliasRHS(
         from nodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
     ) -> TypeRefID? {
         let tokens = collectTokens(from: nodeID, in: arena)
-        guard let assignIndex = tokens.firstIndex(where: { $0.kind == .symbol(.assign) }) else {
+        // Anchor the search at the `typealias` keyword: a leading annotation
+        // with named arguments (`@Deprecated(..., replaceWith = ...)`) contains
+        // its own `=`, which must not be mistaken for the alias assignment.
+        let searchStart = tokens.firstIndex(where: { $0.kind == .keyword(.typealias) }).map { $0 + 1 } ?? 0
+        guard let assignIndex = tokens[searchStart...].firstIndex(where: { $0.kind == .symbol(.assign) }) else {
             return nil
         }
-        let rhsTokens = Array(tokens[(assignIndex + 1)...]).filter { $0.kind != .symbol(.semicolon) }
+        let rhsTokens = tokens[(assignIndex + 1)...].filter { $0.kind != .symbol(.semicolon) }
         return parseTypeRef(from: rhsTokens, interner: interner, astArena: astArena)
     }
 
     func declarationName(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner) -> InternedString {
         let tokens = collectTokens(from: nodeID, in: arena)
+        let searchTokens: ArraySlice<Token>
         if let introducerIndex = declarationIntroducerIndex(in: tokens) {
             var index = introducerIndex + 1
             if tokens[introducerIndex].kind == .keyword(.enum),
                index < tokens.count,
                tokens[index].kind == .keyword(.class)
+            {
+                index += 1
+            }
+            if tokens[introducerIndex].kind == .keyword(.fun),
+               index < tokens.count,
+               tokens[index].kind == .keyword(.interface)
             {
                 index += 1
             }
@@ -385,37 +510,36 @@ extension BuildASTPhase {
                     close: .symbol(.greaterThan)
                 )
             }
-            while index < tokens.count {
-                let token = tokens[index]
-                if token.kind == .symbol(.lParen)
-                    || token.kind == .symbol(.lBrace)
-                    || token.kind == .symbol(.colon)
-                    || token.kind == .symbol(.assign)
-                    || token.kind == .symbol(.semicolon)
-                {
-                    break
-                }
-                if let name = internedIdentifier(from: token, interner: interner) {
-                    if case let .keyword(keyword) = token.kind, isLeadingDeclarationKeyword(keyword) {
-                        index += 1
-                        continue
-                    }
-                    return name
-                }
-                index += 1
-            }
-            return interner.intern("")
+            let boundaryIndex = tokens[index...].firstIndex(where: isDeclarationNameBoundaryToken) ?? tokens.count
+            searchTokens = tokens[index..<boundaryIndex]
+        } else {
+            searchTokens = tokens[...]
         }
+        return firstDeclarationName(in: searchTokens, interner: interner) ?? interner.intern("")
+    }
 
+    /// Terminators that end the name slot of a declaration header, e.g. the
+    /// parameter list, class body, or delegate assignment that follows the name.
+    private func isDeclarationNameBoundaryToken(_ token: Token) -> Bool {
+        token.kind == .symbol(.lParen)
+            || token.kind == .symbol(.lBrace)
+            || token.kind == .symbol(.colon)
+            || token.kind == .symbol(.assign)
+            || token.kind == .symbol(.semicolon)
+    }
+
+    /// Returns the first identifier-like token in the declaration name slot.
+    /// Modifier keywords are valid names once the declaration introducer has
+    /// established that this is a name position.
+    private func firstDeclarationName(
+        in tokens: ArraySlice<Token>, interner: StringInterner
+    ) -> InternedString? {
         for token in tokens {
             if let name = internedIdentifier(from: token, interner: interner) {
-                if case let .keyword(keyword) = token.kind, isLeadingDeclarationKeyword(keyword) {
-                    continue
-                }
                 return name
             }
         }
-        return interner.intern("")
+        return nil
     }
 
     func declarationValueParameters(
@@ -429,7 +553,9 @@ extension BuildASTPhase {
         // Only look for the opening `(` that occurs before any `{` (class body).
         // This prevents picking up `(` from member function declarations like
         // `class F { operator fun invoke(x: Int) }` as constructor parameters.
-        guard let startIndex = declarationParameterOpenParenIndex(in: tokens, nodeKind: nodeKind) else {
+        guard let startIndex = declarationParameterOpenParenIndex(
+            in: tokens, nodeKind: nodeKind, interner: interner
+        ) else {
             return []
         }
 
@@ -447,10 +573,6 @@ extension BuildASTPhase {
                 appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena)
                 paramTokens.removeAll(keepingCapacity: true)
             } else {
-                if token.kind == .symbol(.lBrace) {
-                    // Stop at block start for simple tail-recognition in function declarations.
-                    break
-                }
                 paramTokens.append(token)
             }
             index += 1
@@ -461,31 +583,18 @@ extension BuildASTPhase {
         return arguments
     }
 
-    func declarationIntroducerIndex(in tokens: [Token]) -> Int? {
-        for (index, token) in tokens.enumerated() {
-            guard case let .keyword(keyword) = token.kind else {
-                continue
-            }
-            switch keyword {
-            case .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import:
-                return index
-            case .companion:
-                if index + 1 < tokens.count, tokens[index + 1].kind == .keyword(.object) {
-                    return index + 1
-                }
-            default:
-                continue
-            }
-        }
-        return nil
+    private func declarationIntroducerIndex(in tokens: [Token]) -> Int? {
+        firstTopLevelKeywordIndex(in: tokens, matching: Self.declarationIntroducerKeywords)
     }
 
-    func declarationParameterOpenParenIndex(in tokens: [Token], nodeKind: SyntaxKind) -> Int? {
+    private func declarationParameterOpenParenIndex(
+        in tokens: [Token], nodeKind: SyntaxKind, interner: StringInterner
+    ) -> Int? {
         switch nodeKind {
         case .funDecl:
             functionParameterOpenParenIndex(in: tokens)
         case .classDecl:
-            classPrimaryConstructorOpenParenIndex(in: tokens)
+            classPrimaryConstructorOpenParenIndex(in: tokens, interner: interner)
         case .constructorDecl:
             constructorParameterOpenParenIndex(in: tokens)
         default:
@@ -495,14 +604,14 @@ extension BuildASTPhase {
         }
     }
 
-    func classPrimaryConstructorOpenParenIndex(in tokens: [Token]) -> Int? {
-        guard let classIndex = tokens.firstIndex(where: { token in
-            token.kind == .keyword(.class)
-        }) else {
+    private func classPrimaryConstructorOpenParenIndex(
+        in tokens: [Token], interner: StringInterner
+    ) -> Int? {
+        guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
             return nil
         }
         var index = classIndex + 1
-        if index < tokens.count, isTypeLikeNameToken(tokens[index].kind) {
+        if index < tokens.count, TypeRefParserCore.isTypeLikeNameToken(tokens[index].kind) {
             index += 1
         }
         if index < tokens.count, tokens[index].kind == .symbol(.lessThan) {
@@ -513,20 +622,35 @@ extension BuildASTPhase {
                 close: .symbol(.greaterThan)
             )
         }
+        var depth = BracketDepth()
         while index < tokens.count {
-            let kind = tokens[index].kind
-            if kind == .symbol(.lParen) {
-                return index
+            let token = tokens[index]
+            if depth.isAtTopLevel {
+                let kind = token.kind
+                if kind == .symbol(.lParen) {
+                    return index
+                }
+                if kind == .symbol(.colon) || kind == .symbol(.lBrace) || kind == .symbol(.assign) {
+                    return nil
+                }
+                if kind == .symbol(.at) {
+                    if let parsed = AnnotationParsingSupport.parseAnnotation(
+                        from: tokens, start: index, interner: interner, allowUseSiteTarget: false
+                    ) {
+                        index = parsed.nextIndex
+                    } else {
+                        index += 1
+                    }
+                    continue
+                }
             }
-            if kind == .symbol(.colon) || kind == .symbol(.lBrace) || kind == .symbol(.assign) {
-                return nil
-            }
+            depth.track(token.kind)
             index += 1
         }
         return nil
     }
 
-    func constructorParameterOpenParenIndex(in tokens: [Token]) -> Int? {
+    private func constructorParameterOpenParenIndex(in tokens: [Token]) -> Int? {
         guard let ctorIndex = tokens.firstIndex(where: { token in
             token.kind == .keyword(.constructor) || token.kind == .softKeyword(.constructor)
         }) else {
@@ -591,22 +715,19 @@ extension BuildASTPhase {
             withoutDefault[...]
         }
 
-        guard let nameToken = nameSearchTokens.last(where: { token in
-            if isParameterModifierToken(token) {
-                return false
-            }
-            return isTypeLikeNameToken(token.kind)
+        // A modifier keyword (`inner`, `sealed`, `vararg`, `override`, ...) is only
+        // acting as a modifier when something else follows it in the name slot; when
+        // it's the rightmost candidate before the colon, it IS the parameter name
+        // (Kotlin modifier keywords are valid plain identifiers outside modifier
+        // position). `lastIndex(where:)` already finds that rightmost candidate, so
+        // no separate keyword-exclusion pass is needed here.
+        guard let nameIndex = nameSearchTokens.lastIndex(where: { token in
+            internedIdentifier(from: token, interner: interner) != nil
         }) else {
             return
         }
+        let nameToken = nameSearchTokens[nameIndex]
         guard let name = internedIdentifier(from: nameToken, interner: interner) else {
-            return
-        }
-        if case let .keyword(keyword) = nameToken.kind,
-           isLeadingDeclarationKeyword(keyword),
-           keyword != .value,
-           keyword != .data
-        {
             return
         }
 
@@ -618,20 +739,32 @@ extension BuildASTPhase {
             typeRef = nil
         }
 
-        let isVararg = withoutDefault.contains(where: { token in
-            if case .keyword(.vararg) = token.kind {
-                return true
+        // Only the modifier-prefix zone (tokens strictly before the resolved name)
+        // can carry real `vararg`/`crossinline`/`noinline`/`open`/`override`/`val`/`var`
+        // modifiers; scanning the full token list would misfire when the parameter
+        // is simply named one of these keywords (e.g. `val override: Int`).
+        let modifierPrefixTokens = withoutDefault[..<nameIndex]
+        var candidateModifiers: Modifiers = []
+        for token in modifierPrefixTokens {
+            if let candidate = modifier(from: token) {
+                candidateModifiers.insert(candidate)
             }
-            return false
-        })
-        let isValProperty = withoutDefault.contains(where: { $0.kind == .keyword(.val) })
-        let isVarProperty = withoutDefault.contains(where: { $0.kind == .keyword(.var) })
+        }
+        let isVararg = candidateModifiers.contains(.vararg)
+        let isCrossinline = candidateModifiers.contains(.crossinline)
+        let isNoinline = candidateModifiers.contains(.noinline)
+        let isOverrideProperty = candidateModifiers.contains(.override)
+        let isOpenProperty = candidateModifiers.contains(.open)
+        let isValProperty = modifierPrefixTokens.contains(where: { $0.kind == .keyword(.val) })
+        let isVarProperty = modifierPrefixTokens.contains(where: { $0.kind == .keyword(.var) })
         let defaultValueExpr: ExprID?
         if let defaultTokens = split.defaultTokens?
             .filter({ $0.kind != .symbol(.semicolon) }),
             !defaultTokens.isEmpty
         {
-            let parser = ExpressionParser(tokens: defaultTokens, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: defaultTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             defaultValueExpr = parser.parse()
         } else {
             defaultValueExpr = nil
@@ -641,61 +774,51 @@ extension BuildASTPhase {
             type: typeRef,
             isProperty: isValProperty || isVarProperty,
             isMutableProperty: isVarProperty,
+            isOverrideProperty: isOverrideProperty,
+            isOpenProperty: isOpenProperty,
+            propertyVisibilityModifiers: candidateModifiers.intersection([.public, .private, .internal, .protected]),
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
+            isCrossinline: isCrossinline,
+            isNoinline: isNoinline,
             defaultValue: defaultValueExpr,
             annotations: parsedAnnotations
         ))
     }
 
-    /// Returns the index of the first token after any leading annotations in a
-    /// parameter token list.  Annotations can be `@Name`, `@target:Name`, or
-    /// `@Name(args)` with nested parentheses.
-    private func skipLeadingAnnotations(in tokens: [Token]) -> Int {
-        var i = 0
-        while i < tokens.count {
-            guard case .symbol(.at) = tokens[i].kind else { break }
-            i += 1 // skip '@'
-            guard i < tokens.count else { break }
-            // Skip optional use-site target: `field:`, `get:`, `set:`, etc.
-            if i + 1 < tokens.count,
-               case .symbol(.colon) = tokens[i + 1].kind,
-               isTypeLikeNameToken(tokens[i].kind) {
-                i += 2 // skip `target` and `:`
-            }
-            guard i < tokens.count else { break }
-            // Skip annotation name
-            if isTypeLikeNameToken(tokens[i].kind) {
-                i += 1
-            }
-            // Skip optional parenthesised arguments: `(args)`
-            if i < tokens.count, case .symbol(.lParen) = tokens[i].kind {
-                var depth = 1
-                i += 1
-                while i < tokens.count, depth > 0 {
-                    if case .symbol(.lParen) = tokens[i].kind { depth += 1 }
-                    if case .symbol(.rParen) = tokens[i].kind { depth -= 1 }
-                    i += 1
-                }
-            }
-        }
-        return i
-    }
-
     private func primaryConstructorPropertyDecls(
         from params: [ValueParamDecl],
         classRange: SourceRange,
-        astArena: ASTArena
+        astArena: ASTArena,
+        interner: StringInterner
     ) -> [DeclID] {
         params.compactMap { param in
             guard param.isProperty else {
                 return nil
             }
+            // A vararg parameter is lowered as an element-typed parameter for
+            // call resolution, but its constructor property is Array<out T>.
+            let propertyType: TypeRefID? = if param.isVararg, let elementType = param.type {
+                astArena.appendTypeRef(.named(
+                    path: [interner.intern("Array")],
+                    args: [.out(elementType)],
+                    nullable: false
+                ))
+            } else {
+                param.type
+            }
+            var propertyModifiers: Modifiers = param.propertyVisibilityModifiers ?? []
+            if param.isOverrideProperty {
+                propertyModifiers.insert(.override)
+            }
+            if param.isOpenProperty {
+                propertyModifiers.insert(.open)
+            }
             let property = PropertyDecl(
                 range: classRange,
                 name: param.name,
-                modifiers: [],
-                type: param.type,
+                modifiers: propertyModifiers,
+                type: propertyType,
                 isVar: param.isMutableProperty,
                 isSynthesizedPrimaryConstructorProperty: true
             )

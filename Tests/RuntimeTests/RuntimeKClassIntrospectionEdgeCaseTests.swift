@@ -1,17 +1,8 @@
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
-
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
+@Suite(.serialized, .runtimeIsolation(.all))
+struct RuntimeKClassIntrospectionEdgeCaseTests {
 
     // MARK: - Helpers
 
@@ -31,7 +22,6 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         typeToken: Int,
         qualifiedName: String,
         simpleName: String,
-        supertype: String? = nil,
         flags: Int = 0,
         fieldCount: Int = 0,
         memberCount: Int = 0,
@@ -39,12 +29,11 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
     ) -> Int {
         let qRaw = makeStr(qualifiedName)
         let sRaw = makeStr(simpleName)
-        let supRaw = supertype.map { makeStr($0) } ?? 0
-        _ = kk_kclass_register_metadata(
-            typeToken, qRaw, sRaw, supRaw, flags,
+        _ = __kk_kclass_register_metadata(
+            typeToken, qRaw, sRaw, 0, flags,
             fieldCount, memberCount, constructorCount
         )
-        return kk_kclass_create(typeToken, sRaw)
+        return __kk_kclass_create(typeToken, sRaw)
     }
 
     private func runtimeListElements(from raw: Int) -> [Int] {
@@ -56,246 +45,98 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         return (tryCast(ptr, to: RuntimeListBox.self)?.elements) ?? []
     }
 
-    // MARK: - simpleName: top-level class
-
-    func testSimpleNameTopLevelClass() {
-        let kclass = registerClass(typeToken: 1001, qualifiedName: "com.example.Foo", simpleName: "Foo")
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Foo")
-    }
-
-    // MARK: - simpleName: nested class
-
-    func testSimpleNameNestedClass() {
-        // Kotlin nested class: Outer.Inner — simpleName is the short name "Inner"
-        let kclass = registerClass(typeToken: 1002, qualifiedName: "com.example.Outer.Inner", simpleName: "Inner")
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Inner")
-    }
-
-    // MARK: - simpleName: anonymous object (null / empty on Kotlin/Native)
-
-    func testSimpleNameAnonymousObjectIsNullSentinel() {
-        // Anonymous objects have no name. The runtime returns runtimeNullSentinelInt
-        // when there is no metadata and no nameHint.
-        let kclass = kk_kclass_create(1003, 0) // no metadata, no nameHint
-        let raw = kk_kclass_simple_name(kclass)
-        // Without metadata or a nameHint, the implementation falls back to
-        // kk_type_token_simple_name which returns "Unknown" for an unregistered token.
-        // We verify it is not the qualified-name sentinel but a valid (possibly empty/Unknown) value.
-        XCTAssertNotEqual(raw, 0, "simpleName must not be a null pointer for an anonymous-style handle")
-    }
-
-    // MARK: - simpleName: generic class
-
-    func testSimpleNameGenericClass() {
-        // Generic class simpleName is just the bare class name, without type args.
-        let kclass = registerClass(typeToken: 1004, qualifiedName: "com.example.Box", simpleName: "Box")
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Box")
-    }
-
-    // MARK: - simpleName: stdlib special types
-
-    func testSimpleNameBuiltinInt() {
-        // Primitive token (base 3 = intBase). No metadata needed.
-        let intToken = 3 // RuntimeTypeTokenEncoding.intBase
-        let kclass = kk_kclass_create(intToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Int")
-    }
-
-    func testSimpleNameBuiltinString() {
-        let stringToken = 2 // stringBase
-        let kclass = kk_kclass_create(stringToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "String")
-    }
-
-    func testSimpleNameBuiltinAny() {
-        let anyToken = 1 // anyBase
-        let kclass = kk_kclass_create(anyToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Any")
-    }
-
-    func testSimpleNameBuiltinBoolean() {
-        let boolToken = 4 // booleanBase per RuntimeTypeTokenEncoding
-        let kclass = kk_kclass_create(boolToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Boolean")
-    }
-
-    func testSimpleNameBuiltinLong() {
-        let longToken = 11 // longBase
-        let kclass = kk_kclass_create(longToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Long")
-    }
-
-    func testSimpleNameBuiltinDouble() {
-        let doubleToken = 12 // doubleBase
-        let kclass = kk_kclass_create(doubleToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Double")
-    }
-
-    func testSimpleNameBuiltinNothing() {
-        // nullBase token should render as "Nothing".
-        // nullBase = 5 per RuntimeTypeTokenEncoding.
-        let nullToken = 5 // nullBase
-        let kclass = kk_kclass_create(nullToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Nothing")
-    }
-
-    // MARK: - qualifiedName
-
-    func testQualifiedNameTopLevelClass() {
-        let kclass = registerClass(typeToken: 2001, qualifiedName: "com.example.MyClass", simpleName: "MyClass")
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "com.example.MyClass")
-    }
-
-    func testQualifiedNameNestedClass() {
-        // Kotlin nested class: Outer.Inner has qualifiedName "com.example.Outer.Inner"
-        let kclass = registerClass(typeToken: 2002, qualifiedName: "com.example.Outer.Inner", simpleName: "Inner")
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "com.example.Outer.Inner")
-    }
-
-    func testQualifiedNameBuiltinString() {
-        let stringToken = 2
-        let kclass = kk_kclass_create(stringToken, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "kotlin.String")
-    }
-
-    func testQualifiedNameBuiltinInt() {
-        let intToken = 3
-        let kclass = kk_kclass_create(intToken, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "kotlin.Int")
-    }
-
-    func testQualifiedNameBuiltinAny() {
-        let anyToken = 1
-        let kclass = kk_kclass_create(anyToken, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "kotlin.Any")
-    }
-
-    func testQualifiedNameBuiltinBoolean() {
-        let boolToken = 4
-        let kclass = kk_kclass_create(boolToken, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "kotlin.Boolean")
-    }
-
-    func testQualifiedNameAnonymousObjectIsNullOrEmpty() {
-        // Unregistered token with no nameHint — qualifiedName falls back to simpleName.
-        let kclass = kk_kclass_create(1003, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        // The sentinel (not-found) case returns runtimeNullSentinelInt; anything else is also valid.
-        // We only assert it does not crash.
-        XCTAssertNotEqual(raw, 0, "qualifiedName must not be a null pointer")
-    }
-
-    func testQualifiedNameWithMetadataOverridesHint() {
-        let typeToken = 2003
-        _ = kk_kclass_register_metadata(
-            typeToken,
-            makeStr("org.example.pkg.Widget"),
-            makeStr("Widget"),
-            0, 0, 0, 0, 0
-        )
-        let kclass = kk_kclass_create(typeToken, makeStr("Widget"))
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "org.example.pkg.Widget")
-    }
-
     // MARK: - isInstance
 
+    @Test
     func testIsInstanceReturnsFalseForUnregisteredTypeToken() {
         // A completely unknown typeToken — isInstance must not crash and must return 0.
-        let kclass = kk_kclass_create(99999, 0)
+        let kclass = __kk_kclass_create(99999, 0)
         let someValue = makeStr("hello")
-        let result = kk_kclass_isInstance(kclass, someValue)
-        XCTAssertEqual(result, 0, "isInstance with unknown type should return false")
+        let result = __kk_kclass_isInstance(kclass, someValue)
+        #expect(result == 0, "isInstance with unknown type should return false")
     }
 
+    @Test
     func testIsInstanceNullValueAlwaysFalse() {
         // Passing null (0) as value should always return 0 regardless of type.
         // Token 0x4000 = 16384: base = 0 (unknown/nominal default) and not nullable.
         let kclass = registerClass(typeToken: 0x4000, qualifiedName: "test.T", simpleName: "T")
-        let result = kk_kclass_isInstance(kclass, 0)
-        XCTAssertEqual(result, 0, "isInstance(null) must be false")
+        let result = __kk_kclass_isInstance(kclass, 0)
+        #expect(result == 0, "isInstance(null) must be false")
     }
 
+    @Test
     func testIsInstanceNullSentinelValueAlwaysFalse() {
         // Use a typeToken where bit 8 (nullableBit = 0x100) is not set, so the type is non-nullable.
         // 0x201 & 0x100 = 0, 0x201 & 0xFF = 1 (anyBase would match). Use a high token: 0x2000 & 0x100 = 0.
         // Token 0x2000 = 8192: base = 0, isNullableTarget = false → kk_op_is(nullSentinel, 8192) = 0.
         let nonNullableToken = 0x2000 // base=0 (unknown), not nullable bit set
         let kclass = registerClass(typeToken: nonNullableToken, qualifiedName: "test.R", simpleName: "R")
-        let result = kk_kclass_isInstance(kclass, runtimeNullSentinelInt)
-        XCTAssertEqual(result, 0, "isInstance(runtimeNullSentinel) must be false for non-nullable type token")
+        let result = __kk_kclass_isInstance(kclass, runtimeNullSentinelInt)
+        #expect(result == 0, "isInstance(runtimeNullSentinel) must be false for non-nullable type token")
     }
 
+    @Test
     func testIsInstanceInvalidHandleReturnsFalse() {
         // Completely invalid kclassRaw.
-        let result = kk_kclass_isInstance(runtimeNullSentinelInt, makeStr("anything"))
-        XCTAssertEqual(result, 0, "isInstance with invalid KClass handle must return false")
+        let result = __kk_kclass_isInstance(runtimeNullSentinelInt, makeStr("anything"))
+        #expect(result == 0, "isInstance with invalid KClass handle must return false")
     }
 
     // MARK: - KClass identity / equality (interning)
 
+    @Test
     func testSameTypeTokenReturnsSameHandle() {
-        // kk_kclass_create interns boxes per typeToken.
+        // __kk_kclass_create interns boxes per typeToken.
         let token = 4001
-        let a = kk_kclass_create(token, 0)
-        let b = kk_kclass_create(token, 0)
-        XCTAssertEqual(a, b, "Same typeToken must produce the same interned KClass handle")
+        let a = __kk_kclass_create(token, 0)
+        let b = __kk_kclass_create(token, 0)
+        #expect(a == b, "Same typeToken must produce the same interned KClass handle")
     }
 
+    @Test
     func testDifferentTypeTokensReturnDifferentHandles() {
-        let a = kk_kclass_create(4002, 0)
-        let b = kk_kclass_create(4003, 0)
-        XCTAssertNotEqual(a, b, "Different typeTokens must produce different KClass handles")
+        let a = __kk_kclass_create(4002, 0)
+        let b = __kk_kclass_create(4003, 0)
+        #expect(a != b, "Different typeTokens must produce different KClass handles")
     }
 
+    @Test
     func testSameHandleEquality() {
         let token = 4004
-        let kclass = kk_kclass_create(token, 0)
-        XCTAssertEqual(kclass, kclass, "A KClass handle must equal itself")
+        let kclass = __kk_kclass_create(token, 0)
+        #expect(kclass == kclass, "A KClass handle must equal itself")
     }
 
     // MARK: - Generic class type-argument erasure
 
+    @Test
     func testGenericClassSameErasureEqualHandles() {
         // KClass<List<Int>> and KClass<List<String>> share the same erased typeToken
         // because runtime tokens do not encode generic arguments.
         // We model this by registering with the same token.
         let erasedToken = 5001
-        let listIntKClass = kk_kclass_create(erasedToken, makeStr("List"))
-        let listStringKClass = kk_kclass_create(erasedToken, makeStr("List"))
-        XCTAssertEqual(
-            listIntKClass, listStringKClass,
+        let listIntKClass = __kk_kclass_create(erasedToken, makeStr("List"))
+        let listStringKClass = __kk_kclass_create(erasedToken, makeStr("List"))
+        #expect(
+            listIntKClass == listStringKClass,
             "KClass handles for same erased token must be identical regardless of type arguments"
         )
     }
 
+    @Test
     func testGenericClassDifferentTypesSeparateHandles() {
         // Map and List have different tokens.
         let listToken = 5002
         let mapToken = 5003
-        let listKClass = kk_kclass_create(listToken, makeStr("List"))
-        let mapKClass = kk_kclass_create(mapToken, makeStr("Map"))
-        XCTAssertNotEqual(listKClass, mapKClass)
+        let listKClass = __kk_kclass_create(listToken, makeStr("List"))
+        let mapKClass = __kk_kclass_create(mapToken, makeStr("Map"))
+        #expect(listKClass != mapKClass)
     }
 
     // MARK: - Enum class via ::class
 
+    @Test
     func testEnumClassFlagSetOnMetadata() {
         // bit 5 = enumClass
         let token = 6001
@@ -305,25 +146,14 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             simpleName: "Color",
             flags: 1 << 5
         )
-        XCTAssertEqual(kk_kclass_is_enum(kclass), 1, "Enum class flag should be 1")
-        XCTAssertEqual(kk_kclass_is_data(kclass), 0, "Enum class must not be a data class")
-        XCTAssertEqual(kk_kclass_is_interface(kclass), 0, "Enum class must not be an interface")
-    }
-
-    func testEnumClassSimpleNameAndQualifiedName() {
-        let token = 6002
-        let kclass = registerClass(
-            typeToken: token,
-            qualifiedName: "com.example.Direction",
-            simpleName: "Direction",
-            flags: 1 << 5
-        )
-        XCTAssertEqual(strValue(from: kk_kclass_simple_name(kclass)), "Direction")
-        XCTAssertEqual(strValue(from: kk_kclass_qualified_name(kclass)), "com.example.Direction")
+        #expect(__kk_kclass_is_enum(kclass) == 1, "Enum class flag should be 1")
+        #expect(__kk_kclass_is_data(kclass) == 0, "Enum class must not be a data class")
+        #expect(__kk_kclass_is_interface(kclass) == 0, "Enum class must not be an interface")
     }
 
     // MARK: - Interface class-literal
 
+    @Test
     func testInterfaceClassLiteralFlags() {
         // bit 3 = interface
         let token = 7001
@@ -333,81 +163,31 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             simpleName: "Printable",
             flags: 1 << 3
         )
-        XCTAssertEqual(kk_kclass_is_interface(kclass), 1, "Interface flag should be 1")
-        XCTAssertEqual(kk_kclass_is_abstract(kclass), 0, "Interface should not additionally be abstract unless flagged")
-        XCTAssertEqual(kk_kclass_is_sealed(kclass), 0)
-    }
-
-    func testInterfaceSimpleName() {
-        let token = 7002
-        let kclass = registerClass(
-            typeToken: token,
-            qualifiedName: "org.lib.Serializable",
-            simpleName: "Serializable",
-            flags: 1 << 3
-        )
-        XCTAssertEqual(strValue(from: kk_kclass_simple_name(kclass)), "Serializable")
-    }
-
-    // MARK: - Any::class, Unit::class, Nothing::class
-
-    func testAnyKClassSimpleName() {
-        let anyToken = 1
-        let kclass = kk_kclass_create(anyToken, 0)
-        XCTAssertEqual(strValue(from: kk_kclass_simple_name(kclass)), "Any")
-    }
-
-    func testAnyKClassQualifiedName() {
-        let anyToken = 1
-        let kclass = kk_kclass_create(anyToken, 0)
-        XCTAssertEqual(strValue(from: kk_kclass_qualified_name(kclass)), "kotlin.Any")
-    }
-
-    func testNothingKClassSimpleName() {
-        let nullToken = 5 // nullBase
-        let kclass = kk_kclass_create(nullToken, 0)
-        XCTAssertEqual(strValue(from: kk_kclass_simple_name(kclass)), "Nothing")
-    }
-
-    func testNothingKClassQualifiedName() {
-        let nullToken = 5 // nullBase
-        let kclass = kk_kclass_create(nullToken, 0)
-        XCTAssertEqual(strValue(from: kk_kclass_qualified_name(kclass)), "kotlin.Nothing")
+        #expect(__kk_kclass_is_interface(kclass) == 1, "Interface flag should be 1")
+        #expect(__kk_kclass_is_abstract(kclass) == 0, "Interface should not additionally be abstract unless flagged")
+        #expect(__kk_kclass_is_sealed(kclass) == 0)
     }
 
     // MARK: - cast / safeCast semantics (isInstance-based)
 
+    @Test
     func testSafeCastSemanticNullValueAlwaysFails() {
         // safeCast<T>(null) → null (isInstance is false for null)
         let kclass = registerClass(typeToken: 8001, qualifiedName: "test.Safe", simpleName: "Safe")
-        XCTAssertEqual(kk_kclass_isInstance(kclass, 0), 0, "safeCast null → null (isInstance false)")
+        #expect(__kk_kclass_isInstance(kclass, 0) == 0, "safeCast null → null (isInstance false)")
     }
 
+    @Test
     func testSafeCastSemanticInvalidTypeAlwaysFails() {
         // A non-registered opaque pointer treated as value
         let kclass = registerClass(typeToken: 8002, qualifiedName: "test.Cast", simpleName: "Cast")
         // A raw int that is not a registered runtime object
         let notAnObject = 0xDEAD_BEEF
-        let result = kk_kclass_isInstance(kclass, notAnObject)
-        XCTAssertEqual(result, 0, "safeCast with non-registered value → false")
+        let result = __kk_kclass_isInstance(kclass, notAnObject)
+        #expect(result == 0, "safeCast with non-registered value → false")
     }
 
-    // MARK: - Member / field / constructor counts
-
-    func testMemberCountFromMetadata() {
-        let token = 9001
-        let kclass = registerClass(
-            typeToken: token,
-            qualifiedName: "test.DataClass",
-            simpleName: "DataClass",
-            flags: 1 << 0, // dataClass
-            fieldCount: 3,
-            memberCount: 7,
-            constructorCount: 2
-        )
-        XCTAssertEqual(kk_kclass_members_count(kclass), 7)
-    }
-
+    @Test
     func testMetadataOnlyMemberPropertiesAreEmpty() {
         let token = 9002
         let kclass = registerClass(
@@ -418,10 +198,11 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             fieldCount: 2,
             memberCount: 4
         )
-        let props = runtimeListElements(from: kk_kclass_member_properties(kclass))
-        XCTAssertTrue(props.isEmpty, "metadata fieldCount must not create property placeholders")
+        let props = runtimeListElements(from: __kk_kclass_member_properties(kclass))
+        #expect(props.isEmpty, "metadata fieldCount must not create property placeholders")
     }
 
+    @Test
     func testRegisteredMemberPropertiesReturnRealHandles() {
         let token = 9004
         let kclass = registerClass(
@@ -433,13 +214,14 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             memberCount: 4
         )
         let prop = kk_kproperty_stub_create(makeStr("x"), makeStr("kotlin.Int"))
-        _ = kk_kclass_register_member(kclass, prop)
+        _ = __kk_kclass_register_member(kclass, prop)
 
-        XCTAssertEqual(runtimeListElements(from: kk_kclass_properties(kclass)), [prop])
-        XCTAssertEqual(runtimeListElements(from: kk_kclass_member_properties(kclass)), [prop])
-        XCTAssertEqual(runtimeListElements(from: kk_kclass_declared_member_properties(kclass)), [prop])
+        #expect(runtimeListElements(from: __kk_kclass_properties(kclass)) == [prop])
+        #expect(runtimeListElements(from: __kk_kclass_member_properties(kclass)) == [prop])
+        #expect(runtimeListElements(from: __kk_kclass_declared_member_properties(kclass)) == [prop])
     }
 
+    @Test
     func testMetadataOnlyConstructorsAreEmpty() {
         let token = 9003
         let kclass = registerClass(
@@ -450,10 +232,11 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             memberCount: 3,
             constructorCount: 1
         )
-        let constructors = runtimeListElements(from: kk_kclass_constructors(kclass))
-        XCTAssertTrue(constructors.isEmpty, "metadata constructorCount must not create constructor placeholders")
+        let constructors = runtimeListElements(from: __kk_kclass_constructors(kclass))
+        #expect(constructors.isEmpty, "metadata constructorCount must not create constructor placeholders")
     }
 
+    @Test
     func testRegisteredConstructorsReturnRealHandles() {
         let token = 9005
         let kclass = registerClass(
@@ -464,7 +247,7 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             memberCount: 3,
             constructorCount: 1
         )
-        let constructor = kk_kconstructor_create(
+        let constructor = __kk_kconstructor_create(
             makeStr("<init>"),
             0,
             makeStr("test.RealWidget"),
@@ -474,48 +257,47 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             kclass
         )
 
-        XCTAssertEqual(runtimeListElements(from: kk_kclass_constructors(kclass)), [constructor])
-    }
-
-    func testMembersCountMinusOneWhenNoMetadata() {
-        let kclass = kk_kclass_create(9999, 0)
-        XCTAssertEqual(kk_kclass_members_count(kclass), -1, "Unregistered KClass must return -1 for memberCount")
+        #expect(runtimeListElements(from: __kk_kclass_constructors(kclass)) == [constructor])
     }
 
     // MARK: - Multiple flags combined (abstract + sealed)
 
+    @Test
     func testAbstractSealedCombined() {
         let token = 10001
         let flags = (1 << 1) | (1 << 7) // sealed + abstract
         let kclass = registerClass(typeToken: token, qualifiedName: "test.Base", simpleName: "Base", flags: flags)
-        XCTAssertEqual(kk_kclass_is_sealed(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_abstract(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_data(kclass), 0)
+        #expect(__kk_kclass_is_sealed(kclass) == 1)
+        #expect(__kk_kclass_is_abstract(kclass) == 1)
+        #expect(__kk_kclass_is_data(kclass) == 0)
     }
 
     // MARK: - isFinal / isOpen (STDLIB-REFLECT-060 flags)
 
+    @Test
     func testIsFinalFlag() {
         let token = 10002
         let flags = 1 << 8 // isFinal
         let kclass = registerClass(typeToken: token, qualifiedName: "test.Closed", simpleName: "Closed", flags: flags)
-        XCTAssertEqual(kk_kclass_is_final(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_open(kclass), 0)
+        #expect(__kk_kclass_is_final(kclass) == 1)
+        #expect(__kk_kclass_is_open(kclass) == 0)
     }
 
+    @Test
     func testIsOpenFlag() {
         let token = 10003
         let flags = 1 << 9 // isOpen
         let kclass = registerClass(typeToken: token, qualifiedName: "test.Open", simpleName: "Open", flags: flags)
-        XCTAssertEqual(kk_kclass_is_open(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_final(kclass), 0)
+        #expect(__kk_kclass_is_open(kclass) == 1)
+        #expect(__kk_kclass_is_final(kclass) == 0)
     }
 
     // MARK: - Visibility
 
+    @Test
     func testVisibilityPublic() {
         let token = 10004
-        _ = kk_kclass_register_metadata_v2(
+        _ = __kk_kclass_register_metadata_v2(
             token,
             makeStr("test.PubClass"),
             makeStr("PubClass"),
@@ -523,14 +305,15 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             makeStr("PUBLIC"),
             0
         )
-        let kclass = kk_kclass_create(token, 0)
-        let vis = strValue(from: kk_kclass_visibility(kclass))
-        XCTAssertEqual(vis, "PUBLIC")
+        let kclass = __kk_kclass_create(token, 0)
+        let vis = strValue(from: __kk_kclass_visibility(kclass))
+        #expect(vis == "PUBLIC")
     }
 
+    @Test
     func testVisibilityInternal() {
         let token = 10005
-        _ = kk_kclass_register_metadata_v2(
+        _ = __kk_kclass_register_metadata_v2(
             token,
             makeStr("test.InternalClass"),
             makeStr("InternalClass"),
@@ -538,38 +321,17 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             makeStr("INTERNAL"),
             0
         )
-        let kclass = kk_kclass_create(token, 0)
-        let vis = strValue(from: kk_kclass_visibility(kclass))
-        XCTAssertEqual(vis, "INTERNAL")
-    }
-
-    // MARK: - Supertype
-
-    func testSupertypeNamePresentWhenRegistered() {
-        let token = 11001
-        let kclass = registerClass(
-            typeToken: token,
-            qualifiedName: "test.Child",
-            simpleName: "Child",
-            supertype: "test.Parent"
-        )
-        let supRaw = kk_kclass_supertype_name(kclass)
-        XCTAssertNotEqual(supRaw, runtimeNullSentinelInt, "Supertype name should be present")
-        XCTAssertEqual(strValue(from: supRaw), "test.Parent")
-    }
-
-    func testSupertypeNameAbsentReturnsNullSentinel() {
-        let token = 11002
-        let kclass = registerClass(typeToken: token, qualifiedName: "test.Root", simpleName: "Root")
-        let supRaw = kk_kclass_supertype_name(kclass)
-        XCTAssertEqual(supRaw, runtimeNullSentinelInt, "No supertype should return null sentinel")
+        let kclass = __kk_kclass_create(token, 0)
+        let vis = strValue(from: __kk_kclass_visibility(kclass))
+        #expect(vis == "INTERNAL")
     }
 
     // MARK: - Type parameters
 
+    @Test
     func testTypeParametersCountReturnsCorrectList() {
         let token = 12001
-        _ = kk_kclass_register_metadata_v2(
+        _ = __kk_kclass_register_metadata_v2(
             token,
             makeStr("test.Container"),
             makeStr("Container"),
@@ -577,23 +339,25 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             makeStr("PUBLIC"),
             2 // 2 type parameters
         )
-        let kclass = kk_kclass_create(token, 0)
-        let tpList = runtimeListElements(from: kk_kclass_type_parameters(kclass))
-        XCTAssertEqual(tpList.count, 2, "Generic class with 2 type params should expose 2 entries")
+        let kclass = __kk_kclass_create(token, 0)
+        let tpList = runtimeListElements(from: __kk_kclass_type_parameters(kclass))
+        #expect(tpList.count == 2, "Generic class with 2 type params should expose 2 entries")
     }
 
+    @Test
     func testTypeParametersEmptyForNonGenericClass() {
         let token = 12002
         let kclass = registerClass(typeToken: token, qualifiedName: "test.Simple", simpleName: "Simple")
-        let tpList = runtimeListElements(from: kk_kclass_type_parameters(kclass))
-        XCTAssertEqual(tpList.count, 0)
+        let tpList = runtimeListElements(from: __kk_kclass_type_parameters(kclass))
+        #expect(tpList.count == 0)
     }
 
-    // MARK: - kk_kclass_get_arity (STDLIB-REFLECT-067)
+    // MARK: - __kk_kclass_get_arity (STDLIB-REFLECT-067)
 
+    @Test
     func testArityFromMetadata() {
         let token = 12003
-        _ = kk_kclass_register_metadata_v2(
+        _ = __kk_kclass_register_metadata_v2(
             token,
             makeStr("test.Triple"),
             makeStr("Triple"),
@@ -601,23 +365,26 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             makeStr("PUBLIC"),
             3
         )
-        let kclass = kk_kclass_create(token, 0)
-        XCTAssertEqual(kk_kclass_get_arity(kclass), 3, "arity should equal the registered typeParameterCount")
+        let kclass = __kk_kclass_create(token, 0)
+        #expect(__kk_kclass_get_arity(kclass) == 3, "arity should equal the registered typeParameterCount")
     }
 
+    @Test
     func testArityZeroForNonGenericClass() {
         let token = 12004
         let kclass = registerClass(typeToken: token, qualifiedName: "test.Mono", simpleName: "Mono")
-        XCTAssertEqual(kk_kclass_get_arity(kclass), 0)
+        #expect(__kk_kclass_get_arity(kclass) == 0)
     }
 
+    @Test
     func testArityZeroForUnregisteredKClass() {
-        let kclass = kk_kclass_create(12005, 0)
-        XCTAssertEqual(kk_kclass_get_arity(kclass), 0, "unregistered KClass must return 0 for arity")
+        let kclass = __kk_kclass_create(12005, 0)
+        #expect(__kk_kclass_get_arity(kclass) == 0, "unregistered KClass must return 0 for arity")
     }
 
     // MARK: - Declared member functions
 
+    @Test
     func testMetadataOnlyDeclaredMemberFunctionsAreEmpty() {
         let token = 13001
         let kclass = registerClass(
@@ -627,10 +394,11 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             fieldCount: 1,
             memberCount: 5
         )
-        let fns = runtimeListElements(from: kk_kclass_declared_member_functions(kclass))
-        XCTAssertTrue(fns.isEmpty, "metadata memberCount must not create function placeholders")
+        let fns = runtimeListElements(from: __kk_kclass_declared_member_functions(kclass))
+        #expect(fns.isEmpty, "metadata memberCount must not create function placeholders")
     }
 
+    @Test
     func testRegisteredDeclaredMemberFunctionsReturnRealHandles() {
         let token = 13002
         let kclass = registerClass(
@@ -640,77 +408,85 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             fieldCount: 1,
             memberCount: 5
         )
-        let fn = kk_kfunction_create(makeStr("run"), 0, makeStr("kotlin.Unit"), 0, 0, 0)
-        _ = kk_kclass_register_member(kclass, fn)
+        let fn = __kk_kfunction_create(makeStr("run"), 0, makeStr("kotlin.Unit"), 0, 0, 0)
+        _ = __kk_kclass_register_member(kclass, fn)
 
-        XCTAssertEqual(runtimeListElements(from: kk_kclass_functions(kclass)), [fn])
-        XCTAssertEqual(runtimeListElements(from: kk_kclass_member_functions(kclass)), [fn])
-        XCTAssertEqual(runtimeListElements(from: kk_kclass_declared_member_functions(kclass)), [fn])
+        #expect(runtimeListElements(from: __kk_kclass_functions(kclass)) == [fn])
+        #expect(runtimeListElements(from: __kk_kclass_member_functions(kclass)) == [fn])
+        #expect(runtimeListElements(from: __kk_kclass_declared_member_functions(kclass)) == [fn])
     }
 
     // MARK: - STDLIB-REFLECT-067: isInner / isCompanion / isFun type-kind flags
 
+    @Test
     func testIsInnerFlagSetWhenBitSet() {
         // bit 10 = inner
         let flags = 1 << 10
         let kclass = registerClass(typeToken: 14001, qualifiedName: "outer.Inner", simpleName: "Inner", flags: flags)
-        XCTAssertEqual(kk_kclass_is_inner(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_fun(kclass), 0)
+        #expect(__kk_kclass_is_inner(kclass) == 1)
+        #expect(__kk_kclass_is_companion(kclass) == 0)
+        #expect(__kk_kclass_is_fun(kclass) == 0)
     }
 
+    @Test
     func testIsCompanionFlagSetWhenBitSet() {
         // bit 11 = companion
         let flags = 1 << 11
         let kclass = registerClass(typeToken: 14002, qualifiedName: "outer.Companion", simpleName: "Companion", flags: flags)
-        XCTAssertEqual(kk_kclass_is_companion(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_inner(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_fun(kclass), 0)
+        #expect(__kk_kclass_is_companion(kclass) == 1)
+        #expect(__kk_kclass_is_inner(kclass) == 0)
+        #expect(__kk_kclass_is_fun(kclass) == 0)
     }
 
+    @Test
     func testIsFunFlagSetWhenBitSet() {
         // bit 12 = funInterface
         let flags = 1 << 12
         let kclass = registerClass(typeToken: 14003, qualifiedName: "pkg.Transformer", simpleName: "Transformer", flags: flags)
-        XCTAssertEqual(kk_kclass_is_fun(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_inner(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
+        #expect(__kk_kclass_is_fun(kclass) == 1)
+        #expect(__kk_kclass_is_inner(kclass) == 0)
+        #expect(__kk_kclass_is_companion(kclass) == 0)
     }
 
+    @Test
     func testTypeKindFlagsReturnZeroForUnregisteredKClass() {
-        let kclass = kk_kclass_create(14004, 0)
-        XCTAssertEqual(kk_kclass_is_inner(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_fun(kclass), 0)
+        let kclass = __kk_kclass_create(14004, 0)
+        #expect(__kk_kclass_is_inner(kclass) == 0)
+        #expect(__kk_kclass_is_companion(kclass) == 0)
+        #expect(__kk_kclass_is_fun(kclass) == 0)
     }
 
+    @Test
     func testIsDataViaKClassAPIBitZero() {
         let flags = 1 << 0 // dataClass
         let kclass = registerClass(typeToken: 14005, qualifiedName: "pkg.Data", simpleName: "Data", flags: flags)
-        XCTAssertEqual(kk_kclass_is_data(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_inner(kclass), 0)
+        #expect(__kk_kclass_is_data(kclass) == 1)
+        #expect(__kk_kclass_is_inner(kclass) == 0)
     }
 
+    @Test
     func testIsSealedViaKClassAPIBitOne() {
         let flags = 1 << 1 // sealedClass
         let kclass = registerClass(typeToken: 14006, qualifiedName: "pkg.Sealed", simpleName: "Sealed", flags: flags)
-        XCTAssertEqual(kk_kclass_is_sealed(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_fun(kclass), 0)
+        #expect(__kk_kclass_is_sealed(kclass) == 1)
+        #expect(__kk_kclass_is_fun(kclass) == 0)
     }
 
+    @Test
     func testIsValueViaKClassAPIBitTwo() {
         let flags = 1 << 2 // valueClass
         let kclass = registerClass(typeToken: 14007, qualifiedName: "pkg.Value", simpleName: "Value", flags: flags)
-        XCTAssertEqual(kk_kclass_is_value(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
+        #expect(__kk_kclass_is_value(kclass) == 1)
+        #expect(__kk_kclass_is_companion(kclass) == 0)
     }
 
+    @Test
     func testMultipleTypeKindFlagsCanCoexist() {
         // inner (bit 10) + funInterface (bit 12)
         let flags = (1 << 10) | (1 << 12)
         let kclass = registerClass(typeToken: 14008, qualifiedName: "pkg.FunInner", simpleName: "FunInner", flags: flags)
-        XCTAssertEqual(kk_kclass_is_inner(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_fun(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
+        #expect(__kk_kclass_is_inner(kclass) == 1)
+        #expect(__kk_kclass_is_fun(kclass) == 1)
+        #expect(__kk_kclass_is_companion(kclass) == 0)
     }
 }

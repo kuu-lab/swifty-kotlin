@@ -2,69 +2,83 @@
 import Foundation
 import Testing
 
-/// STDLIB-SEQ-FN-012: Validates that `Sequence<T>.chunked` resolves through Sema
-/// for both overloads — the size-only form returning `Sequence<List<T>>` linked to
-/// `kk_sequence_chunked`, and the size + transform form returning `Sequence<R>`
-/// linked to `kk_sequence_chunked_transform`.
+/// STDLIB-SEQ-FN-012: Validates that the source-defined `Sequence<T>.chunked`
+/// overloads resolve through Sema for both size-only and transform forms.
 @Suite
 struct SequenceChunkedFunctionTests {
-    @Test func testSequenceChunkedSizeOnlyOverloadResolvesToRuntimeABI() throws {
-        let source = """
-        fun probe(values: Sequence<Int>): Sequence<List<Int>> {
-            return values.chunked(3)
-        }
-        """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    // MARK: - Consolidated runSema clean tests
+
+    @Test
+    func testRunSemaClean() throws {
+
+        let sources: [String] = [
+            // testSequenceChunkedSizeOnlyOverloadResolvesFromBundledSource
+            """
+            package sample0
+
+                    fun probe(values: Sequence<Int>): Sequence<List<Int>> {
+                        return values.chunked(3)
+                    }
+
+            """,
+            // testSequenceChunkedSizeTransformOverloadResolvesFromBundledSource
+            """
+            package sample1
+
+                    fun probe(values: Sequence<Int>): Sequence<Int> {
+                        return values.chunked(3) { chunk -> chunk.size }
+                    }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
             try runSema(ctx)
 
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(
-                errors.isEmpty,
-                Comment(rawValue: "Expected Sequence.chunked(size) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
-            )
+            _ = try #require(ctx.ast)
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = [
-                "kotlin", "sequences", "Sequence", "chunked",
-            ].map(ctx.interner.intern)
-            let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
-            #expect(
-                sequenceMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_chunked" },
-                "Expected Sequence.chunked(size) synthetic member to link to kk_sequence_chunked"
-            )
+            _ = try #require(ctx.sema)
+
+
+            // === testSequenceChunkedSizeOnlyOverloadResolvesFromBundledSource ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                let errors = sample0Diagnostics.filter { $0.severity == .error }
+                #expect(
+                    errors.isEmpty,
+                    Comment(rawValue: "Expected Sequence.chunked(size) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
+                )
+
+            }
+
+            // === testSequenceChunkedSizeTransformOverloadResolvesFromBundledSource ===
+
+            do {
+
+                let sample1Path = paths[1]
+
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                let errors = sample1Diagnostics.filter { $0.severity == .error }
+                #expect(
+                    errors.isEmpty,
+                    Comment(rawValue: "Expected Sequence.chunked(size, transform) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
+                )
+
+            }
+
         }
     }
 
-    @Test func testSequenceChunkedSizeTransformOverloadResolvesToRuntimeABI() throws {
-        let source = """
-        fun probe(values: Sequence<Int>): Sequence<Int> {
-            return values.chunked(3) { chunk -> chunk.size }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(
-                errors.isEmpty,
-                Comment(rawValue: "Expected Sequence.chunked(size, transform) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = [
-                "kotlin", "sequences", "Sequence", "chunked",
-            ].map(ctx.interner.intern)
-            let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
-            #expect(
-                sequenceMembers.contains {
-                    sema.symbols.externalLinkName(for: $0) == "kk_sequence_chunked_transform"
-                },
-                "Expected Sequence.chunked(size, transform) synthetic member to link to kk_sequence_chunked_transform"
-            )
-        }
-    }
 }

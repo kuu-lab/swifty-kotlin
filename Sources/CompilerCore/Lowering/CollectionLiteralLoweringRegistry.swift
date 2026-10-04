@@ -1,0 +1,173 @@
+class CollectionLiteralLoweringSupport {}
+
+struct CollectionLiteralLookupRegistry {
+    static let name = "CollectionLiteralLookupTables"
+
+    let tables: CollectionLiteralLookupTables
+
+    init(interner: StringInterner) {
+        tables = CollectionLiteralLookupTables(interner: interner)
+    }
+}
+
+final class CollectionLiteralConstructionLoweringPass: CollectionLiteralLoweringSupport {
+    static let name = "CollectionLiteralConstructionLowering"
+
+    /// Shared with `CollectionVirtualCallRewriteLoweringPass` so direct and
+    /// virtual dispatch apply the same source-backed preservation rule.
+    let sourceBackedPreservation: SourceBackedCallPreservationPolicy
+
+    init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
+        self.sourceBackedPreservation = sourceBackedPreservation
+        super.init()
+    }
+}
+
+final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringSupport {
+    static let name = "CollectionVirtualCallRewrite"
+
+    /// See `CollectionLiteralConstructionLoweringPass.sourceBackedPreservation`.
+    let sourceBackedPreservation: SourceBackedCallPreservationPolicy
+
+    init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
+        self.sourceBackedPreservation = sourceBackedPreservation
+        super.init()
+    }
+
+    func lowerVirtualCallInstruction(
+        symbol: SymbolID?,
+        callee: InternedString,
+        receiver: KIRExprID,
+        arguments: [KIRExprID],
+        result: KIRExprID?,
+        origCanThrow: Bool,
+        origThrownResult: KIRExprID?,
+        functionBody: [KIRInstruction],
+        module: KIRModule,
+        ctx: KIRContext,
+        lookup: CollectionLiteralLookupTables,
+        state: inout CollectionRewriteState,
+        loweredBody: inout KIRLoweringEmitContext
+    ) -> Bool {
+        rewriteVirtualCallInstruction(
+            symbol: symbol,
+            callee: callee,
+            receiver: receiver,
+            arguments: arguments,
+            result: result,
+            origCanThrow: origCanThrow,
+            origThrownResult: origThrownResult,
+            context: .init(
+                module: module,
+                lookup: lookup,
+                functionBody: functionBody,
+                sema: ctx.sema,
+                interner: ctx.interner
+            ),
+            state: &state,
+            loweredBody: &loweredBody
+        )
+    }
+}
+
+struct CollectionLiteralLoweringRegistry {
+    let lookupRegistry: CollectionLiteralLookupRegistry
+    let constructionPass: CollectionLiteralConstructionLoweringPass
+    let virtualCallRewritePass: CollectionVirtualCallRewriteLoweringPass
+
+    init(interner: StringInterner) {
+        lookupRegistry = CollectionLiteralLookupRegistry(interner: interner)
+        let sourceBackedPreservation = SourceBackedCallPreservationPolicy()
+        constructionPass = CollectionLiteralConstructionLoweringPass(
+            sourceBackedPreservation: sourceBackedPreservation
+        )
+        virtualCallRewritePass = CollectionVirtualCallRewriteLoweringPass(
+            sourceBackedPreservation: sourceBackedPreservation
+        )
+    }
+
+    var componentNames: [String] {
+        [
+            CollectionLiteralLookupRegistry.name,
+            CollectionLiteralConstructionLoweringPass.name,
+            CollectionVirtualCallRewriteLoweringPass.name,
+        ]
+    }
+
+    func run(module: KIRModule, ctx: KIRContext, recordAs loweringName: String) throws {
+        let lookup = lookupRegistry.tables
+
+        func transformFunction(_ function: KIRFunction) -> KIRFunction {
+            var updated = function
+            var state = CollectionLiteralLoweringSupport.CollectionRewriteState()
+
+            constructionPass.collectInitialCollectionExprIDs(
+                function: function,
+                lookup: lookup,
+                arena: module.arena,
+                sema: ctx.sema,
+                state: &state
+            )
+
+            var loweredBody = KIRLoweringEmitContext()
+            loweredBody.instructions.reserveCapacity(function.body.count + 32)
+
+            for (index, instruction) in function.body.enumerated() {
+                loweredBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
+                switch instruction {
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, _, _):
+                    constructionPass.lowerCallInstruction(
+                        instruction: instruction,
+                        symbol: symbol,
+                        callee: callee,
+                        arguments: arguments,
+                        result: result,
+                        canThrow: canThrow,
+                        thrownResult: thrownResult,
+                        function: function,
+                        module: module,
+                        ctx: ctx,
+                        lookup: lookup,
+                        state: &state,
+                        loweredBody: &loweredBody
+                    )
+
+                case let .virtualCall(symbol, callee, receiver, arguments, result, origCanThrow, origThrownResult, _):
+                    if virtualCallRewritePass.lowerVirtualCallInstruction(
+                        symbol: symbol,
+                        callee: callee,
+                        receiver: receiver,
+                        arguments: arguments,
+                        result: result,
+                        origCanThrow: origCanThrow,
+                        origThrownResult: origThrownResult,
+                        functionBody: function.body,
+                        module: module,
+                        ctx: ctx,
+                        lookup: lookup,
+                        state: &state,
+                        loweredBody: &loweredBody
+                    ) {
+                        continue
+                    }
+                    loweredBody.append(instruction)
+
+                case let .copy(from, to):
+                    state.propagateCopy(from: from, to: to)
+                    loweredBody.append(instruction)
+
+                default:
+                    loweredBody.append(instruction)
+                }
+            }
+
+            updated.replaceBody(loweredBody)
+            return updated
+        }
+
+        module.arena.transformFunctions(transformFunction)
+        module.recordLowering(loweringName)
+    }
+}

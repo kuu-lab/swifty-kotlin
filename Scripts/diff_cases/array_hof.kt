@@ -1,3 +1,4 @@
+
 fun main() {
     val arr = arrayOf(1, 2, 3)
     
@@ -13,7 +14,7 @@ fun main() {
     
     // 変換関数
     println(arr.mapNotNull { if (it % 2 == 0) it * 10 else null })
-    println(arr.flatMap { arrayOf(it, it * 10) })
+    println(arr.flatMap { listOf(it, it * 10) })
     println(arr.filterNot { it == 2 })
     println(arr.filterNotNull())
     
@@ -51,4 +52,9 @@ fun main() {
     println(empty.reduceOrNull { acc, value -> acc + value })
     println(empty.firstOrNull())
     println(empty.lastOrNull())
+
+    // joinToString + transform
+    println(arr.joinToString { (it * 10).toString() })
+    println(arr.joinToString(",") { (it * 10).toString() })
+    println(arr.joinToString(",", "[", "]") { (it * 10).toString() })
 }

@@ -61,7 +61,7 @@ public enum KIRExprKind: Equatable, Sendable {
     case boolLiteral(Bool)
     case stringLiteral(InternedString)
     case symbolRef(SymbolID)
-    /// Address of an extern C symbol (e.g. kk_comparator_from_selector_trampoline).
+    /// Address of an extern C symbol (e.g. kk_string_case_insensitive_order_trampoline).
     case externSymbolAddress(InternedString)
     case temporary(Int32)
     case null
@@ -71,6 +71,13 @@ public enum KIRExprKind: Equatable, Sendable {
 public enum KIRDispatchKind: Equatable, Sendable {
     case vtable(slot: Int)
     case itable(interfaceSlot: Int, methodSlot: Int)
+    /// Used when the receiver's static type is the interface itself (e.g. a
+    /// function parameter typed `d: SomeInterface`) rather than a concrete
+    /// class — the itable slot assigned to that interface varies per
+    /// implementing class and isn't known at this call site, so it's looked
+    /// up at runtime from the object's registered (interfaceTypeID -> slot)
+    /// map instead of being baked in as a fixed slot index.
+    case itableDynamic(interfaceTypeID: Int64, methodSlot: Int)
 }
 
 public enum KIRInstruction: Equatable, Sendable {
@@ -133,15 +140,24 @@ public struct KIRFunction: Sendable {
         self.isSuspend = isSuspend; self.isInline = isInline
         self.isInlineOnly = isInlineOnly
         self.isTailrec = isTailrec; self.sourceRange = sourceRange
-        self.instructionLocations = instructionLocations
+        if instructionLocations.isEmpty {
+            self.instructionLocations = Array(repeating: nil, count: body.count)
+        } else {
+            precondition(
+                instructionLocations.count == body.count,
+                "instructionLocations must be parallel to body (\(instructionLocations.count) != \(body.count))"
+            )
+            self.instructionLocations = instructionLocations
+        }
     }
 
-    public mutating func replaceBody(_ body: [KIRInstruction]) {
+    public mutating func replaceBody(_ body: [KIRInstruction], locations: [SourceRange?]) {
+        precondition(
+            locations.count == body.count,
+            "locations must be parallel to body (\(locations.count) != \(body.count))"
+        )
         self.body = body
-    }
-
-    public mutating func replaceInstructionLocations(_ instructionLocations: [SourceRange?]) {
-        self.instructionLocations = instructionLocations
+        instructionLocations = locations
     }
 }
 
@@ -155,9 +171,13 @@ public struct KIRGlobal: Sendable {
     }
 }
 
-public struct KIRNominalType: Sendable {
+public struct KIRNominalType: Sendable, CustomStringConvertible {
     public let symbol: SymbolID
     public let memberDecls: [KIRDeclID]
+
+    public var description: String {
+        return "KIRNominalType(\(symbol.rawValue), members: \(memberDecls.count))"
+    }
 
     public init(symbol: SymbolID, memberDecls: [KIRDeclID] = []) {
         self.symbol = symbol
@@ -171,9 +191,13 @@ public enum KIRDecl: Sendable {
     case nominalType(KIRNominalType)
 }
 
-public struct KIRFile: Sendable {
+public struct KIRFile: Sendable, CustomStringConvertible {
     public let fileID: FileID
     public let decls: [KIRDeclID]
+
+    public var description: String {
+        return "KIRFile(\(fileID.rawValue), decls: \(decls.count))"
+    }
 
     public init(fileID: FileID, decls: [KIRDeclID]) {
         self.fileID = fileID
@@ -214,6 +238,42 @@ public final class KIRArena {
             exprTypes[id] = type
         }
         return id
+    }
+
+    public func appendTemporary(type: TypeID? = nil) -> KIRExprID {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            defer { parallelLock.unlock() }
+            let id = KIRExprID(rawValue: Int32(expressions.count))
+            expressions.append(.temporary(id.rawValue))
+            if let type { exprTypes[id] = type }
+            return id
+        }
+        let id = KIRExprID(rawValue: Int32(expressions.count))
+        expressions.append(.temporary(id.rawValue))
+        if let type {
+            exprTypes[id] = type
+        }
+        return id
+    }
+
+    public func replaceExpr(_ id: KIRExprID, with expr: KIRExprKind) {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            let index = Int(id.rawValue)
+            guard index >= 0, index < expressions.count else {
+                parallelLock.unlock()
+                return
+            }
+            expressions[index] = expr
+            parallelLock.unlock()
+            return
+        }
+        let index = Int(id.rawValue)
+        guard index >= 0, index < expressions.count else {
+            return
+        }
+        expressions[index] = expr
     }
 
     public func decl(_ id: KIRDeclID) -> KIRDecl? {
@@ -355,6 +415,7 @@ public final class KIRModule {
     public let files: [KIRFile]
     public let arena: KIRArena
     public private(set) var executedLowerings: [String]
+    public private(set) var stage: KIRStage
 
     /// Callee names that are known non-throwing, registered by earlier passes
     /// (e.g. LambdaClosureConversionPass).  ABILoweringPass consults this set
@@ -369,10 +430,24 @@ public final class KIRModule {
         if !featuresScanned { scanFeatures() }
     }
 
-    public init(files: [KIRFile], arena: KIRArena, executedLowerings: [String] = []) {
+    /// Marks the cached `features` / `usedCallees` snapshot as stale so the
+    /// next `ensureFeaturesScanned()` re-walks the module. Lowering passes
+    /// synthesize new instructions (e.g. `DataEnumSealedSynthesisPass` emits
+    /// `kk_op_mul` / `kk_op_add` for data-class `hashCode`), so a snapshot
+    /// taken before the pass pipeline must not drive later `shouldRun` gates.
+    public func invalidateFeatureScan() {
+        featuresScanned = false
+    }
+
+    public init(
+        files: [KIRFile],
+        arena: KIRArena,
+        executedLowerings: [String] = []
+    ) {
         self.files = files
         self.arena = arena
         self.executedLowerings = executedLowerings
+        self.stage = .raw
     }
 
     public func scanFeatures() {
@@ -445,6 +520,39 @@ public final class KIRModule {
 
     public func recordLowering(_ name: String) {
         executedLowerings.append(name)
+    }
+
+    /// Validate a lowering pass boundary before running the pass.
+    ///
+    /// The exact input-stage check is intentionally debug-only: this is a
+    /// development-time ordering contract, while `stage` remains available
+    /// in all configurations for inspection and future pipeline consumers.
+    func validateLoweringStage(
+        passName: String,
+        required: KIRStage,
+        produced: KIRStage
+    ) throws {
+        #if DEBUG
+        guard stage == required else {
+            throw KIRStageViolation.unexpectedInput(
+                passName: passName,
+                required: required,
+                actual: stage
+            )
+        }
+        guard produced >= required else {
+            throw KIRStageViolation.regressingOutput(
+                passName: passName,
+                required: required,
+                produced: produced
+            )
+        }
+        #endif
+    }
+
+    /// Record the stage established by a successfully completed pass.
+    func advanceLoweringStage(to stage: KIRStage) {
+        self.stage = stage
     }
 
     public func dump(interner: StringInterner, symbols: SymbolTable?) -> String {
@@ -529,6 +637,8 @@ public final class KIRModule {
                 "vtable[\(slot)]"
             case let .itable(interfaceSlot, methodSlot):
                 "itable[\(interfaceSlot):\(methodSlot)]"
+            case let .itableDynamic(interfaceTypeID, methodSlot):
+                "itableDynamic[\(interfaceTypeID):\(methodSlot)]"
             }
             return "virtualCall \(calleeName) symbol=\(symbolLabel) receiver=r\(receiver.rawValue) args=[\(args)] ret=\(ret) thrown=\(canThrow) thrownResult=\(thrownRet) dispatch=\(dispatchLabel)"
         case let .jumpIfNotNull(value, target):
@@ -577,6 +687,9 @@ final class KIRContext {
     let options: CompilerOptions
     let interner: StringInterner
     let sema: SemaModule?
+    /// Per-nominal vtable/itable registration entries, computed once per type
+    /// instead of once per factory-call rewrite.
+    let nominalDispatchCache = KIRNominalDispatchCache()
 
     init(
         diagnostics: DiagnosticEngine,

@@ -1,4 +1,3 @@
-// SKIP-DIFF
 interface Printable {
     fun print()
 }

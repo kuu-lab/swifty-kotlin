@@ -8,14 +8,25 @@
 @_cdecl("kk_any_to_string")
 public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag = Int32(truncatingIfNeeded: tag)
-    // Float/Double MUST be decoded before the null-sentinel check:
-    // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt.
-    // Elevating tags 5/6 preserves the sign bit of negative zero and NaN payloads.
+    if runtimeIsUnitBox(value) {
+        return runtimeMakeStringPointer("kotlin.Unit")
+    }
+    if let override = runtimeAnyToStringOverride(value) {
+        return override
+    }
+    // Float/Double/ULong MUST be decoded before the null-sentinel check:
+    // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt,
+    // and a ULong of exactly 2^63 has the identical raw bit pattern. Elevating
+    // tags 5/6/7 preserves the sign bit of negative zero/NaN payloads and the
+    // top bit of large ULong values instead of misreading them as null.
     if tag == 5 {
         return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedFloatValue(value)))
     }
     if tag == 6 {
         return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedDoubleValue(value)))
+    }
+    if tag == 7 {
+        return runtimeMakeStringPointer(String(runtimeTaggedULongValue(value)))
     }
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
@@ -34,6 +45,92 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
         return pointer
     }
     return runtimeMakeStringPointer(runtimeElementToString(value))
+}
+
+private func runtimeAnyToStringOverrideRaw(_ raw: Int) -> Int? {
+    guard let objectPtr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return nil
+    }
+    let objectKey = UInt(bitPattern: objectPtr)
+    guard let functionRaw = runtimeStorage.withMetadataLock({ state in
+        state.objectAnyToStringMethods[objectKey]
+            ?? state.objectTypeByPointer[objectKey].flatMap { state.valueClassAnyToStringMethods[$0] }
+    }) else {
+        return nil
+    }
+
+    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint1.self)
+    var thrown = 0
+    let result = function(raw, &thrown)
+    guard thrown == 0, result != 0 else {
+        return nil
+    }
+    return result
+}
+
+func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
+    guard let result = runtimeAnyToStringOverrideRaw(raw) else {
+        return nil
+    }
+    if result == runtimeNullSentinelInt {
+        return runtimeMakeStringPointer("null")
+    }
+    return UnsafeMutableRawPointer(bitPattern: result)
+}
+
+/// Returns the text from an object-specific Any.toString() bridge when one is
+/// registered. Collection renderers use this shared dispatch path because
+/// their element ABI has already erased the static Kotlin type.
+func runtimeAnyToStringOverrideText(_ raw: Int) -> String? {
+    guard let result = runtimeAnyToStringOverrideRaw(raw) else {
+        return nil
+    }
+    if result == runtimeNullSentinelInt {
+        return "null"
+    }
+    return extractString(from: UnsafeMutableRawPointer(bitPattern: result))
+}
+
+/// Nullable-aware variant of `kk_any_to_string`, for call sites that know
+/// their *static* type is nullable but cannot safely add KIR-level branching
+/// to guard tags 5/6/7 (Float?/Double?/ULong?) the way
+/// `CallLowerer.emitAnyToStringWithNullGuard` does (e.g.
+/// `OperatorLoweringPass.appendStringConversion`, which rewrites
+/// already-lowered function bodies where introducing fresh label numbers
+/// risks colliding with labels assigned during the earlier lowering phase).
+///
+/// For tags 5/6/7, a genuinely-null value is always represented as the raw
+/// sentinel (never boxed), while a real non-null value of these tags is
+/// *always* boxed (RuntimeFloatBox/RuntimeDoubleBox/RuntimeLongBox) — the
+/// field/slot needs a representation for "null" distinct from every in-range
+/// value, including ones that share the sentinel's bit pattern (-0.0, or a
+/// ULong of exactly 2^63), so the ABI boxes any such value. That makes
+/// "is this boxed" a safe, purely-runtime way to disambiguate a real value
+/// from null — no compile-time knowledge of the specific value is needed,
+/// only that the *type* is nullable, which the caller already guarantees by
+/// choosing to call this entry point instead of `kk_any_to_string`. (For a
+/// *non-nullable* tag-5/6/7 value this distinction would be unsafe — such a
+/// value is never boxed even when in range, so callers must only use this
+/// for genuinely nullable-typed values.) Other tags have no such ambiguity,
+/// so this just forwards to `kk_any_to_string`.
+@_cdecl("kk_any_to_string_nullable")
+public func kk_any_to_string_nullable(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
+    let tag32 = Int32(truncatingIfNeeded: tag)
+    guard tag32 == 5 || tag32 == 6 || tag32 == 7 else {
+        return kk_any_to_string(value, tag)
+    }
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer {
+            return kk_any_to_string(value, tag)
+        }
+    }
+    if value == runtimeNullSentinelInt {
+        return runtimeMakeStringPointer("null")
+    }
+    return kk_any_to_string(value, tag)
 }
 
 private func runtimeRenderTaggedChar(_ value: Int) -> String {
@@ -72,10 +169,94 @@ private func runtimeTaggedDoubleValue(_ value: Int) -> Double {
     return kk_bits_to_double(value)
 }
 
-private func runtimeStringHashCode(_ value: String) -> Int {
-    value.unicodeScalars.reduce(0) { partial, scalar in
-        31 &* partial &+ Int(Int32(bitPattern: scalar.value))
+/// This mirrors runtimeTaggedFloatValue/runtimeTaggedDoubleValue: unbox first
+/// when the raw value is a GC-tracked object pointer (e.g. a nullable ULong?
+/// data class property, which the ABI always boxes so its field slot can
+/// also represent null), otherwise reinterpret the raw bits.
+private func runtimeTaggedULongValue(_ value: Int) -> UInt {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let ulongBox = tryCast(ptr, to: RuntimeULongBox.self) {
+            return UInt(bitPattern: ulongBox.value)
+        }
+        if isObjectPointer, let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
+            return UInt(bitPattern: longBox.value)
+        }
     }
+    return UInt(bitPattern: value)
+}
+
+private func runtimeStringHashCode(_ value: String) -> Int {
+    var hash: Int32 = 0
+    for codeUnit in value.utf16 {
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: codeUnit)
+    }
+    return Int(hash)
+}
+
+// Kotlin Set.hashCode() is the order-independent sum of its element hashes.
+// Keep this aligned with RuntimeSetBox equality so sets that contain the same
+// elements in different insertion orders have identical hashes.
+private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
+    var hash: Int32 = 0
+    for element in set.values {
+        hash = hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element.legacyRawValue))
+    }
+    return Int(hash)
+}
+
+/// `(this xor (this ushr 32)).toInt()` — the formula behind Long/ULong/Double
+/// `.hashCode()`, applied to the value's full 64-bit bit pattern. A Swift
+/// arithmetic `>>` sign-extends instead of Kotlin's logical `ushr`, but the
+/// extra high bits it introduces only ever land in the upper 32 bits of the
+/// XOR — which `Int32(truncatingIfNeeded:)` below discards — so the two
+/// shifts agree on the low 32 bits for every input (verified against
+/// kotlinc for Long.MIN_VALUE/MAX_VALUE, -1, -5, and -2.5's Double bits).
+private func runtimeXorFoldHashCode(_ bits: Int64) -> Int {
+    Int(Int32(truncatingIfNeeded: bits ^ (bits >> 32)))
+}
+
+/// Float.hashCode(): the sign-extended IEEE 754 bit pattern, canonicalizing
+/// NaN the way `floatToIntBits`/`__kk_float_toBits` do. `kk_float_to_bits` is
+/// the wrong helper for this: it's a zero-extending bit-transport encoding
+/// for the ABI boundary, not the sign-extended `Int` that Kotlin's
+/// Float.hashCode()/toBits() expose.
+private func runtimeFloatHashCode(_ value: Float) -> Int {
+    if value.isNaN {
+        return Int(Int32(bitPattern: 0x7FC0_0000 as UInt32))
+    }
+    return Int(Int32(bitPattern: value.bitPattern))
+}
+
+/// Unboxed (raw, non-pointer) `Any.hashCode()` fallback. Tags 5/6/7/8
+/// (Float/Double/ULong/Long) apply Kotlin's bit-level formulas. Tags 9/10/11
+/// (UInt/UByte/UShort) reinterpret the zero-extended payload as the signed
+/// primitive backing each Kotlin value class. Every other tag's raw slot value
+/// already equals its hashCode as-is (Int, Char), or is handled here directly
+/// (Boolean).
+private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
+    switch tag {
+    case 2:
+        return value != 0 ? 1231 : 1237
+    case 5:
+        return runtimeFloatHashCode(kk_bits_to_float(value))
+    case 6, 7, 8:
+        return runtimeXorFoldHashCode(Int64(value))
+    case 9:
+        return Int(Int32(truncatingIfNeeded: value))
+    case 10:
+        return Int(Int8(truncatingIfNeeded: value))
+    case 11:
+        return Int(Int16(truncatingIfNeeded: value))
+    default:
+        return value
+    }
+}
+
+private func runtimeStoredValueHash(_ value: RuntimeValue) -> Int {
+    kk_any_hashCode(value.legacyRawValue, Int(value.anyFallbackTag))
 }
 
 private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
@@ -83,13 +264,36 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return 0
     }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: value) else {
-        return tag == 2 ? (value != 0 ? 1231 : 1237) : value
+        return runtimeUnboxedAnyHashCode(value, tag)
     }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: pointer))
     }
     guard isObjectPointer else {
-        return tag == 2 ? (value != 0 ? 1231 : 1237) : value
+        return runtimeUnboxedAnyHashCode(value, tag)
+    }
+    if let kTypeBox = tryCast(pointer, to: RuntimeKTypeBox.self) {
+        var hash = Int32(truncatingIfNeeded: kk_any_hashCode(kTypeBox.classifierRaw, 0))
+        hash = 31 &* hash &+ 1
+        for projectionRaw in kTypeBox.argumentRaws {
+            let projectionHash: Int32
+            if let projection = runtimeReflectionObject(
+                from: projectionRaw, as: RuntimeKTypeProjectionBox.self
+            ) {
+                projectionHash = runtimeKTypeProjectionHashCode(projection)
+            } else {
+                projectionHash = 0
+            }
+            hash = 31 &* hash &+ projectionHash
+        }
+        hash = 31 &* hash &+ (kTypeBox.isMarkedNullable ? 1231 : 1237)
+        return Int(hash)
+    }
+    if let projection = tryCast(pointer, to: RuntimeKTypeProjectionBox.self) {
+        return Int(runtimeKTypeProjectionHashCode(projection))
+    }
+    if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
+        return runtimeRangeHashCode(range)
     }
     if let stringBox = tryCast(pointer, to: RuntimeStringBox.self) {
         return runtimeStringHashCode(stringBox.value)
@@ -98,21 +302,36 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return boolBox.value ? 1231 : 1237
     }
     if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
-        return intBox.value
+        return runtimeUnboxedAnyHashCode(intBox.value, intBox.anyFallbackTag)
     }
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
-        let longValue = Int64(longBox.value)
-        return Int(truncatingIfNeeded: longValue ^ (longValue >> 32))
+        return runtimeXorFoldHashCode(Int64(longBox.value))
+    }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        // ULong.hashCode() uses the same (this xor (this ushr 32)) formula as
+        // Long, and the bit pattern is identical either way, so this shares
+        // runtimeXorFoldHashCode bit-for-bit with the Long branch above.
+        return runtimeXorFoldHashCode(Int64(ulongBox.value))
     }
     if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
-        return kk_float_to_bits(floatBox.value)
+        return runtimeFloatHashCode(floatBox.value)
     }
     if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
-        let bits = Int64(bitPattern: UInt64(bitPattern: Int64(kk_double_to_bits(doubleBox.value))))
-        return Int(truncatingIfNeeded: bits ^ (bits >> 32))
+        return runtimeXorFoldHashCode(Int64(kk_double_to_bits(doubleBox.value)))
     }
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return charBox.value
+    }
+    if runtimeIsUnitBox(value) {
+        return 0
+    }
+    // Result is represented by a runtime box while the source-backed stdlib
+    // still models it as a class. Preserve Kotlin's public value-class
+    // contract by delegating to the wrapped success value, or to the wrapped
+    // exception for a failure.
+    if let resultBox = tryCast(pointer, to: RuntimeResultBox.self) {
+        let wrappedValue = resultBox.isSuccess ? resultBox.value : resultBox.exception
+        return kk_any_hashCode(wrappedValue, 0)
     }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         let value = [localeBox.language, localeBox.country, localeBox.variant]
@@ -121,15 +340,127 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return runtimeStringHashCode(value)
     }
     if let durationBox = tryCast(pointer, to: RuntimeDurationBox.self) {
-        let nanoseconds = durationBox.nanoseconds
-        return Int(truncatingIfNeeded: nanoseconds ^ (nanoseconds >> 32))
+        // Duration.hashCode() is Long.hashCode of the nanosecond payload
+        // (KUU-645); keep the boxed/Any path on the same xor-fold.
+        return runtimeXorFoldHashCode(durationBox.nanoseconds)
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
-        var hash = instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32)
-        hash ^= Int64(instantBox.nanoOfSecond)
-        return Int(truncatingIfNeeded: hash ^ (hash >> 32))
+        let epochHash = Int32(truncatingIfNeeded: instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32))
+        let nanoHash = Int32(instantBox.nanoOfSecond)
+        return Int(epochHash &+ (51 &* nanoHash))
+    }
+    // List/Set/Map hash structurally, matching both runtimeValuesEqual's
+    // List/Set/Map cases and kotlin.collections' List/Set/Map.hashCode()
+    // contracts. Without this, these boxes fell through to the final
+    // pointer-hash fallback below, which also broke `kk_any_to_string`
+    // downstream (the pointer value round-tripped through kk_unbox_int/
+    // kk_box_int as if it were still a live object, printing the
+    // collection's toString() where an Int hashCode was expected).
+    //
+    // The accumulator is `Int32`, not `Int`: Kotlin's fold/sum runs in
+    // 32-bit wrapping Int arithmetic at every step, so accumulating in a
+    // 64-bit `Int` (even with `&+`/`&*`) only happens to agree while the
+    // running total stays inside Int32 range and silently diverges once a
+    // longer collection or a large-hashCode element pushes it past that.
+    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+        var hash: Int32 = 1
+        for element in listBox.values {
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element.legacyRawValue))
+        }
+        return Int(hash)
+    }
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        return runtimeSetHashCode(setBox)
+    }
+    if let mapBox = tryCast(pointer, to: RuntimeMapBox.self) {
+        var hash: Int32 = 0
+        for (key, value) in zip(mapBox.keys, mapBox.values) {
+            let entryHash = Int32(truncatingIfNeeded: runtimeValueHash(key))
+                ^ Int32(truncatingIfNeeded: runtimeValueHash(value))
+            hash = hash &+ entryHash
+        }
+        return Int(hash)
+    }
+    // Tagged Pair/Triple boxes hash structurally, matching both
+    // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
+    // RuntimePairBox is internal runtime state and keeps the pointer hash.
+    // Like the List/Set/Map branches above, every combine step wraps as
+    // Kotlin Int (Int32), not the host's 64-bit Int width.
+    if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+    {
+        let firstHash = Int32(truncatingIfNeeded: kk_any_hashCode(pairBox.first, 0))
+        let secondHash = Int32(truncatingIfNeeded: kk_any_hashCode(pairBox.second, 0))
+        return Int(31 &* firstHash &+ secondHash)
+    }
+    if runtimeObjectTypeID(rawValue: value) == runtimeTripleNominalTypeID,
+       let tripleBox = tryCast(pointer, to: RuntimeTripleBox.self)
+    {
+        var hash = Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.first, 0))
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.second, 0))
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.third, 0))
+        return Int(hash)
+    }
+    // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
+    // and other user-defined objects reached via Any.hashCode() — must stay
+    // consistent with runtimeValuesEqual's RuntimeObjectBox case (structural
+    // equality by classID + elements). Without this, equal-by-content boxed
+    // instances compared with `==` reported equal but had different
+    // (pointer-derived) hashCode()s, breaking the hashCode/equals contract.
+    if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        if let setBox = objBox.backingSetBox {
+            // Some mutable set implementations use a RuntimeObjectBox shell
+            // with a RuntimeSetBox backing store; preserve the same Set hash
+            // contract for that representation.
+            var hash: Int32 = 0
+            for element in setBox.values {
+                hash = hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
+            }
+            return Int(hash)
+        }
+        if runtimeIsDataClass(classID: objBox.classID) {
+            // The first two slots are the runtime object header. Data-class
+            // constructor fields are the tagged slots that follow it; plain
+            // inherited fields remain untagged and are not part of the
+            // compiler-synthesized data-class hash contract.
+            let fieldMask = runtimeDataClassFieldMask(classID: objBox.classID)
+            let fields: [RuntimeValue] = if let fieldMask {
+                objBox.values.enumerated().filter { index, _ in
+                    index < 63 && fieldMask & (1 << Int64(index)) != 0
+                }.map(\.element)
+            } else {
+                objBox.values.dropFirst(2).filter { $0.anyFallbackTag != 0 }
+            }
+            guard let firstField = fields.first else {
+                return 0
+            }
+            var hash = Int32(truncatingIfNeeded: runtimeStoredValueHash(firstField))
+            for field in fields.dropFirst() {
+                hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeStoredValueHash(field))
+            }
+            return Int(hash)
+        }
+
+        var hash = Int32(truncatingIfNeeded: objBox.classID)
+        for element in objBox.values {
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
+        }
+        return Int(hash)
     }
     return Int(truncatingIfNeeded: UInt(bitPattern: pointer))
+}
+
+private func runtimeKTypeProjectionHashCode(_ projection: RuntimeKTypeProjectionBox) -> Int32 {
+    let varianceHash: Int32 = switch projection.variance {
+    case .in: 1
+    case .out: 2
+    case .invariant: 0
+    case nil: 0
+    }
+    let typeHash = projection.typeRaw == 0 || projection.typeRaw == runtimeNullSentinelInt
+        ? 0
+        : Int32(truncatingIfNeeded: kk_any_hashCode(projection.typeRaw, 0))
+    return 31 &* varianceHash &+ typeHash
 }
 
 private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
@@ -144,6 +475,12 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     }
     guard isObjectPointer else {
         return tag == 2 ? 2 : 1
+    }
+    if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
+        // Keep each nominal range type distinct from scalar Any values and
+        // from the other range classes, while retaining value equality for
+        // separately allocated instances of the same class.
+        return 200 &+ range.kind.rawValue
     }
     if tryCast(pointer, to: RuntimeBoolBox.self) != nil {
         return 2
@@ -172,13 +509,43 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     if tryCast(pointer, to: RuntimeInstantBox.self) != nil {
         return 9
     }
+    if tryCast(pointer, to: RuntimeULongBox.self) != nil {
+        return 10
+    }
+    if runtimeIsUnitBox(value) {
+        return 11
+    }
     return 100
 }
 
 /// Any.hashCode() — uses runtime-aware hashing for boxed values and raw primitives.
 @_cdecl("kk_any_hashCode")
 public func kk_any_hashCode(_ value: Int, _ tag: Int) -> Int {
-    runtimeAnyHashCode(value, Int32(truncatingIfNeeded: tag))
+    // Swift's Int is pointer-sized, while Kotlin Int and hashCode() are always
+    // signed 32-bit. Normalize at the public dispatch boundary so an identity
+    // or nominal-class hash can never round-trip as a live object pointer.
+    Int(Int32(truncatingIfNeeded: runtimeAnyHashCode(value, Int32(truncatingIfNeeded: tag))))
+}
+
+/// Hashes an opaque runtime value with the same value-level semantics used by
+/// RuntimeElementKey. The collection index must not hash object identity when
+/// runtimeValuesEqual considers two handles equal by content.
+func runtimeValueHash(_ value: Int) -> Int {
+    var hash = kk_any_hashCode(value, 0)
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer {
+            if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self), floatBox.value == 0 {
+                hash = kk_float_to_bits(Float(0))
+            } else if let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self), doubleBox.value == 0 {
+                let bits = Int64(bitPattern: UInt64(bitPattern: Int64(kk_double_to_bits(Double(0)))))
+                hash = Int(truncatingIfNeeded: bits ^ (bits >> 32))
+            }
+        }
+    }
+    return hash
 }
 
 /// Any.equals(other) — uses runtime-aware equality for boxed values and tagged primitives.
@@ -189,7 +556,8 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     if runtimeAnyKind(lhs, lhsTag) != runtimeAnyKind(rhs, rhsTag) {
         return kk_box_bool(0)
     }
-    return kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
+    let equal = runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)
+    return kk_box_bool(equal ? 1 : 0)
 }
 
 /// 1-arg member-dispatch wrappers for kotlin.Any virtual methods.
@@ -198,7 +566,19 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
 /// tag=1 (object pointer, non-primitive).
 @_cdecl("kk_any_member_to_string")
 public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
-    kk_any_to_string(raw, 1)
+    if let throwableMethod = runtimeThrowableVtableMethodRaw(
+        raw,
+        slot: RuntimeThrowableVtableSlot.toString
+    ) {
+        let method = unsafeBitCast(
+            throwableMethod,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        if let rendered = UnsafeMutableRawPointer(bitPattern: method(raw, nil)) {
+            return rendered
+        }
+    }
+    return kk_any_to_string(raw, 1)
 }
 
 @_cdecl("kk_any_member_hashCode")
@@ -237,120 +617,132 @@ public func kk_bits_to_double(_ value: Int) -> Double {
 
 @_cdecl("kk_int_to_float_bits")
 public func kk_int_to_float_bits(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_float")
 public func kk_int_to_float(_ value: Int) -> Int {
-    kk_float_to_bits(Float(value))
+    kk_float_to_bits(Float(kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_byte")
 public func kk_int_to_byte(_ value: Int) -> Int {
-    Int(Int8(truncatingIfNeeded: value))
+    Int(Int8(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_short")
 public func kk_int_to_short(_ value: Int) -> Int {
-    Int(Int16(truncatingIfNeeded: value))
+    Int(Int16(truncatingIfNeeded: kk_unbox_int(value)))
 }
 
 @_cdecl("kk_int_to_double_bits")
 public func kk_int_to_double_bits(_ value: Int) -> Int {
-    kk_double_to_bits(Double(value))
+    kk_double_to_bits(Double(kk_unbox_int(value)))
 }
 
-@_cdecl("kk_float_to_double_bits")
-public func kk_float_to_double_bits(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_double_bits")
+public func __kk_float_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_println_long")
-public func kk_println_long(_ value: Int) {
-    // Range expressions (LongRange) are typed as Long in sema but produce
-    // opaque runtime object handles.  Detect that case and render via
-    // runtimeElementToString so that "println(1L..10L)" prints "1..10".
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObj = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        if isObj, tryCast(ptr, to: RuntimeRangeBox.self) != nil {
-            Swift.print(runtimeElementToString(value))
-            return
-        }
-    }
-    Swift.print(value)
-}
-
-@_cdecl("kk_println_ulong")
-public func kk_println_ulong(_ value: Int) {
-    Swift.print(UInt(bitPattern: value))
-}
-
-@_cdecl("kk_println_float")
-public func kk_println_float(_ value: Int) {
-    let rendered = runtimeFormatFloatingPoint(kk_bits_to_float(value))
-    Swift.print(rendered)
-}
-
-@_cdecl("kk_println_double")
-public func kk_println_double(_ value: Int) {
-    let rendered = runtimeFormatFloatingPoint(kk_bits_to_double(value))
-    Swift.print(rendered)
-}
-
-@_cdecl("kk_math_abs_int")
-public func kk_math_abs_int(_ value: Int) -> Int {
-    if value == Int.min {
-        return Int.min
-    }
-    return value < 0 ? -value : value
-}
-
-@_cdecl("kk_math_abs")
-public func kk_math_abs(_ value: Int) -> Int {
-    kk_double_to_bits(Swift.abs(kk_bits_to_double(value)))
-}
-
-@_cdecl("kk_math_sqrt")
-public func kk_math_sqrt(_ value: Int) -> Int {
+@_cdecl("__kk_math_sqrt")
+public func __kk_math_sqrt(_ value: Int) -> Int {
     kk_double_to_bits(sqrt(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_pow")
-public func kk_math_pow(_ base: Int, _ exp: Int) -> Int {
+@_cdecl("__kk_math_pow")
+public func __kk_math_pow(_ base: Int, _ exp: Int) -> Int {
     let rawBase = kk_bits_to_double(base)
     let rawExp = kk_bits_to_double(exp)
     return kk_double_to_bits(pow(rawBase, rawExp))
 }
 
-@_cdecl("kk_math_pow_float")
-public func kk_math_pow_float(_ base: Int, _ exp: Int) -> Int {
+@_cdecl("__kk_math_pow_float")
+public func __kk_math_pow_float(_ base: Int, _ exp: Int) -> Int {
     kk_float_to_bits(powf(kk_bits_to_float(base), kk_bits_to_float(exp)))
 }
 
-@_cdecl("kk_math_pow_int")
-public func kk_math_pow_int(_ base: Int, _ exp: Int) -> Int {
+@_cdecl("__kk_math_pow_int")
+public func __kk_math_pow_int(_ base: Int, _ exp: Int) -> Int {
     kk_double_to_bits(pow(kk_bits_to_double(base), Double(exp)))
 }
 
-@_cdecl("kk_math_pow_float_int")
-public func kk_math_pow_float_int(_ base: Int, _ exp: Int) -> Int {
+@_cdecl("__kk_math_pow_float_int")
+public func __kk_math_pow_float_int(_ base: Int, _ exp: Int) -> Int {
     kk_float_to_bits(powf(kk_bits_to_float(base), Float(exp)))
 }
 
-@_cdecl("kk_math_ceil")
-public func kk_math_ceil(_ value: Int) -> Int {
+// MARK: - minOf/maxOf Float/Double (STDLIB-COMP-FN NaN & signed-zero semantics)
+//
+// Kotlin's minOf(Float, Float) / maxOf(Float, Float) delegate to Java's
+// Math.min/Math.max on JVM, whose semantics differ from a plain `<`/`>`
+// comparison in two ways:
+//   1. NaN propagates: if `a` is NaN, the result is `a` (NaN), regardless of `b`.
+//      A plain `a < b` / `a > b` comparison is always false for NaN operands, so
+//      it silently picks the non-NaN argument instead.
+//   2. Signed zero is distinguished: minOf(-0.0, 0.0) == -0.0 and
+//      maxOf(-0.0, 0.0) == 0.0, regardless of argument order, even though
+//      -0.0 == 0.0 under IEEE 754 equality.
+// These entry points take/return Float/Double bit patterns (matching the
+// kk_math_* convention above) so they can be called directly from KIR-lowered
+// minOf/maxOf without an extra bitcast step.
+
+@_cdecl("kk_min_float")
+public func kk_min_float(_ aBits: Int, _ bBits: Int) -> Int {
+    let a = kk_bits_to_float(aBits)
+    if a.isNaN { return aBits }
+    let b = kk_bits_to_float(bBits)
+    if a == 0.0, b == 0.0, b.sign == .minus {
+        return bBits
+    }
+    return a <= b ? aBits : bBits
+}
+
+@_cdecl("kk_max_float")
+public func kk_max_float(_ aBits: Int, _ bBits: Int) -> Int {
+    let a = kk_bits_to_float(aBits)
+    if a.isNaN { return aBits }
+    let b = kk_bits_to_float(bBits)
+    if a == 0.0, b == 0.0, a.sign == .minus {
+        return bBits
+    }
+    return a >= b ? aBits : bBits
+}
+
+@_cdecl("kk_min_double")
+public func kk_min_double(_ aBits: Int, _ bBits: Int) -> Int {
+    let a = kk_bits_to_double(aBits)
+    if a.isNaN { return aBits }
+    let b = kk_bits_to_double(bBits)
+    if a == 0.0, b == 0.0, b.sign == .minus {
+        return bBits
+    }
+    return a <= b ? aBits : bBits
+}
+
+@_cdecl("kk_max_double")
+public func kk_max_double(_ aBits: Int, _ bBits: Int) -> Int {
+    let a = kk_bits_to_double(aBits)
+    if a.isNaN { return aBits }
+    let b = kk_bits_to_double(bBits)
+    if a == 0.0, b == 0.0, a.sign == .minus {
+        return bBits
+    }
+    return a >= b ? aBits : bBits
+}
+
+@_cdecl("__kk_math_ceil")
+public func __kk_math_ceil(_ value: Int) -> Int {
     kk_double_to_bits(ceil(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_floor")
-public func kk_math_floor(_ value: Int) -> Int {
+@_cdecl("__kk_math_floor")
+public func __kk_math_floor(_ value: Int) -> Int {
     kk_double_to_bits(floor(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_round")
-public func kk_math_round(_ value: Int) -> Int {
+@_cdecl("__kk_math_round")
+public func __kk_math_round(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).rounded(.toNearestOrEven))
 }
 
@@ -367,112 +759,112 @@ public func kk_math_round(_ value: Int) -> Int {
 // surface is auditable in code review and prevents optimizer surprises from
 // indirect-call thunks in hot numeric paths.
 
-@_cdecl("kk_math_sin")
-public func kk_math_sin(_ value: Int) -> Int {
+@_cdecl("__kk_math_sin")
+public func __kk_math_sin(_ value: Int) -> Int {
     kk_double_to_bits(sin(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_cos")
-public func kk_math_cos(_ value: Int) -> Int {
+@_cdecl("__kk_math_cos")
+public func __kk_math_cos(_ value: Int) -> Int {
     kk_double_to_bits(cos(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_tan")
-public func kk_math_tan(_ value: Int) -> Int {
+@_cdecl("__kk_math_tan")
+public func __kk_math_tan(_ value: Int) -> Int {
     kk_double_to_bits(tan(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_sinh")
-public func kk_math_sinh(_ value: Int) -> Int {
+@_cdecl("__kk_math_sinh")
+public func __kk_math_sinh(_ value: Int) -> Int {
     kk_double_to_bits(sinh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_cosh")
-public func kk_math_cosh(_ value: Int) -> Int {
+@_cdecl("__kk_math_cosh")
+public func __kk_math_cosh(_ value: Int) -> Int {
     kk_double_to_bits(cosh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_tanh")
-public func kk_math_tanh(_ value: Int) -> Int {
+@_cdecl("__kk_math_tanh")
+public func __kk_math_tanh(_ value: Int) -> Int {
     kk_double_to_bits(tanh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_cbrt")
-public func kk_math_cbrt(_ value: Int) -> Int {
+@_cdecl("__kk_math_cbrt")
+public func __kk_math_cbrt(_ value: Int) -> Int {
     kk_double_to_bits(cbrt(kk_bits_to_double(value)))
 }
 
 // MARK: - STDLIB-MATH-113: Inverse hyperbolic functions (Double)
 
-@_cdecl("kk_math_acosh")
-public func kk_math_acosh(_ value: Int) -> Int {
+@_cdecl("__kk_math_acosh")
+public func __kk_math_acosh(_ value: Int) -> Int {
     kk_double_to_bits(acosh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_asinh")
-public func kk_math_asinh(_ value: Int) -> Int {
+@_cdecl("__kk_math_asinh")
+public func __kk_math_asinh(_ value: Int) -> Int {
     kk_double_to_bits(asinh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_atanh")
-public func kk_math_atanh(_ value: Int) -> Int {
+@_cdecl("__kk_math_atanh")
+public func __kk_math_atanh(_ value: Int) -> Int {
     kk_double_to_bits(atanh(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_asin")
-public func kk_math_asin(_ value: Int) -> Int {
+@_cdecl("__kk_math_asin")
+public func __kk_math_asin(_ value: Int) -> Int {
     kk_double_to_bits(asin(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_acos")
-public func kk_math_acos(_ value: Int) -> Int {
+@_cdecl("__kk_math_acos")
+public func __kk_math_acos(_ value: Int) -> Int {
     kk_double_to_bits(acos(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_atan")
-public func kk_math_atan(_ value: Int) -> Int {
+@_cdecl("__kk_math_atan")
+public func __kk_math_atan(_ value: Int) -> Int {
     kk_double_to_bits(atan(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_atan2")
-public func kk_math_atan2(_ y: Int, _ x: Int) -> Int {
+@_cdecl("__kk_math_atan2")
+public func __kk_math_atan2(_ y: Int, _ x: Int) -> Int {
     kk_double_to_bits(atan2(kk_bits_to_double(y), kk_bits_to_double(x)))
 }
 
 // MARK: - STDLIB-431: exp/ln/log functions
 
-@_cdecl("kk_math_exp")
-public func kk_math_exp(_ value: Int) -> Int {
+@_cdecl("__kk_math_exp")
+public func __kk_math_exp(_ value: Int) -> Int {
     kk_double_to_bits(exp(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_expm1")
-public func kk_math_expm1(_ value: Int) -> Int {
+@_cdecl("__kk_math_expm1")
+public func __kk_math_expm1(_ value: Int) -> Int {
     kk_double_to_bits(expm1(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_ln")
-public func kk_math_ln(_ value: Int) -> Int {
+@_cdecl("__kk_math_ln")
+public func __kk_math_ln(_ value: Int) -> Int {
     kk_double_to_bits(log(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_ln1p")
-public func kk_math_ln1p(_ value: Int) -> Int {
+@_cdecl("__kk_math_ln1p")
+public func __kk_math_ln1p(_ value: Int) -> Int {
     kk_double_to_bits(log1p(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_log2")
-public func kk_math_log2(_ value: Int) -> Int {
+@_cdecl("__kk_math_log2")
+public func __kk_math_log2(_ value: Int) -> Int {
     kk_double_to_bits(log2(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_log10")
-public func kk_math_log10(_ value: Int) -> Int {
+@_cdecl("__kk_math_log10")
+public func __kk_math_log10(_ value: Int) -> Int {
     kk_double_to_bits(log10(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_log")
-public func kk_math_log(_ x: Int, _ base: Int) -> Int {
+@_cdecl("__kk_math_log")
+public func __kk_math_log(_ x: Int, _ base: Int) -> Int {
     let rawX = kk_bits_to_double(x)
     let rawBase = kk_bits_to_double(base)
 
@@ -495,149 +887,13 @@ public func kk_math_log(_ x: Int, _ base: Int) -> Int {
     return kk_double_to_bits(log(rawX) / log(rawBase))
 }
 
-// MARK: - STDLIB-432: sign/hypot + PI/E constants
+// MARK: - STDLIB-432: hypot
 
-@_cdecl("kk_math_sign")
-public func kk_math_sign(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    if d.isNaN { return kk_double_to_bits(Double.nan) }
-    if d > 0 { return kk_double_to_bits(1.0) }
-    if d < 0 { return kk_double_to_bits(-1.0) }
-    // Preserve sign of zero: return the original value for +0.0 / -0.0
-    return value
-}
-
-@_cdecl("kk_math_sign_int")
-public func kk_math_sign_int(_ value: Int) -> Int {
-    if value > 0 { return 1 }
-    if value < 0 { return -1 }
-    return 0
-}
-
-@_cdecl("kk_math_sign_long")
-public func kk_math_sign_long(_ value: Int) -> Int {
-    if value > 0 { return 1 }
-    if value < 0 { return -1 }
-    return 0
-}
-
-@_cdecl("kk_math_hypot")
-public func kk_math_hypot(_ x: Int, _ y: Int) -> Int {
+@_cdecl("__kk_math_hypot")
+public func __kk_math_hypot(_ x: Int, _ y: Int) -> Int {
     let rawX = kk_bits_to_double(x)
     let rawY = kk_bits_to_double(y)
     return kk_double_to_bits(hypot(rawX, rawY))
-}
-
-private func kotlinMathMaxDouble(_ a: Double, _ b: Double) -> Double {
-    if a.isNaN || b.isNaN { return Double.nan }
-    if a == 0.0 && b == 0.0 {
-        return a.sign == .minus && b.sign == .minus ? -Double.zero : Double.zero
-    }
-    return a >= b ? a : b
-}
-
-private func kotlinMathMinDouble(_ a: Double, _ b: Double) -> Double {
-    if a.isNaN || b.isNaN { return Double.nan }
-    if a == 0.0 && b == 0.0 {
-        return a.sign == .minus || b.sign == .minus ? -Double.zero : Double.zero
-    }
-    return a <= b ? a : b
-}
-
-private func kotlinMathMaxFloat(_ a: Float, _ b: Float) -> Float {
-    if a.isNaN || b.isNaN { return Float.nan }
-    if a == 0.0 && b == 0.0 {
-        return a.sign == .minus && b.sign == .minus ? -Float.zero : Float.zero
-    }
-    return a >= b ? a : b
-}
-
-private func kotlinMathMinFloat(_ a: Float, _ b: Float) -> Float {
-    if a.isNaN || b.isNaN { return Float.nan }
-    if a == 0.0 && b == 0.0 {
-        return a.sign == .minus || b.sign == .minus ? -Float.zero : Float.zero
-    }
-    return a <= b ? a : b
-}
-
-@inline(__always)
-private func runtimeUnsignedMax(_ a: Int, _ b: Int) -> Int {
-    UInt(bitPattern: a) >= UInt(bitPattern: b) ? a : b
-}
-
-@inline(__always)
-private func runtimeUnsignedMin(_ a: Int, _ b: Int) -> Int {
-    UInt(bitPattern: a) <= UInt(bitPattern: b) ? a : b
-}
-
-@_cdecl("kk_math_max")
-public func kk_math_max(_ a: Int, _ b: Int) -> Int {
-    kk_double_to_bits(kotlinMathMaxDouble(kk_bits_to_double(a), kk_bits_to_double(b)))
-}
-
-@_cdecl("kk_math_max_float")
-public func kk_math_max_float(_ a: Int, _ b: Int) -> Int {
-    kk_float_to_bits(kotlinMathMaxFloat(kk_bits_to_float(a), kk_bits_to_float(b)))
-}
-
-@_cdecl("kk_math_max_int")
-public func kk_math_max_int(_ a: Int, _ b: Int) -> Int {
-    Swift.max(a, b)
-}
-
-@_cdecl("kk_math_max_long")
-public func kk_math_max_long(_ a: Int, _ b: Int) -> Int {
-    Swift.max(a, b)
-}
-
-@_cdecl("kk_math_max_uint")
-public func kk_math_max_uint(_ a: Int, _ b: Int) -> Int {
-    runtimeUnsignedMax(a, b)
-}
-
-@_cdecl("kk_math_max_ulong")
-public func kk_math_max_ulong(_ a: Int, _ b: Int) -> Int {
-    runtimeUnsignedMax(a, b)
-}
-
-@_cdecl("kk_math_min")
-public func kk_math_min(_ a: Int, _ b: Int) -> Int {
-    kk_double_to_bits(kotlinMathMinDouble(kk_bits_to_double(a), kk_bits_to_double(b)))
-}
-
-@_cdecl("kk_math_min_float")
-public func kk_math_min_float(_ a: Int, _ b: Int) -> Int {
-    kk_float_to_bits(kotlinMathMinFloat(kk_bits_to_float(a), kk_bits_to_float(b)))
-}
-
-@_cdecl("kk_math_min_int")
-public func kk_math_min_int(_ a: Int, _ b: Int) -> Int {
-    Swift.min(a, b)
-}
-
-@_cdecl("kk_math_min_long")
-public func kk_math_min_long(_ a: Int, _ b: Int) -> Int {
-    Swift.min(a, b)
-}
-
-@_cdecl("kk_math_min_uint")
-public func kk_math_min_uint(_ a: Int, _ b: Int) -> Int {
-    runtimeUnsignedMin(a, b)
-}
-
-@_cdecl("kk_math_min_ulong")
-public func kk_math_min_ulong(_ a: Int, _ b: Int) -> Int {
-    runtimeUnsignedMin(a, b)
-}
-
-@_cdecl("kk_math_PI")
-public func kk_math_PI() -> Int {
-    kk_double_to_bits(Double.pi)
-}
-
-@_cdecl("kk_math_E")
-public func kk_math_E() -> Int {
-    kk_double_to_bits(M_E)
 }
 
 // MARK: - STDLIB-500~509: Float trig/math overloads
@@ -653,139 +909,134 @@ private func applyFloatUnaryOp(_ v: Int, _ op: (Float) -> Float) -> Int {
     kk_float_to_bits(op(kk_bits_to_float(v)))
 }
 
-@_cdecl("kk_math_sin_float")
-public func kk_math_sin_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_sin_float")
+public func __kk_math_sin_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, sinf)
 }
 
-@_cdecl("kk_math_cos_float")
-public func kk_math_cos_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_cos_float")
+public func __kk_math_cos_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, cosf)
 }
 
-@_cdecl("kk_math_tan_float")
-public func kk_math_tan_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_tan_float")
+public func __kk_math_tan_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, tanf)
 }
 
-@_cdecl("kk_math_sinh_float")
-public func kk_math_sinh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_sinh_float")
+public func __kk_math_sinh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, sinhf)
 }
 
-@_cdecl("kk_math_cosh_float")
-public func kk_math_cosh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_cosh_float")
+public func __kk_math_cosh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, coshf)
 }
 
-@_cdecl("kk_math_tanh_float")
-public func kk_math_tanh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_tanh_float")
+public func __kk_math_tanh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, tanhf)
 }
 
-@_cdecl("kk_math_cbrt_float")
-public func kk_math_cbrt_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_cbrt_float")
+public func __kk_math_cbrt_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, cbrtf)
 }
 
 // MARK: - STDLIB-MATH-113: Inverse hyperbolic functions (Float)
 
-@_cdecl("kk_math_acosh_float")
-public func kk_math_acosh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_acosh_float")
+public func __kk_math_acosh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, acoshf)
 }
 
-@_cdecl("kk_math_asinh_float")
-public func kk_math_asinh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_asinh_float")
+public func __kk_math_asinh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, asinhf)
 }
 
-@_cdecl("kk_math_atanh_float")
-public func kk_math_atanh_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_atanh_float")
+public func __kk_math_atanh_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, atanhf)
 }
 
-@_cdecl("kk_math_asin_float")
-public func kk_math_asin_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_asin_float")
+public func __kk_math_asin_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, asinf)
 }
 
-@_cdecl("kk_math_acos_float")
-public func kk_math_acos_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_acos_float")
+public func __kk_math_acos_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, acosf)
 }
 
-@_cdecl("kk_math_atan_float")
-public func kk_math_atan_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_atan_float")
+public func __kk_math_atan_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, atanf)
 }
 
-@_cdecl("kk_math_atan2_float")
-public func kk_math_atan2_float(_ y: Int, _ x: Int) -> Int {
+@_cdecl("__kk_math_atan2_float")
+public func __kk_math_atan2_float(_ y: Int, _ x: Int) -> Int {
     let fy = kk_bits_to_float(y)
     let fx = kk_bits_to_float(x)
     return kk_float_to_bits(atan2f(fy, fx))
 }
 
-@_cdecl("kk_math_sqrt_float")
-public func kk_math_sqrt_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_sqrt_float")
+public func __kk_math_sqrt_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, sqrtf)
 }
 
-@_cdecl("kk_math_round_float")
-public func kk_math_round_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_round_float")
+public func __kk_math_round_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v) { $0.rounded(.toNearestOrEven) }
 }
 
-@_cdecl("kk_math_ceil_float")
-public func kk_math_ceil_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_ceil_float")
+public func __kk_math_ceil_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, ceilf)
 }
 
-@_cdecl("kk_math_floor_float")
-public func kk_math_floor_float(_ v: Int) -> Int {
+@_cdecl("__kk_math_floor_float")
+public func __kk_math_floor_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, floorf)
 }
 
-// MARK: - STDLIB-430: additional Float overloads (abs, exp, expm1, ln, ln1p, log2, log10, log, sign, hypot)
+// MARK: - STDLIB-430: additional Float overloads (exp, expm1, ln, ln1p, log2, log10, log, hypot)
 
-@_cdecl("kk_math_abs_float")
-public func kk_math_abs_float(_ value: Int) -> Int {
-    kk_float_to_bits(Swift.abs(kk_bits_to_float(value)))
-}
-
-@_cdecl("kk_math_exp_float")
-public func kk_math_exp_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_exp_float")
+public func __kk_math_exp_float(_ value: Int) -> Int {
     kk_float_to_bits(exp(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_expm1_float")
-public func kk_math_expm1_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_expm1_float")
+public func __kk_math_expm1_float(_ value: Int) -> Int {
     kk_float_to_bits(expm1f(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_ln_float")
-public func kk_math_ln_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_ln_float")
+public func __kk_math_ln_float(_ value: Int) -> Int {
     kk_float_to_bits(log(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_ln1p_float")
-public func kk_math_ln1p_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_ln1p_float")
+public func __kk_math_ln1p_float(_ value: Int) -> Int {
     kk_float_to_bits(log1pf(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_log2_float")
-public func kk_math_log2_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_log2_float")
+public func __kk_math_log2_float(_ value: Int) -> Int {
     kk_float_to_bits(log2(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_log10_float")
-public func kk_math_log10_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_log10_float")
+public func __kk_math_log10_float(_ value: Int) -> Int {
     kk_float_to_bits(log10(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_log_float")
-public func kk_math_log_float(_ x: Int, _ base: Int) -> Int {
+@_cdecl("__kk_math_log_float")
+public func __kk_math_log_float(_ x: Int, _ base: Int) -> Int {
     let rawX = kk_bits_to_float(x)
     let rawBase = kk_bits_to_float(base)
 
@@ -808,18 +1059,8 @@ public func kk_math_log_float(_ x: Int, _ base: Int) -> Int {
     return kk_float_to_bits(log(rawX) / log(rawBase))
 }
 
-@_cdecl("kk_math_sign_float")
-public func kk_math_sign_float(_ value: Int) -> Int {
-    let f = kk_bits_to_float(value)
-    if f.isNaN { return kk_float_to_bits(Float.nan) }
-    if f > 0 { return kk_float_to_bits(1.0) }
-    if f < 0 { return kk_float_to_bits(-1.0) }
-    // Preserve sign of zero: return the original value for +0.0 / -0.0
-    return value
-}
-
-@_cdecl("kk_math_hypot_float")
-public func kk_math_hypot_float(_ x: Int, _ y: Int) -> Int {
+@_cdecl("__kk_math_hypot_float")
+public func __kk_math_hypot_float(_ x: Int, _ y: Int) -> Int {
     let rawX = kk_bits_to_float(x)
     let rawY = kk_bits_to_float(y)
     return kk_float_to_bits(hypot(rawX, rawY))
@@ -873,8 +1114,8 @@ private func roundDoubleJava7(_ raw: Double) -> Int64 {
 // throw IllegalArgumentException when the receiver is NaN. Infinity / out-of-range
 // still saturate to MIN/MAX (no exception). These are therefore throwing callees
 // (outThrown appended by ABILoweringPass — they must NOT be in nonThrowingCallees).
-@_cdecl("kk_float_roundToInt")
-public func kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_float_roundToInt")
+public func __kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_float(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -886,8 +1127,8 @@ public func kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<
     return Int(Int32(r))
 }
 
-@_cdecl("kk_double_roundToInt")
-public func kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_double_roundToInt")
+public func __kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_double(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -899,8 +1140,8 @@ public func kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer
     return Int(Int32(r))
 }
 
-@_cdecl("kk_float_roundToLong")
-public func kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_float_roundToLong")
+public func __kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_float(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -912,8 +1153,8 @@ public func kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer
     return Int(r)
 }
 
-@_cdecl("kk_double_roundToLong")
-public func kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_double_roundToLong")
+public func __kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let raw = kk_bits_to_double(value)
     if raw.isNaN {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
@@ -927,72 +1168,46 @@ public func kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointe
 
 // MARK: - STDLIB-512~513: ulp / nextUp / nextDown extensions
 
-@_cdecl("kk_double_ulp")
-public func kk_double_ulp(_ value: Int) -> Int {
+@_cdecl("__kk_double_ulp")
+public func __kk_double_ulp(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).ulp)
 }
 
-@_cdecl("kk_double_nextUp")
-public func kk_double_nextUp(_ value: Int) -> Int {
+@_cdecl("__kk_double_nextUp")
+public func __kk_double_nextUp(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).nextUp)
 }
 
-@_cdecl("kk_double_nextDown")
-public func kk_double_nextDown(_ value: Int) -> Int {
+@_cdecl("__kk_double_nextDown")
+public func __kk_double_nextDown(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).nextDown)
 }
 
-@_cdecl("kk_float_ulp")
-public func kk_float_ulp(_ value: Int) -> Int {
+@_cdecl("__kk_float_ulp")
+public func __kk_float_ulp(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).ulp)
 }
 
-@_cdecl("kk_float_nextUp")
-public func kk_float_nextUp(_ value: Int) -> Int {
+@_cdecl("__kk_float_nextUp")
+public func __kk_float_nextUp(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextUp)
 }
 
-@_cdecl("kk_float_nextDown")
-public func kk_float_nextDown(_ value: Int) -> Int {
+@_cdecl("__kk_float_nextDown")
+public func __kk_float_nextDown(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextDown)
 }
 
-// MARK: - STDLIB-NUM-130: Floating-point precision — isNaN / isInfinite / isFinite / toBits / fromBits
-
-@_cdecl("kk_double_isNaN")
-public func kk_double_isNaN(_ value: Int) -> Int {
-    kk_bits_to_double(value).isNaN ? 1 : 0
-}
-
-@_cdecl("kk_double_isInfinite")
-public func kk_double_isInfinite(_ value: Int) -> Int {
-    kk_bits_to_double(value).isInfinite ? 1 : 0
-}
-
-@_cdecl("kk_double_isFinite")
-public func kk_double_isFinite(_ value: Int) -> Int {
-    kk_bits_to_double(value).isFinite ? 1 : 0
-}
-
-@_cdecl("kk_float_isNaN")
-public func kk_float_isNaN(_ value: Int) -> Int {
-    kk_bits_to_float(value).isNaN ? 1 : 0
-}
-
-@_cdecl("kk_float_isInfinite")
-public func kk_float_isInfinite(_ value: Int) -> Int {
-    kk_bits_to_float(value).isInfinite ? 1 : 0
-}
-
-@_cdecl("kk_float_isFinite")
-public func kk_float_isFinite(_ value: Int) -> Int {
-    kk_bits_to_float(value).isFinite ? 1 : 0
-}
+// MARK: - STDLIB-NUM-130: Floating-point precision — toBits
+//
+// KSP-646: isNaN / isInfinite / isFinite are implemented in bundled Kotlin
+// (Stdlib/kotlin/util/Numbers.kt) on top of toRawBits(), so no runtime export
+// remains for them.
 
 /// Double.toBits(): Long — returns IEEE 754 bit representation as Long.
 /// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
-@_cdecl("kk_double_toBits")
-public func kk_double_toBits(_ value: Int) -> Int {
+@_cdecl("__kk_double_toBits")
+public func __kk_double_toBits(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return Int(bitPattern: UInt(0x7FF8_0000_0000_0000 as UInt64)) }
     return kk_double_to_bits(d)
@@ -1000,326 +1215,77 @@ public func kk_double_toBits(_ value: Int) -> Int {
 
 /// Double.toRawBits(): Long — same as toBits() for finite values; differs for NaN.
 /// In Kotlin toRawBits returns the actual bit pattern without canonicalizing NaN.
-@_cdecl("kk_double_toRawBits")
-public func kk_double_toRawBits(_ value: Int) -> Int {
+@_cdecl("__kk_double_toRawBits")
+public func __kk_double_toRawBits(_ value: Int) -> Int {
     value  // bit pattern is already canonical in our ABI
 }
 
-/// Double.Companion.fromBits(bits: Long): Double
-/// The bits Int is already the IEEE 754 bit pattern used by the ABI,
-/// so reconstructing it is a no-op — just return the same Int.
-@_cdecl("kk_double_fromBits")
-public func kk_double_fromBits(_ bits: Int) -> Int {
-    bits  // already the correct ABI representation for Double
+/// Double.Companion.fromBits(bits: Long): Double.
+/// Double bit patterns occupy the full runtime ABI word, so this is an identity.
+@_cdecl("__kk_double_fromBits")
+public func __kk_double_fromBits(_ bits: Int) -> Int {
+    bits
 }
 
 /// Float.toBits(): Int — returns IEEE 754 bit representation as Int.
 /// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
-@_cdecl("kk_float_toBits")
-public func kk_float_toBits(_ value: Int) -> Int {
+/// The ABI carries Float as a zero-extended 32-bit pattern, so the result is
+/// sign-extended back into the Int domain Kotlin expects.
+@_cdecl("__kk_float_toBits")
+public func __kk_float_toBits(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
-    if f.isNaN { return Int(bitPattern: UInt(0x7FC0_0000 as UInt32)) }
-    return kk_float_to_bits(f)
+    if f.isNaN { return Int(Int32(bitPattern: 0x7FC0_0000 as UInt32)) }
+    return Int(Int32(bitPattern: f.bitPattern))
 }
 
 /// Float.toRawBits(): Int — actual bit pattern without canonicalizing NaN.
-@_cdecl("kk_float_toRawBits")
-public func kk_float_toRawBits(_ value: Int) -> Int {
-    value  // bit pattern is already canonical in our ABI
+@_cdecl("__kk_float_toRawBits")
+public func __kk_float_toRawBits(_ value: Int) -> Int {
+    Int(Int32(truncatingIfNeeded: value))
 }
 
-/// Float.Companion.fromBits(bits: Int): Float
-@_cdecl("kk_float_fromBits")
-public func kk_float_fromBits(_ bits: Int) -> Int {
-    bits  // already Float bit representation in ABI
+/// Float.Companion.fromBits(bits: Int): Float.
+/// Kotlin exposes the 32-bit IEEE pattern as a sign-extended Int, while the
+/// runtime ABI carries Float payloads as a zero-extended word.
+@_cdecl("__kk_float_fromBits")
+public func __kk_float_fromBits(_ bits: Int) -> Int {
+    Int(UInt32(truncatingIfNeeded: bits))
 }
 
-// MARK: - STDLIB-111: IEEE 754 rounding modes
-//
-// Kotlin exposes rounding mode as an Int constant matching java.math.RoundingMode ordinals:
-//   0 = UP, 1 = DOWN, 2 = CEILING, 3 = FLOOR
-//   4 = HALF_UP, 5 = HALF_DOWN, 6 = HALF_EVEN, 7 = UNNECESSARY
-//
-// Each function takes a Double or Float (bit-pattern transported via Int) and a mode Int,
-// and returns the rounded value in the same bit-pattern form.
-//
-// Architecture assumption: Int == Int64 on all supported 64-bit targets.
+// MARK: - STDLIB-514: truncate, IEEErem, nextTowards
 
-// Helper: apply a rounding mode to a Double value.
-// mode values match java.math.RoundingMode ordinals.
-private func applyRoundingMode(_ value: Double, mode: Int) -> Double {
-    switch mode {
-    case 0: // ROUND_UP — round towards non-zero (away from zero)
-        return value >= 0 ? ceil(value) : floor(value)
-    case 1: // ROUND_DOWN — round towards zero (truncate)
-        return trunc(value)
-    case 2: // ROUND_CEILING — round towards positive infinity
-        return ceil(value)
-    case 3: // ROUND_FLOOR — round towards negative infinity
-        return floor(value)
-    case 4: // ROUND_HALF_UP — ties round away from zero
-        if value >= 0 {
-            return floor(value + 0.5)
-        } else {
-            return ceil(value - 0.5)
-        }
-    case 5: // ROUND_HALF_DOWN — ties round towards zero
-        if value >= 0 {
-            let frac = value - floor(value)
-            return frac > 0.5 ? ceil(value) : floor(value)
-        } else {
-            let frac = ceil(value) - value
-            return frac > 0.5 ? floor(value) : ceil(value)
-        }
-    case 6: // ROUND_HALF_EVEN — ties round to nearest even (banker's rounding)
-        return value.rounded(.toNearestOrEven)
-    case 7: // ROUND_UNNECESSARY — value must already be integral; return as-is
-        return value
-    default:
-        return value.rounded()
-    }
-}
-
-// Helper: apply a rounding mode to a Float value.
-private func applyRoundingModeFloat(_ value: Float, mode: Int) -> Float {
-    switch mode {
-    case 0: // ROUND_UP
-        return value >= 0 ? ceilf(value) : floorf(value)
-    case 1: // ROUND_DOWN
-        return truncf(value)
-    case 2: // ROUND_CEILING
-        return ceilf(value)
-    case 3: // ROUND_FLOOR
-        return floorf(value)
-    case 4: // ROUND_HALF_UP
-        if value >= 0 {
-            return floorf(value + 0.5)
-        } else {
-            return ceilf(value - 0.5)
-        }
-    case 5: // ROUND_HALF_DOWN
-        if value >= 0 {
-            let frac = value - floorf(value)
-            return frac > 0.5 ? ceilf(value) : floorf(value)
-        } else {
-            let frac = ceilf(value) - value
-            return frac > 0.5 ? floorf(value) : ceilf(value)
-        }
-    case 6: // ROUND_HALF_EVEN
-        return value.rounded(.toNearestOrEven)
-    case 7: // ROUND_UNNECESSARY
-        return value
-    default:
-        return value.rounded()
-    }
-}
-
-// Double rounding with explicit mode.
-@_cdecl("kk_math_round_mode")
-public func kk_math_round_mode(_ value: Int, _ mode: Int) -> Int {
-    kk_double_to_bits(applyRoundingMode(kk_bits_to_double(value), mode: mode))
-}
-
-// Float rounding with explicit mode.
-@_cdecl("kk_math_round_mode_float")
-public func kk_math_round_mode_float(_ value: Int, _ mode: Int) -> Int {
-    kk_float_to_bits(applyRoundingModeFloat(kk_bits_to_float(value), mode: mode))
-}
-
-// Convenience single-mode entry points (Double) for ROUND_UP/DOWN/CEILING/FLOOR/HALF_UP/HALF_EVEN.
-// These avoid the mode dispatch overhead in hot paths and keep ABI simple.
-
-@_cdecl("kk_math_round_up")
-public func kk_math_round_up(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    return kk_double_to_bits(d >= 0 ? ceil(d) : floor(d))
-}
-
-@_cdecl("kk_math_round_down")
-public func kk_math_round_down(_ value: Int) -> Int {
+@_cdecl("__kk_math_truncate")
+public func __kk_math_truncate(_ value: Int) -> Int {
     kk_double_to_bits(trunc(kk_bits_to_double(value)))
 }
 
-@_cdecl("kk_math_round_ceiling")
-public func kk_math_round_ceiling(_ value: Int) -> Int {
-    kk_double_to_bits(ceil(kk_bits_to_double(value)))
-}
-
-@_cdecl("kk_math_round_floor")
-public func kk_math_round_floor(_ value: Int) -> Int {
-    kk_double_to_bits(floor(kk_bits_to_double(value)))
-}
-
-@_cdecl("kk_math_round_half_up")
-public func kk_math_round_half_up(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    if d >= 0 {
-        return kk_double_to_bits(floor(d + 0.5))
-    } else {
-        return kk_double_to_bits(ceil(d - 0.5))
-    }
-}
-
-@_cdecl("kk_math_round_half_down")
-public func kk_math_round_half_down(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    if d >= 0 {
-        let frac = d - floor(d)
-        return kk_double_to_bits(frac > 0.5 ? ceil(d) : floor(d))
-    } else {
-        let frac = ceil(d) - d
-        return kk_double_to_bits(frac > 0.5 ? floor(d) : ceil(d))
-    }
-}
-
-@_cdecl("kk_math_round_half_even")
-public func kk_math_round_half_even(_ value: Int) -> Int {
-    kk_double_to_bits(kk_bits_to_double(value).rounded(.toNearestOrEven))
-}
-
-@_cdecl("kk_math_round_unnecessary")
-public func kk_math_round_unnecessary(_ value: Int) -> Int {
-    // Value must already be an integer; return unchanged.
-    value
-}
-
-// Float variants of the above.
-
-@_cdecl("kk_math_round_up_float")
-public func kk_math_round_up_float(_ value: Int) -> Int {
-    let f = kk_bits_to_float(value)
-    return kk_float_to_bits(f >= 0 ? ceilf(f) : floorf(f))
-}
-
-@_cdecl("kk_math_round_down_float")
-public func kk_math_round_down_float(_ value: Int) -> Int {
+@_cdecl("__kk_math_truncate_float")
+public func __kk_math_truncate_float(_ value: Int) -> Int {
     kk_float_to_bits(truncf(kk_bits_to_float(value)))
 }
 
-@_cdecl("kk_math_round_ceiling_float")
-public func kk_math_round_ceiling_float(_ value: Int) -> Int {
-    kk_float_to_bits(ceilf(kk_bits_to_float(value)))
-}
-
-@_cdecl("kk_math_round_floor_float")
-public func kk_math_round_floor_float(_ value: Int) -> Int {
-    kk_float_to_bits(floorf(kk_bits_to_float(value)))
-}
-
-@_cdecl("kk_math_round_half_up_float")
-public func kk_math_round_half_up_float(_ value: Int) -> Int {
-    let f = kk_bits_to_float(value)
-    if f >= 0 {
-        return kk_float_to_bits(floorf(f + 0.5))
-    } else {
-        return kk_float_to_bits(ceilf(f - 0.5))
-    }
-}
-
-@_cdecl("kk_math_round_half_down_float")
-public func kk_math_round_half_down_float(_ value: Int) -> Int {
-    let f = kk_bits_to_float(value)
-    if f >= 0 {
-        let frac = f - floorf(f)
-        return kk_float_to_bits(frac > 0.5 ? ceilf(f) : floorf(f))
-    } else {
-        let frac = ceilf(f) - f
-        return kk_float_to_bits(frac > 0.5 ? floorf(f) : ceilf(f))
-    }
-}
-
-@_cdecl("kk_math_round_half_even_float")
-public func kk_math_round_half_even_float(_ value: Int) -> Int {
-    kk_float_to_bits(kk_bits_to_float(value).rounded(.toNearestOrEven))
-}
-
-@_cdecl("kk_math_round_unnecessary_float")
-public func kk_math_round_unnecessary_float(_ value: Int) -> Int {
-    value
-}
-
-// MARK: - STDLIB-514: abs(Long), truncate, IEEErem, withSign, nextTowards
-
-@_cdecl("kk_math_abs_long")
-public func kk_math_abs_long(_ value: Int) -> Int {
-    // Long is transported as Int (64-bit on supported platforms).
-    // Kotlin specifies abs(Long.MIN_VALUE) == Long.MIN_VALUE (overflow).
-    if value == Int.min { return Int.min }
-    return value < 0 ? -value : value
-}
-
-@_cdecl("kk_math_truncate")
-public func kk_math_truncate(_ value: Int) -> Int {
-    kk_double_to_bits(trunc(kk_bits_to_double(value)))
-}
-
-@_cdecl("kk_math_truncate_float")
-public func kk_math_truncate_float(_ value: Int) -> Int {
-    kk_float_to_bits(truncf(kk_bits_to_float(value)))
-}
-
-@_cdecl("kk_math_IEEErem")
-public func kk_math_IEEErem(_ x: Int, _ y: Int) -> Int {
+@_cdecl("__kk_math_IEEErem")
+public func __kk_math_IEEErem(_ x: Int, _ y: Int) -> Int {
     kk_double_to_bits(remainder(kk_bits_to_double(x), kk_bits_to_double(y)))
 }
 
-@_cdecl("kk_math_IEEErem_float")
-public func kk_math_IEEErem_float(_ x: Int, _ y: Int) -> Int {
+@_cdecl("__kk_math_IEEErem_float")
+public func __kk_math_IEEErem_float(_ x: Int, _ y: Int) -> Int {
     kk_float_to_bits(remainderf(kk_bits_to_float(x), kk_bits_to_float(y)))
 }
 
-@_cdecl("kk_math_withSign")
-public func kk_math_withSign(_ x: Int, _ sign: Int) -> Int {
-    kk_double_to_bits(copysign(kk_bits_to_double(x), kk_bits_to_double(sign)))
-}
-
-@_cdecl("kk_math_withSign_float")
-public func kk_math_withSign_float(_ x: Int, _ sign: Int) -> Int {
-    kk_float_to_bits(copysignf(kk_bits_to_float(x), kk_bits_to_float(sign)))
-}
-
-@_cdecl("kk_math_withSign_int")
-public func kk_math_withSign_int(_ x: Int, _ sign: Int) -> Int {
-    let d = kk_bits_to_double(x)
-    let signDouble = sign < 0 ? -1.0 : 1.0
-    return kk_double_to_bits(copysign(d, signDouble))
-}
-
-@_cdecl("kk_math_withSign_float_int")
-public func kk_math_withSign_float_int(_ x: Int, _ sign: Int) -> Int {
-    let f = kk_bits_to_float(x)
-    let signFloat: Float = sign < 0 ? -1.0 : 1.0
-    return kk_float_to_bits(copysignf(f, signFloat))
-}
-
-@_cdecl("kk_math_nextTowards")
-public func kk_math_nextTowards(_ from: Int, _ to: Int) -> Int {
+@_cdecl("__kk_math_nextTowards")
+public func __kk_math_nextTowards(_ from: Int, _ to: Int) -> Int {
     let rawFrom = kk_bits_to_double(from)
     let rawTo = kk_bits_to_double(to)
     return kk_double_to_bits(nextafter(rawFrom, rawTo))
 }
 
-@_cdecl("kk_math_nextTowards_float")
-public func kk_math_nextTowards_float(_ from: Int, _ to: Int) -> Int {
+@_cdecl("__kk_math_nextTowards_float")
+public func __kk_math_nextTowards_float(_ from: Int, _ to: Int) -> Int {
     let rawFrom = kk_bits_to_float(from)
     let rawTo = kk_bits_to_float(to)
     return kk_float_to_bits(nextafterf(rawFrom, rawTo))
-}
-
-@_cdecl("kk_println_char")
-public func kk_println_char(_ value: Int) {
-    let unboxed = kk_unbox_char(value)
-    if let scalar = UnicodeScalar(unboxed) {
-        Swift.print(String(scalar))
-    } else {
-        Swift.print("\u{FFFD}")
-    }
-}
-
-@_cdecl("kk_println_bool")
-public func kk_println_bool(_ value: Int) {
-    let unboxedValue = kk_unbox_bool(value)
-    Swift.print(unboxedValue != 0 ? "true" : "false")
 }
 
 @_cdecl("kk_bitwise_and")
@@ -1365,8 +1331,8 @@ public func kk_op_ushr(_ lhs: Int, _ rhs: Int) -> Int {
     return Int(bitPattern: UInt(bitPattern: lhs) >> shift)
 }
 
-@_cdecl("kk_double_to_int")
-public func kk_double_to_int(_ value: Int) -> Int {
+@_cdecl("__kk_double_to_int")
+public func __kk_double_to_int(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return 0 }
     if d >= Double(Int32.max) { return Int(Int32.max) }
@@ -1374,8 +1340,8 @@ public func kk_double_to_int(_ value: Int) -> Int {
     return Int(Int32(d))
 }
 
-@_cdecl("kk_float_to_int")
-public func kk_float_to_int(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_int")
+public func __kk_float_to_int(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return 0 }
     if f >= Float(Int32.max) { return Int(Int32.max) }
@@ -1383,8 +1349,8 @@ public func kk_float_to_int(_ value: Int) -> Int {
     return Int(Int32(f))
 }
 
-@_cdecl("kk_double_to_long")
-public func kk_double_to_long(_ value: Int) -> Int {
+@_cdecl("__kk_double_to_long")
+public func __kk_double_to_long(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return 0 }
     if d >= Double(Int64.max) { return Int(Int64.max) }
@@ -1392,8 +1358,8 @@ public func kk_double_to_long(_ value: Int) -> Int {
     return Int(Int64(d))
 }
 
-@_cdecl("kk_float_to_long")
-public func kk_float_to_long(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_long")
+public func __kk_float_to_long(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return 0 }
     if f >= Float(Int64.max) { return Int(Int64.max) }
@@ -1402,8 +1368,7 @@ public func kk_float_to_long(_ value: Int) -> Int {
 }
 
 /// Long→* conversions: `Int` (intptr_t) is used for Long values.
-/// This is correct on 64-bit macOS where Int == Int64; see the note above
-/// kk_long_coerceIn for the full rationale.
+/// This is correct on 64-bit macOS where Int == Int64.
 @_cdecl("kk_long_to_int")
 public func kk_long_to_int(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))
@@ -1432,25 +1397,6 @@ public func kk_long_to_byte(_ value: Int) -> Int {
 @_cdecl("kk_long_to_short")
 public func kk_long_to_short(_ value: Int) -> Int {
     Int(Int16(truncatingIfNeeded: value))
-}
-
-// Kotlin Int is 32-bit; runtime stores it sign-extended in a 64-bit word.
-// Truncate to Int32 before querying bit properties so results match Kotlin semantics
-// (e.g. (-1).countOneBits() == 32, not 64).
-// Optimized: Use direct bit manipulation to avoid Int32 conversion overhead
-@_cdecl("kk_int_countOneBits")
-public func kk_int_countOneBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).nonzeroBitCount)
-}
-
-@_cdecl("kk_int_countLeadingZeroBits")
-public func kk_int_countLeadingZeroBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).leadingZeroBitCount)
-}
-
-@_cdecl("kk_int_countTrailingZeroBits")
-public func kk_int_countTrailingZeroBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).trailingZeroBitCount)
 }
 
 // MARK: - Double arithmetic ops (bit-encoded intptr_t ABI)
@@ -1631,6 +1577,35 @@ public func kk_op_ge(_ lhs: Int, _ rhs: Int) -> Int {
     lhs >= rhs ? 1 : 0
 }
 
+// MARK: - Unsigned comparison ops (UInt/ULong/UByte/UShort)
+//
+// UByte/UShort/UInt are always zero-extended into this 64-bit container, so
+// their positive range never sets bit 63 and kk_op_lt/le/gt/ge above already
+// agree with unsigned ordering for them. ULong is the one unsigned type that
+// spans the full 64 bits, so a value >= 2^63 looks negative under signed
+// comparison. Reinterpreting both operands as UInt (bitPattern) fixes ULong
+// while remaining a no-op for the narrower unsigned types.
+
+@_cdecl("kk_op_ult")
+public func kk_op_ult(_ lhs: Int, _ rhs: Int) -> Int {
+    UInt(bitPattern: lhs) < UInt(bitPattern: rhs) ? 1 : 0
+}
+
+@_cdecl("kk_op_ule")
+public func kk_op_ule(_ lhs: Int, _ rhs: Int) -> Int {
+    UInt(bitPattern: lhs) <= UInt(bitPattern: rhs) ? 1 : 0
+}
+
+@_cdecl("kk_op_ugt")
+public func kk_op_ugt(_ lhs: Int, _ rhs: Int) -> Int {
+    UInt(bitPattern: lhs) > UInt(bitPattern: rhs) ? 1 : 0
+}
+
+@_cdecl("kk_op_uge")
+public func kk_op_uge(_ lhs: Int, _ rhs: Int) -> Int {
+    UInt(bitPattern: lhs) >= UInt(bitPattern: rhs) ? 1 : 0
+}
+
 // MARK: - Int/Long arithmetic ops (flooring division and modulo)
 
 private func runtimeFloorDiv(_ lhs: Int, _ rhs: Int) -> Int {
@@ -1679,6 +1654,32 @@ public func kk_op_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<
     return lhs % rhs
 }
 
+// PEC-NUM-0002 / KSP-466: UInt/ULong/UByte/UShort division and remainder must
+// reinterpret the raw 64-bit container as unsigned before dividing — plain
+// signed `/`/`%` misreads any ULong with the high bit set (>= 2^63) as
+// negative. UByte/UShort/UInt are always zero-extended into this container,
+// so unsigned reinterpretation is a no-op for them; ULong is the one type
+// that actually needs it. Unlike kk_op_div/kk_op_mod there is no INT_MIN/-1
+// overflow case to special-case (unsigned division cannot overflow), but
+// zero-divisor must still throw ArithmeticException via outThrown.
+@_cdecl("kk_op_udiv")
+public func kk_op_udiv(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
+    return Int(bitPattern: UInt(bitPattern: lhs) / UInt(bitPattern: rhs))
+}
+
+@_cdecl("kk_op_urem")
+public func kk_op_urem(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
+    return Int(bitPattern: UInt(bitPattern: lhs) % UInt(bitPattern: rhs))
+}
+
 private func runtimeFloorMod(_ lhs: Int, _ rhs: Int) -> Int {
     if rhs == 0 { return 0 }
     if lhs == Int.min && rhs == -1 { return 0 }
@@ -1701,9 +1702,16 @@ public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int) -> Int {
 
 // MARK: - Char operations
 
-@_cdecl("kk_char_rangeTo")
+@_cdecl("__kk_char_rangeTo")
 public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)
-    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: endChar, step: 1))
+    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: endChar, step: 1, kind: .charRange))
+}
+
+@_cdecl("__kk_char_rangeUntil")
+public func __kk_char_rangeUntil(_ startValue: Int, _ endValue: Int) -> Int {
+    let startChar = kk_unbox_char(startValue)
+    let endChar = kk_unbox_char(endValue)
+    return runtimeUntilRange(first: startChar, exclusiveEnd: endChar, kind: .charRange, endAtOrBelowMinimum: endChar <= 0)
 }

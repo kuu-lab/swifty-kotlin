@@ -4,22 +4,66 @@ import Testing
 
 @Suite
 struct ReflectKProperty2SyntheticTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
+    private static let fixture = SemaFixture(surface: "KProperty2")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KProperty2 surface to resolve cleanly, got: \(diagnostics)"))
-            result = try (try #require(ctx.sema), ctx.interner)
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
+    }
+
+    private static let sourceSemaSources: [String] = [
+        """
+        package sample0
+        import kotlin.reflect.KProperty2
+
+        fun <D, E, V> read(property: KProperty2<D, E, V>, receiver1: D, receiver2: E): V {
+            val first = property.get(receiver1, receiver2)
+            val second = property.invoke(receiver1, receiver2)
+            return first
         }
-        return try #require(result)
+
+        fun <D, E, V> delegateOf(property: KProperty2<D, E, V>, receiver1: D, receiver2: E): Any? =
+            property.getDelegate(receiver1, receiver2)
+        """,
+        """
+        package sample1
+        import kotlin.reflect.KMutableProperty2
+
+        fun <D, E, V> write(property: KMutableProperty2<D, E, V>, receiver1: D, receiver2: E, value: V): V {
+            property.set(receiver1, receiver2, value)
+            val readBack = property.get(receiver1, receiver2)
+            val invoked = property(receiver1, receiver2)
+            return readBack
+        }
+        """,
+    ]
+
+    private static nonisolated(unsafe) var _sharedSourceSema: (SemaModule, StringInterner)?
+
+    private func sharedSourceSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSourceSema { return cached }
+        let pair = try makeSema(sources: Self.sourceSemaSources)
+        Self._sharedSourceSema = pair
+        return pair
+    }
+
+    private func makeSema(
+        sources: [String],
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(sources: sources, sourceLocation: sourceLocation)
     }
 
     @Test func testKProperty2SurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
         let functionPackage = ["kotlin", "Function"].map { interner.intern($0) }
 
@@ -35,7 +79,8 @@ struct ReflectKProperty2SyntheticTests {
 
         let kProperty2Info = try #require(sema.symbols.symbol(kProperty2Symbol))
         #expect(kProperty2Info.kind == .interface)
-        #expect(kProperty2Info.flags.contains(.synthetic))
+        // KSP-682: KProperty2 is now bundled Kotlin source, not a synthetic stub.
+        #expect(!kProperty2Info.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kProperty2Symbol)
         #expect(typeParams.count == 3)
@@ -46,13 +91,13 @@ struct ReflectKProperty2SyntheticTests {
         let vType = sema.types.make(.typeParam(TypeParamType(symbol: typeParams[2], nullability: .nonNull)))
         let receiverType = sema.types.make(.classType(ClassType(
             classSymbol: kProperty2Symbol,
-            args: [.invariant(dType), .invariant(eType), .out(vType)],
+            args: [.invariant(dType), .invariant(eType), .invariant(vType)],
             nullability: .nonNull
         )))
 
         #expect(sema.symbols.directSupertypes(for: kProperty2Symbol).contains(kPropertySymbol))
         #expect(
-            sema.symbols.supertypeTypeArgs(for: kProperty2Symbol, supertype: kPropertySymbol) == [.out(vType)]
+            sema.symbols.supertypeTypeArgs(for: kProperty2Symbol, supertype: kPropertySymbol) == [.invariant(vType)]
         )
         #expect(sema.symbols.directSupertypes(for: kProperty2Symbol).contains(function2Symbol))
         #expect(
@@ -92,24 +137,11 @@ struct ReflectKProperty2SyntheticTests {
     }
 
     @Test func testKProperty2MemberCallsResolveInSource() throws {
-        let source = """
-        import kotlin.reflect.KProperty2
-
-        fun <D, E, V> read(property: KProperty2<D, E, V>, receiver1: D, receiver2: E): V {
-            val first = property.get(receiver1, receiver2)
-            val second = property.invoke(receiver1, receiver2)
-            return first
-        }
-
-        fun <D, E, V> delegateOf(property: KProperty2<D, E, V>, receiver1: D, receiver2: E): Any? =
-            property.getDelegate(receiver1, receiver2)
-        """
-
-        _ = try makeSema(source: source)
+        _ = try sharedSourceSema()
     }
 
     @Test func testKMutableProperty2SurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
         let kProperty2Symbol = try #require(sema.symbols.lookup(
@@ -124,7 +156,8 @@ struct ReflectKProperty2SyntheticTests {
 
         let kMutableProperty2Info = try #require(sema.symbols.symbol(kMutableProperty2Symbol))
         #expect(kMutableProperty2Info.kind == .interface)
-        #expect(kMutableProperty2Info.flags.contains(.synthetic))
+        // KSP-682: KMutableProperty2 is now bundled Kotlin source, not a synthetic stub.
+        #expect(!kMutableProperty2Info.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kMutableProperty2Symbol)
         #expect(typeParams.count == 3)
@@ -160,18 +193,7 @@ struct ReflectKProperty2SyntheticTests {
     }
 
     @Test func testKMutableProperty2MemberCallsResolveInSource() throws {
-        let source = """
-        import kotlin.reflect.KMutableProperty2
-
-        fun <D, E, V> write(property: KMutableProperty2<D, E, V>, receiver1: D, receiver2: E, value: V): V {
-            property.set(receiver1, receiver2, value)
-            val readBack = property.get(receiver1, receiver2)
-            val invoked = property(receiver1, receiver2)
-            return readBack
-        }
-        """
-
-        _ = try makeSema(source: source)
+        _ = try sharedSourceSema()
     }
 }
 #endif

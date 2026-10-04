@@ -1,20 +1,25 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeNumericFloorDivTests: XCTestCase {
+@Suite
+struct RuntimeNumericFloorDivTests {
+    @Test
     func testSignedFloorDivMatchesKotlinSemantics() {
-        XCTAssertEqual(kk_op_floor_div(7, 3), 2)
-        XCTAssertEqual(kk_op_floor_div(-7, 3), -3)
-        XCTAssertEqual(kk_op_floor_div(7, -3), -3)
-        XCTAssertEqual(kk_op_floor_div(-7, -3), 2)
-        XCTAssertEqual(kk_op_floor_div(1, 0), 0)
+        #expect(kk_op_floor_div(7, 3) == 2)
+        #expect(kk_op_floor_div(-7, 3) == -3)
+        #expect(kk_op_floor_div(7, -3) == -3)
+        #expect(kk_op_floor_div(-7, -3) == 2)
+        #expect(kk_op_floor_div(1, 0) == 0)
     }
 
+    @Test
     func testLongFloorDivUsesSameRuntimeSemantics() {
-        XCTAssertEqual(kk_op_lfloor_div(7, 3), 2)
-        XCTAssertEqual(kk_op_lfloor_div(-7, 3), -3)
-        XCTAssertEqual(kk_op_lfloor_div(7, -3), -3)
-        XCTAssertEqual(kk_op_lfloor_div(-7, -3), 2)
-        XCTAssertEqual(kk_op_lfloor_div(Int.min, -1), Int.min)
+        #expect(kk_op_lfloor_div(7, 3) == 2)
+        #expect(kk_op_lfloor_div(-7, 3) == -3)
+        #expect(kk_op_lfloor_div(7, -3) == -3)
+        #expect(kk_op_lfloor_div(-7, -3) == 2)
+        #expect(kk_op_lfloor_div(Int.min, -1) == Int.min)
     }
 }
+#endif

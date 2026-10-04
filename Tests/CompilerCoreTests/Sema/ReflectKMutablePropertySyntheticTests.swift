@@ -4,22 +4,54 @@ import Testing
 
 @Suite
 struct ReflectKMutablePropertySyntheticTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
+    private static let fixture = SemaFixture(surface: "KMutableProperty")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KMutableProperty surface to resolve cleanly, got: \(diagnostics)"))
-            result = try (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
+    }
+
+    private static let sourceSemaSources: [String] = [
+        """
+        package sample0
+        import kotlin.reflect.KMutableProperty
+
+        fun <V> propertyName(property: KMutableProperty<V>): String = property.name
+        """,
+        """
+        package sample1
+        import kotlin.reflect.KMutableProperty
+
+        fun <V> getSetter(property: KMutableProperty<V>): KMutableProperty.Setter<V> = property.setter
+        """,
+    ]
+
+    private static nonisolated(unsafe) var _sharedSourceSema: (SemaModule, StringInterner)?
+
+    private func sharedSourceSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSourceSema { return cached }
+        let pair = try makeSema(sources: Self.sourceSemaSources)
+        Self._sharedSourceSema = pair
+        return pair
+    }
+
+    private func makeSema(
+        sources: [String],
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(sources: sources, sourceLocation: sourceLocation)
     }
 
     @Test func testKMutablePropertySurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
         let kPropertySymbol = try #require(sema.symbols.lookup(
@@ -31,7 +63,8 @@ struct ReflectKMutablePropertySyntheticTests {
 
         let kMutablePropertyInfo = try #require(sema.symbols.symbol(kMutablePropertySymbol))
         #expect(kMutablePropertyInfo.kind == .interface)
-        #expect(kMutablePropertyInfo.flags.contains(.synthetic))
+        #expect(!kMutablePropertyInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(kMutablePropertySymbol))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kMutablePropertySymbol)
         #expect(typeParams.count == 1)
@@ -48,17 +81,11 @@ struct ReflectKMutablePropertySyntheticTests {
     }
 
     @Test func testKMutablePropertyTypeReferencesResolveInSource() throws {
-        let source = """
-        import kotlin.reflect.KMutableProperty
-
-        fun <V> propertyName(property: KMutableProperty<V>): String = property.name
-        """
-
-        _ = try makeSema(source: source)
+        _ = try sharedSourceSema()
     }
 
     @Test func testKMutablePropertySetterNestedTypeIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
         let kMutablePropertySymbol = try #require(sema.symbols.lookup(
@@ -81,7 +108,7 @@ struct ReflectKMutablePropertySyntheticTests {
     }
 
     @Test func testKMutablePropertySetterPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
         let kMutablePropertySymbol = try #require(sema.symbols.lookup(
@@ -113,13 +140,7 @@ struct ReflectKMutablePropertySyntheticTests {
     }
 
     @Test func testKMutablePropertySetterAccessResolvesInSource() throws {
-        let source = """
-        import kotlin.reflect.KMutableProperty
-
-        fun <V> getSetter(property: KMutableProperty<V>): KMutableProperty.Setter<V> = property.setter
-        """
-
-        _ = try makeSema(source: source)
+        _ = try sharedSourceSema()
     }
 }
 #endif

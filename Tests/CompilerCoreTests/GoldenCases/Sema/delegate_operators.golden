@@ -1,28 +1,28 @@
-symbol fq=golden.sema.DelegateProvider kind=class vis=public flags=_
-symbol fq=golden.sema.DelegateProvider.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.DelegateProvider params=[] ret=golden.sema.DelegateProvider
-symbol fq=golden.sema.ReadOnlyDelegate kind=class vis=public flags=_
-symbol fq=golden.sema.ReadOnlyDelegate.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.ReadOnlyDelegate params=[] ret=golden.sema.ReadOnlyDelegate
-symbol fq=golden.sema.ReadWriteDelegate kind=class vis=public flags=_
-symbol fq=golden.sema.ReadWriteDelegate.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.ReadWriteDelegate params=[] ret=golden.sema.ReadWriteDelegate
-symbol fq=golden.sema.ReadWriteDelegate.setValue.$0.value kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.ReadWriteDelegate.stored kind=property vis=private flags=mutable type=String
-symbol fq=golden.sema.provided kind=property vis=public flags=_ type=String
-symbol fq=golden.sema.readOnly kind=property vis=public flags=_ type=String
-symbol fq=golden.sema.readWrite kind=property vis=public flags=mutable type=String
-file f13 package=golden.sema
-  decl d0 class ReadOnlyDelegate sym=golden.sema.ReadOnlyDelegate
-  decl d1 class ReadWriteDelegate sym=golden.sema.ReadWriteDelegate
-  decl d2 class DelegateProvider sym=golden.sema.DelegateProvider
-  decl d3 property readOnly var=0 sym=golden.sema.readOnly
-  decl d4 property readWrite var=1 sym=golden.sema.readWrite
-  decl d5 property provided var=0 sym=golden.sema.provided
-expr e0 string(delegated) type=String
-expr e1 string() type=String
-expr e2 name(stored) type=String ref=golden.sema.ReadWriteDelegate.stored
-expr e3 name(value) type=String ref=golden.sema.ReadWriteDelegate.setValue.$0.value
-expr e4 localAssign stored value=e3 type=Unit ref=golden.sema.ReadWriteDelegate.stored
-expr e5 call callee=e6 args=[] type=golden.sema.ReadOnlyDelegate call=golden.sema.ReadOnlyDelegate.<init>
-expr e7 return value=e5 type=Nothing
-expr e8 call callee=e9 args=[] type=golden.sema.ReadOnlyDelegate call=golden.sema.ReadOnlyDelegate.<init>
-expr e10 call callee=e11 args=[] type=golden.sema.ReadWriteDelegate call=golden.sema.ReadWriteDelegate.<init>
-expr e12 call callee=e13 args=[] type=golden.sema.DelegateProvider call=golden.sema.DelegateProvider.<init>
+symbol fq=golden.sema.DelegateProvider.<init>[kind=ctor;recv=golden.sema.DelegateProvider;params=] kind=constructor vis=public flags=_ sig=recv=golden.sema.DelegateProvider params=[] ret=golden.sema.DelegateProvider
+symbol fq=golden.sema.DelegateProvider[kind=class] kind=class vis=public flags=_
+symbol fq=golden.sema.ReadOnlyDelegate.<init>[kind=ctor;recv=golden.sema.ReadOnlyDelegate;params=] kind=constructor vis=public flags=_ sig=recv=golden.sema.ReadOnlyDelegate params=[] ret=golden.sema.ReadOnlyDelegate
+symbol fq=golden.sema.ReadOnlyDelegate[kind=class] kind=class vis=public flags=_
+symbol fq=golden.sema.ReadWriteDelegate.<init>[kind=ctor;recv=golden.sema.ReadWriteDelegate;params=] kind=constructor vis=public flags=_ sig=recv=golden.sema.ReadWriteDelegate params=[] ret=golden.sema.ReadWriteDelegate
+symbol fq=golden.sema.ReadWriteDelegate.setValue.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.ReadWriteDelegate.stored[kind=prop] kind=property vis=private flags=mutable type=String
+symbol fq=golden.sema.ReadWriteDelegate[kind=class] kind=class vis=public flags=_
+symbol fq=golden.sema.provided[kind=prop] kind=property vis=public flags=_ type=String
+symbol fq=golden.sema.readOnly[kind=prop] kind=property vis=public flags=_ type=String
+symbol fq=golden.sema.readWrite[kind=prop] kind=property vis=public flags=mutable type=String
+file fdelegate_operators package=golden.sema
+  decl golden.sema.ReadOnlyDelegate[kind=class] class ReadOnlyDelegate sym=golden.sema.ReadOnlyDelegate[kind=class]
+  decl golden.sema.ReadWriteDelegate[kind=class] class ReadWriteDelegate sym=golden.sema.ReadWriteDelegate[kind=class]
+  decl golden.sema.DelegateProvider[kind=class] class DelegateProvider sym=golden.sema.DelegateProvider[kind=class]
+  decl golden.sema.readOnly[kind=prop] property readOnly var=0 sym=golden.sema.readOnly[kind=prop]
+  decl golden.sema.readWrite[kind=prop] property readWrite var=1 sym=golden.sema.readWrite[kind=prop]
+  decl golden.sema.provided[kind=prop] property provided var=0 sym=golden.sema.provided[kind=prop]
+expr e@7:76 string(delegated) type=String
+expr e@12:34 string() type=String
+expr e@13:76 name(stored) type=String ref=golden.sema.ReadWriteDelegate.stored[kind=prop]
+expr e@15:18 name(value) type=String ref=golden.sema.ReadWriteDelegate.setValue.$0.value[kind=vparam]
+expr e@15:9 localAssign stored value=e@15:18 type=Unit ref=golden.sema.ReadWriteDelegate.stored[kind=prop]
+expr e@22:16 call callee=e@22:16#1 args=[] type=golden.sema.ReadOnlyDelegate call=golden.sema.ReadOnlyDelegate.<init>[kind=ctor;recv=golden.sema.ReadOnlyDelegate;params=]
+expr e@22:9 return value=e@22:16 type=Nothing
+expr e@26:25 call callee=e@26:25#1 args=[] type=golden.sema.ReadOnlyDelegate call=golden.sema.ReadOnlyDelegate.<init>[kind=ctor;recv=golden.sema.ReadOnlyDelegate;params=]
+expr e@27:26 call callee=e@27:26#1 args=[] type=golden.sema.ReadWriteDelegate call=golden.sema.ReadWriteDelegate.<init>[kind=ctor;recv=golden.sema.ReadWriteDelegate;params=]
+expr e@28:25 call callee=e@28:25#1 args=[] type=golden.sema.DelegateProvider call=golden.sema.DelegateProvider.<init>[kind=ctor;recv=golden.sema.DelegateProvider;params=]

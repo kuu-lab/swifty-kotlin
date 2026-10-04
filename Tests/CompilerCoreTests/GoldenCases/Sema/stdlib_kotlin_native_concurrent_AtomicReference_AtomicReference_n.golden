@@ -1,0 +1,27 @@
+symbol fq=golden.sema.atomicReferenceCompareAndSwap.$0.expected[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceCompareAndSwap.$0.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceCompareAndSwap.$0.reference[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>,String,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicReference<String>,String,String] ret=String
+symbol fq=golden.sema.atomicReferenceGetAndSet.$1.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceGetAndSet.$1.reference[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceGetAndSet[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicReference<String>,String] ret=String
+symbol fq=golden.sema.atomicReferenceToString.$2.reference[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceToString[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicReference<String>] ret=String
+symbol fq=golden.sema.atomicReferenceValue.$3.reference[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceValue[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicReference<String>] ret=String
+file fstdlib_kotlin_native_concurrent_AtomicReference_AtomicReference_n package=golden.sema annotations=[@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.atomicReferenceValue[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>] fun atomicReferenceValue sym=golden.sema.atomicReferenceValue[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>]
+  decl golden.sema.atomicReferenceGetAndSet[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>,String] fun atomicReferenceGetAndSet sym=golden.sema.atomicReferenceGetAndSet[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>,String]
+  decl golden.sema.atomicReferenceCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>,String,String] fun atomicReferenceCompareAndSwap sym=golden.sema.atomicReferenceCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>,String,String]
+  decl golden.sema.atomicReferenceToString[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>] fun atomicReferenceToString sym=golden.sema.atomicReferenceToString[kind=fun;params=kotlin.native.concurrent.AtomicReference<String>]
+expr e@7:72 name(reference) type=kotlin.native.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceValue.$3.reference[kind=vparam]
+expr e@7:72#1 memberCall recv=e@7:72 callee=value args=[] type=String ref=kotlin.native.concurrent.AtomicReference.value[kind=prop]
+expr e@12:13 name(reference) type=kotlin.native.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceGetAndSet.$1.reference[kind=vparam]
+expr e@12:33 name(newValue) type=String ref=golden.sema.atomicReferenceGetAndSet.$1.newValue[kind=vparam]
+expr e@12:13#1 memberCall recv=e@12:13 callee=getAndSet args=[_:e@12:33] type=String call=kotlin.native.concurrent.AtomicReference.getAndSet[kind=fun;recv=kotlin.native.concurrent.AtomicReference<T0>;params=T0;gen=1] targs=[String]
+expr e@18:13 name(reference) type=kotlin.native.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceCompareAndSwap.$0.reference[kind=vparam]
+expr e@18:38 name(expected) type=String ref=golden.sema.atomicReferenceCompareAndSwap.$0.expected[kind=vparam]
+expr e@18:48 name(newValue) type=String ref=golden.sema.atomicReferenceCompareAndSwap.$0.newValue[kind=vparam]
+expr e@18:13#1 memberCall recv=e@18:13 callee=compareAndSwap args=[_:e@18:38,_:e@18:48] type=String call=kotlin.native.concurrent.AtomicReference.compareAndSwap[kind=fun;recv=kotlin.native.concurrent.AtomicReference<T0>;params=T0,T0;gen=1] targs=[String]
+expr e@20:75 name(reference) type=kotlin.native.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceToString.$2.reference[kind=vparam]
+expr e@20:75#1 memberCall recv=e@20:75 callee=toString args=[] type=String call=kotlin.native.concurrent.AtomicReference.toString[kind=fun;recv=kotlin.native.concurrent.AtomicReference<T0>;params=;gen=1] targs=[String]

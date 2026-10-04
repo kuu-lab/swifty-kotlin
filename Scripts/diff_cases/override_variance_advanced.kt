@@ -1,3 +1,4 @@
+
 // Advanced test cases for override variance
 
 // Test generic return type covariance
@@ -37,10 +38,10 @@ open class DerivedClass : BaseClass() {
 // Test interface inheritance with variance
 interface Reader<out T> {
     fun read(): T
-    protected fun getStatus(): String
+    fun getStatus(): String
 }
 
-class FileReader : Reader<String> {
+open class FileReader : Reader<String> {
     override fun read(): String = "file content"
     
     // Valid: visibility expansion
@@ -88,13 +89,13 @@ class ConcreteProcessor : AbstractProcessor() {
 
 // Test edge cases
 open class EdgeCaseBase {
-    open fun getUnit(): Unit = Unit
+    open fun getUnit() { }
     open fun getNothing(): Nothing = throw RuntimeException()
 }
 
 open class EdgeCaseDerived : EdgeCaseBase() {
     // Valid: Unit -> Unit
-    override fun getUnit(): Unit = Unit
+    override fun getUnit() { }
     
     // Valid: Nothing -> Nothing (bottom type)
     override fun getNothing(): Nothing = throw RuntimeException("derived")

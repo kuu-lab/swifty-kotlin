@@ -1,5 +1,5 @@
 
-struct TypeInferenceContext {
+struct TypeInferenceContext: CustomStringConvertible {
     let ast: ASTModule
     let sema: SemaModule
     let semaCtx: SemaModule
@@ -13,15 +13,36 @@ struct TypeInferenceContext {
     /// Stack of labels attached to enclosing lambda literals.
     /// Used by `return@label` to verify that the label references a valid lambda.
     var lambdaLabelStack: [InternedString]
+    /// Number of lambda bodies enclosing the expression currently being inferred.
+    /// An unlabeled return inside such a body is a non-local return and is checked
+    /// against the surrounding named function's return type rather than the
+    /// lambda's predicate/result type.
+    var lambdaDepth: Int = 0
+    /// Return type of the nearest named function body. This remains unchanged
+    /// while entering lambda literals so non-local return values are checked
+    /// against the actual return target.
+    var enclosingFunctionReturnType: TypeID?
     /// When set, the specified block expression exports its local bindings to
     /// the outer locals map. Used for do-while body-to-condition visibility.
     var exportBlockLocalsForExpr: ExprID?
     var flowState: DataFlowState
     let currentFileID: FileID
     var currentDeclSymbol: SymbolID?
+    /// When set, the symbol of the property/val whose initializer expression is
+    /// currently being type-checked. A bare name reference that resolves back to
+    /// this same symbol is a self-referential read before the property has ever
+    /// been initialized (DEBT-SEMA-003), e.g. `val cyclic: List<*> = listOf(cyclic)`.
+    /// Scoped to just the initializer expression — not carried into getter/setter
+    /// bodies, where reading the property's own name is a normal (if recursive)
+    /// property access rather than a use-before-init.
+    var initializingPropertySymbol: SymbolID?
     var enclosingClassSymbol: SymbolID?
     let visibilityChecker: VisibilityChecker
-    var outerReceiverTypes: [(label: InternedString, type: TypeID)]
+    /// `symbol` is the enclosing function's receiver parameter when the entry's
+    /// runtime value is reachable through capture (e.g. the enclosing `this`
+    /// captured into an object literal's fields); `nil` entries participate in
+    /// `this@Label` typing only.
+    var outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]
     /// Context receiver types available to `contextOf<A>()` in the current lambda body.
     var contextReceiverTypes: [TypeID] = []
     /// When true, the current scope is a builder DSL lambda body (STDLIB-002).
@@ -36,6 +57,10 @@ struct TypeInferenceContext {
     /// When true, the current scope is a `flow { ... }` builder lambda body.
     /// Used to resolve unqualified `emit(...)` fallback.
     var isFlowBuilderLambdaScope: Bool = false
+    /// When true, the current scope is a coroutine builder lambda body.
+    /// The lambda keeps the existing no-receiver ABI, but unqualified
+    /// `CoroutineScope` extension calls still resolve against the ambient scope.
+    var isCoroutineBuilderLambdaScope: Bool = false
     /// When true, assigning to an immutable member property is treated as
     /// initialization rather than reassignment. Used for `init {}` and
     /// constructor bodies.
@@ -67,9 +92,35 @@ struct TypeInferenceContext {
         return copy
     }
 
+    /// The source file whose body is currently being inferred.
+    ///
+    /// Member-style fallback resolution occasionally needs the file's import
+    /// provenance to disambiguate source-backed aliases that expand to the same
+    /// nominal runtime type. Keep that lookup on the context so callers do not
+    /// duplicate the AST scan.
+    var currentASTFile: ASTFile? {
+        ast.file(for: currentFileID)
+    }
+
     func withLambdaLabel(_ label: InternedString) -> TypeInferenceContext {
         var copy = self
         copy.lambdaLabelStack = lambdaLabelStack + [label]
+        return copy
+    }
+
+    func enteringLambdaBody() -> TypeInferenceContext {
+        var copy = self
+        copy.lambdaDepth += 1
+        // Lambda bodies open a new control-flow scope, like local function
+        // bodies do: a `break`/`continue` written directly in a lambda cannot
+        // reach a loop enclosing the lambda, because non-local break/continue
+        // is not implemented in Lowering (BUG-253) — the jump is dropped and a
+        // valid program silently becomes an infinite loop or a wrong result.
+        // Resetting the loop stacks makes KSWIFTK-SEMA-0018 / -0019 reject it.
+        // A loop *inside* the lambda re-increments `loopDepth`, so
+        // `run { while (true) { ... break } }` keeps compiling.
+        copy.loopDepth = 0
+        copy.loopLabelStack = []
         return copy
     }
 
@@ -77,12 +128,12 @@ struct TypeInferenceContext {
         lambdaLabelStack.contains(label)
     }
 
-    func with(enclosingClassSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
-        var copy = self; copy.enclosingClassSymbol = newSymbol; return copy
-    }
-
     func with(currentDeclSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
         var copy = self; copy.currentDeclSymbol = newSymbol; return copy
+    }
+
+    func with(initializingPropertySymbol newSymbol: SymbolID?) -> TypeInferenceContext {
+        var copy = self; copy.initializingPropertySymbol = newSymbol; return copy
     }
 
     func copying(
@@ -91,11 +142,13 @@ struct TypeInferenceContext {
         loopDepth: Int? = nil,
         loopLabelStack: [InternedString]? = nil,
         lambdaLabelStack: [InternedString]? = nil,
+        lambdaDepth: Int? = nil,
+        enclosingFunctionReturnType: TypeID?? = nil,
         exportBlockLocalsForExpr: ExprID?? = nil,
         flowState: DataFlowState? = nil,
         currentDeclSymbol: SymbolID?? = nil,
         enclosingClassSymbol: SymbolID?? = nil,
-        outerReceiverTypes: [(label: InternedString, type: TypeID)]? = nil,
+        outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]? = nil,
         contextReceiverTypes: [TypeID]? = nil
     ) -> TypeInferenceContext {
         var copy = self
@@ -112,6 +165,10 @@ struct TypeInferenceContext {
         if let loopDepth { copy.loopDepth = loopDepth }
         if let loopLabelStack { copy.loopLabelStack = loopLabelStack }
         if let lambdaLabelStack { copy.lambdaLabelStack = lambdaLabelStack }
+        if let lambdaDepth { copy.lambdaDepth = lambdaDepth }
+        if let enclosingFunctionReturnType {
+            copy.enclosingFunctionReturnType = enclosingFunctionReturnType
+        }
         if let exportBlockLocalsForExpr { copy.exportBlockLocalsForExpr = exportBlockLocalsForExpr }
         if let flowState { copy.flowState = flowState }
         if let currentDeclSymbol { copy.currentDeclSymbol = currentDeclSymbol }
@@ -127,9 +184,9 @@ struct TypeInferenceContext {
         return copy
     }
 
-    func withOuterReceiver(label: InternedString, type: TypeID) -> TypeInferenceContext {
+    func withOuterReceiver(label: InternedString, type: TypeID, symbol: SymbolID? = nil) -> TypeInferenceContext {
         var copy = self
-        copy.outerReceiverTypes = outerReceiverTypes + [(label: label, type: type)]
+        copy.outerReceiverTypes = outerReceiverTypes + [(label: label, type: type, symbol: symbol)]
         return copy
     }
 
@@ -140,11 +197,31 @@ struct TypeInferenceContext {
         return nil
     }
 
+    /// The receiver parameter symbol attached to a `this@Label` entry, when the
+    /// enclosing `this` is materializable through capture. See
+    /// `outerReceiverTypes`.
+    func resolveQualifiedThisReceiverSymbol(label: InternedString) -> SymbolID? {
+        for entry in outerReceiverTypes.reversed() where entry.label == label {
+            return entry.symbol
+        }
+        return nil
+    }
+
     func filterByVisibility(_ candidates: [SymbolID]) -> (visible: [SymbolID], invisible: [SemanticSymbol]) {
         var visible: [SymbolID] = []
         var invisible: [SemanticSymbol] = []
+        // A hidden compatibility factory must not shadow a usable constructor
+        // or overload. When it is the only candidate, keep it long enough for
+        // the normal deprecation path to emit KSWIFTK-SEMA-DEPRECATED rather
+        // than degrading the diagnostic to an unresolved reference.
+        let hasNonHiddenCandidate = candidates.contains {
+            !isHiddenByDeprecatedAnnotation($0, symbols: sema.symbols)
+        }
         for candidate in candidates {
             guard let symbol = cachedSymbol(candidate) else { continue }
+            guard !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
+                    || !hasNonHiddenCandidate
+            else { continue }
             if visibilityChecker.isAccessible(symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol) {
                 visible.append(candidate)
             } else {
@@ -163,11 +240,28 @@ struct TypeInferenceContext {
     }
 
     /// Performs a scope lookup, using the sema cache when available.
+    ///
+    /// `expect`/`actual` pairs are intentionally allowed to coexist in the same
+    /// scope (KSwiftK has no separate common/platform module compilation), so a
+    /// linked `expect` declaration is filtered out here once its `actual` is
+    /// known. Without this, every expression-level reference to the pair would
+    /// see two candidates with an identical shape: call resolution reports a
+    /// false ambiguous-overload, and name resolution binds arbitrarily to
+    /// whichever declaration happens to come first.
     func cachedScopeLookup(_ name: InternedString) -> [SymbolID] {
-        if let cache = semaCacheContext {
-            return cache.lookupInScope(name, scope: scope)
+        let results: [SymbolID] = if let cache = semaCacheContext {
+            cache.lookupInScope(name, scope: scope)
+        } else {
+            scope.lookup(name)
         }
-        return scope.lookup(name)
+        return results.filter { !isExpectDeclarationSupersededByActual($0) }
+    }
+
+    private func isExpectDeclarationSupersededByActual(_ id: SymbolID) -> Bool {
+        guard let symbol = cachedSymbol(id), symbol.flags.contains(.expectDeclaration) else {
+            return false
+        }
+        return sema.symbols.actualSymbol(for: id) != nil
     }
 
     /// Collects the FQ names of all @DslMarker meta-annotations that apply to
@@ -176,7 +270,7 @@ struct TypeInferenceContext {
     /// `@DslMarker`.
     func collectDslMarkerAnnotations(for typeID: TypeID) -> Set<String> {
         let nonNull = sema.types.makeNonNullable(typeID)
-        guard case let .classType(classType) = sema.types.kind(of: nonNull) else {
+        guard let classType = resolveClassType(nonNull, sema: sema) else {
             return []
         }
         let classSymbol = classType.classSymbol
@@ -265,5 +359,9 @@ struct TypeInferenceContext {
         )))
         let parentDslMarkers = collectDslMarkerAnnotations(for: parentType)
         return !activeDslMarkerAnnotations.isDisjoint(with: parentDslMarkers)
+    }
+
+    var description: String {
+        return "\(useNewInference) \(useUnrestrictedBuilderInference) \(useProperTypeInferenceConstraintsProcessing)"
     }
 }

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 
 /// Create a ``CompilerDriver`` instance configured for testing.
 func makeTestDriver() -> CompilerDriver {
@@ -13,14 +14,19 @@ func makeTestOptions(
     moduleName: String,
     inputs: [String],
     outputPath: String,
-    emit: EmitMode
+    emit: EmitMode,
+    allowDefaultStdlibLibrary: Bool = true
 ) -> CompilerOptions {
-    CompilerOptions(
+    if allowDefaultStdlibLibrary {
+        TestStdlibCache.shared.prepare()
+    }
+    return CompilerOptions(
         moduleName: moduleName,
         inputs: inputs,
         outputPath: outputPath,
         emit: emit,
-        target: defaultTargetTriple()
+        target: defaultTargetTriple(),
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
 }
 
@@ -28,30 +34,16 @@ func makeTestOptions(
 func assertKotlinCompilesToKIR(
     _ source: String,
     moduleName: String = "TestMod",
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation,
+    allowDefaultStdlibLibrary: Bool = false
 ) throws {
     try withTemporaryFile(contents: source) { path in
-        let fm = FileManager.default
-        let outputBase = fm.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString).path
-        let kirPath = outputBase + ".kir"
-        defer { try? fm.removeItem(atPath: kirPath) }
-
-        let options = makeTestOptions(
-            moduleName: moduleName,
+        try assertKotlinInputsToKIR(
             inputs: [path],
-            outputPath: outputBase,
-            emit: .kirDump
+            moduleName: moduleName,
+            sourceLocation: sourceLocation,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
-        let result = makeTestDriver().runForTesting(options: options)
-
-        #expect(result.exitCode == 0,
-                       "KIR compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })")
-        #expect(!(result.diagnostics.contains(where: { $0.severity == .error })),
-                       "Unexpected errors: \(result.diagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" })")
-        #expect(fm.fileExists(atPath: kirPath),
-                      "KIR file not produced at \(kirPath)")
     }
 }
 
@@ -59,66 +51,49 @@ func assertKotlinCompilesToKIR(
 func assertKotlinSourcesToKIR(
     _ sources: [String],
     moduleName: String = "TestMod",
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation,
+    allowDefaultStdlibLibrary: Bool = false
 ) throws {
     try withTemporaryFiles(contents: sources) { paths in
-        let fm = FileManager.default
-        let outputBase = fm.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString).path
-        let kirPath = outputBase + ".kir"
-        defer { try? fm.removeItem(atPath: kirPath) }
-
-        let options = makeTestOptions(
-            moduleName: moduleName,
+        try assertKotlinInputsToKIR(
             inputs: paths,
-            outputPath: outputBase,
-            emit: .kirDump
-        )
-        let result = makeTestDriver().runForTesting(options: options)
-
-        #expect(result.exitCode == 0,
-                       "KIR compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })")
-        #expect(!(result.diagnostics.contains(where: { $0.severity == .error })),
-                       "Unexpected errors: \(result.diagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" })")
-        #expect(fm.fileExists(atPath: kirPath),
-                      "KIR file not produced at \(kirPath)")
-    }
-}
-
-/// Compile Kotlin source through object emission and assert a valid object file is produced.
-func assertKotlinCompilesToObject(
-    _ source: String,
-    moduleName: String = "TestMod",
-    file: StaticString = #filePath,
-    line: UInt = #line
-) throws {
-    try withTemporaryFile(contents: source) { path in
-        let fm = FileManager.default
-        let outputBase = fm.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString).path
-        let objectPath = outputBase + ".o"
-        defer { try? fm.removeItem(atPath: objectPath) }
-
-        let options = makeTestOptions(
             moduleName: moduleName,
-            inputs: [path],
-            outputPath: outputBase,
-            emit: .object
+            sourceLocation: sourceLocation,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
-        let result = makeTestDriver().runForTesting(options: options)
-
-        #expect(result.exitCode == 0,
-                       "Object compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })")
-        #expect(!(result.diagnostics.contains(where: { $0.severity == .error })),
-                       "Unexpected errors: \(result.diagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" })")
-        #expect(fm.fileExists(atPath: objectPath),
-                      "Object file not produced at \(objectPath)")
-        if fm.fileExists(atPath: objectPath) {
-            let data = try Data(contentsOf: URL(fileURLWithPath: objectPath))
-            #expect(data.count > 0,
-                                 "Object file is empty")
-        }
     }
 }
+
+private func assertKotlinInputsToKIR(
+    inputs: [String],
+    moduleName: String,
+    sourceLocation: Testing.SourceLocation,
+    allowDefaultStdlibLibrary: Bool = false
+) throws {
+    let fm = FileManager.default
+    let outputBase = fm.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString).path
+    let kirPath = outputBase + ".kir"
+    defer { try? fm.removeItem(atPath: kirPath) }
+
+    let options = makeTestOptions(
+        moduleName: moduleName,
+        inputs: inputs,
+        outputPath: outputBase,
+        emit: .kirDump,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+    )
+    let result = makeTestDriver().runForTesting(options: options)
+
+    #expect(result.exitCode == 0,
+            "KIR compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })",
+            sourceLocation: sourceLocation)
+    #expect(!result.diagnostics.hasError,
+            "Unexpected errors: \(result.diagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" })",
+            sourceLocation: sourceLocation)
+    #expect(fm.fileExists(atPath: kirPath),
+            "KIR file not produced at \(kirPath)",
+            sourceLocation: sourceLocation)
+}
+
 #endif

@@ -1,33 +1,180 @@
 # AGENTS.md
 
-AI 向けの補足。プロジェクトのクイックリファレンスは [`CLAUDE.md`](CLAUDE.md)、アーキテクチャは [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照。
+AI 向けクイックリファレンス。詳細なアーキテクチャ・ナビゲーション情報は [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照。
+
+## プロジェクト概要
+
+KSwiftK は Swift で書かれた Kotlin コンパイラ。Kotlin 2.3.10 stable をターゲットとし、LLVM 経由で macOS ネイティブ実行ファイルを生成する。実行バイナリは `kswiftc`（LSP サーバ `kswift-lsp` も生成）。
+
+## ビルド & テストコマンド
+
+**動作確認は変更に関係する最低限のスコープで良い。** 既定は `swift build` ＋ 変更箇所を直接カバーするテストだけを `--filter` で回す（→ [動作確認の最小スコープ](#動作確認の最小スコープ)）。
+
+```bash
+swift build                              # デバッグビルド
+swift build -c release                   # リリースビルド
+bash Scripts/swift_test.sh                               # 全テスト（並列）
+bash Scripts/swift_test.sh --skip-build                  # ビルド済み成果物を再利用してテストのみ（古いバイナリで偽陽性の罠 → 下記「動作確認の最小スコープ」）
+bash Scripts/swift_test.sh --filter SmokeTests           # スモークテスト
+bash Scripts/swift_test.sh --filter Golden               # ゴールデン全部（Swift Testing: Lexer / Parser / Sema / Diagnostics）。`Golden` はシンボル名の部分一致
+bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden  # Sema ゴールデンのみ（`Golden.Sema` は @Suite 表示名のため --filter に効かない。型名で指定する）
+bash Scripts/swift_test.sh --filter CompilerCoreTests.LoweringPassRegressionTests  # 単一テストスイート（フロントエンド）
+bash Scripts/swift_test.sh --filter CompilerBackendTests                         # バックエンドテスト（LLVM 必要: macOS は brew の /opt/homebrew/opt/llvm を自動探索、別所は KSWIFTK_LLVM_DYLIB で指定）
+.build/debug/kswiftc path/to/file.kt -o out  # コンパイラを直接実行
+```
+
+- テストは全 target が Swift Testing（XCTest は全廃済み、`import XCTest` を新規に追加しない）。並列実行だとスイート単位の実行件数サマリが出ず 0 tests に見えることがある。実行確認には `--no-parallel` を付ける。
+- ワーカー数などの環境変数、Runtime ABI リンク検証（`validate_runtime_abi_links.sh`）、TODO ID 重複検出（`check_todo_ids.sh`）等の補助スクリプトは [`Scripts/README.md`](Scripts/README.md) を参照。
+
+### 動作確認の最小スコープ
+
+ローカルの動作確認は**変更に関係する範囲だけ**で良い。全テスト・全ゴールデン・全 diff ケースの総ざらいを既定の締め作業にしない（全体は CI が回す）。
+
+- 既定: `swift build`（型チェック）＋ 変更箇所を直接カバーするテストのみ `--filter` で指定
+- Golden: 変更が golden 出力に影響する場合のみ該当スイートを型名フィルタで回す（四スイート一括の `--filter Golden` は影響範囲が広いときだけ）
+- kotlinc 差分: ディレクトリ全体ではなく関係するケース単体（`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/foo.kt`）
+- 全体を回すのは、明示的に求められたとき、または CI が落ちた範囲を再現するときに限る
+- 時短目的の `--skip-build` 単独使用は避ける（古いテストバイナリで偽陽性が出る）。`swift build` と `swift test --skip-build` の同時実行も禁止
+- 回していない範囲は報告に明記する（「◯◯だけ確認、全体は未実行」）。縮小したスコープを green と誤報告しない
+
+### ゴールデンテスト更新
+
+CI（Full Swift Tests）と Swift の言語モードを揃えるなら `-Xswiftc -swift-version -Xswiftc 6` を付ける。
+
+```bash
+# 全ゴールデン（Lexer / Parser / Sema / Diagnostics）を一括更新
+UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6
+
+# Sema のみ更新する例
+UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden -Xswiftc -swift-version -Xswiftc 6
+
+git diff -- Tests/CompilerCoreTests/GoldenCases
+```
+
+所要時間を計測したいときは `time swift test --filter CompilerCoreTests.GoldenLexerGoldenTests/matchesGolden` のように型名フィルタで単一スイートを回す（四スイートまとめてなら `--filter Golden`）。
+
+### kotlinc 回帰差分
+
+```bash
+bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt  # 単一ケース
+bash Scripts/diff_kotlinc.sh Scripts/diff_cases            # 全ケース
+```
+
+CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifacts**（TSV・失敗ケースディレクトリ）を優先。`gh run view RUN_ID --log-failed` だけだと、kotlinc diff ステップは `continue-on-error` のため **本体ログが含まれない**ことがある。全文ログでは `FAIL ` を grep。
+
+CI は 2 段構成。PR と merge_group では最小ゲート（`.github/workflows/ci.yml`: リポジトリチェック + 全ターゲットのデバッグビルド + `SmokeTests`、必須チェックは `CI gate` 1 つ）だけが走る。CompilerCore/Backend/Runtime/CLI/LSP の全テストと kotlinc diff（O0 / O2 全件）は `.github/workflows/nightly-full.yml` が毎朝 04:00 JST に master で 1 回実行する。マージ前に全件を確認したい PR は `gh workflow run nightly-full.yml --ref <branch>` で手動実行する（失敗 artifact 名は `kotlinc-diff-regression-<run id>-{O0,O2}-shard-<n>`）。
+
+### リファクタ PR のゲート
+
+RF 系リファクタ PR でも、ローカルの動作確認は上記の最小スコープで良い（全体は CI に任せる）。全体を回す必要があるとき（明示的な依頼 / CI 失敗の再現）のコマンドは以下。
+
+```bash
+bash Scripts/swift_test.sh
+bash Scripts/swift_test.sh --filter Golden
+bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
+`Scripts/loc_report.sh` で変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、KIR/Lowering TODO/FIXME 数、`"kk_` リテラル数、`interner.resolve == "..."` 数、Runtime の `kk_cdecl_count` / `__kk_cdecl_count` の悪化がないことは（動作確認とは別のチェックとして）引き続き確認する（ベースラインは [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md)）。`kk_` 減 + `__kk_` 増の降格ペアは理由コード付きなら許容するが、`__kk_cdecl_count` の純増は§13-2の理由コードと影響範囲をPR本文に明記する。その他の意図的な悪化も、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
+
+## 長時間ゲートの委譲と自己検証
+
+このリポジトリのゲートは人間の待ち時間より長いので、完了を待ってブロックしない。
+
+- **長時間ゲートはサブエージェントに出す。** `bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（約 1400 ケース、30 分超、PASS/FAIL はケース単位で出るがサマリは最後）や `bash Scripts/swift_test.sh` の全テストは、サブエージェントに渡してその間に別の作業を進める。脱線や文脈不足が見えたら介入する。
+- **ただし同じ worktree で `swift build` / `swift test` を重ねない。** 同一 worktree での `swift build` と `swift test --skip-build` の同時実行は 0 CPU で停止し、重量 `swift test` を 2 本同時に起動すると `.outputUnavailable` の偽フレークが出る実績がある。並行させるなら別 worktree か、ビルドを伴わない作業にする。
+- **仕様準拠の判定は新しい文脈のサブエージェントに任せる。** RF 系ゲートやゴールデン更新が妥当かは、自己批評よりも、変更の意図を知らないサブエージェントに「[`docs/spec.md`](docs/spec.md) / ゴールデン差分と実装が一致しているか」を検証させた方が精度が高い。差分が大きい更新では、まとめて最後に見るのではなく途中で一度挟む。
+
+## バグ修正ルール
+
+作業中に発見したコンパイラ / ランタイムのバグは、原則として**発見したPR内で修正する**。修正には、症状を再現する最小の Kotlin コード（または `Scripts/diff_cases/` のケース）と、その挙動を固定する回帰テストを同じPRに含める。spawn_task などセッション外への報告だけで、修正可能なバグを先送りしてはならない。
+
+同じPRのスコープや安全な修正方針を超えて修正できない場合は、**Linear**（team `Kuu` / project「バグバックログ (BUG)」/ label `Bug`）に症状・最小再現・調査結果・修正しない理由を添えて起票し、issue リンクを PR description に記載する。**TODO.md には追加しない**（複数セッションが同じ挿入位置に書き込み、マージコンフリクトの最大要因になっていたため 2026-09-14 に廃止）。
+
+## スタック PR
+
+依存関係のある PR を積むとき（base を master 以外の PR ブランチにするとき）は、`gh pr create --base <branch>` を個別に並べず、GitHub の [stacked pull requests](https://docs.github.com/en/pull-requests/how-tos/stacked-pull-requests) を `gh stack`（公式拡張）で使う。GitHub 上でスタックとして表示され、下から順の原子的マージと、下の PR が merge されたときの上位 PR の base 自動付け替えが効く。
+
+前提: `gh extension install github/gh-stack`（gh 2.90 以上）。
+
+```bash
+# 新規: 一番下のブランチから積む
+gh stack init <bottom-branch>             # trunk は既定ブランチ（master）
+git commit ...                            # 通常どおりコミット
+gh stack add <next-branch>                # 上に 1 層追加（-Am "msg" でコミットも同時に）
+gh stack submit --open                    # 全ブランチを push し PR 作成 + スタック化。--auto / 非対話は draft 既定なので --open 必須
+
+# 既存ブランチ / 既存 PR を積む（下 → 上の順。ブランチ名・PR 番号・PR URL 可）
+gh stack link --open <bottom> <next> ...  # 連鎖に合わない既存 PR の base は自動修正。PR 番号指定なら push は発生しない
+
+# 確認・更新・マージ
+gh stack view                             # ブランチと PR 状態（⚠ は要 rebase）
+gh stack sync                             # fetch → 連鎖 rebase → --force-with-lease push。他者も push するブランチでは事前に調整する
+gh stack merge                            # 下から順に原子的マージ
+```
+
+- スタックは一直線のみ。1 つの PR を複数 PR の base にする扇型（fan-out）や、1 PR の複数スタック所属はできない。同じ base に並列で出したいものは依存順に 1 本に連ねるか、独立した PR にする
+- 必須チェック・必須レビュー・CODEOWNERS はすべての層で master（スタックの base）に対して評価され、CI は PR ごとに走る
+- 下の PR が先に merge されていたら、手で cherry-pick し直さず `gh stack sync` で追従する
+- merge queue 投入済み（queued for merge）や auto-merge 有効の PR はスタックに追加できず、`gh stack link` が exit 5 で止まる。その PR の merge を待ってから残りを `link` する
+- スタック化する前に下の PR が squash merge されていて、上のブランチに元コミットが残っている場合、通常の rebase はそのコミットを再適用しようとして衝突する。`git rebase --onto <新 base> <旧 base の tip> <branch>` で自分のコミットだけを載せ替える
+- `gh stack checkout` / `init` / `add` は現在の worktree のブランチを切り替える。他の作業を抱えた worktree では実行しない
+
+## アーキテクチャ概要
+
+```
+LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lowering → Codegen → Link
+```
+
+モジュール構成:
+
+- `CompilerCore` — フロントエンド（Lex〜Lowering）、LLVM 非依存
+- `CompilerBackend` — Codegen + Link。LLVM は `LLVMCAPIBindings+Loading.swift` で `libLLVM` を dlopen する動的ロード方式（システムターゲットなし）
+- `KSwiftKCLI` → `kswiftc` / `LSPServer` + `KSwiftLSPCLI` → `kswift-lsp`
+- `Runtime` — GC・coroutine・boxing / `RuntimeABI` — ABI 契約の共有境界
+- `GoldenHarnessSupport` / `GoldenHarnessWorker` — ゴールデンテストハーネス
+- `Sources/CompilerCore/Stdlib/kotlin/`（`kotlinx/` も同階層） — Kotlin ソース化された stdlib。`Bundle.module` リソースとして同梱。docs では `Stdlib/kotlin/...` と短縮表記する（[`docs/stdlib-pipeline.md`](docs/stdlib-pipeline.md)）
+- `CompilerTestSupport` / `TestStdlibCache` — テスト共有ヘルパーと、bundled stdlib を一度だけ `.kklib` にプリコンパイルして全テストで再利用するキャッシュ
+- `Tests/RuntimeTestsParallel` — 並列実行できる Runtime テストの分離ターゲット（`RuntimeTests` 本体は CI で直列実行）
+- `Tests/CrashCorpus` / `Tests/ARCH-025` — テストターゲットではないフィクスチャ。前者は mutation fuzzer の最小化クラッシュ入力（`.expect` 付き）、後者は JetBrains Kotlin testData のサブセット台帳（CI 非接続）
+
+詳細なディレクトリマップ・フェーズ仕様・タスク別ナビゲーションは → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+
+## コーディング規約
+
+- `swift-tools-version: 6.2` / Swift language mode 6（CI ツールチェーンは Swift 6.3）, macOS 12+, 4スペースインデント
+- 型/enum/プロトコル: `UpperCamelCase`、関数/変数: `lowerCamelCase`
+- フォーマッタ未設定 — 既存ファイルのスタイルに従う
+- コミットメッセージ: 短く命令形（例: "Add ...", "Fix ..."）
+- 診断コード: `KSWIFTK-{PHASE}-{NUMBER}` 形式（例: `KSWIFTK-SEMA-0001`）
+- 分割ファイルは責務ベースで命名（`+Part2` のような番号付き名は禁止）
 
 ## Cursor Cloud specific instructions
 
 ### 概要
 
-KSwiftK は **SwiftPM の単一リポジトリ**で、長期稼働するアプリサーバーは不要。開発では **Swift 6.2**、**LLVM 開発パッケージ**、ビルド成果物 **`kswiftc`** を使う。Linux（Ubuntu 24.04）では CI と同様に ELF オブジェクト／リンクまで検証できるが、製品ターゲット OS は **macOS**（README / `Package.swift` の platforms）。
+KSwiftK は **SwiftPM の単一リポジトリ**で、長期稼働するアプリサーバーは不要。開発では **Swift 6.3**、**LLVM 開発パッケージ**、ビルド成果物 **`kswiftc`** を使う。Linux（Ubuntu 24.04）では CI と同様に ELF オブジェクト／リンクまで検証できるが、製品ターゲット OS は **macOS**（README / `Package.swift` の platforms）。
 
 ### 必須環境変数（Linux）
 
-CI の [`.github/actions/setup-swift-llvm/action.yml`](.github/actions/setup-swift-llvm/action.yml) と同じ考え方:
+CI の [`.github/actions/setup-llvm/action.yml`](.github/actions/setup-llvm/action.yml) と同じ考え方（このアクションは `llvm-config` から下記を導出する）:
 
 | 変数 | 用途 |
 |------|------|
 | `C_INCLUDE_PATH` | `llvm-config --includedir`（例: `/usr/lib/llvm-18/include`） |
 | `LIBRARY_PATH` | `llvm-config --libdir` |
 | `KSWIFTK_LLVM_DYLIB` | `libLLVM*.so` の実ファイル（例: `/usr/lib/llvm-18/lib/libLLVM.so.1`） |
+| `LD_LIBRARY_PATH` | 同じ `libdir`（CI の setup-llvm が設定する） |
 
 `llvm-dev` が入っていれば、シェル起動時に `llvm-config` から上記を組み立てるのが安全。
 
 ### Swift ツールチェーン（Linux VM）
 
-- 公式 tarball を `/opt/swift-6.2` に展開し、`PATH` に `/opt/swift-6.2/usr/bin` を追加する（`swift-tools-version: 6.2` に合わせる）。
+- 公式 tarball を `/opt/swift-6.3` に展開し、`PATH` に `/opt/swift-6.3/usr/bin` を追加する（CI の `swift-version: "6.3"` に合わせる。`Package.swift` の `swift-tools-version` は 6.2 のまま）。
 - 新しいシェルでは `~/.bashrc` の KSwiftK ブロックが PATH / LLVM 変数を設定する想定。
 
 ### ビルド・テスト・実行
 
-標準コマンドは [`CLAUDE.md`](CLAUDE.md) のとおり。Linux での典型例:
+標準コマンドは上記「[ビルド & テストコマンド](#ビルド--テストコマンド)」のとおり。Linux での典型例:
 
 ```bash
 swift build
@@ -36,7 +183,7 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 ```
 
 - **スモーク**: `SmokeTests` はドライバ・KIR・LLVM オブジェクト生成まで（約 3 分、初回はテスト用バイナリのビルド込み）。
-- **全テスト**: `bash Scripts/swift_test.sh` は長時間。並列は `SWIFT_TEST_PARALLEL` / `SWIFT_TEST_WORKERS`（[`Scripts/README.md`](Scripts/README.md)）。
+- **全テスト**: `bash Scripts/swift_test.sh` は長時間。既定で並列実行、無効化は `--no-parallel`、ワーカー数調整は `SWIFT_TEST_WORKERS`（[`Scripts/README.md`](Scripts/README.md)）。
 - **kotlinc 差分**（任意）: JDK 21 + Kotlin 2.3.10 + `Scripts/diff_kotlinc.sh`。CI の diff ジョブ専用で、通常の `swift test` には不要。
 
 ### リント / フォーマット
@@ -47,4 +194,21 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 
 - `kswiftc` でリンクする際、Swift リンカ（`swiftc`）が PATH に必要。
 - Linux で `kswiftc` 実行時に `libswiftCore` 向けの linker warning が出ることがあるが、`hello.kt` のような最小ケースでは実行は成功する。
-- ゴールデン更新は `UPDATE_GOLDEN=1` と `-Xswiftc -swift-version -Xswiftc 6` を CI に合わせて使う（[`CLAUDE.md`](CLAUDE.md)）。
+- ゴールデン更新は `UPDATE_GOLDEN=1` と `-Xswiftc -swift-version -Xswiftc 6` を CI に合わせて使う（→ [ゴールデンテスト更新](#ゴールデンテスト更新)）。
+
+## 主要ドキュメント
+
+| ファイル | 内容 |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | ディレクトリマップ・データフロー・タスク別ナビゲーション |
+| [`docs/spec.md`](docs/spec.md) | フェーズ別実装仕様（Swift 型・API レベル） |
+| [`docs/stdlib-pipeline.md`](docs/stdlib-pipeline.md) | Stdlib の Kotlin ソース化: 3層モデル・優先規則・ブリッジ規約・移行プレイブック・移行ガバナンス（§13: 完了=enforcing / ブリッジ入場審査 / Capability Matrix / 粒度ルール） |
+| [`docs/debugging.md`](docs/debugging.md) | DWARF / lldb デバッグガイド |
+| [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md) | CompilerCore emit `kk_*` 名と `RuntimeABISpec` 照合の検証ギャップ |
+| [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md) | LoC / jscpd / stdlib 注入コストのベースライン（リファクタゲートの比較基準） |
+| [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) | `SKIP-DIFF` ケースの棚卸しと解除手順（DEBT-DIFF-001〜009） |
+| [`Scripts/README.md`](Scripts/README.md) | swift_test.sh の環境変数・補助スクリプト一覧 |
+| [`TODO.md`](TODO.md) | 未完了タスク一覧 |
+
+## 言語設定
+- 回答や指示への応答は、常に日本語で行ってください。

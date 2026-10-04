@@ -1,5 +1,6 @@
 // STDLIB-REFLECT-065: Annotation Reflection
 // Tests annotation metadata access via KClass reflection APIs.
+import kotlin.reflect.full.findAnnotation
 
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
@@ -9,7 +10,7 @@ annotation class MyAnnotation(val value: String = "default")
 @Retention(AnnotationRetention.RUNTIME)
 annotation class AnotherAnnotation
 
-@MyAnnotation(value = "hello")
+@MyAnnotation("hello")
 @AnotherAnnotation
 class AnnotatedClass
 

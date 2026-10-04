@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "experimental_markers_synthetic_single_quote_message.kt",
+      "range": {
+        "start": { "line": 5, "character": 44 },
+        "end": { "line": 5, "character": 83 }
+      },
+      "severity": 2,
+      "severityLabel": "warning",
+      "code": "KSWIFTK-SEMA-OPT-IN",
+      "source": "kswiftk",
+      "message": "'kotlin.native.concurrent.ObsoleteWorkersApi' requires opt-in. Annotate the usage with '@kotlin.native.concurrent.ObsoleteWorkersApi' or '@OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)'. Workers API is obsolete and will be replaced with threads eventually",
+      "codeActions": []
+    }
+  ]
+}

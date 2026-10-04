@@ -10,8 +10,32 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        guard sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor,
-              args.count == 2
+        // Bundled source bodies are omitted from regular `kirDump`/library
+        // output, so a source-backed primitive-array initializer can reach
+        // this lowerer without a body to inline. Preserve its Sema binding
+        // while reusing the compiler-provided array allocation and loop path.
+        let isSourceBackedArrayInitializer: Bool = {
+            guard args.count == 2,
+                  sema.bindings.stdlibSpecialCallKind(for: exprID) == nil,
+                  let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                  let symbol = sema.symbols.symbol(chosen),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(chosen),
+                  symbol.fqName.count == 2,
+                  symbol.fqName[0] == interner.intern("kotlin"),
+                  let signature = sema.symbols.functionSignature(for: chosen),
+                  signature.receiverType == nil,
+                  signature.parameterTypes.count == args.count
+            else {
+                return false
+            }
+            let knownNames = KnownCompilerNames(interner: interner)
+            return knownNames.isPrimitiveArrayConstructorTypeName(symbol.name)
+                && ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(signature.returnType)
+        }()
+        guard (sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor
+            || isSourceBackedArrayInitializer),
+            args.count == 1 || args.count == 2
         else {
             return nil
         }
@@ -19,11 +43,13 @@ extension CallLowerer {
         let intType = sema.types.intType
         let boolType = sema.types.booleanType
         let anyType = sema.types.anyType
-        let arrayNewCallee = interner.intern("kk_array_new")
-        let arraySetCallee = interner.intern("kk_array_set")
-        let lessThanCallee = interner.intern("kk_op_lt")
-        let addCallee = interner.intern("kk_op_add")
-        let unboxIntCallee = interner.intern("kk_unbox_int")
+        let arrayNewCallee = interner.intern("kk_array_new_checked")
+        let arrayTypeID = [
+            sema.bindings.exprTypes[exprID],
+            sema.bindings.callBinding(for: exprID)
+                .flatMap { $0.chosenCallee }
+                .flatMap { sema.symbols.functionSignature(for: $0)?.returnType },
+        ].compactMap { runtimeArrayNominalTypeID($0, sema: sema, interner: interner) }.first
 
         // 1. Lower the size argument
         let sizeExpr = driver.lowerExpr(
@@ -36,19 +62,48 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        // 2. Create the array: kk_array_new(size)
-        let arrayExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+        // 2. Create the array: kk_array_new_checked(size) — throws
+        // NegativeArraySizeException for negative sizes instead of silently
+        // clamping to an empty array.
+        var arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
             callee: arrayNewCallee,
             arguments: [sizeExpr],
             result: arrayExpr,
-            canThrow: false,
+            canThrow: true,
             thrownResult: nil
         ))
+        if let arrayTypeID {
+            let typeIDExpr = arena.appendExpr(.intLiteral(arrayTypeID), type: intType)
+            instructions.append(.constValue(result: typeIDExpr, value: .intLiteral(arrayTypeID)))
+            let taggedArrayExpr = arena.appendTemporary(type: anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_tag_type"),
+                arguments: [arrayExpr, typeIDExpr],
+                result: taggedArrayExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            arrayExpr = taggedArrayExpr
+        }
+
+        // Size-only primitive array constructor (e.g. ByteArray(8)): kk_array_new_checked
+        // already zero-fills every slot (RuntimeValue(raw: 0)), which matches
+        // Kotlin's per-type zero value (0, 0.0, false, NUL char) for every
+        // primitive array element type, so there is no init lambda to run.
+        guard args.count == 2 else {
+            return arrayExpr
+        }
+
+        let arraySetCallee = interner.intern("kk_array_set")
+        let lessThanCallee = interner.intern("kk_op_lt")
+        let addCallee = interner.intern("kk_op_add")
+        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         // 3. Loop setup: index = 0
-        let indexExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: indexExpr, value: .intLiteral(0)))
@@ -60,7 +115,7 @@ extension CallLowerer {
         instructions.append(.label(conditionLabel))
 
         // 4. Loop condition: index < size
-        let conditionExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
             callee: lessThanCallee,
@@ -110,7 +165,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
-                let actionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+                let actionResult = arena.appendTemporary(type: anyType)
                 instructions.append(.call(
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
@@ -125,7 +180,7 @@ extension CallLowerer {
 
         // 6. kk_array_set(array, index, lambdaResult)
         if let lambdaResult = lambdaResultExpr {
-            let setResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+            let setResult = arena.appendTemporary(type: anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: arraySetCallee,
@@ -137,7 +192,7 @@ extension CallLowerer {
         }
 
         // 7. index = index + 1
-        let nextIndexBoxedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: addCallee,
@@ -146,15 +201,13 @@ extension CallLowerer {
             canThrow: true,
             thrownResult: nil
         ))
-        let nextIndexExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
-        instructions.append(.call(
-            symbol: nil,
+        let nextIndexExpr = emitNonThrowingCall(
             callee: unboxIntCallee,
-            arguments: [nextIndexBoxedExpr],
-            result: nextIndexExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: nextIndexBoxedExpr,
+            resultType: intType,
+            arena: arena,
+            into: &instructions
+        )
         instructions.append(.copy(from: nextIndexExpr, to: indexExpr))
         instructions.append(.jump(conditionLabel))
         instructions.append(.label(exitLabel))

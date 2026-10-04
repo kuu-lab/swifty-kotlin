@@ -80,18 +80,14 @@ extension ControlFlowLowerer {
         if type == sema.types.anyType || type == sema.types.nullableAnyType {
             return true
         }
-        guard case let .classType(classType) = sema.types.kind(of: type),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return KnownCompilerNames(interner: interner).isThrowableCatchAllSymbol(symbol)
     }
 
     func isCancellationExceptionType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: type),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return KnownCompilerNames(interner: interner).isCancellationExceptionSymbol(symbol)

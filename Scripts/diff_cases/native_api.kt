@@ -1,4 +1,4 @@
-// SKIP-DIFF: kotlin.native.* and kotlinx.cinterop.* APIs are only available on Kotlin/Native targets.
+// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* and kotlinx.cinterop.* APIs are only available on Kotlin/Native targets.
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.CName
 import kotlin.native.Platform

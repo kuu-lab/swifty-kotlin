@@ -8,7 +8,7 @@ fun main() = runBlocking {
         emit(3)
         emit(4)
     }
-        .transform { it * 10 }
+        .map { it * 10 }
         .takeWhile { it <= 30 }
         .dropWhile { it < 20 }
         .toList()
@@ -68,11 +68,8 @@ fun main() = runBlocking {
         emit(7)
     }
         .buffer(2)
-        .conflate()
         .flowOn(Dispatchers.Default)
-        .debounce(1)
-        .sample(1)
-        .delayEach(1)
+        .onEach { delay(1) }
         .toList()
     println(buffered)
 }

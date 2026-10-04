@@ -8,21 +8,19 @@ import Testing
 /// `kk_file_isRooted` (see `Sources/Runtime/RuntimeFileIO.swift`).
 @Suite
 struct FileIsRootedTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected File.isRooted to resolve cleanly, got: \(diagnostics)"
-            )
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+    private static let fixture = SemaFixture(surface: "File.isRooted")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     /// The extension property symbol lives under `kotlin.io.isRooted` with
@@ -30,7 +28,7 @@ struct FileIsRootedTests {
     /// The accessor getter must share the same external link name so codegen
     /// can dispatch the property read through `kk_file_isRooted`.
     @Test func testFileIsRootedExtensionPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let kotlinIOPkg = ["kotlin", "io"].map { interner.intern($0) }
         let javaIOPkg = ["java", "io"].map { interner.intern($0) }
         let fileSymbol = try #require(sema.symbols.lookup(
@@ -51,10 +49,8 @@ struct FileIsRootedTests {
             "Expected kotlin.io.File.isRooted extension property"
         )
         #expect(sema.symbols.propertyType(for: propertySymbol) == boolType)
-        #expect(sema.symbols.externalLinkName(for: propertySymbol) == "kk_file_isRooted")
 
         let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
-        #expect(sema.symbols.externalLinkName(for: getterSymbol) == "kk_file_isRooted")
         let signature = try #require(sema.symbols.functionSignature(for: getterSymbol))
         #expect(signature.receiverType == fileType)
         #expect(signature.returnType == boolType)

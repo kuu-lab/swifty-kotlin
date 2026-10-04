@@ -27,15 +27,35 @@ public struct CallableValueCallBinding {
     }
 }
 
+/// The custom `set()` operator call resolved for the write-back half of an
+/// `a[i] op= v` / `a[i]++`/`a[i]--` compound assignment on a receiver whose
+/// indexing is backed by a user-defined (or source-backed member, e.g.
+/// `MutableList`) `operator fun get`/`set` pair rather than a genuine
+/// built-in array. The matching `get()` call is already recorded in
+/// `callBindings[exprID]` for the same expression by the read half's
+/// resolution; this side-channel carries the write-back `set()` binding
+/// plus the get's substituted element type (needed to pick the right
+/// `kk_op_*` runtime variant), since the compound-assign expression itself
+/// is bound to `Unit`, not the element type.
+public struct IndexedCompoundAssignOperatorBinding {
+    public let setCall: CallBinding
+    public let elementType: TypeID
+
+    public init(setCall: CallBinding, elementType: TypeID) {
+        self.setCall = setCall
+        self.elementType = elementType
+    }
+}
+
 public struct LoopIterationBinding {
-    public let iteratorCall: CallBinding
+    public let iteratorCall: CallBinding?
     public let hasNextCall: CallBinding
     public let nextCall: CallBinding
     public let iteratorType: TypeID
     public let elementType: TypeID
 
     public init(
-        iteratorCall: CallBinding,
+        iteratorCall: CallBinding?,
         hasNextCall: CallBinding,
         nextCall: CallBinding,
         iteratorType: TypeID,
@@ -51,8 +71,6 @@ public struct LoopIterationBinding {
 
 /// Identifies the kind of builder DSL function (STDLIB-002).
 public enum BuilderDSLKind: Equatable {
-    case buildString
-    case buildStringBuilder
     case buildList
     case buildSet
     case buildMap
@@ -60,26 +78,24 @@ public enum BuilderDSLKind: Equatable {
 
 /// Identifies the kind of scope function (STDLIB-004).
 public enum ScopeFunctionKind: Equatable {
-    case scopeLet
-    case scopeRun
-    case scopeWith
     case scopeContext
-    case scopeApply
-    case scopeAlso
-    case scopeTopLevelRun
     /// Closeable.use { } (STDLIB-520): like `let`, but wraps in try-finally calling close().
     case scopeUse
+    /// T.usePinned { } (STDLIB-CINTEROP-FN-042): like `use`, but pins the receiver via
+    /// pin() first, passes the resulting Pinned<T> (not the receiver) to the lambda, and
+    /// wraps in try-finally calling unpin().
+    case scopeUsePinned
+    /// CValue<T>.useContents { } (STDLIB-CINTEROP-FN-041): temporarily exposes
+    /// the contained native value as the lambda receiver.
+    case scopeUseContents
 }
 
-/// Identifies takeIf / takeUnless extension calls (STDLIB-160).
-public enum TakeIfTakeUnlessKind: Equatable {
-    case takeIf
-    case takeUnless
-}
 
 /// Identifies special stdlib calls that need dedicated lowering.
 public enum StdlibSpecialCallKind: Equatable {
-    case repeatLoop
+    /// Compiler-only contract DSL; its lambda is recorded by Sema and must
+    /// not be emitted into KIR.
+    case contract
     case typeOf
     case maxOfInt
     case minOfInt
@@ -89,6 +105,8 @@ public enum StdlibSpecialCallKind: Equatable {
     case minOfDouble
     case maxOfFloat
     case minOfFloat
+    case minOfByte
+    case minOfShort
     case maxOfInt3
     case minOfInt3
     case maxOfLong3
@@ -97,14 +115,11 @@ public enum StdlibSpecialCallKind: Equatable {
     case minOfDouble3
     case maxOfFloat3
     case minOfFloat3
+    case minOfByte3
+    case minOfShort3
     case arrayConstructor
     case atomicIntArrayFactory
     case atomicLongArrayFactory
-    case measureTimeMillis
-    case measureTimeMicros
-    case measureNanoTime
-    case measureTime
-    case measureTimedValue
     case suspendCoroutineUninterceptedOrReturn
     case enumValues
     case enumValueOf

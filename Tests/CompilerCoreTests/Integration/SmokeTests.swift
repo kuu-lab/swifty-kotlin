@@ -5,7 +5,7 @@ import Testing
 
 @Suite struct SmokeTests {
     @Test func testSmokeDriverKirDumpSucceedsForMinimalProgram() throws {
-        try assertKotlinCompilesToKIR("fun main() = 0", moduleName: "SmokeKir")
+        try assertKotlinCompilesToKIR("fun main() = 0", moduleName: "SmokeKir", allowDefaultStdlibLibrary: true)
     }
 
     @Test func testSmokeDriverSemanticErrorReportsNonZeroExit() throws {
@@ -26,12 +26,13 @@ import Testing
                 moduleName: "SmokeSema",
                 inputs: [path],
                 outputPath: outputBase,
-                emit: .kirDump
+                emit: .kirDump,
+            allowDefaultStdlibLibrary: true
             )
             let result = makeTestDriver().runForTesting(options: options)
 
             #expect(result.exitCode == 1)
-            #expect(result.diagnostics.contains(where: { $0.severity == .error }))
+            #expect(result.diagnostics.hasError)
             #expect(result.diagnostics.contains(where: {
                 $0.code.hasPrefix("KSWIFTK-SEMA-") || $0.code.hasPrefix("KSWIFTK-TYPE-")
             }))
@@ -54,7 +55,8 @@ import Testing
             moduleName: "SmokeMissingInput",
             inputs: [missingPath],
             outputPath: outputBase,
-            emit: .kirDump
+            emit: .kirDump,
+            allowDefaultStdlibLibrary: true
         )
         let result = makeTestDriver().runForTesting(options: options)
 
@@ -76,7 +78,8 @@ import Testing
                 moduleName: "SmokeEmpty",
                 inputs: [path],
                 outputPath: outputBase,
-                emit: .kirDump
+                emit: .kirDump,
+            allowDefaultStdlibLibrary: true
             )
             let result = makeTestDriver().runForTesting(options: options)
 
@@ -92,7 +95,8 @@ import Testing
     @Test func testSmokeDriverMultipleInputFilesCompilesToKIR() throws {
         try assertKotlinSourcesToKIR(
             ["fun greet(): String = \"hello\"", "fun main() = 0"],
-            moduleName: "SmokeMultiFile"
+            moduleName: "SmokeMultiFile",
+            allowDefaultStdlibLibrary: true
         )
     }
 
@@ -101,7 +105,7 @@ import Testing
         // under a larger-than-trivial input without triggering semantic errors.
         var lines: [String] = (0 ..< 200).map { "fun smokeFunc\($0)(x: Int): Int = x + \($0)" }
         lines.append("fun main() = 0")
-        try assertKotlinCompilesToKIR(lines.joined(separator: "\n"), moduleName: "SmokeLargeFile")
+        try assertKotlinCompilesToKIR(lines.joined(separator: "\n"), moduleName: "SmokeLargeFile", allowDefaultStdlibLibrary: true)
     }
 
     // MARK: - New smoke tests (TEST-SMOKE-005)
@@ -128,7 +132,7 @@ import Testing
             area(c)
             area(r)
         }
-        """, moduleName: "SmokeSealedWhen")
+        """, moduleName: "SmokeSealedWhen", allowDefaultStdlibLibrary: true)
     }
 
     @Test func testSmokeEnumClassWhenExpressionCompilesToKIR() throws {
@@ -150,7 +154,7 @@ import Testing
             describe(Direction.NORTH)
             describe(Direction.WEST)
         }
-        """, moduleName: "SmokeEnumWhen")
+        """, moduleName: "SmokeEnumWhen", allowDefaultStdlibLibrary: true)
     }
 
     @Test func testSmokeDefaultParameterForwardingCompilesToKIR() throws {
@@ -166,7 +170,7 @@ import Testing
             greet("Kotlin", greeting = "Hi")
             greet("KSwiftK", greeting = "Hey", punctuation = ".")
         }
-        """, moduleName: "SmokeDefaultParams")
+        """, moduleName: "SmokeDefaultParams", allowDefaultStdlibLibrary: true)
     }
 
     @Test func testSmokeTypealiasAndExtensionFunctionCompilesToKIR() throws {
@@ -186,7 +190,49 @@ import Testing
             val s: Score = 85
             s.grade()
         }
-        """, moduleName: "SmokeTypealiasExtension")
+        """, moduleName: "SmokeTypealiasExtension", allowDefaultStdlibLibrary: true)
+    }
+
+    @Test func testSmokeEnumClassConstructorPropertyCompilesToKIR() throws {
+        // BUG-205: reading a constructor property of an enum class instance
+        // (enum class Status(val code: Int) { OK(200) }) must compile to KIR
+        // instead of being lowered as an unresolved zero-argument call.
+        try assertKotlinCompilesToKIR("""
+        enum class Status(val code: Int) {
+            OK(200)
+        }
+
+        fun main() {
+            val s = Status.OK
+            println(s.code)
+        }
+        """, moduleName: "SmokeEnumCtorProp", allowDefaultStdlibLibrary: true)
+    }
+
+    @Test func testSmokeUsePinnedCompilesToKIR() throws {
+        // usePinned (STDLIB-CINTEROP-FN-042) is hand-lowered as a scope function:
+        // pin() the receiver, invoke the block with the Pinned<T> handle inside a
+        // try, then unpin() in a finally block. This must survive the full
+        // pipeline, including the try-finally control flow the lowering emits.
+        try assertKotlinCompilesToKIR("""
+        import kotlinx.cinterop.ExperimentalForeignApi
+        import kotlinx.cinterop.Pinned
+        import kotlinx.cinterop.usePinned
+
+        class Box(var value: Int)
+
+        @ExperimentalForeignApi
+        fun readBoxed(box: Box): Int {
+            return box.usePinned { pinned: Pinned<Box> ->
+                pinned.get().value
+            }
+        }
+
+        fun main() {
+            val box = Box(42)
+            readBoxed(box)
+        }
+        """, moduleName: "SmokeUsePinned", allowDefaultStdlibLibrary: true)
     }
 
 }

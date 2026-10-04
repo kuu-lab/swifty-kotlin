@@ -1,4 +1,6 @@
 // STDLIB-REFLECT-064: KConstructor complete implementation
+import kotlin.reflect.full.primaryConstructor
+
 class Simple
 
 data class Person(val name: String, val age: Int)

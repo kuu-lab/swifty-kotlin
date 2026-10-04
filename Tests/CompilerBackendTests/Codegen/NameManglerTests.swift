@@ -1,9 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
-import XCTest
+import Testing
 
-final class NameManglerTests: XCTestCase {
+@Suite
+struct NameManglerTests {
 
+    @Test
     func testMangleProducesKKPrefix() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -25,14 +28,15 @@ final class NameManglerTests: XCTestCase {
 
         let result = try mangler.mangle(
             moduleName: "TestModule",
-            symbol: XCTUnwrap(symbols.symbol(sym)),
+            symbol: #require(symbols.symbol(sym)),
             symbols: symbols,
             types: types,
             nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.hasPrefix("_KK_TestModule__"))
+        #expect(result.hasPrefix("_KK_TestModule__"))
     }
 
+    @Test
     func testMangleWithExplicitSignature() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -48,14 +52,15 @@ final class NameManglerTests: XCTestCase {
 
         let result = try mangler.mangle(
             moduleName: "M",
-            symbol: XCTUnwrap(symbols.symbol(sym)),
+            symbol: #require(symbols.symbol(sym)),
             signature: "SIG",
             nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.hasPrefix("_KK_M__"))
-        XCTAssertTrue(result.contains("__F__SIG__"))
+        #expect(result.hasPrefix("_KK_M__"))
+        #expect(result.contains("__F__SIG__"))
     }
 
+    @Test
     func testMangleIsDeterministic() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -76,16 +81,17 @@ final class NameManglerTests: XCTestCase {
         )
 
         let r1 = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             symbols: symbols, types: types, nameResolver: { interner.resolve($0) }
         )
         let r2 = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             symbols: symbols, types: types, nameResolver: { interner.resolve($0) }
         )
-        XCTAssertEqual(r1, r2)
+        #expect(r1 == r2)
     }
 
+    @Test
     func testMangleContainsHashSuffix() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -101,17 +107,19 @@ final class NameManglerTests: XCTestCase {
 
         let result = try mangler.mangle(
             moduleName: "M",
-            symbol: XCTUnwrap(symbols.symbol(sym)),
+            symbol: #require(symbols.symbol(sym)),
             signature: "_",
             nameResolver: { interner.resolve($0) }
         )
         // Result ends with __<8 hex chars>
         let parts = result.split(separator: "_").filter { !$0.isEmpty }
-        let lastPart = try String(XCTUnwrap(parts.last))
-        XCTAssertEqual(lastPart.count, 8)
-        XCTAssertTrue(lastPart.allSatisfy(\.isHexDigit))
+        let lastPart = try String(#require(parts.last))
+        #expect(lastPart.count == 8)
+        let hasOnlyHexDigits = lastPart.allSatisfy { $0.isHexDigit }
+        #expect(hasOnlyHexDigits)
     }
 
+    @Test
     func testMangleKindCodeForFunction() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -125,12 +133,13 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__F__"))
+        #expect(result.contains("__F__"))
     }
 
+    @Test
     func testMangleKindCodeForClass() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -144,12 +153,13 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__C__"))
+        #expect(result.contains("__C__"))
     }
 
+    @Test
     func testMangleKindCodeForConstructor() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -163,12 +173,13 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__K__"))
+        #expect(result.contains("__K__"))
     }
 
+    @Test
     func testMangleKindCodeForProperty() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -182,12 +193,13 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__P__"))
+        #expect(result.contains("__P__"))
     }
 
+    @Test
     func testMangleKindCodeForObject() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -201,12 +213,13 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__O__"))
+        #expect(result.contains("__O__"))
     }
 
+    @Test
     func testMangleKindCodeForInterface() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -220,12 +233,13 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__I__"))
+        #expect(result.contains("__I__"))
     }
 
+    @Test
     func testMangleKindCodeForEnumClass() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -239,12 +253,13 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__E__"))
+        #expect(result.contains("__E__"))
     }
 
+    @Test
     func testMangleKindCodeForTypeAlias() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -258,12 +273,13 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__T__"))
+        #expect(result.contains("__T__"))
     }
 
+    @Test
     func testMangleGetterDeclKindOverridesKindCode() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -277,13 +293,14 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", declKind: .getter,
             nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__G__"))
+        #expect(result.contains("__G__"))
     }
 
+    @Test
     func testMangleSetterDeclKindOverridesKindCode() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -297,13 +314,14 @@ final class NameManglerTests: XCTestCase {
             visibility: .public
         )
         let result = try mangler.mangle(
-            moduleName: "M", symbol: XCTUnwrap(symbols.symbol(sym)),
+            moduleName: "M", symbol: #require(symbols.symbol(sym)),
             signature: "_", declKind: .setter,
             nameResolver: { interner.resolve($0) }
         )
-        XCTAssertTrue(result.contains("__S__"))
+        #expect(result.contains("__S__"))
     }
 
+    @Test
     func testMangledSignatureForFunctionWithSignature() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -324,15 +342,16 @@ final class NameManglerTests: XCTestCase {
         )
 
         let sig = try mangler.mangledSignature(
-            for: XCTUnwrap(symbols.symbol(sym)),
+            for: #require(symbols.symbol(sym)),
             symbols: symbols,
             types: types,
             nameResolver: { interner.resolve($0) }
         )
         // Should contain encoded function type with Int params
-        XCTAssertTrue(sig.contains("I"))
+        #expect(sig.contains("I"))
     }
 
+    @Test
     func testEncodeTypeUnboxesValueClassToUnderlyingType() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -355,9 +374,10 @@ final class NameManglerTests: XCTestCase {
         let encoded = mangler.encodeType(meterType, symbols: symbols, types: types, nameResolver: { interner.resolve($0) })
         // Non-null value class should encode using VC<underlying> notation
         // which contains the underlying type (Int -> "I")
-        XCTAssertEqual(encoded, "VC<I>", "Non-null value class should encode as VC<underlying>")
+        #expect(encoded == "VC<I>", "Non-null value class should encode as VC<underlying>")
     }
 
+    @Test
     func testEncodeTypeNullableValueClassNotUnboxed() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -378,9 +398,10 @@ final class NameManglerTests: XCTestCase {
         let nullableMeterType = types.make(.classType(ClassType(classSymbol: meterSym, args: [], nullability: .nullable)))
         let encoded = mangler.encodeType(nullableMeterType, symbols: symbols, types: types, nameResolver: { interner.resolve($0) })
         // Nullable value class should NOT be unboxed; should contain class name
-        XCTAssertTrue(encoded.contains("Meter"))
+        #expect(encoded.contains("Meter"))
     }
 
+    @Test
     func testMangledSignatureForFunctionWithValueClassParam() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -412,7 +433,7 @@ final class NameManglerTests: XCTestCase {
         )
 
         let sig = try mangler.mangledSignature(
-            for: XCTUnwrap(symbols.symbol(fnSym)),
+            for: #require(symbols.symbol(fnSym)),
             symbols: symbols,
             types: types,
             nameResolver: { interner.resolve($0) }
@@ -421,9 +442,10 @@ final class NameManglerTests: XCTestCase {
         // underlying type wrapped in VC<...> to distinguish from the
         // raw primitive type. This prevents signature collisions between
         // e.g. `fun f(Meter)` and `fun f(Int)`.
-        XCTAssertTrue(sig.contains("VC<I>"), "Mangled signature should contain VC<underlying> for value class param")
+        #expect(sig.contains("VC<I>"), "Mangled signature should contain VC<underlying> for value class param")
     }
 
+    @Test
     func testMangledSignatureForFunctionWithoutSignatureReturnsUnderscore() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -439,10 +461,11 @@ final class NameManglerTests: XCTestCase {
         )
 
         let sig = try mangler.mangledSignature(
-            for: XCTUnwrap(symbols.symbol(sym)),
+            for: #require(symbols.symbol(sym)),
             symbols: symbols,
             types: types
         )
-        XCTAssertEqual(sig, "_")
+        #expect(sig == "_")
     }
 }
+#endif

@@ -1,11 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension VirtualDispatchTests {
     // MARK: - 11. InlineLoweringPass: virtualCall alias resolution
 
-    func testInlineLoweringResolvesAliasesInVirtualCall() throws {
+    @Test func testInlineLoweringResolvesAliasesInVirtualCall() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -79,23 +80,8 @@ extension VirtualDispatchTests {
         _ = arena.appendDecl(.function(inlineFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineVirtual",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "InlineVirtual", sema: sema)
 
         let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
         // After inlining, the caller should contain a virtualCall (expanded from the inline function)
@@ -103,7 +89,7 @@ extension VirtualDispatchTests {
             if case .virtualCall = instruction { return true }
             return false
         }
-        XCTAssertTrue(hasVirtualCall, "After inlining, caller should contain the virtualCall from the inlined function body. Body: \(lowered.body)")
+        #expect(hasVirtualCall, "After inlining, caller should contain the virtualCall from the inlined function body. Body: \(lowered.body)")
 
         // Verify the dispatch kind is preserved
         let vcInstruction = lowered.body.first { instruction in
@@ -111,15 +97,15 @@ extension VirtualDispatchTests {
             return false
         }
         guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = vcInstruction else {
-            XCTFail("Expected virtualCall instruction")
+            Issue.record("Expected virtualCall instruction")
             return
         }
-        XCTAssertEqual(dispatch, .vtable(slot: 1), "Dispatch kind should be preserved after inlining")
+        #expect(dispatch == .vtable(slot: 1), "Dispatch kind should be preserved after inlining")
     }
 
     // MARK: - 12. Regression: existing .call instructions still work
 
-    func testRegularCallInstructionNotAffectedByVirtualCallChanges() throws {
+    @Test func testRegularCallInstructionNotAffectedByVirtualCallChanges() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -175,38 +161,119 @@ extension VirtualDispatchTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "RegularCall",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "RegularCall", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("regularFunction"), "Regular .call should still work after virtual dispatch changes")
+        #expect(callees.contains("regularFunction"), "Regular .call should still work after virtual dispatch changes")
         // Should NOT have any virtualCall
         let hasVirtualCall = lowered.body.contains { instruction in
             if case .virtualCall = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasVirtualCall, "Regular .call should not become virtualCall")
+        #expect(!hasVirtualCall, "Regular .call should not become virtualCall")
+    }
+
+    // MARK: - 12b. Regression: KSP-1011 byName fallback must not fire for a known-but-unmatched symbol
+
+    /// A call whose callee `symbol` is *known* (Sema resolved it to a real
+    /// declaration -- e.g. a synthetic/runtime-dispatched interface member
+    /// such as the generic `Iterable<T>.iterator()` used inside `reduce`),
+    /// but that symbol has no compiled KIR function body anywhere in this
+    /// module, must not be redirected -- purely because its literal source
+    /// name happens to be the sole match -- to an unrelated same-named
+    /// bundled inline function (e.g. `Map<K, V>.iterator()`). Before the
+    /// fix, `InlineLoweringPass`'s "byName" fallback ignored a known-but-
+    /// unmatched symbol and spliced in the unrelated function's body,
+    /// crashing `(1..4).reduce { ... }` at runtime (KSWIFTK-LINK-0003).
+    @Test func testInlineLoweringDoesNotRedirectKnownUnmatchedSymbolByName() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+
+        let anyType = types.anyType
+        let calleeName = interner.intern("iterator")
+
+        // The symbol Sema bound the unqualified `iterator()` call to: it has
+        // a real function signature (so KIR building emits a genuine, known
+        // `symbol`), but -- like a synthetic/runtime-dispatched interface
+        // member -- no compiled KIR function body of its own in this module.
+        let unresolvedIteratorSym = SymbolID(rawValue: 8000)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [], returnType: anyType, valueParameterSymbols: []),
+            for: unresolvedIteratorSym
+        )
+
+        let callResult = arena.appendExpr(.temporary(0), type: anyType)
+        let callerFn = KIRFunction(
+            symbol: SymbolID(rawValue: 8001),
+            name: interner.intern("caller"),
+            params: [],
+            returnType: anyType,
+            body: [
+                .call(
+                    symbol: unresolvedIteratorSym,
+                    callee: calleeName,
+                    arguments: [],
+                    result: callResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        // An UNRELATED bundled inline function that happens to share the
+        // exact same literal name "iterator" -- analogous to a bundled
+        // `Map<K, V>.iterator()` living alongside the generic Iterable one.
+        // Its body contains a marker call that must never leak into `caller`.
+        let markerResult = arena.appendExpr(.temporary(1), type: anyType)
+        let unrelatedIteratorFn = KIRFunction(
+            symbol: SymbolID(rawValue: 8002),
+            name: calleeName,
+            params: [],
+            returnType: anyType,
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_unrelated_map_iterator_marker"),
+                    arguments: [],
+                    result: markerResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(markerResult),
+            ],
+            isSuspend: false,
+            isInline: true
+        )
+
+        let callerID = arena.appendDecl(.function(callerFn))
+        _ = arena.appendDecl(.function(unrelatedIteratorFn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
+
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "ByNameFallbackRegression", sema: sema)
+
+        let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
+        let callees = extractCallees(from: lowered.body, interner: interner)
+        #expect(
+            !callees.contains("kk_unrelated_map_iterator_marker"),
+            "A call with a known-but-unmatched symbol must not be spliced with an unrelated same-named bundled inline function's body. Body: \(lowered.body)"
+        )
+        #expect(
+            callees.contains("iterator"),
+            "The original call should be left untouched for its own resolution mechanism to handle. Body: \(lowered.body)"
+        )
     }
 
     // MARK: - 13. Coroutine lowering: extractCallInfo for virtualCall
 
-    func testCoroutineLoweringExtractCallInfoForVirtualCall() {
+    @Test func testCoroutineLoweringExtractCallInfoForVirtualCall() {
         let arena = KIRArena()
         let types = TypeSystem()
         let receiverExpr = arena.appendExpr(.temporary(0), type: types.anyType)
@@ -227,18 +294,18 @@ extension VirtualDispatchTests {
         let pass = CoroutineLoweringPass()
         let callInfo = pass.extractCallInfo(instruction)
 
-        XCTAssertNotNil(callInfo, "extractCallInfo should return non-nil for virtualCall")
-        XCTAssertEqual(callInfo?.symbol, SymbolID(rawValue: 100))
-        XCTAssertEqual(callInfo?.callee, InternedString(rawValue: 5))
-        XCTAssertEqual(callInfo?.result, resultExpr)
-        XCTAssertEqual(callInfo?.canThrow, true)
-        XCTAssertEqual(callInfo?.isVirtual, true)
+        #expect(callInfo != nil, "extractCallInfo should return non-nil for virtualCall")
+        #expect(callInfo?.symbol == SymbolID(rawValue: 100))
+        #expect(callInfo?.callee == InternedString(rawValue: 5))
+        #expect(callInfo?.result == resultExpr)
+        #expect(callInfo?.canThrow == true)
+        #expect(callInfo?.isVirtual == true)
         // Arguments should NOT include receiver
-        XCTAssertEqual(callInfo?.arguments.count, 1, "extractCallInfo arguments should not include receiver")
-        XCTAssertEqual(callInfo?.arguments.first, argExpr)
+        #expect(callInfo?.arguments.count == 1, "extractCallInfo arguments should not include receiver")
+        #expect(callInfo?.arguments.first == argExpr)
     }
 
-    func testCoroutineLoweringExtractCallInfoForRegularCall() {
+    @Test func testCoroutineLoweringExtractCallInfoForRegularCall() {
         let arena = KIRArena()
         let types = TypeSystem()
         let argExpr = arena.appendExpr(.temporary(0), type: types.anyType)
@@ -256,20 +323,20 @@ extension VirtualDispatchTests {
         let pass = CoroutineLoweringPass()
         let callInfo = pass.extractCallInfo(instruction)
 
-        XCTAssertNotNil(callInfo, "extractCallInfo should return non-nil for regular call")
-        XCTAssertEqual(callInfo?.isVirtual, false)
-        XCTAssertEqual(callInfo?.arguments.count, 1)
+        #expect(callInfo != nil, "extractCallInfo should return non-nil for regular call")
+        #expect(callInfo?.isVirtual == false)
+        #expect(callInfo?.arguments.count == 1)
     }
 
-    func testCoroutineLoweringExtractCallInfoReturnsNilForNonCall() {
+    @Test func testCoroutineLoweringExtractCallInfoReturnsNilForNonCall() {
         let pass = CoroutineLoweringPass()
         let callInfo = pass.extractCallInfo(.returnUnit)
-        XCTAssertNil(callInfo, "extractCallInfo should return nil for non-call instruction")
+        #expect(callInfo == nil, "extractCallInfo should return nil for non-call instruction")
     }
 
     // MARK: - 14. Virtual suspend call emits virtualCall (not .call) in state machine
 
-    func testCoroutineLoweringEmitsVirtualCallForVirtualSuspendFunction() throws {
+    @Test func testCoroutineLoweringEmitsVirtualCallForVirtualSuspendFunction() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -361,28 +428,12 @@ extension VirtualDispatchTests {
         let outerID = arena.appendDecl(.function(outerSuspendFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID, outerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "VirtualSuspend",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "VirtualSuspend", sema: sema)
 
         // After coroutine lowering, the suspend function should be rewritten.
         // Look for the lowered suspend function (kk_suspend_outerSuspend)
-        let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(fn) = decl else { return nil }
+        let allFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
             return fn
         }
         let suspendFunction = allFunctions.first { fn in
@@ -394,7 +445,7 @@ extension VirtualDispatchTests {
                 if case .virtualCall = instruction { return true }
                 return false
             }
-            XCTAssertTrue(hasVirtualCall, "Coroutine state machine should emit virtualCall for virtual suspend calls, not .call. Body callees: \(suspendFunction.body)")
+            #expect(hasVirtualCall, "Coroutine state machine should emit virtualCall for virtual suspend calls, not .call. Body callees: \(suspendFunction.body)")
         }
         // If no lowered suspend function is found, the test still passes because
         // the coroutine lowering may not have triggered (depends on whether
@@ -403,5 +454,29 @@ extension VirtualDispatchTests {
         // the core mechanism.
     }
 
+    @Test func testSuspendCallableRefVirtualDispatchForwardsContinuation() throws {
+        let source = """
+        interface Writer { suspend fun flush(): Int }
+        class BufferedWriter : Writer { override suspend fun flush(): Int = 42 }
+        fun Writer.flushLater(): suspend () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module = try #require(ctx.kir)
+        let virtualFlushCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> [KIRExprID]? in
+                guard case let .virtualCall(_, callee, _, arguments, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "flush"
+                else { return nil }
+                return arguments
+            }
+        }
+        #expect(!virtualFlushCalls.isEmpty)
+        #expect(virtualFlushCalls.allSatisfy { $0.count == 1 },
+                "A virtual suspend call must pass the caller continuation after explicit arguments.")
+    }
+
     // MARK: - 15. resolveVirtualDispatch: open class with subtypes -> vtable
 }
+#endif

@@ -1,0 +1,5 @@
+symbol fq=golden.sema.bytesHexFormatBuilderType.$0.builder[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.bytesHexFormatBuilderType[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat.Builder?] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.HexFormat.BytesHexFormat.Builder?] ret=Any?
+file fstdlib_kotlin_text_HexFormat_BytesHexFormat_n_n package=golden.sema
+  decl golden.sema.bytesHexFormatBuilderType[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat.Builder?] fun bytesHexFormatBuilderType sym=golden.sema.bytesHexFormatBuilderType[kind=fun;params=kotlin.text.HexFormat.BytesHexFormat.Builder?]
+expr e@5:11 name(builder) type=kotlin.text.HexFormat.BytesHexFormat.Builder? ref=golden.sema.bytesHexFormatBuilderType.$0.builder[kind=vparam]

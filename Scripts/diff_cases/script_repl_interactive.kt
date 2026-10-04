@@ -1,4 +1,3 @@
-// SKIP-DIFF: kotlinc JVM startup exceeds 10s run timeout for script-style files
 // REPLのような逐次実行を模倣
 println("Starting interactive session...")
 

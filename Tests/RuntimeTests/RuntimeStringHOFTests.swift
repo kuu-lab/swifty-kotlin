@@ -1,5 +1,6 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
 // Predicate: matches ASCII digit characters (0x30 .. 0x39 = '0' .. '9')
 private let isDigitPredicateForIndexOfFirst: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
@@ -26,720 +27,243 @@ private let firstNotNullOfAlwaysZeroNull: @convention(c) (Int, Int, UnsafeMutabl
     0
 }
 
-private let reduceRightIndexedPickIndexOne: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, charRaw, acc, _ in
-    index == 1 ? charRaw : acc
-}
-
-private let reduceRightIndexedIndexChecksum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, charRaw, acc, _ in
-    acc + charRaw + index
-}
-
-private let reduceRightPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, acc, _ in
-    charRaw == Int(Unicode.Scalar("b").value) ? charRaw : acc
-}
-
-private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, acc, _ in
-    acc + charRaw
-}
-
-// MARK: - STDLIB-TEXT-FN-049: reduceOrNull helpers (acc first, char second)
-
-private let reduceOrNullPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, charRaw, _ in
-    charRaw == Int(Unicode.Scalar("b").value) ? charRaw : acc
-}
-
-private let reduceOrNullChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, charRaw, _ in
-    acc + charRaw
-}
-
-private let sumByWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
-    charRaw == Int(Unicode.Scalar("a").value) ? 10 : 1
-}
-
 // STDLIB-TEXT-FN-116: zip transform — combines two chars into their sum codepoint
 private let zipTransformSumCodepoints: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, aRaw, bRaw, _ in
     kk_box_char(kk_unbox_char(aRaw) + kk_unbox_char(bRaw))
 }
 
-private let sumByDoubleWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
-    kk_double_to_bits(charRaw == Int(Unicode.Scalar("a").value) ? 1.5 : 0.25)
+private let zipTransformStringPairName: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, aRaw, bRaw, _ in
+    let a = UnicodeScalar(kk_unbox_char(aRaw)).map { String(Character($0)) } ?? "?"
+    let b = UnicodeScalar(kk_unbox_char(bRaw)).map { String(Character($0)) } ?? "?"
+    return registerRuntimeObject(RuntimeStringBox("\(a):\(b)"))
 }
 
-private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
-    (0xD800 ... 0xDFFF).contains(charRaw) ? 1 : 0
+private let zipTransformRejectBoxedCharArgs: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, aRaw, bRaw, _ in
+    if aRaw > 0x10_FFFF || bRaw > 0x10_FFFF {
+        return kk_box_char(0)
+    }
+    return kk_box_char(aRaw + bRaw)
 }
 
-final class RuntimeStringHOFTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
-    // MARK: - kk_string_indexOfFirst (STDLIB-TEXT-FN-022)
-
-    func testIndexOfFirstReturnsIndexOfFirstMatchingChar() {
-        let source = registerRuntimeObject(RuntimeStringBox("hello3world"))
-        var thrown = 0
-
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 5)
-    }
-
-    func testIndexOfFirstReturnsMinusOneWhenNoCharMatches() {
-        let source = registerRuntimeObject(RuntimeStringBox("hello"))
-        var thrown = 0
-
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, -1)
-    }
-
-    func testIndexOfFirstOnEmptyStringReturnsMinusOne() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, -1)
-    }
-
-    func testIndexOfFirstReturnsZeroWhenFirstCharMatches() {
-        let source = registerRuntimeObject(RuntimeStringBox("xabc"))
-        var thrown = 0
-
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 0)
-    }
-
-    func testIndexOfFirstStopsAtFirstMatchNotLast() {
-        let source = registerRuntimeObject(RuntimeStringBox("axbxc"))
-        var thrown = 0
-
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 1)
-    }
-
-    func testFirstNotNullOfReturnsFirstNonNullResult() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_firstNotNullOf(
-            source,
-            unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(result), "bee")
-    }
-
-    func testFirstNotNullOfSetsThrownWhenNoResultMatches() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_firstNotNullOf(
-            source,
-            unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testFirstNotNullOfTreatsZeroAsNullFromNullableLambda() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_firstNotNullOf(
-            source,
-            unsafeBitCast(firstNotNullOfAlwaysZeroNull, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testTakeLastWhileUsesUTF16CodeUnits() {
-        let source = registerRuntimeObject(RuntimeStringBox("a🐻"))
-        var thrown = 0
-
-        let result = kk_string_takeLastWhile(
-            source,
-            unsafeBitCast(takeLastWhileSurrogateCodeUnit, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(result), "🐻")
-    }
-
-    func testFirstNotNullOfOrNullReturnsFirstNonNullResult() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_firstNotNullOfOrNull(
-            source,
-            unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(result), "bee")
-    }
-
-    func testFirstNotNullOfOrNullReturnsNullSentinelWhenNoResultMatches() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_firstNotNullOfOrNull(
-            source,
-            unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-    }
-
-    func testFirstNotNullOfOrNullTreatsZeroAsNullFromNullableLambda() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_firstNotNullOfOrNull(
-            source,
-            unsafeBitCast(firstNotNullOfAlwaysZeroNull, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-    }
-
-    func testReduceRightIndexedWalksRightToLeftWithIndexes() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduceRightIndexed(
-            source,
-            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
-    }
-
-    func testReduceRightIndexedUsesLastCharacterAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduceRightIndexed(
-            source,
-            unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 295)
-    }
-
-    func testReduceRightIndexedSetsThrownForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-
-        let result = kk_string_reduceRightIndexed(
-            source,
-            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-        XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testReduceRightIndexedOrNullWalksRightToLeftWithIndexes() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduceRightIndexedOrNull(
-            source,
-            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
-    }
-
-    func testReduceRightIndexedOrNullReturnsNullSentinelForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-
-        let result = kk_string_reduceRightIndexedOrNull(
-            source,
-            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-    }
-
-    func testReduceRightIndexedOrNullUsesLastCharacterAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduceRightIndexedOrNull(
-            source,
-            unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 295)
-    }
-
-    func testReduceRightOrNullWalksRightToLeft() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduceRightOrNull(
-            source,
-            unsafeBitCast(reduceRightPickB, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
-    }
-
-    func testReduceRightOrNullReturnsNullSentinelForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-
-        let result = kk_string_reduceRightOrNull(
-            source,
-            unsafeBitCast(reduceRightPickB, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-    }
-
-    func testReduceRightOrNullUsesLastCharacterAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduceRightOrNull(
-            source,
-            unsafeBitCast(reduceRightChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 294)
-    }
-
-    // MARK: - STDLIB-TEXT-FN-049: kk_string_reduceOrNull
-
-    func testReduceOrNullWalksLeftToRight() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullPickB, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
-    }
-
-    func testReduceOrNullReturnsNullSentinelForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullPickB, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-    }
-
-    func testReduceOrNullUsesFirstCharacterAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 294)
-    }
-
-    func testReduceOrNullReturnsSingleCharForOneCharString() {
-        let source = registerRuntimeObject(RuntimeStringBox("x"))
-        var thrown = 0
-
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("x").value))
-    }
-
-    func testReduceOrNullUsesUTF16CodeUnits() {
-        let source = registerRuntimeObject(RuntimeStringBox("a🐻"))
-        var thrown = 0
-
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 97 + 0xD83D + 0xDC3B)
-    }
-
-    // MARK: - STDLIB-TEXT-FN-046: kk_string_reduce
-
-    func testReduceWalksLeftToRight() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduce(
-            source,
-            unsafeBitCast(reduceOrNullPickB, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
-    }
-
-    func testReduceThrowsOnEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-
-        let _ = kk_string_reduce(
-            source,
-            unsafeBitCast(reduceOrNullPickB, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testReduceUsesFirstCharAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        var thrown = 0
-
-        let result = kk_string_reduce(
-            source,
-            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 294)
-    }
-
-    func testReduceReturnsSingleCharForOneCharString() {
-        let source = registerRuntimeObject(RuntimeStringBox("x"))
-        var thrown = 0
-
-        let result = kk_string_reduce(
-            source,
-            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("x").value))
-    }
-
-    func testSumByAppliesSelectorToEveryCharacter() {
-        let source = registerRuntimeObject(RuntimeStringBox("aba"))
-        var thrown = 0
-
-        let result = kk_string_sumBy(
-            source,
-            unsafeBitCast(sumByWeightedA, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 21)
-    }
-
-    func testSumByReturnsZeroForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-
-        let result = kk_string_sumBy(
-            source,
-            unsafeBitCast(sumByWeightedA, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 0)
-    }
-
-    func testSumByDoubleAppliesSelectorToEveryCharacter() {
-        let source = registerRuntimeObject(RuntimeStringBox("aba"))
-        var thrown = 0
-
-        let result = kk_string_sumByDouble(
-            source,
-            unsafeBitCast(sumByDoubleWeightedA, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_bits_to_double(result), 3.25, accuracy: 0.000001)
-    }
-
-    func testSumByDoubleReturnsZeroForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-
-        let result = kk_string_sumByDouble(
-            source,
-            unsafeBitCast(sumByDoubleWeightedA, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_bits_to_double(result), 0.0, accuracy: 0.000001)
-    }
-
-    // STDLIB-TEXT-FN-116: CharSequence.zip(other)
-    func testStringZipPairsCharsAndStopsAtShorterString() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
-        let other = registerRuntimeObject(RuntimeStringBox("XY"))
-        let result = kk_string_zip(source, other)
-        guard let list = runtimeListBox(from: result) else {
-            XCTFail("Expected list from kk_string_zip")
-            return
+private let mapNotNullBoxOnlyB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    charRaw == Int(Unicode.Scalar("b").value) ? kk_box_char(charRaw) : runtimeNullSentinelInt
+}
+
+private let mapBoxCharValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    kk_box_char(charRaw)
+}
+
+private let mapStringNameForChar: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    let value = charRaw == Int(Unicode.Scalar("a").value) ? "alpha" : "beta"
+    return registerRuntimeObject(RuntimeStringBox(value))
+}
+
+private let mapIndexedBoxIndexPlusChar: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, index, charRaw, _ in
+    kk_box_int(index + charRaw)
+}
+
+private let mapIndexedStringName: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, index, charRaw, _ in
+    let scalarText = UnicodeScalar(charRaw).map { String(Character($0)) } ?? "?"
+    return registerRuntimeObject(RuntimeStringBox("\(index):\(scalarText)"))
+}
+
+private typealias RuntimeFlatStringHOFEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
+
+private func withFlatStringForHOF<T>(
+    _ value: String,
+    _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+) -> T {
+    var length = 0
+    var byteCount = 0
+    var hash = 0
+    let data = runtimeRegisterFlatString(
+        value,
+        outLength: &length,
+        outByteCount: &byteCount,
+        outHash: &hash
+    )
+    let constData = data.map { UnsafePointer($0) }
+    return body(constData, length, byteCount, hash)
+}
+
+private func withFlatStringsForHOF<T>(
+    _ first: String,
+    _ second: String,
+    _ body: (
+        UnsafePointer<UInt8>?,
+        Int,
+        Int,
+        Int,
+        UnsafePointer<UInt8>?,
+        Int,
+        Int,
+        Int
+    ) -> T
+) -> T {
+    withFlatStringForHOF(first) { data, length, byteCount, hash in
+        withFlatStringForHOF(second) { otherData, otherLength, otherByteCount, otherHash in
+            body(data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash)
         }
-        XCTAssertEqual(list.elements.count, 2)
-        XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), Int(Unicode.Scalar("a").value))
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("X").value))
-        XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[1])), Int(Unicode.Scalar("b").value))
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[1])), Int(Unicode.Scalar("Y").value))
     }
+}
 
-    func testStringZipReturnsEmptyForEmptySource() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        let other = registerRuntimeObject(RuntimeStringBox("abc"))
-        let result = kk_string_zip(source, other)
-        let list = runtimeListBox(from: result)
-        XCTAssertEqual(list?.elements.count, 0)
-    }
-
-    func testStringZipUsesUTF16CodeUnits() {
-        let source = registerRuntimeObject(RuntimeStringBox("a🐻"))
-        let other = registerRuntimeObject(RuntimeStringBox("XYZ"))
-        let result = kk_string_zip(source, other)
-        guard let list = runtimeListBox(from: result) else {
-            XCTFail("Expected list from kk_string_zip")
-            return
-        }
-
-        XCTAssertEqual(list.elements.count, 3)
-        XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), 97)
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("X").value))
-        XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[1])), 0xD83D)
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[1])), Int(Unicode.Scalar("Y").value))
-        XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[2])), 0xDC3B)
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[2])), Int(Unicode.Scalar("Z").value))
-    }
-
-    // STDLIB-TEXT-FN-116: CharSequence.zip(other, transform)
-    func testStringZipTransformCombinesCharsWithLambda() {
-        let source = registerRuntimeObject(RuntimeStringBox("ab"))
-        let other = registerRuntimeObject(RuntimeStringBox("AB"))
-        var thrown = 0
-        let result = kk_string_zipTransform(
-            source,
-            other,
-            unsafeBitCast(zipTransformSumCodepoints, to: Int.self),
-            0,
+private func flatStringHOFValue(
+    _ value: String,
+    entry: RuntimeFlatStringHOFEntry,
+    fnPtr: Int,
+    closureRaw: Int = 0,
+    thrown: inout Int
+) -> String {
+    withFlatStringForHOF(value) { data, length, byteCount, hash in
+        var outLength = 0
+        var outByteCount = 0
+        var outHash = 0
+        let outData = entry(
+            data,
+            length,
+            byteCount,
+            hash,
+            fnPtr,
+            closureRaw,
+            &outLength,
+            &outByteCount,
+            &outHash,
             &thrown
         )
-        XCTAssertEqual(thrown, 0)
-        guard let list = runtimeListBox(from: result) else {
-            XCTFail("Expected list from kk_string_zipTransform")
-            return
+        _ = outLength
+        _ = outHash
+        guard let outData else {
+            return ""
         }
-        XCTAssertEqual(list.elements.count, 2)
-        // 'a'(97) + 'A'(65) = 162
-        XCTAssertEqual(kk_unbox_char(list.elements[0]), 97 + 65)
-        // 'b'(98) + 'B'(66) = 164
-        XCTAssertEqual(kk_unbox_char(list.elements[1]), 98 + 66)
+        let buffer = UnsafeBufferPointer(start: UnsafePointer(outData), count: outByteCount)
+        return String(decoding: buffer, as: UTF8.self)
+    }
+}
+
+private func runtimeStringValueForHOF(_ raw: Int) -> String {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+          let box = tryCast(pointer, to: RuntimeStringBox.self) else {
+        return ""
+    }
+    return box.value
+}
+
+private func assertAggregateStringList(
+    _ list: RuntimeListBox?,
+    equals expected: [String]
+) {
+    guard let list else {
+        Issue.record("Expected a RuntimeListBox")
+        return
+    }
+    #expect(list.values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count))
+    #expect(list.values.map { runtimeRenderAnyForPrint($0) } == expected)
+    #expect(list.elements.map(runtimeStringValueForHOF) == expected)
+}
+
+@Suite(.serialized)
+struct RuntimeStringHOFTests {
+    // KSP-410: map/mapIndexed/mapNotNull are bundled Kotlin source
+    // (StringHOF.kt); their flat runtime bridges and direct tests were
+    // removed. Coverage now lives in Scripts/diff_cases/string_hof.kt /
+    // string_indexed_hof.kt via diff_kotlinc.sh.
+
+    // KSP-410: partition and filter are bundled Kotlin source (StringHOF.kt);
+    // their flat runtime bridges and direct tests were removed. Coverage now
+    // lives in Scripts/diff_cases/string_partition.kt / string_hof.kt via
+    // diff_kotlinc.sh.
+
+    @Test
+    func testStringTrimPredicateFlatReturnsFlattenedStringFields() {
+        let fnPtr = unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self)
+
+        var trimThrown = -1
+        #expect(flatStringHOFValue("xxabxx", entry: kk_string_trim_predicate_flat, fnPtr: fnPtr, thrown: &trimThrown) == "ab")
+        #expect(trimThrown == 0)
+
+        var trimStartThrown = -1
+        #expect(flatStringHOFValue(
+                "xxabxx",
+                entry: kk_string_trimStart_predicate_flat,
+                fnPtr: fnPtr,
+                thrown: &trimStartThrown
+            ) == "abxx")
+        #expect(trimStartThrown == 0)
+
+        var trimEndThrown = -1
+        #expect(flatStringHOFValue(
+                "xxabxx",
+                entry: kk_string_trimEnd_predicate_flat,
+                fnPtr: fnPtr,
+                thrown: &trimEndThrown
+            ) == "xxab")
+        #expect(trimEndThrown == 0)
     }
 
-    func testStringZipTransformUsesUTF16CodeUnits() {
-        let source = registerRuntimeObject(RuntimeStringBox("🐻"))
-        let other = registerRuntimeObject(RuntimeStringBox("AZ"))
-        var thrown = 0
-        let result = kk_string_zipTransform(
-            source,
-            other,
-            unsafeBitCast(zipTransformSumCodepoints, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 0)
-        guard let list = runtimeListBox(from: result) else {
-            XCTFail("Expected list from kk_string_zipTransform")
-            return
-        }
-        XCTAssertEqual(list.elements.count, 2)
-        XCTAssertEqual(kk_unbox_char(list.elements[0]), 0xD83D + Int(Unicode.Scalar("A").value))
-        XCTAssertEqual(kk_unbox_char(list.elements[1]), 0xDC3B + Int(Unicode.Scalar("Z").value))
-    }
+    // KSP-410: filterIndexed is bundled Kotlin source (StringHOF.kt); its
+    // flat runtime bridge and direct tests were removed. Coverage now lives
+    // in Scripts/diff_cases/string_indexed_hof.kt via diff_kotlinc.sh.
 
-    // MARK: - STDLIB-TEXT-FN-040: kk_string_onEachIndexed
+    // KSP-410: filterNot is bundled Kotlin source (StringHOF.kt); its flat
+    // runtime bridge and direct tests were removed. Coverage now lives in
+    // Scripts/diff_cases/string_hof.kt via diff_kotlinc.sh.
 
-    func testOnEachIndexedVisitsEachCharWithIndexAndReturnsOriginal() {
-        var callCount = 0
-        withUnsafeMutablePointer(to: &callCount) { counterPtr in
-            let action: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, _, _, _ in
-                UnsafeMutablePointer<Int>(bitPattern: closureRaw)!.pointee += 1
-                return 0
-            }
-            let source = registerRuntimeObject(RuntimeStringBox("abc"))
-            var thrown = 0
-            let returned = kk_string_onEachIndexed(
-                source,
-                unsafeBitCast(action, to: Int.self),
-                Int(bitPattern: counterPtr),
-                &thrown
-            )
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(returned, source)
-        }
-        XCTAssertEqual(callCount, 3)
-    }
+    // KSP-405: takeWhile/dropWhile are bundled Kotlin source (StringTakeDrop.kt);
+    // their runtime bridges and direct tests were removed.
 
-    func testOnEachIndexedOnEmptyStringCallsNoAction() {
-        let action: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
-            outThrown?.pointee = 99
-            return 0
-        }
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
-        let returned = kk_string_onEachIndexed(
-            source,
-            unsafeBitCast(action, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(returned, source)
-    }
+    // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt);
+    // their runtime bridges and direct tests were removed.
 
-    func testOnEachIndexedPropagatesThrown() {
-        let action: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
-            outThrown?.pointee = 42
-            return 0
-        }
-        let source = registerRuntimeObject(RuntimeStringBox("xyz"))
-        var thrown = 0
-        let returned = kk_string_onEachIndexed(
-            source,
-            unsafeBitCast(action, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 42)
-        XCTAssertEqual(returned, source)
-    }
+    // KSP-410: firstNotNullOf/firstNotNullOfOrNull are bundled Kotlin source
+    // (StringHOF.kt); their flat runtime bridges and direct tests were
+    // removed. Coverage now lives in Scripts/diff_cases/string_hof.kt via
+    // diff_kotlinc.sh.
+
+    // KSP-410: sumBy/sumByDouble are bundled Kotlin source (StringHOF.kt);
+    // their flat runtime bridges and direct tests were removed. Coverage now
+    // lives in Scripts/diff_cases/string_sumby.kt via diff_kotlinc.sh.
+
+    // KSP-410: reduce/reduceOrNull/reduceIndexed/reduceIndexedOrNull/
+    // reduceRight/reduceRightOrNull/reduceRightIndexed/
+    // reduceRightIndexedOrNull are bundled Kotlin source (StringHOF.kt);
+    // their flat runtime bridges and direct tests were removed. Coverage now
+    // lives in Scripts/diff_cases/string_reduce.kt via diff_kotlinc.sh.
 
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
+
+    private func assertCharPairValue(
+        _ raw: Int,
+        first: Int,
+        second: Int
+    ) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
+        else {
+            Issue.record("Expected RuntimePairBox")
+            return
+        }
+
+        #expect(pairBox.firstValue.tag == RuntimeValue.charTag)
+        #expect(pairBox.firstValue.payload0 == first)
+        #expect(pairBox.secondValue.tag == RuntimeValue.charTag)
+        #expect(pairBox.secondValue.payload0 == second)
+    }
 }
+#endif

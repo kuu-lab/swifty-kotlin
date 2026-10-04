@@ -9,6 +9,7 @@ fun routeWithFinally(): String {
         }
     } catch (e: Exception) {
         println("Caught exception: $e")
+        return "caught"
     } finally {
         println("Outer finally - should execute after try-catch")
     }

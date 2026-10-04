@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 17, "character": 12 },
+        "end": { "line": 17, "character": 20 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Cannot create an instance of abstract class 'Animal'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 20, "character": 12 },
+        "end": { "line": 20, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0023",
+      "source": "kswiftk",
+      "message": "Unresolved function 'Flyable'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 23, "character": 12 },
+        "end": { "line": 23, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Cannot create an instance of abstract class 'Vehicle'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 26, "character": 4 },
+        "end": { "line": 28, "character": 5 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Class 'PartialImpl' must override abstract member 'speak'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 38, "character": 10 },
+        "end": { "line": 38, "character": 30 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Object expression must override abstract member 'speak'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 41, "character": 19 },
+        "end": { "line": 43, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Object expression must override abstract member 'fly'.",
+      "codeActions": []
+    }
+  ]
+}

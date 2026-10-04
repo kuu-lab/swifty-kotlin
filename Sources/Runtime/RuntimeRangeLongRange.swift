@@ -1,65 +1,29 @@
-
 // LongRange runtime entry points (STDLIB-RANGE-035) plus IntRange
 // `toIntArray` (STDLIB-RANGE-034) and ULongRange iterator/forEach/map.
 //
-// HOF logic lives in RuntimeRangeSharedHOF.swift (runtimeSignedRange* helpers).
+// HOF logic and range-handle validation live in RuntimeRangeSharedHOF.swift.
 // These @_cdecl functions are thin ABI entry points.
 
 // MARK: - LongRange (STDLIB-RANGE-035)
 
-@_cdecl("kk_long_rangeTo")
+@_cdecl("__kk_long_rangeTo")
 public func kk_long_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .longRange))
 }
 
-@_cdecl("kk_long_range_first")
-public func kk_long_range_first(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_first")
-    }
-    return range.first
+@_cdecl("__kk_long_rangeUntil")
+public func __kk_long_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
+    runtimeUntilRange(first: lhs, exclusiveEnd: rhs, kind: .longRange, endAtOrBelowMinimum: rhs == Int.min)
 }
 
-@_cdecl("kk_long_range_last")
-public func kk_long_range_last(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_last")
-    }
-    return range.last
-}
-
-@_cdecl("kk_long_range_step")
+@_cdecl("__kk_long_range_step")
 public func kk_long_range_step(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_step")
+    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_step") { range in
+        range.step
     }
-    return range.step
 }
 
-@_cdecl("kk_long_range_contains")
-public func kk_long_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_contains")
-    }
-    if range.step > 0 {
-        guard range.first <= value && value <= range.last else { return 0 }
-        return (value &- range.first) % range.step == 0 ? 1 : 0
-    } else if range.step < 0 {
-        guard range.last <= value && value <= range.first else { return 0 }
-        return (range.first &- value) % (0 &- range.step) == 0 ? 1 : 0
-    }
-    return 0
-}
-
-@_cdecl("kk_long_range_isEmpty")
-public func kk_long_range_isEmpty(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_isEmpty")
-    }
-    return runtimeSignedRangeIsEmpty(range) ? 1 : 0
-}
-
-@_cdecl("kk_long_range_iterator")
+@_cdecl("__kk_long_range_iterator")
 public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
@@ -68,232 +32,133 @@ public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
-@_cdecl("kk_long_range_reversed")
-public func kk_long_range_reversed(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_reversed")
-    }
-    return registerRuntimeObject(RuntimeRangeBox(first: range.last, last: range.first, step: 0 &- range.step))
-}
-
-@_cdecl("kk_long_range_toList")
+@_cdecl("__kk_long_range_toList")
 public func kk_long_range_toList(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_toList")
+    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_toList") { range in
+        RuntimeSignedRangeHOFKind.toList(range)
     }
-    return runtimeSignedRangeToList(range)
 }
 
-@_cdecl("kk_long_range_toLongArray")
-public func kk_long_range_toLongArray(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_toLongArray")
-    }
-    var current = range.first
-    var elements: [Int] = []
-    if range.step > 0 {
-        while current <= range.last {
-            elements.append(current)
-            let (next, overflow) = current.addingReportingOverflow(range.step)
-            if overflow { break }
-            current = next
-        }
-    } else if range.step < 0 {
-        while current >= range.last {
-            elements.append(current)
-            let (next, overflow) = current.addingReportingOverflow(range.step)
-            if overflow { break }
-            current = next
-        }
-    }
-    let box = RuntimeArrayBox(length: elements.count)
-    for (i, elem) in elements.enumerated() {
-        box.elements[i] = elem
-    }
-    return registerRuntimeObject(box)
+@_cdecl("__kk_long_range_randomOrNull")
+public func __kk_long_range_randomOrNull(_ rangeRaw: Int) -> Int {
+    runtimeRangeRandomOrNullEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, randomRaw: nil,
+                                  functionName: "__kk_long_range_randomOrNull")
 }
 
-@_cdecl("kk_long_range_count")
-public func kk_long_range_count(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_count")
-    }
-    return runtimeSignedRangeCount(range)
+@_cdecl("__kk_long_range_randomOrNull_random")
+public func __kk_long_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
+    runtimeRangeRandomOrNullEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, randomRaw: randomRaw,
+                                  functionName: "__kk_long_range_randomOrNull_random")
 }
 
-@_cdecl("kk_long_range_randomOrNull")
-public func kk_long_range_randomOrNull(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_randomOrNull")
-    }
-    return runtimeSignedRangeRandomOrNull(range, randomRaw: nil)
-}
-
-@_cdecl("kk_long_range_randomOrNull_random")
-public func kk_long_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_randomOrNull_random")
-    }
-    return runtimeSignedRangeRandomOrNull(range, randomRaw: randomRaw)
-}
-
-@_cdecl("kk_long_range_firstOrNull")
+@_cdecl("__kk_long_range_firstOrNull")
 public func kk_long_range_firstOrNull(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_firstOrNull")
+    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_firstOrNull") { range in
+        RuntimeSignedRangeHOFKind.firstOrNull(range)
     }
-    if range.step == 0 { return runtimeNullSentinelInt }
-    if range.step > 0 { return range.first <= range.last ? range.first : runtimeNullSentinelInt }
-    return range.first >= range.last ? range.first : runtimeNullSentinelInt
 }
 
-@_cdecl("kk_long_range_lastOrNull")
+@_cdecl("__kk_long_range_lastOrNull")
 public func kk_long_range_lastOrNull(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_lastOrNull")
+    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_lastOrNull") { range in
+        RuntimeSignedRangeHOFKind.lastOrNull(range)
     }
-    if range.step == 0 { return runtimeNullSentinelInt }
-    if range.step > 0 { return range.first <= range.last ? range.last : runtimeNullSentinelInt }
-    return range.first >= range.last ? range.last : runtimeNullSentinelInt
 }
 
-@_cdecl("kk_long_range_forEach")
+@_cdecl("__kk_long_range_forEach")
 public func kk_long_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                   _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_forEach")
-    }
-    return runtimeSignedRangeForEach(range, fnPtr, closureRaw, outThrown)
+    runtimeRangeHOFEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
+                         functionName: "kk_long_range_forEach", operation: RuntimeSignedRangeHOFKind.forEach)
 }
 
-@_cdecl("kk_long_range_map")
+@_cdecl("__kk_long_range_map")
 public func kk_long_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_map")
-    }
-    return runtimeSignedRangeMap(range, fnPtr, closureRaw, outThrown)
+    runtimeRangeHOFEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
+                         functionName: "kk_long_range_map", operation: RuntimeSignedRangeHOFKind.map)
 }
 
-@_cdecl("kk_long_range_random")
-public func kk_long_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_random")
-    }
-    return runtimeSignedRangeRandom(first: range.first, last: range.last, step: range.step,
-                                    randomRaw: 0, outThrown: outThrown)
+@_cdecl("__kk_long_range_random")
+public func __kk_long_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeRandomEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, 0, outThrown,
+                            functionName: "__kk_long_range_random")
 }
 
-@_cdecl("kk_long_range_random_random")
-public func kk_long_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_random_random")
-    }
-    return runtimeSignedRangeRandom(first: range.first, last: range.last, step: range.step,
-                                    randomRaw: randomRaw, outThrown: outThrown)
+@_cdecl("__kk_long_range_random_random")
+public func __kk_long_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRangeRandomEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, randomRaw, outThrown,
+                            functionName: "__kk_long_range_random_random")
 }
 
-@_cdecl("kk_random_nextLong_rangeObject")
-public func kk_random_nextLong_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_random_nextLong_rangeObject")
+public func __kk_random_nextLong_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_random_nextLong_rangeObject")
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "__kk_random_nextLong_rangeObject") { range in
+        if RuntimeSignedRangeHOFKind.isEmpty(range) {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Random range is empty: \(range.first)..\(range.last)."
+            )
+            return 0
+        }
+        return RuntimeSignedRangeHOFKind.random(range, randomRaw: randomRaw, outThrown: outThrown)
     }
-    let isEmpty = range.step == 0
-        || (range.step > 0 ? range.first > range.last : range.first < range.last)
-    if isEmpty {
+}
+
+@_cdecl("__kk_long_range_take")
+public func kk_long_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if n < 0 {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random range is empty: \(range.first)..\(range.last)."
+            message: "Requested element count \(n) is less than zero."
         )
-        return 0
+        return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    return runtimeSignedRangeRandom(first: range.first, last: range.last, step: range.step,
-                                    randomRaw: randomRaw, outThrown: outThrown)
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_take") { range in
+        RuntimeSignedRangeHOFKind.take(range, n)
+    }
 }
 
-@_cdecl("kk_long_range_take")
-public func kk_long_range_take(_ rangeRaw: Int, _ n: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_take")
+@_cdecl("__kk_long_range_drop")
+public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if n < 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(n) is less than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    return runtimeSignedRangeTake(range, n)
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_drop") { range in
+        RuntimeSignedRangeHOFKind.drop(range, n)
+    }
 }
 
-@_cdecl("kk_long_range_drop")
-public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_drop")
-    }
-    return runtimeSignedRangeDrop(range, n)
-}
-
-@_cdecl("kk_long_range_average")
+@_cdecl("__kk_long_range_average")
 public func kk_long_range_average(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_average")
+    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_average") { range in
+        RuntimeSignedRangeHOFKind.average(range)
     }
-    return runtimeSignedRangeAverage(range)
 }
 
-@_cdecl("kk_long_range_sorted")
+@_cdecl("__kk_long_range_sorted")
 public func kk_long_range_sorted(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_sorted")
+    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_sorted") { range in
+        RuntimeSignedRangeHOFKind.sorted(range)
     }
-    return runtimeSignedRangeSorted(range)
 }
 
 // MARK: - IntRange toIntArray (STDLIB-RANGE-034)
 
-@_cdecl("kk_range_toIntArray")
-public func kk_range_toIntArray(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_toIntArray")
-    }
-    var current = range.first
-    var elements: [Int] = []
-    if range.step > 0 {
-        while current <= range.last {
-            elements.append(current)
-            let (next, overflow) = current.addingReportingOverflow(range.step)
-            if overflow { break }
-            current = next
-        }
-    } else if range.step < 0 {
-        while current >= range.last {
-            elements.append(current)
-            let (next, overflow) = current.addingReportingOverflow(range.step)
-            if overflow { break }
-            current = next
-        }
-    }
-    let box = RuntimeArrayBox(length: elements.count)
-    for (i, elem) in elements.enumerated() {
-        box.elements[i] = elem
-    }
-    return registerRuntimeObject(box)
-}
-
 // MARK: - ULongRange count, iterator, hasNext, next (STDLIB-RANGE-037)
 
-@_cdecl("kk_ulong_range_count")
-public func kk_ulong_range_count(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_count")
-    }
-    return runtimeUnsignedRangeCount(range)
-}
-
-@_cdecl("kk_ulong_range_iterator")
-public func kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
+@_cdecl("__kk_ulong_range_iterator")
+public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
@@ -301,14 +166,14 @@ public func kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
-@_cdecl("kk_ulong_range_hasNext")
-public func kk_ulong_range_hasNext(_ iterRaw: Int) -> Int {
+@_cdecl("__kk_ulong_range_hasNext")
+public func __kk_ulong_range_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
-        return kk_iterator_builder_hasNext(iterRaw)
+        return __kk_iterator_builder_hasNext(iterRaw)
     }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
         return 0
@@ -320,10 +185,10 @@ public func kk_ulong_range_hasNext(_ iterRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_ulong_range_next")
-public func kk_ulong_range_next(_ iterRaw: Int) -> Int {
+@_cdecl("__kk_ulong_range_next")
+public func __kk_ulong_range_next(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
-        return kk_iterator_builder_next(iterRaw)
+        return __kk_iterator_builder_next(iterRaw)
     }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
         return 0
@@ -334,48 +199,44 @@ public func kk_ulong_range_next(_ iterRaw: Int) -> Int {
         let uStep = UInt(bitPattern: iterator.step)
         let (next, overflow) = uCurrent.addingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     } else if iterator.step < 0 {
         let uStep = UInt(iterator.step.magnitude)
         let (next, overflow) = uCurrent.subtractingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     }
     return current
 }
 
-@_cdecl("kk_ulong_range_forEach")
-public func kk_ulong_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                   _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_forEach")
-    }
-    return runtimeUnsignedRangeForEach(range, fnPtr, closureRaw, outThrown)
-}
-
-@_cdecl("kk_ulong_range_map")
-public func kk_ulong_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_map")
-    }
-    return runtimeUnsignedRangeMap(range, fnPtr, closureRaw, outThrown)
-}
-
 // MARK: - IntRange reversed (STDLIB-093)
 
-@_cdecl("kk_range_reversed")
+@_cdecl("__kk_range_reversed")
 public func kk_range_reversed(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_reversed")
+    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_reversed") { range in
+        registerRuntimeObject(RuntimeRangeBox(
+            first: range.last,
+            last: range.first,
+            step: 0 &- range.step,
+            kind: range.kind.progressionKind
+        ))
     }
-    return registerRuntimeObject(RuntimeRangeBox(first: range.last, last: range.first, step: 0 &- range.step))
 }
 
 @_cdecl("kk_vtable_lookup")
 public func kk_vtable_lookup(_ receiver: Int, _ slot: Int) -> Int {
+    if let pointer = UnsafeMutableRawPointer(bitPattern: receiver) {
+        let objectKey = UInt(bitPattern: pointer)
+        let registered = runtimeStorage.withMetadataLock { state in
+            state.objectVtableMethods[objectKey]?[slot]
+        }
+        if let registered, registered != 0 {
+            return registered
+        }
+    }
+    if let throwableMethod = runtimeThrowableVtableMethodRaw(receiver, slot: slot) {
+        return throwableMethod
+    }
     guard slot >= 0,
           let typeInfo = runtimeTypeInfo(from: receiver)
     else {
@@ -415,6 +276,31 @@ public func kk_itable_lookup(_ receiver: Int, _ ifaceSlot: Int, _ methodSlot: In
         return 0
     }
     return Int(bitPattern: functionPointer)
+}
+
+func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> Int? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw) else {
+        return nil
+    }
+    let objectKey = UInt(bitPattern: ptr)
+    return runtimeStorage.withMetadataLock { state in
+        state.objectInterfaceSlots[objectKey]?[interfaceTypeID]
+    }
+}
+
+/// Like `kk_itable_lookup`, but for call sites where the receiver's static
+/// type was the interface itself (e.g. a function parameter typed
+/// `d: SomeInterface`) rather than a concrete class — the compiler doesn't
+/// know which itable slot the eventual concrete class assigned to that
+/// interface, so it's resolved here from the object's own registration
+/// (recorded by kk_object_register_itable_iface at construction time) keyed
+/// by the interface's stable type ID instead of a fixed slot index.
+@_cdecl("kk_itable_lookup_dynamic")
+public func kk_itable_lookup_dynamic(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int {
+    guard let ifaceSlot = runtimeRegisteredInterfaceSlot(objectRaw: receiver, interfaceTypeID: Int64(interfaceTypeID)) else {
+        return 0
+    }
+    return kk_itable_lookup(receiver, ifaceSlot, methodSlot)
 }
 
 func runtimeRangeBox(from rawValue: Int) -> RuntimeRangeBox? {

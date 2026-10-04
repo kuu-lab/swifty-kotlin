@@ -65,12 +65,15 @@ struct DiagnosticEngineTests {
         #expect(engine.diagnostics[0].primaryRange == range)
     }
 
-    // MARK: - hasError
+    // MARK: - Severity Aggregates
 
     @Test
-    func testHasErrorReturnsFalseWhenEmpty() {
+    func testSeverityFlagsAreFalseWhenEmpty() {
         let engine = DiagnosticEngine()
         #expect(!(engine.hasError))
+        #expect(!(engine.hasWarning))
+        #expect(!(engine.hasNote))
+        #expect(!(engine.hasInfo))
     }
 
     @Test
@@ -78,27 +81,49 @@ struct DiagnosticEngineTests {
         let engine = DiagnosticEngine()
         engine.error("E", "err", range: nil)
         #expect(engine.hasError)
+        #expect(!(engine.hasWarning))
+        #expect(!(engine.hasNote))
+        #expect(!(engine.hasInfo))
     }
 
     @Test
-    func testHasErrorReturnsFalseForWarningOnly() {
+    func testHasWarningReturnsTrueAfterWarning() {
         let engine = DiagnosticEngine()
         engine.warning("W", "warn", range: nil)
+        #expect(engine.hasWarning)
         #expect(!(engine.hasError))
     }
 
     @Test
-    func testHasErrorReturnsFalseForNoteOnly() {
+    func testHasNoteReturnsTrueAfterNote() {
         let engine = DiagnosticEngine()
         engine.note("N", "note", range: nil)
+        #expect(engine.hasNote)
         #expect(!(engine.hasError))
     }
 
     @Test
-    func testHasErrorReturnsFalseForInfoOnly() {
+    func testHasInfoReturnsTrueAfterInfo() {
         let engine = DiagnosticEngine()
         engine.info("I", "info", range: nil)
+        #expect(engine.hasInfo)
         #expect(!(engine.hasError))
+    }
+
+    @Test
+    func testSeverityCountsAggregateBySeverity() {
+        let engine = DiagnosticEngine()
+        engine.error("E1", "err1", range: nil)
+        engine.error("E2", "err2", range: nil)
+        engine.warning("W", "warn", range: nil)
+        engine.note("N", "note", range: nil)
+        engine.info("I", "info", range: nil)
+
+        #expect(engine.errorCount == 2)
+        #expect(engine.warningCount == 1)
+        #expect(engine.noteCount == 1)
+        #expect(engine.infoCount == 1)
+        #expect(engine.count == 5)
     }
 
     // MARK: - Render
@@ -135,6 +160,110 @@ struct DiagnosticEngineTests {
     }
 
     @Test
+    func testRenderIncludesASCIIMessageSourceLineAndCaret() {
+        let srcMgr = SourceManager()
+        let source = "fun main() {\n    println(42)\n}\n"
+        let fileID = srcMgr.addFile(path: "ascii.kt", contents: Data(source.utf8))
+        let prefix = "fun main() {\n    "
+        let startOffset = prefix.utf8.count
+        let range = SourceRange(
+            start: SourceLocation(file: fileID, offset: startOffset),
+            end: SourceLocation(file: fileID, offset: startOffset + "println".utf8.count)
+        )
+
+        let engine = DiagnosticEngine()
+        engine.error("E-ASCII", "bad call", range: range)
+
+        #expect(engine.render(srcMgr) ==
+            "ascii.kt:2:5: error E-ASCII: bad call\n    println(42)\n    ^")
+    }
+
+    @Test
+    func testRenderPreservesTabsInCaretIndentation() {
+        let srcMgr = SourceManager()
+        let source = "fun main() {\n\tprintln(42)\n}\n"
+        let fileID = srcMgr.addFile(path: "tab.kt", contents: Data(source.utf8))
+        let prefix = "fun main() {\n\t"
+        let startOffset = prefix.utf8.count
+        let range = SourceRange(
+            start: SourceLocation(file: fileID, offset: startOffset),
+            end: SourceLocation(file: fileID, offset: startOffset + "println".utf8.count)
+        )
+
+        let engine = DiagnosticEngine()
+        engine.error("E-TAB", "bad call", range: range)
+
+        #expect(engine.render(srcMgr) ==
+            "tab.kt:2:2: error E-TAB: bad call\n\tprintln(42)\n\t^")
+    }
+
+    @Test
+    func testRenderUsesUTF8OffsetsAndUTF16WidthForUnicodeCaret() {
+        let srcMgr = SourceManager()
+        let source = "val 😀 = 1\n"
+        let fileID = srcMgr.addFile(path: "unicode.kt", contents: Data(source.utf8))
+        let prefix = "val 😀 "
+        let startOffset = prefix.utf8.count
+        let range = SourceRange(
+            start: SourceLocation(file: fileID, offset: startOffset),
+            end: SourceLocation(file: fileID, offset: startOffset + 1)
+        )
+
+        let engine = DiagnosticEngine()
+        engine.error("E-UNICODE", "bad value", range: range)
+
+        // The source offset is UTF-8 based; the astral scalar needs two spaces to align visually.
+        #expect(engine.render(srcMgr) ==
+            "unicode.kt:1:7: error E-UNICODE: bad value\nval 😀 = 1\n       ^")
+    }
+
+    @Test
+    func testRenderClampsKnownSourceAndOmitsMissingSourceSnippet() {
+        let srcMgr = SourceManager()
+        let knownFileID = srcMgr.addFile(path: "known.kt", contents: Data("one\ntwo".utf8))
+        let missingFileID = FileID(rawValue: 99)
+
+        let knownEngine = DiagnosticEngine()
+        knownEngine.error("E-END", "past end", range: SourceRange(
+            start: SourceLocation(file: knownFileID, offset: 999),
+            end: SourceLocation(file: knownFileID, offset: 1000)
+        ))
+        #expect(knownEngine.render(srcMgr) ==
+            "known.kt:2:4: error E-END: past end\ntwo\n   ^")
+
+        let missingEngine = DiagnosticEngine()
+        missingEngine.error("E-MISSING", "missing source", range: SourceRange(
+            start: SourceLocation(file: missingFileID, offset: 999),
+            end: SourceLocation(file: missingFileID, offset: 1000)
+        ))
+        #expect(missingEngine.render(srcMgr) == ":1:1: error E-MISSING: missing source")
+    }
+
+    @Test
+    func testRenderShowsStartLineForMultilineRangeAndPreservesTrailingEmptyLine() {
+        let srcMgr = SourceManager()
+        let source = "first\nsecond\nthird\n"
+        let fileID = srcMgr.addFile(path: "multi.kt", contents: Data(source.utf8))
+        let secondLineOffset = "first\n".utf8.count
+        let endOffset = secondLineOffset + "second\nthird".utf8.count
+        let finalLineOffset = source.utf8.count
+
+        let engine = DiagnosticEngine()
+        engine.warning("W-MULTI", "multiline range", range: SourceRange(
+            start: SourceLocation(file: fileID, offset: secondLineOffset),
+            end: SourceLocation(file: fileID, offset: endOffset)
+        ))
+        engine.error("E-FINAL", "final line", range: SourceRange(
+            start: SourceLocation(file: fileID, offset: finalLineOffset),
+            end: SourceLocation(file: fileID, offset: finalLineOffset)
+        ))
+
+        #expect(engine.render(srcMgr) ==
+            "multi.kt:2:1: warning W-MULTI: multiline range\nsecond\n^\n"
+            + "multi.kt:4:1: error E-FINAL: final line\n\n^")
+    }
+
+    @Test
     func testRenderSortsByFileThenLineColumn() {
         let srcMgr = SourceManager()
         let fileA = srcMgr.addFile(path: "a.kt", contents: Data("abc\ndef\n".utf8))
@@ -155,11 +284,13 @@ struct DiagnosticEngineTests {
         ))
 
         let rendered = engine.render(srcMgr)
-        let lines = rendered.split(separator: "\n")
-        #expect(lines.count == 3)
-        #expect(lines[0].contains("E-A0"))
-        #expect(lines[1].contains("E-A1"))
-        #expect(lines[2].contains("E-B"))
+        let headers = rendered.split(separator: "\n").filter {
+            $0.contains("E-A") || $0.contains("E-B")
+        }
+        #expect(headers.count == 3)
+        #expect(headers[0].contains("E-A0"))
+        #expect(headers[1].contains("E-A1"))
+        #expect(headers[2].contains("E-B"))
     }
 
     @Test
@@ -176,11 +307,13 @@ struct DiagnosticEngineTests {
         engine.error("E-1", "err", range: range)
 
         let rendered = engine.render(srcMgr)
-        let lines = rendered.split(separator: "\n")
-        #expect(lines.count == 2)
+        let headers = rendered.split(separator: "\n").filter {
+            $0.contains("E-1") || $0.contains("W-1")
+        }
+        #expect(headers.count == 2)
         // Errors (rank 0) come before warnings (rank 1)
-        #expect(lines[0].contains("error"))
-        #expect(lines[1].contains("warning"))
+        #expect(headers[0].contains("error"))
+        #expect(headers[1].contains("warning"))
     }
 
     @Test
@@ -196,10 +329,12 @@ struct DiagnosticEngineTests {
         ))
 
         let rendered = engine.render(srcMgr)
-        let lines = rendered.split(separator: "\n")
-        #expect(lines.count == 2)
-        #expect(lines[0].contains("E-RANGE"))
-        #expect(lines[1].contains("E-NORANGE"))
+        let headers = rendered.split(separator: "\n").filter {
+            $0.contains("E-RANGE") || $0.contains("E-NORANGE")
+        }
+        #expect(headers.count == 2)
+        #expect(headers[0].contains("E-RANGE"))
+        #expect(headers[1].contains("E-NORANGE"))
     }
 
     @Test
@@ -230,17 +365,6 @@ struct DiagnosticEngineTests {
         #expect(engine.diagnostics[0].code == "E1")
         #expect(engine.diagnostics[1].code == "W1")
         #expect(engine.diagnostics[2].code == "N1")
-    }
-
-    // MARK: - Diagnostic Equality
-
-    @Test
-    func testDiagnosticEquality() {
-        let d1 = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
-        let d2 = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
-        let d3 = Diagnostic(severity: .warning, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
-        #expect(d1 == d2)
-        #expect(d1 != d3)
     }
 
     @Test
@@ -347,6 +471,33 @@ struct DiagnosticEngineTests {
     }
 
     @Test
+    func testRenderJSONCodeActionIncludesTextEdits() {
+        let sourceManager = SourceManager()
+        let fileID = sourceManager.addFile(path: "edit.kt", contents: Data("const var answer = 1\n".utf8))
+        let edit = DiagnosticTextEdit(
+            range: SourceRange(
+                start: SourceLocation(file: fileID, offset: 0),
+                end: SourceLocation(file: fileID, offset: 6)
+            ),
+            newText: ""
+        )
+        let action = DiagnosticCodeAction(title: "Remove const", edits: [edit])
+        let engine = DiagnosticEngine()
+        engine.error(
+            "KSWIFTK-SEMA-0080",
+            "const var is invalid",
+            range: edit.range,
+            codeActions: [action]
+        )
+
+        let json = engine.renderJSON(sourceManager)
+        #expect(json.contains("\"edits\""))
+        #expect(json.contains("\"newText\": \"\""))
+        #expect(json.contains("\"start\": { \"line\": 0, \"character\": 0 }"))
+        #expect(json.contains("\"end\": { \"line\": 0, \"character\": 6 }"))
+    }
+
+    @Test
     func testRenderJSONMultipleDiagnosticsSorted() {
         let srcMgr = SourceManager()
         let fileID = srcMgr.addFile(path: "multi.kt", contents: Data("aaa\nbbb\nccc\n".utf8))
@@ -446,15 +597,6 @@ struct DiagnosticEngineTests {
         )
     }
 
-    // MARK: - DiagnosticsFormat
-
-    @Test
-    func testDiagnosticsFormatRawValues() {
-        #expect(DiagnosticsFormat(rawValue: "text") == .text)
-        #expect(DiagnosticsFormat(rawValue: "json") == .json)
-        #expect(DiagnosticsFormat(rawValue: "xml") == nil)
-    }
-
     // MARK: - codeActions on Diagnostic
 
     @Test
@@ -473,6 +615,124 @@ struct DiagnosticEngineTests {
         )
         #expect(diag.codeActions.count == 1)
         #expect(diag.codeActions[0].title == "Fix it")
+    }
+
+    // MARK: - Per-file diagnostic limit
+
+    private static let truncationCode = "KSWIFTK-PIPELINE-0005"
+
+    @Test
+    func testEmitsSingleTruncationNoticeWhenFileLimitExceeded() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 3)
+        let file = FileID(rawValue: 7)
+        for i in 0 ..< 10 {
+            engine.error("E-\(i)", "err \(i)", range: makeRange(file: file, start: i, end: i + 1))
+        }
+        let notices = engine.diagnostics.filter { $0.code == Self.truncationCode }
+        #expect(engine.diagnostics.count == 4) // 3 stored + 1 aggregated notice
+        #expect(notices.count == 1)
+        #expect(notices[0].severity == .error)
+        #expect(engine.errorCount == 4)
+    }
+
+    @Test
+    func testTruncationNoticeAnchorsAtFirstSuppressedRange() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let file = FileID(rawValue: 1)
+        engine.error("E-0", "e0", range: makeRange(file: file, start: 0, end: 1))
+        engine.error("E-1", "e1", range: makeRange(file: file, start: 2, end: 3))
+        engine.error("E-2", "e2", range: makeRange(file: file, start: 4, end: 5))
+        let notice = engine.diagnostics.last
+        #expect(notice?.code == Self.truncationCode)
+        #expect(notice?.primaryRange == makeRange(file: file, start: 4, end: 5))
+    }
+
+    @Test
+    func testPerFileLimitIsIndependentAcrossFiles() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let fileA = FileID(rawValue: 1)
+        let fileB = FileID(rawValue: 2)
+        for i in 0 ..< 4 {
+            engine.error("A-\(i)", "a", range: makeRange(file: fileA, start: i, end: i + 1))
+            engine.error("B-\(i)", "b", range: makeRange(file: fileB, start: i, end: i + 1))
+        }
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 2)
+        #expect(engine.diagnostics.count == 6) // 2 per file + 1 notice per file
+    }
+
+    @Test
+    func testDuplicatesDoNotCountTowardLimit() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let diag = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
+        for _ in 0 ..< 10 {
+            engine.emit(diag)
+        }
+        #expect(engine.diagnostics.count == 1)
+        #expect(engine.diagnostics.allSatisfy { $0.code != Self.truncationCode })
+    }
+
+    @Test
+    func testRangelessDiagnosticsShareOneBucket() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 3)
+        for i in 0 ..< 8 {
+            engine.warning("W-\(i)", "w\(i)", range: nil)
+        }
+        #expect(engine.diagnostics.count == 4)
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 1)
+    }
+
+    @Test
+    func testSuppressedDiagnosticsDoNotCountTowardLimit() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let file = FileID(rawValue: 5)
+        engine.addSuppression(code: "E-SUP", range: makeRange(file: file, start: 0, end: 100))
+        for i in 0 ..< 4 {
+            engine.error("E-SUP", "suppressed", range: makeRange(file: file, start: i, end: i + 1))
+        }
+        engine.error("E-0", "e0", range: makeRange(file: file, start: 0, end: 1))
+        engine.error("E-1", "e1", range: makeRange(file: file, start: 1, end: 2))
+        engine.error("E-2", "e2", range: makeRange(file: file, start: 2, end: 3))
+        #expect(engine.diagnostics.count == 3)
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 1)
+    }
+
+    @Test
+    func testTruncationNoticeEscalatesToErrorWhenErrorDropped() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let file = FileID(rawValue: 3)
+        engine.warning("W-0", "w0", range: makeRange(file: file, start: 0, end: 1))
+        engine.warning("W-1", "w1", range: makeRange(file: file, start: 1, end: 2))
+        engine.warning("W-2", "w2", range: makeRange(file: file, start: 2, end: 3))
+        var notices = engine.diagnostics.filter { $0.code == Self.truncationCode }
+        #expect(notices.count == 1)
+        #expect(notices[0].severity == .warning)
+        #expect(!engine.hasError)
+
+        engine.error("E-0", "e0", range: makeRange(file: file, start: 3, end: 4))
+        notices = engine.diagnostics.filter { $0.code == Self.truncationCode }
+        #expect(notices.count == 1)
+        #expect(notices[0].severity == .error)
+        #expect(engine.hasError)
+    }
+
+    @Test
+    func testTruncateRestoresHeadroomAndNotice() {
+        let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
+        let file = FileID(rawValue: 4)
+        engine.error("E-0", "e0", range: makeRange(file: file, start: 0, end: 1))
+        let snapshot = engine.count
+        engine.error("E-1", "e1", range: makeRange(file: file, start: 1, end: 2))
+        engine.error("E-2", "e2", range: makeRange(file: file, start: 2, end: 3))
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 1)
+
+        engine.truncate(to: snapshot)
+        #expect(engine.diagnostics.count == 1)
+
+        engine.error("E-1", "e1", range: makeRange(file: file, start: 1, end: 2))
+        engine.error("E-2", "e2", range: makeRange(file: file, start: 2, end: 3))
+        engine.error("E-3", "e3", range: makeRange(file: file, start: 3, end: 4))
+        #expect(engine.diagnostics.count == 3)
+        #expect(engine.diagnostics.filter { $0.code == Self.truncationCode }.count == 1)
     }
 }
 #endif

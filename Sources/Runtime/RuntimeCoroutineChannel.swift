@@ -7,18 +7,20 @@ import Foundation
 
 // MARK: - Channel Runtime (CORO-001)
 
-/// Out-of-band status codes returned by `kk_channel_send` / `kk_channel_receive`.
+/// Out-of-band status codes returned by channel operations.
 /// The actual payload (when present) is written to an `outValue` pointer on receive,
 /// matching the status+out-pointer pattern used by `kk_coroutine_check_cancellation`.
 enum ChannelOperationStatus: Int {
     case success = 0
     case closed = 1
     case cancelled = 2
+    case failed = 3
 }
 
 let kChannelResultSuccess: Int = ChannelOperationStatus.success.rawValue
 let kChannelResultClosed: Int = ChannelOperationStatus.closed.rawValue
 let kChannelResultCancelled: Int = ChannelOperationStatus.cancelled.rawValue
+let kChannelResultFailed: Int = ChannelOperationStatus.failed.rawValue
 
 /// Buffer overflow strategies for Channel send operations (CORO-001)
 enum ChannelBufferOverflow {
@@ -88,12 +90,10 @@ final class SuspendedReceiver: @unchecked Sendable {
 ///     via `cancelAllWaiters()` (cooperatively from the coroutine runtime).
 final class RuntimeChannelHandle: @unchecked Sendable {
     private let lock = NSLock()
-    // NOTE: `buffer`, `senderQueue`, and `receiverQueue` use `Array` with
-    // `removeFirst()` which is O(n) due to element shifting.  For the current
-    // use (moderate queue depths), this is acceptable.  If channels become a
-    // hot-path bottleneck, replace these with a circular buffer / Deque for
-    // O(1) dequeue.  (See also: Swift Collections `Deque` type.)
-    private var buffer: [Int] = []
+    // `buffer`, `senderQueue`, and `receiverQueue` are head-index FIFO queues:
+    // dequeue is O(1) amortized, so draining an UNLIMITED/backed-up channel
+    // stays linear instead of quadratic in the buffered element count.
+    private var buffer = RuntimeFIFOQueue<Int>()
     let capacity: Int
     private(set) var closed = false
     private let bufferOverflow: ChannelBufferOverflow
@@ -102,11 +102,16 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     // reference.  Receivers set `delivered = true` before signaling the
     // semaphore so that senders can distinguish successful delivery from a
     // close-induced wakeup.
-    private var senderQueue: [SuspendedSender] = []
+    private var senderQueue = RuntimeFIFOQueue<SuspendedSender>()
 
     // Waiting-receiver queue: each suspended receiver is a `SuspendedReceiver`
     // reference.  Senders deposit a value before signaling the semaphore.
-    private var receiverQueue: [SuspendedReceiver] = []
+    private var receiverQueue = RuntimeFIFOQueue<SuspendedReceiver>()
+
+    // KSP-1573: `invokeOnClose` handlers, as (fnPtr, closureRaw) function-value
+    // pairs.  They run exactly once, on the first successful `close()`, with a
+    // nil cause argument until `close(cause:)` lands.
+    private var closeHandlers: [(fnPtr: Int, closureRaw: Int)] = []
 
     init(capacity: Int, bufferOverflow: ChannelBufferOverflow = .suspend) {
         self.capacity = max(0, capacity)
@@ -140,8 +145,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // 2. If there is a waiting receiver, hand the value off directly
         //    (both rendezvous and buffered benefit from this fast path).
-        if let receiver = receiverQueue.first {
-            receiverQueue.removeFirst()
+        if let receiver = receiverQueue.dequeue() {
             receiver.result = value
             lock.unlock()
             // Preserve rendezvous handoff ordering: let the sender resume and
@@ -152,7 +156,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // 3. Buffered channel with space -- enqueue and return immediately.
         if capacity > 0, buffer.count < capacity {
-            buffer.append(value)
+            buffer.enqueue(value)
             lock.unlock()
             return .success
         }
@@ -165,8 +169,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
                 break
             case .dropOldest:
                 // Remove oldest element and add new one
-                _ = buffer.removeFirst()
-                buffer.append(value)
+                _ = buffer.dequeue()
+                buffer.enqueue(value)
                 lock.unlock()
                 return .success
             case .dropLatest:
@@ -182,12 +186,15 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         let senderSem = DispatchSemaphore(value: 0)
         let entry = SuspendedSender(semaphore: senderSem, continuation: continuation, value: value)
 
-        senderQueue.append(entry)
+        senderQueue.enqueue(entry)
         lock.unlock()
 
         // Channel send is not yet lowered as a true suspend point, so the
         // runtime must block here until a receiver or close/cancellation wakes it.
-        senderSem.wait()
+        // BUG-041 interaction: flush undispatched launch{} work before blocking
+        // so a sibling `launch { receive() }` queued on this thread can run.
+        RuntimePendingLaunchQueue.flush()
+        runtimeWaitDrainingEventLoop(senderSem)
 
         // After waking, check the wakeup reason.
         lock.lock()
@@ -200,6 +207,48 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return wasCancelled ? .cancelled : .closed
         }
         return wasDelivered ? .success : .closed
+    }
+
+    /// Attempt to send a value without suspending.  A full rendezvous or
+    /// buffered channel reports `.failed`; a closed channel reports `.closed`.
+    func trySend(_ value: Int) -> ChannelOperationStatus {
+        lock.lock()
+
+        if closed {
+            lock.unlock()
+            return .closed
+        }
+
+        if let receiver = receiverQueue.dequeue() {
+            receiver.result = value
+            lock.unlock()
+            resumeReceiverAsync(receiver)
+            return .success
+        }
+
+        if capacity > 0, buffer.count < capacity {
+            buffer.enqueue(value)
+            lock.unlock()
+            return .success
+        }
+
+        if capacity > 0, buffer.count >= capacity {
+            switch bufferOverflow {
+            case .suspend:
+                break
+            case .dropOldest:
+                _ = buffer.dequeue()
+                buffer.enqueue(value)
+                lock.unlock()
+                return .success
+            case .dropLatest:
+                lock.unlock()
+                return .success
+            }
+        }
+
+        lock.unlock()
+        return .failed
     }
 
     /// Receive a value from the channel, suspending (blocking) the caller when
@@ -222,13 +271,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
 
         // 1. Try to take from the buffer.
-        if !buffer.isEmpty {
-            let value = buffer.removeFirst()
+        if let value = buffer.dequeue() {
             // If a sender is suspended (backpressure), wake the oldest one and
             // move its value into the buffer to maintain ordering.
-            if let sender = senderQueue.first {
-                senderQueue.removeFirst()
-                buffer.append(sender.value)
+            if let sender = senderQueue.dequeue() {
+                buffer.enqueue(sender.value)
                 sender.delivered = true
                 lock.unlock()
                 // CORO-004: Use continuation-based resume if available
@@ -243,8 +290,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // 2. Buffer is empty -- try to pair directly with a waiting sender
         //    (rendezvous fast-path, also applies to buffered when a sender
         //    arrived while the buffer was full and then got drained completely).
-        if let sender = senderQueue.first {
-            senderQueue.removeFirst()
+        if let sender = senderQueue.dequeue() {
             let value = sender.value
             sender.delivered = true
             lock.unlock()
@@ -265,12 +311,18 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // semaphore compatibility during migration.
         let receiverEntry = SuspendedReceiver(semaphore: DispatchSemaphore(value: 0), continuation: continuation)
 
-        receiverQueue.append(receiverEntry)
+        receiverQueue.enqueue(receiverEntry)
         lock.unlock()
 
         // Channel receive is not yet lowered as a true suspend point, so the
         // runtime must block here until a sender, close, or cancellation wakes it.
-        receiverEntry.semaphore.wait()
+        // BUG-041 interaction: flush undispatched launch{} work before blocking
+        // so a sibling `launch { send(x) }` queued on this thread can run.
+        // Without this, channel_basic-style rendezvous deadlocks (run exit 124).
+        // On a runBlocking event loop the flush only *queues* that sibling, so
+        // the wait below has to keep draining the queue rather than park.
+        RuntimePendingLaunchQueue.flush()
+        runtimeWaitDrainingEventLoop(receiverEntry.semaphore)
 
         // After waking, check the wakeup reason.
         lock.lock()
@@ -319,10 +371,10 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return false
         }
         closed = true
-        let pendingSenders = senderQueue
-        senderQueue.removeAll()
-        let pendingReceivers = receiverQueue
-        receiverQueue.removeAll()
+        let pendingSenders = senderQueue.drain()
+        let pendingReceivers = receiverQueue.drain()
+        let pendingCloseHandlers = closeHandlers
+        closeHandlers.removeAll()
         lock.unlock()
 
         // Wake all suspended senders -- they will see `closed == true` and
@@ -337,6 +389,40 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             // CORO-004: Use continuation-based resume if available
             resumeReceiver(receiver)
         }
+        for handler in pendingCloseHandlers {
+            guard handler.fnPtr != 0 else { continue }
+            _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+                fnPtr: handler.fnPtr,
+                closureRaw: handler.closureRaw,
+                value: runtimeNullSentinelInt,
+                outThrown: nil
+            )
+        }
+        return true
+    }
+
+    /// Registers an `invokeOnClose` handler (KSP-1573).
+    ///
+    /// Returns `true` when the handler was queued and will run on the first
+    /// close.  When the channel is already closed the handler is invoked
+    /// inline with a nil cause, matching kotlinx.coroutines semantics, and
+    /// `false` is returned.
+    @discardableResult
+    func addCloseHandler(fnPtr: Int, closureRaw: Int) -> Bool {
+        lock.lock()
+        if closed {
+            lock.unlock()
+            guard fnPtr != 0 else { return false }
+            _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+                fnPtr: fnPtr,
+                closureRaw: closureRaw,
+                value: runtimeNullSentinelInt,
+                outThrown: nil
+            )
+            return false
+        }
+        closeHandlers.append((fnPtr, closureRaw))
+        lock.unlock()
         return true
     }
 
@@ -349,10 +435,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// channel operation is called from exactly one coroutine at a time.
     func cancelAllWaiters() {
         lock.lock()
-        let pendingSenders = senderQueue
-        senderQueue.removeAll()
-        let pendingReceivers = receiverQueue
-        receiverQueue.removeAll()
+        let pendingSenders = senderQueue.drain()
+        let pendingReceivers = receiverQueue.drain()
         lock.unlock()
 
         for sender in pendingSenders {
@@ -365,6 +449,16 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             // CORO-004: Use continuation-based resume if available
             resumeReceiver(receiver)
         }
+    }
+
+    /// Returns the current suspended waiter counts under the channel lock.
+    ///
+    /// Runtime tests use this snapshot to synchronize with actual suspension
+    /// instead of assuming a background queue has progressed after a fixed delay.
+    func suspendedWaiterCountsSnapshot() -> (senders: Int, receivers: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (senderQueue.count, receiverQueue.count)
     }
 
     // MARK: - Private helpers
@@ -441,6 +535,67 @@ public func kk_channel_create(_ capacity: Int) -> Int {
     return Int(bitPattern: ptr)
 }
 
+/// KSP-1573: `Channel(capacity, onBufferOverflow)` factory bridge. The
+/// `onBufferOverflow` argument is the `BufferOverflow` ordinal (0 SUSPEND,
+/// 1 DROP_OLDEST, 2 DROP_LATEST).  Negative capacity values keep their
+/// kotlinx.coroutines sentinel semantics: -1 CONFLATED maps to a
+/// one-slot DROP_OLDEST channel, -2 BUFFERED expands to the default buffer
+/// size, and -3 OPTIONAL_CHANNEL falls back to a rendezvous channel.
+@_cdecl("__kk_channel_create_with_policy")
+public func __kk_channel_create_with_policy(_ capacity: Int, _ onBufferOverflow: Int) -> Int {
+    var resolvedCapacity = capacity
+    var overflow: ChannelBufferOverflow
+    switch onBufferOverflow {
+    case 1:
+        overflow = .dropOldest
+    case 2:
+        overflow = .dropLatest
+    default:
+        overflow = .suspend
+    }
+    switch capacity {
+    case -1:
+        resolvedCapacity = 1
+        overflow = .dropOldest
+    case -2:
+        resolvedCapacity = 64
+    case -3:
+        resolvedCapacity = 0
+    default:
+        break
+    }
+    let channel = RuntimeChannelHandle(capacity: resolvedCapacity, bufferOverflow: overflow)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(channel).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// KSP-1573: `SendChannel.invokeOnClose(handler)` bridge. `handler` crosses
+/// the boundary as an (fnPtr, closureRaw) pair, the same function-value
+/// convention `kk_job_invoke_on_completion` uses. The handler is invoked with
+/// a nil cause when the channel first closes, or immediately when it is
+/// already closed.
+@_cdecl("__kk_channel_invoke_on_close")
+public func __kk_channel_invoke_on_close(_ handle: Int, _ handlerFnPtr: Int, _ handlerClosureRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
+          let channel = tryCast(ptr, to: RuntimeChannelHandle.self)
+    else {
+        return 0
+    }
+    return channel.addCloseHandler(fnPtr: handlerFnPtr, closureRaw: handlerClosureRaw) ? 1 : 0
+}
+
+/// Identity bridge used by bundled stdlib declarations that reinterpret a
+/// runtime handle under a different static type (e.g. Channel as
+/// ProducerScope/SendChannel) where both sides share the same object
+/// representation.
+@_cdecl("__kk_identity")
+public func __kk_identity(_ value: Int) -> Int {
+    value
+}
+
 public func kk_channel_send(_ handle: Int, _ value: Int) -> Int {
     kk_channel_send(handle, value, 0)
 }
@@ -477,6 +632,39 @@ public func kk_channel_send(_ handle: Int, _ value: Int, _ continuation: Int) ->
     return channel.send(resolvedValue, continuation: continuation).rawValue
 }
 
+/// Non-suspending channel send used by `ProducerScope.trySend`.
+@_cdecl("kk_channel_try_send")
+public func kk_channel_try_send(_ handle: Int, _ value: Int) -> Int {
+    func isRegisteredChannelHandle(_ raw: Int) -> Bool {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+            return false
+        }
+        let isRegistered = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        guard isRegistered else {
+            return false
+        }
+        return tryCast(ptr, to: RuntimeChannelHandle.self) != nil
+    }
+
+    let resolvedHandle: Int
+    let resolvedValue: Int
+    if !isRegisteredChannelHandle(handle), isRegisteredChannelHandle(value) {
+        resolvedHandle = value
+        resolvedValue = handle
+    } else {
+        resolvedHandle = handle
+        resolvedValue = value
+    }
+
+    guard let resolvedPtr = UnsafeMutableRawPointer(bitPattern: resolvedHandle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_try_send received invalid channel handle")
+    }
+    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
+    return channel.trySend(resolvedValue).rawValue
+}
+
 @_cdecl("kk_channel_receive")
 public func kk_channel_receive(
     _ handle: Int,
@@ -504,10 +692,10 @@ public func kk_channel_close(_ handle: Int) -> Int {
 }
 
 /// Returns 1 when `status` indicates a closed or cancelled channel operation,
-/// 0 when `status` is `kChannelResultSuccess`.
+/// 0 for successful and non-closed try-send failures.
 @_cdecl("kk_channel_is_closed_token")
 public func kk_channel_is_closed_token(_ status: Int) -> Int {
-    return status == kChannelResultSuccess ? 0 : 1
+    return status == kChannelResultClosed || status == kChannelResultCancelled ? 1 : 0
 }
 
 /// Returns 1 if the channel is closed for receiving (i.e., it is closed AND the buffer
@@ -649,8 +837,8 @@ func runtimeReadArrayElement(arrayRaw: Int, index: Int) -> Int {
     guard let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self) else {
         return 0
     }
-    guard index >= 0, index < arrayBox.elements.count else {
+    guard index >= 0, index < arrayBox.count else {
         return 0
     }
-    return arrayBox.elements[index]
+    return arrayBox[index]
 }

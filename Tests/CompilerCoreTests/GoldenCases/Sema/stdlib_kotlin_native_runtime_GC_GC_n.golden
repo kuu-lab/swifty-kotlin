@@ -1,0 +1,171 @@
+symbol fq=__local_0.threshold[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_1.collectCyclesThreshold[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_2.thresholdAllocations[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_3.autotune[kind=local] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_4.cyclicCollectorEnabled[kind=local] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_5.regularGCInterval[kind=local] kind=local vis=private flags=_ type=kotlin.time.Duration
+symbol fq=__local_6.targetHeapBytes[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_7.targetHeapUtilization[kind=local] kind=local vis=private flags=_ type=Double
+symbol fq=__local_8.minHeapBytes[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_9.maxHeapBytes[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_10.heapTriggerCoefficient[kind=local] kind=local vis=private flags=_ type=Double
+symbol fq=__local_11.pauseOnTargetHeapOverflow[kind=local] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_12.detected[kind=local] kind=local vis=private flags=_ type=kotlin.Array<Any>?
+symbol fq=__local_13.lastInfo[kind=local] kind=local vis=private flags=_ type=kotlin.native.runtime.GCInfo?
+symbol fq=__local_14.cycle[kind=local] kind=local vis=private flags=_ type=kotlin.Array<Any>?
+symbol fq=gcContract[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
+file fstdlib_kotlin_native_runtime_GC_GC_n package=_ annotations=[@file:OptIn(kotlin.native.runtime.NativeRuntimeApi::class,ExperimentalStdlibApi::class),@file:Suppress("DEPRECATION")]
+  decl gcContract[kind=fun;params=] fun gcContract sym=gcContract[kind=fun;params=]
+expr e@9:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@9:5#1 memberCall recv=e@9:5 callee=collect args=[] type=Unit call=kotlin.native.runtime.GC.collect[kind=fun;recv=kotlin.native.runtime.GC;params=]
+expr e@10:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@10:5#1 memberCall recv=e@10:5 callee=schedule args=[] type=Unit call=kotlin.native.runtime.GC.schedule[kind=fun;recv=kotlin.native.runtime.GC;params=]
+expr e@11:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@11:5#1 memberCall recv=e@11:5 callee=collectCyclic args=[] type=Unit call=kotlin.native.runtime.GC.collectCyclic[kind=fun;recv=kotlin.native.runtime.GC;params=]
+expr e@12:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@12:5#1 memberCall recv=e@12:5 callee=suspend args=[] type=Unit call=kotlin.native.runtime.GC.suspend[kind=fun;recv=kotlin.native.runtime.GC;params=]
+expr e@13:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@13:5#1 memberCall recv=e@13:5 callee=resume args=[] type=Unit call=kotlin.native.runtime.GC.resume[kind=fun;recv=kotlin.native.runtime.GC;params=]
+expr e@14:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@14:5#1 memberCall recv=e@14:5 callee=stop args=[] type=Unit call=kotlin.native.runtime.GC.stop[kind=fun;recv=kotlin.native.runtime.GC;params=]
+expr e@15:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@15:5#1 memberCall recv=e@15:5 callee=start args=[] type=Unit call=kotlin.native.runtime.GC.start[kind=fun;recv=kotlin.native.runtime.GC;params=]
+expr e@17:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@17:20 int(100) type=Int
+expr e@17:5#1 memberAssign recv=e@17:5 callee=threshold value=e@17:20 type=Unit ref=kotlin.native.runtime.GC.threshold[kind=prop]
+expr e@18:26 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@18:26#1 memberCall recv=e@18:26 callee=threshold args=[] type=Int ref=kotlin.native.runtime.GC.threshold[kind=prop]
+expr e@18:5 localDecl threshold mutable=0 type=Int init=e@18:26#1 type=Unit ref=__local_0.threshold[kind=local]
+expr e@20:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@20:33 long(200) type=Long
+expr e@20:5#1 memberAssign recv=e@20:5 callee=collectCyclesThreshold value=e@20:33 type=Unit ref=kotlin.native.runtime.GC.collectCyclesThreshold[kind=prop]
+expr e@21:40 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@21:40#1 memberCall recv=e@21:40 callee=collectCyclesThreshold args=[] type=Long ref=kotlin.native.runtime.GC.collectCyclesThreshold[kind=prop]
+expr e@21:5 localDecl collectCyclesThreshold mutable=0 type=Long init=e@21:40#1 type=Unit ref=__local_1.collectCyclesThreshold[kind=local]
+expr e@23:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@23:31 long(300) type=Long
+expr e@23:5#1 memberAssign recv=e@23:5 callee=thresholdAllocations value=e@23:31 type=Unit ref=kotlin.native.runtime.GC.thresholdAllocations[kind=prop]
+expr e@24:38 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@24:38#1 memberCall recv=e@24:38 callee=thresholdAllocations args=[] type=Long ref=kotlin.native.runtime.GC.thresholdAllocations[kind=prop]
+expr e@24:5 localDecl thresholdAllocations mutable=0 type=Long init=e@24:38#1 type=Unit ref=__local_2.thresholdAllocations[kind=local]
+expr e@26:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@26:19 bool(true) type=Boolean
+expr e@26:5#1 memberAssign recv=e@26:5 callee=autotune value=e@26:19 type=Unit ref=kotlin.native.runtime.GC.autotune[kind=prop]
+expr e@27:29 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@27:29#1 memberCall recv=e@27:29 callee=autotune args=[] type=Boolean ref=kotlin.native.runtime.GC.autotune[kind=prop]
+expr e@27:5 localDecl autotune mutable=0 type=Boolean init=e@27:29#1 type=Unit ref=__local_3.autotune[kind=local]
+expr e@29:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@29:33 bool(false) type=Boolean
+expr e@29:5#1 memberAssign recv=e@29:5 callee=cyclicCollectorEnabled value=e@29:33 type=Unit ref=kotlin.native.runtime.GC.cyclicCollectorEnabled[kind=prop]
+expr e@30:43 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@30:43#1 memberCall recv=e@30:43 callee=cyclicCollectorEnabled args=[] type=Boolean ref=kotlin.native.runtime.GC.cyclicCollectorEnabled[kind=prop]
+expr e@30:5 localDecl cyclicCollectorEnabled mutable=0 type=Boolean init=e@30:43#1 type=Unit ref=__local_4.cyclicCollectorEnabled[kind=local]
+expr e@32:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@32:28 int(5) type=Int
+expr e@32:28#1 memberCall recv=e@32:28 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.seconds.$get[kind=fun;recv=Int;params=]
+expr e@32:5#1 memberAssign recv=e@32:5 callee=regularGCInterval value=e@32:28#1 type=Unit ref=kotlin.native.runtime.GC.regularGCInterval[kind=prop]
+expr e@33:29 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@33:29#1 memberCall recv=e@33:29 callee=regularGCInterval args=[] type=kotlin.time.Duration ref=kotlin.native.runtime.GC.regularGCInterval[kind=prop]
+expr e@33:5 localDecl regularGCInterval mutable=0 type=_ init=e@33:29#1 type=Unit ref=__local_5.regularGCInterval[kind=local]
+expr e@35:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@35:26 long(1024) type=Long
+expr e@35:5#1 memberAssign recv=e@35:5 callee=targetHeapBytes value=e@35:26 type=Unit ref=kotlin.native.runtime.GC.targetHeapBytes[kind=prop]
+expr e@36:33 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@36:33#1 memberCall recv=e@36:33 callee=targetHeapBytes args=[] type=Long ref=kotlin.native.runtime.GC.targetHeapBytes[kind=prop]
+expr e@36:5 localDecl targetHeapBytes mutable=0 type=Long init=e@36:33#1 type=Unit ref=__local_6.targetHeapBytes[kind=local]
+expr e@38:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@38:32 double(0.5) type=Double
+expr e@38:5#1 memberAssign recv=e@38:5 callee=targetHeapUtilization value=e@38:32 type=Unit ref=kotlin.native.runtime.GC.targetHeapUtilization[kind=prop]
+expr e@39:41 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@39:41#1 memberCall recv=e@39:41 callee=targetHeapUtilization args=[] type=Double ref=kotlin.native.runtime.GC.targetHeapUtilization[kind=prop]
+expr e@39:5 localDecl targetHeapUtilization mutable=0 type=Double init=e@39:41#1 type=Unit ref=__local_7.targetHeapUtilization[kind=local]
+expr e@41:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@41:23 long(512) type=Long
+expr e@41:5#1 memberAssign recv=e@41:5 callee=minHeapBytes value=e@41:23 type=Unit ref=kotlin.native.runtime.GC.minHeapBytes[kind=prop]
+expr e@42:30 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@42:30#1 memberCall recv=e@42:30 callee=minHeapBytes args=[] type=Long ref=kotlin.native.runtime.GC.minHeapBytes[kind=prop]
+expr e@42:5 localDecl minHeapBytes mutable=0 type=Long init=e@42:30#1 type=Unit ref=__local_8.minHeapBytes[kind=local]
+expr e@44:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@44:23 long(2048) type=Long
+expr e@44:5#1 memberAssign recv=e@44:5 callee=maxHeapBytes value=e@44:23 type=Unit ref=kotlin.native.runtime.GC.maxHeapBytes[kind=prop]
+expr e@45:30 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@45:30#1 memberCall recv=e@45:30 callee=maxHeapBytes args=[] type=Long ref=kotlin.native.runtime.GC.maxHeapBytes[kind=prop]
+expr e@45:5 localDecl maxHeapBytes mutable=0 type=Long init=e@45:30#1 type=Unit ref=__local_9.maxHeapBytes[kind=local]
+expr e@47:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@47:33 double(0.9) type=Double
+expr e@47:5#1 memberAssign recv=e@47:5 callee=heapTriggerCoefficient value=e@47:33 type=Unit ref=kotlin.native.runtime.GC.heapTriggerCoefficient[kind=prop]
+expr e@48:42 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@48:42#1 memberCall recv=e@48:42 callee=heapTriggerCoefficient args=[] type=Double ref=kotlin.native.runtime.GC.heapTriggerCoefficient[kind=prop]
+expr e@48:5 localDecl heapTriggerCoefficient mutable=0 type=Double init=e@48:42#1 type=Unit ref=__local_10.heapTriggerCoefficient[kind=local]
+expr e@50:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@50:36 bool(true) type=Boolean
+expr e@50:5#1 memberAssign recv=e@50:5 callee=pauseOnTargetHeapOverflow value=e@50:36 type=Unit ref=kotlin.native.runtime.GC.pauseOnTargetHeapOverflow[kind=prop]
+expr e@51:46 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@51:46#1 memberCall recv=e@51:46 callee=pauseOnTargetHeapOverflow args=[] type=Boolean ref=kotlin.native.runtime.GC.pauseOnTargetHeapOverflow[kind=prop]
+expr e@51:5 localDecl pauseOnTargetHeapOverflow mutable=0 type=Boolean init=e@51:46#1 type=Unit ref=__local_11.pauseOnTargetHeapOverflow[kind=local]
+expr e@53:33 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@53:33#1 memberCall recv=e@53:33 callee=detectCycles args=[] type=kotlin.Array<Any>? call=kotlin.native.runtime.GC.detectCycles[kind=fun;recv=kotlin.native.runtime.GC;params=]
+expr e@53:5 localDecl detected mutable=0 type=Array<Any>? init=e@53:33#1 type=Unit ref=__local_12.detected[kind=local]
+expr e@54:29 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@54:29#1 memberCall recv=e@54:29 callee=lastGCInfo args=[] type=kotlin.native.runtime.GCInfo? ref=kotlin.native.runtime.GC.lastGCInfo[kind=prop]
+expr e@54:5 localDecl lastInfo mutable=0 type=GCInfo? init=e@54:29#1 type=Unit ref=__local_13.lastInfo[kind=local]
+expr e@55:30 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@55:43 call callee=e@55:43#1 args=[] type=kotlin.Any call=kotlin.Any.<init>[kind=ctor;params=]
+expr e@55:30#1 memberCall recv=e@55:30 callee=findCycle args=[_:e@55:43] type=kotlin.Array<Any>? call=kotlin.native.runtime.GC.findCycle[kind=fun;recv=kotlin.native.runtime.GC;params=Any]
+expr e@55:5 localDecl cycle mutable=0 type=Array<Any>? init=e@55:30#1 type=Unit ref=__local_14.cycle[kind=local]
+expr e@57:12 name(threshold) type=Int ref=__local_0.threshold[kind=local]
+expr e@57:24 int(0) type=Int
+expr e@57:12#1 binary(greaterThan) lhs=e@57:12 rhs=e@57:24 type=Boolean
+expr e@58:9 name(collectCyclesThreshold) type=Long ref=__local_1.collectCyclesThreshold[kind=local]
+expr e@58:34 int(0) type=Int
+expr e@58:9#1 binary(greaterThan) lhs=e@58:9 rhs=e@58:34 type=Boolean
+expr e@57:12#2 binary(logicalAnd) lhs=e@57:12#1 rhs=e@58:9#1 type=Boolean
+expr e@59:9 name(thresholdAllocations) type=Long ref=__local_2.thresholdAllocations[kind=local]
+expr e@59:32 int(0) type=Int
+expr e@59:9#1 binary(greaterThan) lhs=e@59:9 rhs=e@59:32 type=Boolean
+expr e@57:12#3 binary(logicalAnd) lhs=e@57:12#2 rhs=e@59:9#1 type=Boolean
+expr e@60:9 name(autotune) type=Boolean ref=__local_3.autotune[kind=local]
+expr e@57:12#4 binary(logicalAnd) lhs=e@57:12#3 rhs=e@60:9 type=Boolean
+expr e@61:9 name(cyclicCollectorEnabled) type=Boolean ref=__local_4.cyclicCollectorEnabled[kind=local]
+expr e@61:35 name(cyclicCollectorEnabled) type=Boolean ref=__local_4.cyclicCollectorEnabled[kind=local]
+expr e@61:9#1 binary(equal) lhs=e@61:9 rhs=e@61:35 type=Boolean
+expr e@57:12#5 binary(logicalAnd) lhs=e@57:12#4 rhs=e@61:9#1 type=Boolean
+expr e@62:9 name(regularGCInterval) type=kotlin.time.Duration ref=__local_5.regularGCInterval[kind=local]
+expr e@62:30 name(regularGCInterval) type=kotlin.time.Duration ref=__local_5.regularGCInterval[kind=local]
+expr e@62:9#1 binary(equal) lhs=e@62:9 rhs=e@62:30 type=Boolean call=kotlin.time.Duration.equals[kind=fun;recv=kotlin.time.Duration;params=Any?]
+expr e@57:12#6 binary(logicalAnd) lhs=e@57:12#5 rhs=e@62:9#1 type=Boolean
+expr e@63:9 name(targetHeapBytes) type=Long ref=__local_6.targetHeapBytes[kind=local]
+expr e@63:27 int(0) type=Int
+expr e@63:9#1 binary(greaterThan) lhs=e@63:9 rhs=e@63:27 type=Boolean
+expr e@57:12#7 binary(logicalAnd) lhs=e@57:12#6 rhs=e@63:9#1 type=Boolean
+expr e@64:9 name(targetHeapUtilization) type=Double ref=__local_7.targetHeapUtilization[kind=local]
+expr e@64:33 int(0) type=Int
+expr e@64:9#1 binary(greaterThan) lhs=e@64:9 rhs=e@64:33 type=Boolean
+expr e@57:12#8 binary(logicalAnd) lhs=e@57:12#7 rhs=e@64:9#1 type=Boolean
+expr e@65:9 name(minHeapBytes) type=Long ref=__local_8.minHeapBytes[kind=local]
+expr e@65:25 int(0) type=Int
+expr e@65:9#1 binary(greaterOrEqual) lhs=e@65:9 rhs=e@65:25 type=Boolean
+expr e@57:12#9 binary(logicalAnd) lhs=e@57:12#8 rhs=e@65:9#1 type=Boolean
+expr e@66:9 name(maxHeapBytes) type=Long ref=__local_9.maxHeapBytes[kind=local]
+expr e@66:24 int(0) type=Int
+expr e@66:9#1 binary(greaterThan) lhs=e@66:9 rhs=e@66:24 type=Boolean
+expr e@57:12#10 binary(logicalAnd) lhs=e@57:12#9 rhs=e@66:9#1 type=Boolean
+expr e@67:9 name(heapTriggerCoefficient) type=Double ref=__local_10.heapTriggerCoefficient[kind=local]
+expr e@67:34 int(0) type=Int
+expr e@67:9#1 binary(greaterThan) lhs=e@67:9 rhs=e@67:34 type=Boolean
+expr e@57:12#11 binary(logicalAnd) lhs=e@57:12#10 rhs=e@67:9#1 type=Boolean
+expr e@68:9 name(pauseOnTargetHeapOverflow) type=Boolean ref=__local_11.pauseOnTargetHeapOverflow[kind=local]
+expr e@57:12#12 binary(logicalAnd) lhs=e@57:12#11 rhs=e@68:9 type=Boolean
+expr e@69:9 name(detected) type=kotlin.Array<Any>? ref=__local_12.detected[kind=local]
+expr e@69:21 name(null) type=Nothing?
+expr e@69:9#1 binary(equal) lhs=e@69:9 rhs=e@69:21 type=Boolean
+expr e@57:12#13 binary(logicalAnd) lhs=e@57:12#12 rhs=e@69:9#1 type=Boolean
+expr e@70:9 name(lastInfo) type=kotlin.native.runtime.GCInfo? ref=__local_13.lastInfo[kind=local]
+expr e@70:21 name(null) type=Nothing?
+expr e@70:9#1 binary(equal) lhs=e@70:9 rhs=e@70:21 type=Boolean
+expr e@57:12#14 binary(logicalAnd) lhs=e@57:12#13 rhs=e@70:9#1 type=Boolean
+expr e@71:9 name(cycle) type=kotlin.Array<Any>? ref=__local_14.cycle[kind=local]
+expr e@71:18 name(null) type=Nothing?
+expr e@71:9#1 binary(equal) lhs=e@71:9 rhs=e@71:18 type=Boolean
+expr e@57:12#15 binary(logicalAnd) lhs=e@57:12#14 rhs=e@71:9#1 type=Boolean
+expr e@57:5 return value=e@57:12#15 type=Nothing

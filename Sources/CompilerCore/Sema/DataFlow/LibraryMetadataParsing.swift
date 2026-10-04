@@ -1,4 +1,10 @@
 
+enum ImportedLibraryLimits {
+    /// Keep imported callable shapes small enough that malformed metadata cannot
+    /// trigger disproportionate allocations or parser work.
+    static let maxCallableArity = 1_024
+}
+
 extension DataFlowSemaPhase {
     func parseLibraryMetadata(
         path: String,
@@ -14,18 +20,68 @@ extension DataFlowSemaPhase {
             return nil
         }
 
+        guard validateImportedNominalLayoutValues(
+            in: content,
+            diagnostics: diagnostics,
+            metadataPath: path
+        ) else {
+            return nil
+        }
+
         let decoder = MetadataDecoder()
         let metadataRecords = decoder.decode(content)
+        var nominalTypeParametersByFQName: [String: String] = [:]
+        for record in metadataRecords {
+            guard let signature = record.nominalTypeParametersSignature else {
+                continue
+            }
+            guard nominalTypeParametersByFQName[record.fqName] == nil else {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0024",
+                    "Duplicate nominal type metadata for '\(record.fqName)' in library metadata at \(path)",
+                    range: nil
+                )
+                return nil
+            }
+            nominalTypeParametersByFQName[record.fqName] = signature
+        }
 
         var records: [ImportedLibrarySymbolRecord] = []
         for metadataRecord in metadataRecords {
+            if metadataRecord.kind == .function || metadataRecord.kind == .constructor {
+                guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(metadataRecord.arity) else {
+                    diagnostics.error(
+                        "KSWIFTK-LIB-0024",
+                        "Callable arity \(metadataRecord.arity) in '\(path)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
+                        range: nil
+                    )
+                    continue
+                }
+            }
             let fqName = metadataRecord.fqName
                 .split(separator: ".")
                 .map { interner.intern(String($0)) }
             guard !fqName.isEmpty else {
                 continue
             }
-            let superFQName: [InternedString]? = metadataRecord.superFQName.flatMap { value in
+            let ownerNominalTypeParametersSignature: String? = if fqName.count >= 2 {
+                nominalTypeParametersByFQName[
+                    fqName.dropLast().map { interner.resolve($0) }.joined(separator: ".")
+                ]
+            } else {
+                nil
+            }
+            let superFQNames: [[InternedString]]? = metadataRecord.superFQName.flatMap { value in
+                // Multiple direct supertypes are encoded as comma-separated FQ names,
+                // e.g. "kotlin.collections.Collection,kotlin.collections.Iterable".
+                let names = value.split(separator: ",")
+                guard !names.isEmpty else { return nil }
+                let parsed = names.map { name in
+                    name.split(separator: ".").map { interner.intern(String($0)) }
+                }
+                return parsed.isEmpty || parsed.contains(where: { $0.isEmpty }) ? nil : parsed
+            }
+            let companionObjectFQName: [InternedString]? = metadataRecord.companionObjectFQName.flatMap { value in
                 let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
                 return parsed.isEmpty ? nil : parsed
             }
@@ -70,44 +126,158 @@ extension DataFlowSemaPhase {
 
             records.append(ImportedLibrarySymbolRecord(
                 kind: metadataRecord.kind,
+                visibility: metadataRecord.visibility,
                 mangledName: metadataRecord.mangledName,
                 fqName: fqName,
                 arity: metadataRecord.arity,
                 isSuspend: metadataRecord.isSuspend,
                 isInline: metadataRecord.isInline,
+                isOperator: metadataRecord.isOperator,
+                isOverride: metadataRecord.isOverride,
+                valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
+                valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
+                valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
+                canThrow: metadataRecord.canThrow,
+                valueParameterNames: metadataRecord.valueParameterNames,
+                reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
                 typeSignature: metadataRecord.typeSignature,
+                typeParameterUpperBoundsSignatures: metadataRecord.typeParameterUpperBoundsSignatures,
+                callableTypeParameterSignatures: metadataRecord.callableTypeParameterSignatures,
+                defaultStubExternalLinkName: metadataRecord.defaultStubExternalLinkName,
                 externalLinkName: metadataRecord.externalLinkName,
                 declaredFieldCount: metadataRecord.declaredFieldCount,
                 declaredInstanceSizeWords: metadataRecord.declaredInstanceSizeWords,
                 declaredVtableSize: metadataRecord.declaredVtableSize,
                 declaredItableSize: metadataRecord.declaredItableSize,
-                superFQName: superFQName,
+                superFQName: superFQNames?.first,
+                superFQNames: superFQNames,
+                companionObjectFQName: companionObjectFQName,
                 fieldOffsets: fieldOffsets,
                 vtableSlots: vtableSlots,
                 itableSlots: itableSlots,
+                objectInitializerLinkName: metadataRecord.objectInitializerLinkName,
+                companionInitializerLinkName: metadataRecord.companionInitializerLinkName,
+                objectLazyInitializerLinkName: metadataRecord.objectLazyInitializerLinkName,
+                enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
+                isOpenClass: metadataRecord.isOpenClass,
+                modality: metadataRecord.modality,
                 isSealedClass: metadataRecord.isSealedClass,
+                isFunInterface: metadataRecord.isFunInterface,
                 isValueClass: metadataRecord.isValueClass,
                 isExpect: metadataRecord.isExpect,
                 isActual: metadataRecord.isActual,
                 valueClassUnderlyingTypeSig: metadataRecord.valueClassUnderlyingTypeSig,
                 annotations: metadataRecord.annotations,
-                sealedSubclassFQNames: sealedSubclassFQNames
+                sealedSubclassFQNames: sealedSubclassFQNames,
+                propertyReceiverTypeSignature: metadataRecord.propertyReceiverTypeSignature,
+                propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
+                propertySetterExternalLinkName: metadataRecord.propertySetterExternalLinkName,
+                abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
+                propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
+                isMutable: metadataRecord.isMutable,
+                nominalTypeParametersSignature: metadataRecord.nominalTypeParametersSignature,
+                ownerNominalTypeParametersSignature: ownerNominalTypeParametersSignature,
+                nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures,
+                constValueLiteral: metadataRecord.constValueLiteral,
+                nominalTypeParameters: metadataRecord.nominalTypeParameters
             ))
         }
 
         return records
     }
 
+    private func validateImportedNominalLayoutValues(
+        in content: String,
+        diagnostics: DiagnosticEngine,
+        metadataPath: String
+    ) -> Bool {
+        let dimensionKeys: Set<String> = ["fields", "layoutWords", "vtable", "itable"]
+        let slotKeys: Set<String> = ["fieldOffsets", "vtableSlots", "itableSlots"]
+
+        for rawLine in content.split(whereSeparator: \.isNewline) {
+            let parts = rawLine.split(whereSeparator: \.isWhitespace)
+            guard let kindToken = parts.first,
+                  let kind = symbolKindFromMetadataToken(String(kindToken)),
+                  isNominalLayoutTargetSymbol(kind)
+            else {
+                continue
+            }
+            for part in parts {
+                guard let equalsIndex = part.firstIndex(of: "=") else { continue }
+                let key = String(part[..<equalsIndex])
+                let value = String(part[part.index(after: equalsIndex)...])
+                if dimensionKeys.contains(key) {
+                    guard let dimension = Int(value), (0 ... maximumImportedNominalLayoutValue).contains(dimension) else {
+                        diagnostics.warning(
+                            "KSWIFTK-LIB-0003",
+                            "Invalid nominal layout value in metadata at " + metadataPath + ": " + key + "=" + value + " (expected 0..." + String(maximumImportedNominalLayoutValue) + ")",
+                            range: nil
+                        )
+                        return false
+                    }
+                } else if slotKeys.contains(key), !validateImportedLayoutSlots(value, key: key) {
+                    diagnostics.warning(
+                        "KSWIFTK-LIB-0003",
+                        "Invalid nominal layout slot in metadata at " + metadataPath + ": " + key + "=" + value + " (expected 0..." + String(maximumImportedNominalLayoutValue) + ")",
+                        range: nil
+                    )
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private func validateImportedLayoutSlots(_ value: String, key: String) -> Bool {
+        guard !value.isEmpty else { return true }
+        let body: String
+        let separator: Character
+        if key == "vtableSlots", value.hasPrefix("v2:") {
+            body = String(value.dropFirst(3))
+            separator = "|"
+        } else {
+            body = value
+            separator = ","
+        }
+        var slotCount = 0
+        for entry in body.split(separator: separator, omittingEmptySubsequences: true) {
+            guard slotCount < maximumImportedNominalLayoutValue else { return false }
+            slotCount += 1
+            guard let atIndex = entry.lastIndex(of: "@") else { continue }
+            let rawSlot = entry[entry.index(after: atIndex)...]
+            guard let slot = Int(rawSlot), (0 ... maximumImportedNominalLayoutValue).contains(slot) else {
+                return false
+            }
+        }
+        return true
+    }
+
     func importedFunctionSignature(
         record: ImportedLibrarySymbolRecord,
+        ownerSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         metadataPath: String,
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        allowPlaceholders: Bool = false,
+        phantomTypeParameterSymbols: [SymbolID] = []
     ) -> FunctionSignature {
+        guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(record.arity) else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0024",
+                "Callable arity \(record.arity) in '\(metadataPath)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
+                range: nil
+            )
+            return FunctionSignature(
+                parameterTypes: [],
+                returnType: types.withNullability(.platformType, for: types.anyType),
+                isSuspend: record.isSuspend
+            )
+        }
         let platformAny = types.withNullability(.platformType, for: types.anyType)
         let fallback = FunctionSignature(
             parameterTypes: Array(repeating: platformAny, count: max(0, record.arity)),
@@ -117,7 +287,7 @@ extension DataFlowSemaPhase {
         guard let encodedSignature = record.typeSignature else {
             return fallback
         }
-        guard let decoded = decodeImportedTypeSignature(
+        guard let decodedRaw = decodeImportedTypeSignature(
             token: encodedSignature,
             symbols: symbols,
             types: types,
@@ -125,10 +295,22 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             metadataPath: metadataPath,
             ownerFQName: record.fqName,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: allowPlaceholders
         ) else {
             return fallback
         }
+        let decoded = normalizeImportedOwnerTypeParameters(
+            decodedRaw,
+            record: record,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            metadataPath: metadataPath,
+            cache: cache,
+            allowPlaceholders: allowPlaceholders
+        )
         guard case let .functionType(functionType) = types.kind(of: decoded) else {
             diagnostics.warning(
                 "KSWIFTK-LIB-0003",
@@ -144,12 +326,268 @@ extension DataFlowSemaPhase {
                 range: nil
             )
         }
+        var valueParameterIsVararg = Array(repeating: false, count: functionType.params.count)
+        for index in record.valueParameterIsVararg.indices where index < valueParameterIsVararg.count {
+            valueParameterIsVararg[index] = record.valueParameterIsVararg[index]
+        }
+        var valueParameterHasDefaultValues = Array(repeating: false, count: functionType.params.count)
+        for index in record.valueParameterHasDefaultValues.indices where index < valueParameterHasDefaultValues.count {
+            valueParameterHasDefaultValues[index] = record.valueParameterHasDefaultValues[index]
+        }
+        // Metadata emitted before BUG-209 has no non-local-return mask. Such
+        // artifacts predate crossinline/noinline tracking, so retain the
+        // historical permissive behavior for their inline function parameters.
+        var valueParameterAllowsNonLocalReturn = Array(repeating: true, count: functionType.params.count)
+        for index in record.valueParameterAllowsNonLocalReturn.indices where index < valueParameterAllowsNonLocalReturn.count {
+            valueParameterAllowsNonLocalReturn[index] = record.valueParameterAllowsNonLocalReturn[index]
+        }
+        var typeParameterSymbols = collectTypeParameterSymbols(
+            from: functionType,
+            types: types
+        )
+        let classTypeParameterCount = ownerNominalTypeParameterCount(
+            of: functionType,
+            record: record,
+            symbols: symbols,
+            types: types
+        )
+        // KUU-546: when the artifact records the callable's declared type
+        // parameters (`callTParams`), prefer that list over the structural
+        // scan. It restores the declaration order of "phantom" parameters
+        // interspersed with structural ones (e.g.
+        // `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`) and
+        // identifies each overload's own parameters, which the FQ-name-grouped
+        // `.typeParameter` records cannot. For member callables the list also
+        // carries the leading owner parameters as placeholders, which
+        // `normalizeImportedLibraryMemberSignatures` later replaces with the
+        // owner's real symbols. The list is adopted only when it decodes
+        // cleanly and accounts for every structurally found parameter.
+        var restoredDeclarationOrder = false
+        if !record.callableTypeParameterSignatures.isEmpty {
+            var restored: [SymbolID] = []
+            var isWellFormed = true
+            for encodedTypeParameter in record.callableTypeParameterSignatures {
+                guard let decodedTypeParameter = decodeImportedTypeSignature(
+                    token: encodedTypeParameter,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    diagnostics: diagnostics,
+                    metadataPath: metadataPath,
+                    ownerFQName: record.fqName,
+                    cache: cache,
+                    allowPlaceholders: allowPlaceholders
+                ), case let .typeParam(typeParam) = types.kind(
+                    of: types.makeNonNullable(decodedTypeParameter)
+                ) else {
+                    isWellFormed = false
+                    break
+                }
+                restored.append(typeParam.symbol)
+            }
+            if isWellFormed, restored.count >= typeParameterSymbols.count {
+                typeParameterSymbols = restored
+                restoredDeclarationOrder = true
+            }
+        }
+        // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: `collectTypeParameterSymbols` only
+        // finds type parameters that structurally appear in the receiver,
+        // value parameters, or return type. A type parameter used only inside
+        // the function body via an explicit type argument (e.g.
+        // `kotlin.native.concurrent.callContinuation1<T1>`) is invisible to
+        // that scan and gets silently dropped, so `<Int>` at a call site later
+        // fails overload resolution with a bogus arity mismatch.
+        // `phantomTypeParameterSymbols` carries every declared type parameter
+        // of this callable as its own already-imported `.typeParameter`
+        // symbol (see `loadImportedLibrarySymbols`), restricted to callables
+        // with no ambiguous overload. Pad up to that total count so at least
+        // the arity is right. This is restricted to non-member callables
+        // (`classTypeParameterCount == 0`): the wire format has no per-index
+        // marker distinguishing "phantom" from "structurally found", so when
+        // a callable mixes both (e.g.
+        // `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`,
+        // where only C is structural) the padded symbols may land in the
+        // wrong position relative to the structurally-found ones. That
+        // ordering gap is a known, accepted limitation of this fix for
+        // artifacts that predate `callTParams`; newer artifacts restore the
+        // exact declaration order above instead.
+        if !restoredDeclarationOrder, classTypeParameterCount == 0 {
+            let deficit = phantomTypeParameterSymbols.count - typeParameterSymbols.count
+            if deficit > 0 {
+                typeParameterSymbols += phantomTypeParameterSymbols.prefix(deficit)
+            }
+        }
+        var typeParameterUpperBoundsList = Array(
+            repeating: [TypeID](),
+            count: typeParameterSymbols.count
+        )
+        for index in typeParameterUpperBoundsList.indices {
+            guard index < record.typeParameterUpperBoundsSignatures.count else {
+                continue
+            }
+            typeParameterUpperBoundsList[index] = record.typeParameterUpperBoundsSignatures[index].compactMap { encodedBound in
+                guard let decodedBound = decodeImportedTypeSignature(
+                    token: encodedBound,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    diagnostics: diagnostics,
+                    metadataPath: metadataPath,
+                    ownerFQName: record.fqName,
+                    cache: cache,
+                    allowPlaceholders: allowPlaceholders
+                ) else {
+                    return nil
+                }
+                return normalizeImportedOwnerTypeParameters(
+                    decodedBound,
+                    record: record,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    metadataPath: metadataPath,
+                    cache: cache,
+                    allowPlaceholders: allowPlaceholders
+                )
+            }
+        }
+        var valueParameterSymbols: [SymbolID] = []
+        for (index, _) in functionType.params.enumerated() {
+            let name: String
+            if index < record.valueParameterNames.count && !record.valueParameterNames[index].isEmpty {
+                name = record.valueParameterNames[index]
+            } else {
+                name = "__param\(index)"
+            }
+            let paramName = interner.intern(name)
+            let paramFQName = record.fqName + [paramName]
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: paramName,
+                fqName: paramFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
+            valueParameterSymbols.append(paramSymbol)
+        }
+        // STDLIB-592: restore `contract { callsInPlace(param, kind) }` effects
+        // decoded from metadata. `ContractCallsInPlaceEffect.parameterSymbol` is a
+        // `SymbolID` that cannot itself survive the metadata round-trip, so the
+        // wire format carries a per-parameter-index kind instead and this
+        // reconstructs the symbol reference from the freshly-imported
+        // `valueParameterSymbols`, mirroring how `recordContractEffects` derives
+        // it from a parameter index when parsing source directly.
+        for (index, kind) in record.valueParameterCallsInPlaceKinds.enumerated() where kind != nil {
+            guard index < valueParameterSymbols.count else { continue }
+            symbols.addContractCallsInPlaceEffect(
+                ContractCallsInPlaceEffect(parameterSymbol: valueParameterSymbols[index], kind: kind!),
+                for: ownerSymbol
+            )
+        }
         return FunctionSignature(
             receiverType: functionType.receiver,
             parameterTypes: functionType.params,
             returnType: functionType.returnType,
-            isSuspend: functionType.isSuspend
+            isSuspend: functionType.isSuspend,
+            canThrow: record.canThrow,
+            valueParameterSymbols: valueParameterSymbols,
+            valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
+            typeParameterSymbols: typeParameterSymbols,
+            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
+            typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+            classTypeParameterCount: classTypeParameterCount
         )
+    }
+
+    /// Number of leading type parameters that belong to the owner nominal type
+    /// rather than the callable itself. `collectTypeParameterSymbols` visits the
+    /// receiver first, so a member of a generic class starts with exactly the
+    /// type parameters carried by its owner's type arguments. Extension
+    /// callables are excluded: their receiver type arguments are the function's
+    /// own type parameters.
+    private func ownerNominalTypeParameterCount(
+        of functionType: FunctionType,
+        record: ImportedLibrarySymbolRecord,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> Int {
+        guard record.fqName.count >= 2,
+              let receiver = functionType.receiver,
+              case let .classType(classType) = types.kind(of: types.makeNonNullable(receiver)),
+              let ownerSymbol = symbols.symbol(classType.classSymbol),
+              ownerSymbol.fqName == Array(record.fqName.dropLast())
+        else {
+            return 0
+        }
+        var seen: Set<SymbolID> = []
+        for arg in classType.args {
+            switch arg {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                guard case let .typeParam(typeParam) = types.kind(of: inner) else {
+                    return 0
+                }
+                seen.insert(typeParam.symbol)
+            case .star:
+                return 0
+            }
+        }
+        return seen.count
+    }
+
+    /// Collects the type parameter symbols referenced by a decoded function type
+    /// in declaration order, so imported generic signatures can be solved during
+    /// overload resolution. Metadata type parameters are encoded by their
+    /// declaration index, while a receiver can mention a later parameter first.
+    private func collectTypeParameterSymbols(
+        from functionType: FunctionType,
+        types: TypeSystem
+    ) -> [SymbolID] {
+        var seen: Set<SymbolID> = []
+        var result: [SymbolID] = []
+
+        func visit(_ type: TypeID) {
+            switch types.kind(of: type) {
+            case let .typeParam(typeParam):
+                if seen.insert(typeParam.symbol).inserted {
+                    result.append(typeParam.symbol)
+                }
+            case let .classType(classType):
+                for arg in classType.args {
+                    switch arg {
+                    case let .invariant(t), let .out(t), let .in(t): visit(t)
+                    case .star: break
+                    }
+                }
+            case let .functionType(fn):
+                for ctx in fn.contextReceivers { visit(ctx) }
+                if let receiver = fn.receiver { visit(receiver) }
+                for param in fn.params { visit(param) }
+                visit(fn.returnType)
+            case let .kClassType(kc):
+                visit(kc.argument)
+            case let .intersection(parts):
+                for part in parts { visit(part) }
+            case .nothing, .any, .primitive, .unit, .error, .stringStruct:
+                break
+            }
+        }
+
+        for ctx in functionType.contextReceivers { visit(ctx) }
+        if let receiver = functionType.receiver { visit(receiver) }
+        for param in functionType.params { visit(param) }
+        visit(functionType.returnType)
+        let declarationOrderedSyntheticParameters = result
+            .filter { $0.rawValue <= DataFlowSemaPhase.syntheticTypeParameterBase }
+            .sorted { $0.rawValue > $1.rawValue }
+        let ownerParameters = result.filter {
+            $0.rawValue > DataFlowSemaPhase.syntheticTypeParameterBase
+        }
+        return ownerParameters + declarationOrderedSyntheticParameters
     }
 
     func importedPropertyType(
@@ -159,13 +597,14 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         metadataPath: String,
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        allowPlaceholders: Bool = false
     ) -> TypeID {
         let platformAny = types.withNullability(.platformType, for: types.anyType)
         guard let encodedSignature = record.typeSignature else {
             return platformAny
         }
-        return decodeImportedTypeSignature(
+        guard let decoded = decodeImportedTypeSignature(
             token: encodedSignature,
             symbols: symbols,
             types: types,
@@ -173,8 +612,90 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             metadataPath: metadataPath,
             ownerFQName: record.fqName,
-            cache: cache
-        ) ?? platformAny
+            cache: cache,
+            allowPlaceholders: allowPlaceholders
+        ) else {
+            return platformAny
+        }
+        return normalizeImportedOwnerTypeParameters(
+            decoded,
+            record: record,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            metadataPath: metadataPath,
+            cache: cache,
+            allowPlaceholders: allowPlaceholders
+        )
+    }
+
+    func normalizeImportedOwnerTypeParameters(
+        _ type: TypeID,
+        record: ImportedLibrarySymbolRecord,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        metadataPath: String,
+        cache: LibraryMetadataCache?,
+        allowPlaceholders: Bool
+    ) -> TypeID {
+        guard let ownerSignature = record.ownerNominalTypeParametersSignature,
+              record.fqName.count >= 2
+        else {
+            return type
+        }
+        let ownerFQName = Array(record.fqName.dropLast())
+        guard let ownerSymbol = symbols.lookupAll(fqName: ownerFQName)
+            .compactMap({ symbols.symbol($0) })
+            .first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id
+        else {
+            return type
+        }
+        let actualSymbols = types.nominalTypeParameterSymbols(for: ownerSymbol)
+        guard !actualSymbols.isEmpty,
+              let ownerType = decodeImportedTypeSignature(
+                  token: ownerSignature,
+                  symbols: symbols,
+                  types: types,
+                  interner: interner,
+                  diagnostics: diagnostics,
+                  metadataPath: metadataPath,
+                  ownerFQName: ownerFQName,
+                  cache: cache,
+                  allowPlaceholders: allowPlaceholders
+              ),
+              case let .classType(ownerClassType) = types.kind(of: ownerType)
+        else {
+            return type
+        }
+        let metadataSymbols = ownerClassType.args.compactMap { arg -> SymbolID? in
+            switch arg {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                guard case let .typeParam(typeParam) = types.kind(of: inner) else { return nil }
+                return typeParam.symbol
+            case .star:
+                return nil
+            }
+        }
+        guard metadataSymbols.count == actualSymbols.count else {
+            return type
+        }
+        let typeVarBySymbol = types.makeTypeVarBySymbol(metadataSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (metadataSymbol, actualSymbol) in zip(metadataSymbols, actualSymbols) {
+            guard let typeVar = typeVarBySymbol[metadataSymbol] else { continue }
+            substitution[typeVar] = types.make(.typeParam(TypeParamType(symbol: actualSymbol)))
+        }
+        guard !substitution.isEmpty else {
+            return type
+        }
+        return types.substituteTypeParameters(
+            in: type,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
     }
 
     func importedTypeAliasUnderlyingType(
@@ -184,7 +705,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         metadataPath: String,
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        allowPlaceholders: Bool = false
     ) -> TypeID? {
         guard let encodedSignature = record.typeSignature else {
             return nil
@@ -197,13 +719,9 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             metadataPath: metadataPath,
             ownerFQName: record.fqName,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: allowPlaceholders
         ) else {
-            diagnostics.warning(
-                "KSWIFTK-LIB-0003",
-                "Invalid typealias signature metadata at \(metadataPath): \(renderFQName(record.fqName, interner: interner))",
-                range: nil
-            )
             return nil
         }
         if case .error = types.kind(of: decoded) {
@@ -224,7 +742,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         metadataPath: String,
-        ownerFQName: [InternedString]
+        ownerFQName: [InternedString],
+        allowPlaceholders: Bool = false
     ) -> TypeID? {
         guard let decoded = decodeImportedTypeSignature(
             token: signature,
@@ -233,19 +752,15 @@ extension DataFlowSemaPhase {
             interner: interner,
             diagnostics: diagnostics,
             metadataPath: metadataPath,
-            ownerFQName: ownerFQName
+            ownerFQName: ownerFQName,
+            allowPlaceholders: allowPlaceholders
         ) else {
-            diagnostics.warning(
-                "KSWIFTK-LIB-0003",
-                "Invalid value class underlying type in metadata at \(metadataPath): \(renderFQName(ownerFQName, interner: interner))",
-                range: nil
-            )
             return nil
         }
         return decoded
     }
 
-    private func decodeImportedTypeSignature(
+    package func decodeImportedTypeSignature(
         token: String,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -253,7 +768,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         metadataPath: String,
         ownerFQName: [InternedString],
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        allowPlaceholders: Bool = false
     ) -> TypeID? {
         if let cache, let cached = cache.cachedSignature(token, types: types, symbols: symbols) {
             return cached
@@ -265,7 +781,8 @@ extension DataFlowSemaPhase {
             interner: interner,
             diagnostics: diagnostics,
             metadataPath: metadataPath,
-            ownerFQName: ownerFQName
+            ownerFQName: ownerFQName,
+            allowPlaceholders: allowPlaceholders
         )
         let result = parser.parse()
         cache?.cacheSignature(result, for: token, types: types, symbols: symbols)
@@ -275,13 +792,23 @@ extension DataFlowSemaPhase {
     private struct MetadataTypeSignatureParser {
         private let source: [Character]
         private var index: Int
+        private var depth: Int
+        private var depthLimitReported: Bool
+        private var arityLimitReported: Bool
+        private var isOversized: Bool
         private let symbols: SymbolTable
         private let types: TypeSystem
         private let interner: StringInterner
         private let diagnostics: DiagnosticEngine
         private let metadataPath: String
         private let ownerFQName: [InternedString]
+        private let allowPlaceholders: Bool
         private let syntheticTypeParameterBase: Int32 = DataFlowSemaPhase.syntheticTypeParameterBase
+        // Keep enough headroom for the smaller stacks used by macOS test workers.
+        // A signature with more than 63 nested wrappers is not practical metadata.
+        private static let maxDepth: Int = 64
+        private static let maxSourceLength: Int = 1_048_576
+        private static let maxCallableArity = ImportedLibraryLimits.maxCallableArity
 
         init(
             source: String,
@@ -290,23 +817,45 @@ extension DataFlowSemaPhase {
             interner: StringInterner,
             diagnostics: DiagnosticEngine,
             metadataPath: String,
-            ownerFQName: [InternedString]
+            ownerFQName: [InternedString],
+            allowPlaceholders: Bool = false
         ) {
-            self.source = Array(source)
+            if source.count > Self.maxSourceLength {
+                self.source = []
+                self.isOversized = true
+            } else {
+                self.source = Array(source)
+                self.isOversized = false
+            }
             index = 0
+            depth = 0
+            depthLimitReported = false
+            arityLimitReported = false
             self.symbols = symbols
             self.types = types
             self.interner = interner
             self.diagnostics = diagnostics
             self.metadataPath = metadataPath
             self.ownerFQName = ownerFQName
+            self.allowPlaceholders = allowPlaceholders
         }
 
         mutating func parse() -> TypeID? {
-            guard let type = parseType(), index == source.count else {
+            if isOversized {
                 diagnostics.warning(
                     "KSWIFTK-LIB-0003",
-                    "Malformed type signature in metadata at \(metadataPath): \(String(source)) (\(ownerName()))",
+                    "Type signature in metadata exceeds maximum length at \(metadataPath) (\(ownerName()))",
+                    range: nil
+                )
+                return nil
+            }
+            guard let type = parseType(), index == source.count else {
+                if depthLimitReported || arityLimitReported {
+                    return nil
+                }
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0003",
+                    "Malformed type signature in metadata at \(metadataPath): \(truncatedSource) (\(ownerName()))",
                     range: nil
                 )
                 return nil
@@ -314,7 +863,27 @@ extension DataFlowSemaPhase {
             return type
         }
 
+        private var truncatedSource: String {
+            let prefix = source.prefix(200)
+            let suffix = source.count > 200 ? "..." : ""
+            return String(prefix) + suffix
+        }
+
         private mutating func parseType() -> TypeID? {
+            guard depth < Self.maxDepth else {
+                if !depthLimitReported {
+                    depthLimitReported = true
+                    diagnostics.warning(
+                        "KSWIFTK-LIB-0003",
+                        "Type signature nesting exceeds maximum depth of \(Self.maxDepth) in metadata at \(metadataPath) (\(ownerName()))",
+                        range: nil
+                    )
+                }
+                return nil
+            }
+            depth += 1
+            defer { depth -= 1 }
+
             if consume(prefix: "Q<") {
                 guard let inner = parseType(), consume(character: ">") else {
                     return nil
@@ -332,6 +901,24 @@ extension DataFlowSemaPhase {
             }
             if consume(character: "E") {
                 return types.errorType
+            }
+            if consume(prefix: "UB") {
+                return types.ubyteType
+            }
+            if consume(prefix: "US") {
+                return types.ushortType
+            }
+            if consume(prefix: "UI") {
+                return types.uintType
+            }
+            if consume(prefix: "UJ") {
+                return types.ulongType
+            }
+            if consume(character: "B") {
+                return types.make(.primitive(.byte, .nonNull))
+            }
+            if consume(character: "S") {
+                return types.make(.primitive(.short, .nonNull))
             }
             if consume(character: "U") {
                 return types.unitType
@@ -400,7 +987,7 @@ extension DataFlowSemaPhase {
                 return nil
             }
             if name == "kotlin_String" {
-                return types.make(.primitive(.string, .nonNull))
+                return types.stringType
             }
 
             let fqName = name.split(separator: ".").map { interner.intern(String($0)) }
@@ -419,6 +1006,17 @@ extension DataFlowSemaPhase {
                 }
                 .sorted(by: { $0.id.rawValue < $1.id.rawValue })
             guard let classSymbol = candidates.first?.id else {
+                if allowPlaceholders, fqName.count >= 2 {
+                    let placeholder = symbols.define(
+                        kind: .class,
+                        name: fqName.last!,
+                        fqName: fqName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic]
+                    )
+                    return types.make(.classType(ClassType(classSymbol: placeholder, args: args, nullability: .nonNull)))
+                }
                 diagnostics.warning(
                     "KSWIFTK-LIB-0004",
                     "Unknown nominal type in metadata signature at \(metadataPath): \(name) (\(ownerName()))",
@@ -455,10 +1053,22 @@ extension DataFlowSemaPhase {
             guard let arity = parseNumber(), consume(character: "<") else {
                 return nil
             }
+            guard arity <= Self.maxCallableArity else {
+                reportArityLimit(arity)
+                return nil
+            }
 
             var contextReceivers: [TypeID] = []
-            if consume(character: "C") {
+            if peek() == "C",
+               index + 1 < source.count,
+               source[index + 1].isNumber
+            {
+                _ = consume(character: "C")
                 guard let contextArity = parseNumber(), consume(character: "<") else {
+                    return nil
+                }
+                guard contextArity <= Self.maxCallableArity else {
+                    reportArityLimit(contextArity)
                     return nil
                 }
                 contextReceivers.reserveCapacity(contextArity)
@@ -474,6 +1084,11 @@ extension DataFlowSemaPhase {
                 guard consume(character: ">"), consume(character: ",") else {
                     return nil
                 }
+            }
+
+            guard arity <= Self.maxCallableArity - contextReceivers.count else {
+                reportArityLimit(arity + contextReceivers.count)
+                return nil
             }
 
             var receiver: TypeID?
@@ -509,6 +1124,16 @@ extension DataFlowSemaPhase {
             )))
         }
 
+        private mutating func reportArityLimit(_ arity: Int) {
+            guard !arityLimitReported else { return }
+            arityLimitReported = true
+            diagnostics.error(
+                "KSWIFTK-LIB-0024",
+                "Function type arity \(arity) in '\(metadataPath)' exceeds the maximum supported (\(Self.maxCallableArity))",
+                range: nil
+            )
+        }
+
         private mutating func parseTypeParameterType() -> TypeID? {
             guard let rawIndex = parseNumber() else {
                 return nil
@@ -540,6 +1165,8 @@ extension DataFlowSemaPhase {
                 types.nullableAnyType
             case let .primitive(primitive, _):
                 types.make(.primitive(primitive, .nullable))
+            case .stringStruct:
+                types.makeNullable(type)
             case let .classType(classType):
                 types.make(.classType(ClassType(
                     classSymbol: classType.classSymbol,

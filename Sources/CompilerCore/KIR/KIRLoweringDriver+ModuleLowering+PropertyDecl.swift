@@ -19,14 +19,24 @@ extension KIRLoweringDriver {
         // storage — skip emitting a KIRGlobal so no backing field is generated
         // in codegen.  The getter accessor function alone is sufficient.
         // Exception: properties with explicit backing fields always have storage.
+        //
+        // Delegate properties (`val x: T by expr`) also have no backing storage
+        // for the property symbol itself — all access is routed through the
+        // delegate storage symbol (e.g. `$delegate_x`) which gets its own
+        // KIRGlobal in lowerPropertyDelegate.  Emitting a second KIRGlobal for
+        // the property symbol with type `propType` (e.g. `stringStruct`) would
+        // cause the code generator to write a wide stringStruct aggregate into
+        // an i64-sized slot, corrupting adjacent globals (including the delegate
+        // storage).
         let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
         let isGetterOnlyComputed = propertyDecl.getter != nil
             && propertyDecl.setter == nil
             && propertyDecl.initializer == nil
             && propertyDecl.delegateExpression == nil
             && !hasExplicitBackingField
+        let isDelegateProperty = propertyDecl.delegateExpression != nil
 
-        if !isExtensionProperty, !isGetterOnlyComputed {
+        if !isExtensionProperty, !isGetterOnlyComputed, !isDelegateProperty {
             let kirID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: propType)))
             declIDs.append(kirID)
         }
@@ -112,7 +122,7 @@ extension KIRLoweringDriver {
         let globalRef = arena.appendExpr(.symbolRef(backingFieldSymbol), type: backingFieldType)
         initInstructions.append(.constValue(result: globalRef, value: .symbolRef(backingFieldSymbol)))
         initInstructions.append(.copy(from: initValue, to: globalRef))
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
@@ -190,7 +200,25 @@ extension KIRLoweringDriver {
         let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
         initInstructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
         initInstructions.append(.copy(from: initValue, to: globalRef))
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        // When the property also has a backing field (a custom getter and/or
+        // setter forced one to be materialized), `field` references inside
+        // those accessors read/write the backing field's own global — a
+        // separate storage location from the property symbol's global above.
+        // Seed it with the same initial value so the first `field` read
+        // inside a custom getter observes the declared initializer rather
+        // than the backing field global's zero-initialized default.
+        // Properties with an explicit Kotlin 2.0 backing field declaration
+        // (`field = expr`) already seeded that global with its own
+        // initializer via lowerExplicitBackingFieldInitializer above — skip
+        // here so this doesn't overwrite it with the property's initializer.
+        if propertyDecl.explicitBackingField == nil,
+           let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) {
+            let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol) ?? propType
+            let backingFieldRef = arena.appendExpr(.symbolRef(backingFieldSymbol), type: backingFieldType)
+            initInstructions.append(.constValue(result: backingFieldRef, value: .symbolRef(backingFieldSymbol)))
+            initInstructions.append(.copy(from: initValue, to: backingFieldRef))
+        }
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
@@ -213,7 +241,7 @@ extension KIRLoweringDriver {
         )
         declIDs.append(arena.appendDecl(.global(KIRGlobal(symbol: delegateStorageSymbol, type: delegateType))))
         delegateStorageSymbolByPropertySymbol[symbol] = delegateStorageSymbol
-        let delegateKind = detectDelegateKind(
+        let delegateKind = StdlibDelegateKind.detect(
             delegateExpr: propertyDecl.delegateExpression,
             ast: shared.ast, interner: shared.interner
         )
@@ -232,7 +260,7 @@ extension KIRLoweringDriver {
             delegateType: delegateType, shared: shared,
             compilationCtx: compilationCtx, initInstructions: &initInstructions
         )
-        allTopLevelInitInstructions.append(contentsOf: initInstructions)
+        allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
@@ -265,7 +293,6 @@ extension KIRLoweringDriver {
         shared: KIRLoweringSharedContext,
         declIDs: inout [KIRDeclID]
     ) {
-        guard case .custom = delegateKind else { return }
         memberLowerer.lowerDelegateAccessor(
             propertySymbol: symbol, propertyType: propType,
             delegateStorageSymbol: delegateStorageSymbol,
@@ -300,29 +327,10 @@ extension KIRLoweringDriver {
                 propertyDecl: propertyDecl, symbol: symbol,
                 delegateStorageSymbol: delegateStorageSymbol,
                 delegateType: delegateType, shared: shared,
-                compilationCtx: compilationCtx, initInstructions: &initInstructions
-            )
-        case .observable:
-            emitCallbackDelegateInit(
-                runtimeFnName: "kk_observable_create", propertyDecl: propertyDecl,
-                symbol: symbol, delegateStorageSymbol: delegateStorageSymbol,
-                delegateType: delegateType, shared: shared, initInstructions: &initInstructions
-            )
-        case .vetoable:
-            emitCallbackDelegateInit(
-                runtimeFnName: "kk_vetoable_create", propertyDecl: propertyDecl,
-                symbol: symbol, delegateStorageSymbol: delegateStorageSymbol,
-                delegateType: delegateType, shared: shared, initInstructions: &initInstructions
-            )
-        case .notNull:
-            emitNotNullDelegateInit(
-                propertyDecl: propertyDecl, symbol: symbol,
-                delegateStorageSymbol: delegateStorageSymbol,
-                delegateType: delegateType, shared: shared,
                 initInstructions: &initInstructions
             )
-        case .custom:
-            emitCustomDelegateInit(
+        case .observable, .vetoable, .notNull, .custom:
+            emitDelegateInit(
                 propertyDecl: propertyDecl, symbol: symbol,
                 delegateStorageSymbol: delegateStorageSymbol,
                 delegateType: delegateType, shared: shared,
@@ -337,74 +345,192 @@ extension KIRLoweringDriver {
         delegateStorageSymbol: SymbolID,
         delegateType: TypeID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         initInstructions: inout KIRLoweringEmitContext
     ) {
         let arena = shared.arena
+        let sema = shared.sema
         let interner = shared.interner
         let lambdaFnPtr = lowerDelegateLambdaBody(
-            delegateBody: propertyDecl.delegateBody, propertySymbol: symbol,
+            delegateBody: propertyDecl.delegateBody,
+            delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: symbol,
             paramCount: 0, shared: shared, emit: &initInstructions
         )
-        let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
-        let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: shared.sema.types.anyType)
-        initInstructions.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
-        let createResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: delegateType)
-        initInstructions.append(.call(
-            symbol: nil, callee: interner.intern("kk_lazy_create"),
-            arguments: [lambdaFnPtr, modeExpr],
-            result: createResult, canThrow: false, thrownResult: nil
-        ))
-        initInstructions.append(.storeGlobal(value: createResult, symbol: delegateStorageSymbol))
-    }
-
-    private func emitCallbackDelegateInit(
-        runtimeFnName: String,
-        propertyDecl: PropertyDecl,
-        symbol: SymbolID,
-        delegateStorageSymbol: SymbolID,
-        delegateType: TypeID,
-        shared: KIRLoweringSharedContext,
-        initInstructions: inout KIRLoweringEmitContext
-    ) {
-        let arena = shared.arena
-        let interner = shared.interner
-        let initialValueExpr = lowerDelegateInitialValue(
-            delegateExpr: propertyDecl.delegateExpression, shared: shared, emit: &initInstructions
+        let lockValue = LazyThreadSafetyModeLowering.lockExpression(
+            from: propertyDecl.delegateExpression,
+            ast: shared.ast,
+            sema: shared.sema,
+            interner: interner
+        ).map { lowerExpr($0, shared: shared, emit: &initInstructions) }
+        let modeExpr = lowerLazyModeExpr(
+            delegateExpression: propertyDecl.delegateExpression,
+            shared: shared, emit: &initInstructions
         )
-        let callbackFnPtr = lowerDelegateLambdaBody(
-            delegateBody: propertyDecl.delegateBody, propertySymbol: symbol,
-            paramCount: 3, shared: shared, emit: &initInstructions
+        let lockArgument: KIRExprID
+        if let lockValue {
+            lockArgument = lockValue
+        } else {
+            lockArgument = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            initInstructions.append(.constValue(result: lockArgument, value: .null))
+        }
+        let initialValueExpr = arena.appendExpr(.unit, type: sema.types.anyType)
+        initInstructions.append(.constValue(result: initialValueExpr, value: .null))
+        let initialComputedExpr = arena.appendExpr(.boolLiteral(false), type: sema.types.booleanType)
+        initInstructions.append(.constValue(result: initialComputedExpr, value: .boolLiteral(false)))
+        guard let ctorSymbol = stdlibDelegateSymbol(
+            fqName: [interner.intern("kotlin"), interner.intern("LazyImpl"), interner.intern("<init>")],
+            parameterCount: 5, sema: sema
+        ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
+            preconditionFailure("KSP-491: missing kotlin.LazyImpl constructor")
+        }
+        let allocatedObj = allocateStdlibDelegateInstance(
+            ownerSymbol: ownerSymbol, resultType: delegateType,
+            sema: sema, arena: arena, interner: interner, emit: &initInstructions
         )
-        let createResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: delegateType)
+        let createResult = arena.appendTemporary(type: delegateType)
         initInstructions.append(.call(
-            symbol: nil, callee: interner.intern(runtimeFnName),
-            arguments: [initialValueExpr, callbackFnPtr],
+            symbol: ctorSymbol, callee: interner.intern("<init>"),
+            arguments: [allocatedObj, lambdaFnPtr, modeExpr, lockArgument, initialValueExpr, initialComputedExpr],
             result: createResult, canThrow: false, thrownResult: nil
         ))
         initInstructions.append(.storeGlobal(value: createResult, symbol: delegateStorageSymbol))
     }
 
-    private func emitNotNullDelegateInit(
-        propertyDecl _: PropertyDecl,
-        symbol _: SymbolID,
-        delegateStorageSymbol: SymbolID,
-        delegateType: TypeID,
+    /// Resolves the `mode` argument for a `lazy`/`lazy(mode)` delegate creation:
+    /// lowers the user's explicit `LazyThreadSafetyMode` expression when
+    /// `lazy(mode) { ... }` was written, otherwise references the compiler's
+    /// default mode entry (matching the bare `lazy { ... }` form's prior
+    /// behavior, which honored `-Xfrontend lazy-thread-safety=...`).
+    func lowerLazyModeExpr(
+        delegateExpression: ExprID?,
         shared: KIRLoweringSharedContext,
-        initInstructions: inout KIRLoweringEmitContext
-    ) {
-        let arena = shared.arena
+        emit instructions: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let ast = shared.ast
         let interner = shared.interner
-        let createResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: delegateType)
-        initInstructions.append(.call(
-            symbol: nil, callee: interner.intern("kk_notNull_create"),
-            arguments: [],
-            result: createResult, canThrow: false, thrownResult: nil
-        ))
-        initInstructions.append(.storeGlobal(value: createResult, symbol: delegateStorageSymbol))
+        if let exprID = delegateExpression,
+           let expr = ast.arena.expr(exprID),
+           case let .call(_, _, args, _) = expr,
+           let modeArg = args.first(where: { argument in
+               guard let type = shared.sema.bindings.exprTypes[argument.expr] else { return false }
+               return LazyThreadSafetyModeLowering.isModeType(
+                   type, sema: shared.sema, interner: interner
+               )
+           })
+        {
+            return lowerExpr(modeArg.expr, shared: shared, emit: &instructions)
+        }
+        // `ctx.lazyThreadSafetyMode` mirrors
+        // `compilationCtx.options.lazyThreadSafetyMode` (set in `lowerModule`)
+        // — this helper runs both from module lowering and from object-literal
+        // lowering, where no CompilationContext is in scope.
+        let entryName: String = switch ctx.lazyThreadSafetyMode {
+        case .synchronized: "SYNCHRONIZED"
+        case .publication: "PUBLICATION"
+        case .none: "NONE"
+        }
+        return referenceStdlibEnumEntry(
+            ownerFQName: [interner.intern("kotlin"), interner.intern("LazyThreadSafetyMode")],
+            entryName: entryName,
+            shared: shared, emit: &instructions
+        )
     }
 
-    private func emitCustomDelegateInit(
+    /// Looks up a bundled stdlib delegate implementation's constructor or
+    /// factory-function symbol by exact parameter count. KSP-491's stdlib
+    /// delegate kinds are never overloaded on anything but arity, so arity
+    /// alone disambiguates (e.g. `lazy`'s 1-arg vs 2-arg overload).
+    func stdlibDelegateSymbol(
+        fqName: [InternedString],
+        parameterCount: Int,
+        sema: SemaModule
+    ) -> SymbolID? {
+        sema.symbols.lookupAll(fqName: fqName).first {
+            sema.symbols.functionSignature(for: $0)?.parameterTypes.count == parameterCount
+        }
+    }
+
+    /// References a bundled enum entry by name as a plain value (KSP-491:
+    /// `LazyThreadSafetyMode.SYNCHRONIZED`/`.PUBLICATION`/`.NONE` for the
+    /// implicit-mode `lazy { ... }` form).
+    func referenceStdlibEnumEntry(
+        ownerFQName: [InternedString],
+        entryName: String,
+        shared: KIRLoweringSharedContext,
+        emit instructions: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let sema = shared.sema
+        let interner = shared.interner
+        guard let entrySymbol = sema.symbols.lookup(fqName: ownerFQName + [interner.intern(entryName)]) else {
+            preconditionFailure("KSP-491: missing bundled enum entry \(ownerFQName).\(entryName)")
+        }
+        let type = sema.symbols.propertyType(for: entrySymbol) ?? sema.types.anyType
+        let ref = shared.arena.appendExpr(.symbolRef(entrySymbol), type: type)
+        instructions.append(.constValue(result: ref, value: .symbolRef(entrySymbol)))
+        return ref
+    }
+
+    /// Allocates a heap object for a direct constructor call (KSP-491: the
+    /// bundled `LazyImpl` delegate implementation), mirroring the allocation
+    /// `CallLowerer.lowerCallExpr` performs for an ordinary `NewExpr(...)`
+    /// call before invoking its constructor (`kk_object_new` sized from the
+    /// class's `NominalLayout`, then itable/vtable/supertype-edge
+    /// registration) -- constructors always need this as their implicit
+    /// receiver (p0); they are never called on an already-allocated object.
+    func allocateStdlibDelegateInstance(
+        ownerSymbol: SymbolID,
+        resultType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        emit instructions: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let intType = sema.types.intType
+        let slotCount = Int64(max(sema.symbols.nominalLayout(for: ownerSymbol)?.instanceSizeWords ?? 1, 1))
+        let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: intType)
+        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
+        let classIDValue = RuntimeTypeCheckToken.stableNominalTypeID(symbol: ownerSymbol, sema: sema, interner: interner)
+        let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
+        let allocatedObj = arena.appendTemporary(type: resultType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_object_new"),
+            arguments: [slotCountExpr, classIDExpr],
+            result: allocatedObj,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        for superSymbol in sema.symbols.directSupertypes(for: ownerSymbol) {
+            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(symbol: superSymbol, sema: sema, interner: interner)
+            let childExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
+            instructions.append(.constValue(result: childExpr, value: .intLiteral(classIDValue)))
+            let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
+            instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
+            let registerResult = arena.appendTemporary(type: intType)
+            let registerCallee = sema.symbols.symbol(superSymbol)?.kind == .interface
+                ? interner.intern("kk_type_register_iface")
+                : interner.intern("kk_type_register_super")
+            instructions.append(.call(
+                symbol: nil, callee: registerCallee,
+                arguments: [childExpr, parentExpr],
+                result: registerResult, canThrow: false, thrownResult: nil
+            ))
+        }
+        appendObjectItableMethodRegistrations(
+            objectValue: allocatedObj, nominalSymbol: ownerSymbol,
+            driver: self, sema: sema, arena: arena, interner: interner,
+            instructions: &instructions.instructions
+        )
+        appendObjectVtableMethodRegistrations(
+            objectValue: allocatedObj, nominalSymbol: ownerSymbol,
+            driver: self,
+            sema: sema, arena: arena, interner: interner,
+            instructions: &instructions.instructions
+        )
+        return allocatedObj
+    }
+
+    private func emitDelegateInit(
         propertyDecl: PropertyDecl,
         symbol: SymbolID,
         delegateStorageSymbol: SymbolID,
@@ -415,11 +541,11 @@ extension KIRLoweringDriver {
     ) {
         let sema = shared.sema
         guard let delegateExpr = propertyDecl.delegateExpression else {
-            // Internal error: emitCustomDelegateInit called for a property without delegate expression.
+            // Internal error: emitDelegateInit called for a property without delegate expression.
             // This indicates an AST invariant violation — emit a diagnostic and bail out.
             compilationCtx.diagnostics.error(
                 "KSWIFTK-KIR-0002",
-                "Internal error: emitCustomDelegateInit called for a property without a delegate expression.",
+                "Internal error: emitDelegateInit called for a property without a delegate expression.",
                 range: propertyDecl.range
             )
             return

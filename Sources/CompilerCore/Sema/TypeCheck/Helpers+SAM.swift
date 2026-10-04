@@ -42,7 +42,7 @@ extension TypeCheckHelpers {
         for expectedType: TypeID,
         sema: SemaModule
     ) -> FunctionType? {
-        guard case let .classType(classType) = sema.types.kind(of: expectedType) else {
+        guard let classType = resolveClassType(expectedType, sema: sema) else {
             return nil
         }
         guard let signature = samMethodSignature(for: classType.classSymbol, sema: sema) else {

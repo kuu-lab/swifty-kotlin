@@ -61,7 +61,8 @@ extension CallSupportLowerer {
         knownNames: KnownCompilerNames
     ) -> InternedString? {
         switch interner.resolve(callee) {
-        case "IntArray", "LongArray", "UIntArray", "DoubleArray", "FloatArray", "BooleanArray", "CharArray", "UShortArray":
+        case "IntArray", "LongArray", "UIntArray", "ULongArray", "DoubleArray", "FloatArray", "BooleanArray", "CharArray",
+             "ByteArray", "ShortArray", "UByteArray", "UShortArray":
             guard argumentCount == 1 else {
                 return nil
             }
@@ -69,7 +70,7 @@ extension CallSupportLowerer {
         case "Regex":
             switch argumentCount {
             case 1:
-                return interner.intern("kk_regex_create")
+                return interner.intern("__kk_regex_create_flat")
             case 2:
                 // Two 2-arg overloads exist: Regex(String, RegexOption) and
                 // Regex(String, Set<RegexOption>). Disambiguate by inspecting
@@ -83,20 +84,42 @@ extension CallSupportLowerer {
                        symbolInfo.name != .invalid
                     {
                         if knownNames.isSetLikeSymbol(symbolInfo) {
-                            return interner.intern("kk_regex_create_with_options")
+                            return interner.intern("__kk_regex_create_with_options_flat")
                         }
                     }
                 }
-                return interner.intern("kk_regex_create_with_option")
+                return interner.intern("__kk_regex_create_with_option_flat")
             default:
                 return nil
             }
         case "StringBuilder":
             switch argumentCount {
             case 0:
-                return interner.intern("kk_string_builder_new")
+                return interner.intern("__kk_string_builder_new")
             case 1:
-                return interner.intern("kk_string_builder_new_from_string")
+                if let firstArgumentType = argumentTypes.first,
+                   types.isSubtype(types.makeNonNullable(firstArgumentType), types.stringType)
+                {
+                    return interner.intern("__kk_string_builder_new_from_string_flat")
+                }
+                if let firstArgumentType = argumentTypes.first,
+                   let charSequenceSymbol = types.charSequenceInterfaceSymbol,
+                   types.isSubtype(
+                       types.makeNonNullable(firstArgumentType),
+                       types.make(.classType(ClassType(
+                           classSymbol: charSequenceSymbol,
+                           args: [],
+                           nullability: .nonNull
+                       )))
+                   )
+                {
+                    return interner.intern("__kk_string_builder_new_from_char_sequence")
+                }
+                if argumentTypes.first != nil
+                {
+                    return interner.intern("__kk_string_builder_new_capacity_checked")
+                }
+                return interner.intern("__kk_string_builder_new_from_string_flat")
             default:
                 return nil
             }
@@ -107,7 +130,19 @@ extension CallSupportLowerer {
 
     func builtinBinaryRuntimeCallee(for op: BinaryOp, interner: StringInterner) -> InternedString? {
         switch op {
-        case .notEqual:
+        // `.notEqual` intentionally has no entry (same as `.equal`): both fall
+        // through to the raw `.binaryOp` path, where OperatorLoweringPass picks
+        // `kk_structural_ne` for reference-typed / nullable-primitive operands
+        // and `kk_op_ne` for primitives. Routing `!=` through `kk_op_ne` here
+        // compared object handles by raw word value, so two distinct boxes of
+        // the same value compared "not equal".
+        // `===`/`!==` are raw word-equality comparisons — the same primitive
+        // already used for data-object identity checks (see
+        // appendSyntheticDataObjectEqualsIfNeeded). Reference-typed operands are
+        // single-word pointers, so this is a genuine pointer-identity comparison.
+        case .identityEqual:
+            interner.intern("kk_op_eq")
+        case .notIdentityEqual:
             interner.intern("kk_op_ne")
         case .lessThan:
             interner.intern("kk_op_lt")

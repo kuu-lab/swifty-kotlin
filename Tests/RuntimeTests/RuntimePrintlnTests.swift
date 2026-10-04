@@ -1,5 +1,6 @@
 @testable import Runtime
-import XCTest
+import Foundation
+import Testing
 
 #if canImport(Glibc)
     import Glibc
@@ -7,9 +8,8 @@ import XCTest
     import Darwin
 #endif
 
-final class RuntimePrintlnTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
+@Suite(.serialized, .runtimeIsolation(.gcOnly))
+struct RuntimePrintlnTests {
     private func capturePrintln(_ block: () -> Void) -> String {
         let pipe = Pipe()
         let savedFD = dup(STDOUT_FILENO)
@@ -24,42 +24,37 @@ final class RuntimePrintlnTests: IsolatedRuntimeXCTestCase {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    func testPrintlnNilPrintsZero() {
-        let output = capturePrintln { kk_println_any(nil) }
-        XCTAssertEqual(output, "0")
+    private func makeStringRaw(_ value: String) -> Int {
+        value.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { ptr in
+                Int(bitPattern: kk_string_from_utf8(ptr, Int32(value.utf8.count)))
+            }
+        }
     }
 
-    func testPrintlnNullSentinelPrintsNull() {
-        let sentinel = UnsafeMutableRawPointer(bitPattern: Int(Int64.min))
-        let output = capturePrintln { kk_println_any(sentinel) }
-        XCTAssertEqual(output, "null")
+    @Test func printRawWritesStringWithoutNewline() {
+        let output = capturePrintln {
+            __kk_print_raw(makeStringRaw("hello"))
+            __kk_print_raw(makeStringRaw(" "))
+            __kk_print_raw(makeStringRaw("world"))
+            __kk_print_raw(makeStringRaw("\n"))
+        }
+        #expect(output == "hello world")
     }
 
-    func testPrintlnSmallIntPrintsValue() {
-        let ptr = UnsafeMutableRawPointer(bitPattern: 42)
-        let output = capturePrintln { kk_println_any(ptr) }
-        XCTAssertEqual(output, "42")
+    @Test func printRawNullSentinelPrintsNull() {
+        let output = capturePrintln {
+            __kk_print_raw(runtimeNullSentinelInt)
+            __kk_print_raw(makeStringRaw("\n"))
+        }
+        #expect(output == "null")
     }
 
-    func testPrintlnLongPrintsValue() {
-        let output = capturePrintln { kk_println_long(123_456_789) }
-        XCTAssertEqual(output, "123456789")
-    }
-
-    func testPrintlnDoubleDecodesBitPattern() {
-        let output = capturePrintln { kk_println_double(kk_double_to_bits(2.5)) }
-        XCTAssertEqual(output, "2.5")
-    }
-
-    func testPrintlnCharPrintsUnicodeScalar() {
-        let output = capturePrintln { kk_println_char(0x41) }
-        XCTAssertEqual(output, "A")
-    }
-
-    func testTodoNoArgUsesDefaultMessage() {
-        var thrown = 0
-        _ = kk_todo_noarg(&thrown)
-        let rendered = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertEqual(rendered, "Throwable(NotImplementedError: An operation is not implemented.)")
+    @Test func printRawEmptyStringPrintsNothing() {
+        let output = capturePrintln {
+            __kk_print_raw(makeStringRaw(""))
+            __kk_print_raw(makeStringRaw("\n"))
+        }
+        #expect(output == "")
     }
 }

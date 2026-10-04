@@ -4,19 +4,20 @@ import Testing
 
 @Suite
 struct ThreadLocalSyntheticStubTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        return semaResult
     }
 
     @Test
     func testThreadLocalConstructorAndGetOrSetSignatures() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let threadLocalFQName = ["java", "lang", "ThreadLocal"].map { interner.intern($0) }
         let threadLocalSymbol = try #require(

@@ -13,6 +13,8 @@ enum RuntimeTypeCategory {
     case ulong
     case ubyte
     case ushort
+    case byte
+    case short
     // REFL-002: Additional primitive categories for precise ::class tokens.
     case long
     case double
@@ -35,6 +37,8 @@ enum RuntimeTypeCategory {
         case .ulong:    RuntimeTypeCheckToken.ulongBase
         case .ubyte:    RuntimeTypeCheckToken.ubyteBase
         case .ushort:   RuntimeTypeCheckToken.ushortBase
+        case .byte:     RuntimeTypeCheckToken.byteBase
+        case .short:    RuntimeTypeCheckToken.shortBase
         case .long:     RuntimeTypeCheckToken.longBase
         case .double:   RuntimeTypeCheckToken.doubleBase
         case .float:    RuntimeTypeCheckToken.floatBase
@@ -49,13 +53,15 @@ enum RuntimeTypeCategory {
         switch self {
         case .any:      "Any"
         case .null:     "Nothing"
-        case .string:   PrimitiveType.string.kotlinName
+        case .string:   "String"
         case .int:      PrimitiveType.int.kotlinName
         case .boolean:  PrimitiveType.boolean.kotlinName
         case .uint:     PrimitiveType.uint.kotlinName
         case .ulong:    PrimitiveType.ulong.kotlinName
         case .ubyte:    PrimitiveType.ubyte.kotlinName
         case .ushort:   PrimitiveType.ushort.kotlinName
+        case .byte:     PrimitiveType.byte.kotlinName
+        case .short:    PrimitiveType.short.kotlinName
         case .long:     PrimitiveType.long.kotlinName
         case .double:   PrimitiveType.double.kotlinName
         case .float:    PrimitiveType.float.kotlinName
@@ -90,6 +96,8 @@ enum RuntimeTypeCheckToken {
     static let ulongBase: Int64 = 8
     static let ubyteBase: Int64 = 9
     static let ushortBase: Int64 = 10
+    static let byteBase: Int64 = 16
+    static let shortBase: Int64 = 17
     // REFL-002: Additional primitive bases for Long, Double, Float, Char.
     static let longBase: Int64 = 11
     static let doubleBase: Int64 = 12
@@ -119,12 +127,14 @@ enum RuntimeTypeCheckToken {
         let category: RuntimeTypeCategory
         switch sema.types.kind(of: type) {
         case .any:                      category = .any
-        case .primitive(.string, _):    category = .string
+        case .stringStruct:             category = .string
         case .primitive(.int, _):       category = .int
         case .primitive(.uint, _):      category = .uint
         case .primitive(.ulong, _):     category = .ulong
         case .primitive(.ubyte, _):     category = .ubyte
         case .primitive(.ushort, _):    category = .ushort
+        case .primitive(.byte, _):      category = .byte
+        case .primitive(.short, _):      category = .short
         case .primitive(.boolean, _):   category = .boolean
         // REFL-002: Classify additional primitive types so ::class tokens
         // carry distinct base values instead of falling through to .unknown.
@@ -134,7 +144,15 @@ enum RuntimeTypeCheckToken {
         case .primitive(.char, _):      category = .char
         case .unit:                     category = .unit
         case .nothing:                  category = nullable ? .null : .unknown
-        case let .classType(classType): category = .nominal(classType.classSymbol)
+        case let .classType(classType):
+            // Value classes (boxed or not) are checked by nominal identity,
+            // not by their underlying representation: kk_tag_value_class_box
+            // (see emitBoxCallWithValueClassTag) tags a value class's boxed
+            // primitive with its own stable nominal type ID at every
+            // reference-type boundary, so `is`/`as`/`KClass.isInstance`
+            // against the value class name can match that tag directly —
+            // the same way a plain nominal class/interface check does.
+            category = .nominal(classType.classSymbol)
         default:                        category = .unknown
         }
         return RuntimeTypeDescriptor(category: category, nullable: nullable)
@@ -160,6 +178,10 @@ enum RuntimeTypeCheckToken {
             encode(base: ubyteBase, nullable: nullable)
         case builtinNames.ushort:
             encode(base: ushortBase, nullable: nullable)
+        case builtinNames.byte:
+            encode(base: byteBase, nullable: nullable)
+        case builtinNames.short:
+            encode(base: shortBase, nullable: nullable)
         case builtinNames.boolean:
             encode(base: booleanBase, nullable: nullable)
         // REFL-002: Encode additional primitive builtin names.
@@ -184,6 +206,11 @@ enum RuntimeTypeCheckToken {
         let descriptor = classify(type: type, sema: sema)
         switch descriptor.category {
         case let .nominal(symbolID):
+            if let builtinToken = encodeBuiltinDisguisedNominal(
+                symbolID, nullable: descriptor.nullable, sema: sema, interner: interner
+            ) {
+                return builtinToken
+            }
             let nominalTypeID = stableNominalTypeID(symbol: symbolID, sema: sema, interner: interner)
             return encode(base: descriptor.category.base, nullable: descriptor.nullable, payload: nominalTypeID)
         case .null:
@@ -191,6 +218,39 @@ enum RuntimeTypeCheckToken {
         default:
             return encode(base: descriptor.category.base, nullable: descriptor.nullable)
         }
+    }
+
+    /// Some builtin types (`String`, `Char`, `Any`, …) additionally have a
+    /// synthetic `.class`-kind symbol registered under `kotlin.<Name>` purely
+    /// to host member declarations (see `HeaderHelpers.ensureClassSymbol`,
+    /// e.g. String's `CharSequence` conformance or Char's companion helpers).
+    /// `T::class` for these names resolves `classRefTargetType` to that
+    /// class-symbol-wrapped `.classType` representation — `inferClassRefExpr`
+    /// finds the synthetic class symbol via scope lookup before it ever
+    /// reaches the builtin-name fallback — and `javaClassTypeArgument` relies
+    /// on exactly this shape to recover the builtin for `.java`/`.js`/
+    /// `.javaClass`. `classify(type:sema:)` reports it as an ordinary
+    /// `.nominal` type indistinguishable from a user-defined class, though,
+    /// so left unhandled here, the encoded token would use `nominalBase` with
+    /// a class-hash payload instead of the dedicated primitive base — causing
+    /// `String::class.isInstance(...)` / `.cast(...)` to diverge from the
+    /// `stringBase` token that an ordinary `is String` check produces for the
+    /// same conceptual type. Detect the disguise and encode via the
+    /// canonical builtin base instead.
+    private static func encodeBuiltinDisguisedNominal(
+        _ symbolID: SymbolID,
+        nullable: Bool,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int64? {
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.fqName.count == 2,
+              symbol.fqName.first == interner.intern("kotlin")
+        else {
+            return nil
+        }
+        let builtinNames = BuiltinTypeNames(interner: interner)
+        return encodeBuiltinTypeName(symbol.name, nullable: nullable, builtinNames: builtinNames)
     }
 
     /// Returns the simple (unqualified) type name for a given `TypeID`, or `nil`
@@ -213,6 +273,10 @@ enum RuntimeTypeCheckToken {
             return PrimitiveType.float.kotlinName
         case .primitive(.double, _):
             return PrimitiveType.double.kotlinName
+        case .primitive(.byte, _):
+            return PrimitiveType.byte.kotlinName
+        case .primitive(.short, _):
+            return PrimitiveType.short.kotlinName
         case let .classType(classType):
             guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
                 return nil
@@ -246,6 +310,10 @@ enum RuntimeTypeCheckToken {
             return "kotlin.UByte"
         case .ushort:
             return "kotlin.UShort"
+        case .byte:
+            return "kotlin.Byte"
+        case .short:
+            return "kotlin.Short"
         case .long:
             return "kotlin.Long"
         case .double:
@@ -268,7 +336,16 @@ enum RuntimeTypeCheckToken {
     }
 
     static func stableNominalTypeID(symbol: SymbolID, sema: SemaModule, interner: StringInterner) -> Int64 {
-        guard let semanticSymbol = sema.symbols.symbol(symbol) else {
+        stableNominalTypeID(symbol: symbol, symbols: sema.symbols, interner: interner)
+    }
+
+    /// Same computation as the `sema:`-based overload, for lowering passes
+    /// (e.g. ABILoweringPass) that only have a `SymbolTable` in scope. Keep
+    /// the hash formula identical to Runtime's `runtimeStableNominalTypeID`
+    /// so a value class's box-time tag (kk_tag_value_class_box) always
+    /// matches its check-time payload (kk_op_is).
+    static func stableNominalTypeID(symbol: SymbolID, symbols: SymbolTable, interner: StringInterner) -> Int64 {
+        guard let semanticSymbol = symbols.symbol(symbol) else {
             return 0
         }
         let fqName = semanticSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")

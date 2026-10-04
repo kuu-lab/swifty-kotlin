@@ -48,22 +48,147 @@ typealias KKClosureThunkEntryPoint = @convention(c) (Int, UnsafeMutablePointer<I
 typealias KKFunctionEntryPoint1 = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKFunctionEntryPoint2 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKFunctionEntryPoint3 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKFunctionEntryPoint4 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKFunctionEntryPoint5 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint1 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint3 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKClosureFunctionEntryPoint4 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKClosureFunctionEntryPoint5 = @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKDelegateObserverEntryPoint = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
 final class RuntimeStringBox {
     let value: String
+    /// Kotlin UTF-16 code units materialized on first positional access.
+    /// `value` is immutable, so the cache never invalidates.
+    private var cachedUTF16CodeUnits: [UInt16]?
+    /// Flat-ABI buffer backing this string, materialized once so repeated
+    /// `kk_string_to_flat` bridges share a single registered storage instead
+    /// of accumulating one buffer per call. Owned by the flat-string registry,
+    /// so the cache stays weak and self-heals after `kk_flat_string_release`.
+    private weak var cachedFlatStorage: RuntimeFlatStringStorage?
+    private let utf16CodeUnitsLock = NSLock()
 
     init(_ value: String) {
         self.value = value
     }
+
+    var utf16CodeUnits: [UInt16] {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedUTF16CodeUnits {
+            return cachedUTF16CodeUnits
+        }
+        let units = runtimeKotlinStringUTF16CodeUnits(value)
+        cachedUTF16CodeUnits = units
+        return units
+    }
+
+    /// UTF-16 length without allocating the code-unit array when nothing has
+    /// indexed this string yet.
+    var utf16Length: Int {
+        utf16CodeUnitsLock.lock()
+        let cached = cachedUTF16CodeUnits
+        utf16CodeUnitsLock.unlock()
+        return cached?.count ?? runtimeKotlinStringUTF16Length(value)
+    }
+
+    /// Flat-ABI buffer for `value`, creating and registering one on first use.
+    /// The box is the storage's canonical boxed handle, so a flat→raw bridge
+    /// of the same buffer resolves back to this box.
+    func flatStringStorage() -> RuntimeFlatStringStorage {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedFlatStorage {
+            return cachedFlatStorage
+        }
+        let storage = RuntimeFlatStringStorage(value)
+        runtimeRegisterFlatStringStorage(storage, canonicalBox: self)
+        cachedFlatStorage = storage
+        return storage
+    }
+}
+
+struct RuntimeValue {
+    static let rawTag = 0
+    static let stringTag = 1
+    static let charTag = 2
+
+    var tag: Int
+    var payload0: Int
+    var payload1: Int
+    var payload2: Int
+    var payload3: Int
+    // Static type information used by Any fallback operations. This is kept
+    // separate from `tag`, which describes the storage representation.
+    var anyFallbackTag: Int32
+
+    init(raw: Int, anyFallbackTag: Int32 = 0) {
+        self.tag = Self.rawTag
+        self.payload0 = raw
+        self.payload1 = 0
+        self.payload2 = 0
+        self.payload3 = 0
+        self.anyFallbackTag = anyFallbackTag
+    }
+
+    init(stringData data: Int, length: Int, byteCount: Int, hash: Int) {
+        self.tag = Self.stringTag
+        self.payload0 = data
+        self.payload1 = length
+        self.payload2 = byteCount
+        self.payload3 = hash
+        self.anyFallbackTag = 0
+    }
+
+    init(charScalar value: Int) {
+        self.tag = Self.charTag
+        self.payload0 = value
+        self.payload1 = 0
+        self.payload2 = 0
+        self.payload3 = 0
+        self.anyFallbackTag = 0
+    }
+
+    var legacyRawValue: Int {
+        guard tag == Self.stringTag else {
+            return payload0
+        }
+        guard let data = UnsafePointer<UInt8>(bitPattern: payload0) else {
+            return 0
+        }
+        let string = runtimeStringFromFlatFields(
+            data: data,
+            length: payload1,
+            byteCount: payload2,
+            hash: payload3
+        )
+        return registerRuntimeObject(RuntimeStringBox(string))
+    }
+
+    var childReferenceRawValue: Int? {
+        guard tag == Self.rawTag, payload0 != 0 else {
+            return nil
+        }
+        return payload0
+    }
+}
+
+@inline(__always)
+private func runtimeValuePreservingAnyFallbackTag(
+    _ value: RuntimeValue,
+    existing: RuntimeValue
+) -> RuntimeValue {
+    guard value.anyFallbackTag == 0 else { return value }
+    var value = value
+    value.anyFallbackTag = existing.anyFallbackTag
+    return value
 }
 
 class RuntimeThrowableBox {
-    let message: String
+    let message: String?
     var cause: Int
+    let stackTraceAddresses: [Int]
     /// Suppressed exceptions (STDLIB-EXCEPT-105).
     /// Stores raw Int pointers to other RuntimeThrowableBox instances.
     var suppressed: [Int] = []
@@ -77,13 +202,19 @@ class RuntimeThrowableBox {
     }
 
     var renderedMessage: String {
-        message
+        message ?? "Throwable"
     }
 
-    init(message: String, cause: Int = 0) {
+    init(message: String?, cause: Int = 0) {
         self.message = message
         self.cause = cause
+        self.stackTraceAddresses = runtimeCurrentStackTraceAddresses()
     }
+}
+
+func runtimeRenderedExceptionMessage(_ name: String, _ message: String?) -> String {
+    guard let message else { return name }
+    return "\(name): \(message)"
 }
 
 final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox {
@@ -101,14 +232,20 @@ final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox 
     }
 
     override var renderedMessage: String {
-        "UninitializedPropertyAccessException: \(message)"
+        runtimeRenderedExceptionMessage("UninitializedPropertyAccessException", message)
     }
 }
 
 /// Distinct type used to identify CancellationException at runtime.
 /// The runtime checks `is RuntimeCancellationBox` to distinguish cancellation from
 /// regular throwables (CORO-002 / spec.md J17).
-final class RuntimeCancellationBox: RuntimeThrowableBox {
+///
+/// Non-final so `RuntimeTimeoutCancellationBox` can subclass it: every existing
+/// `is RuntimeCancellationBox` / `tryCast(_:to: RuntimeCancellationBox.self)` site
+/// (notably `kk_is_cancellation_exception`, which backs the
+/// `catch (e: CancellationException)` fast path) then accepts the timeout flavour
+/// without further wiring, matching kotlinx.coroutines' subclass relationship.
+class RuntimeCancellationBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.CancellationException"
     }
@@ -116,6 +253,7 @@ final class RuntimeCancellationBox: RuntimeThrowableBox {
     override var exceptionHierarchyFQNames: [String] {
         [
             "kotlin.CancellationException",
+            "kotlin.coroutines.cancellation.CancellationException",
             "kotlinx.coroutines.CancellationException",
             "CancellationException",
             "kotlin.IllegalStateException",
@@ -126,58 +264,184 @@ final class RuntimeCancellationBox: RuntimeThrowableBox {
     }
 
     override var renderedMessage: String {
-        message
+        message ?? "CancellationException"
     }
 
-    override init(message: String, cause: Int = 0) {
+    override init(message: String?, cause: Int = 0) {
         super.init(message: message, cause: cause)
     }
 }
 
+/// `kotlinx.coroutines.TimeoutCancellationException` -- thrown when a
+/// `withTimeout` deadline expires (CORO-002 / spec.md J17).
+///
+/// A *subclass* of `RuntimeCancellationBox`, mirroring kotlinx.coroutines, so
+/// `catch (e: CancellationException)` catches a timeout while
+/// `catch (e: TimeoutCancellationException)` stays narrow: the latter is matched
+/// nominally by `kk_op_is` against `exceptionHierarchyFQNames`, which a plain
+/// `job.cancel()` cancellation does not carry.
+final class RuntimeTimeoutCancellationBox: RuntimeCancellationBox {
+    override var exceptionFQName: String {
+        "kotlinx.coroutines.TimeoutCancellationException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        // The unqualified spelling is required because a `catch` clause resolves
+        // its type by short name, so the Sema symbol's fqName may be either the
+        // packaged or the bare form (see `resolveCatchClauseParameterType`).
+        [
+            "kotlinx.coroutines.TimeoutCancellationException",
+            "TimeoutCancellationException",
+        ] + super.exceptionHierarchyFQNames
+    }
+
+    override var renderedMessage: String {
+        message ?? "TimeoutCancellationException"
+    }
+}
+
 class RuntimeArrayBox {
-    var elements: [Int]
+    private var storage: [RuntimeValue]
+
+    var values: [RuntimeValue] {
+        get {
+            storage
+        }
+        set {
+            storage = newValue
+        }
+    }
+
+    var elements: [Int] {
+        get {
+            storage.map(\.legacyRawValue)
+        }
+        set {
+            storage = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
+
+    /// O(1) single-element access. Prefer this over `elements[i]` inside loops:
+    /// `elements` materializes the whole array on every get/set, making per-index
+    /// loop access O(n) per iteration.
+    subscript(index: Int) -> Int {
+        get { storage[index].legacyRawValue }
+        set {
+            storage[index] = RuntimeValue(
+                raw: newValue,
+                anyFallbackTag: storage[index].anyFallbackTag
+            )
+        }
+    }
+
+    /// Stores a raw field value together with the static tag needed by
+    /// Any-erased operations such as `hashCode()`.
+    func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
+        storage[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
+    }
+
+    func setValue(_ value: RuntimeValue, at index: Int) {
+        storage[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage[index])
+    }
+
+    var count: Int {
+        storage.count
+    }
 
     init(length: Int) {
-        elements = Array(repeating: 0, count: max(0, length))
+        storage = Array(repeating: RuntimeValue(raw: 0), count: max(0, length))
     }
 }
 
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
+    var backingListBox: RuntimeListBox?
+    var backingSetBox: RuntimeSetBox?
+    var throwableMessage: String?
+    var throwableCause: Int
+    var throwableStackTraceAddresses: [Int]?
+    var throwableSuppressed: [Int]
 
     init(length: Int, classID: Int64) {
         self.classID = classID
+        self.backingListBox = nil
+        self.backingSetBox = nil
+        self.throwableMessage = nil
+        self.throwableCause = 0
+        self.throwableStackTraceAddresses = nil
+        self.throwableSuppressed = []
         super.init(length: length)
     }
 }
 
 final class RuntimePairBox {
-    let first: Int
-    let second: Int
+    var firstValue: RuntimeValue
+    var secondValue: RuntimeValue
+    // MutableMap.MutableEntry pairs retain the destination map so entry.value
+    // and setValue() observe subsequent mutations through the live view.
+    var mutableMapRaw: Int = 0
+    var mutableMapKey: Int = 0
+
+    var first: Int { runtimeCollectionABIValue(firstValue) }
+    var second: Int { runtimeCollectionABIValue(secondValue) }
 
     init(first: Int, second: Int) {
-        self.first = first
-        self.second = second
+        self.firstValue = RuntimeValue(raw: first)
+        self.secondValue = RuntimeValue(raw: second)
+    }
+
+    init(firstValue: RuntimeValue, secondValue: RuntimeValue) {
+        self.firstValue = firstValue
+        self.secondValue = secondValue
     }
 }
 
 final class RuntimeTripleBox {
-    let first: Int
-    let second: Int
-    let third: Int
+    let firstValue: RuntimeValue
+    let secondValue: RuntimeValue
+    let thirdValue: RuntimeValue
+
+    var first: Int { firstValue.legacyRawValue }
+    var second: Int { secondValue.legacyRawValue }
+    var third: Int { thirdValue.legacyRawValue }
 
     init(first: Int, second: Int, third: Int) {
-        self.first = first
-        self.second = second
-        self.third = third
+        self.firstValue = RuntimeValue(raw: first)
+        self.secondValue = RuntimeValue(raw: second)
+        self.thirdValue = RuntimeValue(raw: third)
     }
 }
 
 final class RuntimeIntBox {
     let value: Int
 
-    init(_ value: Int) {
+    /// Static Any-fallback tag captured at the boxing boundary. UInt, UByte,
+    /// and UShort share this physical box with Int, but their hashCode() must
+    /// reinterpret the zero-extended payload as the signed backing type.
+    let anyFallbackTag: Int32
+
+    /// Set when this box represents a Kotlin enum ordinal (an element of
+    /// `values()`/`entries`) round-tripped through an Any-erased array slot.
+    /// Generic Any-printing paths (__kk_print_raw, runtimeRenderAnyForPrint,
+    /// runtimeElementToString) check this to show the entry name instead of
+    /// the raw ordinal once the static enum type has been erased. See
+    /// kk_enum_box_ordinal.
+    let enumEntryName: String?
+    /// Stable nominal ID for the enum class represented by this box. Unlike a
+    /// plain boxed Int, enum equality must keep two entries from different
+    /// enum classes unequal even when their ordinals match.
+    let enumClassID: Int64?
+
+    init(
+        _ value: Int,
+        anyFallbackTag: Int32 = 1,
+        enumEntryName: String? = nil,
+        enumClassID: Int64? = nil
+    ) {
         self.value = value
+        self.anyFallbackTag = anyFallbackTag
+        self.enumEntryName = enumEntryName
+        self.enumClassID = enumClassID
     }
 }
 
@@ -189,7 +453,24 @@ final class RuntimeBoolBox {
     }
 }
 
+/// Boxed Kotlin Unit for Any-erased storage. Direct Unit values remain the
+/// compiler's raw zero representation; this box is used only at reference
+/// boundaries where Any must retain the value's runtime identity.
+final class RuntimeUnitBox {}
+
 final class RuntimeLongBox {
+    let value: Int
+
+    init(_ value: Int) {
+        self.value = value
+    }
+}
+
+/// Boxed `ULong`. Distinct from `RuntimeLongBox` so that boxed-`Any` dispatch
+/// (toString/equals/hashCode/compareTo/`is`) can tell a ULong apart from a
+/// Long with the same 64-bit pattern — see docs on `kk_box_ulong`.
+final class RuntimeULongBox {
+    /// Raw 64-bit pattern; interpret via `UInt(bitPattern:)` for the true unsigned value.
     let value: Int
 
     init(_ value: Int) {
@@ -228,6 +509,7 @@ enum RuntimeCallableRefKind {
 
 struct RuntimeCallableRefMetadata {
     let nameRaw: Int
+    let returnTypeRaw: Int
     let arity: Int
     let kind: RuntimeCallableRefKind
     let isSuspend: Bool
@@ -250,16 +532,40 @@ final class RuntimeFunctionValueBox {
 /// Runtime box for `listOf(...)` / `mutableListOf(...)`.
 /// Stores elements directly or as a lightweight view over another list/array.
 final class RuntimeListBox {
+    private final class DirectStorage {
+        var values: [RuntimeValue]
+        /// Bumped on every structural mutation (size change), never on an
+        /// element replacement. Iterators capture this at creation and
+        /// re-check it in `next()` to detect concurrent modification.
+        var modCount: Int = 0
+
+        init(values: [RuntimeValue]) {
+            self.values = values
+        }
+    }
+
     private enum Storage {
-        case direct([Int])
+        case direct(DirectStorage)
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
+        case subList(RuntimeListSlice)
     }
 
     private var storage: Storage
+    private(set) var isReadOnly = false
 
     init(elements: [Int]) {
-        storage = .direct(elements)
+        storage = .direct(DirectStorage(values: elements.map { RuntimeValue(raw: $0) }))
+    }
+
+    init(values: [RuntimeValue]) {
+        storage = .direct(DirectStorage(values: values))
+    }
+
+    init(capacity: Int) {
+        var values: [RuntimeValue] = []
+        values.reserveCapacity(max(0, capacity))
+        storage = .direct(DirectStorage(values: values))
     }
 
     init(reversedViewOf base: RuntimeListBox) {
@@ -270,63 +576,786 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base)
     }
 
-    var elements: [Int] {
+    init(subListOf base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
+        storage = .subList(RuntimeListSlice(base: base, fromIndex: fromIndex, toIndex: toIndex))
+    }
+
+    var values: [RuntimeValue] {
         get {
             switch storage {
-            case .direct(let elements):
-                return elements
+            case .direct(let direct):
+                return direct.values
             case .reversedViewOf(let base):
-                return Array(base.elements.reversed())
+                return Array(base.values.reversed())
             case .arrayViewOf(let base):
-                return base.elements
+                return base.values
+            case .subList(let slice):
+                return Array(slice.base.values[slice.fromIndex..<slice.toIndex])
             }
         }
         set {
+            guard !isReadOnly else { return }
             switch storage {
-            case .direct:
-                storage = .direct(newValue)
+            case .direct(let direct):
+                if newValue.count != direct.values.count {
+                    direct.modCount += 1
+                }
+                direct.values = newValue
             case .reversedViewOf(let base):
-                base.elements = Array(newValue.reversed())
+                base.values = Array(newValue.reversed())
             case .arrayViewOf(let base):
-                base.elements = newValue
+                base.values = newValue
+            case .subList(let slice):
+                var baseValues = slice.base.values
+                baseValues.replaceSubrange(slice.fromIndex..<slice.toIndex, with: newValue)
+                slice.toIndex = slice.fromIndex + newValue.count
+                slice.base.values = baseValues
             }
         }
+    }
+
+    /// Structural-modification counter (Java/Kotlin `modCount` equivalent).
+    /// View storages forward to the backing list's own counter, so an
+    /// iterator over a `subList`/reversed view still detects a structural
+    /// change made through the root list.
+    var modCount: Int {
+        switch storage {
+        case .direct(let direct):
+            return direct.modCount
+        case .reversedViewOf(let base):
+            return base.modCount
+        case .arrayViewOf:
+            return 0
+        case .subList(let slice):
+            return slice.base.modCount
+        }
+    }
+
+    func freeze() {
+        isReadOnly = true
+    }
+
+    var count: Int {
+        switch storage {
+        case .direct(let direct):
+            return direct.values.count
+        case .reversedViewOf(let base):
+            return base.count
+        case .arrayViewOf(let base):
+            return base.count
+        case .subList(let slice):
+            return slice.toIndex - slice.fromIndex
+        }
+    }
+
+    var indices: Range<Int> {
+        0..<count
+    }
+
+    /// O(1) single-element access. Prefer this over `elements[index]` because
+    /// `elements` materializes the whole list on every get/set.
+    subscript(index: Int) -> Int {
+        get {
+            switch storage {
+            case .direct(let direct):
+                return runtimeCollectionABIValue(direct.values[index])
+            case .reversedViewOf(let base):
+                return base[base.count - 1 - index]
+            case .arrayViewOf(let base):
+                return runtimeCollectionABIValue(base.values[index])
+            case .subList(let slice):
+                return slice.base[slice.fromIndex + index]
+            }
+        }
+        set {
+            guard !isReadOnly else { return }
+            switch storage {
+            case .direct(let direct):
+                direct.values[index] = RuntimeValue(
+                    raw: newValue,
+                    anyFallbackTag: direct.values[index].anyFallbackTag
+                )
+            case .reversedViewOf(let base):
+                base[base.count - 1 - index] = newValue
+            case .arrayViewOf(let base):
+                base[index] = newValue
+            case .subList(let slice):
+                slice.base[slice.fromIndex + index] = newValue
+            }
+        }
+    }
+
+    /// Stores an already-tagged value without materializing the surrounding collection.
+    func setValue(_ value: RuntimeValue, at index: Int) {
+        guard !isReadOnly else { return }
+        switch storage {
+        case .direct(let direct):
+            direct.values[index] = runtimeValuePreservingAnyFallbackTag(
+                value,
+                existing: direct.values[index]
+            )
+        case .reversedViewOf(let base):
+            base.setValue(value, at: base.count - 1 - index)
+        case .arrayViewOf(let base):
+            base.setValue(value, at: index)
+        case .subList(let slice):
+            slice.base.setValue(value, at: slice.fromIndex + index)
+        }
+    }
+
+    /// Runs `body` on the backing array and returns its result. For `.direct`
+    /// storage the mutation goes through `direct.values`, so the buffer is
+    /// appended/removed in place when uniquely referenced instead of being
+    /// copied on every call; a buffer still shared with a snapshot (e.g. an
+    /// iterator's captured `values`) copy-on-writes inside `body` as usual.
+    /// View-backed storage keeps the materialize–mutate–write-back
+    /// semantics of the `values` setter, and a read-only list still drops
+    /// the write-back.
+    @discardableResult
+    func withMutableValues<R>(_ body: (inout [RuntimeValue]) -> R) -> R {
+        guard !isReadOnly else {
+            var values = values
+            return body(&values)
+        }
+        switch storage {
+        case .direct(let direct):
+            let countBefore = direct.values.count
+            let result = body(&direct.values)
+            if direct.values.count != countBefore {
+                direct.modCount += 1
+            }
+            return result
+        case .reversedViewOf, .arrayViewOf, .subList:
+            var values = self.values
+            let result = body(&values)
+            self.values = values
+            return result
+        }
+    }
+
+    var elements: [Int] {
+        get {
+            values.map(\.legacyRawValue)
+        }
+        set {
+            values = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
+}
+
+private final class RuntimeListSlice {
+    let base: RuntimeListBox
+    let fromIndex: Int
+    var toIndex: Int
+
+    init(base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
+        self.base = base
+        self.fromIndex = fromIndex
+        self.toIndex = toIndex
     }
 }
 
 /// Runtime box for `setOf(...)` / `mutableSetOf(...)`.
-/// Stores unique elements in insertion order as an array of `Int`.
+/// Stores unique elements in insertion order as runtime values.
 final class RuntimeSetBox {
-    var elements: [Int]
+    private var storage: [RuntimeValue]
+    private var index: [RuntimeElementKey: Int]
+    /// Non-nil for the mutable entry view returned by `MutableMap.entries`.
+    /// The view materializes entry values on demand while iterator removal
+    /// routes back to the destination map.
+    private let backingMapRaw: Int?
+    private(set) var isReadOnly = false
+    private var directModCount: Int = 0
+
+    /// Structural-modification counter. An entries view has no storage of
+    /// its own, so it forwards to the backing map's counter.
+    var modCount: Int {
+        if let backingMapRaw, let map = runtimeMapBox(from: backingMapRaw) {
+            return map.modCount
+        }
+        return directModCount
+    }
+
+    var values: [RuntimeValue] {
+        get {
+            if let backingMapRaw,
+               let map = runtimeMapBox(from: backingMapRaw) {
+                return zip(map.keyValues, map.entryValues).map { key, value in
+                    RuntimeValue(raw: runtimeMutableMapEntryNew(
+                        mapRaw: backingMapRaw,
+                        key: key,
+                        value: value
+                    ))
+                }
+            }
+            return storage
+        }
+        set {
+            guard backingMapRaw == nil, !isReadOnly else { return }
+            storage = newValue
+            rebuildIndex()
+        }
+    }
+
+    var elements: [Int] {
+        get {
+            values.map(\.legacyRawValue)
+        }
+        set {
+            guard backingMapRaw == nil, !isReadOnly else { return }
+            storage = newValue.map { RuntimeValue(raw: $0) }
+            rebuildIndex()
+        }
+    }
 
     init(elements: [Int]) {
-        self.elements = elements
+        self.storage = elements.map { RuntimeValue(raw: $0) }
+        self.index = [:]
+        self.backingMapRaw = nil
+        rebuildIndex()
+    }
+
+    init(values: [RuntimeValue]) {
+        self.storage = values
+        self.index = [:]
+        self.backingMapRaw = nil
+        rebuildIndex()
+    }
+
+    init(mapEntriesOf mapRaw: Int) {
+        self.storage = []
+        self.index = [:]
+        self.backingMapRaw = mapRaw
+    }
+
+    var count: Int {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            return map.count
+        }
+        return storage.count
+    }
+
+    var isEmpty: Bool {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            return map.isEmpty
+        }
+        return storage.isEmpty
+    }
+
+    var indices: Range<Int> {
+        0..<count
+    }
+
+    /// O(1) indexed access for the insertion-ordered set storage.
+    subscript(index: Int) -> Int {
+        guard let value = rawValue(at: index) else {
+            preconditionFailure("RuntimeSetBox index out of bounds: \(index)")
+        }
+        return value
+    }
+
+    /// Returns an element in insertion order without materializing the set.
+    /// Map-entry views retain their existing materialized entry representation.
+    func rawValue(at index: Int) -> Int? {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            guard map.keys.indices.contains(index), map.values.indices.contains(index) else {
+                return nil
+            }
+            return runtimeMutableMapEntryNew(
+                mapRaw: backingMapRaw,
+                key: map.keys[index],
+                value: map.values[index]
+            )
+        }
+        guard storage.indices.contains(index) else {
+            return nil
+        }
+        return storage[index].legacyRawValue
+    }
+
+    func contains(rawValue: Int) -> Bool {
+        if let backingMapRaw {
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+                  let entry = tryCast(pointer, to: RuntimePairBox.self),
+                  entry.mutableMapRaw == backingMapRaw,
+                  let map = runtimeMapBox(from: backingMapRaw),
+                  let index = map.index(ofRawKey: entry.mutableMapKey),
+                  let currentValue = map.rawValue(at: index)
+            else {
+                return false
+            }
+            return runtimeValuesEqual(entry.secondValue, RuntimeValue(raw: currentValue))
+        }
+        return index[RuntimeElementKey(value: rawValue)] != nil
+    }
+
+    var isEffectivelyReadOnly: Bool {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            return map.isEffectivelyReadOnly
+        }
+        return isReadOnly
+    }
+
+    @discardableResult
+    func insert(rawValue: Int) -> Bool {
+        insert(value: RuntimeValue(raw: rawValue))
+    }
+
+    @discardableResult
+    func insert(value: RuntimeValue) -> Bool {
+        guard backingMapRaw == nil, !isReadOnly else { return false }
+        let key = RuntimeElementKey(runtimeValue: value)
+        guard index[key] == nil else {
+            return false
+        }
+        let newIndex = storage.count
+        storage.append(value)
+        index[key] = newIndex
+        directModCount += 1
+        return true
+    }
+
+    @discardableResult
+    func remove(rawValue: Int) -> Bool {
+        if let backingMapRaw {
+            guard !isEffectivelyReadOnly,
+                  let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+                  let entry = tryCast(pointer, to: RuntimePairBox.self),
+                  entry.mutableMapRaw == backingMapRaw,
+                  let map = runtimeMapBox(from: backingMapRaw),
+                  map.index(ofRawKey: entry.mutableMapKey) != nil
+            else {
+                return false
+            }
+            _ = map.remove(key: entry.mutableMapKey)
+            return true
+        }
+        guard !isReadOnly, let index = index[RuntimeElementKey(value: rawValue)] else {
+            return false
+        }
+        storage.remove(at: index)
+        rebuildIndex()
+        directModCount += 1
+        return true
+    }
+
+    @discardableResult
+    func removeAll(keepingCapacity: Bool = false) -> Bool {
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            guard !map.isEffectivelyReadOnly else {
+                return false
+            }
+            let hadElements = !map.isEmpty
+            map.removeAll()
+            return hadElements
+        }
+        guard !isReadOnly, !storage.isEmpty else {
+            return false
+        }
+        storage.removeAll(keepingCapacity: keepingCapacity)
+        index.removeAll(keepingCapacity: keepingCapacity)
+        directModCount += 1
+        return true
+    }
+
+    @discardableResult
+    func removeAll(where shouldRemove: (RuntimeValue) throws -> Bool) rethrows -> Bool {
+        guard !isEffectivelyReadOnly else {
+            return false
+        }
+        if backingMapRaw != nil {
+            var removed = false
+            for entry in values where try shouldRemove(entry) {
+                removed = remove(rawValue: entry.legacyRawValue) || removed
+            }
+            return removed
+        }
+        let originalCount = storage.count
+        try storage.removeAll(where: shouldRemove)
+        guard storage.count != originalCount else {
+            return false
+        }
+        rebuildIndex()
+        directModCount += 1
+        return true
+    }
+
+    private func rebuildIndex() {
+        index.removeAll(keepingCapacity: true)
+        index.reserveCapacity(storage.count)
+        for (offset, value) in storage.enumerated() {
+            let key = RuntimeElementKey(runtimeValue: value)
+            // Keep the first position for malformed duplicate input, matching
+            // the legacy linear lookup behavior.
+            if index[key] == nil {
+                index[key] = offset
+            }
+        }
+    }
+
+    init(capacity: Int) {
+        self.storage = []
+        self.index = [:]
+        self.backingMapRaw = nil
+        self.storage.reserveCapacity(max(0, capacity))
+        self.index.reserveCapacity(max(0, capacity))
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 }
 
 /// Runtime box for `mapOf(...)` / `mutableMapOf(...)`.
-/// Stores keys and values as parallel arrays of `Int` (opaque intptr_t values).
+/// Stores keys and values as parallel runtime-value arrays.
 final class RuntimeMapBox {
-    var keys: [Int]
-    var values: [Int]
+    private var keyStorage: [RuntimeValue]
+    private var valueStorage: [RuntimeValue]
+    private let backingMap: RuntimeMapBox?
+    private var keyIndex: [RuntimeElementKey: Int]
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
+    private(set) var isReadOnly = false
+    private var directModCount: Int = 0
 
-    init(keys: [Int], values: [Int], defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
-        self.keys = keys
-        self.values = values
+    var isEffectivelyReadOnly: Bool {
+        backingMap?.isEffectivelyReadOnly ?? isReadOnly
+    }
+
+    /// Structural-modification counter. Bumped on key insertion/removal
+    /// (`appendEntry`/`remove`/`removeAll`), never on `updateValue`, which
+    /// only replaces an existing key's value (matches JVM `HashMap.put`'s
+    /// non-structural update not incrementing `modCount`).
+    var modCount: Int {
+        backingMap?.modCount ?? directModCount
+    }
+
+    var keyValues: [RuntimeValue] {
+        get {
+            backingMap?.keyValues ?? keyStorage
+        }
+        set {
+            if let backingMap {
+                backingMap.keyValues = newValue
+            } else {
+                guard !isReadOnly else { return }
+                keyStorage = newValue
+                rebuildKeyIndex()
+            }
+        }
+    }
+
+    var entryValues: [RuntimeValue] {
+        get {
+            backingMap?.entryValues ?? valueStorage
+        }
+        set {
+            if let backingMap {
+                backingMap.entryValues = newValue
+            } else {
+                guard !isReadOnly else { return }
+                valueStorage = newValue
+            }
+        }
+    }
+
+    var keys: [Int] {
+        get {
+            keyValues.map(\.legacyRawValue)
+        }
+        set {
+            keyValues = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
+
+    var values: [Int] {
+        get {
+            entryValues.map(\.legacyRawValue)
+        }
+        set {
+            entryValues = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
+
+    init(
+        keys: [Int],
+        values: [Int],
+        defaultValueFnPtr: Int = 0,
+        defaultValueClosureRaw: Int = 0,
+        backingMap: RuntimeMapBox? = nil
+    ) {
+        self.keyStorage = keys.map { RuntimeValue(raw: $0) }
+        self.valueStorage = values.map { RuntimeValue(raw: $0) }
+        self.backingMap = backingMap
+        self.keyIndex = [:]
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
+        rebuildKeyIndex()
+    }
+
+    var count: Int {
+        backingMap?.count ?? keyStorage.count
+    }
+
+    var isEmpty: Bool {
+        backingMap?.isEmpty ?? keyStorage.isEmpty
+    }
+
+    func index(ofRawKey key: Int) -> Int? {
+        if let backingMap {
+            return backingMap.index(ofRawKey: key)
+        }
+        return keyIndex[RuntimeElementKey(value: key)]
+    }
+
+    func rawValue(at index: Int) -> Int? {
+        if let backingMap {
+            return backingMap.rawValue(at: index)
+        }
+        guard valueStorage.indices.contains(index) else {
+            return nil
+        }
+        return valueStorage[index].legacyRawValue
+    }
+
+    func runtimeValue(at index: Int) -> RuntimeValue? {
+        if let backingMap {
+            return backingMap.runtimeValue(at: index)
+        }
+        guard valueStorage.indices.contains(index) else {
+            return nil
+        }
+        return valueStorage[index]
+    }
+
+    func updateValue(at index: Int, rawValue: Int) {
+        updateValue(at: index, value: RuntimeValue(raw: rawValue))
+    }
+
+    func updateValue(at index: Int, value: RuntimeValue) {
+        if let backingMap {
+            backingMap.updateValue(at: index, value: value)
+            return
+        }
+        guard !isReadOnly else { return }
+        guard valueStorage.indices.contains(index) else {
+            valueStorage.append(value)
+            return
+        }
+        valueStorage[index] = value
+    }
+
+    func appendEntry(key: Int, value: Int) {
+        appendEntry(key: RuntimeValue(raw: key), value: RuntimeValue(raw: value))
+    }
+
+    func appendEntry(key: RuntimeValue, value: RuntimeValue) {
+        if let backingMap {
+            backingMap.appendEntry(key: key, value: value)
+            return
+        }
+        guard !isReadOnly else { return }
+        let newIndex = keyStorage.count
+        keyStorage.append(key)
+        valueStorage.append(value)
+        let runtimeKey = RuntimeElementKey(runtimeValue: key)
+        if keyIndex[runtimeKey] == nil {
+            keyIndex[runtimeKey] = newIndex
+        }
+        directModCount += 1
+    }
+
+    @discardableResult
+    func put(key: Int, value: Int) -> Int? {
+        put(key: RuntimeValue(raw: key), value: RuntimeValue(raw: value))?.legacyRawValue
+    }
+
+    @discardableResult
+    func put(key: RuntimeValue, value: RuntimeValue) -> RuntimeValue? {
+        if let backingMap {
+            return backingMap.put(key: key, value: value)
+        }
+        guard !isReadOnly else { return nil }
+        let runtimeKey = RuntimeElementKey(runtimeValue: key)
+        if let index = keyIndex[runtimeKey] {
+            let previous = runtimeValue(at: index)
+            updateValue(at: index, value: value)
+            return previous
+        }
+        appendEntry(key: key, value: value)
+        return nil
+    }
+
+    @discardableResult
+    func remove(key: Int) -> Int? {
+        if let backingMap {
+            return backingMap.remove(key: key)
+        }
+        guard !isReadOnly, let index = index(ofRawKey: key) else {
+            return nil
+        }
+        keyStorage.remove(at: index)
+        let removedValue = valueStorage.indices.contains(index) ? valueStorage.remove(at: index).legacyRawValue : nil
+        rebuildKeyIndex()
+        directModCount += 1
+        return removedValue
+    }
+
+    func removeAll() {
+        if let backingMap {
+            backingMap.removeAll()
+            return
+        }
+        guard !isReadOnly else { return }
+        keyStorage.removeAll()
+        valueStorage.removeAll()
+        keyIndex.removeAll()
+        directModCount += 1
+    }
+
+    private func rebuildKeyIndex() {
+        keyIndex.removeAll(keepingCapacity: true)
+        keyIndex.reserveCapacity(keyStorage.count)
+        for (offset, key) in keyStorage.enumerated() {
+            let runtimeKey = RuntimeElementKey(runtimeValue: key)
+            // Keep the first position for malformed duplicate input, matching
+            // the legacy linear lookup behavior.
+            if keyIndex[runtimeKey] == nil {
+                keyIndex[runtimeKey] = offset
+            }
+        }
+    }
+
+    init(capacity: Int, defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
+        self.keyStorage = []
+        self.valueStorage = []
+        self.backingMap = nil
+        self.keyIndex = [:]
+        self.keyStorage.reserveCapacity(max(0, capacity))
+        self.valueStorage.reserveCapacity(max(0, capacity))
+        self.keyIndex.reserveCapacity(max(0, capacity))
+        self.defaultValueFnPtr = defaultValueFnPtr
+        self.defaultValueClosureRaw = defaultValueClosureRaw
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 }
 
 /// Runtime box for `ArrayDeque<T>`.
-/// Stores elements in a mutable array of `Int`.
+///
+/// Elements live in a ring buffer so that both ends mutate in place: `head` is
+/// the buffer slot of the logical first element and `count` the number of live
+/// elements. Growth doubles the buffer and re-linearizes it.
 final class RuntimeArrayDequeBox {
-    var elements: [Int]
+    private var buffer: [RuntimeValue]
+    private var head: Int
+    private(set) var count: Int
 
-    init(elements: [Int]) {
-        self.elements = elements
+    private static let minimumCapacity = 8
+
+    var values: [RuntimeValue] {
+        get {
+            (0 ..< count).map { buffer[slot(forOffset: $0)] }
+        }
+        set {
+            buffer = newValue
+            head = 0
+            count = newValue.count
+            reserve(newValue.count)
+        }
+    }
+
+    var elements: [Int] {
+        get {
+            values.map(\.legacyRawValue)
+        }
+        set {
+            values = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
+
+    init(capacity: Int) {
+        buffer = Array(
+            repeating: RuntimeValue(raw: 0),
+            count: max(Self.minimumCapacity, capacity)
+        )
+        head = 0
+        count = 0
+    }
+
+    init(values: [RuntimeValue]) {
+        let capacity = max(Self.minimumCapacity, values.count)
+        buffer = values
+            + Array(repeating: RuntimeValue(raw: 0), count: capacity - values.count)
+        head = 0
+        count = values.count
+    }
+
+    func element(at index: Int) -> RuntimeValue? {
+        guard index >= 0, index < count else { return nil }
+        return buffer[slot(forOffset: index)]
+    }
+
+    func pushFirst(_ value: RuntimeValue) {
+        growIfNeeded()
+        head = slot(forOffset: buffer.count - 1)
+        buffer[head] = value
+        count += 1
+    }
+
+    func pushLast(_ value: RuntimeValue) {
+        growIfNeeded()
+        buffer[slot(forOffset: count)] = value
+        count += 1
+    }
+
+    func popFirst() -> RuntimeValue? {
+        guard count > 0 else { return nil }
+        let value = buffer[head]
+        buffer[head] = RuntimeValue(raw: 0)
+        head = slot(forOffset: 1)
+        count -= 1
+        return value
+    }
+
+    func popLast() -> RuntimeValue? {
+        guard count > 0 else { return nil }
+        let tail = slot(forOffset: count - 1)
+        let value = buffer[tail]
+        buffer[tail] = RuntimeValue(raw: 0)
+        count -= 1
+        return value
+    }
+
+    private func slot(forOffset offset: Int) -> Int {
+        let capacity = buffer.count
+        let index = head + offset
+        return index < capacity ? index : index % capacity
+    }
+
+    private func growIfNeeded() {
+        guard count == buffer.count else { return }
+        reserve(max(Self.minimumCapacity, buffer.count * 2))
+    }
+
+    /// Re-linearizes the buffer so that `head == 0`, growing it to at least
+    /// `capacity` slots.
+    private func reserve(_ capacity: Int) {
+        let target = max(Self.minimumCapacity, capacity)
+        guard target != buffer.count || head != 0 else { return }
+        var linearized = (0 ..< count).map { buffer[slot(forOffset: $0)] }
+        if linearized.count < target {
+            linearized += Array(repeating: RuntimeValue(raw: 0), count: target - linearized.count)
+        }
+        buffer = linearized
+        head = 0
     }
 }
 
@@ -343,60 +1372,183 @@ final class RuntimeIndexingIterableBox {
 /// Iterator for `withIndex()` result. Each call to `next()` yields an
 /// `IndexedValue<E>` pair (index, element) represented as `RuntimePairBox`.
 final class RuntimeIndexingIteratorBox {
-    let elements: [Int]
+    let values: [RuntimeValue]
     var index: Int
 
-    init(elements: [Int]) {
-        self.elements = elements
+    init(values: [RuntimeValue]) {
+        self.values = values
         index = 0
     }
 }
 
 /// Iterator box for `List` iteration via `for (x in list)`.
 final class RuntimeListIteratorBox {
-    let elements: [Int]
+    var values: [RuntimeValue]
+    var elements: [Int] {
+        get {
+            values.map(\.legacyRawValue)
+        }
+        set {
+            values = newValue.map(runtimeValueFromCollectionABI)
+        }
+    }
     var index: Int
+    /// Index last returned by `next()`/`previous()`, or -1 before any
+    /// traversal call or once consumed by `remove()`/`add()` — mirrors
+    /// Java/Kotlin's `AbstractList.Itr.lastRet` invariant.
+    var lastReturnedIndex: Int
+    let removeAction: ((Int) -> Void)?
+    let setAction: ((Int, RuntimeValue) -> Void)?
+    let addAction: ((Int, RuntimeValue) -> Void)?
+    /// Reads the live backing collection's structural-modification counter.
+    /// `nil` for iterators with no live backing (plain `Array`, or the
+    /// BUG-231 empty fallback) — comodification can never be detected there.
+    let currentModCount: (() -> Int)?
+    /// The backing collection's `modCount` as of the last point this
+    /// iterator observed it in sync (construction, or its own successful
+    /// `remove()`/`add()`, which re-syncs after performing the mutation).
+    var expectedModCount: Int
 
-    init(elements: [Int]) {
-        self.elements = elements
+    init(
+        elements: [Int],
+        removeAction: ((Int) -> Void)? = nil,
+        setAction: ((Int, RuntimeValue) -> Void)? = nil,
+        addAction: ((Int, RuntimeValue) -> Void)? = nil,
+        currentModCount: (() -> Int)? = nil
+    ) {
+        values = elements.map(runtimeValueFromCollectionABI)
         index = 0
+        lastReturnedIndex = -1
+        self.removeAction = removeAction
+        self.setAction = setAction
+        self.addAction = addAction
+        self.currentModCount = currentModCount
+        self.expectedModCount = currentModCount?() ?? 0
     }
-}
 
-/// Iterator box for `String` iteration via `for (c in str)` (STDLIB-189).
-final class RuntimeStringIteratorBox {
-    let charRaws: [Int]
-    var index: Int
-
-    init(charRaws: [Int]) {
-        self.charRaws = charRaws
+    init(
+        values: [RuntimeValue],
+        removeAction: ((Int) -> Void)? = nil,
+        setAction: ((Int, RuntimeValue) -> Void)? = nil,
+        addAction: ((Int, RuntimeValue) -> Void)? = nil,
+        currentModCount: (() -> Int)? = nil
+    ) {
+        self.values = values
         index = 0
+        lastReturnedIndex = -1
+        self.removeAction = removeAction
+        self.setAction = setAction
+        self.addAction = addAction
+        self.currentModCount = currentModCount
+        self.expectedModCount = currentModCount?() ?? 0
+    }
+
+    /// `true` when the backing collection has not structurally changed since
+    /// this iterator last observed it. Iterators with no live backing always
+    /// report in sync.
+    func isInSyncWithBackingCollection() -> Bool {
+        guard let currentModCount else { return true }
+        return currentModCount() == expectedModCount
+    }
+
+    func removeLastReturned() -> Bool {
+        guard lastReturnedIndex >= 0, lastReturnedIndex < values.count else {
+            return false
+        }
+        values.remove(at: lastReturnedIndex)
+        index = lastReturnedIndex
+        removeAction?(lastReturnedIndex)
+        lastReturnedIndex = -1
+        // The removal above just went through `removeAction`, which mutates
+        // the live backing collection (bumping its modCount) — resync so
+        // this iterator's own next `next()` call does not see its own
+        // change as a concurrent modification.
+        if let currentModCount {
+            expectedModCount = currentModCount()
+        }
+        return true
+    }
+
+    /// `MutableListIterator.set`: replaces the element most recently returned
+    /// by `next()`/`previous()`, at the same position `removeLastReturned()`
+    /// targets.
+    func setLastReturned(_ value: RuntimeValue) -> Bool {
+        guard lastReturnedIndex >= 0, lastReturnedIndex < values.count else {
+            return false
+        }
+        values[lastReturnedIndex] = value
+        setAction?(lastReturnedIndex, value)
+        return true
+    }
+
+    /// `MutableListIterator.add`: inserts before the element `next()` would
+    /// return, then advances the cursor past the inserted element so a
+    /// following `next()` does not return it again. Invalidates
+    /// `lastReturnedIndex`: `add()` cannot be followed directly by
+    /// `set()`/`remove()`.
+    func addBeforeNext(_ value: RuntimeValue) {
+        values.insert(value, at: index)
+        addAction?(index, value)
+        index += 1
+        lastReturnedIndex = -1
+        // Same resync rationale as `removeLastReturned()` above.
+        if let currentModCount {
+            expectedModCount = currentModCount()
+        }
     }
 }
 
-/// Lazy iterable view for `String.asIterable()` (STDLIB-317).
-/// Stores only the string raw handle; characters are yielded on demand when
-/// the iterable is consumed (e.g. via `iterator()`, `toList()`, or `for-in`).
-/// In the current runtime the iterable delegates to the existing `kk_string_toList`
-/// materialisation at consumption time, keeping the creation itself O(1).
-final class RuntimeStringIterableBox {
-    let strRaw: Int
-
-    init(strRaw: Int) {
-        self.strRaw = strRaw
-    }
-}
-
-/// Iterator box for `Map` iteration via `for (entry in map)`.
+/// Iterator box for `Map` iteration via `for (entry in map)`. Read-only (no
+/// `remove()`), but the for-loop lowering resolves `for ((k, _) in map)` to
+/// this same iterator even when `map` is a `MutableMap`, so it still needs
+/// its own comodification check — mutating the map through a different
+/// handle (`map[key] = value`, `map.remove(...)`) while this iterator is
+/// live must still throw `ConcurrentModificationException`.
 final class RuntimeMapIteratorBox {
+    let mapRaw: Int
     let keys: [Int]
     let values: [Int]
     var index: Int
+    var expectedModCount: Int
 
-    init(keys: [Int], values: [Int]) {
+    init(mapRaw: Int, keys: [Int], values: [Int]) {
+        self.mapRaw = mapRaw
         self.keys = keys
         self.values = values
         index = 0
+        expectedModCount = runtimeMapBox(from: mapRaw)?.modCount ?? 0
+    }
+
+    func isInSyncWithBackingMap() -> Bool {
+        guard let map = runtimeMapBox(from: mapRaw) else { return true }
+        return map.modCount == expectedModCount
+    }
+}
+
+/// MutableMap iterator whose entries remain connected to the destination map.
+final class RuntimeMutableMapIteratorBox {
+    let mapRaw: Int
+    let keys: [Int]
+    var index: Int
+    var lastKey: Int?
+    /// The backing map's `modCount` as of the last point this iterator
+    /// observed it in sync (construction, or its own successful `remove()`,
+    /// which re-syncs after performing the mutation).
+    var expectedModCount: Int
+
+    init(mapRaw: Int, keys: [Int]) {
+        self.mapRaw = mapRaw
+        self.keys = keys
+        index = 0
+        lastKey = nil
+        expectedModCount = runtimeMapBox(from: mapRaw)?.modCount ?? 0
+    }
+
+    /// `true` when the backing map has not structurally changed since this
+    /// iterator last observed it.
+    func isInSyncWithBackingMap() -> Bool {
+        guard let map = runtimeMapBox(from: mapRaw) else { return true }
+        return map.modCount == expectedModCount
     }
 }
 
@@ -407,7 +1559,8 @@ final class RuntimeMapIteratorBox {
 /// for map/filter transformations. Lazy semantics: no evaluation until terminal.
 enum SequenceStepKind {
     case source(elements: [Int])
-    case stringSource(strRaw: Int)
+    case valueSource(values: [RuntimeValue])
+    case stringSource(source: String)
     case mapStep(fnPtr: Int, closureRaw: Int)
     case filterStep(fnPtr: Int, closureRaw: Int)
     case filterNotStep(fnPtr: Int, closureRaw: Int)
@@ -428,7 +1581,6 @@ enum SequenceStepKind {
     /// STDLIB-HOF-022: Additional lazy transformation steps
     case mapNotNullStep(fnPtr: Int, closureRaw: Int)
     case filterNotNullStep
-    case filterIsInstanceStep(typeToken: Int)
     case requireNoNullsStep
     case mapIndexedStep(fnPtr: Int, closureRaw: Int)
     case mapIndexedNotNullStep(fnPtr: Int, closureRaw: Int)
@@ -440,11 +1592,13 @@ enum SequenceStepKind {
     /// STDLIB-SEQ-019: Random shuffle of the full upstream result. Each full iteration
     /// of the returned sequence re-shuffles (intermediate, stateful; matches Kotlin).
     case shuffledStep(randomRaw: Int?)
-    /// STDLIB-563: Lazy continuation-based builder.
-    /// The coroutine runs the builder lambda on a background thread;
-    /// each `yield()` suspends the producer until the consumer requests
-    /// the next element.
+    /// STDLIB-563: Lazy continuation-based builder. CPS producers suspend by
+    /// returning COROUTINE_SUSPENDED; legacy callbacks keep the thread-backed
+    /// producer path.
     case lazyBuilder(coroutine: RuntimeSequenceCoroutine)
+    /// STDLIB-IO-FN-040: Lazily pulls elements from a stateful producer until
+    /// it returns nil — e.g. `useLines` streaming lines out of a live reader.
+    case pullSource(produce: () -> Int?)
 }
 
 /// Runtime box for `Sequence<T>`.
@@ -472,35 +1626,50 @@ final class RuntimeSequenceBuilderBox {
 
 // STDLIB-563: Continuation-based lazy sequence coroutine.
 //
-// Runs the builder lambda on a background thread. Each call to `yield(value)`
-// is a producer suspend point: the value is published, the consumer is woken,
-// and the producer waits until the consumer requests the next element.
+// Compiler-generated builders use the CPS producer path: each `yield(value)`
+// publishes a value, returns COROUTINE_SUSPENDED, and is resumed by the next
+// consumer request through the stored continuation. Legacy tests/direct ABI
+// callers keep the thread-backed path below for non-CPS raw callbacks.
 //
 // The coroutine is started lazily on the first call to `materializeAll()`.
 //
-// Thread protocol (DEBT-CORO-002 / CORO-004):
-//   Producer thread (dedicated OS thread, not GCD pool):
-//     1. Waits on producerGate for the first consumer request.
-//     2. Runs builder lambda sequentially.
-//     3. On yield(value): store value, signal consumer, block on producerGate.
+// Producer protocol (DEBT-CORO-002 / CORO-004):
+//   CPS producer (compiler-generated builders):
+//     1. First consumer request starts runSuspendEntryLoopWithContinuation().
+//     2. On yield(value): queue value, signal consumer, return COROUTINE_SUSPENDED.
+//     3. Next consumer request resumes the stored continuation with Unit.
 //     4. On completion: set finished flag, signal consumer.
 //
-//   Consumer thread (caller):
+//   Legacy producer (direct ABI tests / pre-CPS callbacks):
+//     1. Waits on producerGate on a dedicated OS thread.
+//     2. Runs builder lambda sequentially.
+//     3. On yield(value): queue value, signal consumer, block on producerGate.
+//     4. On completion: set finished flag, signal consumer.
+//
+//   Consumer thread — blocking path (non-coroutine callers):
 //     1. Signals producerGate (starts or resumes producer), blocks on consumerGate.
 //     2. Reads yielded value or observes finished flag.
 //
-// DEBT-CORO-002 status: producer runs on a dedicated Thread (not a GCD pool
-// thread) so yield() no longer occupies a shared GCD thread while blocked.
-// Only the consumer blocks a GCD thread per iteration step.
+//   Consumer thread — suspension path (CORO-004 Phase 2, coroutine callers):
+//     1. Calls nextElementAsync(callerState:), which signals producerGate and
+//        installs a resume continuation in consumerGate instead of blocking.
+//     2. Returns COROUTINE_SUSPENDED; the GCD thread is released immediately.
+//     3. When the producer yields, the continuation fires and calls
+//        callerState.resume(with: element) or callerState.resume(with: doneSentinel).
 //
-// Full continuation-based migration (CORO-004 next step): requires the
-// compiler to CPS-transform sequence builder lambdas so yield() can return
-// COROUTINE_SUSPENDED instead of blocking. Once that lands, invokeBuilderLambda()
-// below becomes the re-entry point and the dedicated thread is eliminated.
+// DEBT-CORO-002 status: compiler-generated producers use CPS and no longer
+// allocate a dedicated producer thread. The thread-backed path remains for
+// legacy non-CPS callbacks.
+//
+// CORO-004 Phase 3: CPS-transformed sequence builder lambdas call yield() as a
+// real suspend point, so compiler-generated producers no longer need a
+// dedicated thread. The legacy thread path remains only for pre-CPS callbacks.
 final class RuntimeSequenceCoroutine: @unchecked Sendable {
-    /// The builder lambda function pointer: (closureRaw, builderRaw, outThrown) -> Int.
+    /// Legacy builder function pointer or CPS suspend entry point.
     let fnPtr: Int
     let closureRaw: Int
+    private let functionID: Int
+    private let usesCPSProducer: Bool
 
     /// Producer suspend gate — signalled by the consumer when it wants the next element.
     private let producerGate = RuntimeCoroutineSyncGate()
@@ -511,14 +1680,20 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// Guard for mutable state access.
     private let stateLock = NSLock()
 
-    /// The most recently yielded value (producer -> consumer).
-    private var yieldedValue: Int = 0
+    /// Values published by the producer but not consumed yet.
+    private var pendingYieldedValues: [Int] = []
 
     /// Whether the producer has finished (either completed or threw).
     private var finished = false
 
-    /// Whether the coroutine background thread has been started.
+    /// Whether the coroutine producer has been initialized.
     private var started = false
+
+    /// Whether the CPS suspend-entry loop has been kicked off.
+    private var cpsLoopStarted = false
+
+    /// Continuation handle used to resume the CPS builder after yield().
+    private var producerContinuationRaw: Int = 0
 
     /// All elements materialized so far (cache for re-iteration).
     private var materializedElements: [Int] = []
@@ -530,19 +1705,25 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// CPS re-invocations can call invokeBuilderLambda() without recreating it.
     private var builderHandle: Int = 0
 
-    init(fnPtr: Int, closureRaw: Int) {
+    init(fnPtr: Int, closureRaw: Int, functionID: Int = 0, usesCPSProducer: Bool = false) {
         self.fnPtr = fnPtr
         self.closureRaw = closureRaw
+        self.functionID = functionID
+        self.usesCPSProducer = usesCPSProducer
     }
 
-    /// Called by the producer (background thread) to yield a value.
-    func yieldValue(_ value: Int) {
+    /// Called by the producer to yield a value.
+    func yieldValue(_ value: Int) -> Int {
         stateLock.lock()
-        yieldedValue = value
+        pendingYieldedValues.append(value)
         stateLock.unlock()
 
         consumerGate.signal()
+        if usesCPSProducer {
+            return Int(bitPattern: kk_coroutine_suspended())
+        }
         producerGate.wait()
+        return 0
     }
 
     /// Called by the producer when it finishes (normally or via exception).
@@ -553,19 +1734,56 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         consumerGate.signal()
     }
 
+    private func consumePendingValueLocked() -> Int? {
+        guard !pendingYieldedValues.isEmpty else {
+            return nil
+        }
+        return pendingYieldedValues.removeFirst()
+    }
+
     /// Consumer side: advance the producer one step and block until it yields or finishes.
     private func awaitProducerYield() {
-        producerGate.signal()
+        requestProducerStep()
         consumerGate.wait()
     }
 
-    /// Re-invokes the builder lambda from where it last suspended.
+    /// Non-blocking variant for coroutine callers (CORO-004 Phase 2).
     ///
-    /// Called once per requested element on the producer thread. Currently the
-    /// lambda is a sequential (non-CPS) function, so this method is only used
-    /// via the initial `ensureStarted` path. Once the compiler emits
-    /// COROUTINE_SUSPENDED from yield(), this will become the per-element
-    /// re-entry point and the long-lived producer thread will be eliminated.
+    /// Signals the producer and installs `callerState` as a resume continuation
+    /// in `consumerGate`.  When the producer yields or finishes, the continuation
+    /// fires on a GCD thread: it reads the yielded value (or done flag), caches
+    /// the element, and resumes `callerState` with either the element value or
+    /// `kk_sequence_completed_sentinel()`.  Returns `true` when the caller must
+    /// propagate COROUTINE_SUSPENDED; `false` when the result was already
+    /// available and the blocking path has completed.
+    private func awaitProducerYieldAsync(callerState: RuntimeContinuationState) -> Bool {
+        requestProducerStep()
+        let coroutine = self
+        let didSuspend = consumerGate.wait(resumeContinuation: {
+            coroutine.stateLock.lock()
+            if let value = coroutine.consumePendingValueLocked() {
+                coroutine.materializedElements.append(value)
+                coroutine.consumptionIndex += 1
+                coroutine.stateLock.unlock()
+                callerState.resume(with: value)
+            } else if coroutine.finished {
+                coroutine.fullyMaterialized = true
+                coroutine.stateLock.unlock()
+                let doneSentinel = Int(bitPattern:
+                    UnsafeMutableRawPointer(
+                        Unmanaged.passUnretained(runtimeStorage.sequenceCompletedBox).toOpaque()
+                    )
+                )
+                callerState.resume(with: doneSentinel)
+            } else {
+                coroutine.stateLock.unlock()
+                callerState.resume(with: 0)
+            }
+        })
+        return didSuspend
+    }
+
+    /// Invokes the legacy non-CPS builder lambda on its producer thread.
     private func invokeBuilderLambda() {
         var thrown = 0
         let fn = unsafeBitCast(
@@ -605,27 +1823,97 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
             stateLock.unlock()
             return .value(elem)
         }
+        if let value = consumePendingValueLocked() {
+            materializedElements.append(value)
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(value)
+        }
         if fullyMaterialized {
             stateLock.unlock()
             return .done
         }
-        stateLock.unlock()
-
-        ensureStarted()
-
-        awaitProducerYield()
-
-        stateLock.lock()
         if finished {
             fullyMaterialized = true
             stateLock.unlock()
             return .done
         }
-        let value = yieldedValue
-        materializedElements.append(value)
-        consumptionIndex += 1
         stateLock.unlock()
-        return .value(value)
+
+        awaitProducerYield()
+
+        stateLock.lock()
+        if let value = consumePendingValueLocked() {
+            materializedElements.append(value)
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(value)
+        }
+        if finished {
+            fullyMaterialized = true
+            stateLock.unlock()
+            return .done
+        }
+        stateLock.unlock()
+        return .done
+    }
+
+    /// Suspension-aware element request for coroutine callers (CORO-004 Phase 2).
+    ///
+    /// Like `nextElement()` but uses `awaitProducerYieldAsync` so the calling
+    /// GCD thread is not held while the producer computes the next element.
+    ///
+    /// Return convention:
+    ///   - `nil`           — the coroutine was suspended; `callerState` will be
+    ///                       resumed with the element value or with
+    ///                       `kk_sequence_completed_sentinel()` when done.
+    ///   - `.value(elem)`  — result was immediately available (cache hit).
+    ///   - `.done`         — sequence already fully materialised.
+    func nextElementAsync(callerState: RuntimeContinuationState) -> NextResult? {
+        stateLock.lock()
+        if consumptionIndex < materializedElements.count {
+            let elem = materializedElements[consumptionIndex]
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(elem)
+        }
+        if let value = consumePendingValueLocked() {
+            materializedElements.append(value)
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(value)
+        }
+        if fullyMaterialized {
+            stateLock.unlock()
+            return .done
+        }
+        if finished {
+            fullyMaterialized = true
+            stateLock.unlock()
+            return .done
+        }
+        stateLock.unlock()
+
+        let didSuspend = awaitProducerYieldAsync(callerState: callerState)
+        if didSuspend {
+            return nil
+        }
+        // Signal arrived before the continuation could be installed — fall
+        // through to read the result synchronously (same as nextElement()).
+        stateLock.lock()
+        if let value = consumePendingValueLocked() {
+            materializedElements.append(value)
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(value)
+        }
+        if finished {
+            fullyMaterialized = true
+            stateLock.unlock()
+            return .done
+        }
+        stateLock.unlock()
+        return .done
     }
 
     /// Reset the consumption index so re-iteration over the same coroutine
@@ -647,29 +1935,82 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         }
         stateLock.unlock()
 
-        ensureStarted()
-
         while true {
-            awaitProducerYield()
-
             stateLock.lock()
+            if let value = consumePendingValueLocked() {
+                materializedElements.append(value)
+                stateLock.unlock()
+                continue
+            }
             if finished {
                 fullyMaterialized = true
                 let elems = materializedElements
                 stateLock.unlock()
                 return elems
             }
-            materializedElements.append(yieldedValue)
+            stateLock.unlock()
+
+            awaitProducerYield()
+
+            stateLock.lock()
+            if let value = consumePendingValueLocked() {
+                materializedElements.append(value)
+                stateLock.unlock()
+                continue
+            }
+            if finished {
+                fullyMaterialized = true
+                let elems = materializedElements
+                stateLock.unlock()
+                return elems
+            }
             stateLock.unlock()
         }
     }
 
-    /// Start the producer on a dedicated OS thread.
-    ///
-    /// A dedicated Thread (not a GCD pool thread) is used so that blocking
-    /// inside yieldValue() does not occupy a shared GCD work item slot.
-    /// This is the DEBT-CORO-002 improvement: the producer now holds only a
-    /// dedicated OS thread, leaving the GCD pool free for async coroutines.
+    private func requestProducerStep() {
+        ensureStarted()
+        if !usesCPSProducer {
+            producerGate.signal()
+            return
+        }
+
+        stateLock.lock()
+        if finished {
+            stateLock.unlock()
+            return
+        }
+        let isFirstStep = !cpsLoopStarted
+        cpsLoopStarted = true
+        let continuation = producerContinuationRaw
+        stateLock.unlock()
+
+        if isFirstStep {
+            let coroutine = self
+            _ = runSuspendEntryLoopWithContinuation(
+                entryPointRaw: fnPtr,
+                continuation: continuation,
+                onCompletion: { _, thrown in
+                    if thrown != 0 {
+                        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
+                    }
+                    coroutine.markFinished()
+                }
+            )
+            return
+        }
+
+        guard let state = runtimeContinuationState(from: continuation) else {
+            markFinished()
+            return
+        }
+        if let doubleResume = state.resume(with: 0) {
+            state.deliverDoubleResumeException(doubleResume)
+        }
+    }
+
+    /// Initialize the producer. Compiler-generated CPS builders do not start a
+    /// thread; legacy non-CPS callbacks keep the old dedicated-thread fallback.
     private func ensureStarted() {
         stateLock.lock()
         guard !started else {
@@ -686,6 +2027,16 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
             RuntimeSequenceCoroutineBuilderProxy(coroutine: coroutine)
         )
 
+        if usesCPSProducer {
+            let continuation = kk_coroutine_continuation_new(functionID)
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(closureRaw))
+            _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(coroutine.builderHandle))
+            stateLock.lock()
+            producerContinuationRaw = continuation
+            stateLock.unlock()
+            return
+        }
+
         Thread.detachNewThread {
             // Wait for the first consumer request before running the lambda.
             coroutine.producerGate.wait()
@@ -695,8 +2046,9 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 }
 
 /// Proxy object passed to the builder lambda as the "builder" handle.
-/// When `kk_sequence_builder_yield` receives this handle, it delegates
-/// to the coroutine's `yieldValue()` which suspends the producer thread.
+/// When `__kk_sequence_builder_yield` receives this handle, it delegates to the
+/// coroutine's `yieldValue()`, returning COROUTINE_SUSPENDED for CPS producers
+/// or blocking only for legacy non-CPS producers.
 final class RuntimeSequenceCoroutineBuilderProxy {
     let coroutine: RuntimeSequenceCoroutine
 
@@ -708,25 +2060,37 @@ final class RuntimeSequenceCoroutineBuilderProxy {
 // Runtime box for the `iterator { yield(x) }` builder (STDLIB-331/564).
 //
 // Implements lazy iteration using a cooperative producer-consumer pattern.
-// The builder lambda runs on a dedicated OS thread (not a GCD pool thread)
-// and blocks on each yield() call until the consumer calls next().
+// Compiler-generated builders use the CPS producer path, where yield() returns
+// COROUTINE_SUSPENDED and the consumer resumes the stored continuation. Legacy
+// direct ABI callers keep the thread-backed path for non-CPS callbacks.
 //
 // Protocol:
-//   1. `kk_iterator_builder_build(fnPtr)` creates the box.
-//   2. First `hasNext` / `next` call: starts the producer thread and waits.
-//   3. Producer runs lambda; on yield(value): signals consumer, blocks on
-//      producerGate. On completion: transitions to .done, signals consumer.
-//   4. Consumer wakes, reads state / value, and signals producer on the next
-//      `hasNext` call (or skips when .done).
+//   1. `__kk_iterator_builder_build_coro(entryPointRaw, functionID, closureRaw)`
+//      creates the CPS box for compiler-generated builders.
+//   2. First `hasNext` / `next` call starts the suspend-entry loop.
+//   3. Producer yield(value) transitions to .hasValue, signals consumer, and
+//      returns COROUTINE_SUSPENDED. The next consumer request resumes it.
+//   4. On completion: transitions to .done, signals consumer.
 //
-// DEBT-CORO-002: Producer runs on a dedicated Thread so yield() does not
-// occupy a GCD pool thread. Only the consumer blocks one GCD thread per step.
+// DEBT-CORO-002: compiler-generated producers no longer occupy a dedicated
+// thread. Legacy `__kk_iterator_builder_build(fnPtr)` callbacks keep the old
+// dedicated-thread fallback.
 //
-// CORO-004 next step: CPS-transform iterator builder lambdas so yield() can
-// return COROUTINE_SUSPENDED. invokeBuilderLambda() then becomes the per-element
-// re-entry point and the dedicated thread is eliminated.
+// CORO-004 Phase 2 (consumer suspension, IN PROGRESS):
+//   probeHasNextAsync(callerState:) wires consumerGate to a resume continuation
+//   so the calling GCD thread is released immediately.  C entry points
+//   __kk_iterator_builder_hasNext_coro / __kk_iterator_builder_next_coro expose
+//   this for future coroutine-aware compiler output.  Existing entry points
+//   (__kk_iterator_builder_hasNext / _next) remain unchanged.
+//
+// CORO-004 Phase 3: CPS-transformed iterator builder lambdas call yield() as a
+// real suspend point, so compiler-generated producers no longer need a
+// dedicated thread. The legacy thread path remains only for pre-CPS callbacks.
 final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private let fnPtr: Int
+    private let closureRaw: Int
+    private let functionID: Int
+    private let usesCPSProducer: Bool
     private var builderHandle: Int = 0
 
     /// Producer suspend gate — signalled by the consumer (`hasNext` / `next`).
@@ -735,6 +2099,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private let consumerGate = RuntimeCoroutineSyncGate()
     private let stateLock = NSLock()
     private var started = false
+    private var cpsLoopStarted = false
+    private var producerContinuationRaw: Int = 0
 
     /// The most recently yielded value, valid when `state == .hasValue`.
     private(set) var yieldedValue: Int = 0
@@ -750,22 +2116,29 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case done
     }
 
-    init(fnPtr: Int) {
+    init(fnPtr: Int, closureRaw: Int = 0, functionID: Int = 0, usesCPSProducer: Bool = false) {
         self.fnPtr = fnPtr
+        self.closureRaw = closureRaw
+        self.functionID = functionID
+        self.usesCPSProducer = usesCPSProducer
     }
 
     func bindRegisteredHandle(_ handle: Int) {
         builderHandle = handle
     }
 
-    func yieldValue(_ value: Int) {
+    func yieldValue(_ value: Int) -> Int {
         stateLock.lock()
         yieldedValue = value
         state = .hasValue
         stateLock.unlock()
 
         consumerGate.signal()
+        if usesCPSProducer {
+            return Int(bitPattern: kk_coroutine_suspended())
+        }
         producerGate.wait()
+        return 0
     }
 
     func probeHasNext() -> Bool {
@@ -779,7 +2152,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case .done:
             return false
         case .initial:
-            ensureStarted()
             awaitProducerYield()
             stateLock.lock()
             defer { stateLock.unlock() }
@@ -793,7 +2165,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         stateLock.unlock()
 
         if current == .initial {
-            ensureStarted()
             awaitProducerYield()
         }
 
@@ -809,16 +2180,52 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     }
 
     private func awaitProducerYield() {
-        producerGate.signal()
+        requestProducerStep()
         consumerGate.wait()
     }
 
-    /// Invokes the builder lambda from its current position.
+    /// Suspension-aware hasNext for coroutine callers (CORO-004 Phase 2).
     ///
-    /// Currently the lambda is a sequential (non-CPS) function that calls
-    /// yield() which blocks synchronously. Once the compiler emits
-    /// COROUTINE_SUSPENDED from yield(), this becomes the per-element re-entry
-    /// point and the long-lived producer thread can be eliminated.
+    /// When state is already known (`.hasValue` / `.done`), returns 1 / 0
+    /// synchronously without touching any gate.  When state is `.initial`,
+    /// signals the producer and installs `callerState` as a resume continuation
+    /// in `consumerGate`.  On producer yield the continuation fires on a GCD
+    /// thread: it reads the new state and calls `callerState.resume(with: 1/0)`.
+    ///
+    /// Returns 1 (hasNext), 0 (done), or `Int(bitPattern: kk_coroutine_suspended())`
+    /// when the caller must propagate COROUTINE_SUSPENDED up the call stack.
+    /// The `__kk_iterator_builder_hasNext_coro` C entry point wraps this method.
+    func probeHasNextAsync(callerState: RuntimeContinuationState) -> Int {
+        stateLock.lock()
+        let current = state
+        stateLock.unlock()
+
+        switch current {
+        case .hasValue:
+            return 1
+        case .done:
+            return 0
+        case .initial:
+            let box = self
+            requestProducerStep()
+            let didSuspend = consumerGate.wait(resumeContinuation: {
+                box.stateLock.lock()
+                let hasValue = box.state == .hasValue
+                box.stateLock.unlock()
+                callerState.resume(with: hasValue ? 1 : 0)
+            })
+            if didSuspend {
+                return Int(bitPattern: kk_coroutine_suspended())
+            }
+            // Signal was pending before the continuation could be installed —
+            // the producer already yielded, read the result directly.
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return state == .hasValue ? 1 : 0
+        }
+    }
+
+    /// Invokes the legacy non-CPS builder lambda on its producer thread.
     private func invokeBuilderLambda() {
         var thrown = 0
         _ = runtimeInvokeClosureThunk(
@@ -836,11 +2243,55 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         consumerGate.signal()
     }
 
-    /// Starts the producer on a dedicated OS thread on first consumer request.
-    ///
-    /// Using Thread.detachNewThread instead of DispatchQueue.global() ensures
-    /// that blocking inside yieldValue() does not occupy a shared GCD work item
-    /// slot (DEBT-CORO-002).
+    private func requestProducerStep() {
+        ensureStarted()
+        if !usesCPSProducer {
+            producerGate.signal()
+            return
+        }
+
+        stateLock.lock()
+        if state == .done {
+            stateLock.unlock()
+            return
+        }
+        let isFirstStep = !cpsLoopStarted
+        cpsLoopStarted = true
+        let continuation = producerContinuationRaw
+        stateLock.unlock()
+
+        if isFirstStep {
+            let box = self
+            _ = runSuspendEntryLoopWithContinuation(
+                entryPointRaw: fnPtr,
+                continuation: continuation,
+                onCompletion: { _, thrown in
+                    if thrown != 0 {
+                        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
+                    }
+                    box.stateLock.lock()
+                    box.state = .done
+                    box.stateLock.unlock()
+                    box.consumerGate.signal()
+                }
+            )
+            return
+        }
+
+        guard let state = runtimeContinuationState(from: continuation) else {
+            stateLock.lock()
+            self.state = .done
+            stateLock.unlock()
+            consumerGate.signal()
+            return
+        }
+        if let doubleResume = state.resume(with: 0) {
+            state.deliverDoubleResumeException(doubleResume)
+        }
+    }
+
+    /// Initialize the producer. Compiler-generated CPS builders do not start a
+    /// thread; legacy non-CPS callbacks keep the old dedicated-thread fallback.
     private func ensureStarted() {
         stateLock.lock()
         guard !started else {
@@ -850,6 +2301,16 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         started = true
         stateLock.unlock()
 
+        if usesCPSProducer {
+            let continuation = kk_coroutine_continuation_new(functionID)
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(builderHandle))
+            _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(closureRaw))
+            stateLock.lock()
+            producerContinuationRaw = continuation
+            stateLock.unlock()
+            return
+        }
+
         let box = self
         Thread.detachNewThread {
             // Wait for the first consumer signal before running the lambda.
@@ -857,194 +2318,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
             box.invokeBuilderLambda()
         }
     }
-}
-
-/// Runtime box for `Grouping<T, K>` returned by `groupingBy`.
-/// Stores the source elements and key selector function pointer/closure.
-final class RuntimeGroupingBox {
-    let sourceElements: [Int]
-    let keyFnPtr: Int
-    let keyClosureRaw: Int
-
-    init(sourceElements: [Int], keyFnPtr: Int, keyClosureRaw: Int) {
-        self.sourceElements = sourceElements
-        self.keyFnPtr = keyFnPtr
-        self.keyClosureRaw = keyClosureRaw
-    }
-}
-
-// MARK: - Stdlib Delegate Types (P5-80)
-
-/// Thread-safety mode for `lazy` delegate.
-enum LazyThreadSafetyMode: Int {
-    case synchronized = 1
-    case none = 0
-    case publication = 2
-}
-
-/// Runtime box for `kotlin.lazy {}` delegate.
-/// Holds an initializer function pointer and caches the computed value.
-final class RuntimeLazyBox {
-    private enum CachedState {
-        case uninitialized
-        case initialized(Int)
-    }
-
-    private let initializerFnPtr: Int
-    private var cachedState: CachedState = .uninitialized
-    private let mode: LazyThreadSafetyMode
-    private let lock = NSLock()
-
-    init(initializerFnPtr: Int, mode: LazyThreadSafetyMode) {
-        self.initializerFnPtr = initializerFnPtr
-        self.mode = mode
-    }
-
-    init(initializedValue: Int) {
-        initializerFnPtr = 0
-        cachedState = .initialized(initializedValue)
-        mode = .none
-    }
-
-    func getValue() -> Int {
-        switch mode {
-        case .synchronized:
-            lock.lock()
-            defer { lock.unlock() }
-            return getValueLocked()
-        case .publication:
-            return getValuePublication()
-        case .none:
-            return getValueUnsafe()
-        }
-    }
-
-    private func getValueLocked() -> Int {
-        switch cachedState {
-        case .initialized(let value):
-            return value
-        case .uninitialized:
-            let value = evaluateInitializer()
-            cachedState = .initialized(value)
-            return value
-        }
-    }
-
-    private func getValueUnsafe() -> Int {
-        if let cached = cachedValue() {
-            return cached
-        }
-        let value = evaluateInitializer()
-        cachedState = .initialized(value)
-        return value
-    }
-
-    private func getValuePublication() -> Int {
-        if let cached = cachedValue() {
-            return cached
-        }
-
-        let value = evaluateInitializer()
-        if compareAndSetCachedValue(expected: .uninitialized, update: .initialized(value)) {
-            return value
-        }
-        return cachedValue() ?? value
-    }
-
-    private func cachedValue() -> Int? {
-        lock.lock()
-        defer { lock.unlock() }
-        switch cachedState {
-        case .initialized(let value):
-            return value
-        case .uninitialized:
-            return nil
-        }
-    }
-
-    private func compareAndSetCachedValue(expected: CachedState, update: CachedState) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard cachedStateMatches(expected) else {
-            return false
-        }
-        cachedState = update
-        return true
-    }
-
-    private func cachedStateMatches(_ expected: CachedState) -> Bool {
-        switch (cachedState, expected) {
-        case (.uninitialized, .uninitialized):
-            return true
-        case (.initialized(let current), .initialized(let expected)):
-            return current == expected
-        default:
-            return false
-        }
-    }
-
-    private func evaluateInitializer() -> Int {
-        let fnPtr = unsafeBitCast(initializerFnPtr, to: KKThunkEntryPoint.self)
-        var thrown = 0
-        let value = fnPtr(&thrown)
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: lazy initializer threw")
-        }
-        return value
-    }
-
-    var isInitialized: Bool {
-        switch mode {
-        case .synchronized:
-            lock.lock()
-            defer { lock.unlock() }
-            return cachedStateIsInitialized()
-        case .publication:
-            return cachedValue() != nil
-        case .none:
-            return cachedStateIsInitialized()
-        }
-    }
-
-    private func cachedStateIsInitialized() -> Bool {
-        switch cachedState {
-        case .initialized:
-            return true
-        case .uninitialized:
-            return false
-        }
-    }
-}
-
-/// Runtime box for `Delegates.observable(initialValue) { ... }` delegate.
-/// Stores a mutable value and invokes a callback after each set.
-final class RuntimeObservableBox {
-    var currentValue: Int
-    let callbackFnPtr: Int
-
-    init(initialValue: Int, callbackFnPtr: Int) {
-        currentValue = initialValue
-        self.callbackFnPtr = callbackFnPtr
-    }
-}
-
-/// Runtime box for `Delegates.vetoable(initialValue) { ... }` delegate.
-/// Stores a mutable value and invokes a callback before each set;
-/// the callback returns non-zero to accept the change, zero to veto.
-final class RuntimeVetoableBox {
-    var currentValue: Int
-    let callbackFnPtr: Int
-
-    init(initialValue: Int, callbackFnPtr: Int) {
-        currentValue = initialValue
-        self.callbackFnPtr = callbackFnPtr
-    }
-}
-
-/// Runtime box for `Delegates.notNull<T>()` delegate.
-/// Throws `IllegalStateException` if accessed before being assigned.
-final class RuntimeNotNullBox {
-    var currentValue: Int?
 }
 
 /// Runtime reflection metadata record stored in the global registry.
@@ -1087,7 +2360,7 @@ struct RuntimeAnnotationRecord {
 }
 
 /// Global registry mapping type tokens to runtime metadata entries.
-/// Populated during module initialization via `kk_kclass_register_metadata`.
+/// Populated during module initialization via `__kk_kclass_register_metadata`.
 final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: RuntimeKClassMetadataEntry] = [:]
@@ -1170,7 +2443,7 @@ final class RuntimeKConstructorRegistry: @unchecked Sendable {
 let runtimeKConstructorRegistry = RuntimeKConstructorRegistry()
 
 /// Global registry mapping a `KClass` raw handle to its member callable handles.
-/// Members are registered during module initialization via `kk_kclass_register_member`.
+/// Members are registered during module initialization via `__kk_kclass_register_member`.
 /// Each entry is a KFunction or KPropertyStub raw handle (STDLIB-REFLECT-ABI-002).
 final class RuntimeKMemberRegistry: @unchecked Sendable {
     private let lock = NSLock()
@@ -1235,7 +2508,7 @@ let runtimeKMemberRegistry = RuntimeKMemberRegistry()
 /// Runtime box for `KClass<T>` metadata references produced by `T::class`.
 /// Stores the type token and an optional name-hint pointer so that
 /// `.simpleName` / `.qualifiedName` can be resolved at runtime.
-/// When metadata has been registered via `kk_kclass_register_metadata`,
+/// When metadata has been registered via `__kk_kclass_register_metadata`,
 /// additional properties (isData, isSealed, qualifiedName, etc.) are
 /// available through the global metadata registry.
 final class RuntimeKClassBox {
@@ -1264,11 +2537,19 @@ final class RuntimeKTypeBox {
     let argumentRaws: [Int]
     /// Whether the type is marked nullable (`T?`).
     let isMarkedNullable: Bool
+    /// Optional compact type descriptor used by callable reflection metadata.
+    let typeNameRaw: Int
 
-    init(classifierRaw: Int, argumentRaws: [Int], isMarkedNullable: Bool) {
+    init(
+        classifierRaw: Int,
+        argumentRaws: [Int],
+        isMarkedNullable: Bool,
+        typeNameRaw: Int = 0
+    ) {
         self.classifierRaw = classifierRaw
         self.argumentRaws = argumentRaws
         self.isMarkedNullable = isMarkedNullable
+        self.typeNameRaw = typeNameRaw
     }
 }
 
@@ -1426,13 +2707,30 @@ final class RuntimeAnnotationBox {
 final class RuntimeBufferedReaderBox {
     private var fileHandle: FileHandle?
     private var pendingData: Data
+    /// Offset (from `pendingData.startIndex`) of the first unconsumed byte.
+    /// `read()`/`readLine()` advance this cursor instead of removing bytes
+    /// from the front of `pendingData` — each front removal would shift every
+    /// remaining byte (O(buffer)), turning a full drain quadratic. Consumed
+    /// bytes are dropped once per refill, so consumption is amortized O(1).
+    private var readOffset: Int
     private var closed: Bool
     private var reachedEOF: Bool
     private let chunkSize: Int
 
+    /// Index of the first unconsumed byte in `pendingData`.
+    private var pendingStartIndex: Data.Index {
+        pendingData.index(pendingData.startIndex, offsetBy: readOffset)
+    }
+
+    /// Bytes buffered but not yet consumed.
+    private var pendingByteCount: Int {
+        pendingData.count - readOffset
+    }
+
     init(fileHandle: FileHandle, chunkSize: Int = 4096) {
         self.fileHandle = fileHandle
         self.pendingData = Data()
+        self.readOffset = 0
         self.closed = false
         self.reachedEOF = false
         self.chunkSize = max(1, chunkSize)
@@ -1445,6 +2743,7 @@ final class RuntimeBufferedReaderBox {
     init(data: Data, chunkSize: Int = 4096) {
         self.fileHandle = nil
         self.pendingData = data
+        self.readOffset = 0
         self.closed = false
         self.reachedEOF = true
         self.chunkSize = max(1, chunkSize)
@@ -1456,15 +2755,17 @@ final class RuntimeBufferedReaderBox {
 
         while true {
             if let (lineLength, terminatorLength) = locateLineTerminator() {
-                let lineData = pendingData.prefix(lineLength)
-                pendingData.removeFirst(lineLength + terminatorLength)
-                return String(decoding: lineData, as: UTF8.self)
+                let lineStart = pendingStartIndex
+                let lineEnd = pendingData.index(lineStart, offsetBy: lineLength)
+                readOffset += lineLength + terminatorLength
+                return String(decoding: pendingData[lineStart ..< lineEnd], as: UTF8.self)
             }
 
             if reachedEOF {
-                guard !pendingData.isEmpty else { return nil }
-                let line = String(decoding: pendingData, as: UTF8.self)
+                guard pendingByteCount > 0 else { return nil }
+                let line = String(decoding: pendingData[pendingStartIndex...], as: UTF8.self)
                 pendingData.removeAll(keepingCapacity: false)
+                readOffset = 0
                 return line
             }
 
@@ -1493,8 +2794,9 @@ final class RuntimeBufferedReaderBox {
     /// to release the underlying file handle).
     func readText() -> String {
         guard !closed else { return "" }
-        var data = pendingData
+        var data = pendingData.suffix(from: pendingStartIndex)
         pendingData.removeAll(keepingCapacity: false)
+        readOffset = 0
         while !reachedEOF {
             if !readNextChunk() {
                 reachedEOF = true
@@ -1511,8 +2813,9 @@ final class RuntimeBufferedReaderBox {
         guard !closed else { return -1 }
 
         while true {
-            if !pendingData.isEmpty {
-                let byte = pendingData.removeFirst()
+            if pendingByteCount > 0 {
+                let byte = pendingData[pendingStartIndex]
+                readOffset += 1
                 // Fast path: ASCII byte
                 if byte & 0x80 == 0 {
                     return Int(byte)
@@ -1534,13 +2837,14 @@ final class RuntimeBufferedReaderBox {
                     return Int(byte)
                 }
                 // Ensure we have enough continuation bytes
-                while pendingData.count < totalBytes - 1 {
+                while pendingByteCount < totalBytes - 1 {
                     if reachedEOF { return Int(byte) }
                     if !readNextChunk() { reachedEOF = true }
                 }
-                if pendingData.count < totalBytes - 1 { return Int(byte) }
+                if pendingByteCount < totalBytes - 1 { return Int(byte) }
                 for _ in 1 ..< totalBytes {
-                    let cont = pendingData.removeFirst()
+                    let cont = pendingData[pendingStartIndex]
+                    readOffset += 1
                     codePoint = (codePoint << 6) | UInt32(cont & 0x3F)
                 }
                 return Int(codePoint)
@@ -1554,7 +2858,7 @@ final class RuntimeBufferedReaderBox {
     /// Returns true if data is available to be read without blocking (buffered bytes exist or not EOF).
     func ready() -> Bool {
         guard !closed else { return false }
-        return !pendingData.isEmpty || !reachedEOF
+        return pendingByteCount > 0 || !reachedEOF
     }
 
     func close() {
@@ -1562,6 +2866,7 @@ final class RuntimeBufferedReaderBox {
         try? fileHandle?.close()
         fileHandle = nil
         pendingData.removeAll(keepingCapacity: false)
+        readOffset = 0
         closed = true
     }
 
@@ -1574,25 +2879,36 @@ final class RuntimeBufferedReaderBox {
         guard let chunk = try? fileHandle.read(upToCount: chunkSize), !chunk.isEmpty else {
             return false
         }
+        dropConsumedPrefix()
         pendingData.append(chunk)
         return true
     }
 
+    /// Drops already-consumed bytes from the front of `pendingData`, keeping
+    /// the buffer bounded to roughly one unread chunk instead of accumulating
+    /// every byte the reader has ever seen.
+    private func dropConsumedPrefix() {
+        guard readOffset > 0 else { return }
+        pendingData.removeFirst(readOffset)
+        readOffset = 0
+    }
+
     private func locateLineTerminator() -> (lineLength: Int, terminatorLength: Int)? {
-        var index = pendingData.startIndex
+        let startIndex = pendingStartIndex
+        var index = startIndex
         while index < pendingData.endIndex {
             let byte = pendingData[index]
             if byte == 0x0A {
-                return (pendingData.distance(from: pendingData.startIndex, to: index), 1)
+                return (pendingData.distance(from: startIndex, to: index), 1)
             }
             if byte == 0x0D {
                 let nextIndex = pendingData.index(after: index)
                 if nextIndex < pendingData.endIndex {
-                    let lineLength = pendingData.distance(from: pendingData.startIndex, to: index)
+                    let lineLength = pendingData.distance(from: startIndex, to: index)
                     return (lineLength, pendingData[nextIndex] == 0x0A ? 2 : 1)
                 }
                 if reachedEOF {
-                    return (pendingData.distance(from: pendingData.startIndex, to: index), 1)
+                    return (pendingData.distance(from: startIndex, to: index), 1)
                 }
                 return nil
             }
@@ -1608,15 +2924,11 @@ final class RuntimeInputStreamBox {
     private let data: Data
     private var offset: Int
     private var closed: Bool
-    private var markOffset: Int
-    private var markLimit: Int
 
     init(data: Data) {
         self.data = data
         self.offset = 0
         self.closed = false
-        self.markOffset = 0
-        self.markLimit = 0
     }
 
     func readByte() -> Int {
@@ -1640,13 +2952,11 @@ final class RuntimeInputStreamBox {
 
     func read(into list: RuntimeListBox) -> Int {
         guard !closed else { return -1 }
-        let writableCount = min(list.elements.count, available())
+        let writableCount = min(list.count, available())
         guard writableCount > 0 else { return -1 }
-        var newElements = list.elements
         for index in 0 ..< writableCount {
-            newElements[index] = Int(Int8(bitPattern: data[offset + index]))
+            list[index] = Int(Int8(bitPattern: data[offset + index]))
         }
-        list.elements = newElements
         offset += writableCount
         return writableCount
     }
@@ -1793,6 +3103,91 @@ final class RuntimeFileHandleOutputStreamSink: RuntimeOutputStreamSink {
     var underlyingFileHandle: FileHandle { fileHandle }
 }
 
+/// A Kotlin throwable rethrown through the Swift `Error` channel by a
+/// callback-backed stream sink. `thrownRaw` is the original Kotlin throwable
+/// handle; the `__kk_*_stream_*` bridges write it to `outThrown` unchanged so
+/// the Kotlin caller observes the original exception rather than a synthesized
+/// `IOException`.
+struct RuntimeKotlinThrownError: Error {
+    let thrownRaw: Int
+}
+
+/// `RuntimeOutputStreamSink` that forwards write/flush/close into Kotlin
+/// lambdas captured by `kotlinx.io.Sink.asOutputStream()` (KSP-1553).
+///
+/// Each callback is a KSwiftK closure stored as a (fnPtr, closureRaw) pair:
+/// `write: (ByteArray) -> Unit` is invoked through the collection-HOF
+/// entry-point convention and `flush`/`close: () -> Unit` through the closure
+/// thunk convention — the same conventions the `__kk_synchronized` /
+/// `kk_worker_execute` bridges use. The `write` argument is passed as a
+/// `RuntimeArrayBox`, which is the runtime representation of `ByteArray`.
+final class RuntimeKotlinOutputStreamSink: RuntimeOutputStreamSink {
+    private let writeFnPtr: Int
+    private let writeClosureRaw: Int
+    private let flushFnPtr: Int
+    private let flushClosureRaw: Int
+    private let closeFnPtr: Int
+    private let closeClosureRaw: Int
+
+    init(
+        writeFnPtr: Int,
+        writeClosureRaw: Int,
+        flushFnPtr: Int,
+        flushClosureRaw: Int,
+        closeFnPtr: Int,
+        closeClosureRaw: Int
+    ) {
+        self.writeFnPtr = writeFnPtr
+        self.writeClosureRaw = writeClosureRaw
+        self.flushFnPtr = flushFnPtr
+        self.flushClosureRaw = flushClosureRaw
+        self.closeFnPtr = closeFnPtr
+        self.closeClosureRaw = closeClosureRaw
+    }
+
+    func write(_ data: Data) throws {
+        let arrayBox = RuntimeArrayBox(length: data.count)
+        for (index, byte) in data.enumerated() {
+            arrayBox[index] = Int(byte)
+        }
+        let arrayRaw = registerRuntimeObject(arrayBox)
+        var thrown = 0
+        _ = runtimeInvokeCollectionLambda1(
+            fnPtr: writeFnPtr,
+            closureRaw: writeClosureRaw,
+            value: arrayRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            throw RuntimeKotlinThrownError(thrownRaw: thrown)
+        }
+    }
+
+    func flush() throws {
+        var thrown = 0
+        _ = runtimeInvokeClosureThunk(
+            fnPtr: flushFnPtr,
+            closureRaw: flushClosureRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            throw RuntimeKotlinThrownError(thrownRaw: thrown)
+        }
+    }
+
+    func close() {
+        // `close()` has no thrown channel (`__kk_output_stream_close` takes no
+        // outThrown), so a throwable raised by the close callback is dropped,
+        // matching the file-backed sink's `try? fileHandle.close()` swallow.
+        var thrown = 0
+        _ = runtimeInvokeClosureThunk(
+            fnPtr: closeFnPtr,
+            closureRaw: closeClosureRaw,
+            outThrown: &thrown
+        )
+    }
+}
+
 final class RuntimeOutputStreamBox {
     private let sink: RuntimeOutputStreamSink
 
@@ -1825,11 +3220,6 @@ final class RuntimeOutputStreamBox {
     func close() {
         sink.close()
     }
-
-    /// Returns true if the underlying stream has been closed.
-    /// Note: after close() the sink handles the closed state internally;
-    /// writes on a closed sink are no-ops.
-    var isClosed: Bool { false }
 
     var underlyingFileHandle: FileHandle? {
         (sink as? RuntimeFileHandleOutputStreamSink)?.underlyingFileHandle
@@ -1913,29 +3303,41 @@ final class RuntimeBufferedWriterBox {
 // Only types that store `Int` child handles need to conform.
 
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimePairBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { [first, second] }
+    var childRefs: [Int] {
+        [firstValue, secondValue].compactMap(\.childReferenceRawValue)
+            + (mutableMapRaw == 0 ? [] : [mutableMapRaw])
+    }
 }
 
 extension RuntimeTripleBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { [first, second, third] }
+    var childRefs: [Int] {
+        [firstValue, secondValue, thirdValue].compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimeSetBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimeMapBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { keys + values }
+    var childRefs: [Int] {
+        keyValues.compactMap(\.childReferenceRawValue)
+            + entryValues.compactMap(\.childReferenceRawValue)
+    }
+}
+
+extension RuntimeMutableMapIteratorBox: RuntimeChildReferenceProviding {
+    var childRefs: [Int] { mapRaw == 0 ? [] : [mapRaw] }
 }
 
 extension RuntimeArrayDequeBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }

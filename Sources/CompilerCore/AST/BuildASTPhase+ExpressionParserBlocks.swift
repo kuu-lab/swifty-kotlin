@@ -44,7 +44,13 @@ extension BuildASTPhase.ExpressionParser {
                 statements.append(localDecl)
             } else if let localAssign = parseLocalAssignFromSlice(group) {
                 statements.append(localAssign)
-            } else if let expr = BuildASTPhase.ExpressionParser(tokens: group, interner: interner, astArena: astArena).parse() {
+            } else if let nominalDecl = BuildASTPhase.parseLocalNominalDeclExpr(
+                from: Array(group), interner: interner, astArena: astArena, diagnostics: diagnostics
+            ) {
+                statements.append(nominalDecl)
+            } else if let expr = BuildASTPhase.ExpressionParser(
+                tokens: group, interner: interner, astArena: astArena, diagnostics: diagnostics
+            ).parse() {
                 statements.append(expr)
             }
         }
@@ -52,7 +58,7 @@ extension BuildASTPhase.ExpressionParser {
         var trailingExpr: ExprID?
         if let lastID = statements.last, let lastExpr = astArena.expr(lastID) {
             switch lastExpr {
-            case .localDecl, .localAssign, .memberAssign, .indexedAssign, .compoundAssign, .indexedCompoundAssign, .localFunDecl:
+            case .localDecl, .localAssign, .memberAssign, .indexedAssign, .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl, .localNominalDecl:
                 break
             default:
                 trailingExpr = statements.removeLast()
@@ -94,18 +100,14 @@ extension BuildASTPhase.ExpressionParser {
                     if case .newline = piece { return true }
                     return false
                 }
-                if hasNewline, lastTokenIndex >= groupStart {
-                    let lastKind = tokens[lastTokenIndex].kind
-                    let lastIsContinuation = isBinaryOperatorTokenKind(lastKind)
-                        || lastKind == .symbol(.lParen)
-                        || lastKind == .symbol(.comma)
-                    let nextIsContinuation = isBinaryOperatorTokenKind(token.kind)
-                    let nextIsTrailingLambda = token.kind == .symbol(.lBrace)
-                        && canAcceptTrailingLambda(tokens[groupStart ... lastTokenIndex])
-                    if !lastIsContinuation, !nextIsContinuation, !nextIsTrailingLambda {
-                        ranges.append((groupStart, lastTokenIndex + 1))
-                        groupStart = idx
-                    }
+                if hasNewline, lastTokenIndex >= groupStart,
+                   !BuildASTPhase.isContinuationBoundary(
+                       previousTail: tokens[groupStart ... lastTokenIndex],
+                       nextHead: tokens[idx...]
+                   )
+                {
+                    ranges.append((groupStart, lastTokenIndex + 1))
+                    groupStart = idx
                 }
             }
             switch token.kind {
@@ -125,22 +127,27 @@ extension BuildASTPhase.ExpressionParser {
         return ranges
     }
 
-    private func canAcceptTrailingLambda(_ tokens: ArraySlice<Token>) -> Bool {
-        BuildASTPhase.canAcceptTrailingLambda(on: tokens)
-    }
-
-    func isBinaryOperatorTokenKind(_ kind: TokenKind) -> Bool {
-        BuildASTPhase.isBinaryOperatorToken(kind)
-    }
-
     func parseLocalDeclFromSlice(_ tokens: ArraySlice<Token>) -> ExprID? {
         let interner = interner
         let astArena = astArena
+        // Nested blocks (if/while/lambda bodies) reach declarations through this
+        // slice-based path, so destructuring has to be recognised here too;
+        // otherwise `val (a, b) = expr` degrades into `val a = expr`.
+        if let destructuring = BuildASTPhase.parseDestructuringDeclarationStatement(
+            from: Array(tokens),
+            interner: interner,
+            astArena: astArena,
+            diagnostics: diagnostics
+        ) {
+            return destructuring
+        }
         let context = BuildASTPhase.LocalStatementCoreContext(
             interner: interner,
             astArena: astArena,
             parseExpression: { slice in
-                BuildASTPhase.ExpressionParser(tokens: slice, interner: interner, astArena: astArena).parse()
+                BuildASTPhase.ExpressionParser(
+                    tokens: slice, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { typeTokens in
                 guard let first = typeTokens.first else {
@@ -149,12 +156,13 @@ extension BuildASTPhase.ExpressionParser {
                 let parser = BuildASTPhase.ExpressionParser(
                     tokens: typeTokens,
                     interner: interner,
-                    astArena: astArena
+                    astArena: astArena,
+                    diagnostics: self.diagnostics
                 )
                 return parser.parseTypeReference(first.range)
             },
             resolveDeclarationName: { token, interner in
-                guard TypeRefParserCore.isTypeLikeNameToken(token.kind) else {
+                guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {
                     return nil
                 }
                 switch token.kind {
@@ -183,7 +191,9 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { slice in
-                BuildASTPhase.ExpressionParser(tokens: slice, interner: interner, astArena: astArena).parse()
+                BuildASTPhase.ExpressionParser(
+                    tokens: slice, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil }

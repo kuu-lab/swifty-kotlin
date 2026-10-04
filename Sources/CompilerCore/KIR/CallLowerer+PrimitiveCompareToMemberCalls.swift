@@ -11,7 +11,7 @@
 /// symbol name `compareTo` and codegen emits an undefined external `_compareTo`
 /// reference that fails to link. Here we intercept the call before that generic
 /// path and route it to `kk_primitive_compareTo`, mirroring how
-/// `String.compareTo` maps to `kk_string_compareTo_member`.
+/// `String.compareTo` maps to `__kk_string_compareTo_member`.
 ///
 /// Char is intentionally excluded: it already resolves through its own
 /// `kk_char_compareTo` synthetic stub, which returns the raw codepoint
@@ -30,8 +30,9 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard args.count == 1,
-              interner.resolve(calleeName) == "compareTo",
+              calleeName == knownNames.compareTo,
               let receiverType = sema.bindings.exprTypes[receiverExpr],
               let kind = primitiveCompareABIKind(for: receiverType, sema: sema),
               kind != .char
@@ -71,7 +72,7 @@ extension CallLowerer {
         instructions.append(.constValue(result: kindExpr, value: .intLiteral(kindLiteral)))
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.intType
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_primitive_compareTo"),

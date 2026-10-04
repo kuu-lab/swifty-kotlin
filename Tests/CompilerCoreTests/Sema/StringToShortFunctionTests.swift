@@ -1,3 +1,4 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
 import Testing
@@ -5,86 +6,50 @@ import Testing
 /// STDLIB-TEXT-FN-106: `fun String.toShort(): Short` in `kotlin.text`.
 ///
 /// Verifies:
-/// - The synthetic stub registered for `String.toShort` links to the runtime
-///   symbol `kk_string_toShort` declared in
-///   `Sources/RuntimeABI/RuntimeABISpec+ABIParity.swift`.
+/// - `String.toShort` is source-backed after KSP-414 and no longer exposes a
+///   public `kk_string_toShort` runtime link; it bridges through the private
+///   `__kk_string_toShort` runtime symbol.
 /// - The extension resolves cleanly from source code on both a parameter
 ///   receiver and a string-literal receiver (Short is widened to Int in ABI).
 @Suite
 struct StringToShortFunctionTests {
-    private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
-        let fq = ["kotlin", "text", member].map { interner.intern($0) }
-        guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
-        return sema.symbols.externalLinkName(for: sym)
-    }
-
-    private func externalLinks(for member: String, sema: SemaModule, interner: StringInterner) -> Set<String> {
-        let fq = ["kotlin", "text", member].map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: fq)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
-    }
-
     @Test
-    func testToShortStubLinksToRuntimeSymbol() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-
-            #expect(
-                externalLink(for: "toShort", sema: sema, interner: ctx.interner) == "kk_string_toShort",
-                "String.toShort should link to kk_string_toShort"
-            )
-
-            let links = externalLinks(for: "toShort", sema: sema, interner: ctx.interner)
-            #expect(
-                links.contains("kk_string_toShort"),
-                "lookupAll for toShort must include kk_string_toShort; got: \(links)"
-            )
-        }
-    }
-
-    @Test
-    func testToShortResolvesOnStringReceiver() throws {
+    func testToShortResolvesInSource() throws {
         let source = """
         fun parse(raw: String): Short {
             return raw.toShort()
         }
-        """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected String.toShort to resolve cleanly, got: \(diagnosticSummary)"
-            )
-        }
-    }
-
-    @Test
-    func testToShortOnLiteralResolves() throws {
-        let source = """
         fun probe(): Int {
             return "1000".toShort().toInt()
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected String.toShort() on a literal to type-check cleanly, got: \(diagnosticSummary)"
-            )
-        }
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let fq = ["kotlin", "text", "toShort"].map { interner.intern($0) }
+        let allLinks = Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
+        #expect(
+            !allLinks.contains("kk_string_toShort") && !allLinks.contains("__kk_string_toShort"),
+            "lookupAll for toShort must not include public or private string parse links; got: \(allLinks)"
+        )
+
+        let symbol = try #require(sema.symbols.lookup(fqName: fq))
+        #expect(
+            sema.symbols.externalLinkName(for: symbol) == nil,
+            "String.toShort should be source-backed and have no C external link"
+        )
+
+        let bridgeFq = ["kotlin", "text", "__kk_string_toShort"].map { interner.intern($0) }
+        #expect(
+            sema.symbols.externalLinkName(for: try #require(sema.symbols.lookup(fqName: bridgeFq))) == "__kk_string_toShort",
+            "Private __kk_string_toShort bridge should be registered"
+        )
     }
 }
+#endif

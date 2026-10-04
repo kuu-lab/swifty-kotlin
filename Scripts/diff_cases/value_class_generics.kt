@@ -1,4 +1,3 @@
-// SKIP-DIFF
 @JvmInline
 value class Box<T>(val value: T)
 

@@ -4,22 +4,23 @@ import Testing
 
 @Suite
 struct ReflectKProperty0SyntheticTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
+    private static let fixture = SemaFixture(surface: "KProperty0")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KProperty0 surface to resolve cleanly, got: \(diagnostics)"))
-            result = try (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test func testKProperty0SurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
         let functionPackage = ["kotlin", "Function"].map { interner.intern($0) }
 
@@ -35,7 +36,8 @@ struct ReflectKProperty0SyntheticTests {
 
         let kProperty0Info = try #require(sema.symbols.symbol(kProperty0Symbol))
         #expect(kProperty0Info.kind == .interface)
-        #expect(kProperty0Info.flags.contains(.synthetic))
+        // KSP-682: KProperty0 is now bundled Kotlin source, not a synthetic stub.
+        #expect(!kProperty0Info.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kProperty0Symbol)
         #expect(typeParams.count == 1)
@@ -44,13 +46,13 @@ struct ReflectKProperty0SyntheticTests {
         let valueType = sema.types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
         let receiverType = sema.types.make(.classType(ClassType(
             classSymbol: kProperty0Symbol,
-            args: [.out(valueType)],
+            args: [.invariant(valueType)],
             nullability: .nonNull
         )))
 
         #expect(sema.symbols.directSupertypes(for: kProperty0Symbol).contains(kPropertySymbol))
         #expect(
-            sema.symbols.supertypeTypeArgs(for: kProperty0Symbol, supertype: kPropertySymbol) == [.out(valueType)]
+            sema.symbols.supertypeTypeArgs(for: kProperty0Symbol, supertype: kPropertySymbol) == [.invariant(valueType)]
         )
         #expect(sema.symbols.directSupertypes(for: kProperty0Symbol).contains(function0Symbol))
         #expect(

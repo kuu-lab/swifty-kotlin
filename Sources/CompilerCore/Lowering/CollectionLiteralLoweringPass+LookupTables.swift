@@ -2,1651 +2,46 @@ import RuntimeABI
 
 // swiftformat:disable redundantMemberwiseInit
 struct CollectionLiteralLookupTables {
-    // Source-level callee names
-    let listOfName: InternedString
-    let mutableListOfName: InternedString
-    let arrayListOfName: InternedString
-    let emptyListName: InternedString
-    let listOfNotNullName: InternedString
-    let arrayOfName: InternedString
-    let emptyArrayName: InternedString
-    let intArrayOfName: InternedString
-    let longArrayOfName: InternedString
-    let shortArrayOfName: InternedString
-    let byteArrayOfName: InternedString
-    let uintArrayOfName: InternedString
-    let doubleArrayOfName: InternedString
-    let floatArrayOfName: InternedString
-    let booleanArrayOfName: InternedString
-    let charArrayOfName: InternedString
-    let mapOfName: InternedString
-    let mutableMapOfName: InternedString
-    let hashMapOfName: InternedString
-    let linkedMapOfName: InternedString
-    let emptyMapName: InternedString
-    let setOfName: InternedString
-    let setOfNotNullName: InternedString
-    let mutableSetOfName: InternedString
-    let linkedSetOfName: InternedString
-    let hashSetOfName: InternedString
-    let emptySetName: InternedString
+    let listLookup: ListLookupNames
+    let setLookup: SetLookupNames
+    let mapLookup: MapLookupNames
+    let sequenceLookup: SequenceLookupNames
+    let arrayLookup: ArrayLookupNames
+    let rangeLookup: RangeLookupNames
+    let stringLookup: StringLookupNames
+    let fileIOLookup: FileIOLookupNames
+    let commonLookup: CommonLookupNames
 
-    // Type alias constructor names (STDLIB-245)
-    let arrayListName: InternedString
-    let hashMapName: InternedString
-    let hashSetName: InternedString
-    let linkedHashMapName: InternedString
-    let linkedHashSetName: InternedString
-
-    // Runtime ABI names
-    let kkListOfName: InternedString
-    let kkListOfNotNullName: InternedString
-    let kkEmptyListName: InternedString
-    let kkEmptyArrayName: InternedString
-    let kkEmptySetName: InternedString
-    let kkEmptyMapName: InternedString
-    let kkListSizeName: InternedString
-    let kkListGetName: InternedString
-    let kkListContainsName: InternedString
-    let kkListContainsAllName: InternedString
-    let kkListIsEmptyName: InternedString
-    let kkListIteratorName: InternedString
-    let kkListIteratorHasNextName: InternedString
-    let kkListIteratorNextName: InternedString
-    let kkListIteratorHasPreviousName: InternedString
-    let kkListIteratorPreviousName: InternedString
-    let kkListToStringName: InternedString
-    let kkCollectionToMutableListName: InternedString
-    let kkSetOfName: InternedString
-    let kkSetOfNotNullName: InternedString
-    let kkSetSizeName: InternedString
-    let kkSetContainsName: InternedString
-    let kkSetContainsAllName: InternedString
-    let kkSetIsEmptyName: InternedString
-    let kkSetToStringName: InternedString
-    let kkIterableToMutableSetName: InternedString
-    // Set higher-order function ABI names (STDLIB-268)
-    let kkSetToListName: InternedString
-    // Set predicate HOF ABI names (STDLIB-SET-PRED)
-
-    let kkStringSplitName: InternedString
-    let kkStringAsSequenceName: InternedString
-    let kkStringAsIterableName: InternedString
-    let kkStringIteratorName: InternedString
-    let kkStringIteratorHasNextName: InternedString
-    let kkStringIteratorNextName: InternedString
-    let kkStringFilterName: InternedString
-    let kkStringMapName: InternedString
-    let kkStringCountName: InternedString
-    let kkStringAnyName: InternedString
-    let kkStringAllName: InternedString
-    let kkStringNoneName: InternedString
-
-    // Higher-order collection function ABI names (FUNC-003)
-    let kkListMapName: InternedString
-    let kkListFilterName: InternedString
-    let kkListFilterNotName: InternedString
-    let kkListMapNotNullName: InternedString
-    let kkListFilterNotNullName: InternedString
-    let kkListFilterToName: InternedString
-    let kkListFilterNotToName: InternedString
-    let kkListMapToName: InternedString
-    let kkListFlatMapToName: InternedString
-    let kkListMapNotNullToName: InternedString
-    let kkListFilterNotNullToName: InternedString
-    let kkListFilterIndexedToName: InternedString
-    let kkListMapIndexedToName: InternedString
-    let kkListMapIndexedNotNullToName: InternedString
-    let kkListFlatMapIndexedToName: InternedString
-    let kkListFlatMapIndexedName: InternedString
-    let kkListAssociateToName: InternedString
-    let kkListForEachName: InternedString
-    let kkListFlatMapName: InternedString
-    let kkListAnyName: InternedString
-    let kkListNoneName: InternedString
-    let kkListAllName: InternedString
-    let kkCollectionToCollectionName: InternedString
-
-    // Additional higher-order collection function ABI names (STDLIB-005)
-    let kkListFoldName: InternedString
-    let kkListFoldRightName: InternedString
-    let kkListReduceName: InternedString
-    let kkListReduceRightName: InternedString
-    let kkListReduceRightIndexedName: InternedString
-    let kkListReduceRightIndexedOrNullName: InternedString
-    let kkListReduceRightOrNullName: InternedString
-    let kkListReduceOrNullName: InternedString
-    let kkListScanName: InternedString
-    let kkListRunningFoldName: InternedString
-    let kkListRunningReduceName: InternedString
-    let kkListScanReduceName: InternedString
-    let kkListGroupByName: InternedString
-    let kkListGroupByTransformName: InternedString
-    let kkListSortedByName: InternedString
-    let kkListAssociateByName: InternedString
-    let kkListAssociateByTransformName: InternedString
-    let kkListAssociateWithName: InternedString
-    let kkListAssociateName: InternedString
-    let kkListAssociateByToName: InternedString
-    let kkListAssociateWithToName: InternedString
-    let kkListGroupByToName: InternedString
-    let kkListCountName: InternedString
-    let kkListFirstName: InternedString
-    let kkListLastName: InternedString
-    let kkListFindName: InternedString
-    let kkListFindLastName: InternedString
-    let kkListZipName: InternedString
-    let kkListZipWithNextName: InternedString
-    let kkListZipWithNextTransformName: InternedString
-    let kkListUnzipName: InternedString
-    let kkListWithIndexName: InternedString
-    let kkIndexingIterableIteratorName: InternedString
-    let kkIndexingIterableHasNextName: InternedString
-    let kkIndexingIterableNextName: InternedString
-    let kkListForEachIndexedName: InternedString
-    let kkListOnEachName: InternedString
-    let kkListOnEachIndexedName: InternedString
-    let kkListMapIndexedName: InternedString
-    let kkListMapIndexedNotNullName: InternedString
-    let kkListFilterIndexedName: InternedString
-    let kkListFoldIndexedName: InternedString
-    let kkListFoldRightIndexedName: InternedString
-    let kkListReduceIndexedName: InternedString
-    let kkListReduceIndexedOrNullName: InternedString
-    let kkListRunningFoldIndexedName: InternedString
-    let kkListRunningReduceIndexedName: InternedString
-    let kkListScanIndexedName: InternedString
-    let kkListSumOfName: InternedString
-    let kkListSumByName: InternedString
-    let kkListSumByDoubleName: InternedString
-    let kkListMaxOrNullName: InternedString
-    let kkListMinOrNullName: InternedString
-    let kkListMaxByName: InternedString
-    let kkListMinName: InternedString
-    let kkListMaxByOrNullName: InternedString
-    let kkListMinByOrNullName: InternedString
-    let kkListMinByName: InternedString
-    let kkListMaxOfOrNullName: InternedString
-    let kkListMinOfOrNullName: InternedString
-    let kkListMaxOfName: InternedString
-    let kkListMinOfName: InternedString
-    let kkListMaxWithName: InternedString
-    let kkListMaxWithOrNullName: InternedString
-    let kkListMinWithName: InternedString
-    let kkListMinWithOrNullName: InternedString
-    let kkListMaxOfWithName: InternedString
-    let kkListMaxOfWithOrNullName: InternedString
-    let kkListMinOfWithName: InternedString
-    let kkListMinOfWithOrNullName: InternedString
-    let kkListTakeName: InternedString
-    let kkListDropName: InternedString
-    let kkListSumName: InternedString
-    let kkListReversedName: InternedString
-    let kkListAsReversedName: InternedString
-    let kkListSortedName: InternedString
-    let kkSetSortedName: InternedString
-    let kkListDistinctName: InternedString
-    let kkListDistinctByName: InternedString
-    let kkListShuffledName: InternedString
-    let kkListShuffledRandomName: InternedString
-    let kkListPlusElementName: InternedString
-    let kkListPlusCollectionName: InternedString
-    let kkListMinusElementName: InternedString
-    let kkListMinusCollectionName: InternedString
-    let kkListFlattenName: InternedString
-    let kkListIndexOfName: InternedString
-    let kkListLastIndexOfName: InternedString
-    let kkListIndexOfFirstName: InternedString
-    let kkListIndexOfLastName: InternedString
-    let kkListChunkedName: InternedString
-    let kkListChunkedTransformName: InternedString
-    let kkListWindowedDefaultName: InternedString
-    let kkListWindowedName: InternedString
-    let kkListWindowedPartialName: InternedString
-    let kkListWindowedTransformName: InternedString
-    let kkListSortedDescendingName: InternedString
-    let kkListSortedByDescendingName: InternedString
-    let kkListSortedWithName: InternedString
-    let kkListPartitionName: InternedString
-    let kkListTakeWhileName: InternedString
-
-    // Comparator ABI names (STDLIB-175, STDLIB-177, STDLIB-613)
-    let kkComparatorFromSelectorName: InternedString
-    let kkComparatorFromSelectorDescendingName: InternedString
-    let kkComparatorFromSelectorTrampolineName: InternedString
-    let kkComparatorFromSelectorDescendingTrampolineName: InternedString
-    let kkComparatorFromMultiSelectorsName: InternedString
-    let kkComparatorFromMultiSelectors3Name: InternedString
-    let kkComparatorFromMultiSelectorsVarargName: InternedString
-    let kkComparatorFromMultiSelectorsTrampolineName: InternedString
-    let kkComparatorNaturalOrderName: InternedString
-    let kkComparatorReverseOrderName: InternedString
-    let kkComparatorNaturalOrderTrampolineName: InternedString
-    let kkComparatorReverseOrderTrampolineName: InternedString
-    let kkComparatorThenByName: InternedString
-    let kkComparatorThenByDescendingName: InternedString
-    let kkComparatorThenDescendingName: InternedString
-    let kkComparatorThenComparatorName: InternedString
-    let kkComparatorThenByTrampolineName: InternedString
-    let kkComparatorThenByDescendingTrampolineName: InternedString
-    let kkComparatorThenDescendingTrampolineName: InternedString
-    let kkComparatorThenComparatorTrampolineName: InternedString
-    let kkComparatorNullsFirstName: InternedString
-    let kkComparatorNullsLastName: InternedString
-    let kkComparatorNullsFirstTrampolineName: InternedString
-    let kkComparatorNullsLastTrampolineName: InternedString
-    let kkComparatorNullsFirstComparableName: InternedString
-    let kkComparatorNullsFirstComparableTrampolineName: InternedString
-    let kkComparatorNullsLastNaturalName: InternedString
-    let kkComparatorNullsLastNaturalTrampolineName: InternedString
-    let kkComparatorReversedName: InternedString
-    let kkComparatorReversedTrampolineName: InternedString
-
-    // Sequence ABI names (STDLIB-003)
-    let kkSequenceMapName: InternedString
-    let kkSequenceFilterName: InternedString
-    let kkSequenceTakeName: InternedString
-    let kkSequenceToListName: InternedString
-    let kkSequenceConstrainOnceName: InternedString
-    let kkSequenceBuilderBuildName: InternedString
-    let kkSequenceBuilderYieldName: InternedString
-    let kkSequenceBuilderYieldAllName: InternedString
-    let kkIteratorBuilderBuildName: InternedString
-    let kkIteratorBuilderHasNextName: InternedString
-    let kkIteratorBuilderNextName: InternedString
-
-    // Sequence ABI names (STDLIB-095/096/097)
-    let kkSequenceOfName: InternedString
-    let kkSequenceGenerateName: InternedString
-    let kkSequenceGenerateNoArgName: InternedString
-    let kkSequenceForEachName: InternedString
-    let kkSequenceFlatMapName: InternedString
-    let kkSequenceFlatMapIndexedName: InternedString
-    let kkSequenceDropName: InternedString
-    let kkSequenceDistinctName: InternedString
-    let kkSequenceZipName: InternedString
-    let kkSequenceShuffledName: InternedString
-    let kkSequenceShuffledRandomName: InternedString
-    let kkSequenceAssociateToName: InternedString
-    let kkSequenceAssociateByToName: InternedString
-    let kkSequenceAssociateWithToName: InternedString
-    let kkSequenceForEachIndexedName: InternedString
-    let kkSequenceZipWithNextName: InternedString
-    let kkSequenceZipWithNextTransformName: InternedString
-
-    // STDLIB-558, 559, 560: Sequence scan / runningFold / runningReduce
-    let kkSequenceScanName: InternedString
-    let kkSequenceRunningFoldName: InternedString
-    let kkSequenceRunningReduceName: InternedString
-
-    // STDLIB-470: Sequence terminal ops
-    let kkSequenceToSetName: InternedString
-    let kkSequenceToMapName: InternedString
-    let kkSequenceToCollectionName: InternedString
-    let kkSequenceGroupByName: InternedString
-    let kkSequenceGroupByToName: InternedString
-    let kkSequenceMaxName: InternedString
-    let kkSequenceMaxOrNullName: InternedString
-    let kkSequenceMinOrNullName: InternedString
-    let kkSequenceFlattenName: InternedString
-    let kkSequenceFoldName: InternedString
-    let kkSequenceFoldIndexedName: InternedString
-    let kkSequenceRunningFoldIndexedName: InternedString
-    let kkSequenceScanIndexedName: InternedString
-    let kkSequenceReduceIndexedName: InternedString
-    let kkSequenceReduceIndexedOrNullName: InternedString
-    let kkSequenceRunningReduceIndexedName: InternedString
-
-    // STDLIB-561/562: Sequence plus/minus
-    let kkSequencePlusName: InternedString
-    let kkSequencePlusElementName: InternedString
-    let kkSequenceMinusName: InternedString
-    let kkSequenceOfSingleName: InternedString
-
-    // STDLIB-SEQ-012: Sequence partition
-    let kkSequencePartitionName: InternedString
-    // STDLIB-SEQ-021: Sequence destination-collection filter operations
-    let kkSequenceFilterToName: InternedString
-    let kkSequenceFilterNotToName: InternedString
-    // STDLIB-SEQ-022: Sequence destination-collection mapping operations
-    let kkSequenceMapToName: InternedString
-    let kkSequenceMapNotNullToName: InternedString
-    let kkSequenceMapIndexedToName: InternedString
-    let kkSequenceFlatMapToName: InternedString
-    let kkSequenceMapIndexedNotNullToName: InternedString
-    let kkSequenceFlatMapIndexedToName: InternedString
-    let kkSequenceFilterIndexedToName: InternedString
-    let kkSequenceFilterNotNullToName: InternedString
-    let kkSequenceFilterIsInstanceToName: InternedString
-
-    let kkMapOfName: InternedString
-    let kkMapSizeName: InternedString
-    let kkMapGetName: InternedString
-    let kkMapContainsKeyName: InternedString
-    let kkMapContainsValueName: InternedString
-    let kkMapIsEmptyName: InternedString
-    let kkMapForEachName: InternedString
-    let kkMapMapName: InternedString
-    let kkMapFilterName: InternedString
-    let kkMapFilterKeysName: InternedString
-    let kkMapFilterValuesName: InternedString
-    let kkMapMapValuesName: InternedString
-    let kkMapMapKeysName: InternedString
-    let kkMapCountName: InternedString
-    let kkMapAnyName: InternedString
-    let kkMapAllName: InternedString
-    let kkMapNoneName: InternedString
-    let kkMapFlatMapName: InternedString
-    let kkMapMaxByOrNullName: InternedString
-    let kkMapMinByOrNullName: InternedString
-    let kkMapToListName: InternedString
-    let kkMapToStringName: InternedString
-    let kkMapIteratorName: InternedString
-    let kkMapIteratorHasNextName: InternedString
-    let kkMapIteratorNextName: InternedString
-    let kkMutableMapPutAllName: InternedString
-    let kkMapKeysName: InternedString
-    let kkMapValuesName: InternedString
-    let kkMapEntriesName: InternedString
-
-    let kkArraySizeName: InternedString
-    let kkArrayNewName: InternedString
-    let kkArraySetName: InternedString
-
-    // Array conversion / HOF / utility ABI names (STDLIB-087/088/089)
-    let kkArrayToListName: InternedString
-    let kkArrayToMutableListName: InternedString
-    let kkListToTypedArrayName: InternedString
-    let kkListToCharArrayName: InternedString
-    let kkListToBooleanArrayName: InternedString
-    let kkListToShortArrayName: InternedString
-    let kkListToDoubleArrayName: InternedString
-    let kkListToFloatArrayName: InternedString
-    let kkListToIntArrayName: InternedString
-    let kkListToLongArrayName: InternedString
-    let kkListToByteArrayName: InternedString
-    let kkListToUByteArrayName: InternedString
-    let kkListToUShortArrayName: InternedString
-    let kkListToUIntArrayName: InternedString
-    let kkListToULongArrayName: InternedString
-    let kkArrayMapName: InternedString
-    let kkArrayFilterName: InternedString
-    let kkArrayForEachName: InternedString
-    let kkArrayAnyName: InternedString
-    let kkArrayAllName: InternedString
-    let kkArrayNoneName: InternedString
-    let kkArrayCountName: InternedString
-    let kkArrayCopyOfName: InternedString
-    let kkArrayCopyOfNewSizeName: InternedString
-    let kkArrayCopyOfNewSizeInitName: InternedString
-    let kkArrayCopyOfRangeName: InternedString
-    let kkArrayFillName: InternedString
-    let kkArrayReduceName: InternedString
-    let kkArrayReduceOrNullName: InternedString
-    let kkArrayReduceIndexedName: InternedString
-    let kkArrayFoldName: InternedString
-    let kkArrayFoldIndexedName: InternedString
-    let kkArrayFlatMapName: InternedString
-    let kkListAsSequenceName: InternedString
-    let kkArrayAsSequenceName: InternedString
-
-    // Range iterator names (emitted by ForLoweringPass)
-    let kkRangeIteratorName: InternedString
-    let kkRangeHasNextName: InternedString
-    let kkRangeNextName: InternedString
-
-    // Range factory / member ABI names (STDLIB-090/091/092/093)
-    let kkOpRangeToName: InternedString
-    let kkOpRangeUntilName: InternedString
-    let kkOpULongRangeUntilName: InternedString
-    let kkOpDownToName: InternedString
-    let kkOpStepName: InternedString
-    let kkRangeFirstName: InternedString
-    let kkRangeLastName: InternedString
-    let kkRangeEndExclusiveName: InternedString
-    let kkRangeCountName: InternedString
-    let kkRangeToListName: InternedString
-    let kkRangeForEachName: InternedString
-    let kkRangeMapName: InternedString
-    let kkRangeMapIndexedName: InternedString
-    let kkRangeMapNotNullName: InternedString
-    let kkRangeFilterName: InternedString
-    let kkRangeFilterIndexedName: InternedString
-    let kkRangeFilterNotName: InternedString
-    let kkRangeReduceName: InternedString
-    let kkRangeReduceIndexedName: InternedString
-    let kkRangeFoldName: InternedString
-    let kkRangeFoldIndexedName: InternedString
-    let kkRangeFindName: InternedString
-    let kkRangeFindLastName: InternedString
-    let kkRangeFirstPredicateName: InternedString
-    let kkRangeFirstOrNullPredicateName: InternedString
-    let kkRangeLastPredicateName: InternedString
-    let kkRangeLastOrNullPredicateName: InternedString
-    let kkRangeAnyName: InternedString
-    let kkRangeAllName: InternedString
-    let kkRangeNoneName: InternedString
-    let kkRangeChunkedName: InternedString
-    let kkRangeWindowedName: InternedString
-    let kkRangeStepName: InternedString
-    let kkRangeReversedName: InternedString
-    let kkRangeIsEmptyName: InternedString
-    let kkRangeSumName: InternedString
-    let kkRangeToIntArrayName: InternedString
-    let kkRangeTakeName: InternedString
-    let kkRangeDropName: InternedString
-    let kkRangeAverageName: InternedString
-    let kkRangeSortedName: InternedString
-    let kkOpContainsName: InternedString
-
-    // Member names (STDLIB-637)
-    let sumName: InternedString
-
-    // CharRange (STDLIB-290)
-    let kkBoxCharName: InternedString
-    let kkCharRangeToListName: InternedString
-    let kkCharRangeForEachName: InternedString
-
-    // ULongRange (STDLIB-524, STDLIB-RANGE-037)
-    let kkULongRangeToListName: InternedString
-    let kkULongRangeContainsName: InternedString
-    let kkULongRangeFirstName: InternedString
-    let kkULongRangeLastName: InternedString
-    let kkULongRangeStepName: InternedString
-    let kkULongRangeIsEmptyName: InternedString
-    let kkULongRangeReversedName: InternedString
-    let kkULongRangeToULongArrayName: InternedString
-    let kkULongRangeCountName: InternedString
-    let kkULongRangeIteratorName: InternedString
-    let kkULongRangeHasNextName: InternedString
-    let kkULongRangeNextName: InternedString
-    let kkULongRangeForEachName: InternedString
-    let kkULongRangeMapName: InternedString
-
-    let sizeName: InternedString
-    let getName: InternedString
-    let containsName: InternedString
-    let containsAllName: InternedString
-    let containsKeyName: InternedString
-    let containsValueName: InternedString
-    let isEmptyName: InternedString
-    let countName: InternedString
-    let addName: InternedString
-    let removeName: InternedString
-    let firstName: InternedString
-    let lastName: InternedString
-    let startName: InternedString
-    let endInclusiveName: InternedString
-    let endExclusiveName: InternedString
-    let stepName: InternedString
-    let iteratorName: InternedString
-
-    // ListIterator member names (STDLIB-538)
-    let listIteratorMemberName: InternedString
-    let hasPreviousName: InternedString
-    let previousName: InternedString
-
-    // Higher-order collection member names (FUNC-003)
-    let mapName: InternedString
-    let filterName: InternedString
-    let filterNotName: InternedString
-    let mapNotNullName: InternedString
-    let filterNotNullName: InternedString
-    let filterToName: InternedString
-    let filterNotToName: InternedString
-    let mapToName: InternedString
-    let flatMapToName: InternedString
-    let mapNotNullToName: InternedString
-    let mapIndexedToName: InternedString
-    let mapIndexedNotNullToName: InternedString
-    let flatMapIndexedToName: InternedString
-    let filterIsInstanceToName: InternedString
-    let filterIndexedToName: InternedString
-    let filterNotNullToName: InternedString
-    let forEachName: InternedString
-    let flatMapName: InternedString
-    let flatMapIndexedName: InternedString
-    let anyName: InternedString
-    let noneName: InternedString
-    let allName: InternedString
-
-    // Additional higher-order collection member names (STDLIB-005)
-    let foldName: InternedString
-    let foldRightName: InternedString
-    let reduceName: InternedString
-    let reduceRightName: InternedString
-    let reduceOrNullName: InternedString
-    let scanName: InternedString
-    let runningFoldName: InternedString
-    let runningReduceName: InternedString
-    let scanReduceName: InternedString
-    let groupByName: InternedString
-    let sortedByName: InternedString
-    let findName: InternedString
-    let findLastName: InternedString
-    let associateByName: InternedString
-    let associateWithName: InternedString
-    let associateName: InternedString
-    let associateToName: InternedString
-    let associateByToName: InternedString
-    let associateWithToName: InternedString
-    let groupByToName: InternedString
-    let mapValuesName: InternedString
-    let mapKeysName: InternedString
-    let filterKeysName: InternedString
-    let filterValuesName: InternedString
-    let zipName: InternedString
-    let zipWithNextName: InternedString
-    let unzipName: InternedString
-    let withIndexName: InternedString
-    let forEachIndexedName: InternedString
-    let onEachName: InternedString
-    let onEachIndexedName: InternedString
-    let mapIndexedName: InternedString
-    let mapIndexedNotNullName: InternedString
-    let foldIndexedName: InternedString
-    let foldRightIndexedName: InternedString
-    let reduceRightIndexedName: InternedString
-    let reduceRightIndexedOrNullName: InternedString
-    let reduceRightOrNullName: InternedString
-    let reduceIndexedName: InternedString
-    let filterIndexedName: InternedString
-    let reduceIndexedOrNullName: InternedString
-    let runningFoldIndexedName: InternedString
-    let runningReduceIndexedName: InternedString
-    let scanIndexedName: InternedString
-    let sumOfName: InternedString
-    let sumByName: InternedString
-    let sumByDoubleName: InternedString
-    let maxName: InternedString
-    let maxOrNullName: InternedString
-    let minOrNullName: InternedString
-    let maxByName: InternedString
-    let minName: InternedString
-    let maxByOrNullName: InternedString
-    let minByOrNullName: InternedString
-    let minByName: InternedString
-    let maxOfOrNullName: InternedString
-    let minOfOrNullName: InternedString
-    let maxOfName: InternedString
-    let minOfName: InternedString
-    let maxWithName: InternedString
-    let maxWithOrNullName: InternedString
-    let minWithName: InternedString
-    let minWithOrNullName: InternedString
-    let maxOfWithName: InternedString
-    let maxOfWithOrNullName: InternedString
-    let minOfWithName: InternedString
-    let minOfWithOrNullName: InternedString
-    let dropName: InternedString
-    let reversedName: InternedString
-    let asReversedName: InternedString
-    let sortedName: InternedString
-    let averageName: InternedString
-    let distinctName: InternedString
-    let distinctByName: InternedString
-    let shuffledName: InternedString
-    let flattenName: InternedString
-    let indexOfName: InternedString
-    let lastIndexOfName: InternedString
-    let indexOfFirstName: InternedString
-    let indexOfLastName: InternedString
-    let chunkedName: InternedString
-    let windowedName: InternedString
-    let sortedDescendingName: InternedString
-    let sortedByDescendingName: InternedString
-    let sortedWithName: InternedString
-    let partitionName: InternedString
-    let takeWhileName: InternedString
-    let dropWhileName: InternedString
-    let takeLastWhileName: InternedString
-    let dropLastWhileName: InternedString
-    let firstOrNullName: InternedString
-    let lastOrNullName: InternedString
-
-    // Array member names (STDLIB-087/088/089)
-    let toMutableListName: InternedString
-    let toTypedArrayName: InternedString
-    let copyOfName: InternedString
-    let copyOfRangeName: InternedString
-    let fillName: InternedString
-
-    // Sequence plus/minus member names (STDLIB-561/562)
-    let plusMemberName: InternedString
-    let plusElementName: InternedString
-    let minusElementName: InternedString
-    let minusMemberName: InternedString
-
-    // Sequence member names (STDLIB-003)
-    let asSequenceName: InternedString
-    let toListName: InternedString
-    let constrainOnceName: InternedString
-    let toCollectionName: InternedString
-    let toUByteArrayName: InternedString
-    let toUShortArrayName: InternedString
-    let toUIntArrayName: InternedString
-    let toULongArrayName: InternedString
-    let toCharArrayName: InternedString
-    let toBooleanArrayName: InternedString
-    let toShortArrayName: InternedString
-    let toDoubleArrayName: InternedString
-    let toFloatArrayName: InternedString
-    let toIntArrayName: InternedString
-    let toLongArrayName: InternedString
-    let toByteArrayName: InternedString
-    let kkLongRangeToLongArrayName: InternedString
-    let toSetName: InternedString
-    let toMapName: InternedString
-    let takeName: InternedString
-    let sequenceName: InternedString
-    let iteratorBuilderName: InternedString
-    // FQN arrays for stdlib collection factory functions (STDLIB-410)
-    let emptyListFQName: [InternedString]
-    let emptyArrayFQName: [InternedString]
-    let emptySetFQName: [InternedString]
-    let emptyMapFQName: [InternedString]
-    let listOfFQName: [InternedString]
-    let setOfFQName: [InternedString]
-    let setOfNotNullFQName: [InternedString]
-    let mapOfFQName: [InternedString]
-    let mutableListOfFQName: [InternedString]
-    let arrayListOfFQName: [InternedString]
-    let mutableSetOfFQName: [InternedString]
-    let linkedSetOfFQName: [InternedString]
-    let hashSetOfFQName: [InternedString]
-    let mutableMapOfFQName: [InternedString]
-    let hashMapOfFQName: [InternedString]
-    let linkedMapOfFQName: [InternedString]
-    let listOfNotNullFQName: [InternedString]
-    let yieldName: InternedString
-    let yieldAllName: InternedString
-
-    // Sequence factory names (STDLIB-097)
-    let sequenceOfName: InternedString
-    let generateSequenceName: InternedString
-
-    // println support
-    let printlnName: InternedString
-    let kkPrintlnAnyName: InternedString
-    let kkAnyToStringName: InternedString
-    let kotlinName: InternedString
-    let initName: InternedString
-
-    // Pair / `to` infix (FUNC-002)
-    let toName: InternedString
-    let pairName: InternedString
-    let kkPairNewName: InternedString
-    let kkPairFirstName: InternedString
-    let kkPairSecondName: InternedString
-
-    // Triple (STDLIB-120)
-    let tripleName: InternedString
-    let kkTripleNewName: InternedString
-
-    // Builder DSL names (STDLIB-002)
-    let buildStringName: InternedString
-    let buildStringBuilderName: InternedString
-    let buildListName: InternedString
-    let buildSetName: InternedString
-    let buildMapName: InternedString
-    let kkBuildStringName: InternedString
-    let kkBuildStringWithCapacityName: InternedString
-    let kkBuildStringBuilderName: InternedString
-    let kkBuildStringBuilderWithCapacityName: InternedString
-    let kkBuildListName: InternedString
-    let kkBuildListWithCapacityName: InternedString
-    let kkBuildSetName: InternedString
-    let kkBuildMapName: InternedString
-
-    // Builder member function names (STDLIB-002)
-    let appendName: InternedString
-    let addAllName: InternedString
-    let putName: InternedString
-    let kkStringBuilderAppendName: InternedString
-    let kkBuilderListAddName: InternedString
-    let kkBuilderListAddAllName: InternedString
-    let kkBuilderSetAddName: InternedString
-    let kkBuilderSetAddAllName: InternedString
-    let kkBuilderMapPutName: InternedString
-    let kkMutableSetAddName: InternedString
-    let kkMutableSetRemoveName: InternedString
-
-    // StringBuilder enhancements (STDLIB-311)
-    let appendLineName: InternedString
-    let insertName: InternedString
-    let deleteName: InternedString
-    let lengthName: InternedString
-    let appendRangeName: InternedString
-    let kkStringBuilderAppendLineName: InternedString
-    let kkStringBuilderAppendLineNoargName: InternedString
-    let kkStringBuilderInsertName: InternedString
-    let kkStringBuilderDeleteName: InternedString
-    let kkStringBuilderLengthName: InternedString
-    let kkStringBuilderAppendRangeName: InternedString
-
-    // File I/O names (STDLIB-565)
-    let fileConstructorName: InternedString
-    let kkFileNewName: InternedString
-    let readTextName: InternedString
-    let kkFileReadTextName: InternedString
-    let writeTextName: InternedString
-    let kkFileWriteTextName: InternedString
-    let appendTextName: InternedString
-    let kkFileAppendTextName: InternedString
-    let readLinesName: InternedString
-    let kkFileReadLinesName: InternedString
-    let existsName: InternedString
-    let kkFileExistsName: InternedString
-    let isFileName: InternedString
-    let kkFileIsFileName: InternedString
-    let isDirectoryName: InternedString
-    let kkFileIsDirectoryName: InternedString
-    let namePropertyName: InternedString
-    let kkFileNameName: InternedString
-    // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
-    let nameWithoutExtensionName: InternedString
-    let kkFileNameWithoutExtensionName: InternedString
-    let pathPropertyName: InternedString
-    let kkFilePathName: InternedString
-    let forEachLineName: InternedString
-    let kkFileForEachLineName: InternedString
-    let kkBufferedReaderForEachLineName: InternedString
-    // STDLIB-IO-FN-016: File.forEachBlock
-    let forEachBlockName: InternedString
-    let kkFileForEachBlockName: InternedString
-    let kkFileForEachBlockBlockSizeName: InternedString
-    let useLinesName: InternedString
-    let kkFileUseLinesName: InternedString
-    let kkBufferedReaderUseLinesName: InternedString
-    let kkPathUseLinesName: InternedString
-    let kkPathUseLinesDefaultName: InternedString
-    let kkPathNewName: InternedString
-    let kkPathGetName: InternedString
-    // STDLIB-IO-PATH-FN-039: Path.walk(options) → kk_path_walk
-    let kkPathWalkName: InternedString
-    let bufferedReaderName: InternedString
-    let kkFileBufferedReaderName: InternedString
-    let bufferedWriterName: InternedString
-    let kkFileBufferedWriterName: InternedString
-    let kkFileDeleteName: InternedString
-    let mkdirsName: InternedString
-    let kkFileMkdirsName: InternedString
-    let listFilesName: InternedString
-    let kkFileListFilesName: InternedString
-    let walkName: InternedString
-    let kkFileWalkName: InternedString
-    // STDLIB-IO-PATH-FN-039: File.walk(direction:) → kk_file_walk_with_direction
-    let kkFileWalkWithDirectionName: InternedString
-    // STDLIB-IO-TYPE-004: FileTreeWalk
-    let walkTopDownName: InternedString
-    let kkFileWalkTopDownName: InternedString
-    let walkBottomUpName: InternedString
-    let kkFileWalkBottomUpName: InternedString
-    let maxDepthName: InternedString
-    let kkFileTreeWalkMaxDepthName: InternedString
-    let kkFileTreeWalkToListName: InternedString
-    let onEnterName: InternedString
-    let kkFileTreeWalkOnEnterName: InternedString
-    let onLeaveName: InternedString
-    let kkFileTreeWalkOnLeaveName: InternedString
-    let onFailName: InternedString
-    let kkFileTreeWalkOnFailName: InternedString
-    let kkFileTreeWalkForEachName: InternedString
-    let kkFileTreeWalkFilterName: InternedString
-    let kkFileTreeWalkSortedByName: InternedString
-    let readBytesName: InternedString
-    let kkFileReadBytesName: InternedString
-    // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
-    let appendBytesName: InternedString
-    let kkFileAppendBytesName: InternedString
-    // MIGRATION-IO-001: File.writeBytes(array: ByteArray)
-    let writeBytesName: InternedString
-    let kkFileWriteBytesName: InternedString
-    // STDLIB-IO-087: Additional File operations
-    let absolutePathName: InternedString
-    let kkFileAbsolutePathName: InternedString
-    let canonicalPathName: InternedString
-    let kkFileCanonicalPathName: InternedString
-    let parentName: InternedString
-    let kkFileParentName: InternedString
-    // Note: lengthName is shared with StringBuilder section (defined above)
-    let kkFileLengthName: InternedString
-    let lastModifiedName: InternedString
-    let kkFileLastModifiedName: InternedString
-    let createNewFileName: InternedString
-    let kkFileCreateNewFileName: InternedString
-    let canReadName: InternedString
-    let kkFileCanReadName: InternedString
-    let canWriteName: InternedString
-    let kkFileCanWriteName: InternedString
-    let canExecuteName: InternedString
-    let kkFileCanExecuteName: InternedString
-    let kkFileNewParentChildName: InternedString
-    // STDLIB-IO-FN-027: PrintWriter
-    let printWriterName: InternedString
-    let kkFilePrintWriterName: InternedString
-
-    // Common lookup sets
-    let listFactoryNames: Set<InternedString>
-    let setFactoryNames: Set<InternedString>
-    let mapFactoryNames: Set<InternedString>
-    let mutableListConstructorNames: Set<InternedString>
-    let mutableSetConstructorNames: Set<InternedString>
-    let mutableMapConstructorNames: Set<InternedString>
-    let arrayOfFactoryNames: Set<InternedString>
-    let builderDSLNames: Set<InternedString>
-    let stringProducingCallees: Set<InternedString>
+    // Sequence factories whose call site is known to return a
+    // RuntimeSequenceBox handle. The public `sequenceOf` / `emptySequence` /
+    // `generateSequence` declarations are intentionally not listed: their
+    // source bodies include overloads that construct source objects, and a
+    // name-only match would erase that distinction. Their private bridge
+    // results remain unknown until a later, explicit runtime fact is available.
+    let sequenceRuntimeBridgeReturningNames: Set<InternedString>
+    /// Interned name/package tables for `trackedStaticTypeKind` — built once
+    /// here rather than per classified expression (LOWERING-001).
+    let staticTypeClassification: StaticTypeClassificationNames
     private let collectionHOFRuntimeNames: [CollectionHOFRuntimeKey: InternedString]
 
     init(interner: StringInterner) {
-        listOfName = interner.intern("listOf")
-        mutableListOfName = interner.intern("mutableListOf")
-        arrayListOfName = interner.intern("arrayListOf")
-        emptyListName = interner.intern("emptyList")
-        listOfNotNullName = interner.intern("listOfNotNull")
-        arrayOfName = interner.intern("arrayOf")
-        emptyArrayName = interner.intern("emptyArray")
-        intArrayOfName = interner.intern("intArrayOf")
-        longArrayOfName = interner.intern("longArrayOf")
-        shortArrayOfName = interner.intern("shortArrayOf")
-        byteArrayOfName = interner.intern("byteArrayOf")
-        uintArrayOfName = interner.intern("uintArrayOf")
-        doubleArrayOfName = interner.intern("doubleArrayOf")
-        floatArrayOfName = interner.intern("floatArrayOf")
-        booleanArrayOfName = interner.intern("booleanArrayOf")
-        charArrayOfName = interner.intern("charArrayOf")
-        mapOfName = interner.intern("mapOf")
-        mutableMapOfName = interner.intern("mutableMapOf")
-        hashMapOfName = interner.intern("hashMapOf")
-        linkedMapOfName = interner.intern("linkedMapOf")
-        emptyMapName = interner.intern("emptyMap")
-        setOfName = interner.intern("setOf")
-        setOfNotNullName = interner.intern("setOfNotNull")
-        mutableSetOfName = interner.intern("mutableSetOf")
-        linkedSetOfName = interner.intern("linkedSetOf")
-        hashSetOfName = interner.intern("hashSetOf")
-        emptySetName = interner.intern("emptySet")
+        listLookup = ListLookupNames(interner: interner)
+        setLookup = SetLookupNames(interner: interner)
+        mapLookup = MapLookupNames(interner: interner)
+        sequenceLookup = SequenceLookupNames(interner: interner)
+        arrayLookup = ArrayLookupNames(interner: interner)
+        rangeLookup = RangeLookupNames(interner: interner)
+        stringLookup = StringLookupNames(interner: interner)
+        fileIOLookup = FileIOLookupNames(interner: interner)
+        commonLookup = CommonLookupNames(interner: interner)
 
-        arrayListName = interner.intern("ArrayList")
-        hashMapName = interner.intern("HashMap")
-        hashSetName = interner.intern("HashSet")
-        linkedHashMapName = interner.intern("LinkedHashMap")
-        linkedHashSetName = interner.intern("LinkedHashSet")
-
-        kkListOfName = interner.intern("kk_list_of")
-        kkListOfNotNullName = interner.intern("kk_list_of_not_null")
-        kkEmptyListName = interner.intern("kk_emptyList")
-        kkEmptyArrayName = interner.intern("kk_empty_array")
-        kkEmptySetName = interner.intern("kk_emptySet")
-        kkEmptyMapName = interner.intern("kk_emptyMap")
-        kkListSizeName = interner.intern("kk_list_size")
-        kkListGetName = interner.intern("kk_list_get")
-        kkListContainsName = interner.intern("kk_list_contains")
-        kkListContainsAllName = interner.intern("kk_list_containsAll")
-        kkListIsEmptyName = interner.intern("kk_list_is_empty")
-        kkListIteratorName = interner.intern("kk_list_iterator")
-        kkListIteratorHasNextName = interner.intern("kk_list_iterator_hasNext")
-        kkListIteratorNextName = interner.intern("kk_list_iterator_next")
-        kkListIteratorHasPreviousName = interner.intern("kk_list_iterator_hasPrevious")
-        kkListIteratorPreviousName = interner.intern("kk_list_iterator_previous")
-        kkListToStringName = interner.intern("kk_list_to_string")
-        kkCollectionToMutableListName = interner.intern("kk_collection_toMutableList")
-        kkSetOfName = interner.intern("kk_set_of")
-        kkSetOfNotNullName = interner.intern("kk_set_of_not_null")
-        kkSetSizeName = interner.intern("kk_set_size")
-        kkSetContainsName = interner.intern("kk_set_contains")
-        kkSetContainsAllName = interner.intern("kk_set_containsAll")
-        kkSetIsEmptyName = interner.intern("kk_set_is_empty")
-        kkSetToStringName = interner.intern("kk_set_to_string")
-        kkIterableToMutableSetName = interner.intern("kk_iterable_toMutableSet")
-        kkSetToListName = interner.intern("kk_set_toList")
-        kkStringSplitName = interner.intern("kk_string_split")
-        kkStringAsSequenceName = interner.intern("kk_string_asSequence")
-        kkStringAsIterableName = interner.intern("kk_string_asIterable")
-        kkStringIteratorName = interner.intern("kk_string_iterator")
-        kkStringIteratorHasNextName = interner.intern("kk_string_iterator_hasNext")
-        kkStringIteratorNextName = interner.intern("kk_string_iterator_next")
-        kkStringFilterName = interner.intern("kk_string_filter")
-        kkStringMapName = interner.intern("kk_string_map")
-        kkStringCountName = interner.intern("kk_string_count")
-        kkStringAnyName = interner.intern("kk_string_any")
-        kkStringAllName = interner.intern("kk_string_all")
-        kkStringNoneName = interner.intern("kk_string_none")
-
-        kkListMapName = interner.intern("kk_list_map")
-        kkListFilterName = interner.intern("kk_list_filter")
-        kkListFilterNotName = interner.intern("kk_list_filterNot")
-        kkListMapNotNullName = interner.intern("kk_list_mapNotNull")
-        kkListFilterNotNullName = interner.intern("kk_list_filterNotNull")
-        kkListFilterToName = interner.intern("kk_list_filterTo")
-        kkListFilterNotToName = interner.intern("kk_list_filterNotTo")
-        kkListMapToName = interner.intern("kk_list_mapTo")
-        kkListFlatMapToName = interner.intern("kk_list_flatMapTo")
-        kkListMapNotNullToName = interner.intern("kk_list_mapNotNullTo")
-        kkListFilterNotNullToName = interner.intern("kk_list_filterNotNullTo")
-        kkListFilterIndexedToName = interner.intern("kk_list_filterIndexedTo")
-        kkListMapIndexedToName = interner.intern("kk_list_mapIndexedTo")
-        kkListMapIndexedNotNullToName = interner.intern("kk_list_mapIndexedNotNullTo")
-        kkListFlatMapIndexedToName = interner.intern("kk_list_flatMapIndexedTo")
-        kkListFlatMapIndexedName = interner.intern("kk_list_flatMapIndexed")
-        kkListAssociateToName = interner.intern("kk_list_associateTo")
-        kkListForEachName = interner.intern("kk_list_forEach")
-        kkListFlatMapName = interner.intern("kk_list_flatMap")
-        kkListAnyName = interner.intern("kk_list_any")
-        kkListNoneName = interner.intern("kk_list_none")
-        kkListAllName = interner.intern("kk_list_all")
-        kkCollectionToCollectionName = interner.intern("kk_collection_toCollection")
-
-        kkListFoldName = interner.intern("kk_list_fold")
-        kkListFoldRightName = interner.intern("kk_list_foldRight")
-        kkListReduceName = interner.intern("kk_list_reduce")
-        kkListReduceRightName = interner.intern("kk_list_reduceRight")
-        kkListReduceRightIndexedName = interner.intern("kk_list_reduceRightIndexed")
-        kkListReduceRightIndexedOrNullName = interner.intern("kk_list_reduceRightIndexedOrNull")
-        kkListReduceRightOrNullName = interner.intern("kk_list_reduceRightOrNull")
-        kkListReduceOrNullName = interner.intern("kk_list_reduceOrNull")
-        kkListScanName = interner.intern("kk_list_scan")
-        kkListRunningFoldName = interner.intern("kk_list_runningFold")
-        kkListRunningReduceName = interner.intern("kk_list_runningReduce")
-        kkListScanReduceName = interner.intern("kk_list_scanReduce")
-        kkListGroupByName = interner.intern("kk_list_groupBy")
-        kkListGroupByTransformName = interner.intern("kk_list_groupByTransform")
-        kkListSortedByName = interner.intern("kk_list_sortedBy")
-        kkListAssociateByName = interner.intern("kk_list_associateBy")
-        kkListAssociateByTransformName = interner.intern("kk_list_associateByTransform")
-        kkListAssociateWithName = interner.intern("kk_list_associateWith")
-        kkListAssociateName = interner.intern("kk_list_associate")
-        kkListAssociateByToName = interner.intern("kk_list_associateByTo")
-        kkListAssociateWithToName = interner.intern("kk_list_associateWithTo")
-        kkListGroupByToName = interner.intern("kk_list_groupByTo")
-        kkListCountName = interner.intern("kk_list_count")
-        kkListFirstName = interner.intern("kk_list_first")
-        kkListLastName = interner.intern("kk_list_last")
-        kkListFindName = interner.intern("kk_list_find")
-        kkListFindLastName = interner.intern("kk_list_findLast")
-        kkListZipName = interner.intern("kk_list_zip")
-        kkListZipWithNextName = interner.intern("kk_list_zipWithNext")
-        kkListZipWithNextTransformName = interner.intern("kk_list_zipWithNextTransform")
-        kkListUnzipName = interner.intern("kk_list_unzip")
-        kkListWithIndexName = interner.intern("kk_list_withIndex")
-        kkIndexingIterableIteratorName = interner.intern("kk_indexing_iterable_iterator")
-        kkIndexingIterableHasNextName = interner.intern("kk_indexing_iterable_hasNext")
-        kkIndexingIterableNextName = interner.intern("kk_indexing_iterable_next")
-        kkListForEachIndexedName = interner.intern("kk_list_forEachIndexed")
-        kkListOnEachName = interner.intern("kk_list_onEach")
-        kkListOnEachIndexedName = interner.intern("kk_list_onEachIndexed")
-        kkListMapIndexedName = interner.intern("kk_list_mapIndexed")
-        kkListMapIndexedNotNullName = interner.intern("kk_list_mapIndexedNotNull")
-        kkListFilterIndexedName = interner.intern("kk_list_filterIndexed")
-        kkListFoldIndexedName = interner.intern("kk_list_foldIndexed")
-        kkListFoldRightIndexedName = interner.intern("kk_list_foldRightIndexed")
-        kkListReduceIndexedName = interner.intern("kk_list_reduceIndexed")
-        kkListReduceIndexedOrNullName = interner.intern("kk_list_reduceIndexedOrNull")
-        kkListRunningFoldIndexedName = interner.intern("kk_list_runningFoldIndexed")
-        kkListRunningReduceIndexedName = interner.intern("kk_list_runningReduceIndexed")
-        kkListScanIndexedName = interner.intern("kk_list_scanIndexed")
-        kkListSumOfName = interner.intern("kk_list_sumOf")
-        kkListSumByName = interner.intern("kk_list_sumBy")
-        kkListSumByDoubleName = interner.intern("kk_list_sumByDouble")
-        kkListMaxOrNullName = interner.intern("kk_list_maxOrNull")
-        kkListMinOrNullName = interner.intern("kk_list_minOrNull")
-        kkListMaxByName = interner.intern("kk_list_maxBy")
-        kkListMinName = interner.intern("kk_list_min")
-        kkListMaxByOrNullName = interner.intern("kk_list_maxByOrNull")
-        kkListMinByOrNullName = interner.intern("kk_list_minByOrNull")
-        kkListMinByName = interner.intern("kk_list_minBy")
-        kkListMaxOfOrNullName = interner.intern("kk_list_maxOfOrNull")
-        kkListMinOfOrNullName = interner.intern("kk_list_minOfOrNull")
-        kkListMaxOfName = interner.intern("kk_list_maxOf")
-        kkListMinOfName = interner.intern("kk_list_minOf")
-        kkListMaxWithName = interner.intern("kk_list_maxWith")
-        kkListMaxWithOrNullName = interner.intern("kk_list_maxWithOrNull")
-        kkListMinWithName = interner.intern("kk_list_minWith")
-        kkListMinWithOrNullName = interner.intern("kk_list_minWithOrNull")
-        kkListMaxOfWithName = interner.intern("kk_list_maxOfWith")
-        kkListMaxOfWithOrNullName = interner.intern("kk_list_maxOfWithOrNull")
-        kkListMinOfWithName = interner.intern("kk_list_minOfWith")
-        kkListMinOfWithOrNullName = interner.intern("kk_list_minOfWithOrNull")
-        kkListTakeName = interner.intern("kk_list_take")
-        kkListDropName = interner.intern("kk_list_drop")
-        kkListSumName = interner.intern("kk_list_sum")
-        kkListReversedName = interner.intern("kk_list_reversed")
-        kkListAsReversedName = interner.intern("kk_list_as_reversed")
-        kkListSortedName = interner.intern("kk_list_sorted")
-        kkSetSortedName = interner.intern("kk_set_sorted")
-        kkListDistinctName = interner.intern("kk_list_distinct")
-        kkListDistinctByName = interner.intern("kk_list_distinctBy")
-        kkListShuffledName = interner.intern("kk_list_shuffled")
-        kkListShuffledRandomName = interner.intern("kk_list_shuffled_random")
-        kkListPlusElementName = interner.intern("kk_list_plus_element")
-        kkListPlusCollectionName = interner.intern("kk_list_plus_collection")
-        kkListMinusElementName = interner.intern("kk_list_minus_element")
-        kkListMinusCollectionName = interner.intern("kk_list_minus_collection")
-        kkListFlattenName = interner.intern("kk_list_flatten")
-        kkListIndexOfName = interner.intern("kk_list_indexOf")
-        kkListLastIndexOfName = interner.intern("kk_list_lastIndexOf")
-        kkListIndexOfFirstName = interner.intern("kk_list_indexOfFirst")
-        kkListIndexOfLastName = interner.intern("kk_list_indexOfLast")
-        kkListChunkedName = interner.intern("kk_list_chunked")
-        kkListChunkedTransformName = interner.intern("kk_list_chunked_transform")
-        kkListWindowedDefaultName = interner.intern("kk_list_windowed_default")
-        kkListWindowedName = interner.intern("kk_list_windowed")
-        kkListWindowedPartialName = interner.intern("kk_list_windowed_partial")
-        kkListWindowedTransformName = interner.intern("kk_list_windowed_transform")
-        kkListSortedDescendingName = interner.intern("kk_list_sortedDescending")
-        kkListSortedByDescendingName = interner.intern("kk_list_sortedByDescending")
-        kkListSortedWithName = interner.intern("kk_list_sortedWith")
-        kkListPartitionName = interner.intern("kk_list_partition")
-        kkListTakeWhileName = interner.intern("kk_list_takeWhile")
-
-        kkComparatorFromSelectorName = interner.intern("kk_comparator_from_selector")
-        kkComparatorFromSelectorDescendingName = interner.intern("kk_comparator_from_selector_descending")
-        kkComparatorFromSelectorTrampolineName = interner.intern("kk_comparator_from_selector_trampoline")
-        kkComparatorFromSelectorDescendingTrampolineName = interner.intern("kk_comparator_from_selector_descending_trampoline")
-        kkComparatorFromMultiSelectorsName = interner.intern("kk_comparator_from_multi_selectors")
-        kkComparatorFromMultiSelectors3Name = interner.intern("kk_comparator_from_multi_selectors3")
-        kkComparatorFromMultiSelectorsVarargName = interner.intern("kk_comparator_from_multi_selectors_vararg")
-        kkComparatorFromMultiSelectorsTrampolineName = interner.intern("kk_comparator_from_multi_selectors_trampoline")
-        kkComparatorNaturalOrderName = interner.intern("kk_comparator_natural_order")
-        kkComparatorReverseOrderName = interner.intern("kk_comparator_reverse_order")
-        kkComparatorNaturalOrderTrampolineName = interner.intern("kk_comparator_natural_order_trampoline")
-        kkComparatorReverseOrderTrampolineName = interner.intern("kk_comparator_reverse_order_trampoline")
-        kkComparatorThenByName = interner.intern("kk_comparator_then_by")
-        kkComparatorThenByDescendingName = interner.intern("kk_comparator_then_by_descending")
-        kkComparatorThenDescendingName = interner.intern("kk_comparator_then_descending")
-        kkComparatorThenComparatorName = interner.intern("kk_comparator_then_comparator")
-        kkComparatorThenByTrampolineName = interner.intern("kk_comparator_then_by_trampoline")
-        kkComparatorThenByDescendingTrampolineName = interner.intern("kk_comparator_then_by_descending_trampoline")
-        kkComparatorThenDescendingTrampolineName = interner.intern("kk_comparator_then_descending_trampoline")
-        kkComparatorThenComparatorTrampolineName = interner.intern("kk_comparator_then_comparator_trampoline")
-        kkComparatorNullsFirstName = interner.intern("kk_comparator_nulls_first")
-        kkComparatorNullsLastName = interner.intern("kk_comparator_nulls_last")
-        kkComparatorNullsFirstTrampolineName = interner.intern("kk_comparator_nulls_first_trampoline")
-        kkComparatorNullsLastTrampolineName = interner.intern("kk_comparator_nulls_last_trampoline")
-        kkComparatorNullsFirstComparableName = interner.intern("kk_comparator_nulls_first_comparable")
-        kkComparatorNullsFirstComparableTrampolineName = interner.intern("kk_comparator_nulls_first_comparable_trampoline")
-        kkComparatorNullsLastNaturalName = interner.intern("kk_comparator_nulls_last_natural")
-        kkComparatorNullsLastNaturalTrampolineName = interner.intern("kk_comparator_nulls_last_natural_trampoline")
-        kkComparatorReversedName = interner.intern("kk_comparator_reversed")
-        kkComparatorReversedTrampolineName = interner.intern("kk_comparator_reversed_trampoline")
-
-        kkSequenceMapName = interner.intern("kk_sequence_map")
-        kkSequenceFilterName = interner.intern("kk_sequence_filter")
-        kkSequenceTakeName = interner.intern("kk_sequence_take")
-        kkSequenceToListName = interner.intern("kk_sequence_to_list")
-        kkSequenceConstrainOnceName = interner.intern("kk_sequence_constrainOnce")
-        kkSequenceBuilderBuildName = interner.intern("kk_sequence_builder_build")
-        kkSequenceBuilderYieldName = interner.intern("kk_sequence_builder_yield")
-        kkSequenceBuilderYieldAllName = interner.intern("kk_sequence_builder_yieldAll")
-        kkIteratorBuilderBuildName = interner.intern("kk_iterator_builder_build")
-        kkIteratorBuilderHasNextName = interner.intern("kk_iterator_builder_hasNext")
-        kkIteratorBuilderNextName = interner.intern("kk_iterator_builder_next")
-
-        kkSequenceOfName = interner.intern("kk_sequence_of")
-        kkSequenceGenerateName = interner.intern("kk_sequence_generate")
-        kkSequenceGenerateNoArgName = interner.intern("kk_sequence_generate_noarg")
-        kkSequenceForEachName = interner.intern("kk_sequence_forEach")
-        kkSequenceFlatMapName = interner.intern("kk_sequence_flatMap")
-        kkSequenceFlatMapIndexedName = interner.intern("kk_sequence_flatMapIndexed")
-        kkSequenceDropName = interner.intern("kk_sequence_drop")
-        kkSequenceDistinctName = interner.intern("kk_sequence_distinct")
-        kkSequenceZipName = interner.intern("kk_sequence_zip")
-
-        kkSequenceShuffledName = interner.intern("kk_sequence_shuffled")
-        kkSequenceShuffledRandomName = interner.intern("kk_sequence_shuffled_random")
-        kkSequenceAssociateToName = interner.intern("kk_sequence_associateTo")
-        kkSequenceAssociateByToName = interner.intern("kk_sequence_associateByTo")
-        kkSequenceAssociateWithToName = interner.intern("kk_sequence_associateWithTo")
-        kkSequenceForEachIndexedName = interner.intern("kk_sequence_forEachIndexed")
-        kkSequenceZipWithNextName = interner.intern("kk_sequence_zipWithNext")
-        kkSequenceZipWithNextTransformName = interner.intern("kk_sequence_zipWithNextTransform")
-
-        kkSequenceScanName = interner.intern("kk_sequence_scan")
-        kkSequenceRunningFoldName = interner.intern("kk_sequence_runningFold")
-        kkSequenceRunningReduceName = interner.intern("kk_sequence_runningReduce")
-
-        kkSequenceToSetName = interner.intern("kk_sequence_toSet")
-        kkSequenceToMapName = interner.intern("kk_sequence_toMap")
-        kkSequenceToCollectionName = interner.intern("kk_sequence_toCollection")
-        kkSequenceGroupByName = interner.intern("kk_sequence_groupBy")
-        kkSequenceGroupByToName = interner.intern("kk_sequence_groupByTo")
-        kkSequenceMaxName = interner.intern("kk_sequence_max")
-        kkSequenceMaxOrNullName = interner.intern("kk_sequence_maxOrNull")
-        kkSequenceMinOrNullName = interner.intern("kk_sequence_minOrNull")
-        kkSequenceFlattenName = interner.intern("kk_sequence_flatten")
-        kkSequenceFoldName = interner.intern("kk_sequence_fold")
-        kkSequenceFoldIndexedName = interner.intern("kk_sequence_foldIndexed")
-        kkSequenceRunningFoldIndexedName = interner.intern("kk_sequence_runningFoldIndexed")
-        kkSequenceScanIndexedName = interner.intern("kk_sequence_scanIndexed")
-        kkSequenceReduceIndexedName = interner.intern("kk_sequence_reduceIndexed")
-        kkSequenceReduceIndexedOrNullName = interner.intern("kk_sequence_reduceIndexedOrNull")
-        kkSequenceRunningReduceIndexedName = interner.intern("kk_sequence_runningReduceIndexed")
-
-        kkSequencePlusName = interner.intern("kk_sequence_plus")
-        kkSequencePlusElementName = interner.intern("kk_sequence_plus_element")
-        kkSequenceMinusName = interner.intern("kk_sequence_minus")
-        kkSequenceOfSingleName = interner.intern("kk_sequence_of_single")
-        kkSequencePartitionName = interner.intern("kk_sequence_partition")
-
-        // STDLIB-SEQ-021: Sequence destination-collection filter operations
-        kkSequenceFilterToName = interner.intern("kk_sequence_filterTo")
-        kkSequenceFilterNotToName = interner.intern("kk_sequence_filterNotTo")
-        kkSequenceMapToName = interner.intern("kk_sequence_mapTo")
-        kkSequenceMapNotNullToName = interner.intern("kk_sequence_mapNotNullTo")
-        kkSequenceMapIndexedToName = interner.intern("kk_sequence_mapIndexedTo")
-        kkSequenceFlatMapToName = interner.intern("kk_sequence_flatMapTo")
-        kkSequenceMapIndexedNotNullToName = interner.intern("kk_sequence_mapIndexedNotNullTo")
-        kkSequenceFlatMapIndexedToName = interner.intern("kk_sequence_flatMapIndexedTo")
-        kkSequenceFilterIndexedToName = interner.intern("kk_sequence_filterIndexedTo")
-        kkSequenceFilterNotNullToName = interner.intern("kk_sequence_filterNotNullTo")
-        kkSequenceFilterIsInstanceToName = interner.intern("kk_sequence_filterIsInstanceTo")
-
-        kkMapOfName = interner.intern("kk_map_of")
-        kkMapSizeName = interner.intern("kk_map_size")
-        kkMapGetName = interner.intern("kk_map_get")
-        kkMapContainsKeyName = interner.intern("kk_map_contains_key")
-        kkMapContainsValueName = interner.intern("kk_map_contains_value")
-        kkMapIsEmptyName = interner.intern("kk_map_is_empty")
-        kkMapForEachName = interner.intern("kk_map_forEach")
-        kkMapMapName = interner.intern("kk_map_map")
-        kkMapFilterName = interner.intern("kk_map_filter")
-        kkMapFilterKeysName = interner.intern("kk_map_filterKeys")
-        kkMapFilterValuesName = interner.intern("kk_map_filterValues")
-        kkMapMapValuesName = interner.intern("kk_map_mapValues")
-        kkMapMapKeysName = interner.intern("kk_map_mapKeys")
-        kkMapCountName = interner.intern("kk_map_count")
-        kkMapAnyName = interner.intern("kk_map_any")
-        kkMapAllName = interner.intern("kk_map_all")
-        kkMapNoneName = interner.intern("kk_map_none")
-        kkMapFlatMapName = interner.intern("kk_map_flatMap")
-        kkMapMaxByOrNullName = interner.intern("kk_map_maxByOrNull")
-        kkMapMinByOrNullName = interner.intern("kk_map_minByOrNull")
-        kkMapToListName = interner.intern("kk_map_toList")
-        kkMapToStringName = interner.intern("kk_map_to_string")
-        kkMapIteratorName = interner.intern("kk_map_iterator")
-        kkMapIteratorHasNextName = interner.intern("kk_map_iterator_hasNext")
-        kkMapIteratorNextName = interner.intern("kk_map_iterator_next")
-        kkMutableMapPutAllName = interner.intern("kk_mutable_map_putAll")
-        kkMapKeysName = interner.intern("kk_map_keys")
-        kkMapValuesName = interner.intern("kk_map_values")
-        kkMapEntriesName = interner.intern("kk_map_entries")
-
-        kkArraySizeName = interner.intern("kk_array_size")
-        kkArrayNewName = interner.intern("kk_array_new")
-        kkArraySetName = interner.intern("kk_array_set")
-
-        kkArrayToListName = interner.intern("kk_array_toList")
-        kkArrayToMutableListName = interner.intern("kk_array_toMutableList")
-        kkListToTypedArrayName = interner.intern("kk_list_toTypedArray")
-        kkListToCharArrayName = interner.intern("kk_list_toCharArray")
-        kkListToBooleanArrayName = interner.intern("kk_list_toBooleanArray")
-        kkListToShortArrayName = interner.intern("kk_list_toShortArray")
-        kkListToDoubleArrayName = interner.intern("kk_list_toDoubleArray")
-        kkListToFloatArrayName = interner.intern("kk_list_toFloatArray")
-        kkListToIntArrayName = interner.intern("kk_list_toIntArray")
-        kkListToLongArrayName = interner.intern("kk_list_toLongArray")
-        kkListToByteArrayName = interner.intern("kk_list_toByteArray")
-        kkListToUByteArrayName = interner.intern("kk_list_toUByteArray")
-        kkListToUShortArrayName = interner.intern("kk_list_toUShortArray")
-        kkListToUIntArrayName = interner.intern("kk_list_toUIntArray")
-        kkListToULongArrayName = interner.intern("kk_list_toULongArray")
-        kkArrayMapName = interner.intern("kk_array_map")
-        kkArrayFilterName = interner.intern("kk_array_filter")
-        kkArrayForEachName = interner.intern("kk_array_forEach")
-        kkArrayAnyName = interner.intern("kk_array_any")
-        kkArrayAllName = interner.intern("kk_array_all")
-        kkArrayNoneName = interner.intern("kk_array_none")
-        kkArrayCountName = interner.intern("kk_array_count")
-        kkArrayCopyOfName = interner.intern("kk_array_copyOf")
-        kkArrayCopyOfNewSizeName = interner.intern("kk_array_copyOf_newSize")
-        kkArrayCopyOfNewSizeInitName = interner.intern("kk_array_copyOf_newSize_init")
-        kkArrayCopyOfRangeName = interner.intern("kk_array_copyOfRange")
-        kkArrayFillName = interner.intern("kk_array_fill")
-        kkArrayReduceName = interner.intern("kk_array_reduce")
-        kkArrayReduceOrNullName = interner.intern("kk_array_reduceOrNull")
-        kkArrayReduceIndexedName = interner.intern("kk_array_reduceIndexed")
-        kkArrayFoldName = interner.intern("kk_array_fold")
-        kkArrayFoldIndexedName = interner.intern("kk_array_foldIndexed")
-        kkArrayFlatMapName = interner.intern("kk_array_flatMap")
-        kkListAsSequenceName = interner.intern("kk_list_asSequence")
-        kkArrayAsSequenceName = interner.intern("kk_array_asSequence")
-
-        kkRangeIteratorName = interner.intern("kk_range_iterator")
-        kkRangeHasNextName = interner.intern("kk_range_hasNext")
-        kkRangeNextName = interner.intern("kk_range_next")
-
-        kkOpRangeToName = interner.intern("kk_op_rangeTo")
-        kkOpRangeUntilName = interner.intern("kk_op_rangeUntil")
-        kkOpULongRangeUntilName = interner.intern("kk_op_ulong_rangeUntil")
-        kkOpDownToName = interner.intern("kk_op_downTo")
-        kkOpStepName = interner.intern("kk_op_step")
-        kkRangeFirstName = interner.intern("kk_range_first")
-        kkRangeLastName = interner.intern("kk_range_last")
-        kkRangeEndExclusiveName = interner.intern("kk_range_endExclusive")
-        kkRangeCountName = interner.intern("kk_range_count")
-        kkRangeToListName = interner.intern("kk_range_toList")
-        kkRangeForEachName = interner.intern("kk_range_forEach")
-        kkRangeMapName = interner.intern("kk_range_map")
-        kkRangeMapIndexedName = interner.intern("kk_range_mapIndexed")
-        kkRangeMapNotNullName = interner.intern("kk_range_mapNotNull")
-        kkRangeFilterName = interner.intern("kk_range_filter")
-        kkRangeFilterIndexedName = interner.intern("kk_range_filterIndexed")
-        kkRangeFilterNotName = interner.intern("kk_range_filterNot")
-        kkRangeReduceName = interner.intern("kk_range_reduce")
-        kkRangeReduceIndexedName = interner.intern("kk_range_reduceIndexed")
-        kkRangeFoldName = interner.intern("kk_range_fold")
-        kkRangeFoldIndexedName = interner.intern("kk_range_foldIndexed")
-        kkRangeFindName = interner.intern("kk_range_find")
-        kkRangeFindLastName = interner.intern("kk_range_findLast")
-        kkRangeFirstPredicateName = interner.intern("kk_range_first_predicate")
-        kkRangeFirstOrNullPredicateName = interner.intern("kk_range_firstOrNull_predicate")
-        kkRangeLastPredicateName = interner.intern("kk_range_last_predicate")
-        kkRangeLastOrNullPredicateName = interner.intern("kk_range_lastOrNull_predicate")
-        kkRangeAnyName = interner.intern("kk_range_any")
-        kkRangeAllName = interner.intern("kk_range_all")
-        kkRangeNoneName = interner.intern("kk_range_none")
-        kkRangeChunkedName = interner.intern("kk_range_chunked")
-        kkRangeWindowedName = interner.intern("kk_range_windowed")
-        kkRangeStepName = interner.intern("kk_range_step")
-        kkRangeReversedName = interner.intern("kk_range_reversed")
-        kkRangeIsEmptyName = interner.intern("kk_range_isEmpty")
-        kkRangeSumName = interner.intern("kk_range_sum")
-        kkRangeToIntArrayName = interner.intern("kk_range_toIntArray")
-        kkRangeTakeName = interner.intern("kk_range_take")
-        kkRangeDropName = interner.intern("kk_range_drop")
-        kkRangeAverageName = interner.intern("kk_range_average")
-        kkRangeSortedName = interner.intern("kk_range_sorted")
-        kkOpContainsName = interner.intern("kk_op_contains")
-
-        sumName = interner.intern("sum")
-
-        // CharRange (STDLIB-290)
-        kkBoxCharName = interner.intern("kk_box_char")
-        kkCharRangeToListName = interner.intern("kk_char_range_toList")
-        kkCharRangeForEachName = interner.intern("kk_char_range_forEach")
-
-        // ULongRange (STDLIB-524, STDLIB-RANGE-037)
-        kkULongRangeToListName = interner.intern("kk_ulong_range_toList")
-        kkULongRangeContainsName = interner.intern("kk_ulong_range_contains")
-        kkULongRangeFirstName = interner.intern("kk_ulong_range_first")
-        kkULongRangeLastName = interner.intern("kk_ulong_range_last")
-        kkULongRangeStepName = interner.intern("kk_ulong_range_step")
-        kkULongRangeIsEmptyName = interner.intern("kk_ulong_range_isEmpty")
-        kkULongRangeReversedName = interner.intern("kk_ulong_range_reversed")
-        kkULongRangeToULongArrayName = interner.intern("kk_ulong_range_toULongArray")
-        kkULongRangeCountName = interner.intern("kk_ulong_range_count")
-        kkULongRangeIteratorName = interner.intern("kk_ulong_range_iterator")
-        kkULongRangeHasNextName = interner.intern("kk_ulong_range_hasNext")
-        kkULongRangeNextName = interner.intern("kk_ulong_range_next")
-        kkULongRangeForEachName = interner.intern("kk_ulong_range_forEach")
-        kkULongRangeMapName = interner.intern("kk_ulong_range_map")
-
-        sizeName = interner.intern("size")
-        getName = interner.intern("get")
-        containsName = interner.intern("contains")
-        containsAllName = interner.intern("containsAll")
-        containsKeyName = interner.intern("containsKey")
-        containsValueName = interner.intern("containsValue")
-        isEmptyName = interner.intern("isEmpty")
-        countName = interner.intern("count")
-        addName = interner.intern("add")
-        removeName = interner.intern("remove")
-        firstName = interner.intern("first")
-        lastName = interner.intern("last")
-        startName = interner.intern("start")
-        endInclusiveName = interner.intern("endInclusive")
-        endExclusiveName = interner.intern("endExclusive")
-        stepName = interner.intern("step")
-        iteratorName = interner.intern("iterator")
-
-        // ListIterator member names (STDLIB-538)
-        listIteratorMemberName = interner.intern("listIterator")
-        hasPreviousName = interner.intern("hasPrevious")
-        previousName = interner.intern("previous")
-
-        mapName = interner.intern("map")
-        filterName = interner.intern("filter")
-        filterNotName = interner.intern("filterNot")
-        mapNotNullName = interner.intern("mapNotNull")
-        filterNotNullName = interner.intern("filterNotNull")
-        filterToName = interner.intern("filterTo")
-        filterNotToName = interner.intern("filterNotTo")
-        mapToName = interner.intern("mapTo")
-        flatMapToName = interner.intern("flatMapTo")
-        mapNotNullToName = interner.intern("mapNotNullTo")
-        mapIndexedToName = interner.intern("mapIndexedTo")
-        mapIndexedNotNullToName = interner.intern("mapIndexedNotNullTo")
-        flatMapIndexedToName = interner.intern("flatMapIndexedTo")
-        filterIsInstanceToName = interner.intern("filterIsInstanceTo")
-        filterIndexedToName = interner.intern("filterIndexedTo")
-        filterNotNullToName = interner.intern("filterNotNullTo")
-        forEachName = interner.intern("forEach")
-        flatMapName = interner.intern("flatMap")
-        flatMapIndexedName = interner.intern("flatMapIndexed")
-        anyName = interner.intern("any")
-        noneName = interner.intern("none")
-        allName = interner.intern("all")
-
-        foldName = interner.intern("fold")
-        foldRightName = interner.intern("foldRight")
-        reduceName = interner.intern("reduce")
-        reduceRightName = interner.intern("reduceRight")
-        reduceOrNullName = interner.intern("reduceOrNull")
-        scanName = interner.intern("scan")
-        runningFoldName = interner.intern("runningFold")
-        runningReduceName = interner.intern("runningReduce")
-        scanReduceName = interner.intern("scanReduce")
-        groupByName = interner.intern("groupBy")
-        sortedByName = interner.intern("sortedBy")
-        findName = interner.intern("find")
-        findLastName = interner.intern("findLast")
-        associateByName = interner.intern("associateBy")
-        associateWithName = interner.intern("associateWith")
-        associateName = interner.intern("associate")
-        associateToName = interner.intern("associateTo")
-        associateByToName = interner.intern("associateByTo")
-        associateWithToName = interner.intern("associateWithTo")
-        groupByToName = interner.intern("groupByTo")
-        mapValuesName = interner.intern("mapValues")
-        mapKeysName = interner.intern("mapKeys")
-        filterKeysName = interner.intern("filterKeys")
-        filterValuesName = interner.intern("filterValues")
-        zipName = interner.intern("zip")
-        zipWithNextName = interner.intern("zipWithNext")
-        unzipName = interner.intern("unzip")
-        withIndexName = interner.intern("withIndex")
-        forEachIndexedName = interner.intern("forEachIndexed")
-        onEachName = interner.intern("onEach")
-        onEachIndexedName = interner.intern("onEachIndexed")
-        mapIndexedName = interner.intern("mapIndexed")
-        mapIndexedNotNullName = interner.intern("mapIndexedNotNull")
-        foldIndexedName = interner.intern("foldIndexed")
-        foldRightIndexedName = interner.intern("foldRightIndexed")
-        reduceRightIndexedName = interner.intern("reduceRightIndexed")
-        reduceRightIndexedOrNullName = interner.intern("reduceRightIndexedOrNull")
-        reduceRightOrNullName = interner.intern("reduceRightOrNull")
-        reduceIndexedName = interner.intern("reduceIndexed")
-        filterIndexedName = interner.intern("filterIndexed")
-        reduceIndexedOrNullName = interner.intern("reduceIndexedOrNull")
-        runningFoldIndexedName = interner.intern("runningFoldIndexed")
-        runningReduceIndexedName = interner.intern("runningReduceIndexed")
-        scanIndexedName = interner.intern("scanIndexed")
-        sumOfName = interner.intern("sumOf")
-        sumByName = interner.intern("sumBy")
-        sumByDoubleName = interner.intern("sumByDouble")
-        maxName = interner.intern("max")
-        maxOrNullName = interner.intern("maxOrNull")
-        minOrNullName = interner.intern("minOrNull")
-        maxByName = interner.intern("maxBy")
-        minName = interner.intern("min")
-        maxByOrNullName = interner.intern("maxByOrNull")
-        minByOrNullName = interner.intern("minByOrNull")
-        minByName = interner.intern("minBy")
-        maxOfOrNullName = interner.intern("maxOfOrNull")
-        minOfOrNullName = interner.intern("minOfOrNull")
-        maxOfName = interner.intern("maxOf")
-        minOfName = interner.intern("minOf")
-        maxWithName = interner.intern("maxWith")
-        maxWithOrNullName = interner.intern("maxWithOrNull")
-        minWithName = interner.intern("minWith")
-        minWithOrNullName = interner.intern("minWithOrNull")
-        maxOfWithName = interner.intern("maxOfWith")
-        maxOfWithOrNullName = interner.intern("maxOfWithOrNull")
-        minOfWithName = interner.intern("minOfWith")
-        minOfWithOrNullName = interner.intern("minOfWithOrNull")
-        dropName = interner.intern("drop")
-        reversedName = interner.intern("reversed")
-        asReversedName = interner.intern("asReversed")
-        sortedName = interner.intern("sorted")
-        averageName = interner.intern("average")
-        distinctName = interner.intern("distinct")
-        distinctByName = interner.intern("distinctBy")
-        shuffledName = interner.intern("shuffled")
-        flattenName = interner.intern("flatten")
-        indexOfName = interner.intern("indexOf")
-        lastIndexOfName = interner.intern("lastIndexOf")
-        indexOfFirstName = interner.intern("indexOfFirst")
-        indexOfLastName = interner.intern("indexOfLast")
-        chunkedName = interner.intern("chunked")
-        windowedName = interner.intern("windowed")
-        sortedDescendingName = interner.intern("sortedDescending")
-        sortedByDescendingName = interner.intern("sortedByDescending")
-        sortedWithName = interner.intern("sortedWith")
-        partitionName = interner.intern("partition")
-        takeWhileName = interner.intern("takeWhile")
-        dropWhileName = interner.intern("dropWhile")
-        takeLastWhileName = interner.intern("takeLastWhile")
-        dropLastWhileName = interner.intern("dropLastWhile")
-        firstOrNullName = interner.intern("firstOrNull")
-        lastOrNullName = interner.intern("lastOrNull")
-
-        toMutableListName = interner.intern("toMutableList")
-        toTypedArrayName = interner.intern("toTypedArray")
-        copyOfName = interner.intern("copyOf")
-        copyOfRangeName = interner.intern("copyOfRange")
-        fillName = interner.intern("fill")
-
-        plusMemberName = interner.intern("plus")
-        plusElementName = interner.intern("plusElement")
-        minusElementName = interner.intern("minusElement")
-        minusMemberName = interner.intern("minus")
-
-        asSequenceName = interner.intern("asSequence")
-        toListName = interner.intern("toList")
-        constrainOnceName = interner.intern("constrainOnce")
-        toCollectionName = interner.intern("toCollection")
-        toUByteArrayName = interner.intern("toUByteArray")
-        toUShortArrayName = interner.intern("toUShortArray")
-        toUIntArrayName = interner.intern("toUIntArray")
-        toULongArrayName = interner.intern("toULongArray")
-        toCharArrayName = interner.intern("toCharArray")
-        toBooleanArrayName = interner.intern("toBooleanArray")
-        toShortArrayName = interner.intern("toShortArray")
-        toDoubleArrayName = interner.intern("toDoubleArray")
-        toFloatArrayName = interner.intern("toFloatArray")
-        toIntArrayName = interner.intern("toIntArray")
-        toLongArrayName = interner.intern("toLongArray")
-        toByteArrayName = interner.intern("toByteArray")
-        kkLongRangeToLongArrayName = interner.intern("kk_long_range_toLongArray")
-        toSetName = interner.intern("toSet")
-        toMapName = interner.intern("toMap")
-        takeName = interner.intern("take")
-        sequenceName = interner.intern("sequence")
-        iteratorBuilderName = interner.intern("iterator")
-        let kotlinCollectionsPkg = [interner.intern("kotlin"), interner.intern("collections")]
-        emptyListFQName = kotlinCollectionsPkg + [interner.intern("emptyList")]
-        emptyArrayFQName = [interner.intern("kotlin")] + [interner.intern("emptyArray")]
-        emptySetFQName = kotlinCollectionsPkg + [interner.intern("emptySet")]
-        emptyMapFQName = kotlinCollectionsPkg + [interner.intern("emptyMap")]
-        listOfFQName = kotlinCollectionsPkg + [interner.intern("listOf")]
-        setOfFQName = kotlinCollectionsPkg + [interner.intern("setOf")]
-        setOfNotNullFQName = kotlinCollectionsPkg + [interner.intern("setOfNotNull")]
-        mapOfFQName = kotlinCollectionsPkg + [interner.intern("mapOf")]
-        mutableListOfFQName = kotlinCollectionsPkg + [interner.intern("mutableListOf")]
-        arrayListOfFQName = kotlinCollectionsPkg + [interner.intern("arrayListOf")]
-        mutableSetOfFQName = kotlinCollectionsPkg + [interner.intern("mutableSetOf")]
-        linkedSetOfFQName = kotlinCollectionsPkg + [interner.intern("linkedSetOf")]
-        hashSetOfFQName = kotlinCollectionsPkg + [interner.intern("hashSetOf")]
-        mutableMapOfFQName = kotlinCollectionsPkg + [interner.intern("mutableMapOf")]
-        hashMapOfFQName = kotlinCollectionsPkg + [interner.intern("hashMapOf")]
-        linkedMapOfFQName = kotlinCollectionsPkg + [interner.intern("linkedMapOf")]
-        listOfNotNullFQName = kotlinCollectionsPkg + [interner.intern("listOfNotNull")]
-        yieldName = interner.intern("yield")
-        yieldAllName = interner.intern("yieldAll")
-
-        sequenceOfName = interner.intern("sequenceOf")
-        generateSequenceName = interner.intern("generateSequence")
-
-        printlnName = interner.intern("println")
-        kkPrintlnAnyName = interner.intern("kk_println_any")
-        kkAnyToStringName = interner.intern("kk_any_to_string")
-        kotlinName = interner.intern("kotlin")
-        initName = interner.intern("<init>")
-
-        toName = interner.intern("to")
-        pairName = interner.intern("Pair")
-        kkPairNewName = interner.intern("kk_pair_new")
-        kkPairFirstName = interner.intern("kk_pair_first")
-        kkPairSecondName = interner.intern("kk_pair_second")
-
-        tripleName = interner.intern("Triple")
-        kkTripleNewName = interner.intern("kk_triple_new")
-
-        buildStringName = interner.intern("buildString")
-        buildStringBuilderName = interner.intern("buildStringBuilder")
-        buildListName = interner.intern("buildList")
-        buildSetName = interner.intern("buildSet")
-        buildMapName = interner.intern("buildMap")
-        kkBuildStringName = interner.intern("kk_build_string")
-        kkBuildStringWithCapacityName = interner.intern("kk_build_string_with_capacity")
-        kkBuildStringBuilderName = interner.intern("kk_build_string_builder")
-        kkBuildStringBuilderWithCapacityName = interner.intern("kk_build_string_builder_with_capacity")
-        kkBuildListName = interner.intern("kk_build_list")
-        kkBuildListWithCapacityName = interner.intern("kk_build_list_with_capacity")
-        kkBuildSetName = interner.intern("kk_build_set")
-        kkBuildMapName = interner.intern("kk_build_map")
-
-        appendName = interner.intern("append")
-        addAllName = interner.intern("addAll")
-        putName = interner.intern("put")
-        kkStringBuilderAppendName = interner.intern("kk_string_builder_append")
-        kkBuilderListAddName = interner.intern("kk_builder_list_add")
-        kkBuilderListAddAllName = interner.intern("kk_builder_list_addAll")
-        kkBuilderSetAddName = interner.intern("kk_builder_set_add")
-        kkBuilderSetAddAllName = interner.intern("kk_builder_set_addAll")
-        kkBuilderMapPutName = interner.intern("kk_builder_map_put")
-        kkMutableSetAddName = interner.intern("kk_mutable_set_add")
-        kkMutableSetRemoveName = interner.intern("kk_mutable_set_remove")
-
-        // StringBuilder enhancements (STDLIB-311)
-        appendLineName = interner.intern("appendLine")
-        insertName = interner.intern("insert")
-        deleteName = interner.intern("delete")
-        lengthName = interner.intern("length")
-        appendRangeName = interner.intern("appendRange")
-        kkStringBuilderAppendLineName = interner.intern("kk_string_builder_append_line")
-        kkStringBuilderAppendLineNoargName = interner.intern("kk_string_builder_append_line_noarg")
-        kkStringBuilderInsertName = interner.intern("kk_string_builder_insert")
-        kkStringBuilderDeleteName = interner.intern("kk_string_builder_delete")
-        kkStringBuilderLengthName = interner.intern("kk_string_builder_length")
-        kkStringBuilderAppendRangeName = interner.intern("kk_string_builder_append_range")
-
-        // File I/O names (STDLIB-565)
-        fileConstructorName = interner.intern("File")
-        kkFileNewName = interner.intern("kk_file_new")
-        readTextName = interner.intern("readText")
-        kkFileReadTextName = interner.intern("kk_file_readText")
-        writeTextName = interner.intern("writeText")
-        kkFileWriteTextName = interner.intern("kk_file_writeText")
-        appendTextName = interner.intern("appendText")
-        kkFileAppendTextName = interner.intern("kk_file_appendText")
-        readLinesName = interner.intern("readLines")
-        kkFileReadLinesName = interner.intern("kk_file_readLines")
-        existsName = interner.intern("exists")
-        kkFileExistsName = interner.intern("kk_file_exists")
-        isFileName = interner.intern("isFile")
-        kkFileIsFileName = interner.intern("kk_file_isFile")
-        isDirectoryName = interner.intern("isDirectory")
-        kkFileIsDirectoryName = interner.intern("kk_file_isDirectory")
-        namePropertyName = interner.intern("name")
-        kkFileNameName = interner.intern("kk_file_name")
-        // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
-        nameWithoutExtensionName = interner.intern("nameWithoutExtension")
-        kkFileNameWithoutExtensionName = interner.intern("kk_file_nameWithoutExtension")
-        pathPropertyName = interner.intern("path")
-        kkFilePathName = interner.intern("kk_file_path")
-        forEachLineName = interner.intern("forEachLine")
-        kkFileForEachLineName = interner.intern("kk_file_forEachLine")
-        kkBufferedReaderForEachLineName = interner.intern("kk_buffered_reader_forEachLine")
-        // STDLIB-IO-FN-016: File.forEachBlock
-        forEachBlockName = interner.intern("forEachBlock")
-        kkFileForEachBlockName = interner.intern("kk_file_forEachBlock")
-        kkFileForEachBlockBlockSizeName = interner.intern("kk_file_forEachBlock_blockSize")
-        useLinesName = interner.intern("useLines")
-        kkFileUseLinesName = interner.intern("kk_file_useLines")
-        kkBufferedReaderUseLinesName = interner.intern("kk_buffered_reader_useLines")
-        kkPathUseLinesName = interner.intern("kk_path_useLines")
-        kkPathUseLinesDefaultName = interner.intern("kk_path_useLines_default")
-        kkPathNewName = interner.intern("kk_path_new")
-        kkPathGetName = interner.intern("kk_path_get")
-        // STDLIB-IO-PATH-FN-039
-        kkPathWalkName = interner.intern("kk_path_walk")
-        bufferedReaderName = interner.intern("bufferedReader")
-        kkFileBufferedReaderName = interner.intern("kk_file_bufferedReader")
-        bufferedWriterName = interner.intern("bufferedWriter")
-        kkFileBufferedWriterName = interner.intern("kk_file_bufferedWriter")
-        kkFileDeleteName = interner.intern("kk_file_delete")
-        mkdirsName = interner.intern("mkdirs")
-        kkFileMkdirsName = interner.intern("kk_file_mkdirs")
-        listFilesName = interner.intern("listFiles")
-        kkFileListFilesName = interner.intern("kk_file_listFiles")
-        walkName = interner.intern("walk")
-        kkFileWalkName = interner.intern("kk_file_walk")
-        // STDLIB-IO-PATH-FN-039: File.walk(direction:) → kk_file_walk_with_direction
-        kkFileWalkWithDirectionName = interner.intern("kk_file_walk_with_direction")
-        // STDLIB-IO-TYPE-004: FileTreeWalk
-        walkTopDownName = interner.intern("walkTopDown")
-        kkFileWalkTopDownName = interner.intern("kk_file_walkTopDown")
-        walkBottomUpName = interner.intern("walkBottomUp")
-        kkFileWalkBottomUpName = interner.intern("kk_file_walkBottomUp")
-        maxDepthName = interner.intern("maxDepth")
-        kkFileTreeWalkMaxDepthName = interner.intern("kk_file_tree_walk_max_depth")
-        kkFileTreeWalkToListName = interner.intern("kk_file_tree_walk_to_list")
-        onEnterName = interner.intern("onEnter")
-        kkFileTreeWalkOnEnterName = interner.intern("kk_file_tree_walk_onEnter")
-        onLeaveName = interner.intern("onLeave")
-        kkFileTreeWalkOnLeaveName = interner.intern("kk_file_tree_walk_onLeave")
-        onFailName = interner.intern("onFail")
-        kkFileTreeWalkOnFailName = interner.intern("kk_file_tree_walk_onFail")
-        kkFileTreeWalkForEachName = interner.intern("kk_file_tree_walk_forEach")
-        kkFileTreeWalkFilterName = interner.intern("kk_file_tree_walk_filter")
-        kkFileTreeWalkSortedByName = interner.intern("kk_file_tree_walk_sortedBy")
-        readBytesName = interner.intern("readBytes")
-        kkFileReadBytesName = interner.intern("kk_file_readBytes")
-        // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
-        appendBytesName = interner.intern("appendBytes")
-        kkFileAppendBytesName = interner.intern("kk_file_appendBytes")
-        // MIGRATION-IO-001: File.writeBytes(array: ByteArray)
-        writeBytesName = interner.intern("writeBytes")
-        kkFileWriteBytesName = interner.intern("kk_file_writeBytes")
-        // STDLIB-IO-087: Additional File operations
-        absolutePathName = interner.intern("absolutePath")
-        kkFileAbsolutePathName = interner.intern("kk_file_absolutePath")
-        canonicalPathName = interner.intern("canonicalPath")
-        kkFileCanonicalPathName = interner.intern("kk_file_canonicalPath")
-        parentName = interner.intern("parent")
-        kkFileParentName = interner.intern("kk_file_parent")
-        // lengthName already initialized in StringBuilder section above
-        kkFileLengthName = interner.intern("kk_file_length")
-        lastModifiedName = interner.intern("lastModified")
-        kkFileLastModifiedName = interner.intern("kk_file_lastModified")
-        createNewFileName = interner.intern("createNewFile")
-        kkFileCreateNewFileName = interner.intern("kk_file_createNewFile")
-        canReadName = interner.intern("canRead")
-        kkFileCanReadName = interner.intern("kk_file_canRead")
-        canWriteName = interner.intern("canWrite")
-        kkFileCanWriteName = interner.intern("kk_file_canWrite")
-        canExecuteName = interner.intern("canExecute")
-        kkFileCanExecuteName = interner.intern("kk_file_canExecute")
-        kkFileNewParentChildName = interner.intern("kk_file_new_parent_child")
-        // STDLIB-IO-FN-027: PrintWriter
-        printWriterName = interner.intern("printWriter")
-        kkFilePrintWriterName = interner.intern("kk_file_printWriter")
-
-        listFactoryNames = [listOfName, mutableListOfName, arrayListOfName, emptyListName, listOfNotNullName]
-        setFactoryNames = [setOfName, setOfNotNullName, mutableSetOfName, hashSetOfName, linkedSetOfName, emptySetName]
-        mapFactoryNames = [mapOfName, mutableMapOfName, hashMapOfName, linkedMapOfName, emptyMapName]
-        mutableListConstructorNames = [arrayListName]
-        mutableSetConstructorNames = [hashSetName, linkedHashSetName]
-        mutableMapConstructorNames = [hashMapName, linkedHashMapName]
-        arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
-        builderDSLNames = [
-            buildStringName,
-            buildStringBuilderName,
-            buildListName,
-            buildSetName,
-            buildMapName,
+        sequenceRuntimeBridgeReturningNames = [
+            interner.intern("lineSequence"),
+            interner.intern("splitToSequence"),
+            arrayLookup.kkListAsSequenceName,
+            arrayLookup.kkArrayAsSequenceName
         ]
+        staticTypeClassification = StaticTypeClassificationNames(interner: interner)
         collectionHOFRuntimeNames = Dictionary(uniqueKeysWithValues: StdlibSurfaceSpec.collectionHOFMembers.flatMap { spec in
             (spec.arity.minimum ... spec.arity.maximum).map { arity in
                 (
@@ -1659,48 +54,414 @@ struct CollectionLiteralLookupTables {
                 )
             }
         })
-
-        stringProducingCallees = [
-            interner.intern("kk_string_concat"),
-            interner.intern("kk_string_intern"),
-            interner.intern("kk_string_trim"),
-            interner.intern("kk_string_lowercase"),
-            interner.intern("kk_string_uppercase"),
-            interner.intern("kk_string_replace"),
-            interner.intern("kk_string_replaceFirst"),
-            interner.intern("kk_string_replaceAfter"),
-            interner.intern("kk_string_replaceAfter_char"),
-            interner.intern("kk_string_replaceAfterLast"),
-            interner.intern("kk_string_replaceAfterLast_char"),
-            interner.intern("kk_string_replaceBefore"),
-            interner.intern("kk_string_replaceBefore_char"),
-            interner.intern("kk_string_replaceBeforeLast"),
-            interner.intern("kk_string_replaceBeforeLast_char"),
-            interner.intern("kk_string_substring"),
-            interner.intern("kk_string_slice_range"),
-            interner.intern("kk_string_slice_iterable"),
-            interner.intern("kk_string_take"),
-            interner.intern("kk_string_drop"),
-            interner.intern("kk_string_takeLast"),
-            interner.intern("kk_string_dropLast"),
-            interner.intern("kk_string_removePrefix"),
-            interner.intern("kk_string_removeSuffix"),
-            interner.intern("kk_string_removeSurrounding"),
-            interner.intern("kk_string_removeRange"),
-            interner.intern("kk_string_removeRange_range"),
-            interner.intern("kk_string_substringBefore"),
-            interner.intern("kk_string_substringBefore_char"),
-            interner.intern("kk_string_substringAfter"),
-            interner.intern("kk_string_substringAfter_char"),
-            interner.intern("kk_string_substringBeforeLast"),
-            interner.intern("kk_string_substringBeforeLast_char"),
-            interner.intern("kk_string_substringAfterLast"),
-            interner.intern("kk_string_substringAfterLast_char"),
-            kkStringFilterName,
-            interner.intern("kk_build_string"),
-            interner.intern("kk_build_string_with_capacity"),
-        ]
     }
+
+    // MARK: - List lookup names (see CollectionLiteralLoweringPass+LookupTables+List.swift)
+
+    var listOfName: InternedString { listLookup.listOfName }
+    var mutableListOfName: InternedString { listLookup.mutableListOfName }
+    var arrayListOfName: InternedString { listLookup.arrayListOfName }
+    var emptyListName: InternedString { listLookup.emptyListName }
+    var arrayListName: InternedString { listLookup.arrayListName }
+    var kkListOfName: InternedString { listLookup.kkListOfName }
+    var kkArrayListOfName: InternedString { listLookup.kkArrayListOfName }
+    var kkEmptyListName: InternedString { listLookup.kkEmptyListName }
+    var kkListSizeName: InternedString { listLookup.kkListSizeName }
+    var kkListGetName: InternedString { listLookup.kkListGetName }
+    var kkListIsEmptyName: InternedString { listLookup.kkListIsEmptyName }
+    var kkListIteratorName: InternedString { listLookup.kkListIteratorName }
+    var kkListIteratorHasNextName: InternedString { listLookup.kkListIteratorHasNextName }
+    var kkListIteratorNextName: InternedString { listLookup.kkListIteratorNextName }
+    var kkListIteratorHasPreviousName: InternedString { listLookup.kkListIteratorHasPreviousName }
+    var kkListIteratorPreviousName: InternedString { listLookup.kkListIteratorPreviousName }
+    var kkListIteratorNextIndexName: InternedString { listLookup.kkListIteratorNextIndexName }
+    var kkListIteratorPreviousIndexName: InternedString { listLookup.kkListIteratorPreviousIndexName }
+    var kkListToStringName: InternedString { listLookup.kkListToStringName }
+    var kkCollectionToMutableListName: InternedString { listLookup.kkCollectionToMutableListName }
+    var kkCollectionToArrayListName: InternedString { listLookup.kkCollectionToArrayListName }
+    var kkListAssociateToName: InternedString { listLookup.kkListAssociateToName }
+    var kkListForEachName: InternedString { listLookup.kkListForEachName }
+    var kkCollectionToCollectionName: InternedString { listLookup.kkCollectionToCollectionName }
+    var kkListGroupByName: InternedString { listLookup.kkListGroupByName }
+    var kkListGroupByTransformName: InternedString { listLookup.kkListGroupByTransformName }
+    var kkListSortedByName: InternedString { listLookup.kkListSortedByName }
+    var kkListAssociateByName: InternedString { listLookup.kkListAssociateByName }
+    var kkListAssociateByTransformName: InternedString { listLookup.kkListAssociateByTransformName }
+    var kkListAssociateWithName: InternedString { listLookup.kkListAssociateWithName }
+    var kkListAssociateName: InternedString { listLookup.kkListAssociateName }
+    var kkListAssociateByToName: InternedString { listLookup.kkListAssociateByToName }
+    var kkListAssociateWithToName: InternedString { listLookup.kkListAssociateWithToName }
+    var kkListGroupByToName: InternedString { listLookup.kkListGroupByToName }
+    var kkListZipBridgeName: InternedString { listLookup.kkListZipBridgeName }
+    var kkListZipTransformBridgeName: InternedString { listLookup.kkListZipTransformBridgeName }
+    var kkListZipWithNextBridgeName: InternedString { listLookup.kkListZipWithNextBridgeName }
+    var kkListZipWithNextTransformBridgeName: InternedString { listLookup.kkListZipWithNextTransformBridgeName }
+    var kkListUnzipName: InternedString { listLookup.kkListUnzipName }
+    var kkIndexingIterableIteratorName: InternedString { listLookup.kkIndexingIterableIteratorName }
+    var kkIndexingIterableHasNextName: InternedString { listLookup.kkIndexingIterableHasNextName }
+    var kkIndexingIterableNextName: InternedString { listLookup.kkIndexingIterableNextName }
+    var kkListOnEachName: InternedString { listLookup.kkListOnEachName }
+    var kkListOnEachIndexedName: InternedString { listLookup.kkListOnEachIndexedName }
+    var kkListMaxOrNullName: InternedString { listLookup.kkListMaxOrNullName }
+    var kkListMinOrNullName: InternedString { listLookup.kkListMinOrNullName }
+    var kkListMaxByName: InternedString { listLookup.kkListMaxByName }
+    var kkListMinName: InternedString { listLookup.kkListMinName }
+    var kkListMaxByOrNullName: InternedString { listLookup.kkListMaxByOrNullName }
+    var kkListMinByOrNullName: InternedString { listLookup.kkListMinByOrNullName }
+    var kkListMinByName: InternedString { listLookup.kkListMinByName }
+    var kkListMaxOfOrNullName: InternedString { listLookup.kkListMaxOfOrNullName }
+    var kkListMinOfOrNullName: InternedString { listLookup.kkListMinOfOrNullName }
+    var kkListMaxOfName: InternedString { listLookup.kkListMaxOfName }
+    var kkListMinOfName: InternedString { listLookup.kkListMinOfName }
+    var kkListMaxWithName: InternedString { listLookup.kkListMaxWithName }
+    var kkListMaxWithOrNullName: InternedString { listLookup.kkListMaxWithOrNullName }
+    var kkListMinWithName: InternedString { listLookup.kkListMinWithName }
+    var kkListMinWithOrNullName: InternedString { listLookup.kkListMinWithOrNullName }
+    var kkListMaxOfWithName: InternedString { listLookup.kkListMaxOfWithName }
+    var kkListMaxOfWithOrNullName: InternedString { listLookup.kkListMaxOfWithOrNullName }
+    var kkListMinOfWithName: InternedString { listLookup.kkListMinOfWithName }
+    var kkListMinOfWithOrNullName: InternedString { listLookup.kkListMinOfWithOrNullName }
+    var kkListChunkedBridgeName: InternedString { listLookup.kkListChunkedBridgeName }
+    var kkListChunkedTransformBridgeName: InternedString { listLookup.kkListChunkedTransformBridgeName }
+    var kkListWindowedBridgeName: InternedString { listLookup.kkListWindowedBridgeName }
+    var kkListWindowedTransformBridgeName: InternedString { listLookup.kkListWindowedTransformBridgeName }
+    var kkListSortedByDescendingName: InternedString { listLookup.kkListSortedByDescendingName }
+    var kkListSortedWithName: InternedString { listLookup.kkListSortedWithName }
+    var kkListPartitionName: InternedString { listLookup.kkListPartitionName }
+    var listIteratorMemberName: InternedString { listLookup.listIteratorMemberName }
+    var hasPreviousName: InternedString { listLookup.hasPreviousName }
+    var previousName: InternedString { listLookup.previousName }
+    var nextIndexName: InternedString { listLookup.nextIndexName }
+    var previousIndexName: InternedString { listLookup.previousIndexName }
+    var listFactoryNames: Set<InternedString> { listLookup.listFactoryNames }
+    var mutableListConstructorNames: Set<InternedString> { listLookup.mutableListConstructorNames }
+
+    // MARK: - Set lookup names (see CollectionLiteralLoweringPass+LookupTables+Set.swift)
+
+    var setOfName: InternedString { setLookup.setOfName }
+    var setOfNotNullName: InternedString { setLookup.setOfNotNullName }
+    var mutableSetOfName: InternedString { setLookup.mutableSetOfName }
+    var linkedSetOfName: InternedString { setLookup.linkedSetOfName }
+    var hashSetOfName: InternedString { setLookup.hashSetOfName }
+    var emptySetName: InternedString { setLookup.emptySetName }
+    var hashSetName: InternedString { setLookup.hashSetName }
+    var linkedHashSetName: InternedString { setLookup.linkedHashSetName }
+    var kkEmptySetName: InternedString { setLookup.kkEmptySetName }
+    var kkSetOfName: InternedString { setLookup.kkSetOfName }
+    var kkSetOfNotNullName: InternedString { setLookup.kkSetOfNotNullName }
+    var kkSetSizeName: InternedString { setLookup.kkSetSizeName }
+    var kkSetContainsName: InternedString { setLookup.kkSetContainsName }
+    var kkSetIsEmptyName: InternedString { setLookup.kkSetIsEmptyName }
+    var kkSetToStringName: InternedString { setLookup.kkSetToStringName }
+    var kkIterableToMutableSetName: InternedString { setLookup.kkIterableToMutableSetName }
+    var kkHashSetOfName: InternedString { setLookup.kkHashSetOfName }
+    var kkLinkedHashSetOfName: InternedString { setLookup.kkLinkedHashSetOfName }
+    var kkIterableToHashSetName: InternedString { setLookup.kkIterableToHashSetName }
+    var kkMutableSetAddName: InternedString { setLookup.kkMutableSetAddName }
+    var kkMutableSetRemoveName: InternedString { setLookup.kkMutableSetRemoveName }
+    var setFactoryNames: Set<InternedString> { setLookup.setFactoryNames }
+    var mutableSetConstructorNames: Set<InternedString> { setLookup.mutableSetConstructorNames }
+
+    // MARK: - Map lookup names (see CollectionLiteralLoweringPass+LookupTables+Map.swift)
+
+    var mapOfName: InternedString { mapLookup.mapOfName }
+    var mutableMapOfName: InternedString { mapLookup.mutableMapOfName }
+    var hashMapOfName: InternedString { mapLookup.hashMapOfName }
+    var linkedMapOfName: InternedString { mapLookup.linkedMapOfName }
+    var emptyMapName: InternedString { mapLookup.emptyMapName }
+    var hashMapName: InternedString { mapLookup.hashMapName }
+    var linkedHashMapName: InternedString { mapLookup.linkedHashMapName }
+    var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
+    var kkMapOfName: InternedString { mapLookup.kkMapOfName }
+    var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
+    var kkLinkedHashMapOfName: InternedString { mapLookup.kkLinkedHashMapOfName }
+    var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
+    var kkMapGetName: InternedString { mapLookup.kkMapGetName }
+    var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
+    var kkMapToStringName: InternedString { mapLookup.kkMapToStringName }
+    var kkMapIteratorName: InternedString { mapLookup.kkMapIteratorName }
+    var kkMapIteratorHasNextName: InternedString { mapLookup.kkMapIteratorHasNextName }
+    var kkMapIteratorNextName: InternedString { mapLookup.kkMapIteratorNextName }
+    var kkMutableMapPutAllName: InternedString { mapLookup.kkMutableMapPutAllName }
+    var mapFactoryNames: Set<InternedString> { mapLookup.mapFactoryNames }
+    var mutableMapConstructorNames: Set<InternedString> { mapLookup.mutableMapConstructorNames }
+
+    // MARK: - Sequence lookup names (see CollectionLiteralLoweringPass+LookupTables+Sequence.swift)
+
+    var kkSequenceMapName: InternedString { sequenceLookup.kkSequenceMapName }
+    var kkSequenceFilterName: InternedString { sequenceLookup.kkSequenceFilterName }
+    var kkSequenceRequireNoNullsName: InternedString { sequenceLookup.kkSequenceRequireNoNullsName }
+    var kkSequenceToListName: InternedString { sequenceLookup.kkSequenceToListName }
+    var kkSequenceConstrainOnceName: InternedString { sequenceLookup.kkSequenceConstrainOnceName }
+    var kkSequenceBuilderBuildName: InternedString { sequenceLookup.kkSequenceBuilderBuildName }
+    var kkSequenceBuilderYieldName: InternedString { sequenceLookup.kkSequenceBuilderYieldName }
+    var kkSequenceBuilderYieldAllName: InternedString { sequenceLookup.kkSequenceBuilderYieldAllName }
+    var kkIteratorBuilderBuildName: InternedString { sequenceLookup.kkIteratorBuilderBuildName }
+    var kkIteratorBuilderHasNextName: InternedString { sequenceLookup.kkIteratorBuilderHasNextName }
+    var kkIteratorBuilderNextName: InternedString { sequenceLookup.kkIteratorBuilderNextName }
+    var kkSequenceFlatMapName: InternedString { sequenceLookup.kkSequenceFlatMapName }
+    var kkSequenceFlatMapIndexedName: InternedString { sequenceLookup.kkSequenceFlatMapIndexedName }
+    var kkSequenceShuffledName: InternedString { sequenceLookup.kkSequenceShuffledName }
+    var kkSequenceShuffledRandomName: InternedString { sequenceLookup.kkSequenceShuffledRandomName }
+    var kkSequenceScanName: InternedString { sequenceLookup.kkSequenceScanName }
+    var kkSequenceRunningFoldName: InternedString { sequenceLookup.kkSequenceRunningFoldName }
+    var kkSequenceRunningReduceName: InternedString { sequenceLookup.kkSequenceRunningReduceName }
+    var kkSequenceToSetName: InternedString { sequenceLookup.kkSequenceToSetName }
+    var kkSequenceToMapName: InternedString { sequenceLookup.kkSequenceToMapName }
+    var kkSequenceToCollectionName: InternedString { sequenceLookup.kkSequenceToCollectionName }
+    var kkSequenceGroupByName: InternedString { sequenceLookup.kkSequenceGroupByName }
+    var kkSequenceMaxName: InternedString { sequenceLookup.kkSequenceMaxName }
+    var kkSequenceMaxOrNullName: InternedString { sequenceLookup.kkSequenceMaxOrNullName }
+    var kkSequenceMinOrNullName: InternedString { sequenceLookup.kkSequenceMinOrNullName }
+    var kkSequenceFlattenName: InternedString { sequenceLookup.kkSequenceFlattenName }
+    var kkSequenceRunningFoldIndexedName: InternedString { sequenceLookup.kkSequenceRunningFoldIndexedName }
+    var kkSequenceScanIndexedName: InternedString { sequenceLookup.kkSequenceScanIndexedName }
+    var kkSequenceReduceIndexedName: InternedString { sequenceLookup.kkSequenceReduceIndexedName }
+    var kkSequenceReduceIndexedOrNullName: InternedString { sequenceLookup.kkSequenceReduceIndexedOrNullName }
+    var kkSequenceRunningReduceIndexedName: InternedString { sequenceLookup.kkSequenceRunningReduceIndexedName }
+    var kkSequencePlusName: InternedString { sequenceLookup.kkSequencePlusName }
+    var kkSequencePlusElementName: InternedString { sequenceLookup.kkSequencePlusElementName }
+    var kkSequenceMinusName: InternedString { sequenceLookup.kkSequenceMinusName }
+    var kkSequenceOfSingleName: InternedString { sequenceLookup.kkSequenceOfSingleName }
+    var plusMemberName: InternedString { sequenceLookup.plusMemberName }
+    var plusElementName: InternedString { sequenceLookup.plusElementName }
+    var minusElementName: InternedString { sequenceLookup.minusElementName }
+    var minusMemberName: InternedString { sequenceLookup.minusMemberName }
+    var asSequenceName: InternedString { sequenceLookup.asSequenceName }
+    var toListName: InternedString { sequenceLookup.toListName }
+    var constrainOnceName: InternedString { sequenceLookup.constrainOnceName }
+    var toCollectionName: InternedString { sequenceLookup.toCollectionName }
+    var toUByteArrayName: InternedString { sequenceLookup.toUByteArrayName }
+    var toUShortArrayName: InternedString { sequenceLookup.toUShortArrayName }
+    var toCharArrayName: InternedString { sequenceLookup.toCharArrayName }
+    var toBooleanArrayName: InternedString { sequenceLookup.toBooleanArrayName }
+    var toShortArrayName: InternedString { sequenceLookup.toShortArrayName }
+    var toDoubleArrayName: InternedString { sequenceLookup.toDoubleArrayName }
+    var toFloatArrayName: InternedString { sequenceLookup.toFloatArrayName }
+    var toByteArrayName: InternedString { sequenceLookup.toByteArrayName }
+    var toSetName: InternedString { sequenceLookup.toSetName }
+    var toMapName: InternedString { sequenceLookup.toMapName }
+    var takeName: InternedString { sequenceLookup.takeName }
+    var yieldName: InternedString { sequenceLookup.yieldName }
+    var yieldAllName: InternedString { sequenceLookup.yieldAllName }
+
+    // MARK: - Array lookup names (see CollectionLiteralLoweringPass+LookupTables+Array.swift)
+
+    var arrayOfName: InternedString { arrayLookup.arrayOfName }
+    var emptyArrayName: InternedString { arrayLookup.emptyArrayName }
+    var intArrayOfName: InternedString { arrayLookup.intArrayOfName }
+    var longArrayOfName: InternedString { arrayLookup.longArrayOfName }
+    var shortArrayOfName: InternedString { arrayLookup.shortArrayOfName }
+    var byteArrayOfName: InternedString { arrayLookup.byteArrayOfName }
+    var ushortArrayOfName: InternedString { arrayLookup.ushortArrayOfName }
+    var uintArrayOfName: InternedString { arrayLookup.uintArrayOfName }
+    var doubleArrayOfName: InternedString { arrayLookup.doubleArrayOfName }
+    var floatArrayOfName: InternedString { arrayLookup.floatArrayOfName }
+    var booleanArrayOfName: InternedString { arrayLookup.booleanArrayOfName }
+    var charArrayOfName: InternedString { arrayLookup.charArrayOfName }
+    var kkEmptyArrayName: InternedString { arrayLookup.kkEmptyArrayName }
+    var kkArraySizeName: InternedString { arrayLookup.kkArraySizeName }
+    var kkArrayNewName: InternedString { arrayLookup.kkArrayNewName }
+    var kkArraySetName: InternedString { arrayLookup.kkArraySetName }
+    var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
+    var kkArrayCopyOfName: InternedString { arrayLookup.kkArrayCopyOfName }
+    var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
+    var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
+    var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
+    var arrayOfFactoryNames: Set<InternedString> { arrayLookup.arrayOfFactoryNames }
+
+    // MARK: - Range lookup names (see CollectionLiteralLoweringPass+LookupTables+Range.swift)
+
+    var kkRangeIteratorName: InternedString { rangeLookup.kkRangeIteratorName }
+    var kkRangeHasNextName: InternedString { rangeLookup.kkRangeHasNextName }
+    var kkRangeNextName: InternedString { rangeLookup.kkRangeNextName }
+    var kkOpRangeToName: InternedString { rangeLookup.kkOpRangeToName }
+    var kkOpRangeUntilName: InternedString { rangeLookup.kkOpRangeUntilName }
+    var kkOpULongRangeUntilName: InternedString { rangeLookup.kkOpULongRangeUntilName }
+    var kkOpDownToName: InternedString { rangeLookup.kkOpDownToName }
+    var kkOpStepName: InternedString { rangeLookup.kkOpStepName }
+    var kkRangeFirstName: InternedString { rangeLookup.kkRangeFirstName }
+    var kkRangeLastName: InternedString { rangeLookup.kkRangeLastName }
+    var kkRangeEndExclusiveName: InternedString { rangeLookup.kkRangeEndExclusiveName }
+    var kkRangeCountName: InternedString { rangeLookup.kkRangeCountName }
+    var kkRangeToListName: InternedString { rangeLookup.kkRangeToListName }
+    var kkRangeForEachName: InternedString { rangeLookup.kkRangeForEachName }
+    var kkRangeMapName: InternedString { rangeLookup.kkRangeMapName }
+    var kkRangeMapIndexedName: InternedString { rangeLookup.kkRangeMapIndexedName }
+    var kkRangeMapNotNullName: InternedString { rangeLookup.kkRangeMapNotNullName }
+    var kkRangeFilterName: InternedString { rangeLookup.kkRangeFilterName }
+    var kkRangeFilterIndexedName: InternedString { rangeLookup.kkRangeFilterIndexedName }
+    var kkRangeFilterNotName: InternedString { rangeLookup.kkRangeFilterNotName }
+    var kkRangeReduceName: InternedString { rangeLookup.kkRangeReduceName }
+    var kkRangeReduceIndexedName: InternedString { rangeLookup.kkRangeReduceIndexedName }
+    var kkRangeFoldName: InternedString { rangeLookup.kkRangeFoldName }
+    var kkRangeFoldIndexedName: InternedString { rangeLookup.kkRangeFoldIndexedName }
+    var kkRangeFindName: InternedString { rangeLookup.kkRangeFindName }
+    var kkRangeFindLastName: InternedString { rangeLookup.kkRangeFindLastName }
+    var kkRangeFirstPredicateName: InternedString { rangeLookup.kkRangeFirstPredicateName }
+    var kkRangeFirstOrNullPredicateName: InternedString { rangeLookup.kkRangeFirstOrNullPredicateName }
+    var kkRangeLastPredicateName: InternedString { rangeLookup.kkRangeLastPredicateName }
+    var kkRangeLastOrNullPredicateName: InternedString { rangeLookup.kkRangeLastOrNullPredicateName }
+    var kkRangeAnyName: InternedString { rangeLookup.kkRangeAnyName }
+    var kkRangeAllName: InternedString { rangeLookup.kkRangeAllName }
+    var kkRangeNoneName: InternedString { rangeLookup.kkRangeNoneName }
+    var kkRangeChunkedName: InternedString { rangeLookup.kkRangeChunkedName }
+    var kkRangeWindowedName: InternedString { rangeLookup.kkRangeWindowedName }
+    var kkRangeStepName: InternedString { rangeLookup.kkRangeStepName }
+    var kkRangeReversedName: InternedString { rangeLookup.kkRangeReversedName }
+    var kkRangeIsEmptyName: InternedString { rangeLookup.kkRangeIsEmptyName }
+    var kkRangeSumName: InternedString { rangeLookup.kkRangeSumName }
+    var kkRangeTakeName: InternedString { rangeLookup.kkRangeTakeName }
+    var kkRangeDropName: InternedString { rangeLookup.kkRangeDropName }
+    var kkRangeAverageName: InternedString { rangeLookup.kkRangeAverageName }
+    var kkRangeSortedName: InternedString { rangeLookup.kkRangeSortedName }
+    var kkOpContainsName: InternedString { rangeLookup.kkOpContainsName }
+    var kkBoxCharName: InternedString { rangeLookup.kkBoxCharName }
+    var kkCharRangeToListName: InternedString { rangeLookup.kkCharRangeToListName }
+    var kkCharRangeForEachName: InternedString { rangeLookup.kkCharRangeForEachName }
+    var kkULongRangeStepName: InternedString { rangeLookup.kkULongRangeStepName }
+    var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
+    var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
+    var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }
+
+    // MARK: - String lookup names (see CollectionLiteralLoweringPass+LookupTables+String.swift)
+
+    var kkStringSplitName: InternedString { stringLookup.kkStringSplitName }
+    var stringProducingCallees: Set<InternedString> { stringLookup.stringProducingCallees }
+
+    // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)
+
+
+    // MARK: - FileIO lookup names (see CollectionLiteralLoweringPass+LookupTables+FileIO.swift)
+
+    var kkBufferedReaderForEachLineName: InternedString { fileIOLookup.kkBufferedReaderForEachLineName }
+    var kkBufferedReaderUseLinesName: InternedString { fileIOLookup.kkBufferedReaderUseLinesName }
+
+    // MARK: - Common lookup names (see CollectionLiteralLoweringPass+LookupTables+Common.swift)
+
+    var sumName: InternedString { commonLookup.sumName }
+    var sizeName: InternedString { commonLookup.sizeName }
+    var getName: InternedString { commonLookup.getName }
+    var containsName: InternedString { commonLookup.containsName }
+    var containsKeyName: InternedString { commonLookup.containsKeyName }
+    var containsValueName: InternedString { commonLookup.containsValueName }
+    var isEmptyName: InternedString { commonLookup.isEmptyName }
+    var countName: InternedString { commonLookup.countName }
+    var addName: InternedString { commonLookup.addName }
+    var removeName: InternedString { commonLookup.removeName }
+    var firstName: InternedString { commonLookup.firstName }
+    var lastName: InternedString { commonLookup.lastName }
+    var startName: InternedString { commonLookup.startName }
+    var endInclusiveName: InternedString { commonLookup.endInclusiveName }
+    var endExclusiveName: InternedString { commonLookup.endExclusiveName }
+    var stepName: InternedString { commonLookup.stepName }
+    var iteratorName: InternedString { commonLookup.iteratorName }
+    var mapName: InternedString { commonLookup.mapName }
+    var filterName: InternedString { commonLookup.filterName }
+    var filterNotName: InternedString { commonLookup.filterNotName }
+    var mapNotNullName: InternedString { commonLookup.mapNotNullName }
+    var filterNotNullName: InternedString { commonLookup.filterNotNullName }
+    var requireNoNullsName: InternedString { commonLookup.requireNoNullsName }
+    var filterToName: InternedString { commonLookup.filterToName }
+    var filterNotToName: InternedString { commonLookup.filterNotToName }
+    var mapToName: InternedString { commonLookup.mapToName }
+    var flatMapToName: InternedString { commonLookup.flatMapToName }
+    var mapNotNullToName: InternedString { commonLookup.mapNotNullToName }
+    var mapIndexedToName: InternedString { commonLookup.mapIndexedToName }
+    var mapIndexedNotNullToName: InternedString { commonLookup.mapIndexedNotNullToName }
+    var flatMapIndexedToName: InternedString { commonLookup.flatMapIndexedToName }
+    var filterIsInstanceToName: InternedString { commonLookup.filterIsInstanceToName }
+    var filterIndexedToName: InternedString { commonLookup.filterIndexedToName }
+    var filterNotNullToName: InternedString { commonLookup.filterNotNullToName }
+    var forEachName: InternedString { commonLookup.forEachName }
+    var flatMapName: InternedString { commonLookup.flatMapName }
+    var flatMapIndexedName: InternedString { commonLookup.flatMapIndexedName }
+    var anyName: InternedString { commonLookup.anyName }
+    var noneName: InternedString { commonLookup.noneName }
+    var allName: InternedString { commonLookup.allName }
+    var foldName: InternedString { commonLookup.foldName }
+    var reduceName: InternedString { commonLookup.reduceName }
+    var scanName: InternedString { commonLookup.scanName }
+    var runningFoldName: InternedString { commonLookup.runningFoldName }
+    var runningReduceName: InternedString { commonLookup.runningReduceName }
+    var groupByName: InternedString { commonLookup.groupByName }
+    var findName: InternedString { commonLookup.findName }
+    var findLastName: InternedString { commonLookup.findLastName }
+    var associateByName: InternedString { commonLookup.associateByName }
+    var associateWithName: InternedString { commonLookup.associateWithName }
+    var associateName: InternedString { commonLookup.associateName }
+    var associateToName: InternedString { commonLookup.associateToName }
+    var associateByToName: InternedString { commonLookup.associateByToName }
+    var associateWithToName: InternedString { commonLookup.associateWithToName }
+    var groupByToName: InternedString { commonLookup.groupByToName }
+    var mapValuesName: InternedString { commonLookup.mapValuesName }
+    var mapKeysName: InternedString { commonLookup.mapKeysName }
+    var filterKeysName: InternedString { commonLookup.filterKeysName }
+    var filterValuesName: InternedString { commonLookup.filterValuesName }
+    var zipName: InternedString { commonLookup.zipName }
+    var zipWithNextName: InternedString { commonLookup.zipWithNextName }
+    var unzipName: InternedString { commonLookup.unzipName }
+    var forEachIndexedName: InternedString { commonLookup.forEachIndexedName }
+    var onEachName: InternedString { commonLookup.onEachName }
+    var onEachIndexedName: InternedString { commonLookup.onEachIndexedName }
+    var mapIndexedName: InternedString { commonLookup.mapIndexedName }
+    var mapIndexedNotNullName: InternedString { commonLookup.mapIndexedNotNullName }
+    var foldIndexedName: InternedString { commonLookup.foldIndexedName }
+    var reduceIndexedName: InternedString { commonLookup.reduceIndexedName }
+    var filterIndexedName: InternedString { commonLookup.filterIndexedName }
+    var reduceIndexedOrNullName: InternedString { commonLookup.reduceIndexedOrNullName }
+    var runningFoldIndexedName: InternedString { commonLookup.runningFoldIndexedName }
+    var runningReduceIndexedName: InternedString { commonLookup.runningReduceIndexedName }
+    var scanIndexedName: InternedString { commonLookup.scanIndexedName }
+    var sumByName: InternedString { commonLookup.sumByName }
+    var sumByDoubleName: InternedString { commonLookup.sumByDoubleName }
+    var maxName: InternedString { commonLookup.maxName }
+    var maxOrNullName: InternedString { commonLookup.maxOrNullName }
+    var minOrNullName: InternedString { commonLookup.minOrNullName }
+    var dropName: InternedString { commonLookup.dropName }
+    var reversedName: InternedString { commonLookup.reversedName }
+    var asReversedName: InternedString { commonLookup.asReversedName }
+    var sortedName: InternedString { commonLookup.sortedName }
+    var averageName: InternedString { commonLookup.averageName }
+    var distinctName: InternedString { commonLookup.distinctName }
+    var distinctByName: InternedString { commonLookup.distinctByName }
+    var shuffledName: InternedString { commonLookup.shuffledName }
+    var flattenName: InternedString { commonLookup.flattenName }
+    var chunkedName: InternedString { commonLookup.chunkedName }
+    var windowedName: InternedString { commonLookup.windowedName }
+    var partitionName: InternedString { commonLookup.partitionName }
+    var takeWhileName: InternedString { commonLookup.takeWhileName }
+    var dropWhileName: InternedString { commonLookup.dropWhileName }
+    var takeLastWhileName: InternedString { commonLookup.takeLastWhileName }
+    var dropLastWhileName: InternedString { commonLookup.dropLastWhileName }
+    var firstOrNullName: InternedString { commonLookup.firstOrNullName }
+    var lastOrNullName: InternedString { commonLookup.lastOrNullName }
+    var emptyListFQName: [InternedString] { commonLookup.emptyListFQName }
+    var emptyArrayFQName: [InternedString] { commonLookup.emptyArrayFQName }
+    var emptySetFQName: [InternedString] { commonLookup.emptySetFQName }
+    var emptyMapFQName: [InternedString] { commonLookup.emptyMapFQName }
+    var listOfFQName: [InternedString] { commonLookup.listOfFQName }
+    var setOfFQName: [InternedString] { commonLookup.setOfFQName }
+    var setOfNotNullFQName: [InternedString] { commonLookup.setOfNotNullFQName }
+    var mapOfFQName: [InternedString] { commonLookup.mapOfFQName }
+    var mutableListOfFQName: [InternedString] { commonLookup.mutableListOfFQName }
+    var arrayListOfFQName: [InternedString] { commonLookup.arrayListOfFQName }
+    var mutableSetOfFQName: [InternedString] { commonLookup.mutableSetOfFQName }
+    var linkedSetOfFQName: [InternedString] { commonLookup.linkedSetOfFQName }
+    var hashSetOfFQName: [InternedString] { commonLookup.hashSetOfFQName }
+    var mutableMapOfFQName: [InternedString] { commonLookup.mutableMapOfFQName }
+    var hashMapOfFQName: [InternedString] { commonLookup.hashMapOfFQName }
+    var linkedMapOfFQName: [InternedString] { commonLookup.linkedMapOfFQName }
+    var listOfNotNullFQName: [InternedString] { commonLookup.listOfNotNullFQName }
+    var kotlinName: InternedString { commonLookup.kotlinName }
+    var initName: InternedString { commonLookup.initName }
+    var toName: InternedString { commonLookup.toName }
+    var pairName: InternedString { commonLookup.pairName }
+    var kkPairNewName: InternedString { commonLookup.kkPairNewName }
+    var kkPairFirstName: InternedString { commonLookup.kkPairFirstName }
+    var kkPairSecondName: InternedString { commonLookup.kkPairSecondName }
+    var tripleName: InternedString { commonLookup.tripleName }
+    var kkTripleNewName: InternedString { commonLookup.kkTripleNewName }
 
     func collectionHOFRuntimeName(
         ownerKind: StdlibSurfaceOwnerKind,

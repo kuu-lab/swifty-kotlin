@@ -1,5 +1,15 @@
 import Foundation
 
+/// Controls how a frontend-only run responds to diagnostics from intermediate
+/// phases.
+public enum FrontendContinuationPolicy: Sendable {
+    /// Stop after the first phase that emits an error diagnostic.
+    case stopOnError
+
+    /// Continue through BuildAST and Sema when Parse emits recoverable errors.
+    case continueAfterParseError
+}
+
 /// Result of a frontend-only compilation run used by IDE / language-server
 /// scenarios. Holds the populated `CompilationContext` (AST, Sema, diagnostics)
 /// together with a snapshot of the collected diagnostics.
@@ -29,10 +39,14 @@ public extension CompilerDriver {
     ///     editor buffers. Each entry is pre-seeded into the `SourceManager`, so
     ///     `LoadSourcesPhase` (which skips already-registered paths) uses the
     ///     in-memory contents instead of reading from disk.
+    ///   - continuationPolicy: Controls whether recoverable Parse diagnostics
+    ///     still allow BuildAST and Sema to run. The default preserves the
+    ///     fail-fast frontend behavior.
     /// - Returns: A `FrontendResult` with the populated context and diagnostics.
     func runFrontend(
         options: CompilerOptions,
-        inMemorySources: [String: Data] = [:]
+        inMemorySources: [String: Data] = [:],
+        continuationPolicy: FrontendContinuationPolicy = .stopOnError
     ) -> FrontendResult {
         let context = CompilationContext(
             options: options,
@@ -53,6 +67,7 @@ public extension CompilerDriver {
             SemaPhase(),
         ]
 
+        var continuedAfterParseError = false
         for phase in phases {
             do {
                 try phase.run(context)
@@ -70,10 +85,20 @@ public extension CompilerDriver {
                 }
                 break
             }
-            // Mirror the main pipeline: stop after the first phase that reports
-            // an error so later phases never observe a partially-built program.
+            if continuationPolicy == .continueAfterParseError,
+               phase is ParsePhase,
+               context.diagnostics.hasError
+            {
+                continuedAfterParseError = true
+            }
+
+            // The LSP policy allows Parse to hand its recovered syntax tree to
+            // BuildAST and Sema. Other frontend errors, and the default policy,
+            // retain the fail-fast behavior.
             if context.diagnostics.hasError {
-                break
+                if !continuedAfterParseError {
+                    break
+                }
             }
         }
 

@@ -11,6 +11,7 @@ final class TypeCheckDriver {
     let ast: ASTModule
     let sema: SemaModule
     let semaCtx: SemaModule
+    let sourceManager: SourceManager?
     let solver: ConstraintSolver
     let resolver: OverloadResolver
     let dataFlow: DataFlowAnalyzer
@@ -42,6 +43,7 @@ final class TypeCheckDriver {
         ast: ASTModule,
         sema: SemaModule,
         semaCtx: SemaModule,
+        sourceManager: SourceManager? = nil,
         solver: ConstraintSolver,
         resolver: OverloadResolver,
         dataFlow: DataFlowAnalyzer,
@@ -56,6 +58,7 @@ final class TypeCheckDriver {
         self.ast = ast
         self.sema = sema
         self.semaCtx = semaCtx
+        self.sourceManager = sourceManager
         self.solver = solver
         self.resolver = resolver
         self.dataFlow = dataFlow
@@ -74,15 +77,31 @@ final class TypeCheckDriver {
         _ id: ExprID,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID? = nil
+        expectedType: TypeID? = nil,
+        isStatementContext: Bool = false
     ) -> TypeID {
-        exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType)
+        exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
     }
 
     // MARK: - Module-Level Type Checking
 
     func typeCheckModule(fileScopes: [Int32: FileScope], files: [ASTFile]) {
-        let checker = VisibilityChecker(symbols: sema.symbols)
+        let invisibleAccessFiles = Set(files.compactMap { file -> Int32? in
+            file.annotations.contains { annotation in
+                guard KnownCompilerAnnotation.suppress.matches(annotation.name) else {
+                    return false
+                }
+                return annotation.arguments.contains { argument in
+                    let code = argument.filter { $0 != "\"" && $0 != "'" }
+                    return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                }
+            } ? file.fileID.rawValue : nil
+        })
+        let checker = VisibilityChecker(
+            symbols: sema.symbols,
+            sourceManager: sourceManager,
+            invisibleAccessFiles: invisibleAccessFiles
+        )
 
         for file in files {
             guard let fileScope = fileScopes[file.fileID.rawValue] else {
@@ -178,6 +197,7 @@ final class TypeCheckDriver {
         solver: ConstraintSolver,
         sema: SemaModule,
         diagnostics: DiagnosticEngine,
+        secondaryRanges: [SourceRange] = [],
         suppressPlatformWarning: Bool = false
     ) {
         let solution = solver.solve(
@@ -193,7 +213,13 @@ final class TypeCheckDriver {
             typeSystem: sema.types
         )
         if !solution.isSuccess, let failure = solution.failure {
-            diagnostics.emit(failure)
+            diagnostics.emit(withExpectedTypeOrigin(
+                failure,
+                expectedType: right,
+                extraRanges: secondaryRanges,
+                primaryRange: range,
+                sema: sema
+            ))
         } else if !suppressPlatformWarning,
                   let warningRange = range,
                   sema.types.nullability(of: left) == .platformType,
@@ -206,5 +232,54 @@ final class TypeCheckDriver {
                 range: warningRange
             )
         }
+    }
+
+    /// ARCH-031: attach where the expected type comes from as secondary ranges
+    /// on a failed subtype constraint — the expected type's own declaration
+    /// site plus any caller-provided ranges (e.g. the enclosing function whose
+    /// signature declares the expected return type).
+    private func withExpectedTypeOrigin(
+        _ failure: Diagnostic,
+        expectedType: TypeID,
+        extraRanges: [SourceRange],
+        primaryRange: SourceRange?,
+        sema: SemaModule
+    ) -> Diagnostic {
+        var secondary: [SourceRange] = []
+        for candidate in extraRanges + expectedTypeOriginRanges(of: expectedType, sema: sema) {
+            if candidate == primaryRange || secondary.contains(candidate) {
+                continue
+            }
+            secondary.append(candidate)
+        }
+        guard !secondary.isEmpty else {
+            return failure
+        }
+        return Diagnostic(
+            severity: failure.severity,
+            code: failure.code,
+            message: failure.message,
+            primaryRange: failure.primaryRange,
+            secondaryRanges: secondary,
+            codeActions: failure.codeActions
+        )
+    }
+
+    /// Declaration site of the expected type itself (a nominal class or a type
+    /// parameter declared in source). Returns empty for primitive, function,
+    /// or otherwise non-declared types.
+    private func expectedTypeOriginRanges(of type: TypeID, sema: SemaModule) -> [SourceRange] {
+        let symbol: SymbolID? = switch sema.types.kind(of: type) {
+        case let .classType(classType):
+            classType.classSymbol
+        case let .typeParam(typeParam):
+            typeParam.symbol
+        default:
+            nil
+        }
+        guard let symbol, let site = sema.symbols.symbol(symbol)?.declSite else {
+            return []
+        }
+        return [site]
     }
 }

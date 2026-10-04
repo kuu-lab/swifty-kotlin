@@ -3,80 +3,20 @@
 
 public extension RuntimeABISpec {
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
-        // Compiler-reserved runtime ABI names without @_cdecl implementations yet.
-        abiParitySpec("kk_result_mapCatching", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_result_flatMap", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_result_flatMapCatching", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_kclass_register_annotation", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-        ]),
-        abiParitySpec("kk_kclass_has_annotation", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_class_name", parameters: [
-            p("p0", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_simple_class_name", parameters: [
-            p("p0", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_get_arguments", parameters: [
-            p("p0", .intptr),
-        ]),
-        abiParitySpec("kk_any_javaClass", parameters: [
+        abiParitySpec("__kk_any_javaClass", parameters: [
             p("receiverRaw", .intptr),
-        ]),
-        abiParitySpec("kk_array_isArrayOf", parameters: [
-            p("arrayRaw", .intptr),
-        ]),
-        abiParitySpec("kk_function_andThen", parameters: [
-            p("functionRaw", .intptr),
-            p("nextRaw", .intptr),
-        ]),
-        abiParitySpec("kk_function_compose", parameters: [
-            p("functionRaw", .intptr),
-            p("beforeRaw", .intptr),
-        ]),
-        abiParitySpec("kk_function_curried", parameters: [
-            p("functionRaw", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_future_getState", parameters: [
             p("futureRaw", .intptr),
         ]),
+        abiParitySpec("kk_future_invoke", parameters: [
+            p("fnPtr", .intptr),
+            p("closureRaw", .intptr),
+            p("valueRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_int_to_int", parameters: [
             p("value", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_create", parameters: [
-            p("valueRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_load", parameters: [
-            p("refRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_compareAndSwap", parameters: [
-            p("refRaw", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
-        ]),
-        abiParitySpec("kk_native_atomic_ref_compareAndSet", parameters: [
-            p("refRaw", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
         ]),
         // Runtime @_cdecl entries awaiting a dedicated RuntimeABISpec category.
         abiParitySpec("component1", parameters: [
@@ -85,61 +25,11 @@ public extension RuntimeABISpec {
         abiParitySpec("component2", parameters: [
             p("pairRaw", .intptr),
         ]),
-        abiParitySpec("kk_adv_logger_add_async_appender", parameters: [
-            p("loggerRaw", .intptr),
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_add_file_appender", parameters: [
-            p("loggerRaw", .intptr),
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_add_rolling_appender", parameters: [
-            p("loggerRaw", .intptr),
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_add_structured_appender", parameters: [
-            p("loggerRaw", .intptr),
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_log", parameters: [
-            p("loggerRaw", .intptr),
-            p("levelRaw", .intptr),
-            p("messageRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_log_throwable", parameters: [
-            p("loggerRaw", .intptr),
-            p("levelRaw", .intptr),
-            p("messageRaw", .intptr),
-            p("throwableRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_set_filter", parameters: [
-            p("loggerRaw", .intptr),
-            p("prefixRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_set_level", parameters: [
-            p("loggerRaw", .intptr),
-            p("levelRaw", .intptr),
-        ]),
-        abiParitySpec("kk_async_appender_wrap_file", parameters: [
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_async_appender_wrap_rolling", parameters: [
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_async_appender_wrap_structured", parameters: [
-            p("appenderRaw", .intptr),
-        ]),
         abiParitySpec("kk_atomic_ref_array_compareAndExchangeAt", parameters: [
             p("receiver", .intptr),
             p("index", .intptr),
             p("expect", .intptr),
             p("update", .intptr),
-        ]),
-        abiParitySpec("kk_atomic_ref_array_fetchAndUpdateAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_atomic_ref_array_loadAt", parameters: [
             p("receiver", .intptr),
@@ -156,128 +46,58 @@ public extension RuntimeABISpec {
             p("index", .intptr),
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_atomic_ref_array_updateAndFetchAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_atomic_ref_array_updateAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_biginteger_modInverse", parameters: [
-            p("selfRaw", .intptr),
-            p("modulusRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_biginteger_modPow", parameters: [
-            p("selfRaw", .intptr),
-            p("exponentRaw", .intptr),
-            p("modulusRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_biginteger_not", parameters: [
-            p("selfRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_or", parameters: [
-            p("selfRaw", .intptr),
-            p("otherRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_shiftLeft", parameters: [
-            p("selfRaw", .intptr),
-            p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_shiftRight", parameters: [
-            p("selfRaw", .intptr),
-            p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_toByteArray", parameters: [
-            p("selfRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_xor", parameters: [
-            p("selfRaw", .intptr),
-            p("otherRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_callable_ref_arity", parameters: [
+        abiParitySpec("kk_callable_ref_call_0", parameters: [
             p("tagged", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_callable_ref_is_suspend", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("kk_callable_ref_call_1", parameters: [
             p("tagged", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_callable_ref_parameters", parameters: [
+            p("arg", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("kk_callable_ref_call_2", parameters: [
             p("tagged", .intptr),
-        ],
-            isThrowing: false),
+            p("arg1", .intptr),
+            p("arg2", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("kk_callable_ref_call_3", parameters: [
+            p("tagged", .intptr),
+            p("arg1", .intptr),
+            p("arg2", .intptr),
+            p("arg3", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        // KSP-678: these Channel residuals are bridged from bundled Kotlin
+        // (Channels.kt) and return a plain Int handle/flag; they do not use the
+        // outThrown ABI lowering path.
         abiParitySpec("kk_channel_is_closed_for_receive", parameters: [
             p("handle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_is_closed_for_send", parameters: [
             p("handle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_iterator", parameters: [
             p("handle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_iterator_hasNext", parameters: [
             p("iterHandle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_iterator_next", parameters: [
             p("iterHandle", .intptr),
-        ]),
-        abiParitySpec("kk_char_digitToChar_radix", parameters: [
-            p("digit", .intptr),
-            p("radix", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_char_digitToInt_radix", parameters: [
+        ], isThrowing: false),
+        abiParitySpec("kk_channel_send_suspending", parameters: [
+            p("handle", .intptr),
             p("value", .intptr),
-            p("radix", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_char_digitToIntOrNull_radix", parameters: [
-            p("value", .intptr),
-            p("radix", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_char_fromCode", parameters: [
-            p("code", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_char_isHighSurrogate", parameters: [
-            p("value", .intptr),
+            p("continuation", .intptr),
         ]),
         abiParitySpec("kk_char_isISOControl", parameters: [
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_char_isLowSurrogate", parameters: [
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_char_isSurrogate", parameters: [
             p("value", .intptr),
         ]),
         abiParitySpec("kk_char_isTitleCase", parameters: [
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_check_not_null", parameters: [
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_check_not_null_lazy", parameters: [
-            p("value", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+
         abiParitySpec("kk_cname_lookup", parameters: [
             p("externNameRaw", .intptr),
         ]),
@@ -291,6 +111,15 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_copaque_pointer_new", parameters: [
             p("address", .intptr),
         ]),
+        abiParitySpec("__kk_coroutine_continuation_context", parameters: [
+            p("continuation", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_coroutine_continuation_resume_with", parameters: [
+            p("continuation", .intptr),
+            p("resultRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
         abiParitySpec("kk_coroutine_continuation_context", parameters: [
             p("continuation", .intptr),
         ]),
@@ -318,134 +147,78 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_cpointer_toKStringFromUtf32", parameters: [
             p("handle", .intptr),
         ]),
+        abiParitySpec("kk_cpointer_toKStringFromUtf16", parameters: [
+            p("handle", .intptr),
+        ]),
         abiParitySpec("kk_byteArray_toCValues", parameters: [
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_files_copy", parameters: [
-            p("filesRaw", .intptr),
-            p("sourceRaw", .intptr),
-            p("targetRaw", .intptr),
+        // STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
+        abiParitySpec("__kk_byteArray_toKString", parameters: [
+            p("arrRaw", .intptr),
+            p("startIndex", .intptr),
+            p("endIndex", .intptr),
+            p("throwOnInvalidSequence", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_files_createDirectories", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_createDirectory", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_createFile", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_createTempDirectory", parameters: [
-            p("filesRaw", .intptr),
-            p("prefixRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_createTempFile", parameters: [
-            p("filesRaw", .intptr),
-            p("prefixRaw", .intptr),
-            p("suffixRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_delete", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_exists", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
+        abiParitySpec("kk_cinterop_writeBits", parameters: [
+            p("ptr", .intptr),
+            p("offset", .intptr),
+            p("size", .intptr),
+            p("value", .intptr),
+        ],
+            returnType: .void,
+            isThrowing: false),
+        abiParitySpec("kk_uLongArray_toCValues", parameters: [
+            p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_files_getLastModifiedTime", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_isDirectory", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
+        abiParitySpec("kk_uIntArray_toCValues", parameters: [
+            p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_files_isRegularFile", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
+        abiParitySpec("kk_uByteArray_toCValues", parameters: [
+            p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_files_list", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
+        abiParitySpec("kk_flow_catch", parameters: [
+            p("flowHandle", .intptr),
+            p("handlerFnPtr", .intptr),
+            p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_files_move", parameters: [
-            p("filesRaw", .intptr),
-            p("sourceRaw", .intptr),
-            p("targetRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_newDirectoryStream", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_size", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_files_walk", parameters: [
-            p("filesRaw", .intptr),
-            p("pathRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_fileTime_toMillis", parameters: [
-            p("fileTimeRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_flow_emit_with_timestamp", parameters: [
+        abiParitySpec("__kk_flow_emit_with_timestamp", parameters: [
             p("flowHandle", .intptr),
             p("value", .intptr),
             p("tag", .intptr),
             p("timestamp", .uint64),
         ]),
-        abiParitySpec("kk_flow_share_in", parameters: [
+        abiParitySpec("kk_flow_on_completion", parameters: [
             p("flowHandle", .intptr),
-            p("replay", .intptr),
+            p("handlerFnPtr", .intptr),
+            p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_flow_state_in", parameters: [
+        abiParitySpec("kk_flow_on_error_resume", parameters: [
             p("flowHandle", .intptr),
-            p("initialValue", .intptr),
+            p("fallbackFlowHandle", .intptr),
+            p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_freezable_atomic_ref_compareAndSet", parameters: [
-            p("refHandle", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
+        abiParitySpec("kk_flow_on_error_return", parameters: [
+            p("flowHandle", .intptr),
+            p("fallbackValue", .intptr),
+            p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_freezable_atomic_ref_compareAndSwap", parameters: [
-            p("refHandle", .intptr),
-            p("expectedRaw", .intptr),
-            p("newRaw", .intptr),
+        abiParitySpec("kk_flow_retry", parameters: [
+            p("flowHandle", .intptr),
+            p("retries", .intptr),
+            p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_freezable_atomic_ref_create", parameters: [
-            p("initialRaw", .intptr),
+        abiParitySpec("kk_flow_retry_when", parameters: [
+            p("flowHandle", .intptr),
+            p("predicateFnPtr", .intptr),
+            p("arg2", .intptr),
         ]),
-        abiParitySpec("kk_freezable_atomic_ref_is_frozen", parameters: [
-            p("refHandle", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_load", parameters: [
-            p("refHandle", .intptr),
-        ]),
-        abiParitySpec("kk_freezable_atomic_ref_store", parameters: [
-            p("refHandle", .intptr),
-            p("valueRaw", .intptr),
-        ]),
+        // KSP-676: kk_flow_state_in removed — Flow.stateIn is bundled Kotlin source.
         abiParitySpec("kk_freeze_object", parameters: [
             p("objectRaw", .intptr),
         ]),
@@ -527,49 +300,52 @@ public extension RuntimeABISpec {
             p("responseRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_input_stream_mark", parameters: [
+        abiParitySpec("__kk_input_stream_mark", parameters: [
             p("streamRaw", .intptr),
             p("readLimitRaw", .intptr),
         ]),
-        abiParitySpec("kk_input_stream_mark_supported", parameters: [
+        abiParitySpec("__kk_input_stream_mark_supported", parameters: [
             p("streamRaw", .intptr),
         ]),
-        abiParitySpec("kk_input_stream_reset", parameters: [
+        abiParitySpec("__kk_input_stream_reset", parameters: [
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempDir", parameters: [
+        // kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR)):
+        // real stdlib functions, not File's own facade. Restored after being
+        // dropped as an unintended side effect of CLEANUP-STUB-107.
+        abiParitySpec("__kk_io_createTempDir", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("directoryRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempDir_default", parameters: [
+        abiParitySpec("__kk_io_createTempDir_default", parameters: [
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempDir_prefix", parameters: [
+        abiParitySpec("__kk_io_createTempDir_prefix", parameters: [
             p("prefixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempDir_prefix_suffix", parameters: [
+        abiParitySpec("__kk_io_createTempDir_prefix_suffix", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempFile", parameters: [
+        abiParitySpec("__kk_io_createTempFile", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("directoryRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempFile_default", parameters: [
+        abiParitySpec("__kk_io_createTempFile_default", parameters: [
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempFile_prefix", parameters: [
+        abiParitySpec("__kk_io_createTempFile_prefix", parameters: [
             p("prefixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_io_createTempFile_prefix_suffix", parameters: [
+        abiParitySpec("__kk_io_createTempFile_prefix_suffix", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -579,23 +355,25 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_iterator_hasNext", parameters: [
             p("iterRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_iterator_next", parameters: [
             p("iterRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_kclass_is_final", parameters: [
+        abiParitySpec("__kk_kclass_is_final", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_is_open", parameters: [
+        abiParitySpec("__kk_kclass_is_open", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_register_member", parameters: [
+        abiParitySpec("__kk_kclass_register_member", parameters: [
             p("kclassRaw", .intptr),
             p("memberRaw", .intptr),
         ]),
-        abiParitySpec("kk_kclass_register_metadata_v2", parameters: [
+        abiParitySpec("__kk_kclass_register_metadata_v2", parameters: [
             p("typeToken", .intptr),
             p("qualifiedNameRaw", .intptr),
             p("simpleNameRaw", .intptr),
@@ -607,173 +385,70 @@ public extension RuntimeABISpec {
             p("visibilityRaw", .intptr),
             p("typeParameterCount", .intptr),
         ]),
-        abiParitySpec("kk_kclass_supertypes", parameters: [
+        abiParitySpec("__kk_kclass_supertypes", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_nested_classes", parameters: [
+        abiParitySpec("__kk_kclass_type_parameters", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_type_parameters", parameters: [
+        abiParitySpec("__kk_kclass_visibility", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_visibility", parameters: [
-            p("kclassRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_list_dropLast", parameters: [
-            p("listRaw", .intptr),
-            p("count", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_list_elementAt", parameters: [
-            p("listRaw", .intptr),
-            p("index", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_list_elementAtOrElse", parameters: [
-            p("listRaw", .intptr),
-            p("index", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_list_foldRight", parameters: [
-            p("listRaw", .intptr),
-            p("initial", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_list_foldRightIndexed", parameters: [
-            p("listRaw", .intptr),
-            p("initial", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_list_reduceRight", parameters: [
-            p("listRaw", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_list_toByteArray", parameters: [
-            p("listRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_long_range_average", parameters: [
+        abiParitySpec("__kk_long_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_long_range_drop", parameters: [
+        abiParitySpec("__kk_long_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_long_range_sorted", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_long_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_long_range_take", parameters: [
+        abiParitySpec("__kk_long_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_map_entry_to_pair", parameters: [
-            p("entryRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_component1", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_component2", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_next", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_range", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        // KSP-486: MatchResult iteration / destructuring bridges
+        abiParitySpec("__kk_match_result_next", parameters: [
             p("matchRaw", .intptr),
         ],
             isThrowing: false),
         // STDLIB-TEXT-TYPE-010: MatchResult.Destructured
-        abiParitySpec("kk_match_result_destructured", parameters: [
+        abiParitySpec("__kk_match_result_destructured", parameters: [
             p("matchRaw", .intptr),
         ]),
-        abiParitySpec("kk_match_result_destructured_match", parameters: [
+        abiParitySpec("__kk_match_result_destructured_match", parameters: [
             p("destructuredRaw", .intptr),
         ]),
-        abiParitySpec("kk_match_result_destructured_component1", parameters: [
-            p("destructuredRaw", .intptr),
+        abiParitySpec("kk_math_e"),
+        abiParitySpec("kk_math_pi"),
+        abiParitySpec("kk_mem_scope_alloc", parameters: [
+            p("scopeHandle", .intptr),
+            p("byteCount", .intptr),
         ]),
-        abiParitySpec("kk_match_result_destructured_component2", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component3", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component4", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component5", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component6", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component7", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component8", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component9", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_shared_flow_create", parameters: [
-            p("replay", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_shared_flow_emit", parameters: [
+        abiParitySpec("kk_mem_scope_enter"),
+        abiParitySpec("kk_mem_scope_exit", parameters: [
             p("handle", .intptr),
-            p("value", .intptr),
         ]),
-        abiParitySpec("kk_mutable_shared_flow_try_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
+        // KSP-676: MutableStateFlow is bundled Kotlin source; these C bridges are gone.
+        abiParitySpec("kk_native_alloc_bytes", parameters: [
+            p("byteCount", .intptr),
         ]),
-        abiParitySpec("kk_mutable_state_flow_create", parameters: [
-            p("initialValue", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_state_flow_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_mutable_state_flow_try_emit", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-        ]),
-        abiParitySpec("kk_normalization_form_nfc",
-            isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfd",
-            isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfkc",
-            isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfkd",
-            isThrowing: false),
+        // KSP-717: __kk_normalization_form_nfc/nfd/nfkc/nfkd removed. Their
+        // tag values are plain Kotlin constants now (StringNormalize.kt).
         abiParitySpec("kk_pin_object", parameters: [
             p("objectRaw", .intptr),
-        ],
-            isThrowing: false),
+        ]),
         abiParitySpec("kk_pinned_get", parameters: [
             p("pinnedHandle", .intptr),
-        ],
-            isThrowing: false),
+        ]),
         abiParitySpec("kk_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -781,10 +456,7 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_range_end", parameters: [
-            p("rangeRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_range_sorted", parameters: [
             p("rangeRaw", .intptr),
@@ -793,127 +465,114 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_regex_matches", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("kk_regex_matches_flat", parameters: [
             p("regexRaw", .intptr),
-            p("inputRaw", .intptr),
+            p("data", .nullableConstUInt8Pointer),
+            p("length", .intptr),
+            p("byteCount", .intptr),
+            p("hash", .intptr),
         ]),
-        abiParitySpec("kk_require_not_null", parameters: [
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_require_not_null_lazy", parameters: [
-            p("value", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_sequence_input_stream_available", parameters: [
+
+        abiParitySpec("__kk_sequence_input_stream_available", parameters: [
             p("streamRaw", .intptr),
         ]),
-        abiParitySpec("kk_sequence_input_stream_close", parameters: [
+        abiParitySpec("__kk_sequence_input_stream_close", parameters: [
             p("streamRaw", .intptr),
         ]),
-        abiParitySpec("kk_sequence_input_stream_new", parameters: [
+        abiParitySpec("__kk_sequence_input_stream_new", parameters: [
             p("firstRaw", .intptr),
             p("secondRaw", .intptr),
         ]),
-        abiParitySpec("kk_sequence_input_stream_read", parameters: [
+        abiParitySpec("__kk_sequence_input_stream_read", parameters: [
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_sequence_zipWithNext", parameters: [
-            p("seqRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_sequence_zipWithNextTransform", parameters: [
-            p("seqRaw", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_set_maxOrNull", parameters: [
-            p("setRaw", .intptr),
-        ]),
-        abiParitySpec("kk_set_minOrNull", parameters: [
-            p("setRaw", .intptr),
-        ]),
-        abiParitySpec("kk_set_toList", parameters: [
-            p("setRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_shared_flow_collect", parameters: [
-            p("handle", .intptr),
-            p("collectorFnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_shared_flow_replay_cache", parameters: [
-            p("handle", .intptr),
-        ]),
-        abiParitySpec("kk_shared_immutable_init", parameters: [
+        abiParitySpec("kk_stable_ref_create", parameters: [
             p("objectRaw", .intptr),
-        ]),
-        abiParitySpec("kk_state_flow_value", parameters: [
-            p("handle", .intptr),
-        ]),
-        abiParitySpec("kk_string_contentEquals", parameters: [
-            p("receiverRaw", .intptr),
-            p("otherRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_string_contentEquals_ignoreCase", parameters: [
-            p("receiverRaw", .intptr),
-            p("otherRaw", .intptr),
-            p("ignoreCaseRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_string_getOrNull", parameters: [
-            p("strRaw", .intptr),
-            p("index", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_string_isNormalized", parameters: [
-            p("strRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_stable_ref_deref", parameters: [
+            p("pointerHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_stable_ref_dispose", parameters: [
+            p("pointerHandle", .intptr),
+        ], isThrowing: false),
+        // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
+        // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
+        // KSP-717: both bridges are plain (non-throwing) flat-string helpers
+        // in RuntimeStringStdlib.swift (no outThrown parameter) — explicit
+        // isThrowing: false overrides abiParitySpec's throwing-by-default,
+        // matching the real Swift signature (found via
+        // RuntimeABIExternalLinkValidationTests once these gained a Kotlin
+        // `@KsSymbolName` declaration in StringNormalize.kt).
+        abiParitySpec("__kk_string_isNormalized_flat", parameters: [
+            p("receiverData", .nullableConstUInt8Pointer),
+            p("receiverLength", .intptr),
+            p("receiverByteCount", .intptr),
+            p("receiverHash", .intptr),
             p("formTagRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_string_normalize", parameters: [
-            p("strRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_string_normalize_flat", parameters: [
+            p("receiverData", .nullableConstUInt8Pointer),
+            p("receiverLength", .intptr),
+            p("receiverByteCount", .intptr),
+            p("receiverHash", .intptr),
             p("formTagRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_string_partition", parameters: [
-            p("strRaw", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
+            p("outLength", .nullableIntptrPointer),
+            p("outByteCount", .nullableIntptrPointer),
+            p("outHash", .nullableIntptrPointer),
+        ], returnType: .nullableUInt8Pointer, isThrowing: false),
+        abiParitySpec("__kk_string_toBooleanStrictOrNull_flat", parameters: [
+            p("data", .nullableConstUInt8Pointer),
+            p("length", .intptr),
+            p("byteCount", .intptr),
+            p("hash", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_string_toByte_flat", parameters: [
+            p("data", .nullableConstUInt8Pointer),
+            p("length", .intptr),
+            p("byteCount", .intptr),
+            p("hash", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_subSequence", parameters: [
-            p("strRaw", .intptr),
-            p("startRaw", .intptr),
-            p("endRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_string_toBigInteger", parameters: [
-            p("strRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_string_toBooleanStrictOrNull", parameters: [
-            p("strRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_string_toByte", parameters: [
+        abiParitySpec("__kk_string_toByte", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByte_radix", parameters: [
+        abiParitySpec("__kk_string_toByte_radix_flat", parameters: [
+            p("data", .nullableConstUInt8Pointer),
+            p("length", .intptr),
+            p("byteCount", .intptr),
+            p("hash", .intptr),
+            p("radix", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_string_toByte_radix", parameters: [
             p("strRaw", .intptr),
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toShort", parameters: [
+        abiParitySpec("__kk_string_toByteOrNull_flat", parameters: [
+            p("data", .nullableConstUInt8Pointer),
+            p("length", .intptr),
+            p("byteCount", .intptr),
+            p("hash", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_string_toShortOrNull_flat", parameters: [
+            p("data", .nullableConstUInt8Pointer),
+            p("length", .intptr),
+            p("byteCount", .intptr),
+            p("hash", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_string_toShort_flat", parameters: [
+            p("data", .nullableConstUInt8Pointer),
+            p("length", .intptr),
+            p("byteCount", .intptr),
+            p("hash", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_string_toShort", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
@@ -927,46 +586,29 @@ public extension RuntimeABISpec {
             p("objectRaw", .intptr),
             p("modeRaw", .intptr),
         ]),
-        abiParitySpec("kk_uint_range_average", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_uint_range_drop", parameters: [
+        abiParitySpec("__kk_uint_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_uint_range_sorted", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_uint_range_take", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_uint_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_ulong_range_average", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_ulong_range_drop", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_ulong_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_ulong_range_sorted", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_ulong_range_take", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_ulong_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_unpin_object", parameters: [
             p("pinnedHandle", .intptr),
-        ],
-            isThrowing: false),
+        ]),
         abiParitySpec("kk_worker_execute", parameters: [
             p("workerHandle", .intptr),
             p("modeRaw", .intptr),
@@ -974,29 +616,43 @@ public extension RuntimeABISpec {
             p("producerClosureRaw", .intptr),
             p("jobFnPtr", .intptr),
             p("jobClosureRaw", .intptr),
-        ]),
+        ], isThrowing: false),
+        abiParitySpec("kk_worker_as_cpointer", parameters: [
+            p("workerHandle", .intptr),
+        ], isThrowing: false),
         abiParitySpec("kk_worker_execute_after", parameters: [
             p("workerHandle", .intptr),
-            p("delayNs", .intptr),
+            p("afterMicroseconds", .intptr),
             p("fnPtr", .intptr),
             p("closureRaw", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_worker_id", parameters: [
             p("workerHandle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_worker_is_terminated", parameters: [
             p("workerHandle", .intptr),
         ]),
         abiParitySpec("kk_worker_name", parameters: [
             p("workerHandle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_worker_new", parameters: [
             p("nameRaw", .intptr),
         ]),
+        abiParitySpec("kk_worker_park", parameters: [
+            p("workerHandle", .intptr),
+            p("timeoutMicroseconds", .intptr),
+            p("processRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_worker_platform_thread_id", parameters: [
+            p("workerHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_worker_process_queue", parameters: [
+            p("workerHandle", .intptr),
+        ], isThrowing: false),
         abiParitySpec("kk_worker_request_termination", parameters: [
             p("workerHandle", .intptr),
             p("processScheduledRaw", .intptr),
-        ]),
+        ], isThrowing: false),
     ]
 }
 

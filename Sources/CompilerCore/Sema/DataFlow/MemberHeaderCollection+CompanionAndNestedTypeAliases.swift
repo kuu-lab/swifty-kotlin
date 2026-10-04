@@ -6,6 +6,7 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID?,
         sourceFileID: FileID,
+        ctx: CompilationContext,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -14,6 +15,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(companionDeclID),
               case let .objectDecl(companionObject) = decl
         else {
@@ -30,19 +32,89 @@ extension DataFlowSemaPhase {
         }
 
         let companionFQName = ownerFQName + [companionName]
-        let companionSymbol = symbols.define(
-            kind: .object,
-            name: companionName,
+        let companionSymbol: SymbolID
+        if let reusableSymbol = reusableSyntheticUuidSourceCompanionSymbol(
             fqName: companionFQName,
-            declSite: companionObject.range,
-            visibility: visibility(from: companionObject.modifiers),
-            flags: flags(from: companionObject.modifiers)
-        )
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+        } else if let reusableSymbol = reusableSyntheticIntProgressionSourceCompanionSymbol(
+            fqName: companionFQName,
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+            symbols.setDeclSite(companionObject.range, for: companionSymbol)
+        } else if let reusableSymbol = reusableSyntheticLongProgressionSourceCompanionSymbol(
+            fqName: companionFQName,
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+            symbols.setDeclSite(companionObject.range, for: companionSymbol)
+        } else if let reusableSymbol = reusableSyntheticUIntProgressionSourceCompanionSymbol(
+            fqName: companionFQName,
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+            symbols.setDeclSite(companionObject.range, for: companionSymbol)
+        } else if let reusableSymbol = reusableSyntheticCharProgressionSourceCompanionSymbol(
+            fqName: companionFQName,
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+            symbols.setDeclSite(companionObject.range, for: companionSymbol)
+        } else if let reusableSymbol = reusableSyntheticUIntRangeSourceCompanionSymbol(
+            fqName: companionFQName,
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+            symbols.setDeclSite(companionObject.range, for: companionSymbol)
+        } else {
+            companionSymbol = symbols.define(
+                kind: .object,
+                name: companionName,
+                fqName: companionFQName,
+                declSite: companionObject.range,
+                visibility: visibility(from: companionObject.modifiers),
+                flags: flags(from: companionObject.modifiers)
+            )
+        }
         symbols.setSourceFileID(sourceFileID, for: companionSymbol)
         registerAnnotations(
             for: decl,
             symbol: companionSymbol,
             declRange: companionObject.range,
+            sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -77,6 +149,7 @@ extension DataFlowSemaPhase {
             ),
             owner: OwnerContext(fqName: companionFQName, symbol: companionSymbol, type: companionType),
             sourceFileID: sourceFileID,
+            ctx: ctx,
             ast: ast,
             symbols: symbols,
             types: types,

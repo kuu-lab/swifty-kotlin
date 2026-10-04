@@ -1,11 +1,11 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - Fine-grained lock sets for test isolation
 
-enum RuntimeLockSet {
+enum RuntimeLockSet: Sendable {
     case none
     case gcOnly
     case metadataOnly
@@ -19,6 +19,61 @@ enum RuntimeLockSet {
     case all
 }
 
+/// Applies process-wide runtime isolation to Swift Testing suites, ensuring
+/// tests that mutate global runtime state serialize and reset state around each
+/// test case.
+struct RuntimeIsolationTrait: SuiteTrait, TestTrait, TestScoping {
+    let lockSet: RuntimeLockSet
+    private let resetAdditionalState: @Sendable () -> Void
+
+    init(
+        _ lockSet: RuntimeLockSet = .all,
+        resetAdditionalState: @escaping @Sendable () -> Void = {}
+    ) {
+        self.lockSet = lockSet
+        self.resetAdditionalState = resetAdditionalState
+    }
+
+    /// Propagate the trait from a suite to every test case in that suite.
+    var isRecursive: Bool { true }
+
+    func provideScope(
+        for test: Test,
+        testCase: Test.Case?,
+        performing function: @Sendable () async throws -> Void
+    ) async throws {
+        // A suite itself has no case to isolate. Its recursive children do.
+        guard testCase != nil else {
+            try await function()
+            return
+        }
+
+        let acquiredSemaphores = try await acquireSemaphores(
+            for: lockSet,
+            testName: test.name
+        )
+        resetRuntimeState(for: lockSet)
+        resetAdditionalState()
+
+        defer {
+            resetAdditionalState()
+            resetRuntimeState(for: lockSet)
+            releaseSemaphores(acquiredSemaphores)
+        }
+
+        try await function()
+    }
+}
+
+extension SuiteTrait where Self == RuntimeIsolationTrait {
+    static func runtimeIsolation(
+        _ lockSet: RuntimeLockSet = .all,
+        resetAdditionalState: @escaping @Sendable () -> Void = {}
+    ) -> RuntimeIsolationTrait {
+        RuntimeIsolationTrait(lockSet, resetAdditionalState: resetAdditionalState)
+    }
+}
+
 // Per-state semaphores for fine-grained test isolation.
 private let gcSemaphore = DispatchSemaphore(value: 1)
 private let metadataSemaphore = DispatchSemaphore(value: 1)
@@ -26,7 +81,32 @@ private let flowSemaphore = DispatchSemaphore(value: 1)
 private let threadLocalSemaphore = DispatchSemaphore(value: 1)
 private let delegateSemaphore = DispatchSemaphore(value: 1)
 
-private func semaphores(for lockSet: RuntimeLockSet) -> [DispatchSemaphore] {
+private struct RuntimeIsolationLockTimeoutError: Error, CustomStringConvertible {
+    let testName: String
+
+    var description: String {
+        "Runtime test isolation lock timed out for \(testName)"
+    }
+}
+
+/// Safety timeout for acquiring a process-wide runtime isolation lock.
+///
+/// These `value: 1` semaphores serialize every Swift Testing case that mutates
+/// global runtime state, so they are heavily contended within
+/// a single test process. On a CPU-starved host (e.g. a parallel `swift build`
+/// running alongside `swift test`) a legitimately-queued waiter can block far
+/// longer than a few seconds while the current holder is starved of CPU. The
+/// timeout exists only to surface a genuine deadlock, so it is deliberately
+/// generous and overridable via `RUNTIME_TEST_ISOLATION_LOCK_TIMEOUT_SECONDS`.
+let runtimeIsolationLockWaitTimeout: DispatchTimeInterval = {
+    if let raw = ProcessInfo.processInfo.environment["RUNTIME_TEST_ISOLATION_LOCK_TIMEOUT_SECONDS"],
+       let seconds = Int(raw), seconds > 0 {
+        return .seconds(seconds)
+    }
+    return .seconds(120)
+}()
+
+func runtimeIsolationSemaphores(for lockSet: RuntimeLockSet) -> [DispatchSemaphore] {
     switch lockSet {
     case .none:
         return []
@@ -53,7 +133,7 @@ private func semaphores(for lockSet: RuntimeLockSet) -> [DispatchSemaphore] {
     }
 }
 
-private func resetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void] {
+func runtimeIsolationResetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void] {
     switch lockSet {
     case .none:
         return []
@@ -80,50 +160,230 @@ private func resetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void] {
     }
 }
 
-/// Use this base class for runtime tests that mutate global runtime state or
-/// observe file-global callback state.
-class IsolatedRuntimeXCTestCase: XCTestCase {
+private func acquireSemaphores(
+    for lockSet: RuntimeLockSet,
+    testName: String
+) async throws -> [DispatchSemaphore] {
+    try await acquireSemaphores(
+        runtimeIsolationSemaphores(for: lockSet),
+        testName: testName
+    )
+}
+
+/// Wait for runtime locks on a libdispatch worker instead of a cooperative
+/// Swift Concurrency thread. Blocking the cooperative pool here can deadlock
+/// when multiple Swift Testing cases contend for the same process-wide lock.
+private func acquireSemaphores(
+    _ semaphores: [DispatchSemaphore],
+    testName: String
+) async throws -> [DispatchSemaphore] {
+    try await withCheckedThrowingContinuation { continuation in
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                continuation.resume(
+                    returning: try acquireSemaphoresBlocking(semaphores, testName: testName)
+                )
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+}
+
+private func acquireSemaphoresBlocking(
+    _ semaphores: [DispatchSemaphore],
+    testName: String,
+    timeout: DispatchTimeInterval = runtimeIsolationLockWaitTimeout
+) throws -> [DispatchSemaphore] {
+    var acquiredSemaphores: [DispatchSemaphore] = []
+
+    for semaphore in semaphores {
+        let waitResult = semaphore.wait(timeout: .now() + timeout)
+        guard waitResult == .success else {
+            releaseSemaphores(acquiredSemaphores)
+            throw RuntimeIsolationLockTimeoutError(testName: testName)
+        }
+        acquiredSemaphores.append(semaphore)
+    }
+
+    return acquiredSemaphores
+}
+
+private func releaseSemaphores(_ semaphores: [DispatchSemaphore]) {
+    for semaphore in semaphores.reversed() {
+        semaphore.signal()
+    }
+}
+
+private func resetRuntimeState(for lockSet: RuntimeLockSet) {
+    for reset in runtimeIsolationResetFunctions(for: lockSet) {
+        reset()
+    }
+}
+
+@Test
+func runtimeIsolationSemaphoreWaitRunsOffCooperativePool() async throws {
+    let semaphore = DispatchSemaphore(value: 0)
+    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.05) {
+        semaphore.signal()
+    }
+
+    let acquired = try await acquireSemaphores(
+        [semaphore],
+        testName: "runtimeIsolationSemaphoreWaitRunsOffCooperativePool"
+    )
+    #expect(acquired.count == 1)
+    releaseSemaphores(acquired)
+}
+
+/// Thread-safe observer of the maximum number of holders inside a critical
+/// section, used to assert mutual exclusion under contention.
+private final class RuntimeIsolationConcurrencyProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = 0
+    private var observedMax = 0
+
+    func enter() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        current += 1
+        observedMax = max(observedMax, current)
+        return current
+    }
+
+    func leave() {
+        lock.lock()
+        defer { lock.unlock() }
+        current -= 1
+    }
+
+    var maxObserved: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return observedMax
+    }
+}
+
+// MARK: - Isolation-lock robustness regression tests
+
+/// A lock that stays held (never signaled) must surface a timeout by *throwing*,
+/// not by aborting the process. Regression for the flaky
+/// `RuntimeTestIsolationSupport` crash where a 30s contention timeout escalated
+/// to a fatal `preconditionFailure` (SIGILL) that killed every in-flight test.
+@Test
+func runtimeIsolationLockAcquisitionTimesOutWithoutCrashing() throws {
+    let heldForever = DispatchSemaphore(value: 0)
+    #expect(throws: RuntimeIsolationLockTimeoutError.self) {
+        _ = try acquireSemaphoresBlocking(
+            [heldForever],
+            testName: "timeout-regression",
+            timeout: .milliseconds(50)
+        )
+    }
+}
+
+/// `RuntimeTestIsolationLease` must degrade to a *recorded issue* (non-fatal) on
+/// a lock timeout, leaving the lease empty, instead of crashing the test binary.
+@Test
+func runtimeIsolationLeaseTimeoutIsNonFatal() {
+    let heldForever = DispatchSemaphore(value: 0)
+    var lease: RuntimeTestIsolationLease?
+    withKnownIssue("isolation lock intentionally times out") {
+        lease = RuntimeTestIsolationLease(
+            semaphores: [heldForever],
+            testName: "lease-timeout-regression",
+            timeout: .milliseconds(50)
+        )
+    }
+    #expect(lease?.isHoldingLocks == false)
+    lease?.release()
+}
+
+/// Many contenders on a single-token lock must serialize (never overlap) and all
+/// complete, proving acquire/release stays balanced with no leaked token.
+@Test
+func runtimeIsolationLockSerializesConcurrentContenders() async {
+    let mutex = DispatchSemaphore(value: 1)
+    let probe = RuntimeIsolationConcurrencyProbe()
+
+    await withTaskGroup(of: Void.self) { group in
+        for _ in 0..<32 {
+            group.addTask {
+                guard let acquired = try? acquireSemaphoresBlocking(
+                    [mutex],
+                    testName: "serialize-regression",
+                    timeout: .seconds(30)
+                ) else {
+                    Issue.record("unexpected isolation lock timeout")
+                    return
+                }
+                #expect(probe.enter() == 1)
+                probe.leave()
+                releaseSemaphores(acquired)
+            }
+        }
+    }
+
+    #expect(probe.maxObserved == 1)
+    // The single token is back (balanced release, no leak).
+    let reacquired = (try? acquireSemaphoresBlocking(
+        [mutex],
+        testName: "serialize-regression-postcondition",
+        timeout: .nanoseconds(0)
+    )) ?? []
+    #expect(reacquired.count == 1)
+    releaseSemaphores(reacquired)
+}
+
+/// Scoped hold on the process-wide runtime isolation locks, for tests that
+/// mutate global runtime state or observe file-global callback state.
+final class RuntimeTestIsolationLease {
     private var acquiredSemaphores: [DispatchSemaphore] = []
 
-    /// Override to declare which lock set this test class requires.
-    /// Default is `.all` for backward compatibility.
-    class var requiredLockSet: RuntimeLockSet { .all }
-
-    override final func setUp() {
-        super.setUp()
-        acquiredSemaphores = []
-
-        let sems = semaphores(for: type(of: self).requiredLockSet)
-        for sem in sems {
-            let waitResult = sem.wait(timeout: .now() + .seconds(30))
-            guard waitResult == .success else {
-                for acquired in acquiredSemaphores { acquired.signal() }
-                acquiredSemaphores = []
-                XCTFail("Runtime test isolation lock timed out while waiting for available token")
-                return
-            }
-            acquiredSemaphores.append(sem)
-        }
-
-        for reset in resetFunctions(for: type(of: self).requiredLockSet) {
-            reset()
-        }
-        resetIsolatedRuntimeTestState()
+    convenience init(lockSet: RuntimeLockSet) {
+        self.init(
+            semaphores: runtimeIsolationSemaphores(for: lockSet),
+            testName: "RuntimeTestIsolationLease(\(lockSet))",
+            timeout: runtimeIsolationLockWaitTimeout
+        )
     }
 
-    override final func tearDown() {
-        resetIsolatedRuntimeTestState()
-        for reset in resetFunctions(for: type(of: self).requiredLockSet) {
-            reset()
+    /// Designated initializer with injectable semaphores/timeout so the timeout
+    /// path can be exercised deterministically by regression tests.
+    init(
+        semaphores: [DispatchSemaphore],
+        testName: String,
+        timeout: DispatchTimeInterval
+    ) {
+        do {
+            acquiredSemaphores = try acquireSemaphoresBlocking(
+                semaphores,
+                testName: testName,
+                timeout: timeout
+            )
+        } catch {
+            // A timeout here is virtually always CPU starvation on the host, not
+            // a real deadlock. Record a non-fatal issue instead of crashing: a
+            // preconditionFailure aborts the entire test process with SIGILL,
+            // taking down every other in-flight test and losing all results.
+            Issue.record("Runtime test isolation lock timed out: \(error)")
+            acquiredSemaphores = []
         }
-        super.tearDown()
-        for sem in acquiredSemaphores.reversed() {
-            sem.signal()
+    }
+
+    /// Whether the lease successfully acquired its locks (false after a timeout).
+    var isHoldingLocks: Bool { !acquiredSemaphores.isEmpty }
+
+    func release() {
+        for semaphore in acquiredSemaphores.reversed() {
+            semaphore.signal()
         }
         acquiredSemaphores = []
     }
 
-    func resetIsolatedRuntimeTestState() {}
+    deinit {
+        release()
+    }
 }
 
 /// Monotonic counters make launch/cancel assertions immune to stale signals
@@ -190,4 +450,97 @@ final class RuntimeCoroutineTestState: @unchecked Sendable {
         }
         return true
     }
+}
+
+// MARK: - Duration construction helpers (KSP-471)
+
+// kk_duration_from_* per-unit factories were removed in favor of
+// kk_duration_toDuration_int/long/double (unit-ordinal based). DurationUnit
+// ordinals: 0=NANOSECONDS, 1=MICROSECONDS, 2=MILLISECONDS, 3=SECONDS,
+// 4=MINUTES, 5=HOURS, 6=DAYS. These helpers preserve the original per-unit
+// construction call shape for Runtime tests.
+func durationFromNanoseconds(_ value: Int) -> Int { kk_duration_toDuration_int(value, 0) }
+func durationFromMicroseconds(_ value: Int) -> Int { kk_duration_toDuration_int(value, 1) }
+func durationFromMilliseconds(_ value: Int) -> Int { kk_duration_toDuration_int(value, 2) }
+func durationFromSeconds(_ value: Int) -> Int { kk_duration_toDuration_int(value, 3) }
+func durationFromMinutes(_ value: Int) -> Int { kk_duration_toDuration_int(value, 4) }
+func durationFromHours(_ value: Int) -> Int { kk_duration_toDuration_int(value, 5) }
+func durationFromDays(_ value: Int) -> Int { kk_duration_toDuration_int(value, 6) }
+
+func durationFromMicrosecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 1) }
+func durationFromMinutesLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 4) }
+func durationFromHoursLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 5) }
+func durationFromDaysLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 6) }
+
+func durationFromSecondsDouble(_ valueBits: Int) -> Int { kk_duration_toDuration_double(valueBits, 3) }
+func durationFromDaysDouble(_ valueBits: Int) -> Int { kk_duration_toDuration_double(valueBits, 6) }
+
+// kk_duration_inWholeMilliseconds/Microseconds/Seconds/Minutes/Hours/Days were
+// removed (now Kotlin-source extension properties built on inWholeNanoseconds,
+// which stays native). These helpers recompute the same scaling directly from
+// kk_duration_inWholeNanoseconds to preserve the original Runtime test assertions.
+func durationInWholeMilliseconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000_000 }
+func durationInWholeMicroseconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000 }
+func durationInWholeSeconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000_000_000 }
+func durationInWholeMinutes(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 60_000_000_000 }
+func durationInWholeHours(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 3_600_000_000_000 }
+func durationInWholeDays(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 86_400_000_000_000 }
+
+// MARK: - TimeMark operation helpers (KSP-648)
+
+// kk_time_mark_elapsed_now / has_passed_now / has_not_passed_now / plus_duration /
+// minus_duration / minus_mark / compare were removed: those operations are now Kotlin
+// source (Sources/CompilerCore/Stdlib/kotlin/time/TimeMark.kt) built on the remaining
+// __kk_time_mark_* reading bridges. These helpers mirror that Kotlin implementation —
+// including its saturating reading arithmetic — so the Runtime tests keep covering the
+// bridges and the semantics they feed.
+private func timeMarkNegateNanos(_ value: Int) -> Int { value == Int.min ? Int.max : -value }
+
+private func timeMarkAddNanos(_ lhs: Int, _ rhs: Int) -> Int {
+    if rhs > 0, lhs > Int.max - rhs { return Int.max }
+    if rhs < 0, lhs < Int.min - rhs { return Int.min }
+    return lhs + rhs
+}
+
+func timeMarkElapsedNow(_ markRaw: Int) -> Int {
+    durationFromNanoseconds(timeMarkAddNanos(
+        __kk_time_mark_now_reading_nanos(),
+        timeMarkNegateNanos(__kk_time_mark_reading_nanos(markRaw))
+    ))
+}
+
+func timeMarkHasPassedNow(_ markRaw: Int) -> Int {
+    kk_duration_inWholeNanoseconds(timeMarkElapsedNow(markRaw)) >= 0 ? 1 : 0
+}
+
+func timeMarkHasNotPassedNow(_ markRaw: Int) -> Int {
+    kk_duration_inWholeNanoseconds(timeMarkElapsedNow(markRaw)) < 0 ? 1 : 0
+}
+
+func timeMarkPlusDuration(_ markRaw: Int, _ durationRaw: Int) -> Int {
+    __kk_time_mark_from_reading_nanos(timeMarkAddNanos(
+        __kk_time_mark_reading_nanos(markRaw),
+        kk_duration_inWholeNanoseconds(durationRaw)
+    ))
+}
+
+func timeMarkMinusDuration(_ markRaw: Int, _ durationRaw: Int) -> Int {
+    __kk_time_mark_from_reading_nanos(timeMarkAddNanos(
+        __kk_time_mark_reading_nanos(markRaw),
+        timeMarkNegateNanos(kk_duration_inWholeNanoseconds(durationRaw))
+    ))
+}
+
+func timeMarkMinusMark(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    durationFromNanoseconds(timeMarkAddNanos(
+        __kk_time_mark_reading_nanos(lhsRaw),
+        timeMarkNegateNanos(__kk_time_mark_reading_nanos(rhsRaw))
+    ))
+}
+
+func timeMarkCompare(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    let diffNanos = kk_duration_inWholeNanoseconds(timeMarkMinusMark(lhsRaw, rhsRaw))
+    if diffNanos < 0 { return -1 }
+    if diffNanos > 0 { return 1 }
+    return 0
 }

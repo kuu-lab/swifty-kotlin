@@ -1,10 +1,8 @@
-// SKIP-DIFF: advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
+// TEST-CORO-003: Mutex and Semaphore — protecting shared state in coroutines,
+// withLock helper, and Semaphore for limiting concurrent access.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import java.util.concurrent.atomic.AtomicInteger
-
-// TEST-CORO-003: Mutex and Semaphore — protecting shared state in coroutines,
-// withLock helper, and Semaphore for limiting concurrent access.
 
 fun main() = runBlocking {
     // 1. Mutex protects shared counter

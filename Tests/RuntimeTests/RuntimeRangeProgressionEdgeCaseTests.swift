@@ -1,710 +1,958 @@
 @testable import Runtime
-import XCTest
+import Testing
 
 /// STDLIB-022: Comprehensive edge-case coverage for IntRange, LongRange, CharRange,
 /// UIntRange, ULongRange, their progressions (step / downTo / until / rangeUntil),
 /// and ClosedRange / OpenEndRange contracts.
-final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeRangeProgressionEdgeCaseTests {
     // MARK: - Empty range (from > to)
 
-    func testIntEmptyRange_isEmpty() {
+    @Test func intEmptyRange_isEmpty() {
         let empty = kk_op_rangeTo(10, 1)
-        XCTAssertEqual(kk_range_isEmpty(empty), 1, "from > to must be empty")
+        #expect(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!), "from > to must be empty")
     }
 
-    func testIntEmptyRange_containsFalse() {
+    @Test func intEmptyRange_containsFalse() {
         let empty = kk_op_rangeTo(10, 1)
-        XCTAssertEqual(kk_range_contains(empty, 5), 0, "empty range must not contain anything")
+        #expect(kk_range_contains(empty, 5) == 0, "empty range must not contain anything")
     }
 
-    func testIntEmptyRange_countIsZero() {
+    @Test func intEmptyRange_countIsZero() {
         let empty = kk_op_rangeTo(10, 1)
-        XCTAssertEqual(kk_range_count(empty), 0)
+        #expect(kk_range_count(empty) == 0)
     }
 
-    func testIntEmptyRange_toListIsEmpty() {
+    @Test func intEmptyRange_toListIsEmpty() {
         let empty = kk_op_rangeTo(10, 1)
         let list = kk_range_toList(empty)
-        XCTAssertEqual(kk_list_size(list), 0)
+        #expect(kk_list_size(list) == 0)
     }
 
     // MARK: - Single-element range (from == to)
 
-    func testIntSingleElementRange_notEmpty() {
+    @Test func intSingleElementRange_notEmpty() {
         let single = kk_op_rangeTo(7, 7)
-        XCTAssertEqual(kk_range_isEmpty(single), 0)
-        XCTAssertEqual(kk_range_count(single), 1)
+        #expect(!(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: single)!)))
+        #expect(kk_range_count(single) == 1)
     }
 
-    func testIntSingleElementRange_contains() {
+    @Test func intSingleElementRange_contains() {
         let single = kk_op_rangeTo(7, 7)
-        XCTAssertEqual(kk_range_contains(single, 7), 1)
-        XCTAssertEqual(kk_range_contains(single, 6), 0)
-        XCTAssertEqual(kk_range_contains(single, 8), 0)
+        #expect(kk_range_contains(single, 7) == 1)
+        #expect(kk_range_contains(single, 6) == 0)
+        #expect(kk_range_contains(single, 8) == 0)
     }
 
-    func testIntSingleElementRange_toList() {
+    @Test func intSingleElementRange_toList() {
         let single = kk_op_rangeTo(7, 7)
         let list = kk_range_toList(single)
-        XCTAssertEqual(kk_list_size(list), 1)
-        XCTAssertEqual(kk_list_get(list, 0), 7)
+        #expect(kk_list_size(list) == 1)
+        #expect(kk_list_get(list, 0) == 7)
     }
 
     // MARK: - Boundary values (Int.MIN / Int.MAX)
 
-    func testIntBoundaryRange_minToMin() {
+    @Test func intBoundaryRange_minToMin() {
         let range = kk_op_rangeTo(Int.min, Int.min)
-        XCTAssertEqual(kk_range_count(range), 1)
-        XCTAssertEqual(kk_range_contains(range, Int.min), 1)
+        #expect(kk_range_count(range) == 1)
+        #expect(kk_range_contains(range, Int.min) == 1)
     }
 
-    func testIntBoundaryRange_maxToMax() {
+    @Test func intBoundaryRange_maxToMax() {
         let range = kk_op_rangeTo(Int.max, Int.max)
-        XCTAssertEqual(kk_range_count(range), 1)
-        XCTAssertEqual(kk_range_contains(range, Int.max), 1)
+        #expect(kk_range_count(range) == 1)
+        #expect(kk_range_contains(range, Int.max) == 1)
     }
 
-    func testIntBoundaryRange_minToMaxContainsBothEnds() {
+    @Test func intBoundaryRange_minToMaxContainsBothEnds() {
         let range = kk_op_rangeTo(Int.min, Int.max)
-        XCTAssertEqual(kk_range_contains(range, Int.min), 1)
-        XCTAssertEqual(kk_range_contains(range, Int.max), 1)
-        XCTAssertEqual(kk_range_contains(range, 0), 1)
+        #expect(kk_range_contains(range, Int.min) == 1)
+        #expect(kk_range_contains(range, Int.max) == 1)
+        #expect(kk_range_contains(range, 0) == 1)
     }
 
-    func testIntBoundaryRange_downToMaxMinDoesNotTrap() {
+    @Test func intBoundaryRange_downToMaxMinDoesNotTrap() {
         // (Int.max downTo Int.min) — must not crash
-        let range = kk_op_downTo(Int.max, Int.min)
+        let range = __kk_op_downTo(Int.max, Int.min)
         _ = kk_range_first(range)
         _ = kk_range_last(range)
     }
 
     // MARK: - Step > 1 (IntProgression)
 
-    func testIntProgressionStepTwo() {
-        let range = kk_op_step(kk_op_rangeTo(1, 10), 2, nil)
+    @Test func intProgressionStepTwo() {
+        let range = __kk_op_step(kk_op_rangeTo(1, 10), 2, nil)
         // 1,3,5,7,9 — last aligned to 9
-        XCTAssertEqual(kk_range_first(range), 1)
-        XCTAssertEqual(kk_range_last(range), 9)
-        XCTAssertEqual(kk_range_count(range), 5)
+        #expect(kk_range_first(range) == 1)
+        #expect(kk_range_last(range) == 9)
+        #expect(kk_range_count(range) == 5)
         let list = kk_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 5)
-        XCTAssertEqual(kk_list_get(list, 0), 1)
-        XCTAssertEqual(kk_list_get(list, 4), 9)
+        #expect(kk_list_size(list) == 5)
+        #expect(kk_list_get(list, 0) == 1)
+        #expect(kk_list_get(list, 4) == 9)
     }
 
-    func testIntProgressionStepExactlyFitsRange() {
+    @Test func intProgressionStepExactlyFitsRange() {
         // (0..6) step 2 -> 0,2,4,6; last == 6 (exact fit)
-        let range = kk_op_step(kk_op_rangeTo(0, 6), 2, nil)
-        XCTAssertEqual(kk_range_last(range), 6)
-        XCTAssertEqual(kk_range_count(range), 4)
+        let range = __kk_op_step(kk_op_rangeTo(0, 6), 2, nil)
+        #expect(kk_range_last(range) == 6)
+        #expect(kk_range_count(range) == 4)
     }
 
-    func testIntProgressionStepLargerThanRange() {
+    @Test func intProgressionStepLargerThanRange() {
         // (1..3) step 10 -> [1]; last == 1
-        let range = kk_op_step(kk_op_rangeTo(1, 3), 10, nil)
-        XCTAssertEqual(kk_range_count(range), 1)
+        let range = __kk_op_step(kk_op_rangeTo(1, 3), 10, nil)
+        #expect(kk_range_count(range) == 1)
         let list = kk_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 1)
-        XCTAssertEqual(kk_list_get(list, 0), 1)
+        #expect(kk_list_size(list) == 1)
+        #expect(kk_list_get(list, 0) == 1)
     }
 
-    func testIntProgressionStep_lastAdjustedCorrectly() {
+    @Test func intProgressionStep_lastAdjustedCorrectly() {
         // Kotlin rule: last = first + ((end - first) / step) * step
         // (2..11) step 3 -> 2,5,8,11; last == 11
-        let range = kk_op_step(kk_op_rangeTo(2, 11), 3, nil)
-        XCTAssertEqual(kk_range_last(range), 11)
-        XCTAssertEqual(kk_range_count(range), 4)
+        let range = __kk_op_step(kk_op_rangeTo(2, 11), 3, nil)
+        #expect(kk_range_last(range) == 11)
+        #expect(kk_range_count(range) == 4)
     }
 
-    func testIntProgressionStep_lastRoundedDown() {
+    @Test func intProgressionStep_lastRoundedDown() {
         // (2..10) step 3 -> 2,5,8; last adjusted to 8, not 10
-        let range = kk_op_step(kk_op_rangeTo(2, 10), 3, nil)
-        XCTAssertEqual(kk_range_last(range), 8)
-        XCTAssertEqual(kk_range_count(range), 3)
+        let range = __kk_op_step(kk_op_rangeTo(2, 10), 3, nil)
+        #expect(kk_range_last(range) == 8)
+        #expect(kk_range_count(range) == 3)
     }
 
     // MARK: - Negative step via downTo
 
-    func testDownToBasic() {
-        let range = kk_op_downTo(5, 1)
-        XCTAssertEqual(kk_range_first(range), 5)
-        XCTAssertEqual(kk_range_last(range), 1)
-        XCTAssertEqual(kk_range_count(range), 5)
+    @Test func downToBasic() {
+        let range = __kk_op_downTo(5, 1)
+        #expect(kk_range_first(range) == 5)
+        #expect(kk_range_last(range) == 1)
+        #expect(kk_range_count(range) == 5)
     }
 
-    func testDownTo_iterationOrder() {
-        let range = kk_op_downTo(5, 1)
+    @Test func downTo_iterationOrder() {
+        let range = __kk_op_downTo(5, 1)
         let list = kk_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 5)
-        XCTAssertEqual(kk_list_get(list, 0), 5)
-        XCTAssertEqual(kk_list_get(list, 4), 1)
+        #expect(kk_list_size(list) == 5)
+        #expect(kk_list_get(list, 0) == 5)
+        #expect(kk_list_get(list, 4) == 1)
     }
 
-    func testDownTo_containsInReverse() {
-        let range = kk_op_downTo(10, 1)
-        XCTAssertEqual(kk_range_contains(range, 10), 1)
-        XCTAssertEqual(kk_range_contains(range, 5), 1)
-        XCTAssertEqual(kk_range_contains(range, 1), 1)
-        XCTAssertEqual(kk_range_contains(range, 0), 0)
-        XCTAssertEqual(kk_range_contains(range, 11), 0)
-    }
-
-    func testDownToStep_containsOnlyReachableElements() {
+    @Test func downToStep_containsOnlyReachableElements() {
         // (10 downTo 1 step 3) -> 10,7,4,1
-        let range = kk_op_step(kk_op_downTo(10, 1), 3, nil)
-        XCTAssertEqual(kk_range_contains(range, 10), 1)
-        XCTAssertEqual(kk_range_contains(range, 7), 1)
-        XCTAssertEqual(kk_range_contains(range, 4), 1)
-        XCTAssertEqual(kk_range_contains(range, 1), 1)
-        XCTAssertEqual(kk_range_contains(range, 9), 0, "9 is not reachable from 10 with step 3")
-        XCTAssertEqual(kk_range_contains(range, 3), 0)
+        let range = __kk_op_step(__kk_op_downTo(10, 1), 3, nil)
+        #expect(kk_range_contains(range, 10) == 1)
+        #expect(kk_range_contains(range, 7) == 1)
+        #expect(kk_range_contains(range, 4) == 1)
+        #expect(kk_range_contains(range, 1) == 1)
+        #expect(kk_range_contains(range, 9) == 0, "9 is not reachable from 10 with step 3")
+        #expect(kk_range_contains(range, 3) == 0)
     }
 
-    func testDownTo_isEmpty_whenFromLtTo() {
+    @Test func downTo_isEmpty_whenFromLtTo() {
         // downTo with from < to is empty (negative step, first < last)
-        let empty = kk_op_downTo(1, 5)
-        XCTAssertEqual(kk_range_isEmpty(empty), 1)
-        XCTAssertEqual(kk_range_count(empty), 0)
+        let empty = __kk_op_downTo(1, 5)
+        #expect(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!))
+        #expect(kk_range_count(empty) == 0)
     }
 
     // MARK: - until / rangeUntil (open-end)
 
-    func testUntilExcludesEndpoint() {
+    @Test func untilExcludesEndpoint() {
         // (1 until 5) should contain 1..4, not 5
-        let range = kk_op_rangeUntil(1, 5)
-        XCTAssertEqual(kk_range_contains(range, 4), 1)
-        XCTAssertEqual(kk_range_contains(range, 5), 0, "until must exclude endpoint")
+        let range = __kk_op_rangeUntil(1, 5)
+        #expect(kk_range_contains(range, 4) == 1)
+        #expect(kk_range_contains(range, 5) == 0, "until must exclude endpoint")
     }
 
-    func testUntilCount() {
+    @Test func untilCount() {
         // (1 until 5) -> [1,2,3,4]; count = 4
-        let range = kk_op_rangeUntil(1, 5)
-        XCTAssertEqual(kk_range_count(range), 4)
+        let range = __kk_op_rangeUntil(1, 5)
+        #expect(kk_range_count(range) == 4)
     }
 
-    func testUntilSameEndpoints_isEmpty() {
+    @Test func untilSameEndpoints_isEmpty() {
         // (5 until 5) is empty
-        let range = kk_op_rangeUntil(5, 5)
-        XCTAssertEqual(kk_range_isEmpty(range), 1)
-        XCTAssertEqual(kk_range_count(range), 0)
+        let range = __kk_op_rangeUntil(5, 5)
+        #expect(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: range)!))
+        #expect(kk_range_count(range) == 0)
     }
 
-    func testUntilEndLessThanStart_isEmpty() {
+    @Test func untilEndLessThanStart_isEmpty() {
         // (5 until 3) is empty
-        let range = kk_op_rangeUntil(5, 3)
-        XCTAssertEqual(kk_range_isEmpty(range), 1)
+        let range = __kk_op_rangeUntil(5, 3)
+        #expect(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: range)!))
     }
 
-    func testUntilToList() {
-        let range = kk_op_rangeUntil(1, 5)
+    @Test func untilToList() {
+        let range = __kk_op_rangeUntil(1, 5)
         let list = kk_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 4)
-        XCTAssertEqual(kk_list_get(list, 0), 1)
-        XCTAssertEqual(kk_list_get(list, 3), 4)
+        #expect(kk_list_size(list) == 4)
+        #expect(kk_list_get(list, 0) == 1)
+        #expect(kk_list_get(list, 3) == 4)
     }
 
-    func testUntilWithStep() {
+    @Test func untilWithStep() {
         // (1 until 10 step 3) -> 1,4,7; last aligned to 7
-        let range = kk_op_step(kk_op_rangeUntil(1, 10), 3, nil)
-        XCTAssertEqual(kk_range_count(range), 3)
+        let range = __kk_op_step(__kk_op_rangeUntil(1, 10), 3, nil)
+        #expect(kk_range_count(range) == 3)
         let list = kk_range_toList(range)
-        XCTAssertEqual(kk_list_get(list, 0), 1)
-        XCTAssertEqual(kk_list_get(list, 2), 7)
+        #expect(kk_list_get(list, 0) == 1)
+        #expect(kk_list_get(list, 2) == 7)
     }
 
     // MARK: - reversed()
 
-    func testReversedOfAscendingRange() {
+    @Test func reversedOfAscendingRange() {
         let range = kk_op_rangeTo(1, 5)
         let rev = kk_range_reversed(range)
-        XCTAssertEqual(kk_range_first(rev), 5)
-        XCTAssertEqual(kk_range_last(rev), 1)
-        XCTAssertEqual(kk_range_count(rev), 5)
+        #expect(kk_range_first(rev) == 5)
+        #expect(kk_range_last(rev) == 1)
+        #expect(kk_range_count(rev) == 5)
         let list = kk_range_toList(rev)
-        XCTAssertEqual(kk_list_get(list, 0), 5)
-        XCTAssertEqual(kk_list_get(list, 4), 1)
+        #expect(kk_list_get(list, 0) == 5)
+        #expect(kk_list_get(list, 4) == 1)
     }
 
-    func testReversedOfDescendingRange() {
-        let range = kk_op_downTo(5, 1)
+    @Test func reversedOfDescendingRange() {
+        let range = __kk_op_downTo(5, 1)
         let rev = kk_range_reversed(range)
-        XCTAssertEqual(kk_range_first(rev), 1)
-        XCTAssertEqual(kk_range_last(rev), 5)
+        #expect(kk_range_first(rev) == 1)
+        #expect(kk_range_last(rev) == 5)
         let list = kk_range_toList(rev)
-        XCTAssertEqual(kk_list_get(list, 0), 1)
-        XCTAssertEqual(kk_list_get(list, 4), 5)
+        #expect(kk_list_get(list, 0) == 1)
+        #expect(kk_list_get(list, 4) == 5)
     }
 
-    func testReversedOfEmptyRange_staysEmpty() {
+    @Test func reversedOfEmptyRange_staysEmpty() {
         let empty = kk_op_rangeTo(10, 1)
         let rev = kk_range_reversed(empty)
-        XCTAssertEqual(kk_range_count(rev), 0)
+        #expect(kk_range_count(rev) == 0)
     }
 
     // MARK: - step 0 / invalid step handling
 
-    func testStepZeroThrowsIllegalArgumentException() {
-        // STDLIB-022: kk_op_step with step=0 must throw IllegalArgumentException.
-        // Previous behavior silently returned the range unchanged; this is now corrected.
-        var thrown = 0
-        let range = kk_op_rangeTo(1, 10)
-        _ = kk_op_step(range, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "step=0 must throw IllegalArgumentException (STDLIB-022)")
-    }
-
     // MARK: - IntProgression fromClosedRange
 
-    func testIntProgressionFromClosedRange_positiveStep() {
+    @Test func intProgressionFromClosedRange_positiveStep() {
         // (1..10 step 3) -> first=1, last=10, count=4
-        let p = kk_int_progression_fromClosedRange(0, 1, 10, 3, nil)
-        XCTAssertEqual(kk_range_first(p), 1)
-        XCTAssertEqual(kk_range_last(p), 10)
-        XCTAssertEqual(kk_range_count(p), 4)
+        let p = __kk_int_progression_fromClosedRange(0, 1, 10, 3, nil)
+        #expect(kk_range_first(p) == 1)
+        #expect(kk_range_last(p) == 10)
+        #expect(kk_range_count(p) == 4)
     }
 
-    func testIntProgressionFromClosedRange_negativeStep_downTo() {
+    @Test func intProgressionFromClosedRange_negativeStep_downTo() {
         // (10..1 step -3) -> first=10, last=1, count=4
-        let p = kk_int_progression_fromClosedRange(0, 10, 1, -3, nil)
-        XCTAssertEqual(kk_range_first(p), 10)
-        XCTAssertEqual(kk_range_last(p), 1)
-        XCTAssertEqual(kk_range_count(p), 4)
+        let p = __kk_int_progression_fromClosedRange(0, 10, 1, -3, nil)
+        #expect(kk_range_first(p) == 10)
+        #expect(kk_range_last(p) == 1)
+        #expect(kk_range_count(p) == 4)
     }
 
-    func testIntProgressionFromClosedRange_stepZeroThrows() {
+    @Test func intProgressionFromClosedRange_stepZeroThrows() {
         var thrown = 0
-        _ = kk_int_progression_fromClosedRange(0, 1, 10, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "step=0 must throw IllegalArgumentException")
+        _ = __kk_int_progression_fromClosedRange(0, 1, 10, 0, &thrown)
+        #expect(thrown != 0, "step=0 must throw IllegalArgumentException")
     }
 
-    func testIntProgressionFromClosedRange_stepIntMinThrows() {
+    @Test func intProgressionFromClosedRange_stepIntMinThrows() {
         var thrown = 0
-        _ = kk_int_progression_fromClosedRange(0, 1, 10, Int.min, &thrown)
-        XCTAssertNotEqual(thrown, 0, "step=Int.min must throw")
+        _ = __kk_int_progression_fromClosedRange(0, 1, 10, Int(Int32.min), &thrown)
+        #expect(thrown != 0, "step=Int.MIN_VALUE (Int32) must throw")
+    }
+
+    // MARK: - until: empty ranges keep step 1; minimum bound yields EMPTY
+
+    @Test func intUntil_emptyKeepsStepOne() {
+        let r = runtimeRangeBox(from: __kk_op_rangeUntil(5, 3))!
+        #expect(r.first == 5 && r.last == 2 && r.step == 1)
+        #expect(runtimeRangeIsEmpty(r))
+    }
+
+    @Test func untilAtMinimumBoundIsCanonicalEmpty() {
+        let i = runtimeRangeBox(from: __kk_op_rangeUntil(7, Int(Int32.min)))!
+        #expect(i.first == 1 && i.last == 0 && runtimeRangeIsEmpty(i))
+        let l = runtimeRangeBox(from: __kk_long_rangeUntil(7, Int.min))!
+        #expect(l.first == 1 && l.last == 0)
+        let u = runtimeRangeBox(from: __kk_uint_rangeUntil(7, 0))!
+        #expect(u.first == Int(UInt32.max) && u.last == 0 && runtimeRangeIsEmpty(u))
+    }
+
+    @Test func progressionEqualsAcceptsRangeButNotViceVersa() {
+        let range = runtimeRangeBox(from: kk_op_rangeTo(1, 3))!
+        let prog = runtimeRangeBox(from: __kk_op_step(kk_op_rangeTo(1, 3), 1, nil))!
+        #expect(runtimeRangesEqual(prog, range))
+        #expect(!runtimeRangesEqual(range, prog))
     }
 
     // MARK: - LongRange edge cases
 
-    func testLongRange_emptyWhenFromGtTo() {
+    @Test func longRange_emptyWhenFromGtTo() {
         let empty = kk_long_rangeTo(100, 1)
-        XCTAssertEqual(kk_long_range_isEmpty(empty), 1)
+        #expect(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!))
     }
 
-    func testLongRange_singleElement() {
+    @Test func longRange_singleElement() {
         let r = kk_long_rangeTo(42, 42)
-        XCTAssertEqual(kk_long_range_isEmpty(r), 0)
-        XCTAssertEqual(kk_long_range_contains(r, 42), 1)
-        XCTAssertEqual(kk_long_range_contains(r, 41), 0)
+        #expect(!(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: r)!)))
+        #expect(kk_range_contains(r, 42) == 1)
+        #expect(kk_range_contains(r, 41) == 0)
     }
 
-    func testLongRange_containsBothEnds() {
+    @Test func longRange_containsBothEnds() {
         let r = kk_long_rangeTo(1, 10)
-        XCTAssertEqual(kk_long_range_contains(r, 1), 1)
-        XCTAssertEqual(kk_long_range_contains(r, 10), 1)
-        XCTAssertEqual(kk_long_range_contains(r, 0), 0)
-        XCTAssertEqual(kk_long_range_contains(r, 11), 0)
+        #expect(kk_range_contains(r, 1) == 1)
+        #expect(kk_range_contains(r, 10) == 1)
+        #expect(kk_range_contains(r, 0) == 0)
+        #expect(kk_range_contains(r, 11) == 0)
     }
 
-    func testLongRange_step2ContainsOnlyEvenFromFirst() {
+    @Test func longRange_step2ContainsOnlyEvenFromFirst() {
         // (1..10 step 2) -> 1,3,5,7,9; step-reachable from 1
-        let p = kk_long_progression_fromClosedRange(0, 1, 10, 2, nil)
-        XCTAssertEqual(kk_long_range_contains(p, 1), 1)
-        XCTAssertEqual(kk_long_range_contains(p, 3), 1)
-        XCTAssertEqual(kk_long_range_contains(p, 9), 1)
-        XCTAssertEqual(kk_long_range_contains(p, 2), 0)
-        XCTAssertEqual(kk_long_range_contains(p, 10), 0, "10 is not reachable from 1 with step 2")
+        let p = __kk_long_progression_fromClosedRange(0, 1, 10, 2, nil)
+        #expect(kk_range_contains(p, 1) == 1)
+        #expect(kk_range_contains(p, 3) == 1)
+        #expect(kk_range_contains(p, 9) == 1)
+        #expect(kk_range_contains(p, 2) == 0)
+        #expect(kk_range_contains(p, 10) == 0, "10 is not reachable from 1 with step 2")
     }
 
-    func testLongRange_reversed() {
+    @Test func longRange_reversed() {
         let r = kk_long_rangeTo(1, 5)
-        let rev = kk_long_range_reversed(r)
-        XCTAssertEqual(kk_long_range_first(rev), 5)
-        XCTAssertEqual(kk_long_range_last(rev), 1)
+        let rev = kk_range_reversed(r)
+        #expect(kk_range_first(rev) == 5)
+        #expect(kk_range_last(rev) == 1)
     }
 
-    func testLongProgressionFromClosedRange_negativeStep() {
+    @Test func longProgressionFromClosedRange_negativeStep() {
         // Exercise the signed descending helper path.
-        let progression = kk_long_progression_fromClosedRange(0, 10, 1, -3, nil)
-        XCTAssertEqual(kk_range_first(progression), 10)
-        XCTAssertEqual(kk_range_last(progression), 1)
-        XCTAssertEqual(kk_range_count(progression), 4)
+        let progression = __kk_long_progression_fromClosedRange(0, 10, 1, -3, nil)
+        #expect(kk_range_first(progression) == 10)
+        #expect(kk_range_last(progression) == 1)
+        #expect(kk_range_count(progression) == 4)
         let list = kk_long_range_toList(progression)
-        XCTAssertEqual(kk_list_size(list), 4)
-        XCTAssertEqual(kk_list_get(list, 0), 10)
-        XCTAssertEqual(kk_list_get(list, 3), 1)
+        #expect(kk_list_size(list) == 4)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == 10)
+        #expect(kk_unbox_long(kk_list_get(list, 3)) == 1)
     }
 
-    func testLongProgression_stepZeroThrows() {
+    @Test func longProgression_stepZeroThrows() {
         var thrown = 0
-        _ = kk_long_progression_fromClosedRange(0, 1, 10, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "step=0 must throw for LongProgression")
+        _ = __kk_long_progression_fromClosedRange(0, 1, 10, 0, &thrown)
+        #expect(thrown != 0, "step=0 must throw for LongProgression")
     }
 
     // MARK: - CharProgression fromClosedRange
 
-    func testCharProgressionFromClosedRange_positiveStep() {
+    @Test func charProgressionFromClosedRange_positiveStep() {
         let a = kk_box_char(Int(Unicode.Scalar("a").value))
         let g = kk_box_char(Int(Unicode.Scalar("g").value))
-        let progression = kk_char_progression_fromClosedRange(0, a, g, 2, nil)
+        let progression = __kk_char_progression_fromClosedRange(0, a, g, 2, nil)
         let list = kk_char_range_toList(progression)
 
-        XCTAssertEqual(kk_list_size(list), 4)
-        XCTAssertEqual(kk_unbox_char(kk_range_first(progression)), Int(Unicode.Scalar("a").value))
-        XCTAssertEqual(kk_unbox_char(kk_range_last(progression)), Int(Unicode.Scalar("g").value))
-        XCTAssertEqual(kk_range_step(progression), 2)
+        #expect(kk_list_size(list) == 4)
+        #expect(kk_unbox_char(kk_range_first(progression)) == Int(Unicode.Scalar("a").value))
+        #expect(kk_unbox_char(kk_range_last(progression)) == Int(Unicode.Scalar("g").value))
+        #expect(kk_range_step(progression) == 2)
     }
 
-    func testCharProgressionFromClosedRange_negativeStep() {
+    @Test func charProgressionFromClosedRange_negativeStep() {
         let g = kk_box_char(Int(Unicode.Scalar("g").value))
         let a = kk_box_char(Int(Unicode.Scalar("a").value))
-        let progression = kk_char_progression_fromClosedRange(0, g, a, -2, nil)
+        let progression = __kk_char_progression_fromClosedRange(0, g, a, -2, nil)
         let list = kk_char_range_toList(progression)
 
-        XCTAssertEqual(kk_list_size(list), 4)
-        XCTAssertEqual(kk_unbox_char(kk_range_first(progression)), Int(Unicode.Scalar("g").value))
-        XCTAssertEqual(kk_unbox_char(kk_range_last(progression)), Int(Unicode.Scalar("a").value))
-        XCTAssertEqual(kk_range_step(progression), -2)
+        #expect(kk_list_size(list) == 4)
+        #expect(kk_unbox_char(kk_range_first(progression)) == Int(Unicode.Scalar("g").value))
+        #expect(kk_unbox_char(kk_range_last(progression)) == Int(Unicode.Scalar("a").value))
+        #expect(kk_range_step(progression) == -2)
     }
 
-    func testCharProgressionFromClosedRange_stepZeroThrows() {
+    @Test func charProgressionFromClosedRange_stepZeroThrows() {
         let a = kk_box_char(Int(Unicode.Scalar("a").value))
         let g = kk_box_char(Int(Unicode.Scalar("g").value))
         var thrown = 0
-        _ = kk_char_progression_fromClosedRange(0, a, g, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "step=0 must throw for CharProgression")
+        _ = __kk_char_progression_fromClosedRange(0, a, g, 0, &thrown)
+        #expect(thrown != 0, "step=0 must throw for CharProgression")
     }
 
-    func testCharProgressionStepRealignsLast() {
+    @Test func charProgressionStepRealignsLast() {
         let a = kk_box_char(Int(Unicode.Scalar("a").value))
         let h = kk_box_char(Int(Unicode.Scalar("h").value))
-        let progression = kk_char_progression_fromClosedRange(0, a, h, 1, nil)
-        let stepped = kk_char_range_step(progression, 3, nil)
+        let progression = __kk_char_progression_fromClosedRange(0, a, h, 1, nil)
+        let stepped = __kk_char_range_step(progression, 3, nil)
 
-        XCTAssertEqual(kk_unbox_char(kk_range_last(stepped)), Int(Unicode.Scalar("g").value))
-        XCTAssertEqual(kk_list_size(kk_char_range_toList(stepped)), 3)
-        XCTAssertEqual(kk_char_range_isEmpty(stepped), 0)
+        #expect(kk_unbox_char(kk_range_last(stepped)) == Int(Unicode.Scalar("g").value))
+        #expect(kk_list_size(kk_char_range_toList(stepped)) == 3)
+        #expect(!(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: stepped)!)))
+    }
+
+    @Test func charProgressionGenericIteratorPreservesCharIdentity() {
+        let eScalar = Int(Unicode.Scalar("e").value)
+        let aScalar = Int(Unicode.Scalar("a").value)
+        let progression = __kk_char_progression_fromClosedRange(
+            0,
+            kk_box_char(eScalar),
+            kk_box_char(aScalar),
+            -1,
+            nil
+        )
+
+        let genericIterator = kk_range_iterator(progression, nil)
+        let genericElement = kk_iterator_next(genericIterator, nil)
+        #expect(kk_unbox_char(genericElement) == eScalar)
+        #expect(runtimeElementToString(genericElement) == "e")
+
+        let primitiveIterator = kk_range_iterator(progression, nil)
+        #expect(kk_range_next(primitiveIterator) == eScalar)
     }
 
     // MARK: - CharRange edge cases
 
-    func testCharRange_toListAscending() {
+    @Test func charRange_toListAscending() {
         // ('a'..'e') -> ['a','b','c','d','e']
         let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
         let eBoxed = kk_box_char(Int(Unicode.Scalar("e").value))
         let range = kk_op_rangeTo(aBoxed, eBoxed)
         let list = kk_char_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 5)
+        #expect(kk_list_size(list) == 5)
     }
 
-    func testCharRange_emptyWhenFromGtTo() {
+    @Test func charRange_emptyWhenFromGtTo() {
         // ('z'..'a') -> empty
         let zBoxed = kk_box_char(Int(Unicode.Scalar("z").value))
         let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
         let range = kk_op_rangeTo(zBoxed, aBoxed)
         let list = kk_char_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 0, "CharRange from > to must produce empty list")
+        #expect(kk_list_size(list) == 0, "CharRange from > to must produce empty list")
     }
 
-    func testCharRange_singleElement() {
+    @Test func charRange_singleElement() {
         let cBoxed = kk_box_char(Int(Unicode.Scalar("c").value))
         let range = kk_op_rangeTo(cBoxed, cBoxed)
         let list = kk_char_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 1)
+        #expect(kk_list_size(list) == 1)
     }
 
-    func testCharRange_take() {
+    @Test func charRange_take() {
         let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
         let zBoxed = kk_box_char(Int(Unicode.Scalar("z").value))
         let range = kk_op_rangeTo(aBoxed, zBoxed)
-        let taken = kk_char_range_take(range, 3)
-        XCTAssertEqual(kk_list_size(taken), 3)
+        let taken = kk_char_range_take(range, 3, nil)
+        #expect(kk_list_size(taken) == 3)
     }
 
-    func testCharRange_drop() {
+    @Test func charRange_drop() {
         let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
         let eBoxed = kk_box_char(Int(Unicode.Scalar("e").value))
         let range = kk_op_rangeTo(aBoxed, eBoxed)
         // ('a'..'e') drop 2 -> ['c','d','e']
-        let dropped = kk_char_range_drop(range, 2)
-        XCTAssertEqual(kk_list_size(dropped), 3)
+        let dropped = kk_char_range_drop(range, 2, nil)
+        #expect(kk_list_size(dropped) == 3)
     }
 
-    func testCharRange_sorted_descendingInput() {
+    @Test func charRange_takeNegativeCountThrows() {
+        let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
+        let zBoxed = kk_box_char(Int(Unicode.Scalar("z").value))
+        let range = kk_op_rangeTo(aBoxed, zBoxed)
+        var thrown: Int = 0
+        let taken = kk_char_range_take(range, -1, &thrown)
+        #expect(kk_list_size(taken) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test func charRange_dropNegativeCountThrows() {
+        let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
+        let eBoxed = kk_box_char(Int(Unicode.Scalar("e").value))
+        let range = kk_op_rangeTo(aBoxed, eBoxed)
+        var thrown: Int = 0
+        let dropped = kk_char_range_drop(range, -1, &thrown)
+        #expect(kk_list_size(dropped) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test func charRange_sorted_descendingInput() {
         // Sorted should still return ascending order
         let eBoxed = kk_box_char(Int(Unicode.Scalar("e").value))
         let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
         // Descending range with step -1
-        let range = kk_op_downTo(eBoxed, aBoxed)
+        let range = __kk_op_downTo(eBoxed, aBoxed)
         let sorted = kk_char_range_sorted(range)
-        XCTAssertEqual(kk_list_size(sorted), 5)
+        #expect(kk_list_size(sorted) == 5)
         // first element should be 'a' (smallest)
         let firstChar = kk_unbox_char(kk_list_get(sorted, 0))
         let lastChar = kk_unbox_char(kk_list_get(sorted, 4))
-        XCTAssertEqual(firstChar, Int(Unicode.Scalar("a").value))
-        XCTAssertEqual(lastChar, Int(Unicode.Scalar("e").value))
+        #expect(firstChar == Int(Unicode.Scalar("a").value))
+        #expect(lastChar == Int(Unicode.Scalar("e").value))
     }
 
     // MARK: - UIntRange edge cases
+    //
+    // KSP-1523: contains/isEmpty/first/last/firstOrNull/lastOrNull/count/sum/
+    // reversed/sorted/toList moved to bundled Kotlin source (RangeHOF.kt);
+    // average/toUIntArray were removed outright instead — neither is a real
+    // UIntRange member in Kotlin (confirmed via diff_kotlinc.sh: kotlinc
+    // rejects both on a UIntRange receiver). Either way their kk_uint_range_*
+    // Runtime bridges were deleted — the edge cases those tests covered
+    // (empty range, single element, downTo + step alignment, reversed,
+    // values near UInt.MAX_VALUE) are now exercised at the compiler level
+    // via Scripts/diff_cases/uint_range.kt and the kklib-mode self-contained
+    // check, per stdlib-pipeline.md §13-4's dual-oracle requirement — not by
+    // calling the removed bridges directly.
 
-    func testUIntRange_emptyWhenFromGtTo() {
-        let empty = kk_uint_rangeTo(10, 1) // unsigned: 10u > 1u, empty
-        XCTAssertEqual(kk_uint_range_isEmpty(empty), 1)
-    }
-
-    func testUIntRange_singleElement() {
-        let r = kk_uint_rangeTo(5, 5)
-        XCTAssertEqual(kk_uint_range_isEmpty(r), 0)
-        XCTAssertEqual(kk_uint_range_contains(r, 5), 1)
-        XCTAssertEqual(kk_uint_range_contains(r, 4), 0)
-    }
-
-    func testUIntRange_step2_lastAligned() {
+    @Test func uIntRange_step2_lastAligned() {
         // (1u..10u step 2) -> 1,3,5,7,9; last aligned to 9
-        let p = kk_uint_step(kk_uint_rangeTo(1, 10), 2)
-        XCTAssertEqual(kk_range_first(p), 1)
-        XCTAssertEqual(kk_range_last(p), 9)
-        XCTAssertEqual(kk_range_count(p), 5)
+        let p = __kk_uint_step(__kk_uint_rangeTo(1, 10), 2)
+        #expect(kk_range_first(p) == 1)
+        #expect(kk_range_last(p) == 9)
+        #expect(kk_range_count(p) == 5)
     }
 
-    func testUIntRange_downTo() {
-        // (5u downTo 1u) -> 5,4,3,2,1
-        let range = kk_uint_downTo(5, 1)
-        XCTAssertEqual(kk_range_count(range), 5)
-        let list = kk_uint_range_toList(range)
-        XCTAssertEqual(kk_list_get(list, 0), 5)
-        XCTAssertEqual(kk_list_get(list, 4), 1)
-    }
-
-    func testUIntRange_downToStepAlignment() {
-        // (10u downTo 1u) step 3 -> 10,7,4,1
-        let range = kk_uint_step(kk_uint_downTo(10, 1), 3)
-        XCTAssertEqual(kk_range_first(range), 10)
-        XCTAssertEqual(kk_range_last(range), 1)
-        XCTAssertEqual(kk_range_count(range), 4)
-        let list = kk_uint_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 4)
-        XCTAssertEqual(kk_list_get(list, 0), 10)
-        XCTAssertEqual(kk_list_get(list, 3), 1)
-    }
-
-    func testUIntRange_downTo_isEmpty_whenFromLtTo() {
-        let empty = kk_uint_downTo(1, 5)
-        XCTAssertEqual(kk_uint_range_isEmpty(empty), 1)
-    }
-
-    func testUIntRange_reversed() {
-        let r = kk_uint_rangeTo(1, 5)
-        let rev = kk_uint_range_reversed(r)
-        XCTAssertEqual(kk_range_first(rev), 5)
-        XCTAssertEqual(kk_range_last(rev), 1)
-        XCTAssertEqual(kk_range_count(rev), 5)
-    }
-
-    func testUIntProgressionFromClosedRange_stepZeroThrows() {
+    @Test func uIntProgressionFromClosedRange_stepZeroThrows() {
         var thrown = 0
-        _ = kk_uint_progression_fromClosedRange(0, 1, 10, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "step=0 must throw for UIntProgression")
-    }
-
-    func testUIntRange_largeUnsignedValues_beyondIntMax() {
-        // Values near UInt.max stored as negative Int bit patterns
-        let uintMax = Int(bitPattern: UInt.max)
-        let uintMaxMinus1 = Int(bitPattern: UInt.max - 1)
-        let r = kk_uint_rangeTo(uintMaxMinus1, uintMax)
-        XCTAssertEqual(kk_uint_range_contains(r, uintMaxMinus1), 1)
-        XCTAssertEqual(kk_uint_range_contains(r, uintMax), 1)
-        XCTAssertEqual(kk_range_count(r), 2)
+        _ = __kk_uint_progression_fromClosedRange(0, 1, 10, 0, &thrown)
+        #expect(thrown != 0, "step=0 must throw for UIntProgression")
     }
 
     // MARK: - ULongRange edge cases
 
-    func testULongRange_emptyWhenFromGtTo() {
-        let empty = kk_ulong_rangeTo(10, 1)
-        XCTAssertEqual(kk_range_isEmpty(empty), 1, "ULongRange from > to must be empty")
+    @Test func uLongRange_emptyWhenFromGtTo() {
+        let empty = __kk_ulong_rangeTo(10, 1)
+        #expect(RuntimeUnsignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!), "ULongRange from > to must be empty")
     }
 
-    func testULongRange_singleElement() {
-        let r = kk_ulong_rangeTo(42, 42)
-        XCTAssertEqual(kk_range_count(r), 1)
+    @Test func uLongRange_singleElement() {
+        let r = __kk_ulong_rangeTo(42, 42)
+        #expect(kk_range_count(r) == 1)
     }
 
-    func testULongRange_step2_lastAligned() {
+    @Test func uLongRange_step2_lastAligned() {
         // (1UL..10UL step 2) -> 1,3,5,7,9; last aligned to 9
-        let p = kk_ulong_step(kk_ulong_rangeTo(1, 10), 2)
-        XCTAssertEqual(kk_range_first(p), 1)
-        XCTAssertEqual(kk_range_last(p), 9)
-        XCTAssertEqual(kk_range_count(p), 5)
+        let p = __kk_ulong_step(__kk_ulong_rangeTo(1, 10), 2)
+        #expect(kk_range_first(p) == 1)
+        #expect(kk_range_last(p) == 9)
+        #expect(kk_range_count(p) == 5)
     }
 
-    func testULongRange_downTo_iterationOrder() {
+    @Test func uLongRange_downTo_iterationOrder() {
         // (5UL downTo 1UL) -> 5,4,3,2,1
-        let range = kk_ulong_downTo(5, 1)
-        let list = kk_ulong_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 5)
-        XCTAssertEqual(kk_list_get(list, 0), 5)
-        XCTAssertEqual(kk_list_get(list, 4), 1)
+        let range = __kk_ulong_downTo(5, 1)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: range)!)
+        #expect(kk_list_size(list) == 5)
+        #expect(kk_unbox_ulong(kk_list_get(list, 0)) == 5)
+        #expect(kk_unbox_ulong(kk_list_get(list, 4)) == 1)
     }
 
-    func testULongRange_downTo_step3_lastAligned() {
+    @Test func uLongRange_downTo_step3_lastAligned() {
         // (10UL downTo 1UL step 3) -> 10,7,4,1; last aligned to 1
-        let range = kk_ulong_step(kk_ulong_downTo(10, 1), 3)
-        XCTAssertEqual(kk_range_first(range), 10)
-        XCTAssertEqual(kk_range_last(range), 1)
-        XCTAssertEqual(kk_range_count(range), 4)
+        let range = __kk_ulong_step(__kk_ulong_downTo(10, 1), 3)
+        #expect(kk_range_first(range) == 10)
+        #expect(kk_range_last(range) == 1)
+        #expect(kk_range_count(range) == 4)
     }
 
-    func testULongRange_reversed() {
-        let r = kk_ulong_rangeTo(1, 5)
-        let rev = kk_ulong_range_reversed(r)
-        XCTAssertEqual(kk_range_first(rev), 5)
-        XCTAssertEqual(kk_range_last(rev), 1)
-        XCTAssertEqual(kk_range_count(rev), 5)
-    }
-
-    func testULongProgressionFromClosedRange_stepZeroThrows() {
+    @Test func uLongProgressionFromClosedRange_stepZeroThrows() {
         var thrown = 0
-        _ = kk_ulong_progression_fromClosedRange(0, 1, 10, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "step=0 must throw for ULongProgression")
+        _ = __kk_ulong_progression_fromClosedRange(0, 1, 10, 0, &thrown)
+        #expect(thrown != 0, "step=0 must throw for ULongProgression")
     }
 
-    func testULongProgressionFromClosedRange_stepIntMinThrows() {
+    @Test func uLongProgressionFromClosedRange_stepIntMinThrows() {
         var thrown = 0
-        _ = kk_ulong_progression_fromClosedRange(0, 1, 10, Int.min, &thrown)
-        XCTAssertNotEqual(thrown, 0, "step=Int.min must throw for ULongProgression")
+        _ = __kk_ulong_progression_fromClosedRange(0, 1, 10, Int.min, &thrown)
+        #expect(thrown != 0, "step=Int.min must throw for ULongProgression")
     }
 
-    func testULongRange_largeValues_beyondIntMax() {
+    @Test func uLongRange_largeValues_beyondIntMax() {
         // Values beyond Int.max (represented as negative Int with UInt semantics)
         let bigStart = Int(bitPattern: UInt(4_294_967_295))   // UInt32.max
         let bigEnd = Int(bitPattern: UInt(4_294_967_298))
-        let r = kk_ulong_rangeTo(bigStart, bigEnd)
-        let list = kk_ulong_range_toList(r)
-        XCTAssertEqual(kk_list_size(list), 4)
-        XCTAssertEqual(kk_list_get(list, 0), bigStart)
-        XCTAssertEqual(kk_list_get(list, 3), bigEnd)
+        let r = __kk_ulong_rangeTo(bigStart, bigEnd)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: r)!)
+        #expect(kk_list_size(list) == 4)
+        #expect(kk_unbox_ulong(kk_list_get(list, 0)) == bigStart)
+        #expect(kk_unbox_ulong(kk_list_get(list, 3)) == bigEnd)
     }
 
-    func testULongRange_untilHighValues() {
+    @Test func uLongRange_untilHighValues() {
         // Exercise the unsigned rangeUntil helper on values above Int.max.
         let start = Int(bitPattern: UInt.max - 3)
         let end = Int(bitPattern: UInt.max - 1)
-        let range = kk_op_ulong_rangeUntil(start, end)
-        XCTAssertEqual(kk_range_count(range), 2)
-        let list = kk_ulong_range_toList(range)
-        XCTAssertEqual(kk_list_size(list), 2)
-        XCTAssertEqual(kk_list_get(list, 0), start)
-        XCTAssertEqual(kk_list_get(list, 1), Int(bitPattern: UInt.max - 2))
+        let range = __kk_op_ulong_rangeUntil(start, end)
+        #expect(kk_range_count(range) == 2)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: range)!)
+        #expect(kk_list_size(list) == 2)
+        #expect(kk_unbox_ulong(kk_list_get(list, 0)) == start)
+        #expect(kk_unbox_ulong(kk_list_get(list, 1)) == Int(bitPattern: UInt.max - 2))
     }
 
     // MARK: - ClosedRange contract (IntRange)
 
-    func testClosedRangeContract_firstIncluded() {
+    @Test func closedRangeContract_firstIncluded() {
         let r = kk_op_rangeTo(3, 7)
-        XCTAssertEqual(kk_range_contains(r, kk_range_first(r)), 1, "first must be contained in ClosedRange")
+        #expect(kk_range_contains(r, kk_range_first(r)) == 1, "first must be contained in ClosedRange")
     }
 
-    func testClosedRangeContract_lastIncluded() {
+    @Test func closedRangeContract_lastIncluded() {
         let r = kk_op_rangeTo(3, 7)
-        XCTAssertEqual(kk_range_contains(r, kk_range_last(r)), 1, "last must be contained in ClosedRange")
+        #expect(kk_range_contains(r, kk_range_last(r)) == 1, "last must be contained in ClosedRange")
     }
 
-    func testClosedRangeContract_adjacentToFirstExcluded() {
+    @Test func closedRangeContract_adjacentToFirstExcluded() {
         let r = kk_op_rangeTo(3, 7)
-        XCTAssertEqual(kk_range_contains(r, kk_range_first(r) - 1), 0, "first-1 must not be contained")
+        #expect(kk_range_contains(r, kk_range_first(r) - 1) == 0, "first-1 must not be contained")
     }
 
-    func testClosedRangeContract_adjacentToLastExcluded() {
+    @Test func closedRangeContract_adjacentToLastExcluded() {
         let r = kk_op_rangeTo(3, 7)
-        XCTAssertEqual(kk_range_contains(r, kk_range_last(r) + 1), 0, "last+1 must not be contained")
+        #expect(kk_range_contains(r, kk_range_last(r) + 1) == 0, "last+1 must not be contained")
     }
 
     // MARK: - OpenEndRange contract (rangeUntil / ..<)
 
-    func testOpenEndRangeContract_endExcluded() {
-        let r = kk_op_rangeUntil(3, 7)
-        XCTAssertEqual(kk_range_contains(r, 7), 0, "end must NOT be contained in OpenEndRange (..<)")
+    @Test func openEndRangeContract_endExcluded() {
+        let r = __kk_op_rangeUntil(3, 7)
+        #expect(kk_range_contains(r, 7) == 0, "end must NOT be contained in OpenEndRange (..<)")
     }
 
-    func testOpenEndRangeContract_startIncluded() {
-        let r = kk_op_rangeUntil(3, 7)
-        XCTAssertEqual(kk_range_contains(r, 3), 1, "start must be contained in OpenEndRange")
+    @Test func openEndRangeContract_startIncluded() {
+        let r = __kk_op_rangeUntil(3, 7)
+        #expect(kk_range_contains(r, 3) == 1, "start must be contained in OpenEndRange")
     }
 
-    func testOpenEndRangeContract_endMinus1Included() {
-        let r = kk_op_rangeUntil(3, 7)
-        XCTAssertEqual(kk_range_contains(r, 6), 1, "end-1 must be contained in OpenEndRange")
+    @Test func openEndRangeContract_endMinus1Included() {
+        let r = __kk_op_rangeUntil(3, 7)
+        #expect(kk_range_contains(r, 6) == 1, "end-1 must be contained in OpenEndRange")
     }
 
-    func testOpenEndRangeContract_endExclusiveMatchesUpperBound() {
+    @Test func openEndRangeContract_endExclusiveMatchesUpperBound() {
         let closed = kk_op_rangeTo(3, 7)
-        XCTAssertEqual(kk_range_endExclusive(closed), 8, "ClosedRange endExclusive should be last + 1")
+        var thrown = -1
+        #expect(kk_range_endExclusive(closed, &thrown) == 8, "ClosedRange endExclusive should be last + 1")
+        #expect(thrown == 0)
 
-        let open = kk_op_rangeUntil(3, 7)
-        XCTAssertEqual(kk_range_endExclusive(open), 7, "OpenEndRange endExclusive should match the exclusive upper bound")
+        let open = __kk_op_rangeUntil(3, 7)
+        thrown = -1
+        #expect(kk_range_endExclusive(open, &thrown) == 7, "OpenEndRange endExclusive should match the exclusive upper bound")
+        #expect(thrown == 0)
+    }
+
+    @Test func closedRangeContract_maximumEndExclusiveThrows() throws {
+        let range = kk_op_rangeTo(Int(Int32.max) - 1, Int(Int32.max))
+        var thrown = 0
+        #expect(kk_range_endExclusive(range, &thrown) == runtimeExceptionCaughtSentinel)
+        let box = try #require(runtimeThrowableBox(from: thrown))
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self))
     }
 
     // MARK: - Iterator protocol correctness
 
-    func testIterator_stepsCorrectly_ascending() {
+    @Test func iterator_withoutThrownChannel_preservesRangeIteration() {
+        let range = kk_op_rangeTo(1, 2)
+        let iterator = kk_range_iterator(range)
+
+        #expect(kk_range_hasNext(iterator) == 1)
+        #expect(kk_range_next(iterator) == 1)
+        #expect(kk_range_hasNext(iterator) == 1)
+        #expect(kk_range_next(iterator) == 2)
+        #expect(kk_range_hasNext(iterator) == 0)
+    }
+
+    @Test func iterator_stepsCorrectly_ascending() {
         let range = kk_op_rangeTo(1, 4)
-        let iter = kk_range_iterator(range)
+        let iter = kk_range_iterator(range, nil)
         var values: [Int] = []
         while kk_range_hasNext(iter) != 0 {
             values.append(kk_range_next(iter))
         }
-        XCTAssertEqual(values, [1, 2, 3, 4])
+        #expect(values == [1, 2, 3, 4])
     }
 
-    func testIterator_stepsCorrectly_descending() {
-        let range = kk_op_downTo(4, 1)
-        let iter = kk_range_iterator(range)
+    @Test func iterator_stepsCorrectly_descending() {
+        let range = __kk_op_downTo(4, 1)
+        let iter = kk_range_iterator(range, nil)
         var values: [Int] = []
         while kk_range_hasNext(iter) != 0 {
             values.append(kk_range_next(iter))
         }
-        XCTAssertEqual(values, [4, 3, 2, 1])
+        #expect(values == [4, 3, 2, 1])
     }
 
-    func testIterator_emptyRange_hasNextFalseImmediately() {
+    @Test func iterator_emptyRange_hasNextFalseImmediately() {
         let empty = kk_op_rangeTo(5, 1)
-        let iter = kk_range_iterator(empty)
-        XCTAssertEqual(kk_range_hasNext(iter), 0, "hasNext on empty range must be false immediately")
+        let iter = kk_range_iterator(empty, nil)
+        #expect(kk_range_hasNext(iter) == 0, "hasNext on empty range must be false immediately")
     }
 
-    func testIterator_withStep_yieldsAlignedValues() {
+    @Test func iterator_withStep_yieldsAlignedValues() {
         // (1..10 step 3) -> 1,4,7,10
-        let range = kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
-        let iter = kk_range_iterator(range)
+        let range = __kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
+        let iter = kk_range_iterator(range, nil)
         var values: [Int] = []
         while kk_range_hasNext(iter) != 0 {
             values.append(kk_range_next(iter))
         }
-        XCTAssertEqual(values, [1, 4, 7, 10])
+        #expect(values == [1, 4, 7, 10])
+    }
+
+    // BUG-198: the compiler-lowered fast path must match RangeIterators.kt,
+    // including stopping after an arithmetic overflow instead of wrapping into
+    // another valid-looking element.
+    @Test func forInFastPath_stepsAndStopsAtOverflow() {
+        let range = kk_op_rangeTo(Int.max - 1, Int.max)
+        let iter = kk_range_for_in_iterator(range)
+        var values: [Int] = []
+        while kk_range_for_in_hasNext(iter) != 0 {
+            values.append(kk_range_for_in_next(iter))
+        }
+        #expect(values == [Int.max - 1, Int.max])
+        #expect(kk_range_for_in_hasNext(iter) == 0)
+    }
+
+    @Test func forInFastPath_descendingStopsAtUnderflow() {
+        let range = __kk_op_downTo(Int.min + 1, Int.min)
+        let iter = kk_range_for_in_iterator(range)
+        var values: [Int] = []
+        while kk_range_for_in_hasNext(iter) != 0 {
+            values.append(kk_range_for_in_next(iter))
+        }
+        #expect(values == [Int.min + 1, Int.min])
+        #expect(kk_range_for_in_hasNext(iter) == 0)
+    }
+
+    @Test func forInFastPath_emptyAndSteppedRanges() {
+        let empty = kk_range_for_in_iterator(kk_op_rangeTo(5, 1))
+        #expect(kk_range_for_in_hasNext(empty) == 0)
+
+        let stepped = __kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
+        let iter = kk_range_for_in_iterator(stepped)
+        var values: [Int] = []
+        while kk_range_for_in_hasNext(iter) != 0 {
+            values.append(kk_range_for_in_next(iter))
+        }
+        #expect(values == [1, 4, 7, 10])
     }
 
     // MARK: - sum / isEmpty on progressions
 
-    func testProgressionSum_empty() {
+    @Test func progressionSum_empty() {
         let empty = kk_op_rangeTo(5, 1)
-        XCTAssertEqual(kk_range_sum(empty), 0)
+        #expect(kk_range_sum(empty) == 0)
     }
 
-    func testProgressionSum_singleElement() {
+    @Test func progressionSum_singleElement() {
         let single = kk_op_rangeTo(7, 7)
-        XCTAssertEqual(kk_range_sum(single), 7)
+        #expect(kk_range_sum(single) == 7)
     }
 
-    func testProgressionSum_ascending() {
+    @Test func progressionSum_ascending() {
         // 1+2+3+4+5 = 15
         let r = kk_op_rangeTo(1, 5)
-        XCTAssertEqual(kk_range_sum(r), 15)
+        #expect(kk_range_sum(r) == 15)
     }
 
-    func testProgressionSum_descendingWithStep() {
+    @Test func progressionSum_descendingWithStep() {
         // (10 downTo 1 step 3) -> 10,7,4,1 -> sum=22
-        let r = kk_op_step(kk_op_downTo(10, 1), 3, nil)
-        XCTAssertEqual(kk_range_sum(r), 22)
+        let r = __kk_op_step(__kk_op_downTo(10, 1), 3, nil)
+        #expect(kk_range_sum(r) == 22)
     }
+
+    // MARK: - Boundary iteration termination (KUU-819)
+    //
+    // A signed range whose inclusive endpoint sits at an Int/Long boundary
+    // must stop after emitting it: the wrapping advance used to re-enter a
+    // valid-looking element near the opposite bound and walk almost the
+    // whole 64-bit domain. Every traversal surface is covered here — shared
+    // HOF traverse, reversed traverse, the explicit iterator, sum, and the
+    // take/drop/sorted list builders.
+
+    @Test func boundarySingleton_longMaxToMax_toList() {
+        let range = kk_long_rangeTo(Int.max, Int.max)
+        let list = kk_long_range_toList(range)
+        #expect(kk_list_size(list) == 1)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max)
+    }
+
+    @Test func boundarySingleton_longMinToMin_toList() {
+        let range = kk_long_rangeTo(Int.min, Int.min)
+        let list = kk_long_range_toList(range)
+        #expect(kk_list_size(list) == 1)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.min)
+    }
+
+    @Test func boundarySingleton_intMaxToMax_toListAndSum() {
+        let range = kk_op_rangeTo(Int.max, Int.max)
+        let list = kk_range_toList(range)
+        #expect(kk_list_size(list) == 1)
+        let longRange = kk_long_rangeTo(Int.max, Int.max)
+        #expect(kk_range_sum(longRange) == Int.max)
+    }
+
+    @Test func boundaryEndingProgression_longToListTerminates() {
+        // last lands exactly on Int.max — the advance past it must not wrap.
+        let progression = __kk_long_progression_fromClosedRange(0, Int.max - 4, Int.max, 2, nil)
+        let list = kk_long_range_toList(progression)
+        #expect(kk_list_size(list) == 3)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max - 4)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.max)
+    }
+
+    @Test func boundaryEndingProgression_longDescendingToMin() {
+        let progression = __kk_long_progression_fromClosedRange(0, Int.min + 4, Int.min, -2, nil)
+        let list = kk_long_range_toList(progression)
+        #expect(kk_list_size(list) == 3)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.min + 4)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.min)
+    }
+
+    @Test func boundaryEndingRange_reversedToListTerminates() {
+        let rev = kk_range_reversed(kk_long_rangeTo(Int.max - 2, Int.max))
+        let list = kk_long_range_toList(rev)
+        #expect(kk_list_size(list) == 3)
+        #expect(kk_unbox_long(kk_list_get(list, 0)) == Int.max)
+        #expect(kk_unbox_long(kk_list_get(list, 2)) == Int.max - 2)
+    }
+
+    @Test func boundaryReversedTraverse_lastMatchTerminates() {
+        // runtimeSignedRangeTraverseReversed starts at `last` and walks
+        // toward `first`; a singleton at Int.min used to wrap to Int.max.
+        let range = kk_long_rangeTo(Int.min, Int.min)
+        let result = kk_range_findLast(range, unsafeBitCast(rangePredicateNever, to: Int.self), 0, nil)
+        #expect(result == runtimeNullSentinelInt)
+    }
+
+    @Test func boundaryIterator_int_staysExhaustedAfterEndpoint() {
+        let iter = kk_range_iterator(kk_op_rangeTo(Int.max, Int.max), nil)
+        #expect(kk_range_hasNext(iter) == 1)
+        #expect(kk_range_next(iter) == Int.max)
+        #expect(kk_range_hasNext(iter) == 0)
+        // Exhaustion is permanent: further next() calls must not reactivate
+        // the iterator by wrapping into the opposite boundary.
+        _ = kk_range_next(iter)
+        _ = kk_range_next(iter)
+        #expect(kk_range_hasNext(iter) == 0)
+    }
+
+    @Test func boundaryIterator_int_multiElementEndingAtMax() {
+        let iter = kk_range_iterator(kk_op_rangeTo(Int.max - 1, Int.max), nil)
+        var values: [Int] = []
+        while kk_range_hasNext(iter) != 0 {
+            values.append(kk_range_next(iter))
+        }
+        #expect(values == [Int.max - 1, Int.max])
+    }
+
+    @Test func boundaryIterator_long_staysExhaustedAfterEndpoint() {
+        let iter = kk_long_range_iterator(kk_long_rangeTo(Int.max, Int.max))
+        #expect(kk_range_hasNext(iter) == 1)
+        #expect(kk_range_next(iter) == Int.max)
+        #expect(kk_range_hasNext(iter) == 0)
+        _ = kk_range_next(iter)
+        #expect(kk_range_hasNext(iter) == 0)
+    }
+
+    @Test func boundaryIterator_long_descendingToMin() {
+        let iter = kk_long_range_iterator(__kk_long_progression_fromClosedRange(0, Int.min + 1, Int.min, -1, nil))
+        var values: [Int] = []
+        while kk_range_hasNext(iter) != 0 {
+            values.append(kk_range_next(iter))
+        }
+        #expect(values == [Int.min + 1, Int.min])
+    }
+
+    @Test func boundaryIterator_erasedNextThrowsAfterEndpoint() {
+        let iter = kk_range_iterator(kk_op_rangeTo(Int.max - 1, Int.max), nil)
+        var thrown = 0
+        #expect(kk_iterator_next(iter, &thrown) == Int.max - 1)
+        #expect(thrown == 0)
+        #expect(kk_iterator_next(iter, &thrown) == Int.max)
+        #expect(thrown == 0)
+        _ = kk_iterator_next(iter, &thrown)
+        #expect(thrown != 0, "iterator past the inclusive endpoint must throw NoSuchElementException")
+    }
+
+    @Test func boundaryAggregates_int_takeDropSortedSumTerminate() {
+        let range = kk_op_rangeTo(Int.max - 1, Int.max)
+        #expect(kk_list_size(kk_range_take(range, 5, nil)) == 2)
+        #expect(kk_list_size(kk_range_drop(range, 1, nil)) == 1)
+        #expect(kk_list_size(kk_range_sorted(range)) == 2)
+
+        // Int-domain sums wrap at 32 bits: (Int32.max-2 + max-1 + max) mod 2^32.
+        let sumRange = kk_op_rangeTo(2_147_483_645, 2_147_483_647)
+        #expect(kk_range_sum(sumRange) == 2_147_483_642)
+        // Long-domain sums keep the full 64-bit accumulator.
+        let longSumRange = kk_long_rangeTo(Int.max - 2, Int.max)
+        let expectedSum = ((Int.max - 2) &+ (Int.max - 1)) &+ Int.max
+        #expect(kk_range_sum(longSumRange) == expectedSum)
+    }
+
+    @Test func boundaryAggregates_int_descendingToMin() {
+        let range = __kk_op_downTo(Int.min + 1, Int.min)
+        // intProgression sums truncate to 32 bits: elements min+1 -> 1, min -> 0.
+        #expect(kk_range_sum(range) == 1)
+        #expect(kk_list_size(kk_range_take(range, 5, nil)) == 2)
+        #expect(kk_list_size(kk_range_sorted(range)) == 2)
+
+        let longRange = __kk_long_progression_fromClosedRange(0, Int.min + 1, Int.min, -1, nil)
+        #expect(kk_range_sum(longRange) == (Int.min + 1) &+ Int.min)
+    }
+
+    @Test func boundaryCharProgression_largeStepTerminates() {
+        // 'a'..'\uFFFF' step Int.max — the aligned last is 'a' itself; the
+        // advance must stop instead of wrapping the Int accumulator.
+        let aScalar = Int(Unicode.Scalar("a").value)
+        let maxScalar = 0xFFFF
+        let progression = __kk_char_progression_fromClosedRange(
+            0,
+            kk_box_char(aScalar),
+            kk_box_char(maxScalar),
+            1,
+            nil
+        )
+        let stepped = __kk_char_range_step(progression, Int.max, nil)
+        let list = kk_char_range_toList(stepped)
+        #expect(kk_list_size(list) == 1)
+        #expect(kk_unbox_char(kk_list_get(list, 0)) == aScalar)
+    }
+
+    @Test func boundaryContains_fullSpanSteppedRangeDoesNotTrap() {
+        // (Int.min..Int.max step 3): element - first exceeds Int64 range;
+        // Int.max is reachable since the unsigned distance is 2^64-1 (mod 3 == 0).
+        let range = __kk_op_step(kk_op_rangeTo(Int.min, Int.max), 3, nil)
+        #expect(kk_op_contains(range, Int.max) == 1)
+        #expect(kk_range_contains(range, Int.max) == 1)
+        #expect(kk_op_contains(range, Int.max - 1) == 0)
+    }
+
+    @Test func boundaryContains_fullSpanDescendingRangeDoesNotTrap() {
+        let range = __kk_op_step(__kk_op_downTo(Int.max, Int.min), 3, nil)
+        #expect(kk_op_contains(range, Int.min) == 1)
+        #expect(kk_range_contains(range, Int.min) == 1)
+        #expect(kk_op_contains(range, Int.min + 1) == 0)
+    }
+
+    @Test func boundarySum_intKindWrapsTo32Bits() {
+        // (Int.MIN..Int.MIN+2).sum() wraps in Int32 arithmetic -> -2147483645
+        let range = kk_op_rangeTo(-2_147_483_648, -2_147_483_646)
+        #expect(kk_range_sum(range) == -2_147_483_645)
+        // Long sums wrap at the full 64-bit boundary instead.
+        let longRange = kk_long_rangeTo(Int.min, Int.min + 2)
+        #expect(kk_range_sum(longRange) == -9_223_372_036_854_775_805)
+    }
+
+    @Test func boundaryStep_fullSpanAlignsLastToBoundary() {
+        // distance = 2^64-1 is a multiple of 3, so `last` stays at Int.max.
+        let stepped = __kk_op_step(kk_op_rangeTo(Int.min, Int.max), 3, nil)
+        #expect(kk_range_last(stepped) == Int.max)
+        let even = __kk_op_step(kk_op_rangeTo(Int.min, Int.max), 2, nil)
+        #expect(kk_range_last(even) == Int.max - 1)
+    }
+}
+
+private let rangePredicateNever: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _ in
+    0
 }

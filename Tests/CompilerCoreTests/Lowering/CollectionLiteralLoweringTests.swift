@@ -7,68 +7,97 @@ import Testing
 struct CollectionLiteralLoweringTests {
     // MARK: - Helper
 
-    private func makeKIRContext(interner: StringInterner) -> KIRContext {
-        let options = CompilerOptions(
-            moduleName: "CollLiteralTest",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        return KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: options,
-            interner: interner
-        )
-    }
-
     private func makeModuleWithCall(callee: InternedString, interner: StringInterner, arena: KIRArena) -> (KIRModule, KIRDeclID) {
         let v0 = arena.appendExpr(.temporary(0))
         let v1 = arena.appendExpr(.temporary(1))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(symbol: nil, callee: callee, arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
+        return makeModule(body: [
+            .call(symbol: nil, callee: callee, arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+            .returnUnit,
+        ], interner: interner, arena: arena)
     }
 
     private func makeModuleWithZeroArgCall(callee: InternedString, interner: StringInterner, arena: KIRArena) -> (KIRModule, KIRDeclID) {
         let result = arena.appendExpr(.temporary(0))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(symbol: nil, callee: callee, arguments: [], result: result, canThrow: false, thrownResult: nil),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
+        return makeModule(body: [
+            .call(symbol: nil, callee: callee, arguments: [], result: result, canThrow: false, thrownResult: nil),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+    }
+
+    private func makeModuleWithRangeReceiverCall(
+        callee: InternedString,
+        interner: StringInterner,
+        arena: KIRArena
+    ) -> (KIRModule, KIRDeclID) {
+        let start = arena.appendExpr(.temporary(0))
+        let end = arena.appendExpr(.temporary(1))
+        let range = arena.appendExpr(.temporary(2))
+        let result = arena.appendExpr(.temporary(3))
+        return makeModule(body: [
+            .call(
+                symbol: nil,
+                callee: interner.intern("kk_op_rangeTo"),
+                arguments: [start, end],
+                result: range,
+                canThrow: false,
+                thrownResult: nil
+            ),
+            .call(
+                symbol: nil,
+                callee: callee,
+                arguments: [range],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ),
+            .returnUnit,
+        ], interner: interner, arena: arena)
     }
 
     private func runPass(module: KIRModule, kirCtx: KIRContext) throws {
         try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
     }
 
-    private func calleesInDecl(_ declID: KIRDeclID, module: KIRModule, interner: StringInterner) -> [String] {
-        guard case let .function(fn) = module.arena.decl(declID) else { return [] }
-        return extractCallees(from: fn.body, interner: interner)
+    @Test
+    func testRangeIteratorOnStringStructParameterRewritesToFlatStringIterator() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, _) = makeKIRContextWithSema(interner: interner)
+
+        let parameterSymbol = SymbolID(rawValue: 100)
+        let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: types.stringType)
+        let iteratorExpr = arena.appendExpr(.temporary(1))
+
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [KIRParameter(symbol: parameterSymbol, type: types.stringType)],
+            returnType: types.unitType,
+            body: [
+                .constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_range_iterator"),
+                    arguments: [parameterExpr],
+                    result: iteratorExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(function))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+
+        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(
+            !callees.contains { $0.hasPrefix("kk_string_") && $0.contains("iterator") },
+            "String iterator lowering must use the bundled Kotlin iterator, got: \(callees)"
+        )
     }
 
     // MARK: - listOf rewriting
@@ -85,11 +114,71 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("listOf"), "listOf should be rewritten")
-        #expect(callees.contains("kk_list_of"), "listOf should become kk_list_of")
+        #expect(callees.contains("__kk_list_of"), "listOf should become __kk_list_of")
     }
 
+    /// KSP-697: after List became source-backed, ControlFlowLowerer can emit
+    /// generic Iterator operations for the source declaration. Once the
+    /// iterator itself is proven to be the concrete list bridge, this pass
+    /// must restore the specialized hasNext/next calls.
     @Test
-    func testMutableListOfRewrittenToKkListOf() throws {
+    func testConcreteListIteratorOperationsRewriteToSpecializedBridges() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let listSymbol = defineNominalSymbol(name: "List", interner: interner, symbols: symbols)
+        let listType = types.make(.classType(ClassType(classSymbol: listSymbol)))
+
+        let list = arena.appendExpr(.temporary(0), type: listType)
+        let iterator = arena.appendExpr(.temporary(1), type: types.anyType)
+        let hasNext = arena.appendExpr(.temporary(2), type: types.booleanType)
+        let next = arena.appendExpr(.temporary(3), type: types.anyType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_list_iterator"),
+                    arguments: [list],
+                    result: iterator,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_iterator_hasNext"),
+                    arguments: [iterator],
+                    result: hasNext,
+                    canThrow: true,
+                    thrownResult: arena.appendTemporary(type: types.anyType)
+                ),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_iterator_next"),
+                    arguments: [iterator],
+                    result: next,
+                    canThrow: true,
+                    thrownResult: arena.appendTemporary(type: types.anyType)
+                ),
+            ],
+            interner: interner,
+            arena: arena
+        )
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(callees.contains("kk_list_iterator"), "List iterator acquisition must remain specialized, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_hasNext"), "List hasNext must use the specialized bridge, got: \(callees)")
+        #expect(callees.contains("kk_list_iterator_next"), "List next must use the specialized bridge, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_hasNext"), "Proven list iterator must not keep generic hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_iterator_next"), "Proven list iterator must not keep generic next, got: \(callees)")
+    }
+
+    /// KSP-699: `mutableListOf` declares a `MutableList` result, so it takes the
+    /// ArrayList-tagged bridge like `arrayListOf`. `__kk_list_of` tags its box as
+    /// the read-only `List`, which made `is MutableList` answer false.
+    @Test
+    func testMutableListOfRewrittenToKkArrayListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableListOf")
@@ -100,11 +189,15 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf should be rewritten")
-        #expect(callees.contains("kk_list_of"), "mutableListOf should become kk_list_of")
+        #expect(
+            callees.contains("__kk_array_list_of"),
+            "mutableListOf should become __kk_array_list_of; got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_list_of"), "mutableListOf must not keep the read-only List tag")
     }
 
     @Test
-    func testArrayListOfRewrittenToKkListOf() throws {
+    func testArrayListOfRewrittenToKkArrayListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("arrayListOf")
@@ -115,7 +208,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("arrayListOf"), "arrayListOf should be rewritten")
-        #expect(callees.contains("kk_list_of"), "arrayListOf should become kk_list_of")
+        #expect(callees.contains("__kk_array_list_of"), "arrayListOf should become __kk_array_list_of")
     }
 
     @Test
@@ -130,11 +223,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptyList"), "emptyList should be rewritten")
-        #expect(callees.contains("kk_emptyList"), "emptyList should become kk_emptyList")
+        #expect(callees.contains("__kk_emptyList"), "emptyList should become __kk_emptyList")
     }
 
     @Test
-    func testListOfNotNullRewrittenToKkListOf() throws {
+    func testListOfNotNullIsNotRewrittenToACollectionRuntimeBridge() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("listOfNotNull")
@@ -144,8 +237,8 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("listOfNotNull"), "listOfNotNull should be rewritten")
-        #expect(callees.contains("kk_list_of_not_null"), "listOfNotNull should become kk_list_of_not_null")
+        #expect(callees.contains("listOfNotNull"), "listOfNotNull should remain a source call")
+        #expect(!callees.contains("kk_list_of_not_null"), "listOfNotNull must not use the removed ABI")
     }
 
     // MARK: - mapOf rewriting
@@ -179,11 +272,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
     }
 
     @Test
-    func testLinkedMapOfRewrittenToKkMapOf() throws {
+    func testLinkedMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let pair = arena.appendExpr(.temporary(0))
@@ -208,11 +301,13 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
-        #expect(callees.contains("kk_map_of"), "linkedMapOf should become kk_map_of")
+        // KUU-646: linkedMapOf / mutableMapOf share the LinkedHashMap tag;
+        // hashMapOf uses HashMap. `__kk_map_of` is the read-only Map factory.
+        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf should become __kk_linked_hash_map_of")
     }
 
     @Test
-    func testHashMapOfRewrittenToKkMapOf() throws {
+    func testHashMapOfRewrittenToKkHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let pair = arena.appendExpr(.temporary(0))
@@ -237,7 +332,26 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashMapOf"), "hashMapOf should be rewritten")
-        #expect(callees.contains("kk_map_of"), "hashMapOf should become kk_map_of")
+        #expect(callees.contains("__kk_hash_map_of"), "hashMapOf should become __kk_hash_map_of")
+        #expect(!callees.contains("__kk_map_of"), "hashMapOf must not keep the read-only Map tag")
+    }
+
+    @Test
+    func testHashMapConstructorRewrittenToKkHashMapOf() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (module, declID) = makeModuleWithZeroArgCall(
+            callee: interner.intern("HashMap"),
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("HashMap"), "HashMap should be rewritten")
+        #expect(callees.contains("__kk_hash_map_of"), "HashMap should become __kk_hash_map_of")
     }
 
     @Test
@@ -252,11 +366,19 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptyMap"), "emptyMap should be rewritten")
-        #expect(callees.contains("kk_emptyMap"), "emptyMap should become kk_emptyMap")
+        #expect(callees.contains("__kk_emptyMap"), "emptyMap should become __kk_emptyMap")
     }
 
+    /// A `count(predicate)` call on a Map receiver with `symbol: nil` — the
+    /// only shape that ever reached the deleted `+CallRewriteFactories.swift`
+    /// branch, since a real compiled `map.count { ... }` always carries a
+    /// resolved `MapHOF.kt` symbol and `isSourceBackedBundledFunction` was
+    /// therefore always true (see `MapCountLoweringRoutingTests`). With the
+    /// branch gone, this synthetic shape now falls through untouched, the
+    /// same outcome the branch produced for every symbol-carrying call it
+    /// could ever have actually seen.
     @Test
-    func testMapCountRewriteToKkMapCount() throws {
+    func testMapCountSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -302,13 +424,13 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("count"), "map.count should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
-        #expect(callees.contains("kk_map_count"), "count on map should become kk_map_count")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
+        #expect(callees.contains("count"), "map.count(predicate) must survive as a source call")
+        #expect(!callees.contains("kk_map_count"), "kk_map_count has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapAnyRewriteToKkMapAny() throws {
+    func testMapAnySurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -351,15 +473,20 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: the Map `any` rewrite this test used to pin was
+        // unreachable in production (see MapHOFLoweringRoutingTests) and has
+        // been deleted. With no symbol attached, `any` now simply survives as
+        // a plain call — the same outcome a resolved, source-backed `any`
+        // gets from the source-backed preservation gate.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("any"), "map.any should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
-        #expect(callees.contains("kk_map_any"), "any on map should become kk_map_any")
+        #expect(callees.contains("any"), "map.any has no rewrite target left and must survive unchanged")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
+        #expect(!callees.contains("kk_map_any"), "kk_map_any has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapAllRewriteToKkMapAll() throws {
+    func testMapAllSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -402,15 +529,16 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("all"), "map.all should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
-        #expect(callees.contains("kk_map_all"), "all on map should become kk_map_all")
+        #expect(callees.contains("all"), "map.all has no rewrite target left and must survive unchanged")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
+        #expect(!callees.contains("kk_map_all"), "kk_map_all has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapNoneRewriteToKkMapNone() throws {
+    func testMapNoneSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -453,11 +581,12 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("none"), "map.none should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
-        #expect(callees.contains("kk_map_none"), "none on map should become kk_map_none")
+        #expect(callees.contains("none"), "map.none has no rewrite target left and must survive unchanged")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
+        #expect(!callees.contains("kk_map_none"), "kk_map_none has no @_cdecl in Runtime and must never be emitted")
     }
 
     // MARK: - emptySet rewriting
@@ -474,7 +603,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptySet"), "emptySet should be rewritten")
-        #expect(callees.contains("kk_emptySet"), "emptySet should become kk_emptySet")
+        #expect(callees.contains("__kk_emptySet"), "emptySet should become __kk_emptySet")
     }
 
     // MARK: - Zero-arg factory rewriting
@@ -491,7 +620,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("listOf"), "listOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptyList"), "listOf() should become kk_emptyList")
+        #expect(callees.contains("__kk_emptyList"), "listOf() should become __kk_emptyList")
     }
 
     @Test
@@ -506,7 +635,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOf"), "setOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptySet"), "setOf() should become kk_emptySet")
+        #expect(callees.contains("__kk_emptySet"), "setOf() should become __kk_emptySet")
     }
 
     @Test
@@ -521,13 +650,13 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptyMap"), "mapOf() should become kk_emptyMap")
+        #expect(callees.contains("__kk_emptyMap"), "mapOf() should become __kk_emptyMap")
     }
 
     // MARK: - Zero-arg mutable factory rewriting
 
     @Test
-    func testZeroArgMutableListOfRewrittenToKkListOf() throws {
+    func testZeroArgMutableListOfRewrittenToKkArrayListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableListOf")
@@ -538,11 +667,15 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf() should be rewritten")
-        #expect(callees.contains("kk_list_of"), "mutableListOf() should become kk_list_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_array_list_of"),
+            "mutableListOf() should become __kk_array_list_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_list_of"), "mutableListOf() must not keep the read-only List tag")
     }
 
     @Test
-    func testZeroArgArrayListOfRewrittenToKkListOf() throws {
+    func testZeroArgArrayListOfRewrittenToKkArrayListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("arrayListOf")
@@ -553,11 +686,15 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("arrayListOf"), "arrayListOf() should be rewritten")
-        #expect(callees.contains("kk_list_of"), "arrayListOf() should become kk_list_of (fresh mutable)")
+        #expect(callees.contains("__kk_array_list_of"), "arrayListOf() should become __kk_array_list_of (fresh mutable)")
     }
 
+    /// BUG-254: `mutableSetOf` declares a `MutableSet` result backed by
+    /// LinkedHashSet, so it takes the LinkedHashSet-tagged bridge. `__kk_set_of`
+    /// is shared with the read-only `setOf` and tags its box as `Set`, which made
+    /// `is MutableSet` / `is LinkedHashSet` answer false.
     @Test
-    func testZeroArgMutableSetOfRewrittenToKkSetOf() throws {
+    func testZeroArgMutableSetOfRewrittenToKkLinkedHashSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableSetOf")
@@ -568,11 +705,15 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableSetOf"), "mutableSetOf() should be rewritten")
-        #expect(callees.contains("kk_set_of"), "mutableSetOf() should become kk_set_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_linked_hash_set_of"),
+            "mutableSetOf() should become __kk_linked_hash_set_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_set_of"), "mutableSetOf() must not keep the read-only Set tag")
     }
 
     @Test
-    func testZeroArgLinkedSetOfRewrittenToKkSetOf() throws {
+    func testZeroArgLinkedSetOfRewrittenToKkLinkedHashSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("linkedSetOf")
@@ -583,11 +724,15 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedSetOf"), "linkedSetOf() should be rewritten")
-        #expect(callees.contains("kk_set_of"), "linkedSetOf() should become kk_set_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_linked_hash_set_of"),
+            "linkedSetOf() should become __kk_linked_hash_set_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_set_of"), "linkedSetOf() must not keep the read-only Set tag")
     }
 
     @Test
-    func testZeroArgHashSetOfRewrittenToKkSetOf() throws {
+    func testZeroArgHashSetOfRewrittenToKkHashSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("hashSetOf")
@@ -598,11 +743,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashSetOf"), "hashSetOf() should be rewritten")
-        #expect(callees.contains("kk_set_of"), "hashSetOf() should become kk_set_of (fresh mutable)")
+        #expect(callees.contains("__kk_hash_set_of"), "hashSetOf() should become __kk_hash_set_of (fresh mutable)")
     }
 
     @Test
-    func testZeroArgMutableMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgMutableMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableMapOf")
@@ -613,11 +758,15 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableMapOf"), "mutableMapOf() should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mutableMapOf() should become kk_map_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_linked_hash_map_of"),
+            "mutableMapOf() should become __kk_linked_hash_map_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_map_of"), "mutableMapOf() must not keep the read-only Map tag")
     }
 
     @Test
-    func testZeroArgLinkedMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgLinkedMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("linkedMapOf")
@@ -628,11 +777,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf() should be rewritten")
-        #expect(callees.contains("kk_map_of"), "linkedMapOf() should become kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf() should become __kk_linked_hash_map_of (fresh, own runtime tag)")
     }
 
     @Test
-    func testZeroArgHashMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgHashMapOfRewrittenToKkHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("hashMapOf")
@@ -643,7 +792,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashMapOf"), "hashMapOf() should be rewritten")
-        #expect(callees.contains("kk_map_of"), "hashMapOf() should become kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_hash_map_of"), "hashMapOf() should become __kk_hash_map_of (fresh mutable)")
+        #expect(!callees.contains("__kk_map_of"), "hashMapOf() must not keep the read-only Map tag")
     }
 
     // MARK: - setOf rewriting
@@ -675,8 +825,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOf"), "setOf should be rewritten")
-        #expect(callees.contains("kk_set_of"),
-                      "setOf should be rewritten to kk_set_of, got: \(callees)")
+        #expect(callees.contains("__kk_set_of"),
+                      "setOf should be rewritten to __kk_set_of, got: \(callees)")
     }
 
     @Test
@@ -692,13 +842,13 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOfNotNull"), "setOfNotNull should be rewritten")
         #expect(
-            callees.contains("kk_set_of_not_null"),
-            "setOfNotNull should be rewritten to kk_set_of_not_null, got: \(callees)"
+            callees.contains("__kk_set_of_not_null"),
+            "setOfNotNull should be rewritten to __kk_set_of_not_null, got: \(callees)"
         )
     }
 
     @Test
-    func testLinkedSetOfRewrittenToKkSetOf() throws {
+    func testLinkedSetOfRewrittenToKkLinkedHashSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("linkedSetOf")
@@ -709,11 +859,15 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedSetOf"), "linkedSetOf should be rewritten")
-        #expect(callees.contains("kk_set_of"), "linkedSetOf should become kk_set_of")
+        #expect(
+            callees.contains("__kk_linked_hash_set_of"),
+            "linkedSetOf should become __kk_linked_hash_set_of; got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_set_of"), "linkedSetOf must not keep the read-only Set tag")
     }
 
     @Test
-    func testHashSetOfRewrittenToKkSetOf() throws {
+    func testHashSetOfRewrittenToKkHashSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("hashSetOf")
@@ -724,13 +878,17 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashSetOf"), "hashSetOf should be rewritten")
-        #expect(callees.contains("kk_set_of"), "hashSetOf should become kk_set_of")
+        #expect(callees.contains("__kk_hash_set_of"), "hashSetOf should become __kk_hash_set_of")
     }
 
-    // MARK: - buildList rewriting (STDLIB-070)
+    // MARK: - buildList is served by CollectionBuilders.kt (RF-LOWER-CALL-004)
 
+    /// `symbol: nil` used to take the unconditional legacy-builder branch and
+    /// rewrite to `__kk_build_list`. Both
+    /// overloads now come from `CollectionBuilders.kt`, so the legacy runtime
+    /// entry point is gone and even a nil-symbol call must be left alone.
     @Test
-    func testBuildListRewrittenToKkBuildList() throws {
+    func testBuildListIsNotRewrittenToLegacyRuntime() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("buildList")
@@ -740,12 +898,17 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildList"), "buildList should be rewritten")
-        #expect(callees.contains("kk_build_list"), "buildList should become kk_build_list")
+        #expect(callees.contains("buildList"), "buildList must survive the pass unrewritten")
+        #expect(
+            !callees.contains("__kk_build_list"),
+            "the legacy __kk_build_list rewrite was removed; callees: \(callees)"
+        )
     }
 
+    /// Capacity counterpart of the above: the two-argument shape used to map to
+    /// `__kk_build_list_with_capacity`.
     @Test
-    func testBuildListCapacityRewrittenToKkBuildListWithCapacity() throws {
+    func testBuildListCapacityIsNotRewrittenToLegacyRuntime() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let arg0 = arena.appendExpr(.temporary(0))
@@ -777,15 +940,15 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildList"), "buildList(capacity) should be rewritten")
+        #expect(callees.contains("buildList"), "buildList(capacity) must survive the pass unrewritten")
         #expect(
-            callees.contains("kk_build_list_with_capacity"),
-            "buildList(capacity) should become kk_build_list_with_capacity"
+            !callees.contains("__kk_build_list_with_capacity"),
+            "the legacy __kk_build_list_with_capacity rewrite was removed; callees: \(callees)"
         )
     }
 
     @Test
-    func testBuildStringBuilderRewrittenToKkBuildStringBuilder() throws {
+    func testBuildStringBuilderIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("buildStringBuilder")
@@ -795,15 +958,15 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildStringBuilder"), "buildStringBuilder should be rewritten")
+        #expect(callees.contains("buildStringBuilder"), "buildStringBuilder should not be rewritten")
         #expect(
-            callees.contains("kk_build_string_builder"),
-            "buildStringBuilder should become kk_build_string_builder"
+            !callees.contains("kk_build_string_builder"),
+            "buildStringBuilder should not become kk_build_string_builder"
         )
     }
 
     @Test
-    func testBuildStringBuilderCapacityRewrittenToKkBuildStringBuilderWithCapacity() throws {
+    func testBuildStringBuilderCapacityIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let arg0 = arena.appendExpr(.temporary(0))
@@ -835,181 +998,165 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildStringBuilder"), "buildStringBuilder(capacity) should be rewritten")
+        #expect(callees.contains("buildStringBuilder"), "buildStringBuilder(capacity) should not be rewritten")
         #expect(
-            callees.contains("kk_build_string_builder_with_capacity"),
-            "buildStringBuilder(capacity) should become kk_build_string_builder_with_capacity"
+            !callees.contains("kk_build_string_builder_with_capacity"),
+            "buildStringBuilder(capacity) should not become kk_build_string_builder_with_capacity"
         )
     }
 
-    // MARK: - buildMap rewriting (STDLIB-071)
+    // MARK: - buildSet is no longer rewritten (RF-LOWER-CALL-005)
 
+    /// In production `buildSet` resolves to the bundled `CollectionBuilders.kt`
+    /// declaration and is left alone — `BuilderDSLLoweringRoutingTests` pins
+    /// that from source.  RF-LOWER-CALL-005 removed the legacy
+    /// `__kk_build_set` rewrite, so even this hand-built `symbol: nil` shape —
+    /// the branch that used to short-circuit the legacy builder predicate to
+    /// `true` — must now pass through untouched.
     @Test
-    func testBuildMapRewrittenToKkBuildMap() throws {
+    func testBuildSetIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let callee = interner.intern("buildMap")
+        let callee = interner.intern("buildSet")
         let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildMap"), "buildMap should be rewritten")
-        #expect(callees.contains("kk_build_map"), "buildMap should become kk_build_map")
-    }
-
-    @Test
-    func testStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let sourceExpr = arena.appendExpr(.temporary(0))
-        let delimitersExpr = arena.appendExpr(.temporary(1))
-        let ignoreCaseExpr = arena.appendExpr(.temporary(2))
-        let limitExpr = arena.appendExpr(.temporary(3))
-        let splitResult = arena.appendExpr(.temporary(4))
-        let printlnResult = arena.appendExpr(.temporary(5))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_split"),
-                    arguments: [sourceExpr, delimitersExpr, ignoreCaseExpr, limitExpr],
-                    result: splitResult,
-                    canThrow: true,
-                    thrownResult: nil
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_println_any"),
-                    arguments: [splitResult],
-                    result: printlnResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        let ctx = makeKIRContext(interner: interner)
-
-        try runPass(module: module, kirCtx: ctx)
-
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("kk_string_split"))
-        #expect(callees.contains("kk_list_to_string"),
-                      "split result should be recognized as list and routed through kk_list_to_string")
-    }
-
-    @Test
-    func testListMinusCollectionResultIsTreatedAsListForPrintlnRewrite() throws {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let listInput = arena.appendExpr(.temporary(0))
-        let listExpr = arena.appendExpr(.temporary(1))
-        let rhsExpr = arena.appendExpr(.temporary(2))
-        let minusResult = arena.appendExpr(.temporary(3))
-        let printlnResult = arena.appendExpr(.temporary(4))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_list_of"),
-                    arguments: [listInput],
-                    result: listExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_list_minus_collection"),
-                    arguments: [listExpr, rhsExpr],
-                    result: minusResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_println_any"),
-                    arguments: [minusResult],
-                    result: printlnResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        let ctx = makeKIRContext(interner: interner)
-
-        try runPass(module: module, kirCtx: ctx)
-
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("kk_list_minus_collection"))
+        #expect(callees.contains("buildSet"), "buildSet should not be rewritten; callees: \(callees)")
         #expect(
-            callees.contains("kk_list_to_string"),
-            "list minus collection result should be recognized as list and routed through kk_list_to_string"
+            !callees.contains("__kk_build_set"),
+            "the legacy __kk_build_set rewrite must not come back; callees: \(callees)"
+        )
+    }
+
+    @Test
+    func testBuildSetCapacityIsNotRewritten() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let arg0 = arena.appendExpr(.temporary(0))
+        let arg1 = arena.appendExpr(.temporary(1))
+        let result = arena.appendExpr(.temporary(2))
+        let fn = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("buildSet"),
+                    arguments: [arg0, arg1],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(fn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(callees.contains("buildSet"), "buildSet(capacity) should not be rewritten; callees: \(callees)")
+        #expect(
+            !callees.contains("__kk_build_set_with_capacity"),
+            "the legacy __kk_build_set_with_capacity rewrite must not come back; callees: \(callees)"
+        )
+    }
+
+    // MARK: - buildMap is no longer rewritten (RF-LOWER-CALL-006)
+
+    /// `buildMap` is supplied entirely by `CollectionBuilders.kt`, so the
+    /// legacy `__kk_build_map*` rewrite was removed. These cases use the
+    /// `symbol: nil` hand-built shape that used to bypass every legacy-builder
+    /// guard via `guard let symbol else { return true }` —
+    /// the strongest input the rewrite ever accepted.  It must now fall
+    /// through untouched, which only holds while `buildMap` stays out of
+    /// the retired Builder DSL lookup.
+    @Test(arguments: [1, 2])
+    func testBuildMapIsNotRewrittenToRuntimeBuilder(argumentCount: Int) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let arguments = (0 ..< argumentCount).map { arena.appendExpr(.temporary(Int32($0))) }
+        let result = arena.appendExpr(.temporary(Int32(argumentCount)))
+        let fn = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("buildMap"),
+                    arguments: arguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(fn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(callees.contains("buildMap"), "buildMap must stay a plain call; callees: \(callees)")
+        #expect(
+            !callees.contains("__kk_build_map"),
+            "the __kk_build_map rewrite is deleted; callees: \(callees)"
+        )
+        #expect(
+            !callees.contains("__kk_build_map_with_capacity"),
+            "the __kk_build_map_with_capacity rewrite is deleted; callees: \(callees)"
         )
     }
 
     @Test
     func testRangeReversedRewrittenToKkRangeReversed() throws {
-        let source = """
-        fun main() {
-            val range = 1..10
-            val reversed = range.reversed()
-        }
-        """
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (module, declID) = makeModuleWithRangeReceiverCall(
+            callee: interner.intern("reversed"),
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "RangeReversedRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        try runPass(module: module, kirCtx: ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(!callees.contains("reversed"), "range.reversed should be rewritten")
-            #expect(callees.contains("kk_range_reversed"), "range.reversed should become kk_range_reversed")
-        }
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("reversed"), "range.reversed should be rewritten")
+        #expect(callees.contains("__kk_range_reversed"), "range.reversed should become __kk_range_reversed")
     }
 
     @Test
     func testRangeEndExclusiveRewrittenToKkRangeEndExclusive() throws {
-        let source = """
-        fun main() {
-            val range = 1..10
-            val exclusive = range.endExclusive
-        }
-        """
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (module, declID) = makeModuleWithRangeReceiverCall(
+            callee: interner.intern("endExclusive"),
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "RangeEndExclusiveRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        try runPass(module: module, kirCtx: ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(!callees.contains("endExclusive"), "range.endExclusive should be rewritten")
-            #expect(callees.contains("kk_range_endExclusive"), "range.endExclusive should become kk_range_endExclusive")
-        }
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("endExclusive"), "range.endExclusive should be rewritten")
+        #expect(callees.contains("__kk_range_endExclusive"), "range.endExclusive should become __kk_range_endExclusive")
     }
 
     @Test
@@ -1055,7 +1202,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(callees.contains("asReversed"), "range.asReversed should remain unresolved for non-list receivers")
-        #expect(!callees.contains("kk_range_reversed"), "range.asReversed must not become kk_range_reversed")
+        #expect(!callees.contains("__kk_range_reversed"), "range.asReversed must not become __kk_range_reversed")
     }
 
     @Test
@@ -1069,6 +1216,17 @@ struct CollectionLiteralLoweringTests {
         #expect(shouldRun)
     }
 
+    @Test
+    func testRegistryExposesSplitCollectionLoweringComponents() {
+        let registry = CollectionLiteralLoweringRegistry(interner: StringInterner())
+
+        #expect(registry.componentNames == [
+            "CollectionLiteralLookupTables",
+            "CollectionLiteralConstructionLowering",
+            "CollectionVirtualCallRewrite",
+        ])
+    }
+
     // MARK: - LOWERING-001: Static type based collection classification
 
     /// Helper to create a KIRContext with SemaModule that has collection type symbols.
@@ -1077,27 +1235,13 @@ struct CollectionLiteralLoweringTests {
     ) -> (KIRContext, TypeSystem, SymbolTable) {
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let bindings = BindingTable()
         let diag = DiagnosticEngine()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: bindings,
-            diagnostics: diag
-        )
-        let options = CompilerOptions(
+        let sema = makeSemaModule(symbols: symbols, types: types, diagnostics: diag).ctx
+        let ctx = makeKIRContext(
             moduleName: "CollLiteralTest",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        let ctx = KIRContext(
-            diagnostics: diag,
-            options: options,
             interner: interner,
-            sema: sema
+            sema: sema,
+            diagnostics: diag
         )
         return (ctx, types, symbols)
     }
@@ -1106,10 +1250,12 @@ struct CollectionLiteralLoweringTests {
     private func defineNominalSymbol(
         name: String,
         interner: StringInterner,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        fqNameComponents: [String]? = nil
     ) -> SymbolID {
         let internedName = interner.intern(name)
-        let fqName = [interner.intern("kotlin"), interner.intern("collections"), internedName]
+        let fqName = (fqNameComponents ?? canonicalStdlibFQNameComponents(for: name))
+            .map { interner.intern($0) }
         return symbols.define(
             kind: .interface,
             name: internedName,
@@ -1120,63 +1266,39 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
+    private func canonicalStdlibFQNameComponents(for name: String) -> [String] {
+        switch name {
+        case "Array", "IntArray", "LongArray", "DoubleArray",
+             "FloatArray", "BooleanArray", "CharArray",
+             "ByteArray", "ShortArray", "UByteArray",
+             "UShortArray", "UIntArray", "ULongArray",
+             "String":
+            ["kotlin", name]
+        case "Sequence":
+            ["kotlin", "sequences", name]
+        default:
+            ["kotlin", "collections", name]
+        }
+    }
+
     /// Build a one-function module with a single virtualCall on a receiver
     /// whose static type is `receiverTypeName` (e.g. "List", "Set", "Map"),
     /// run the lowering pass, and return the resulting callees.
-    private func buildAndLowerVirtualCall(
-        receiverTypeName: String,
-        callee: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws -> [String] {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
-
-        let symbolID = defineNominalSymbol(
-            name: receiverTypeName, interner: interner, symbols: symbols
-        )
-        let receiverType = types.make(.classType(ClassType(classSymbol: symbolID)))
-
-        let paramExpr = arena.appendExpr(.symbolRef(SymbolID(rawValue: 100)), type: receiverType)
-        let resultExpr = arena.appendExpr(.temporary(1))
-
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("foo"),
-            params: [KIRParameter(symbol: SymbolID(rawValue: 100), type: receiverType)],
-            returnType: types.unitType,
-            body: [
-                .constValue(result: paramExpr, value: .symbolRef(SymbolID(rawValue: 100))),
-                .virtualCall(
-                    symbol: nil,
-                    callee: interner.intern(callee),
-                    receiver: paramExpr,
-                    arguments: [],
-                    result: resultExpr,
-                    canThrow: false,
-                    thrownResult: nil,
-                    dispatch: .vtable(slot: 0)
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-
-        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
-
-        return calleesInDecl(declID, module: module, interner: interner)
-    }
-
     @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "size")
         #expect(
-            callees.contains("kk_list_size"),
-            "virtualCall(size) on List-typed parameter should be rewritten to kk_list_size, got: \(callees)"
+            callees.contains("__kk_list_size"),
+            "virtualCall(size) on List-typed parameter should be rewritten to __kk_list_size, got: \(callees)"
+        )
+    }
+
+    @Test
+    func testVirtualCallOnListTypedParameterRewritesToKkListIsEmpty() throws {
+        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "isEmpty")
+        #expect(
+            callees.contains("kk_list_is_empty"),
+            "virtualCall(isEmpty) on List-typed parameter should be rewritten to kk_list_is_empty, got: \(callees)"
         )
     }
 
@@ -1184,8 +1306,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnSetTypedParameterRewritesToKkSetSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "size")
         #expect(
-            callees.contains("kk_set_size"),
-            "virtualCall(size) on Set-typed parameter should be rewritten to kk_set_size, got: \(callees)"
+            callees.contains("__kk_set_size"),
+            "virtualCall(size) on Set-typed parameter should be rewritten to __kk_set_size, got: \(callees)"
         )
     }
 
@@ -1193,8 +1315,21 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnMapTypedParameterRewritesToKkMapSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "size")
         #expect(
-            callees.contains("kk_map_size"),
-            "virtualCall(size) on Map-typed parameter should be rewritten to kk_map_size, got: \(callees)"
+            callees.contains("__kk_map_size"),
+            "virtualCall(size) on Map-typed parameter should be rewritten to __kk_map_size, got: \(callees)"
+        )
+    }
+
+    @Test
+    func testVirtualCallOnUserDefinedListTypedParameterDoesNotRewriteToKkListSize() throws {
+        let callees = try buildAndLowerVirtualCall(
+            receiverTypeName: "List",
+            callee: "size",
+            fqNameComponents: ["com", "example", "List"]
+        )
+        #expect(
+            !callees.contains("__kk_list_size"),
+            "virtualCall(size) on user-defined List must not be rewritten to __kk_list_size, got: \(callees)"
         )
     }
 
@@ -1211,19 +1346,21 @@ struct CollectionLiteralLoweringTests {
 
     /// Build a one-function module with a virtualCall that has arguments,
     /// on a receiver whose static type is `receiverTypeName`.
-    private func buildAndLowerVirtualCallWithArgs(
+    private func buildAndLowerVirtualCall(
         receiverTypeName: String,
         callee: String,
         argCount: Int = 0,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        fqNameComponents: [String]? = nil
     ) throws -> [String] {
         let interner = StringInterner()
         let arena = KIRArena()
         let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
 
         let symbolID = defineNominalSymbol(
-            name: receiverTypeName, interner: interner, symbols: symbols
+            name: receiverTypeName,
+            interner: interner,
+            symbols: symbols,
+            fqNameComponents: fqNameComponents
         )
         let receiverType = types.make(.classType(ClassType(classSymbol: symbolID)))
 
@@ -1268,33 +1405,46 @@ struct CollectionLiteralLoweringTests {
         return calleesInDecl(declID, module: module, interner: interner)
     }
 
+    /// RF-LOWER-CALL-013: `toList` on every array receiver class (generic,
+    /// primitive, unsigned) is a bundled Kotlin declaration (ArrayConversions.kt
+    /// / UArrays.kt), and real calls to it never reach lowering as
+    /// `.virtualCall` in the first place — Array member/extension calls are
+    /// always statically resolved to `.call` (CallLowerer never emits
+    /// `.virtualCall` for them), so the array-specific virtual-dispatch
+    /// rewrite this test used to pin (`+VirtualCallRewrite+Array.swift`,
+    /// deleted with this task) could only ever fire on a hand-built KIR
+    /// fixture like this one, never on compiler output. What survives now is
+    /// that an unresolved `toList` `virtualCall` on an Array-typed receiver
+    /// is left untouched rather than redirected to the removed
+    /// `__kk_array_toList` runtime shortcut — it falls through as a
+    /// `virtualCall`, not a `.call`, so `calleesInDecl` (which only extracts
+    /// `.call` callees) reports none at all.
     @Test
-    func testVirtualCallOnArrayTypedParameterRewritesToKkArrayToList() throws {
+    func testVirtualCallOnArrayTypedParameterLeavesToListUnrewritten() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "toList")
         #expect(
-            callees.contains("kk_array_toList"),
-            "virtualCall(toList) on Array-typed parameter should be rewritten to kk_array_toList, got: \(callees)"
+            !callees.contains("__kk_array_toList"),
+            "virtualCall(toList) on Array-typed parameter must not be rewritten to the removed __kk_array_toList shortcut, got: \(callees)"
         )
+        #expect(callees.isEmpty, "the unresolved call should fall through as an untouched virtualCall, got: \(callees)")
     }
 
     @Test
     func testVirtualCallOnArrayTypedParameterRewritesToKkArraySize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "size")
         #expect(
-            callees.contains("kk_array_size"),
-            "virtualCall(size) on Array-typed parameter should be rewritten to kk_array_size, got: \(callees)"
+            callees.contains("__kk_array_size"),
+            "virtualCall(size) on Array-typed parameter should be rewritten to __kk_array_size, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnArrayTypedParameterRewritesToKkArrayAll() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+    func testVirtualCallOnArrayTypedParameterDoesNotRewriteArrayHOFToRuntime() throws {
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Array", callee: "all", argCount: 1
         )
-        #expect(
-            callees.contains("kk_array_all"),
-            "virtualCall(all) on Array-typed parameter should be rewritten to kk_array_all, got: \(callees)"
-        )
+        #expect(!callees.contains("kk_array_all"),
+                "source-backed Array HOF must not be rewritten to a removed runtime bridge, got: \(callees)")
     }
 
     @Test
@@ -1307,24 +1457,24 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListContains() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+    func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListContains() throws {
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "List", callee: "contains", argCount: 1
         )
         #expect(
-            callees.contains("kk_list_contains"),
-            "virtualCall(contains) on List-typed parameter should be rewritten to kk_list_contains, got: \(callees)"
+            !callees.contains("kk_list_contains"),
+            "virtualCall(contains) on List-typed parameter should not be rewritten to deleted kk_list_contains, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetContains() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Set", callee: "contains", argCount: 1
         )
         #expect(
-            callees.contains("kk_set_contains"),
-            "virtualCall(contains) on Set-typed parameter should be rewritten to kk_set_contains, got: \(callees)"
+            callees.contains("__kk_set_contains"),
+            "virtualCall(contains) on Set-typed parameter should be rewritten to __kk_set_contains, got: \(callees)"
         )
     }
 
@@ -1332,8 +1482,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnSetTypedParameterRewritesToKkSetIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "isEmpty")
         #expect(
-            callees.contains("kk_set_is_empty"),
-            "virtualCall(isEmpty) on Set-typed parameter should be rewritten to kk_set_is_empty, got: \(callees)"
+            callees.contains("__kk_set_is_empty"),
+            "virtualCall(isEmpty) on Set-typed parameter should be rewritten to __kk_set_is_empty, got: \(callees)"
         )
     }
 
@@ -1341,152 +1491,101 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnMapTypedParameterRewritesToKkMapIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "isEmpty")
         #expect(
-            callees.contains("kk_map_is_empty"),
-            "virtualCall(isEmpty) on Map-typed parameter should be rewritten to kk_map_is_empty, got: \(callees)"
+            callees.contains("__kk_map_is_empty"),
+            "virtualCall(isEmpty) on Map-typed parameter should be rewritten to __kk_map_is_empty, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListReversed() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "reversed")
-        #expect(
-            callees.contains("kk_list_reversed"),
-            "virtualCall(reversed) on List-typed parameter should be rewritten to kk_list_reversed, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListSorted() throws {
+    func testVirtualCallOnListTypedParameterKeepsSourceBackedSortedCall() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
         #expect(
-            callees.contains("kk_list_sorted"),
-            "virtualCall(sorted) on List-typed parameter should be rewritten to kk_list_sorted, got: \(callees)"
+            !callees.contains("kk_list_sorted"),
+            "source-backed sorted on List-typed parameter must not emit kk_list_sorted, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDistinct() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "distinct")
-        #expect(
-            callees.contains("kk_list_distinct"),
-            "virtualCall(distinct) on List-typed parameter should be rewritten to kk_list_distinct, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListIndexOf() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+    func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListIndexOf() throws {
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "List", callee: "indexOf", argCount: 1
         )
         #expect(
-            callees.contains("kk_list_indexOf"),
-            "virtualCall(indexOf) on List-typed parameter should be rewritten to kk_list_indexOf, got: \(callees)"
+            !callees.contains("kk_list_indexOf"),
+            "virtualCall(indexOf) on List-typed parameter should not be rewritten to deleted kk_list_indexOf, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListTake() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "take", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_take"),
-            "virtualCall(take) on List-typed parameter should be rewritten to kk_list_take, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDrop() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "drop", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_drop"),
-            "virtualCall(drop) on List-typed parameter should be rewritten to kk_list_drop, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListDropLastWhile() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
-            receiverTypeName: "List", callee: "dropLastWhile", argCount: 1
-        )
-        #expect(
-            callees.contains("kk_list_dropLastWhile"),
-            "virtualCall(dropLastWhile) on List-typed parameter should be rewritten to kk_list_dropLastWhile, got: \(callees)"
-        )
-    }
-
-    @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceToList() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceToList() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "toList")
         #expect(
-            callees.contains("kk_sequence_to_list"),
-            "virtualCall(toList) on Sequence-typed parameter should be rewritten to kk_sequence_to_list, got: \(callees)"
+            !callees.contains("kk_sequence_to_list"),
+            "virtualCall(toList) on Sequence-typed parameter should not be rewritten to kk_sequence_to_list, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceToCollection() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceToCollection() throws {
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "toCollection", argCount: 1
         )
         #expect(
-            callees.contains("kk_sequence_toCollection"),
-            "virtualCall(toCollection) on Sequence-typed parameter should be rewritten to kk_sequence_toCollection, got: \(callees)"
+            !callees.contains("kk_sequence_toCollection"),
+            "virtualCall(toCollection) on Sequence-typed parameter should not be rewritten to kk_sequence_toCollection, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapTo() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapTo() throws {
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapTo", argCount: 2
         )
         #expect(
-            callees.contains("kk_sequence_mapTo"),
-            "virtualCall(mapTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapTo, got: \(callees)"
+            !callees.contains("kk_sequence_mapTo"),
+            "virtualCall(mapTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapTo, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapNotNullTo() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapNotNullTo() throws {
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapNotNullTo", argCount: 2
         )
         #expect(
-            callees.contains("kk_sequence_mapNotNullTo"),
-            "virtualCall(mapNotNullTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapNotNullTo, got: \(callees)"
+            !callees.contains("kk_sequence_mapNotNullTo"),
+            "virtualCall(mapNotNullTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapNotNullTo, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapIndexedTo() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapIndexedTo() throws {
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapIndexedTo", argCount: 2
         )
         #expect(
-            callees.contains("kk_sequence_mapIndexedTo"),
-            "virtualCall(mapIndexedTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapIndexedTo, got: \(callees)"
+            !callees.contains("kk_sequence_mapIndexedTo"),
+            "virtualCall(mapIndexedTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapIndexedTo, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapIndexedNotNullTo() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapIndexedNotNullTo() throws {
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapIndexedNotNullTo", argCount: 2
         )
         #expect(
-            callees.contains("kk_sequence_mapIndexedNotNullTo"),
-            "virtualCall(mapIndexedNotNullTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapIndexedNotNullTo, got: \(callees)"
+            !callees.contains("kk_sequence_mapIndexedNotNullTo"),
+            "virtualCall(mapIndexedNotNullTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapIndexedNotNullTo, got: \(callees)"
         )
     }
 
     @Test
-    func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMax() throws {
+    func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMax() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "max")
         #expect(
-            callees.contains("kk_sequence_max"),
-            "virtualCall(max) on Sequence-typed parameter should be rewritten to kk_sequence_max, got: \(callees)"
+            !callees.contains("kk_sequence_max"),
+            "virtualCall(max) on Sequence-typed parameter should not be rewritten to kk_sequence_max, got: \(callees)"
         )
     }
 

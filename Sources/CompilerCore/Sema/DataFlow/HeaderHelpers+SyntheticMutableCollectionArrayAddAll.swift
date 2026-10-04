@@ -12,28 +12,8 @@ extension DataFlowSemaPhase {
         }
 
         registerMutableCollectionArrayAddAllMember(
-            ownerName: "MutableCollection",
-            externalLinkName: "kk_mutable_collection_addAll",
-            flags: [.synthetic],
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            arraySymbol: arraySymbol
-        )
-        registerMutableCollectionArrayAddAllMember(
-            ownerName: "MutableList",
-            externalLinkName: "kk_mutable_list_addAll",
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            arraySymbol: arraySymbol
-        )
-        registerMutableCollectionArrayAddAllMember(
             ownerName: "MutableSet",
-            externalLinkName: "kk_mutable_set_addAll",
+            externalLinkName: "__kk_mutable_set_addAll",
             flags: [.synthetic],
             symbols: symbols,
             types: types,

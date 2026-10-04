@@ -2,6 +2,278 @@
 
 /// Name-based fallback resolution for unresolved synthetic and collection members.
 extension CallLowerer {
+    /// ULongRange and ULongProgression instances are runtime range boxes, not
+    /// Kotlin objects with vtables. Keep source-backed Any overrides and
+    /// iterator calls on their runtime-aware ABI paths.
+    func runtimeBackedULongProgressionMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let (_, symbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(receiverType), sema: sema
+        ) else {
+            return nil
+        }
+        let className = symbol.fqName.map(interner.resolve)
+        guard className == ["kotlin", "ranges", "ULongRange"]
+                || className == ["kotlin", "ranges", "ULongProgression"]
+        else {
+            return nil
+        }
+        switch memberName {
+        case "equals": return interner.intern("kk_any_member_equals")
+        case "hashCode": return interner.intern("kk_any_member_hashCode")
+        case "toString": return interner.intern("kk_any_member_to_string")
+        case "iterator": return interner.intern("__kk_ulong_range_iterator")
+        default: return nil
+        }
+    }
+
+    /// Returns true only for the source-backed HashSet declaration. Other set
+    /// types may provide their own source implementation and must retain the
+    /// resolved symbol for ABI return-type handling.
+    func isSourceBackedHashSetType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard let (_, symbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(receiverType), sema: sema
+        ) else {
+            return false
+        }
+        return symbol.fqName == knownNames.kotlinCollectionsHashSetFQName
+    }
+
+    /// HashSet is source-backed for its nominal API, but its instances are
+    /// RuntimeSetBox values without a Kotlin vtable. Keep the mutating,
+    /// membership, and `Any`-override operations on their runtime ABI entry
+    /// points instead of the inherited AbstractCollection/AbstractMutableSet
+    /// bodies, which would dispatch through a vtable the RuntimeSetBox
+    /// receiver does not have (KSWIFTK-RUNTIME-0001 vtable lookup panic).
+    func runtimeBackedSetMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        chosenCallee: SymbolID? = nil,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        if isSourceBackedHashSetType(nonNullReceiverType, sema: sema, interner: interner) {
+            switch memberName {
+            case "equals":
+                return interner.intern("kk_any_member_equals")
+            case "hashCode":
+                return interner.intern("kk_any_member_hashCode")
+            case "toString":
+                return interner.intern("__kk_set_to_string")
+            default:
+                break
+            }
+        }
+        if memberName == "contains",
+           isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        {
+            return interner.intern("__kk_set_contains")
+        }
+        if isMutableSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+            switch memberName {
+            case "add":
+                return interner.intern("__kk_mutable_set_add")
+            case "remove":
+                return interner.intern("__kk_mutable_set_remove")
+            case "clear":
+                return interner.intern("__kk_mutable_set_clear")
+            case "addAll", "plusAssign", "removeAll", "minusAssign":
+                return mutableSetBulkMutationCallee(
+                    memberName: memberName,
+                    chosenCallee: chosenCallee,
+                    sema: sema,
+                    interner: interner
+                )
+            case "retainAll":
+                return interner.intern("__kk_mutable_set_retainAll")
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    /// Runtime-backed set boxes cannot provide an itable implementation for
+    /// source-backed MutableSet defaults. Preserve the overload-specific
+    /// residual bridge selected by Sema, while routing migrated Collection
+    /// members to their hidden set ABI entry points.
+    private func mutableSetBulkMutationCallee(
+        memberName: String,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let parameterType = chosenCallee.flatMap { symbol in
+            sema.symbols.functionSignature(for: symbol)?.parameterTypes.first
+        }
+        let parameterName = parameterType.flatMap { type in
+            resolveClassTypeSymbol(sema.types.makeNonNullable(type), sema: sema)
+                .map { interner.resolve($0.symbol.name) }
+        }
+        let operation = memberName == "addAll" || memberName == "plusAssign" ? "addAll" : "removeAll"
+        switch parameterName {
+        case "Sequence":
+            return interner.intern("__kk_mutable_set_\(operation)_sequence")
+        case "Iterable":
+            return interner.intern("__kk_mutable_set_\(operation)_iterable")
+        case "Array", "Collection", "MutableCollection":
+            return interner.intern("__kk_mutable_set_\(operation)")
+        default:
+            if memberName == "plusAssign" {
+                return interner.intern("__kk_mutable_set_add")
+            }
+            if memberName == "minusAssign" {
+                return interner.intern("__kk_mutable_set_remove")
+            }
+            return nil
+        }
+    }
+
+    /// Runtime-backed list boxes (the values `mutableListOf`/`subList` produce)
+    /// carry no Kotlin vtable, so source-backed MutableList member defaults
+    /// cannot be reached through itable dispatch on them. Route migrated
+    /// `kotlin.collections.MutableList` members to their demoted list ABI entry
+    /// points instead. Top-level extensions (e.g. the predicate `removeAll`)
+    /// share only the member name, so the callee's fqName must name the
+    /// MutableList interface before remapping (KSP-1503).
+    func runtimeBackedListMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        chosenCallee: SymbolID? = nil,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        guard isMutableListRuntimeFamilyType(nonNullReceiverType, sema: sema, interner: interner),
+              isMutableListRuntimeFamilyMember(
+                  chosenCallee,
+                  memberName: memberName,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+        switch memberName {
+        case "set":
+            return interner.intern("__kk_mutable_list_set")
+        case "add":
+            let arity = chosenCallee.flatMap {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes.count
+            } ?? 1
+            return interner.intern(arity >= 2 ? "__kk_mutable_list_add_at" : "__kk_mutable_list_add")
+        case "removeAt":
+            return interner.intern("__kk_mutable_list_removeAt")
+        case "clear":
+            return interner.intern("__kk_mutable_list_clear")
+        case "removeAll":
+            return interner.intern("__kk_mutable_list_removeAll")
+        case "retainAll":
+            return interner.intern("__kk_mutable_list_retainAll")
+        case "plusAssign", "minusAssign":
+            return mutableListBulkMutationCallee(
+                memberName: memberName,
+                chosenCallee: chosenCallee,
+                sema: sema,
+                interner: interner
+            )
+        default:
+            return nil
+        }
+    }
+
+    /// `plusAssign`/`minusAssign` on a runtime-backed MutableList resolve to
+    /// either the element or the Collection overload; select the matching
+    /// residual bridge from the bound signature's first parameter type.
+    private func mutableListBulkMutationCallee(
+        memberName: String,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let parameterType = chosenCallee.flatMap { symbol in
+            sema.symbols.functionSignature(for: symbol)?.parameterTypes.first
+        }
+        let parameterName = parameterType.flatMap { type in
+            resolveClassTypeSymbol(sema.types.makeNonNullable(type), sema: sema)
+                .map { interner.resolve($0.symbol.name) }
+        }
+        let operation = memberName == "plusAssign" ? "addAll" : "removeAll"
+        switch parameterName {
+        case "Sequence":
+            return interner.intern("__kk_mutable_list_\(operation)_sequence")
+        case "Iterable":
+            return interner.intern("__kk_mutable_list_\(operation)_iterable")
+        case "Array", "Collection", "MutableCollection":
+            return interner.intern("__kk_mutable_list_\(operation)")
+        default:
+            if memberName == "plusAssign" {
+                return interner.intern("__kk_mutable_list_add")
+            }
+            if memberName == "minusAssign" {
+                return interner.intern("__kk_mutable_list_remove")
+            }
+            return nil
+        }
+    }
+
+    /// True when the receiver's static type is `kotlin.collections.MutableList`
+    /// — the only spelling a runtime list box (`mutableListOf`, `subList`
+    /// views) can satisfy. `AbstractMutableList` is deliberately excluded: it
+    /// is a class, so a MutableList interface receiver can never bind one, and
+    /// an `AbstractMutableList`-typed receiver is always a real Kotlin object
+    /// (user subclass or the bundled SubList) whose calls must keep virtual
+    /// dispatch. Runtime list boxes carry no Kotlin vtable/itable, so these
+    /// members must lower to the `__kk_mutable_list_*` ABI entry points rather
+    /// than dispatch dynamically (KSP-1503).
+    private func isMutableListRuntimeFamilyType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        return symbol.name == knownNames.mutableList
+            || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
+    }
+
+    /// True only when the bound callee is a member declared on
+    /// `kotlin.collections.MutableList` — i.e. one of the members migrated to
+    /// `MutableList.kt`. Top-level extensions with the same name
+    /// (`removeAll(predicate)`, `retainAll(predicate)`, HOF sort variants)
+    /// live at package fqName and must keep their own lowering path.
+    private func isMutableListRuntimeFamilyMember(
+        _ chosenCallee: SymbolID?,
+        memberName: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let chosenCallee,
+              let calleeSymbol = sema.symbols.symbol(chosenCallee),
+              calleeSymbol.fqName.last == interner.intern(memberName)
+        else {
+            return false
+        }
+        let owner = Array(calleeSymbol.fqName.dropLast())
+        return owner == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ]
+    }
+
     // swiftlint:disable cyclomatic_complexity
     func unresolvedSyntheticMemberCallee(
         memberName: String,
@@ -19,6 +291,17 @@ extension CallLowerer {
         // count lambda args only) are matched correctly.
         let hofArity = sourceArgumentCount ?? argumentCount
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        // OpenEndRange's generic contains member is source-backed since
+        // KSP-1311 (Stdlib/kotlin/ranges/OpenEndRange/OpenEndRange.kt), but the
+        // range-member typecheck fallback still leaves call sites unbound.
+        // Keep those unbound calls and the `--no-stdlib` residual on the
+        // existing range bridge.
+        if memberName == "contains",
+           let (_, receiverSymbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
+           interner.resolve(receiverSymbol.name) == "OpenEndRange"
+        {
+            return interner.intern("__kk_range_contains")
+        }
         if let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
@@ -38,14 +321,33 @@ extension CallLowerer {
             receiverType: receiverType,
             sema: sema,
             interner: interner
+        ) {
+            switch collectionKind {
+            case .set, .collection, .iterable:
+                // List sorting is source-backed, but Iterable/Collection/Set
+                // receivers still use the collection-compatible runtime ABI.
+                switch memberName {
+                case "sortedBy":
+                    return interner.intern("kk_list_sortedBy")
+                default:
+                    break
+                }
+            default:
+                break
+            }
+        }
+        if let collectionKind = MemberRuntimeDispatch.collectionReceiverKind(
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
         ),
            // Only allow the early-return for kinds that map cleanly to their own
            // surface-spec entries (.list, .map, .sequence).  .set, .collection,
            // and .iterable all map to .list inside stdlibSurfaceOwnerKind, so
            // collectionRuntimeLinkName would return a *List* runtime function for
            // those receivers when hofArity==1 (SOURCE count), bypassing the
-           // isSetLikeType block and the CollectionLiteralLoweringPass Set-HOF
-           // rewrite that correctly routes them to kk_set_filter etc.
+           // isSetLikeType block and the bundled Kotlin Set declarations that
+           // correctly implement them.
            collectionKind == .list || collectionKind == .map || collectionKind == .sequence,
            let runtimeLinkName = MemberRuntimeDispatch.collectionRuntimeLinkName(for: MemberDispatchKey(
                receiverKind: collectionKind,
@@ -56,103 +358,37 @@ extension CallLowerer {
         {
             return interner.intern(runtimeLinkName)
         }
-        if memberName == "toString",
-           argumentCount == 0,
-           isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner)
-        {
-            return interner.intern("kk_string_builder_toString")
-        }
-
         if memberName == "length",
            sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         {
-            return interner.intern("kk_string_length")
+            return interner.intern("__kk_string_struct_get_length")
         }
-
+        // KSP-724: `CharSequence.length` is resolved through the bundled
+        // `kotlin.CharSequence` interface, so the `kk_char_sequence_length`
+        // fallback is no longer needed.
         if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
             switch memberName {
             case "compareTo":
-                return interner.intern("kk_string_compareTo_member")
+                return interner.intern("kk_string_compareTo_flat")
             case "get":
-                return interner.intern("kk_string_get")
-            case "lines":
-                return interner.intern("kk_string_lines")
-            case "lineSequence":
-                return interner.intern("kk_string_lineSequence")
+                return interner.intern("__kk_string_get_flat")
             case "toRegex":
                 return argumentCount == 0
-                    ? interner.intern("kk_string_toRegex")
-                    : interner.intern("kk_string_toRegex_with_option")
+                    ? interner.intern("__kk_string_toRegex_flat")
+                    : interner.intern("__kk_string_toRegex_with_option_flat")
             default:
                 break
             }
         }
 
-        // Generic Comparable<T>.compareTo — emitted when the receiver is a type parameter
-        // bounded by Comparable<T> and no concrete stub covers it (e.g. sorted() in the
-        // bundled stdlib).  String is excluded above; Char and primitives are excluded by
-        // tryLowerPrimitiveCompareTo which runs before this path.
-        if memberName == "compareTo", argumentCount == 1 {
-            return interner.intern("kk_comparable_compareTo")
-        }
-
-        if memberName == "binarySearch",
-           let runtimeName = arrayBinarySearchRuntimeName(
-               for: nonNullReceiverType,
-               sema: sema,
-               interner: interner
-           )
-        {
-            if argumentCount == 5,
-               isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            {
-                return interner.intern("kk_array_binarySearch_compare")
-            }
-            return runtimeName
-        }
-
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "flatMapIndexed":
-                return interner.intern("kk_list_flatMapIndexed")
-            // MIGRATION-COL-006: Kotlin source at Stdlib/kotlin/collections/ListSortOrdering.kt.
-            // These fallback routes remain until RF-STDLIB-004+ wires the Kotlin source in.
-            case "sorted":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_list_sorted_primitive")
-                }
-                return interner.intern("kk_list_sorted")
-            case "sortedDescending":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_list_sortedDescending_primitive")
-                }
-                return interner.intern("kk_list_sortedDescending")
-            case "sortedBy":
-                return interner.intern("kk_list_sortedBy")
-            case "distinctBy":
-                return interner.intern("kk_list_distinctBy")
+            // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.
             case "sortedByDescending":
                 return interner.intern("kk_list_sortedByDescending")
-            case "first":
-                return interner.intern("kk_list_first")
-            case "firstOrNull":
-                return interner.intern("kk_list_firstOrNull")
-            case "lastOrNull":
-                return interner.intern("kk_list_lastOrNull")
-            case "single":
-                return interner.intern("kk_list_single")
-            case "singleOrNull":
-                return interner.intern("kk_list_singleOrNull")
             case "sortedWith":
                 return interner.intern("kk_list_sortedWith")
-            case "indexOf":
-                return interner.intern("kk_list_indexOf")
-            case "lastIndexOf":
-                return interner.intern("kk_list_lastIndexOf")
-            case "indexOfFirst":
-                return interner.intern("kk_list_indexOfFirst")
-            case "indexOfLast":
-                return interner.intern("kk_list_indexOfLast")
+
             case "maxBy":
                 return interner.intern("kk_list_maxBy")
             case "maxByOrNull":
@@ -185,87 +421,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_minOfWith")
             case "minOfWithOrNull":
                 return interner.intern("kk_list_minOfWithOrNull")
-            case "any":
-                return interner.intern("kk_list_any")
-            case "all":
-                return interner.intern("kk_list_all")
-            case "none":
-                return interner.intern("kk_list_none")
-            case "onEach":
-                return interner.intern("kk_list_onEach")
-            case "onEachIndexed":
-                return interner.intern("kk_list_onEachIndexed")
-            case "partition":
-                return interner.intern("kk_list_partition")
-            case "zipWithNext":
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_list_zipWithNextTransform"
-                    : "kk_list_zipWithNext")
-            case "getOrNull":
-                return interner.intern("kk_list_getOrNull")
-            case "elementAtOrNull":
-                return interner.intern("kk_list_elementAtOrNull")
-            case "elementAt":
-                return interner.intern("kk_list_elementAt")
-            case "elementAtOrElse":
-                return interner.intern("kk_list_elementAtOrElse")
-            case "getOrElse":
-                return interner.intern("kk_list_getOrElse")
-            case "subList":
-                return interner.intern("kk_list_subList")
-            case "toTypedArray":
-                return interner.intern("kk_list_toTypedArray")
-            case "containsAll":
-                return interner.intern("kk_list_containsAll")
-            case "binarySearch":
-                if hasHOFLambdaArg && argumentCount == 2 {
-                    return interner.intern("kk_list_binarySearch_compare")
-                }
-                if argumentCount > 2 {
-                    return interner.intern("kk_list_binarySearch_comparator")
-                }
-                return interner.intern("kk_list_binarySearch")
-            case "binarySearchBy":
-                switch argumentCount {
-                case 2:
-                    return interner.intern("kk_list_binarySearchBy")
-                case 3:
-                    return interner.intern("kk_list_binarySearchBy_fromIndex")
-                case 4:
-                    return interner.intern("kk_list_binarySearchBy_range")
-                default:
-                    break
-                }
-            case "reduce":
-                return interner.intern("kk_list_reduce")
-            case "reduceIndexed":
-                return interner.intern("kk_list_reduceIndexed")
-            case "reduceIndexedOrNull":
-                return interner.intern("kk_list_reduceIndexedOrNull")
-            case "foldRight":
-                return interner.intern("kk_list_foldRight")
-            case "foldRightIndexed":
-                return interner.intern("kk_list_foldRightIndexed")
-            case "reduceRight":
-                return interner.intern("kk_list_reduceRight")
-            case "reduceRightIndexed":
-                return interner.intern("kk_list_reduceRightIndexed")
-            case "reduceRightIndexedOrNull":
-                return interner.intern("kk_list_reduceRightIndexedOrNull")
-            case "reduceRightOrNull":
-                return interner.intern("kk_list_reduceRightOrNull")
-            case "runningFold":
-                return interner.intern("kk_list_runningFold")
-            case "runningReduce":
-                return interner.intern("kk_list_runningReduce")
-            case "scan":
-                return interner.intern("kk_list_scan")
-            case "runningFoldIndexed":
-                return interner.intern("kk_list_runningFoldIndexed")
-            case "runningReduceIndexed":
-                return interner.intern("kk_list_runningReduceIndexed")
-            case "scanIndexed":
-                return interner.intern("kk_list_scanIndexed")
             default:
                 break
             }
@@ -274,81 +429,49 @@ extension CallLowerer {
         if isMutableSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "addAll":
-                return interner.intern("kk_mutable_set_addAll")
+                return interner.intern("__kk_mutable_set_addAll")
             case "removeAll":
-                return interner.intern("kk_mutable_set_removeAll")
+                return interner.intern("__kk_mutable_set_removeAll")
             case "retainAll":
-                return interner.intern("kk_mutable_set_retainAll")
+                return interner.intern("__kk_mutable_set_retainAll")
             default:
                 break
             }
         }
 
-        if isMutableListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+        if isMutableListRuntimeFamilyType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "sort":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_mutable_list_sort_primitive")
-                }
-                return interner.intern("kk_mutable_list_sort")
-            case "sortWith":
-                return interner.intern("kk_mutable_list_sortWith")
-            case "sortBy":
-                return interner.intern("kk_mutable_list_sortBy")
-            case "sortByDescending":
-                return interner.intern("kk_mutable_list_sortByDescending")
-            case "sortDescending":
-                if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
-                    return interner.intern("kk_mutable_list_sortDescending_primitive")
-                }
-                return interner.intern("kk_mutable_list_sortDescending")
+            // KSP-426: MutableList sorting HOFs are bundled Kotlin source.
             case "add" where argumentCount == 1:
-                return interner.intern("kk_mutable_list_add")
+                return interner.intern("__kk_mutable_list_add")
+            case "add" where argumentCount == 2:
+                return interner.intern("__kk_mutable_list_add_at")
+            case "addAll" where argumentCount == 2:
+                return interner.intern("__kk_mutable_list_addAll_at")
             case "addAll":
-                return interner.intern("kk_mutable_list_addAll")
+                return interner.intern("__kk_mutable_list_addAll")
             case "removeAll":
-                return interner.intern("kk_mutable_list_removeAll")
+                return interner.intern("__kk_mutable_list_removeAll")
             case "retainAll":
-                return interner.intern("kk_mutable_list_retainAll")
-            case "fill":
-                return interner.intern("kk_mutable_list_fill")
-            case "replaceAll":
-                return interner.intern("kk_mutable_list_replaceAll")
-            case "removeIf":
-                return interner.intern("kk_mutable_list_removeIf")
+                return interner.intern("__kk_mutable_list_retainAll")
+            case "removeAt":
+                return interner.intern("__kk_mutable_list_removeAt")
             case "removeFirst":
-                return interner.intern("kk_mutable_list_removeFirst")
+                return interner.intern("__kk_mutable_list_removeFirst")
             case "removeFirstOrNull":
-                return interner.intern("kk_mutable_list_removeFirstOrNull")
+                return interner.intern("__kk_mutable_list_removeFirstOrNull")
             case "removeLast":
-                return interner.intern("kk_mutable_list_removeLast")
+                return interner.intern("__kk_mutable_list_removeLast")
             case "removeLastOrNull":
-                return interner.intern("kk_mutable_list_removeLastOrNull")
-            default:
-                break
-            }
-        }
-
-        if isArrayDequeLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-            switch memberName {
-            case "addFirst":
-                return interner.intern("kk_arraydeque_addFirst")
-            case "addLast":
-                return interner.intern("kk_arraydeque_addLast")
-            case "removeFirst":
-                return interner.intern("kk_arraydeque_removeFirst")
-            case "removeLast":
-                return interner.intern("kk_arraydeque_removeLast")
-            case "first":
-                return interner.intern("kk_arraydeque_first")
-            case "last":
-                return interner.intern("kk_arraydeque_last")
-            case "size":
-                return interner.intern("kk_arraydeque_size")
-            case "isEmpty":
-                return interner.intern("kk_arraydeque_isEmpty")
-            case "toString":
-                return interner.intern("kk_arraydeque_toString")
+                return interner.intern("__kk_mutable_list_removeLastOrNull")
+            case "set":
+                return interner.intern("__kk_mutable_list_set")
+            case "clear":
+                return interner.intern("__kk_mutable_list_clear")
+            case "plusAssign":
+                return interner.intern("__kk_mutable_list_add")
+            case "minusAssign":
+                return interner.intern("__kk_mutable_list_remove")
             default:
                 break
             }
@@ -358,129 +481,38 @@ extension CallLowerer {
             switch memberName {
             case "get":
                 return interner.intern("kk_array_get")
-            case "map":
-                return interner.intern("kk_array_map")
-            case "filter":
-                return interner.intern("kk_array_filter")
             case "toList":
-                return interner.intern("kk_array_toList")
+                return interner.intern("__kk_array_toList")
             case "toMutableList":
                 return interner.intern("kk_array_toMutableList")
             case "toTypedArray":
-                return interner.intern("kk_array_copyOf")
-            case "forEach":
-                return interner.intern("kk_array_forEach")
-            case "any":
-                return interner.intern("kk_array_any")
-            case "all":
-                return interner.intern("kk_array_all")
-            case "none":
-                return interner.intern("kk_array_none")
-            case "count":
-                return interner.intern("kk_array_count")
-            case "reduce":
-                return interner.intern("kk_array_reduce")
-            case "reduceOrNull":
-                return interner.intern("kk_array_reduceOrNull")
-            case "reduceIndexed":
-                return interner.intern("kk_array_reduceIndexed")
-            case "fold":
-                return interner.intern("kk_array_fold")
-            case "foldIndexed":
-                return interner.intern("kk_array_foldIndexed")
-            case "flatMap":
-                return interner.intern("kk_array_flatMap")
-            case "copyOf":
-                switch argumentCount {
-                case 0:
-                    return interner.intern("kk_array_copyOf")
-                case 1:
-                    return interner.intern("kk_array_copyOf_newSize")
-                case 2:
-                    return interner.intern("kk_array_copyOf_newSize_init")
-                default:
-                    break
-                }
+                return interner.intern("__kk_array_copyOf")
             case "fill":
                 return interner.intern("kk_array_fill")
-            case "binarySearch":
-                return arrayBinarySearchRuntimeName(
-                    for: nonNullReceiverType,
-                    sema: sema,
-                    interner: interner
-                )
-            case "sortedArrayWith":
-                return interner.intern("kk_array_sortedArrayWith")
-            case "find":
-                return interner.intern("kk_array_find")
-            case "findLast":
-                return interner.intern("kk_array_findLast")
+            case "asSequence":
+                return interner.intern("kk_array_asSequence")
             default:
                 break
             }
         }
 
-        // Set receivers: sorted/toList/contains route to set-specific runtime
+        // Set receivers keep only the element-storage bridge; everything else is
+        // declared in the bundled Kotlin stdlib (Stdlib/kotlin/collections/SetHOF.kt).
         if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
-            case "sorted":
-                return interner.intern("kk_set_sorted")
-            case "sortedDescending":
-                return interner.intern("kk_set_sortedDescending")
-            case "toList":
-                return interner.intern("kk_set_toList")
             case "toTypedArray":
-                return interner.intern("kk_collection_toTypedArray")
+                return interner.intern("__kk_collection_toTypedArray")
             case "contains":
-                return interner.intern("kk_set_contains")
-            case "containsAll":
-                return interner.intern("kk_set_containsAll")
-            case "first":
-                return interner.intern("kk_set_first")
-            case "firstOrNull":
-                return interner.intern("kk_set_firstOrNull")
-            case "last":
-                return interner.intern("kk_set_last")
-            case "lastOrNull":
-                return interner.intern("kk_set_lastOrNull")
-            case "singleOrNull":
-                return interner.intern("kk_set_singleOrNull")
-            case "any":
-                return interner.intern("kk_set_any")
-            case "all":
-                return interner.intern("kk_set_all")
-            case "none":
-                return interner.intern("kk_set_none")
+                return interner.intern("__kk_set_contains")
             default:
                 break
             }
         }
 
         switch memberName {
-        case "sorted":
-            return interner.intern("kk_list_sorted")
-        case "sortedDescending":
-            return interner.intern("kk_list_sortedDescending")
-        case "sortedBy":
-            return interner.intern("kk_list_sortedBy")
-        case "distinctBy":
-            return interner.intern("kk_list_distinctBy")
+        // KSP-426: List sorting/extrema HOFs are bundled Kotlin source.
         case "sortedByDescending":
             return interner.intern("kk_list_sortedByDescending")
-        case "partition":
-            return interner.intern("kk_list_partition")
-        case "zipWithNext":
-            return interner.intern(hasHOFLambdaArg
-                ? "kk_list_zipWithNextTransform"
-                : "kk_list_zipWithNext")
-        case "indexOf":
-            return interner.intern("kk_list_indexOf")
-        case "lastIndexOf":
-            return interner.intern("kk_list_lastIndexOf")
-        case "indexOfFirst":
-            return interner.intern("kk_list_indexOfFirst")
-        case "indexOfLast":
-            return interner.intern("kk_list_indexOfLast")
         case "maxBy":
             return interner.intern("kk_list_maxBy")
         case "maxByOrNull":
@@ -513,119 +545,36 @@ extension CallLowerer {
             return interner.intern("kk_list_minOfWith")
         case "minOfWithOrNull":
             return interner.intern("kk_list_minOfWithOrNull")
-        case "any":
-            return interner.intern("kk_list_any")
-        case "all":
-            return interner.intern("kk_list_all")
-        case "none":
-            return interner.intern("kk_list_none")
-        case "onEach":
-            return interner.intern("kk_list_onEach")
-        case "onEachIndexed":
-            return interner.intern("kk_list_onEachIndexed")
-        case "firstOrNull":
-            return interner.intern("kk_list_firstOrNull")
-        case "lastOrNull":
-            return interner.intern("kk_list_lastOrNull")
-        case "single":
-            return interner.intern("kk_list_single")
-        case "singleOrNull":
-            return interner.intern("kk_list_singleOrNull")
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
-        case "getOrNull":
-            return interner.intern("kk_list_getOrNull")
-        case "elementAtOrNull":
-            return interner.intern("kk_list_elementAtOrNull")
-        case "elementAt":
-            return interner.intern("kk_list_elementAt")
-        case "elementAtOrElse":
-            return interner.intern("kk_list_elementAtOrElse")
-        case "getOrElse":
-            return interner.intern("kk_list_getOrElse")
-        case "containsAll":
-            return interner.intern("kk_list_containsAll")
-        case "binarySearch":
-            if argumentCount == 5,
-               isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            {
-                return interner.intern("kk_array_binarySearch_compare")
-            }
-            if hasHOFLambdaArg && argumentCount == 2 {
-                return interner.intern("kk_list_binarySearch_compare")
-            }
-            if argumentCount > 2 {
-                return interner.intern("kk_list_binarySearch_comparator")
-            }
-            return interner.intern("kk_list_binarySearch")
-        case "groupingBy" where isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            || isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            || sema.bindings.isCollectionExpr(receiverExpr):
-            return interner.intern("kk_list_groupingBy")
         default:
             break
-        }
-
-        if isGroupingLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-            switch memberName {
-            case "eachCount":
-                return interner.intern("kk_grouping_eachCount")
-            case "eachCountTo":
-                return interner.intern("kk_grouping_eachCountTo")
-            case "aggregate":
-                return interner.intern("kk_grouping_aggregate")
-            case "aggregateTo":
-                return interner.intern("kk_grouping_aggregateTo")
-            case "fold":
-                return interner.intern(argumentCount >= 4
-                    ? "kk_grouping_fold_initialValueSelector"
-                    : "kk_grouping_fold")
-            case "foldTo":
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_grouping_foldTo_selector"
-                    : "kk_grouping_foldTo")
-            case "reduce":
-                return interner.intern("kk_grouping_reduce")
-            case "reduceTo":
-                return interner.intern("kk_grouping_reduceTo")
-            default:
-                break
-            }
         }
 
         let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
         let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
             || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        // Bare Iterable/Collection/Set interfaces are also matched by
+        // isConcreteCollectionLikeType, so the gate above excludes them. That is
+        // intentional for general HOF routing: Set members resolve through the
+        // bundled Kotlin declarations instead of kk_sequence_* (mapNotNull/flatMap/
+        // count on a set handle would return empty or 0). joinTo/joinToString also
+        // resolve to bundled Kotlin source (KSP-435).
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
             let filterName = interner.intern("filter")
-            let takeName = interner.intern("take")
             let toListName = interner.intern("toList")
-            let forEachName = interner.intern("forEach")
             let flatMapName = interner.intern("flatMap")
             let flatMapIndexedName = interner.intern("flatMapIndexed")
-            let dropName = interner.intern("drop")
-            let distinctName = interner.intern("distinct")
-            let zipName = interner.intern("zip")
-            let takeWhileName = interner.intern("takeWhile")
             let takeLastWhileName = interner.intern("takeLastWhile")
-            let dropWhileName = interner.intern("dropWhile")
             let sortedName = interner.intern("sorted")
             let sortedByName = interner.intern("sortedBy")
-            let sortedWithName = interner.intern("sortedWith")
             let sortedByDescendingName = interner.intern("sortedByDescending")
             let sortedDescendingName = interner.intern("sortedDescending")
-            let joinToName = interner.intern("joinTo")
-            let joinToStringName = interner.intern("joinToString")
-            let sumOfName = interner.intern("sumOf")
-            let sumByName = interner.intern("sumBy")
-            let sumByDoubleName = interner.intern("sumByDouble")
             let firstNotNullOfName = interner.intern("firstNotNullOf")
             let firstNotNullOfOrNullName = interner.intern("firstNotNullOfOrNull")
-            let associateName = interner.intern("associate")
-            let associateByName = interner.intern("associateBy")
             let firstName = interner.intern("first")
             let firstOrNullName = interner.intern("firstOrNull")
             let lastName = interner.intern("last")
@@ -635,38 +584,22 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_map")
             case filterName:
                 return interner.intern("kk_sequence_filter")
-            case takeName:
-                return interner.intern("kk_sequence_take")
             case interner.intern("takeLast"):
                 return interner.intern("kk_sequence_takeLast")
             case toListName:
                 return interner.intern("kk_sequence_to_list")
             case interner.intern("constrainOnce"):
                 return interner.intern("kk_sequence_constrainOnce")
-            case forEachName:
-                return interner.intern("kk_sequence_forEach")
             case flatMapName:
                 return interner.intern("kk_sequence_flatMap")
             case flatMapIndexedName:
                 return interner.intern("kk_sequence_flatMapIndexed")
-            case dropName:
-                return interner.intern("kk_sequence_drop")
-            case distinctName:
-                return interner.intern("kk_sequence_distinct")
-            case zipName:
-                return interner.intern("kk_sequence_zip")
-            case takeWhileName:
-                return interner.intern("kk_sequence_takeWhile")
             case takeLastWhileName:
                 return interner.intern("kk_sequence_takeLastWhile")
-            case dropWhileName:
-                return interner.intern("kk_sequence_dropWhile")
             case sortedName:
                 return interner.intern("kk_sequence_sorted")
             case sortedByName:
                 return interner.intern("kk_sequence_sortedBy")
-            case sortedWithName:
-                return interner.intern("kk_sequence_sortedWith")
             case sortedByDescendingName:
                 return interner.intern("kk_sequence_sortedByDescending")
             case sortedDescendingName:
@@ -680,38 +613,10 @@ extension CallLowerer {
                 default:
                     return nil
                 }
-            case joinToName:
-                return interner.intern("kk_sequence_joinTo")
-            case joinToStringName:
-                return interner.intern("kk_sequence_joinToString")
-            case sumOfName:
-                return interner.intern("kk_sequence_sumOf")
-            case sumByName:
-                return interner.intern("kk_sequence_sumBy")
-            case sumByDoubleName:
-                return interner.intern("kk_sequence_sumByDouble")
             case firstNotNullOfName:
                 return interner.intern("kk_sequence_firstNotNullOf")
             case firstNotNullOfOrNullName:
                 return interner.intern("kk_sequence_firstNotNullOfOrNull")
-            case associateName:
-                return interner.intern("kk_sequence_associate")
-            case associateByName:
-                return interner.intern("kk_sequence_associateBy")
-            case interner.intern("associateTo"):
-                return interner.intern("kk_sequence_associateTo")
-            case interner.intern("associateByTo"):
-                return interner.intern("kk_sequence_associateByTo")
-            case interner.intern("associateWith"):
-                return interner.intern("kk_sequence_associateWith")
-            case interner.intern("associateWithTo"):
-                return interner.intern("kk_sequence_associateWithTo")
-            case interner.intern("groupByTo"):
-                return interner.intern("kk_sequence_groupByTo")
-            case interner.intern("flatMapIndexedTo"):
-                return interner.intern("kk_sequence_flatMapIndexedTo")
-            case interner.intern("flatMapTo"):
-                return interner.intern("kk_sequence_flatMapTo")
             case interner.intern("contains"):
                 return interner.intern("kk_sequence_contains")
             case interner.intern("indexOf"):
@@ -728,18 +633,14 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_elementAt")
             case interner.intern("elementAtOrNull"):
                 return interner.intern("kk_sequence_elementAtOrNull")
-            case interner.intern("findLast"):
-                return interner.intern("kk_sequence_findLast")
-            case interner.intern("find"):
-                return interner.intern("kk_sequence_find")
             case interner.intern("single"):
                 return interner.intern("kk_sequence_single")
             case interner.intern("singleOrNull"):
                 return interner.intern("kk_sequence_singleOrNull")
             case interner.intern("any"):
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_any" : "kk_sequence_any")
+                return interner.intern("kk_sequence_any")
             case interner.intern("all"):
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_all" : "kk_sequence_all")
+                return interner.intern("kk_sequence_all")
             case interner.intern("none"):
                 return interner.intern("kk_sequence_none")
             case interner.intern("mapNotNull"):
@@ -756,12 +657,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_filterNotNull")
             case interner.intern("requireNoNulls"):
                 return interner.intern("kk_sequence_requireNoNulls")
-            case interner.intern("asSequence"):
-                return interner.intern("kk_sequence_asSequence")
             case interner.intern("reversed"):
                 return interner.intern("kk_sequence_reversed")
-            case interner.intern("asIterable"):
-                return interner.intern("kk_sequence_asIterable")
             case interner.intern("mapIndexed"):
                 return interner.intern("kk_sequence_mapIndexed")
             case interner.intern("filterIndexed"):
@@ -770,12 +667,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_flatMapIndexed")
             case interner.intern("withIndex"):
                 return interner.intern("kk_sequence_withIndex")
-            case interner.intern("chunked"):
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_sequence_chunked_transform"
-                    : "kk_sequence_chunked")
-            case interner.intern("windowed"):
-                return interner.intern("kk_sequence_windowed")
             case interner.intern("onEach"):
                 return interner.intern("kk_sequence_onEach")
             case interner.intern("onEachIndexed"):
@@ -799,7 +690,7 @@ extension CallLowerer {
             case interner.intern("randomOrNull"):
                 return interner.intern("kk_sequence_randomOrNull")
             case lastName:
-                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_last" : "kk_sequence_last")
+                return interner.intern("kk_sequence_last")
             case interner.intern("lastOrNull"):
                 return interner.intern("kk_sequence_lastOrNull")
             case countName:
@@ -814,55 +705,21 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_toCollection")
             case interner.intern("toMutableList"):
                 return toMutableListRuntimeCalleeForSequenceOrIterableFallback(
-                    chosenCallee: nil,
                     useIterableFallback: useIterableRuntimeForCollectionFallback,
-                    sema: sema,
                     interner: interner
                 )
             case interner.intern("toMutableSet"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_iterable_toMutableSet"
-                    : "kk_sequence_toMutableSet")
+                return interner.intern("kk_sequence_toMutableSet")
             case interner.intern("toSortedSet"):
                 return interner.intern("kk_sequence_toSortedSet")
             case interner.intern("toHashSet"):
                 return interner.intern("kk_sequence_toHashSet")
-            case interner.intern("partition"):
-                return interner.intern("kk_sequence_partition")
-            case interner.intern("minBy"):
-                return interner.intern("kk_sequence_minBy")
             case interner.intern("min"):
                 return interner.intern("kk_sequence_min")
-            case interner.intern("maxBy"):
-                return interner.intern("kk_sequence_maxBy")
-            case interner.intern("minByOrNull"):
-                return interner.intern("kk_sequence_minByOrNull")
-            case interner.intern("maxByOrNull"):
-                return interner.intern("kk_sequence_maxByOrNull")
-            case interner.intern("maxWith"):
-                return interner.intern("kk_sequence_maxWith")
-            case interner.intern("maxWithOrNull"):
-                return interner.intern("kk_sequence_maxWithOrNull")
-            case interner.intern("minOf"):
-                return interner.intern("kk_sequence_minOf")
-            case interner.intern("minOfOrNull"):
-                return interner.intern("kk_sequence_minOfOrNull")
-            case interner.intern("maxOfOrNull"):
-                return interner.intern("kk_sequence_maxOfOrNull")
-            case interner.intern("minWithOrNull"):
-                return interner.intern("kk_sequence_minWithOrNull")
-            case interner.intern("minWith"):
-                return interner.intern("kk_sequence_minWith")
-            case interner.intern("maxOf"):
-                return interner.intern("kk_sequence_maxOf")
             case interner.intern("unzip"):
                 return interner.intern("kk_sequence_unzip")
-            case interner.intern("foldIndexed"):
-                return interner.intern("kk_sequence_foldIndexed")
             case interner.intern("runningFold"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_runningFold"
-                    : "kk_sequence_runningFold")
+                return interner.intern("kk_sequence_runningFold")
             case interner.intern("scan"):
                 return interner.intern("kk_sequence_scan")
             case interner.intern("runningFoldIndexed"):
@@ -880,13 +737,9 @@ extension CallLowerer {
             case interner.intern("reduceIndexedOrNull"):
                 return interner.intern("kk_sequence_reduceIndexedOrNull")
             case interner.intern("reduceRightIndexed"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_reduceRightIndexed"
-                    : "kk_sequence_reduceRightIndexed")
+                return interner.intern("kk_sequence_reduceRightIndexed")
             case interner.intern("reduceRightOrNull"):
-                return interner.intern(useIterableRuntimeForCollectionFallback
-                    ? "kk_list_reduceRightOrNull"
-                    : "kk_sequence_reduceRightOrNull")
+                return interner.intern("kk_sequence_reduceRightOrNull")
             case interner.intern("reduceRightIndexedOrNull"):
                 return interner.intern("kk_sequence_reduceRightIndexedOrNull")
             case interner.intern("runningReduceIndexed"):
@@ -900,6 +753,31 @@ extension CallLowerer {
     }
 
     // swiftlint:enable cyclomatic_complexity
+
+    /// BUG-196: user classes that extend a runtime-backed collection class
+    /// (e.g. `LinkedHashSet`) are not themselves named `Set`/`List`, so look at
+    /// the receiver symbol and its supertypes when classifying collection kind.
+    private func collectionKindWithSupertypes(
+        of symbol: SemanticSymbol,
+        sema: SemaModule,
+        knownNames: KnownCompilerNames
+    ) -> KnownCollectionKind? {
+        if let kind = knownNames.collectionKind(of: symbol) {
+            return kind
+        }
+        var visited: Set<SymbolID> = []
+        var queue = sema.symbols.directSupertypes(for: symbol.id)
+        while !queue.isEmpty {
+            let currentID = queue.removeFirst()
+            guard visited.insert(currentID).inserted else { continue }
+            guard let currentSymbol = sema.symbols.symbol(currentID) else { continue }
+            if let kind = knownNames.collectionKind(of: currentSymbol) {
+                return kind
+            }
+            queue.append(contentsOf: sema.symbols.directSupertypes(for: currentID))
+        }
+        return nil
+    }
 
     /// Resolves collection-level members (`size`, `isEmpty`, `iterator`) to
     /// their concrete runtime callee by mapping receiver kind to the
@@ -922,73 +800,103 @@ extension CallLowerer {
               || memberName == "reduceIndexed"
               || memberName == "reduceRightIndexed"
               || memberName == "reduceRightOrNull"
-              || memberName == "reduceRightIndexedOrNull",
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
+              || memberName == "reduceRightIndexedOrNull"
         else {
             return nil
         }
 
         let knownNames = KnownCompilerNames(interner: interner)
-        switch memberName {
-        case "size":
-            switch knownNames.collectionKind(of: symbol) {
-            case .map?:
-                return interner.intern("kk_map_size")
-            case .set?:
-                return interner.intern("kk_set_size")
-            case .array?:
-                return interner.intern("kk_array_size")
-            case .list?, .collection?:
-                return interner.intern("kk_list_size")
-            default:
-                break
+        if memberName == "size" || memberName == "isEmpty" {
+            func collectionKind(
+                for type: TypeID,
+                visitedTypeParams: inout Set<SymbolID>
+            ) -> KnownCollectionKind? {
+                let nonNullType = sema.types.makeNonNullable(type)
+                switch sema.types.kind(of: nonNullType) {
+                case let .classType(classType):
+                    guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+                        return nil
+                    }
+                    return collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames)
+                case let .intersection(parts):
+                    for part in parts {
+                        if let kind = collectionKind(for: part, visitedTypeParams: &visitedTypeParams) {
+                            return kind
+                        }
+                    }
+                    return nil
+                case let .typeParam(typeParam):
+                    guard visitedTypeParams.insert(typeParam.symbol).inserted else {
+                        return nil
+                    }
+                    for bound in sema.symbols.typeParameterUpperBounds(for: typeParam.symbol) {
+                        if let kind = collectionKind(for: bound, visitedTypeParams: &visitedTypeParams) {
+                            return kind
+                        }
+                    }
+                    return nil
+                default:
+                    return nil
+                }
             }
-        case "isEmpty":
-            switch knownNames.collectionKind(of: symbol) {
-            case .map?:
-                return interner.intern("kk_map_is_empty")
-            case .set?:
-                return interner.intern("kk_set_is_empty")
-            case .array?:
+
+            var visitedTypeParams = Set<SymbolID>()
+            switch (memberName, collectionKind(for: receiverType, visitedTypeParams: &visitedTypeParams)) {
+            case ("size", .map?):
+                return interner.intern("__kk_map_size")
+            case ("size", .set?):
+                return interner.intern("__kk_set_size")
+            case ("size", .array?):
+                return interner.intern("__kk_array_size")
+            case ("size", .list?):
+                return interner.intern("__kk_list_size")
+            case ("size", .collection?):
+                return interner.intern("__kk_collection_size")
+            case ("isEmpty", .map?):
+                return interner.intern("__kk_map_is_empty")
+            case ("isEmpty", .set?):
+                return interner.intern("__kk_set_is_empty")
+            case ("isEmpty", .array?):
                 return interner.intern("kk_array_is_empty")
-            case .list?, .collection?:
+            case ("isEmpty", .list?):
                 return interner.intern("kk_list_is_empty")
+            case ("isEmpty", .collection?):
+                return interner.intern("__kk_collection_isEmpty")
             default:
-                break
+                return nil
             }
-        case "isNotEmpty":
-            switch knownNames.collectionKind(of: symbol) {
-            case .list?, .collection?:
-                return interner.intern("kk_list_is_not_empty")
-            default:
-                break
-            }
+        }
+
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return nil
+        }
+
+        switch memberName {
         case "iterator":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
                 return interner.intern("kk_list_iterator")
             default:
                 break
             }
         case "firstNotNullOf":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?, .array?:
-                return interner.intern("kk_iterable_firstNotNullOf")
+                return interner.intern("__kk_iterable_firstNotNullOf")
             default:
                 break
             }
         case "firstNotNullOfOrNull":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?, .array?:
-                return interner.intern("kk_iterable_firstNotNullOfOrNull")
+                return interner.intern("__kk_iterable_firstNotNullOfOrNull")
             default:
                 break
             }
         case "reduce":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduce")
+                return interner.intern("kk_sequence_reduce")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -997,20 +905,20 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduce")
+                    return interner.intern("kk_sequence_reduce")
                 }
             }
         case "requireNoNulls":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_iterable_requireNoNulls")
+                return interner.intern("__kk_iterable_requireNoNulls")
             default:
                 break
             }
         case "reduceRight":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRight")
+                return interner.intern("kk_sequence_reduceRight")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -1019,13 +927,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRight")
+                    return interner.intern("kk_sequence_reduceRight")
                 }
             }
         case "reduceIndexed":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceIndexed")
+                return interner.intern("kk_sequence_reduceIndexed")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -1034,13 +942,13 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceIndexed")
+                    return interner.intern("kk_sequence_reduceIndexed")
                 }
             }
         case "reduceRightIndexed":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRightIndexed")
+                return interner.intern("kk_sequence_reduceRightIndexed")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -1049,13 +957,28 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRightIndexed")
+                    return interner.intern("kk_sequence_reduceRightIndexed")
+                }
+            }
+        case "reduceRightOrNull":
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
+            case .list?, .set?, .collection?:
+                return interner.intern("kk_sequence_reduceRightOrNull")
+            default:
+                if symbol.name == interner.intern("Iterable")
+                    || symbol.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("Iterable"),
+                    ]
+                {
+                    return interner.intern("kk_sequence_reduceRightOrNull")
                 }
             }
         case "reduceRightIndexedOrNull":
-            switch knownNames.collectionKind(of: symbol) {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
-                return interner.intern("kk_list_reduceRightIndexedOrNull")
+                return interner.intern("kk_sequence_reduceRightIndexedOrNull")
             default:
                 if symbol.name == interner.intern("Iterable")
                     || symbol.fqName == [
@@ -1064,7 +987,7 @@ extension CallLowerer {
                         interner.intern("Iterable"),
                     ]
                 {
-                    return interner.intern("kk_list_reduceRightIndexedOrNull")
+                    return interner.intern("kk_sequence_reduceRightIndexedOrNull")
                 }
             }
         default:
@@ -1082,57 +1005,19 @@ extension CallLowerer {
         interner: StringInterner
     ) -> InternedString? {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
               knownNames.isMapLikeSymbol(symbol)
         else {
             return nil
         }
         switch memberName {
         case "count":
-            return interner.intern(argumentCount == 0 ? "kk_map_size" : "kk_map_count")
-        case "any":
-            return interner.intern("kk_map_any")
-        case "all":
-            return interner.intern("kk_map_all")
-        case "none":
-            return interner.intern("kk_map_none")
-        case "getValue":
-            return interner.intern("kk_map_getValue")
-        case "getOrDefault":
-            return interner.intern("kk_map_getOrDefault")
-        case "getOrElse":
-            return interner.intern("kk_map_getOrElse")
-        case "maxByOrNull":
-            return interner.intern("kk_map_maxByOrNull")
-        case "minByOrNull":
-            return interner.intern("kk_map_minByOrNull")
-        case "plus":
-            return interner.intern("kk_map_plus")
-        case "minus":
-            return interner.intern("kk_map_minus")
-        case "filterNot":
-            return interner.intern("kk_map_filterNot")
-        case "filterKeys":
-            return interner.intern("kk_map_filterKeys")
-        case "filterValues":
-            return interner.intern("kk_map_filterValues")
-        case "mapNotNull":
-            return interner.intern("kk_map_mapNotNull")
-        case "mapKeysTo":
-            return interner.intern("kk_map_mapKeysTo")
-        case "mapValuesTo":
-            return interner.intern("kk_map_mapValuesTo")
-        case "getOrPut":
-            guard knownNames.isMutableMapSymbol(symbol) else {
-                return nil
-            }
-            return interner.intern("kk_mutable_map_getOrPut")
+            return argumentCount == 0 ? interner.intern("__kk_map_size") : nil
         case "putAll":
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil
             }
-            return interner.intern("kk_mutable_map_putAll")
+            return interner.intern("__kk_mutable_map_putAll")
         default:
             return nil
         }
@@ -1143,24 +1028,25 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return nil
         }
 
         let knownNames = KnownCompilerNames(interner: interner)
-        switch knownNames.collectionKind(of: symbol) {
+        switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
         case .map?:
-            return interner.intern("kk_map_is_empty")
+            return interner.intern("__kk_map_is_empty")
         case .set?:
-            return interner.intern("kk_set_is_empty")
+            return interner.intern("__kk_set_is_empty")
         case .array?:
             return interner.intern("kk_array_is_empty")
-        case .list?, .collection?:
+        case .list?:
             return interner.intern("kk_list_is_empty")
+        case .collection?:
+            return interner.intern("__kk_collection_isEmpty")
         case .sequence?, nil:
             return nil
         }
     }
 }
+

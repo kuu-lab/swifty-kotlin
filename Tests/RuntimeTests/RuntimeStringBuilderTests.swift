@@ -1,184 +1,177 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
-final class RuntimeStringBuilderTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
+@Suite(.serialized)
+struct RuntimeStringBuilderTests {
+    @Test
+    func testBridgeCreatesAppendsAndRendersStringBuilder() {
+        let builder = __kk_string_builder_new()
+        let returned = __kk_string_builder_append_obj(builder, makeRuntimeString("hello"))
+
+        #expect(returned == builder)
+        #expect(__kk_string_builder_length_prop(builder) == 5)
+        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "hello")
     }
 
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
+    // KSP-817: runtime-backed CharSequence values must expose the same method
+    // and property slots as source-defined implementations.
+    @Test
+    func testCharSequenceItableRegistrationForRuntimeObjects() {
+        let builder = makeBuilder("abc")
+        let string = makeRuntimeString("hello")
+        let interfaceTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
+        let getRaw = kk_itable_lookup_dynamic(builder, interfaceTypeID, 0)
+        let stringGetRaw = kk_itable_lookup_dynamic(string, interfaceTypeID, 0)
+        let subSequenceRaw = kk_itable_lookup_dynamic(builder, interfaceTypeID, 1)
+        let stringSubSequenceRaw = kk_itable_lookup_dynamic(string, interfaceTypeID, 1)
+        let lengthRaw = kk_itable_lookup_dynamic(builder, interfaceTypeID, 2)
+        let stringLengthRaw = kk_itable_lookup_dynamic(string, interfaceTypeID, 2)
 
-    // STDLIB-TEXT-FN-024: insert
-    func testInsertObjInsertsValueAtIndexAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("ac"))
-        let value = makeRuntimeString("b")
-        var thrown = 0
+        #expect(getRaw != 0)
+        #expect(stringGetRaw != 0)
+        #expect(subSequenceRaw != 0)
+        #expect(stringSubSequenceRaw != 0)
+        #expect(lengthRaw != 0)
+        #expect(stringLengthRaw != 0)
 
-        let returned = kk_string_builder_insert_obj(builder, 1, value, &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
-    }
-
-    func testAppendRangeAppendsSubstringSliceAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
-        let value = makeRuntimeString("WORLD")
-
-        let returned = kk_string_builder_appendRange_obj(builder, value, 1, 4)
-
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "helloORL")
-    }
-
-    func testAppendRangeFromEmptyRangeAppendsNothing() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("abc"))
-        let value = makeRuntimeString("XYZ")
-
-        let returned = kk_string_builder_appendRange_obj(builder, value, 2, 2)
-
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
-    }
-
-    func testAppendRangeUsesUTF16IndicesForMultibyteCharacters() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString(""))
-        let value = makeRuntimeString("你好世界")
-
-        let returned = kk_string_builder_appendRange_obj(builder, value, 1, 3)
-
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "好世")
-    }
-
-    func testInsertObjAtBeginningPrependsValue() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("bc"))
-        let value = makeRuntimeString("a")
-        var thrown = 0
-
-        _ = kk_string_builder_insert_obj(builder, 0, value, &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
-    }
-
-    func testInsertObjAtEndAppendsValue() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("ab"))
-        let value = makeRuntimeString("c")
-        var thrown = 0
-
-        _ = kk_string_builder_insert_obj(builder, 2, value, &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
-    }
-
-    func testDeleteAtRemovesCharacterAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("abc"))
-        var thrown = 0
-
-        let returned = kk_string_builder_deleteAt(builder, 1, &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "ac")
-    }
-
-    func testDeleteRangeRemovesRangeAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("abcdef"))
-        var thrown = 0
-
-        let returned = kk_string_builder_deleteRange(builder, 1, 4, &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "aef")
-    }
-
-    func testInsertRangeInsertsValueSliceAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("ab"))
-        let value = makeRuntimeString("WXYZ")
-        var thrown = 0
-
-        let returned = kk_string_builder_insertRange_obj(builder, 1, value, 1, 3, &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "aXYb")
-    }
-
-    func testSetRangeReplacesRangeAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("abcd"))
-        let value = makeRuntimeString("XYZ")
-        var thrown = 0
-
-        let returned = kk_string_builder_setRange(builder, 1, 3, value, &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "aXYZd")
-    }
-
-    // STDLIB-TEXT-FN-064: operator fun set(index, value) — backed by kk_string_builder_setCharAt
-    func testSetCharAtReplacesCharacterAtIndex() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("abc"))
-        var thrown = 0
-
-        let returned = kk_string_builder_setCharAt(
-            builder,
-            1,
-            kk_box_char(Int(Unicode.Scalar("X").value)),
-            &thrown
+        let get = unsafeBitCast(
+            getRaw,
+            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
         )
+        var getThrown = 0
+        #expect(get(builder, 1, &getThrown) == 98)
+        #expect(getThrown == 0)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(returned, builder)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "aXc")
+        let length = unsafeBitCast(
+            lengthRaw,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var lengthThrown = 0
+        #expect(length(builder, &lengthThrown) == 3)
+        #expect(lengthThrown == 0)
+
+        let subSequence = unsafeBitCast(
+            subSequenceRaw,
+            to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var subSequenceThrown = 0
+        let suffix = subSequence(builder, 1, 3, &subSequenceThrown)
+        #expect(subSequenceThrown == 0)
+        #expect(runtimeStringValue(suffix) == "bc")
+
+        let stringSubSequence = unsafeBitCast(
+            stringSubSequenceRaw,
+            to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var stringSubSequenceThrown = 0
+        let stringSuffix = stringSubSequence(string, 1, 5, &stringSubSequenceThrown)
+        #expect(stringSubSequenceThrown == 0)
+        #expect(runtimeStringValue(stringSuffix) == "ello")
+
+        let empty = makeRuntimeString("")
+        var emptyLengthThrown = 0
+        #expect(length(empty, &emptyLengthThrown) == 0)
+        #expect(emptyLengthThrown == 0)
+        var emptySubSequenceThrown = 0
+        let emptySubSequence = subSequence(empty, 0, 0, &emptySubSequenceThrown)
+        #expect(emptySubSequenceThrown == 0)
+        #expect(runtimeStringValue(emptySubSequence) == "")
+
+        var invalidRangeThrown = 0
+        _ = subSequence(string, 2, 1, &invalidRangeThrown)
+        #expect(invalidRangeThrown != 0)
+
+        let emojiBuilder = makeBuilder("🥦")
+        let emojiString = makeRuntimeString("🥦")
+        var emojiBuilderGetThrown = 0
+        var emojiStringGetThrown = 0
+        #expect(get(emojiBuilder, 0, &emojiBuilderGetThrown) == 55358)
+        #expect(get(emojiBuilder, 1, &emojiBuilderGetThrown) == 56678)
+        #expect(get(emojiString, 0, &emojiStringGetThrown) == 55358)
+        #expect(get(emojiString, 1, &emojiStringGetThrown) == 56678)
+        #expect(emojiBuilderGetThrown == 0)
+        #expect(emojiStringGetThrown == 0)
     }
 
-    func testSetCharAtFirstIndexReplacesCharacter() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
-        var thrown = 0
+    // KSP-817: temporary String boxes created through the low-level UTF-8
+    // constructor must also participate in CharSequence.length dispatch.
+    @Test
+    func testUTF8StringConstructorRegistersCharSequenceItable() {
+        let bytes = Array("window".utf8)
+        let raw = bytes.withUnsafeBufferPointer { buffer in
+            Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
+        }
+        let interfaceTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
+        let getterRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, 2)
 
-        _ = kk_string_builder_setCharAt(
-            builder,
-            0,
-            kk_box_char(Int(Unicode.Scalar("H").value)),
-            &thrown
+        #expect(getterRaw != 0)
+
+        let getter = unsafeBitCast(
+            getterRaw,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
         )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "Hello")
+        var thrown = 0
+        #expect(getter(raw, &thrown) == 6)
+        #expect(thrown == 0)
     }
 
-    // DEBT-RT-001: out-of-bounds insert throws via outThrown instead of fatalError.
-    func testInsertObjOutOfBoundsThrowsStringIndexOutOfBoundsException() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
-        let value = makeRuntimeString("x")
-        var thrown = 0
+    @Test
+    func testFlatConstructorAndFlatAppendUseFlattenedStringFields() {
+        let builder = withFlatString("ab") { data, length, byteCount, hash in
+            __kk_string_builder_new_from_string_flat(data, length, byteCount, hash)
+        }
 
-        _ = kk_string_builder_insert_obj(builder, 99, value, &thrown)
+        let returned = withFlatString("cd") { data, length, byteCount, hash in
+            __kk_string_builder_append_obj_flat(builder, data, length, byteCount, hash)
+        }
 
-        XCTAssertNotEqual(thrown, 0)
-        let box = Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: thrown)!)
-            .takeUnretainedValue() as? RuntimeThrowableBox
-        XCTAssertNotNil(box)
-        XCTAssertTrue(
-            box?.message.contains("index=99") ?? false,
-            "expected index=99 in message, got: \(box?.message ?? "<nil>")"
-        )
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "hello")
+        #expect(returned == builder)
+        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "abcd")
+    }
+
+    @Test
+    func testClearResetsMutableBufferAndReturnsReceiver() {
+        let builder = makeBuilder("abc")
+
+        let returned = __kk_string_builder_clear(builder)
+
+        #expect(returned == builder)
+        #expect(__kk_string_builder_length_prop(builder) == 0)
+        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "")
+    }
+
+    @Test
+    func testAppendObjAcceptsStringRepresentations() {
+        let builder = __kk_string_builder_new()
+
+        _ = __kk_string_builder_append_obj(builder, makeRuntimeString("A"))
+        _ = __kk_string_builder_append_obj(builder, makeRuntimeString("B"))
+
+        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "AB")
     }
 
     private func makeRuntimeString(_ value: String) -> Int {
         registerRuntimeObject(RuntimeStringBox(value))
     }
 
+    private func makeBuilder(_ value: String) -> Int {
+        withFlatString(value) { data, length, byteCount, hash in
+            __kk_string_builder_new_from_string_flat(data, length, byteCount, hash)
+        }
+    }
+
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        Array(value.utf8).withUnsafeBufferPointer { buffer in
+            body(buffer.baseAddress, value.unicodeScalars.count, value.utf8.count, 0)
+        }
+    }
+
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 }
+#endif

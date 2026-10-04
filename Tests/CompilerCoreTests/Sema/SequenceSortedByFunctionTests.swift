@@ -2,8 +2,7 @@
 import Testing
 
 /// STDLIB-SEQ-FN-111: Validates that `kotlin.sequences.Sequence<T>.sortedBy`
-/// resolves through Sema and is wired to the runtime bridge.
-/// Runtime link name: `kk_sequence_sortedBy`.
+/// resolves via the bundled Kotlin source and has no runtime-bridge link.
 @Suite
 struct SequenceSortedByFunctionTests {
     @Test func testSequenceSortedByFunctionResolvesInSource() throws {
@@ -23,16 +22,21 @@ struct SequenceSortedByFunctionTests {
             "Expected Sequence.sortedBy to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
 
+        let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let memberFQName = ["kotlin", "sequences", "Sequence", "sortedBy"]
-            .map { ctx.interner.intern($0) }
-        let links = Set(
-            sema.symbols.lookupAll(fqName: memberFQName)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
+
+        let callExprID = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "sortedBy"
+        }, "Expected sortedBy member call")
+
+        let chosenCallee = try #require(
+            sema.bindings.callBinding(for: callExprID)?.chosenCallee,
+            "Expected sortedBy call to be bound"
         )
         #expect(
-            links.contains("kk_sequence_sortedBy"),
-            "Expected Sequence.sortedBy to link to kk_sequence_sortedBy, got: \(links)"
+            sema.symbols.isSourceBackedSymbol(chosenCallee),
+            "Expected Sequence.sortedBy to resolve to bundled source"
         )
     }
 }

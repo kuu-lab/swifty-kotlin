@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "stdlib_kotlin_collections_Iterable_average_nullable.kt",
+      "range": {
+        "start": { "line": 0, "character": 53 },
+        "end": { "line": 0, "character": 69 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'average'.",
+      "codeActions": []
+    }
+  ]
+}

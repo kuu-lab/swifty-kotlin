@@ -15,11 +15,12 @@ public enum PrimitiveType: String, Hashable, Sendable {
     case long
     case float
     case double
-    case string
     case uint
     case ulong
     case ubyte
     case ushort
+    case byte
+    case short
 }
 
 public extension PrimitiveType {
@@ -32,11 +33,28 @@ public extension PrimitiveType {
         case .long: "Long"
         case .float: "Float"
         case .double: "Double"
-        case .string: "String"
         case .uint: "UInt"
         case .ulong: "ULong"
         case .ubyte: "UByte"
         case .ushort: "UShort"
+        case .byte: "Byte"
+        case .short: "Short"
+        }
+    }
+
+    /// Primitives that can collide with `runtimeNullSentinelInt` inside a
+    /// `P?`-typed slot: `Long.MIN_VALUE`, `ULong` 2^63 and `-0.0` bit-equal
+    /// the sentinel directly, and `-0.0f` equals the sentinel's truncation
+    /// under the f32 comparison a `Float?` null check lowers to. A raw
+    /// scalar of one of these stored in a nullable slot is read as `null`
+    /// by every null check (KUU-854), so writes must keep the slot
+    /// box-or-sentinel.
+    var rawValueCollidesWithNullSentinel: Bool {
+        switch self {
+        case .long, .ulong, .double, .float:
+            true
+        case .boolean, .char, .int, .uint, .ubyte, .ushort, .byte, .short:
+            false
         }
     }
 }
@@ -93,7 +111,7 @@ public struct TypeParamType: Hashable, Sendable {
     }
 }
 
-public struct FunctionType: Hashable, Sendable {
+public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
     public let contextReceivers: [TypeID]
     public let receiver: TypeID?
     public let params: [TypeID]
@@ -119,6 +137,10 @@ public struct FunctionType: Hashable, Sendable {
         self.nullability = nullability
         self.`throws` = `throws`
     }
+
+    public var description: String {
+        return "(\(params.count)) -> \(returnType.rawValue) throws: \(`throws`.count)"
+    }
 }
 
 /// Represents `kotlin.reflect.KClass<T>`, the type of `T::class` expressions.
@@ -139,6 +161,7 @@ public enum TypeKind: Hashable {
     case nothing(Nullability)
     case any(Nullability)
 
+    case stringStruct(Nullability)
     case primitive(PrimitiveType, Nullability)
     case classType(ClassType)
     case typeParam(TypeParamType)

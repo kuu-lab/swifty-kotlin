@@ -83,157 +83,10 @@ public extension RuntimeABISpec {
             section: "Bitwise",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_toString_radix",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "radix", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_countOneBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_countLeadingZeroBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_countTrailingZeroBits",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        // STDLIB-BIT-007: Additional bit manipulation functions
-        RuntimeABIFunctionSpec(
-            name: "kk_int_rotateLeft",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "distance", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_rotateRight",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "distance", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_highestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_lowestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_takeHighestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_takeLowestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        // Long bit manipulation functions
-        RuntimeABIFunctionSpec(
-            name: "kk_long_rotateLeft",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "distance", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_rotateRight",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "distance", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_highestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_lowestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_takeHighestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_takeLowestOneBit",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
+        // KSP-717: kk_int_toString_radix removed. Int/Long.toString(radix) is
+        // pure Kotlin source (Stdlib/kotlin/text/StringNumberConversions.kt).
+        // STDLIB-BIT-007: One-bit functions are source-backed in
+        // `Stdlib/kotlin/BitOperations.kt` since KSP-644.
         // Int/Long comparison operators
         RuntimeABIFunctionSpec(
             name: "kk_op_eq",
@@ -283,6 +136,43 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_ge",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
+        // Unsigned (ULong-correct) comparison operators
+        RuntimeABIFunctionSpec(
+            name: "kk_op_ult",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_op_ule",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_op_ugt",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_op_uge",
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),
                 RuntimeABIParameter(name: "rhs", type: .intptr),
@@ -346,6 +236,30 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),
                 RuntimeABIParameter(name: "rhs", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
+        // UInt/ULong/UByte/UShort division and remainder — throwing (PEC-NUM-0002 / KSP-466).
+        // Reinterprets both operands as unsigned (UInt(bitPattern:)) instead of the
+        // plain signed division kk_op_div/kk_op_mod use, which misreads ULong values
+        // with the high bit set (>= 2^63) as negative.
+        RuntimeABIFunctionSpec(
+            name: "kk_op_udiv",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_op_urem",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Bitwise"

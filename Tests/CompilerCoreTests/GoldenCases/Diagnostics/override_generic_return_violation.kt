@@ -43,3 +43,21 @@ open class MethodGenericFactory {
 class BadMethodGenericFactory : MethodGenericFactory() {
     override fun <R : Number> create(): List<Int> = emptyList()
 }
+
+open class Box<T> {
+    open fun value(): T = throw RuntimeException()
+}
+
+// Base<Number>: value() must return Number; String is not a subtype.
+class StringFromNumberBox : Box<Number>() {
+    override fun value(): String = "oops"
+}
+
+open class Container<T> {
+    open fun wrap(): Container<T> = this
+}
+
+// Base<Number>: wrap() returns Container<Number> (invariant); Container<String> is incompatible.
+class StringContainerOverride : Container<Number>() {
+    override fun wrap(): Container<String> = Container()
+}

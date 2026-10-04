@@ -6,6 +6,41 @@ enum DataClassSyntheticMethodPhase {
 }
 
 extension DataFlowSemaPhase {
+    private func syntheticDataClassMemberTypeParameterSymbols(
+        ownerSymbol: SymbolID,
+        types: TypeSystem
+    ) -> [SymbolID] {
+        types.nominalTypeParameterSymbols(for: ownerSymbol)
+    }
+
+    func hasImportedLibrarySymbol(
+        fqName: [InternedString],
+        kind: SymbolKind,
+        symbols: SymbolTable
+    ) -> Bool {
+        // Imported stdlib declarations own the public Kotlin surface; synthetic
+        // fallback stubs should not reintroduce direct runtime links there.
+        symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else {
+                return false
+            }
+            return symbol.kind == kind && symbol.flags.contains(.importedLibrary)
+        }
+    }
+
+    func hasSourceOrImportedLibrarySymbol(
+        fqName: [InternedString],
+        kind: SymbolKind,
+        symbols: SymbolTable
+    ) -> Bool {
+        symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID), symbol.kind == kind else {
+                return false
+            }
+            return symbol.flags.contains(.importedLibrary) || !symbol.flags.contains(.synthetic)
+        }
+    }
+
     func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
         switch decl {
         case let .classDecl(classDecl):
@@ -29,6 +64,8 @@ extension DataFlowSemaPhase {
         for decl: Decl,
         symbol: SymbolID,
         declRange: SourceRange?,
+        sourceFileID: FileID?,
+        sourceManager: SourceManager?,
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine
     ) {
@@ -36,6 +73,8 @@ extension DataFlowSemaPhase {
             declarationAnnotations(for: decl),
             symbol: symbol,
             declRange: declRange,
+            sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -60,6 +99,8 @@ extension DataFlowSemaPhase {
         _ astAnnotations: [AnnotationNode],
         symbol: SymbolID,
         declRange: SourceRange?,
+        sourceFileID: FileID?,
+        sourceManager: SourceManager?,
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine
     ) {
@@ -76,6 +117,23 @@ extension DataFlowSemaPhase {
         }
         symbols.setAnnotations(records, for: symbol)
 
+        if let ksSymbolName = astAnnotations.first(where: { KnownCompilerAnnotation.ksSymbolName.matches($0.name) }) {
+            if !isBundledSourceFile(sourceFileID, sourceManager: sourceManager) {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0007",
+                    "@KsSymbolName is reserved for bundled stdlib declarations.",
+                    range: declRange
+                )
+            }
+            let symbolKind = symbols.symbol(symbol)?.kind
+            if (symbolKind == .function || symbolKind == .constructor || symbolKind == .property),
+               let linkName = ksSymbolName.arguments.first.map(annotationStringArgumentValue(_:)),
+               !linkName.isEmpty
+            {
+                symbols.setExternalLinkName(linkName, for: symbol)
+            }
+        }
+
         // Register @Suppress ranges so matching diagnostics are filtered.
         guard let declRange else {
             return
@@ -88,6 +146,54 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+    }
+
+    func diagnoseReservedExternalFunctionUse(
+        _ function: FunDecl,
+        sourceFileID: FileID,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard function.modifiers.contains(.external),
+              !isBundledSourceFile(sourceFileID, sourceManager: sourceManager)
+        else {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0008",
+            "The external modifier is reserved for bundled stdlib declarations.",
+            range: function.range
+        )
+    }
+
+    private func isBundledSourceFile(_ fileID: FileID?, sourceManager: SourceManager?) -> Bool {
+        guard let fileID, let sourceManager else {
+            return false
+        }
+        return sourceManager.origin(of: fileID)?.isBundledStdlib == true
+    }
+
+    private func annotationStringArgumentValue(_ raw: String) -> String {
+        var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let equals = trimmed.firstIndex(of: "=") {
+            let name = trimmed[..<equals].trimmingCharacters(in: .whitespacesAndNewlines)
+            if name == "name" || name == "value" {
+                trimmed = String(trimmed[trimmed.index(after: equals)...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        while trimmed.count >= 2,
+              let first = trimmed.first,
+              let last = trimmed.last,
+              (first == "\"" && last == "\"") || (first == "'" && last == "'")
+        {
+            trimmed = String(trimmed.dropFirst().dropLast())
+        }
+        return trimmed
+            .replacingOccurrences(of: "\\\\", with: "\\")
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .replacingOccurrences(of: "\\'", with: "'")
     }
 
     private func suppressionRange(for decl: Decl, declRange: SourceRange?) -> SourceRange? {
@@ -262,22 +368,54 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Computes the effective visibility for a class's constructor (primary or
+    /// secondary) and whether that visibility was inherited from the owning
+    /// class/object rather than written explicitly on the constructor itself.
+    ///
+    /// The distinction matters for `VisibilityChecker`: an inherited-private
+    /// constructor's true accessibility ceiling is the owner's own visibility
+    /// (e.g. file scope for a top-level `private class`), whereas an explicitly
+    /// `private constructor` stays scoped to the class body/companion even when
+    /// its owner happens to carry the same visibility keyword.
+    func constructorVisibilityDetail(
+        explicitModifiers: Modifiers,
+        classKind: SymbolKind,
+        isSealedClass: Bool,
+        declarationVisibility: Visibility
+    ) -> (visibility: Visibility, isInheritedFromOwner: Bool) {
+        let explicitVisibilityModifiers: Modifiers = [.private, .internal, .protected, .public]
+        if !explicitModifiers.isDisjoint(with: explicitVisibilityModifiers) {
+            return (visibility(from: explicitModifiers), false)
+        }
+        if classKind == .class, isSealedClass {
+            return (.protected, false)
+        }
+        return (declarationVisibility, true)
+    }
+
+    func primaryConstructorVisibilityDetail(
+        for classDecl: ClassDecl,
+        classKind: SymbolKind,
+        declarationVisibility: Visibility
+    ) -> (visibility: Visibility, isInheritedFromOwner: Bool) {
+        constructorVisibilityDetail(
+            explicitModifiers: classDecl.primaryConstructorModifiers,
+            classKind: classKind,
+            isSealedClass: classDecl.modifiers.contains(.sealed),
+            declarationVisibility: declarationVisibility
+        )
+    }
+
     func primaryConstructorVisibility(
         for classDecl: ClassDecl,
         classKind: SymbolKind,
         declarationVisibility: Visibility
     ) -> Visibility {
-        let explicitVisibilityModifiers: Modifiers = [.private, .internal, .protected, .public]
-        let explicitVisibility = visibility(from: classDecl.primaryConstructorModifiers)
-        if !classDecl.primaryConstructorModifiers.isDisjoint(with: explicitVisibilityModifiers) {
-            return explicitVisibility
-        }
-        if classKind == .class,
-           classDecl.modifiers.contains(.sealed)
-        {
-            return .protected
-        }
-        return declarationVisibility
+        primaryConstructorVisibilityDetail(
+            for: classDecl,
+            classKind: classKind,
+            declarationVisibility: declarationVisibility
+        ).visibility
     }
 
     func primaryConstructorVisibility(
@@ -372,6 +510,15 @@ extension DataFlowSemaPhase {
         guard !existing.isEmpty else {
             return false
         }
+        // Package symbols share the FQ-name table but live in a separate namespace,
+        // so they never conflict with declarations in that package.
+        if newKind == .package {
+            return false
+        }
+        let nonPackageExisting = existing.filter { $0.kind != .package }
+        guard !nonPackageExisting.isEmpty else {
+            return false
+        }
         func isCallableLike(_ kind: SymbolKind) -> Bool {
             switch kind {
             case .function, .constructor:
@@ -382,7 +529,7 @@ extension DataFlowSemaPhase {
         }
         if newKind == .property {
             if newIsExtensionProperty, let symbols {
-                return existing.contains { sym in
+                return nonPackageExisting.contains { sym in
                     if isCallableLike(sym.kind) { return false }
                     if sym.kind == .property {
                         return symbols.extensionPropertyReceiverType(for: sym.id) == nil
@@ -390,13 +537,26 @@ extension DataFlowSemaPhase {
                     return true
                 }
             }
-            return existing.contains { !isCallableLike($0.kind) }
+            return nonPackageExisting.contains { !isCallableLike($0.kind) }
         }
         if isCallableLike(newKind) {
-            return existing.contains { !isCallableLike($0.kind) && $0.kind != .property }
+            return nonPackageExisting.contains {
+                !(isCallableLike($0.kind) || $0.kind == .property || isNominalTypeSymbol($0.kind))
+            }
+        }
+        // KSP-CAP-006: a class/interface/object/enum/annotation-class/typealias
+        // may coexist with a top-level function of the same name (e.g. `class
+        // Random` + `fun Random(seed: Long): Random`, the real kotlin-stdlib
+        // factory-function idiom). This mirrors the tolerance already granted
+        // above for the opposite declaration order (callable declared first),
+        // so the check no longer depends on which of the two comes first in
+        // source order. A second nominal type (or a property) of the same name
+        // still conflicts.
+        if isNominalTypeSymbol(newKind) {
+            return nonPackageExisting.contains { !isCallableLike($0.kind) }
         }
         if isOverloadableSymbol(newKind) {
-            return existing.contains(where: { !isOverloadableSymbol($0.kind) })
+            return nonPackageExisting.contains(where: { !isOverloadableSymbol($0.kind) })
         }
         return true
     }
@@ -442,6 +602,16 @@ extension DataFlowSemaPhase {
                 return
             }
         }
+        if newKind == .property,
+           !newFlags.contains(.synthetic)
+        {
+            let existingNonPackage = existing.filter { $0.kind != .package }
+            if !existingNonPackage.isEmpty,
+               existingNonPackage.allSatisfy({ $0.kind == .property && $0.flags.contains(.synthetic) })
+            {
+                return
+            }
+        }
         if hasDeclarationConflict(
             newKind: newKind,
             existing: existing,
@@ -461,7 +631,8 @@ extension DataFlowSemaPhase {
         receiverType: TypeID,
         parameterTypes: [TypeID],
         returnType: TypeID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        types: TypeSystem
     ) -> Bool {
         symbols.lookupAll(fqName: fqName).contains { id in
             guard let symbol = symbols.symbol(id),
@@ -471,9 +642,14 @@ extension DataFlowSemaPhase {
             else {
                 return false
             }
+            // Expression-bodied members without an explicit return type carry a provisional
+            // `Any` here (the real type is inferred later), so the return type is only compared
+            // when the user declared one that is not that placeholder.
+            let returnTypeMatches = signature.returnType == returnType
+                || signature.returnType == types.anyType
             return signature.receiverType == receiverType
                 && signature.parameterTypes == parameterTypes
-                && signature.returnType == returnType
+                && returnTypeMatches
         }
     }
 
@@ -495,13 +671,18 @@ extension DataFlowSemaPhase {
         }
         let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: toStringFQName,
             receiverType: ownerType,
             parameterTypes: [],
             returnType: stringType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -523,7 +704,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [],
                 valueParameterHasDefaultValues: [],
                 valueParameterIsVararg: [],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -550,12 +732,17 @@ extension DataFlowSemaPhase {
         let equalsFQName = ownerFQName + [equalsName]
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let nullableAnyType = types.nullableAnyType
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: equalsFQName,
             receiverType: ownerType,
             parameterTypes: [nullableAnyType],
             returnType: boolType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -586,7 +773,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [otherParamSymbol],
                 valueParameterHasDefaultValues: [false],
                 valueParameterIsVararg: [false],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -612,12 +800,17 @@ extension DataFlowSemaPhase {
         let hashCodeName = interner.intern("hashCode")
         let hashCodeFQName = ownerFQName + [hashCodeName]
         let intType = types.make(.primitive(.int, .nonNull))
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: hashCodeFQName,
             receiverType: ownerType,
             parameterTypes: [],
             returnType: intType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -639,7 +832,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [],
                 valueParameterHasDefaultValues: [],
                 valueParameterIsVararg: [],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -683,8 +877,13 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner,
                 localTypeParameters: localTypeParameters,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: classDecl.range
             ) ?? types.anyType
+            let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+                ownerSymbol: ownerSymbol,
+                types: types
+            )
 
             let funcSymbol = symbols.define(
                 kind: .function,
@@ -705,7 +904,8 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: [],
                     valueParameterHasDefaultValues: [],
                     valueParameterIsVararg: [],
-                    typeParameterSymbols: []
+                    typeParameterSymbols: classTypeParameterSymbols,
+                    classTypeParameterCount: classTypeParameterSymbols.count
                 ),
                 for: funcSymbol
             )
@@ -760,6 +960,10 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             fallbackType: types.anyType
         )
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
 
         symbols.setFunctionSignature(
             FunctionSignature(
@@ -768,7 +972,10 @@ extension DataFlowSemaPhase {
                 returnType: ownerType,
                 valueParameterSymbols: copyParams.paramSymbols,
                 valueParameterHasDefaultValues: Array(repeating: true, count: copyParams.paramSymbols.count),
-                valueParameterIsVararg: copyParams.paramIsVararg
+                valueParameterIsVararg: copyParams.paramIsVararg,
+                valueParameterAllowsNonLocalReturn: copyParams.paramAllowsNonLocalReturn,
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: copySymbol
         )
@@ -817,6 +1024,8 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 localTypeParameters: localTypeParameters
             )
+        case .afterMemberHeaders:
+            // Must run after member headers so a user-declared hashCode() suppresses the synthetic one.
             collectSyntheticHashCode(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: ownerFQName,
@@ -827,7 +1036,6 @@ extension DataFlowSemaPhase {
                 scope: scope,
                 interner: interner
             )
-        case .afterMemberHeaders:
             collectSyntheticToString(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: ownerFQName,
@@ -852,7 +1060,8 @@ extension DataFlowSemaPhase {
     }
 
     /// Collects value parameters into parallel arrays of types, symbols, default-value flags,
-    /// and vararg flags.  Shared by constructor and function header collection.
+    /// vararg flags, and non-local-return permissions. Shared by constructor and function
+    /// header collection.
     func collectValueParameters(
         _ valueParams: [ValueParamDecl],
         localNamespaceFQName: [InternedString],
@@ -867,11 +1076,12 @@ extension DataFlowSemaPhase {
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
         fallbackType: TypeID
-    ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool]) {
+    ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool], paramAllowsNonLocalReturn: [Bool]) {
         var paramTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
         var paramHasDefaultValues: [Bool] = []
         var paramIsVararg: [Bool] = []
+        var paramAllowsNonLocalReturn: [Bool] = []
         for valueParam in valueParams {
             let paramFQName = localNamespaceFQName + [valueParam.name]
             let paramSymbol = symbols.define(
@@ -892,14 +1102,16 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: declSite
             ) ?? fallbackType
             paramTypes.append(resolvedType)
             paramSymbols.append(paramSymbol)
             paramHasDefaultValues.append(valueParam.hasDefaultValue)
             paramIsVararg.append(valueParam.isVararg)
+            paramAllowsNonLocalReturn.append(!valueParam.isCrossinline && !valueParam.isNoinline)
         }
-        return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg)
+        return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg, paramAllowsNonLocalReturn)
     }
 
     /// Collects type parameters from a function declaration, defining symbols and resolving
@@ -946,11 +1158,13 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    localTypeParameters: localTypeParameters
+                    localTypeParameters: localTypeParameters,
+                    usageRange: declSite
                 )
             }
             if !resolvedBounds.isEmpty {
                 symbols.setTypeParameterUpperBounds(resolvedBounds, for: typeParamSym)
+                symbols.recordTypeParameterForBoundConflictCheck(typeParamSym, declSite: declSite)
             }
         }
         if !reifiedIndices.isEmpty, !isInline {
@@ -1001,99 +1215,31 @@ extension DataFlowSemaPhase {
     func registerSyntheticDelegateStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
-        let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        let kotlinPropertiesPkg = ensureKotlinPropertiesPackage(symbols: symbols, interner: interner)
-        registerSyntheticPropertyInterfaceStubs(
-            symbols: symbols, types: types, interner: interner,
-            kotlinPkg: kotlinPkg, kotlinPropertiesPkg: kotlinPropertiesPkg
-        )
-        // Random stubs must be registered before collection stubs so that
-        // shuffled(random: Random) can look up the kotlin.random.Random symbol.
-        registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCollectionStubs(symbols: symbols, types: types, interner: interner)
-        // STDLIB-REFLECT-068: Now that List is registered, update KAnnotatedElement.annotations
-        // to List<Annotation>.
-        patchKAnnotatedElementAnnotationsType(symbols: symbols, types: types, interner: interner)
-        // STDLIB-REFLECT-069: Now that Collection is registered, update
-        // KDeclarationContainer.members to Collection<KCallable<*>>.
-        patchKDeclarationContainerMembersType(symbols: symbols, types: types, interner: interner)
-        // STDLIB-REFLECT-063: Now that List is registered, update KFunction.parameters type to
-        // List<Any?> so that `.size` resolves correctly on the parameters property.
-        patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
-        // KType.arguments depends on kotlin.collections.List and KTypeProjection.
-        patchKTypeArgumentsType(symbols: symbols, types: types, interner: interner)
-        // KTypeParameter.upperBounds depends on kotlin.collections.List.
-        patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRangeProgressionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRangeUntilStubs(symbols: symbols, types: types, interner: interner)
-        if types.comparableInterfaceSymbol == nil {
-            registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
+        let skipStats = SyntheticStubSkipStatsCollector()
+        defer {
+            BundledSyntheticStubRegistration.clear()
         }
-        registerSyntheticBuilderDSLStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticComparatorStubs(symbols: symbols, types: types, interner: interner)
-        patchArrayBinarySearchComparatorStub(symbols: symbols, types: types, interner: interner)
-        patchArraySortedArrayWithComparatorStub(symbols: symbols, types: types, interner: interner)
-        registerSyntheticComparisonStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticStdlibLoopStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTestFrameworkStubs(
+        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
+        BundledSyntheticStubRegistration.types = types
+        let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
+        let kotlinPropertiesPkg = ensureKotlinPropertiesPackage(symbols: symbols, interner: interner)
+        let registryContext = SyntheticDelegateStubRegistryContext(
+            kotlinPkg: kotlinPkg,
+            kotlinPropertiesPkg: kotlinPropertiesPkg,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
+
+        registerSyntheticDelegateRegistryStubs(
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinPkg: kotlinPkg
+            context: registryContext
         )
-        registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticResultStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticDeepRecursiveStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsParseIntRadixStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsEvalStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsJsonStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
-        // Function interfaces are registered by TODO/IO stubs, so patch KProperty function supertypes here.
-        patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
-        patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
-        // FileTreeWalk runs after FileIO and FileWalkDirection so File and direction enum are available
-        registerSyntheticFileTreeWalkStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
-        registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
-        // Extended stdlib batch (Atomic/Networking/Logging/Streams/JS-interop/...).
-        // To add a new stub in this range, edit
-        // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
-        // The Phase file preserves the exact original call order.
-        registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticDynamicStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsReadonlyMapStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsReadonlySetStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKPropertyIsInitializedStub(symbols: symbols, types: types, interner: interner)
+        skipStats.logIfEnabled()
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.
@@ -1115,6 +1261,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        types.anyClassSymbol = anySymbol
 
         let annotationSymbol = ensureInterfaceSymbol(
             named: "Annotation",
@@ -1132,6 +1279,50 @@ extension DataFlowSemaPhase {
         guard let anyInfo = symbols.symbol(anySymbol) else { return }
         let anyClassType = types.make(.classType(ClassType(
             classSymbol: anySymbol, args: [], nullability: .nonNull)))
+
+        // Kotlin/Native exposes Any's implicit public constructor in metadata,
+        // although the actual class declaration is compiler-provided rather
+        // than bundled Kotlin source. The KIR constructor path performs the
+        // object allocation; no constructor body is emitted for this symbol.
+        let anyConstructorName = interner.intern("<init>")
+        let anyConstructorFQName = anyInfo.fqName + [anyConstructorName]
+        if symbols.lookupAll(fqName: anyConstructorFQName).isEmpty {
+            let constructorSymbol = symbols.define(
+                kind: .constructor,
+                name: anyConstructorName,
+                fqName: anyConstructorFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic])
+            symbols.setParentSymbol(anySymbol, for: constructorSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: nil,
+                    parameterTypes: [],
+                    returnType: anyClassType,
+                    isSuspend: false,
+                    valueParameterSymbols: [],
+                    valueParameterHasDefaultValues: [],
+                    valueParameterIsVararg: []),
+                for: constructorSymbol)
+        }
+
+        // Any has only the two-word object header and is the root of the
+        // nominal allocation hierarchy. Keep its layout empty so the existing
+        // Any member fallback remains responsible for toString/hashCode/equals
+        // dispatch while constructors still receive a stable nominal type ID.
+        if symbols.nominalLayout(for: anySymbol) == nil {
+            symbols.setNominalLayout(
+                NominalLayout(
+                    objectHeaderWords: 2,
+                    instanceFieldCount: 0,
+                    instanceSizeWords: 2,
+                    vtableSlots: [:],
+                    itableSlots: [:],
+                    superClass: nil),
+                for: anySymbol)
+        }
+
         let stringType = types.stringType
         let intType = types.intType
         let booleanType = types.booleanType
@@ -1180,487 +1371,142 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerSyntheticContractStubs(
+    /// KSP-719: The bundled `kotlin/Annotation.kt` source declares
+    /// `public interface Annotation {}` with no explicit supertype. That causes
+    /// `bindInheritanceEdges` to overwrite the synthetic `Annotation` symbol's
+    /// direct supertype list with an empty array, losing the `kotlin.Any`
+    /// supertype that `registerSyntheticAnyStub` had installed. Restore it so
+    /// `Any` member dispatch and nominal-subtype traversal stay intact.
+    func patchBundledAnnotationSupertype(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let contractsFQName = ensurePackage(
-            path: ["kotlin", "contracts"],
-            symbols: symbols,
-            interner: interner
-        )
-        let contractsPkg = symbols.lookup(fqName: contractsFQName) ?? SymbolID.invalid
-        let builderSymbol = ensureClassSymbol(
-            named: "ContractBuilder",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let contractEffectSymbol = ensureInterfaceSymbol(
-            named: "ContractEffect",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let effectSymbol = ensureInterfaceSymbol(
-            named: "Effect",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let callsInPlaceSymbol = ensureInterfaceSymbol(
-            named: "CallsInPlace",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let simpleEffectSymbol = ensureInterfaceSymbol(
-            named: "SimpleEffect",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let returnsSymbol = ensureInterfaceSymbol(
-            named: "Returns",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let returnsNotNullSymbol = ensureInterfaceSymbol(
-            named: "ReturnsNotNull",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let conditionalEffectSymbol = ensureInterfaceSymbol(
-            named: "ConditionalEffect",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let holdsInSymbol = ensureInterfaceSymbol(
-            named: "HoldsIn",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if contractsPkg != .invalid {
-            symbols.setParentSymbol(contractsPkg, for: builderSymbol)
-            symbols.setParentSymbol(contractsPkg, for: contractEffectSymbol)
-            symbols.setParentSymbol(contractsPkg, for: effectSymbol)
-            symbols.setParentSymbol(contractsPkg, for: callsInPlaceSymbol)
-            symbols.setParentSymbol(contractsPkg, for: simpleEffectSymbol)
-            symbols.setParentSymbol(contractsPkg, for: returnsSymbol)
-            symbols.setParentSymbol(contractsPkg, for: returnsNotNullSymbol)
-            symbols.setParentSymbol(contractsPkg, for: conditionalEffectSymbol)
-            symbols.setParentSymbol(contractsPkg, for: holdsInSymbol)
+        guard let annotationSymbol = types.annotationInterfaceSymbol else { return }
+        let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
+        guard let anySymbol = symbols.lookup(fqName: anyFQName) else { return }
+
+        let symbolSups = symbols.directSupertypes(for: annotationSymbol)
+        if !symbolSups.contains(anySymbol) {
+            let newSups = Array(Set(symbolSups + [anySymbol])).sorted(by: { $0.rawValue < $1.rawValue })
+            symbols.setDirectSupertypes(newSups, for: annotationSymbol)
         }
 
-        let experimentalContractsSymbol = ensureAnnotationClassSymbol(
-            named: "ExperimentalContracts",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if contractsPkg != .invalid {
-            symbols.setParentSymbol(contractsPkg, for: experimentalContractsSymbol)
+        let typeSups = types.directNominalSupertypes(for: annotationSymbol)
+        if !typeSups.contains(anySymbol) {
+            types.setNominalDirectSupertypes(typeSups + [anySymbol], for: annotationSymbol)
         }
-        let experimentalContractsAnnotations = [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Retention",
-                arguments: ["AnnotationRetention.BINARY"]
-            ),
-        ]
-        var existingAnnotations = symbols.annotations(for: experimentalContractsSymbol)
-        for annotation in experimentalContractsAnnotations where !existingAnnotations.contains(annotation) {
-            existingAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingAnnotations, for: experimentalContractsSymbol)
+    }
 
-        let experimentalExtendedContractsSymbol = ensureAnnotationClassSymbol(
-            named: "ExperimentalExtendedContracts",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if contractsPkg != .invalid {
-            symbols.setParentSymbol(contractsPkg, for: experimentalExtendedContractsSymbol)
-        }
-        let experimentalExtendedContractsAnnotations = [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.RequiresOptIn"
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Retention",
-                arguments: ["AnnotationRetention.BINARY"]
-            ),
-        ]
-        var existingExtendedAnnotations = symbols.annotations(for: experimentalExtendedContractsSymbol)
-        for annotation in experimentalExtendedContractsAnnotations where !existingExtendedAnnotations.contains(annotation) {
-            existingExtendedAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingExtendedAnnotations, for: experimentalExtendedContractsSymbol)
-
-        let experimentalFQName = ensurePackage(
-            path: ["kotlin", "experimental"],
-            symbols: symbols,
-            interner: interner
-        )
-        let experimentalPkg = symbols.lookup(fqName: experimentalFQName) ?? SymbolID.invalid
-        let experimentalTypeInferenceSymbol = ensureAnnotationClassSymbol(
-            named: "ExperimentalTypeInference",
-            in: experimentalFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if experimentalPkg != SymbolID.invalid {
-            symbols.setParentSymbol(experimentalPkg, for: experimentalTypeInferenceSymbol)
-        }
-        let experimentalTypeInferenceAnnotations = [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.TYPE",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Retention",
-                arguments: ["AnnotationRetention.BINARY"]
-            ),
-        ]
-        var experimentalTypeInferenceExisting = symbols.annotations(for: experimentalTypeInferenceSymbol)
-        for annotation in experimentalTypeInferenceAnnotations where !experimentalTypeInferenceExisting.contains(annotation) {
-            experimentalTypeInferenceExisting.append(annotation)
-        }
-        symbols.setAnnotations(experimentalTypeInferenceExisting, for: experimentalTypeInferenceSymbol)
-
-        let builderType = types.make(.classType(ClassType(classSymbol: builderSymbol, args: [], nullability: .nonNull)))
-        let contractEffectType = types.make(.classType(ClassType(classSymbol: contractEffectSymbol, args: [], nullability: .nonNull)))
-        let effectType = types.make(.classType(ClassType(classSymbol: effectSymbol, args: [], nullability: .nonNull)))
-        let callsInPlaceType = types.make(.classType(ClassType(classSymbol: callsInPlaceSymbol, args: [], nullability: .nonNull)))
-        let simpleEffectType = types.make(.classType(ClassType(classSymbol: simpleEffectSymbol, args: [], nullability: .nonNull)))
-        let returnsType = types.make(.classType(ClassType(classSymbol: returnsSymbol, args: [], nullability: .nonNull)))
-        let returnsNotNullType = types.make(.classType(ClassType(classSymbol: returnsNotNullSymbol, args: [], nullability: .nonNull)))
-        let conditionalEffectType = types.make(.classType(ClassType(classSymbol: conditionalEffectSymbol, args: [], nullability: .nonNull)))
-        let holdsInType = types.make(.classType(ClassType(classSymbol: holdsInSymbol, args: [], nullability: .nonNull)))
-
-        symbols.setPropertyType(contractEffectType, for: contractEffectSymbol)
-        symbols.setPropertyType(effectType, for: effectSymbol)
-        symbols.setPropertyType(callsInPlaceType, for: callsInPlaceSymbol)
-        symbols.setPropertyType(simpleEffectType, for: simpleEffectSymbol)
-        symbols.setPropertyType(returnsType, for: returnsSymbol)
-        symbols.setPropertyType(returnsNotNullType, for: returnsNotNullSymbol)
-        symbols.setPropertyType(conditionalEffectType, for: conditionalEffectSymbol)
-        symbols.setPropertyType(holdsInType, for: holdsInSymbol)
-
-        symbols.setDirectSupertypes([contractEffectSymbol], for: effectSymbol)
-        symbols.setDirectSupertypes([effectSymbol], for: callsInPlaceSymbol)
-        symbols.setDirectSupertypes([effectSymbol], for: simpleEffectSymbol)
-        symbols.setDirectSupertypes([simpleEffectSymbol], for: returnsSymbol)
-        symbols.setDirectSupertypes([simpleEffectSymbol], for: returnsNotNullSymbol)
-        symbols.setDirectSupertypes([effectSymbol], for: conditionalEffectSymbol)
-        symbols.setDirectSupertypes([effectSymbol], for: holdsInSymbol)
-
-        let callsInPlaceAnnotations = [
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalContracts"),
-        ]
-        var existingCallsInPlaceAnnotations = symbols.annotations(for: callsInPlaceSymbol)
-        for annotation in callsInPlaceAnnotations where !existingCallsInPlaceAnnotations.contains(annotation) {
-            existingCallsInPlaceAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingCallsInPlaceAnnotations, for: callsInPlaceSymbol)
-
-        let returnsAnnotations = [
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalContracts"),
-        ]
-        var existingReturnsAnnotations = symbols.annotations(for: returnsSymbol)
-        for annotation in returnsAnnotations where !existingReturnsAnnotations.contains(annotation) {
-            existingReturnsAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingReturnsAnnotations, for: returnsSymbol)
-
-        let returnsNotNullAnnotations = [
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalContracts"),
-        ]
-        var existingReturnsNotNullAnnotations = symbols.annotations(for: returnsNotNullSymbol)
-        for annotation in returnsNotNullAnnotations where !existingReturnsNotNullAnnotations.contains(annotation) {
-            existingReturnsNotNullAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingReturnsNotNullAnnotations, for: returnsNotNullSymbol)
-
-        let holdsInAnnotations = [
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalContracts"),
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalExtendedContracts"),
-        ]
-        var existingHoldsInAnnotations = symbols.annotations(for: holdsInSymbol)
-        for annotation in holdsInAnnotations where !existingHoldsInAnnotations.contains(annotation) {
-            existingHoldsInAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingHoldsInAnnotations, for: holdsInSymbol)
-
-        let contractName = interner.intern("contract")
-        let contractFQName = contractsFQName + [contractName]
-        if symbols.lookup(fqName: contractFQName) == nil {
-            let symbol = symbols.define(
-                kind: .function,
-                name: contractName,
-                fqName: contractFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            let blockType = types.make(.functionType(FunctionType(
-                receiver: builderType,
-                params: [],
-                returnType: types.unitType
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(parameterTypes: [blockType], returnType: types.unitType),
-                for: symbol
-            )
-            if contractsPkg != .invalid {
-                symbols.setParentSymbol(contractsPkg, for: symbol)
-            }
-        }
-
-        func ensureMember(
-            owner: SymbolID,
-            ownerFQName: [InternedString],
-            name: String,
-            receiverType: TypeID,
-            params: [TypeID],
-            returnType: TypeID
-        ) {
-            let interned = interner.intern(name)
-            let fqName = ownerFQName + [interned]
-            // Check existing overloads by full signature (receiver type + parameter
-            // types + return type) to allow functions with the same fqName but
-            // different signatures, while preventing true duplicates.  Comparing
-            // only parameter count would incorrectly treat overloads with the same
-            // arity but different parameter types as duplicates.
-            let existingIDs = symbols.lookupAll(fqName: fqName)
-            let alreadyRegistered = existingIDs.contains { id in
-                guard let sig = symbols.functionSignature(for: id) else { return false }
-                return sig.receiverType == receiverType
-                    && sig.parameterTypes == params
-                    && sig.returnType == returnType
-            }
-            guard !alreadyRegistered else { return }
-            let symbol = symbols.define(
-                kind: .function,
-                name: interned,
-                fqName: fqName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setFunctionSignature(
-                FunctionSignature(receiverType: receiverType, parameterTypes: params, returnType: returnType),
-                for: symbol
-            )
-            symbols.setParentSymbol(owner, for: symbol)
-        }
-
-        ensureMember(
-            owner: builderSymbol,
-            ownerFQName: contractsFQName + [interner.intern("ContractBuilder")],
-            name: "returns",
-            receiverType: builderType,
+    /// KSP-707: The bundled `kotlin/Preconditions.kt` source declares `require`/
+    /// `check`/`assert` without a `contract { ... }` block, so their smart-cast
+    /// narrowing (e.g. `require(x != null); x.length`) is not derived from the
+    /// AST. Attach the `ContractNonNullEffect` directly to the source-backed
+    /// symbols once header collection has registered them, so
+    /// `applyContractEffects` can branch on the passed-in condition expression.
+    func patchSourceBackedPreconditionContractEffects(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+        let lazyMessageType = types.make(.functionType(FunctionType(
             params: [],
-            returnType: returnsType
-        )
-        ensureMember(
-            owner: builderSymbol,
-            ownerFQName: contractsFQName + [interner.intern("ContractBuilder")],
-            name: "returns",
-            receiverType: builderType,
-            params: [types.booleanType],
-            returnType: returnsType
-        )
-        ensureMember(
-            owner: simpleEffectSymbol,
-            ownerFQName: contractsFQName + [interner.intern("SimpleEffect")],
-            name: "implies",
-            receiverType: simpleEffectType,
-            params: [types.booleanType],
-            returnType: conditionalEffectType
-        )
-        // STDLIB-593 stub: `ContractBuilder.returnsNotNull()` -- forward declaration
-        // so that user code containing `contract { returnsNotNull() }` resolves.
-        ensureMember(
-            owner: builderSymbol,
-            ownerFQName: contractsFQName + [interner.intern("ContractBuilder")],
-            name: "returnsNotNull",
-            receiverType: builderType,
-            params: [],
-            returnType: returnsNotNullType
-        )
-
-        let holdsInName = interner.intern("holdsIn")
-        let holdsInFQName = contractsFQName + [interner.intern("ContractBuilder"), holdsInName]
-        let holdsInAlreadyDefined = symbols.lookupAll(fqName: holdsInFQName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == builderType
-                && signature.parameterTypes.count == 2
-                && signature.returnType == holdsInType
-        }
-        if !holdsInAlreadyDefined {
-            let typeParamName = interner.intern("R")
-            let typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: holdsInFQName + [typeParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            let typeParamType = types.make(.typeParam(TypeParamType(
-                symbol: typeParamSymbol,
-                nullability: .nonNull
-            )))
-            let symbol = symbols.define(
-                kind: .function,
-                name: holdsInName,
-                fqName: holdsInFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(builderSymbol, for: symbol)
-            symbols.setParentSymbol(symbol, for: typeParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: builderType,
-                    parameterTypes: [types.booleanType, typeParamType],
-                    returnType: holdsInType,
-                    typeParameterSymbols: [typeParamSymbol]
-                ),
-                for: symbol
-            )
-            symbols.setAnnotations(
-                [MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalExtendedContracts")],
-                for: symbol
-            )
-        }
-
-        // STDLIB-592: InvocationKind enum class stub
-        let invocationKindSymbol = ensureEnumClassSymbol(
-            named: "InvocationKind",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if contractsPkg != .invalid {
-            symbols.setParentSymbol(contractsPkg, for: invocationKindSymbol)
-        }
-        let invocationKindType = types.make(.classType(ClassType(
-            classSymbol: invocationKindSymbol, args: [], nullability: .nonNull
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
         )))
-        // Register enum entries: AT_MOST_ONCE, AT_LEAST_ONCE, EXACTLY_ONCE, UNKNOWN
-        let invocationKindFQName = contractsFQName + [interner.intern("InvocationKind")]
-        for entry in ["AT_MOST_ONCE", "AT_LEAST_ONCE", "EXACTLY_ONCE", "UNKNOWN"] {
-            let entryName = interner.intern(entry)
-            let entryFQName = invocationKindFQName + [entryName]
-            if symbols.lookup(fqName: entryFQName) == nil {
-                let entrySymbol = symbols.define(
-                    kind: .property,
-                    name: entryName,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .constValue]
-                )
-                symbols.setParentSymbol(invocationKindSymbol, for: entrySymbol)
-            }
-        }
 
-        // STDLIB-592: callsInPlace overloads on ContractBuilder.
-        let callsInPlaceName = interner.intern("callsInPlace")
-        let callsInPlaceFQBase = contractsFQName + [interner.intern("ContractBuilder"), callsInPlaceName]
-        func registerCallsInPlaceOverload(
-            extraParameterTypes: [TypeID] = []
-        ) {
-            let parameterCount = extraParameterTypes.count + 1
-            let alreadyDefined = symbols.lookupAll(fqName: callsInPlaceFQBase).contains { symbolID in
+        let preconditionFunctions: [(name: String, parameterTypes: [TypeID])] = [
+            ("require", [types.booleanType]),
+            ("require", [types.booleanType, lazyMessageType]),
+            ("check", [types.booleanType]),
+            ("check", [types.booleanType, lazyMessageType]),
+            ("assert", [types.booleanType]),
+            ("assert", [types.booleanType, lazyMessageType]),
+        ]
+
+        for entry in preconditionFunctions {
+            let functionName = interner.intern(entry.name)
+            let functionFQName = kotlinPkg + [functionName]
+            guard let symbol = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
                 guard let symbol = symbols.symbol(symbolID),
                       symbol.kind == .function,
+                      // Symbols loaded from a precompiled stdlib library artifact
+                      // (`--stdlib-library`, used by Scripts/diff_kotlinc.sh) carry
+                      // both `.importedLibrary` and `.synthetic`, so only exclude
+                      // synthetic placeholders that are NOT backed by an import.
+                      !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
                       let signature = symbols.functionSignature(for: symbolID)
                 else {
                     return false
                 }
-                return signature.receiverType == builderType
-                    && signature.parameterTypes.count == parameterCount
-                    && signature.returnType == callsInPlaceType
+                return signature.receiverType == nil
+                    && signature.parameterTypes == entry.parameterTypes
+                    && signature.returnType == types.unitType
+            }) else {
+                continue
             }
-            guard !alreadyDefined else {
-                return
+            guard let signature = symbols.functionSignature(for: symbol),
+                  !signature.valueParameterSymbols.isEmpty
+            else {
+                continue
             }
-
-            let typeParamName = interner.intern("P")
-            let typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: callsInPlaceFQBase + [typeParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            let typeParamType = types.make(.typeParam(TypeParamType(
-                symbol: typeParamSymbol,
-                nullability: .nonNull
-            )))
-            let parameterTypes = [typeParamType] + extraParameterTypes
-            let symbol = symbols.define(
-                kind: .function,
-                name: callsInPlaceName,
-                fqName: callsInPlaceFQBase,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(builderSymbol, for: symbol)
-            symbols.setParentSymbol(symbol, for: typeParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: builderType,
-                    parameterTypes: parameterTypes,
-                    returnType: callsInPlaceType,
-                    typeParameterSymbols: [typeParamSymbol]
+            symbols.setContractNonNullEffect(
+                ContractNonNullEffect(
+                    parameterSymbol: signature.valueParameterSymbols[0],
+                    appliesOnAnyReturn: true
                 ),
                 for: symbol
             )
         }
-        // Single-arg: callsInPlace(lambda)
-        registerCallsInPlaceOverload()
-        // Two-arg: callsInPlace(lambda, kind)
-        registerCallsInPlaceOverload(extraParameterTypes: [invocationKindType])
+    }
+
+    func resolveNumberClassSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]? = nil
+    ) {
+        let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
+        let numberName = interner.intern("Number")
+        let numberFQName = kotlinPkg + [numberName]
+
+        if let numberSymbol = symbols.lookup(fqName: numberFQName) {
+            types.numberClassSymbol = numberSymbol
+            return
+        }
+
+        guard let anySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("Any")]) else { return }
+
+        let numberSymbol = ensureClassSymbol(
+            named: "Number",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.insertFlags([.synthetic, .abstractType], for: numberSymbol)
+        symbols.setDirectSupertypes([anySymbol], for: numberSymbol)
+        types.setNominalDirectSupertypes([anySymbol], for: numberSymbol)
+        types.numberClassSymbol = numberSymbol
+    }
+
+    /// Resolve the source-backed or imported kotlin.Unit object while
+    /// preserving the compiler's builtin Unit value representation.
+    func resolveUnitClassSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]? = nil
+    ) {
+        let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
+        let unitName = BuiltinTypeNames(interner: interner).unit
+        let unitFQName = kotlinPkg + [unitName]
+        if let unitSymbol = symbols.lookupAll(fqName: unitFQName).first(where: { symbolID in
+            symbols.symbol(symbolID)?.kind == .object
+        }) {
+            types.unitClassSymbol = unitSymbol
+        }
     }
 
     /// Look up or define a synthetic interface symbol in the given package.
@@ -1690,7 +1536,13 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let internedName = interner.intern(name)
         let fqName = pkg + [internedName]
-        if let existing = symbols.lookup(fqName: fqName) {
+        // A factory function may share the class FQName (for example,
+        // `kotlin.concurrent.AtomicIntArray(Int)` or a Kotlin `class Foo` +
+        // `fun Foo(...)` pair). Prefer an existing nominal class over the
+        // first callable that shadows it.
+        if let existing = symbols.lookupAll(fqName: fqName).first(where: { id in
+            symbols.symbol(id)?.kind == .class
+        }) {
             return existing
         }
         return symbols.define(

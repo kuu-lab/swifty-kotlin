@@ -4,20 +4,20 @@ fun main() {
     // Test exponential and logarithmic functions
     val x = 2.0
     
-    // exp(1) = e ≈ 2.7183
+    // exp(1) = e ≈ 2.7183 (JVM Math.exp vs system libm exp differ by 1 ULP at this input)
     val expValue = exp(1.0)
-    println(expValue)
+    println(abs(expValue - E) < 1e-9)
     
     // exp(2) = e² ≈ 7.3891
     val exp2Value = exp(x)
     println(exp2Value)
     
     // log(e) = 1
-    val logEValue = log(E)
+    val logEValue = ln(E)
     println(logEValue)
-    
+
     // log(e²) = 2
-    val logExp2Value = log(exp2Value)
+    val logExp2Value = ln(exp2Value)
     println(logExp2Value)
     
     // log2(8) = 3
@@ -38,10 +38,10 @@ fun main() {
     
     // Test power function
     // pow(2, 3) = 8
-    val powValue = pow(2.0, 3.0)
+    val powValue = 2.0.pow(3.0)
     println(powValue)
-    
+
     // pow(10, 2) = 100
-    val pow10Value = pow(10.0, 2.0)
+    val pow10Value = 10.0.pow(2.0)
     println(pow10Value)
 }

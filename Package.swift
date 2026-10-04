@@ -1,5 +1,22 @@
 // swift-tools-version: 6.2
 import PackageDescription
+import Foundation
+
+// Allow CI to compile CompilerCore with -O in debug builds without changing the
+// default debug configuration, based on A/B measurements that showed a ~40%
+// total job time reduction for the CompilerCore test shards.
+let optimizeCompilerCore = ProcessInfo.processInfo.environment["KSWIFTK_OPTIMIZE_COMPILER_CORE"] == "1"
+
+// `-enable-testing` is required for `@testable import CompilerCore` from
+// GoldenHarnessSupport in release builds. Optionally add `-O` in debug when CI
+// requests it to keep test-shard build times low.
+let compilerCoreSwiftSettings: [SwiftSetting] = {
+    var settings: [SwiftSetting] = [.unsafeFlags(["-enable-testing"])]
+    if optimizeCompilerCore {
+        settings.append(.unsafeFlags(["-O"], .when(configuration: .debug)))
+    }
+    return settings
+}()
 
 let package = Package(
     name: "KSwiftK",
@@ -25,22 +42,32 @@ let package = Package(
         )
     ],
     targets: [
-        .systemLibrary(
-            name: "CLLVM"
-        ),
         .target(
             name: "RuntimeABI"
+        ),
+        .target(
+            name: "RuntimeCAtomics"
         ),
         .target(
             name: "CompilerCore",
             dependencies: ["RuntimeABI"],
             resources: [
                 .copy("Stdlib"),
-            ]
+            ],
+            swiftSettings: compilerCoreSwiftSettings
         ),
         .target(
             name: "CompilerBackend",
-            dependencies: ["CLLVM", "CompilerCore", "RuntimeABI"]
+            dependencies: ["CompilerCore", "RuntimeABI"]
+        ),
+        .target(
+            name: "TestStdlibCache",
+            dependencies: ["CompilerCore", "CompilerBackend"]
+        ),
+        .target(
+            name: "CompilerTestSupport",
+            dependencies: ["CompilerCore"],
+            path: "Sources/CompilerTestSupport"
         ),
         .target(
             name: "GoldenHarnessSupport",
@@ -49,6 +76,7 @@ let package = Package(
             sources: [
                 "GoldenHarnessAPI.swift",
                 "GoldenHarnessCaseDiscovery.swift",
+                "GoldenHarnessCaseSpec.swift",
                 "GoldenHarnessDump.swift",
                 "GoldenHarnessExprFormat.swift",
                 "GoldenHarnessGoldenFileIO.swift",
@@ -57,7 +85,9 @@ let package = Package(
                 "GoldenHarnessPaths.swift",
                 "GoldenHarnessSemaFormat.swift",
                 "GoldenHarnessStableRenderContext.swift",
+                "GoldenHarnessSymbolOrigin.swift",
                 "GoldenHarnessSyntaxFormat.swift",
+                "GoldenHarnessTargetSection.swift",
             ]
         ),
         .executableTarget(
@@ -70,7 +100,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "KSwiftLSPCLI",
-            dependencies: ["LSPServer"]
+            dependencies: ["LSPServer", "CompilerCore", "CompilerBackend"]
         ),
         .executableTarget(
             name: "GoldenHarnessWorker",
@@ -78,21 +108,26 @@ let package = Package(
             path: "Sources/GoldenHarnessWorker"
         ),
         .target(
-            name: "Runtime"
+            name: "Runtime",
+            dependencies: ["RuntimeABI", "RuntimeCAtomics"]
         ),
         .testTarget(
             name: "CompilerCoreTests",
-            dependencies: ["CompilerCore", "GoldenHarnessSupport", "GoldenHarnessWorker"],
+            dependencies: ["CompilerCore", "CompilerTestSupport", "GoldenHarnessSupport", "GoldenHarnessWorker", "TestStdlibCache"],
             path: "Tests/CompilerCoreTests",
             exclude: [
                 "GoldenCases",
                 "Integration/ClassDelegationSmokeTest.kt",
+                "Klib/Fixtures",
             ]
         ),
         .testTarget(
             name: "CompilerBackendTests",
-            dependencies: ["CompilerBackend", "CompilerCore"],
-            path: "Tests/CompilerBackendTests"
+            dependencies: ["CompilerBackend", "CompilerCore", "CompilerTestSupport", "TestStdlibCache"],
+            path: "Tests/CompilerBackendTests",
+            exclude: [
+                "Fixtures",
+            ]
         ),
         .testTarget(
             name: "RuntimeTests",

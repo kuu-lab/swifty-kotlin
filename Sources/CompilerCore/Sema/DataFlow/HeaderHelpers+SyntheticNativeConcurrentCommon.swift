@@ -1,8 +1,7 @@
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: shared helpers (symbol/type/property registration utilities) used across all native-concurrent topic files.
 ///
-/// Split out from `HeaderHelpers+SyntheticNativeConcurrentStubs.swift` to isolate
-/// merge conflicts between parallel stdlib PRs adding new entries to this package.
+/// Shared helpers for the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
     func ensureNativeConcurrentEnum(
@@ -46,20 +45,6 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(enumSymbol, for: entrySymbol)
         }
         return enumSymbol
-    }
-
-    func setNativeConcurrentEnumEntryTypes(
-        enumSymbol: SymbolID,
-        enumType: TypeID,
-        symbols: SymbolTable
-    ) {
-        guard let enumInfo = symbols.symbol(enumSymbol) else { return }
-        for child in symbols.children(ofFQName: enumInfo.fqName) {
-            guard let childInfo = symbols.symbol(child), childInfo.kind == .field else { continue }
-            if symbols.propertyType(for: child) == nil {
-                symbols.setPropertyType(enumType, for: child)
-            }
-        }
     }
 
     func registerNativeConcurrentMemberFunction(
@@ -138,6 +123,8 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID,
         externalLinkName: String? = nil,
+        visibility: Visibility = .public,
+        annotations: [MetadataAnnotationRecord] = [],
         parameters: [(name: String, type: TypeID)],
         defaultValues: [Bool],
         typeParameterSymbols: [SymbolID] = [],
@@ -165,7 +152,7 @@ extension DataFlowSemaPhase {
             name: initName,
             fqName: constructorFQName,
             declSite: nil,
-            visibility: .public,
+            visibility: visibility,
             flags: [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
@@ -202,6 +189,7 @@ extension DataFlowSemaPhase {
             ),
             for: constructorSymbol
         )
+        appendNativeConcurrentMetadataAnnotations(annotations, to: constructorSymbol, symbols: symbols)
     }
 
     func nativeConcurrentClassType(

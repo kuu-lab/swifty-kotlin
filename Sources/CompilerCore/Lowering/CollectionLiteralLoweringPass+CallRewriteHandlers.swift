@@ -1,4 +1,4 @@
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     struct CollectionCallRewrite {
         let callee: InternedString
         let arguments: [KIRExprID]
@@ -28,57 +28,17 @@ extension CollectionLiteralLoweringPass {
 
         var instructions: [KIRInstruction] = []
 
-        if call.callee == lookup.toListName, call.arguments.count == 1 {
-            let receiverID = call.arguments[0]
-            if state.mapExprIDs.contains(receiverID.rawValue) {
-                let toListResult = ctx.module.arena.appendExpr(
-                    .temporary(Int32(ctx.module.arena.expressions.count)), type: nil
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkMapToListName,
-                    arguments: [receiverID],
-                    result: toListResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                state.tagListResult(call.result, temporary: toListResult)
-                if let result = call.result {
-                    instructions.append(.copy(from: toListResult, to: result))
-                }
-                return CollectionCallRewriteResult(instructions: instructions)
-            }
-            if state.setExprIDs.contains(receiverID.rawValue) {
-                let toListResult = ctx.module.arena.appendExpr(
-                    .temporary(Int32(ctx.module.arena.expressions.count)), type: nil
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkSetToListName,
-                    arguments: [receiverID],
-                    result: toListResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                state.tagListResult(call.result, temporary: toListResult)
-                if let result = call.result {
-                    instructions.append(.copy(from: toListResult, to: result))
-                }
-                return CollectionCallRewriteResult(instructions: instructions)
-            }
-        }
-
         guard call.arguments.count == 2 || call.arguments.count == 3 else {
             return nil
         }
         let receiverID = call.arguments[0]
         let lambdaID = call.arguments[1]
 
-        if state.listExprIDs.contains(receiverID.rawValue), call.callee != lookup.countName {
+        if state.listExprIDs.contains(receiverID.rawValue),
+           let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: call.callee, arity: 1)
+        {
             let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
-            let kkName = listHOFRuntimeName(for: call.callee, lookup: lookup)
-            let hofResult = ctx.module.arena.appendExpr(
-                .temporary(Int32(ctx.module.arena.expressions.count)), type: nil
+            let hofResult = ctx.module.arena.appendTemporary(type: nil
             )
             instructions.append(.call(
                 symbol: nil,
@@ -97,44 +57,36 @@ extension CollectionLiteralLoweringPass {
             return CollectionCallRewriteResult(instructions: instructions)
         }
 
-        if state.mapExprIDs.contains(receiverID.rawValue),
-           let kkName = mapHOFRuntimeName(for: call.callee, lookup: lookup)
-        {
-            let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
-            let hofResult = ctx.module.arena.appendExpr(
-                .temporary(Int32(ctx.module.arena.expressions.count)), type: nil
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: kkName,
-                arguments: [receiverID, lambdaID, closureRawID],
-                result: hofResult,
-                canThrow: call.canThrow,
-                thrownResult: call.thrownResult
-            ))
-            if mapHOFReturnsList(call.callee, lookup: lookup) {
-                state.tagListResult(call.result, temporary: hofResult)
-            }
-            if mapHOFReturnsMap(call.callee, lookup: lookup) {
-                state.tagMapResult(call.result, temporary: hofResult)
-            }
-            if let result = call.result {
-                instructions.append(.copy(from: hofResult, to: result))
-            }
-            return CollectionCallRewriteResult(instructions: instructions)
-        }
-
+        // RF-LOWER-CALL-012 dropped the sibling branch that rewrote a Map
+        // receiver's `map` / `filter` / `forEach` / `mapValues` / `mapKeys` /
+        // `filterKeys` / `filterValues` / `flatMap` / `any` / `all` / `none` /
+        // `maxByOrNull` / `minByOrNull` to a `kk_map_*` runtime entry point. It
+        // never fired: every one of those names, once resolved to the bundled
+        // Kotlin source in `MapHOF.kt` (KSP-430), is short-circuited by
+        // the source-backed preservation gate in `+CallRewrite.swift`
+        // before `rewriteHigherOrderCollectionCall` is ever called, and
+        // `filterKeys` / `filterValues` / `maxByOrNull` / `minByOrNull` were
+        // additionally excluded by `isCollectionHOFMemberName` above, which
+        // never listed them. The deleted branch's targets (`kk_map_map`,
+        // `kk_map_filter`, `kk_map_mapValues`, `kk_map_mapKeys`,
+        // `kk_map_filterKeys`, `kk_map_filterValues`, `kk_map_flatMap`,
+        // `kk_map_any`, `kk_map_all`, `kk_map_none`, `kk_map_forEach`,
+        // `kk_map_maxByOrNull`, `kk_map_minByOrNull`) have no `@_cdecl` left in
+        // `Sources/Runtime` either — only `RuntimeCollectionHOF430MapShims.swift`
+        // test shims still declare them. `MapHOFLoweringRoutingTests` pins the
+        // routing itself; see `+CallRewrite.swift` for the policy-side note.
         return nil
     }
 
+    // `filterNot` / `mapNotNull` are not listed: `.list` has no runtime link
+    // for either (RF-LOWER-CALL-008) and Map has no such member at all, so
+    // every branch below already answers nil for them on any receiver.
     private func isCollectionHOFMemberName(
         _ callee: InternedString,
         lookup: CollectionLiteralLookupTables
     ) -> Bool {
         callee == lookup.mapName
             || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.mapNotNullName
             || callee == lookup.forEachName
             || callee == lookup.onEachName
             || callee == lookup.flatMapName
@@ -144,7 +96,6 @@ extension CollectionLiteralLoweringPass {
             || callee == lookup.mapValuesName
             || callee == lookup.mapKeysName
             || callee == lookup.toListName
-            || callee == lookup.countName
     }
 
     private func closureRawArgument(
@@ -160,77 +111,13 @@ extension CollectionLiteralLoweringPass {
         return zeroExpr
     }
 
-    private func listHOFRuntimeName(
-        for callee: InternedString,
-        lookup: CollectionLiteralLookupTables
-    ) -> InternedString {
-        switch callee {
-        case lookup.mapName: lookup.kkListMapName
-        case lookup.filterName: lookup.kkListFilterName
-        case lookup.filterNotName: lookup.kkListFilterNotName
-        case lookup.mapNotNullName: lookup.kkListMapNotNullName
-        case lookup.forEachName: lookup.kkListForEachName
-        case lookup.onEachName: lookup.kkListOnEachName
-        case lookup.flatMapName: lookup.kkListFlatMapName
-        case lookup.flatMapIndexedName: lookup.kkListFlatMapIndexedName
-        case lookup.anyName: lookup.kkListAnyName
-        case lookup.noneName: lookup.kkListNoneName
-        case lookup.allName: lookup.kkListAllName
-        default: callee
-        }
-    }
-
-    private func mapHOFRuntimeName(
-        for callee: InternedString,
-        lookup: CollectionLiteralLookupTables
-    ) -> InternedString? {
-        switch callee {
-        case lookup.mapName: lookup.kkMapMapName
-        case lookup.filterName: lookup.kkMapFilterName
-        case lookup.forEachName: lookup.kkMapForEachName
-        case lookup.mapValuesName: lookup.kkMapMapValuesName
-        case lookup.mapKeysName: lookup.kkMapMapKeysName
-        case lookup.filterKeysName: lookup.kkMapFilterKeysName
-        case lookup.filterValuesName: lookup.kkMapFilterValuesName
-        case lookup.flatMapName: lookup.kkMapFlatMapName
-        case lookup.maxByOrNullName: lookup.kkMapMaxByOrNullName
-        case lookup.minByOrNullName: lookup.kkMapMinByOrNullName
-        case lookup.anyName: lookup.kkMapAnyName
-        case lookup.allName: lookup.kkMapAllName
-        case lookup.noneName: lookup.kkMapNoneName
-        default: nil
-        }
-    }
-
     private func listHOFReturnsList(
         _ callee: InternedString,
         lookup: CollectionLiteralLookupTables
     ) -> Bool {
         callee == lookup.mapName
-            || callee == lookup.mapNotNullName
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
-            || callee == lookup.filterName
-            || callee == lookup.filterNotName
             || callee == lookup.onEachName
-    }
-
-    private func mapHOFReturnsList(
-        _ callee: InternedString,
-        lookup: CollectionLiteralLookupTables
-    ) -> Bool {
-        callee == lookup.mapName || callee == lookup.flatMapName || callee == lookup.mapNotNullName
-    }
-
-    private func mapHOFReturnsMap(
-        _ callee: InternedString,
-        lookup: CollectionLiteralLookupTables
-    ) -> Bool {
-        callee == lookup.mapValuesName
-            || callee == lookup.mapKeysName
-            || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.filterKeysName
-            || callee == lookup.filterValuesName
     }
 }

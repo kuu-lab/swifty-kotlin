@@ -3,12 +3,89 @@
 /// members, class-name member values, const-folding) split out of
 /// `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
+    /// BUG-227: whether a class member-property read/write should dispatch
+    /// through the getter/setter accessor slot LayoutSynthesis assigned it,
+    /// rather than the statically-resolved declaration's own field
+    /// offset/accessor — mirroring `resolveVtableDispatchKind`'s identical
+    /// rule for ordinary method calls: open/override members whose owner
+    /// currently has known subtypes are eligible, since a receiver typed as a
+    /// leaf (subtype-less) class can never actually hold a more-derived
+    /// override at runtime. Abstract members are always eligible because
+    /// their declaration has no concrete field/accessor implementation to
+    /// read directly, including when implementations live outside this
+    /// compilation unit.
+    ///
+    /// `super`-qualified access is always excluded — `super.p` must keep
+    /// reading/writing the syntactically-named class's own implementation,
+    /// never the runtime type's override (BUG-228).
+    func tryResolvePropertyAccessorVirtualDispatch(
+        propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        accessorKind: PropertyAccessorKind,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (accessorSymbol: SymbolID, dispatch: KIRDispatchKind)? {
+        if case .superRef = ast.arena.expr(receiverExpr) {
+            return nil
+        }
+        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        if MemberRuntimeDispatch.rangeReceiverKind(
+            for: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil {
+            // Runtime range values are RuntimeRangeBox handles without Kotlin
+            // object vtables. Keep source-backed range property accessors on
+            // their direct ABI bridge path, just like range member calls.
+            return nil
+        }
+        return resolvePropertyAccessorVirtualDispatch(
+            propertySymbol: propertySymbol,
+            accessorKind: accessorKind,
+            sema: sema
+        )
+    }
+
+    /// AST-independent core of `tryResolvePropertyAccessorVirtualDispatch`,
+    /// shared with property-reference wrappers (`Base::prop`), which have no
+    /// receiver expression to inspect for `super`.
+    func resolvePropertyAccessorVirtualDispatch(
+        propertySymbol: SymbolID,
+        accessorKind: PropertyAccessorKind,
+        sema: SemaModule
+    ) -> (accessorSymbol: SymbolID, dispatch: KIRDispatchKind)? {
+        guard let propInfo = sema.symbols.symbol(propertySymbol),
+              let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
+              let ownerInfo = sema.symbols.symbol(ownerID),
+              ownerInfo.kind == .class,
+              (propInfo.flags.contains(.openType)
+                  || propInfo.flags.contains(.abstractType)
+                  || propInfo.flags.contains(.overrideMember)
+                  || ownerInfo.flags.contains(.abstractType)),
+              (propInfo.flags.contains(.abstractType)
+                  || ownerInfo.flags.contains(.abstractType)
+                  || !sema.symbols.directSubtypes(of: ownerID).isEmpty),
+              let layout = sema.symbols.nominalLayout(for: ownerID)
+        else {
+            return nil
+        }
+        let accessorSymbol = SyntheticSymbolScheme.propertyAccessorSymbol(for: propertySymbol, kind: accessorKind)
+        guard let slot = layout.vtableSlots[accessorSymbol] else {
+            return nil
+        }
+        return (accessorSymbol, .vtable(slot: slot))
+    }
+
     func tryLowerObjectMemberPropertyRead(
         _ exprID: ExprID,
+        receiverExpr: ExprID,
         args: [CallArgument],
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard args.isEmpty else { return nil }
@@ -17,12 +94,22 @@ extension CallLowerer {
         guard let valueSym,
               let info = sema.symbols.symbol(valueSym),
               info.kind == .property,
+              // KUU-555: a local `object`'s member properties keep
+              // `.object`-parented symbols too, but their storage lives in
+              // the materialized instance's field array — reading them must
+              // continue to `tryLowerObjectLiteralStoredPropertyRead`'s
+              // field-offset load, not the object-global slot this path
+              // emits for file-scope object members.
+              !sema.bindings.isObjectLiteralPropertySymbol(valueSym),
               let parent = sema.symbols.parentSymbol(for: valueSym),
               sema.symbols.symbol(parent)?.kind == .object
         else { return nil }
         if info.flags.contains(.constValue),
            let constant = sema.symbols.constValueExprKind(for: valueSym)
         {
+            // A `const val` is a compile-time constant inlined at the use
+            // site -- Kotlin never runs clinit for reading one, so this
+            // deliberately returns before the BUG-274 lazy-init guard below.
             let propType = sema.bindings.exprTypes[exprID]
                 ?? sema.symbols.propertyType(for: valueSym)
                 ?? sema.types.anyType
@@ -30,6 +117,14 @@ extension CallLowerer {
             instructions.append(.constValue(result: id, value: constant))
             return id
         }
+        // BUG-274: reading any other object-member property is a real
+        // access to the object's state, so it must trigger the object's
+        // lazy clinit-equivalent first. Imported-library objects restore the
+        // guard through metadata; compiler pseudo-objects such as
+        // `Dispatchers`/`Charsets` below remain no-ops.
+        driver.emitObjectLazyInitGuardIfNeeded(
+            objectSymbol: parent, arena: arena, sema: sema, instructions: &instructions
+        )
         let knownNames = KnownCompilerNames(interner: interner)
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.dispatchers
@@ -45,9 +140,7 @@ extension CallLowerer {
             default:
                 return nil
             }
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.bindings.exprTypes[exprID]
+            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
             )
@@ -65,10 +158,8 @@ extension CallLowerer {
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.charsets
         {
-            let runtimeCallee = interner.intern("kk_charset_\(interner.resolve(info.name).lowercased())")
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.bindings.exprTypes[exprID]
+            let runtimeCallee = interner.intern("__kk_charset_\(interner.resolve(info.name).lowercased())")
+            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
             )
@@ -82,34 +173,90 @@ extension CallLowerer {
             ))
             return result
         }
-        if let parentInfo = sema.symbols.symbol(parent),
-           interner.resolve(parentInfo.name) == "NormalizationForms"
-        {
-            let runtimeCallee = interner.intern("kk_normalization_form_\(interner.resolve(info.name).lowercased())")
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.bindings.exprTypes[exprID]
-                    ?? sema.symbols.propertyType(for: valueSym)
-                    ?? sema.types.anyType
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: runtimeCallee,
-                arguments: [],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
+        // KSP-717: NormalizationForms.NFC/NFD/NFKC/NFKD are plain Kotlin
+        // property initializers now (Stdlib/kotlin/text/StringNormalize.kt),
+        // so the name-string special case that routed them to
+        // __kk_normalization_form_* is no longer needed.
         let propType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: valueSym)
             ?? sema.types.anyType
-        let id = arena.appendExpr(.symbolRef(valueSym), type: propType)
-        instructions.append(.loadGlobal(result: id, symbol: valueSym))
+        return lowerObjectMemberPropertyReadValue(
+            propertySymbol: valueSym,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: nil,
+            resultType: propType,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+    }
+
+    /// Read core for `object` member properties, shared between
+    /// `tryLowerObjectMemberPropertyRead` (which derives the symbol from the
+    /// access expression's bindings) and the callable-property invocation
+    /// path in `lowerStoredMemberPropertyReadValue`, which supplies the
+    /// property symbol and the function-typed result directly (KUU-644).
+    /// The receiver is lowered lazily — only the custom-getter arm needs it;
+    /// callers that already lowered it pass `loweredReceiverID`.
+    func lowerObjectMemberPropertyReadValue(
+        propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        loweredReceiverID: KIRExprID?,
+        resultType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        // BUG-257: a property with a real custom getter never gets a backing
+        // global slot -- unlike the cases above, there is no storage for
+        // `loadGlobal` below to read. Route through the real getter accessor
+        // instead, exactly like the equivalent instance-member path
+        // (tryLowerMemberPropertyAccessorRead) and the object-member setter
+        // side (memberPropertyUsesSetterAccessor in
+        // CallLowerer+MemberAssignment.swift) already do.
+        //
+        // Deliberately narrower than `memberPropertyUsesAccessor`: a
+        // delegated property (`by lazy { ... }`) also reports "uses an
+        // accessor" there, but object-member delegated properties don't yet
+        // have a real getter-accessor symbol to call (unlike class-instance
+        // delegates, which resolve through a different path before reaching
+        // here) -- routing them through this branch panics with a vtable/
+        // itable lookup failure. Leave delegated object properties on the
+        // pre-existing `loadGlobal` fallback below until that gap is fixed
+        // (BUG-265).
+        if sema.symbols.propertyHasCustomGetter(for: propertySymbol)
+            || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
+        {
+            let receiverID = loweredReceiverID ?? driver.lowerExpr(
+                receiverExpr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                arguments: [receiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        let id = arena.appendExpr(.symbolRef(propertySymbol), type: resultType)
+        instructions.append(.loadGlobal(result: id, symbol: propertySymbol))
         return wrapLateinitReadIfNeeded(
             id,
-            symbol: valueSym,
+            symbol: propertySymbol,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -136,7 +283,7 @@ extension CallLowerer {
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
         if objectLiteralPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: propertySymbol,
                 callee: interner.intern("get"),
@@ -148,8 +295,19 @@ extension CallLowerer {
             return result
         }
 
+        // Object-literal properties don't currently get a dedicated backing-field
+        // symbol from ExprTypeChecker+ObjectLiteralInference.swift's header
+        // collection (unlike ordinary class members), so `backingFieldSymbol(for:)`
+        // is always nil here today and this falls back to `propertySymbol`
+        // unchanged. Kept for consistency with every other field-offset lookup
+        // in the codebase (CallLowerer+MemberAssignment.swift,
+        // tryLowerStoredMemberPropertyRead, the lateinit branch in
+        // KIRLoweringDriver+...+ConstructorsAndInitializers.swift) so this
+        // doesn't silently break if object literals ever gain backing fields.
         guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
-              let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[propertySymbol]
+              let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                  sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+              ]
         else {
             return nil
         }
@@ -157,7 +315,7 @@ extension CallLowerer {
         let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
@@ -178,23 +336,105 @@ extension CallLowerer {
 
     func tryLowerStoredMemberPropertyRead(
         _ exprID: ExprID,
+        receiverExpr: ExprID,
         loweredReceiverID: KIRExprID,
         args: [CallArgument],
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // `object` member properties never reach this point: they're always
+        // intercepted earlier by `tryLowerObjectMemberPropertyRead`, which
+        // reads them from their global slot via `loadGlobal` (mirroring how
+        // `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr` write them).
+        // Restricting this guard to nominal instance types keeps the read and
+        // write sides symmetric instead of relying on call-order to keep a
+        // dead field-offset arm harmless.
         guard args.isEmpty,
-              let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
-              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
-              let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface
-              || ownerInfo.kind == .object,
-              let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
-                  sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-              ]
+              let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
+                  ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+              sema.symbols.symbol(propertySymbol)?.kind == .property
         else {
+            return nil
+        }
+        let readResultType = sema.bindings.exprTypes[exprID]
+            ?? sema.symbols.propertyType(for: propertySymbol)
+            ?? sema.types.anyType
+        return lowerStoredMemberPropertyReadValue(
+            propertySymbol: propertySymbol,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
+            resultType: readResultType,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+    }
+
+    /// Property-read core shared by `tryLowerStoredMemberPropertyRead` (which
+    /// derives the symbol and result type from a zero-argument member-access
+    /// expression) and the callable-property invocation path in
+    /// `lowerMemberCallExpr`, which reads `receiver.prop` to obtain the
+    /// function value before invoking it (KUU-482/BUG-250). The caller
+    /// supplies the property symbol and the desired result type explicitly.
+    func lowerStoredMemberPropertyReadValue(
+        propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        loweredReceiverID: KIRExprID,
+        resultType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+        else {
+            return nil
+        }
+        // `object` member properties live in a global slot / getter accessor
+        // rather than a field offset — mirror `tryLowerObjectMemberPropertyRead`
+        // so callable-property invocations like `Holder.f(3)` can read the
+        // function value (KUU-644).
+        if ownerInfo.kind == .object {
+            return lowerObjectMemberPropertyReadValue(
+                propertySymbol: propertySymbol,
+                receiverExpr: receiverExpr,
+                loweredReceiverID: loweredReceiverID,
+                resultType: resultType,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+        guard ownerInfo.kind == .class || ownerInfo.kind == .interface
+            || ownerInfo.kind == .enumClass || ownerInfo.kind == .annotationClass
+        else {
+            return nil
+        }
+
+        // KSP-933: ArrayList is a concrete list class, but inherited
+        // Collection.size can otherwise look like a stored field on the
+        // source-backed nominal class. Let the list runtime fallback handle
+        // the property instead of indexing the opaque collection handle.
+        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        let isRuntimeRangeReceiver = MemberRuntimeDispatch.rangeReceiverKind(
+            for: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil
+        if isConcreteListLikeType(receiverType, sema: sema, interner: interner) {
             return nil
         }
 
@@ -206,13 +446,236 @@ extension CallLowerer {
             return nil
         }
 
-        let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.symbols.propertyType(for: propertySymbol)
-            ?? sema.types.anyType
+        // HashSet inherits synthetic collection properties while its storage is
+        // a RuntimeSetBox, not a nominal object-field array. Keep size and
+        // isEmpty on the shared collection dispatch path for the source-backed
+        // HashSet surface, including when the receiver comes from a .kklib.
+        let hashSetFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("HashSet")
+        ]
+        if let propertyInfo = sema.symbols.symbol(propertySymbol),
+           propertyInfo.name == interner.intern("size")
+               || propertyInfo.name == interner.intern("isEmpty"),
+           let receiverType = arena.exprType(loweredReceiverID),
+           let (_, receiverSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverSymbol.fqName == hashSetFQName
+        {
+            return nil
+        }
+
+        // Runtime-backed interface properties (for example Collection.size)
+        // may now carry a bundled source declaration while retaining their
+        // external ABI link. Keep those reads on the direct bridge path below;
+        // registering them as source property getters would require runtime
+        // boxes to provide an itable getter they do not own.
+        if let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
+           !externalLinkName.isEmpty
+        {
+            return nil
+        }
+
+        // Runtime-backed Set instances are opaque set boxes. Their
+        // source-backed `size` getter must use the set bridge directly; an
+        // itable/vtable getter would require a Kotlin object layout that the
+        // runtime box does not have.
+        if isRuntimeBackedSetSizeProperty(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_set_size"),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
+        // KSP-928: an abstract/open class property is a getter dispatch point,
+        // not an instance field or a direct abstract getter stub. In
+        // particular, AbstractMap's skeletal methods must observe a concrete
+        // subclass's `entries` override.
+        //
+        // `super`-qualified access is excluded for the same reason
+        // `tryResolvePropertyAccessorVirtualDispatch` below excludes it
+        // (BUG-228): `super.p` must keep reading the syntactically-named
+        // class's own implementation, never the runtime type's override.
+        var isSuperQualifiedReceiver = false
+        if case .superRef = ast.arena.expr(receiverExpr) {
+            isSuperQualifiedReceiver = true
+        }
+        // KUU-556: HashMap.kt is now `open` so LinkedHashMap can subclass it.
+        // That gives HashMap its first-ever direct subtype, which makes the
+        // condition below (KSP-928's abstract/open-property vtable dispatch)
+        // start matching HashMap's own materialized realization of the four
+        // Map interface properties it never overrides in source
+        // (size/keys/values/entries -- @KsSymbolName isn't wired for
+        // `.property` symbols yet, so only Map's original declaration carries
+        // the external link). LayoutSynthesis assigns the HashMap realization
+        // a vtable slot, but every Map-family value shares one RuntimeMapBox
+        // representation with no true per-class vtable. Dispatching through
+        // that slot therefore panics instead of reaching the Map bridge.
+        let isHashMapRealizedRuntimeBridgedMapProperty =
+            ownerInfo.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("HashMap"),
+            ]
+            && [
+                interner.intern("size"), interner.intern("keys"),
+                interner.intern("values"), interner.intern("entries"),
+            ].contains(sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""))
+        if ownerInfo.kind == .class,
+           !isSuperQualifiedReceiver,
+           !isRuntimeRangeReceiver,
+           !isHashMapRealizedRuntimeBridgedMapProperty,
+           !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
+           let propertyInfo = sema.symbols.symbol(propertySymbol),
+           let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
+               SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+           ],
+           propertyInfo.flags.contains(.abstractType)
+               || propertyInfo.flags.contains(.openType)
+        {
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.virtualCall(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                receiver: loweredReceiverID,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: .vtable(slot: getterSlot)
+            ))
+            return result
+        }
+
+        if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
+            // `tryResolvePropertyAccessorVirtualDispatch` independently
+            // qualifies HashMap's materialized property realization for vtable
+            // dispatch once HashMap has a direct subtype. Keep the same
+            // RuntimeMapBox-backed properties on the bridge path instead.
+            if !isHashMapRealizedRuntimeBridgedMapProperty,
+               let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+                propertySymbol: propertySymbol,
+                receiverExpr: receiverExpr,
+                accessorKind: .getter,
+                ast: ast,
+                sema: sema,
+                interner: interner
+            ) {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.virtualCall(
+                    symbol: accessorSymbol,
+                    callee: interner.intern("get"),
+                    receiver: loweredReceiverID,
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    dispatch: dispatch
+                ))
+                return result
+            }
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            // Native interface getters are runtime bridges whose runtime boxes
+            // do not provide an itable property slot. Keep those accessors direct;
+            // imported Kotlin getters with kk_fn_* links remain on the dynamic
+            // itable path below.
+            let getterUsesRuntimeBridge = kirIsRuntimeBridgedCallee(getterSymbol, sema: sema)
+            if ownerInfo.kind != .interface || getterUsesRuntimeBridge {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: getterSymbol,
+                    callee: interner.intern("get"),
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
+        if ownerInfo.kind == .interface {
+            return tryLowerInterfaceItablePropertyGetterRead(
+                propertySymbol: propertySymbol,
+                loweredReceiverID: loweredReceiverID,
+                resultType: resultType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+
+        if ownerInfo.kind == .enumClass,
+           let propertyInfo = sema.symbols.symbol(propertySymbol),
+           propertyInfo.kind == .property || propertyInfo.kind == .field
+        {
+            let propertyName = propertyInfo.name
+            let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: helperName,
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
+        // BUG-227: a stored open/abstract/override property whose owner has
+        // known subtypes must dispatch through its getter's vtable slot — the
+        // field offset below is only this *declaration's own* storage, which
+        // is correct only when no runtime-type override can be in play.
+        if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+            propertySymbol: propertySymbol,
+            receiverExpr: receiverExpr,
+            accessorKind: .getter,
+            ast: ast,
+            sema: sema,
+            interner: interner
+        ) {
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.virtualCall(
+                symbol: accessorSymbol,
+                callee: interner.intern("get"),
+                receiver: loweredReceiverID,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
+            ))
+            return result
+        }
+
+        guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+            sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+        ] else {
+            return nil
+        }
+
         let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
@@ -231,10 +694,240 @@ extension CallLowerer {
         )
     }
 
+    /// BUG-141: an interface has no per-instance storage of its own, so a
+    /// stored/abstract interface property read through an interface-typed
+    /// receiver cannot use a concrete field offset. Dispatch through the
+    /// interface's itable to the implementing type's getter, mirroring how
+    /// interface member functions are dispatched (see resolveItableDispatch).
+    ///
+    /// BUG-187: the same applies to an implicit-receiver read (`rank` inside an
+    /// interface default method body), which otherwise calls the interface's own
+    /// abstract getter and observes its `null` placeholder body.
+    func tryLowerInterfaceItablePropertyGetterRead(
+        propertySymbol: SymbolID,
+        loweredReceiverID: KIRExprID,
+        resultType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        // Synthetic stdlib interface properties (e.g. `Collection.size`) are
+        // backed by runtime objects that do not register itable property
+        // getters, so their reads remain on the runtime fallback path.
+        // KSP-724: `CharSequence.length` is a source-backed interface property,
+        // so its `declSite` is set and it reaches the normal itable path along
+        // with other bundled interface properties.
+        guard let propertyInfo = sema.symbols.symbol(propertySymbol),
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              ownerInfo.kind == .interface,
+              (propertyInfo.declSite != nil
+                  || propertyInfo.flags.contains(.importedLibrary)),
+              let methodSlot = kirInterfacePropertyGetterSlot(
+                  interfaceProperty: propertySymbol,
+                  interfaceSymbol: ownerSymbol,
+                  sema: sema,
+                  interner: interner,
+                  cache: driver.ctx.nominalDispatchCache
+              )
+        else {
+            return nil
+        }
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: ownerSymbol, sema: sema, interner: interner
+        )
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        let result = arena.appendTemporary(type: resultType)
+        let runtimeNameEndLabel = emitRuntimeKCallableNameFastPath(
+            propertyInfo: propertyInfo,
+            ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        instructions.append(.virtualCall(
+            symbol: getterSymbol,
+            callee: interner.intern("get"),
+            receiver: loweredReceiverID,
+            arguments: [],
+            result: result,
+            canThrow: false,
+            thrownResult: nil,
+            dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+        ))
+        if let runtimeNameEndLabel {
+            instructions.append(.label(runtimeNameEndLabel))
+        }
+        return result
+    }
+
+    /// Runtime reflection values (tagged callable references, delegate
+    /// `property:` stubs, KClass member boxes) register a Swift C-convention
+    /// shim for `KCallable.name` in their itable. That shim returns the raw
+    /// String handle, but itable String members are invoked with the flat
+    /// `{ptr, i64, i64, i64}` aggregate return. x86-64 SysV demotes that return
+    /// to a hidden pointer in the first argument register, which the shim
+    /// detects; AArch64 returns it in x0-x3, which no Swift or C function can
+    /// produce, so the read yielded garbage or crashed. Ask the runtime first
+    /// and only fall through to interface dispatch for user implementations,
+    /// for which `__kk_kcallable_get_name` returns null.
+    ///
+    /// Emits the fast path and returns the label the caller must place after
+    /// its own itable call, or `nil` when `propertyInfo` is not `KCallable.name`.
+    private func emitRuntimeKCallableNameFastPath(
+        propertyInfo: SemanticSymbol,
+        ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Int32? {
+        guard interner.resolve(propertyInfo.name) == "name",
+              ownerInfo.fqName.map(interner.resolve) == ["kotlin", "reflect", "KCallable"]
+        else {
+            return nil
+        }
+        let getNameCallee = interner.intern("__kk_kcallable_get_name")
+        let runtimeName = emitNonThrowingCall(
+            callee: getNameCallee,
+            arg: loweredReceiverID,
+            resultType: sema.types.nullableAnyType,
+            arena: arena,
+            into: &instructions
+        )
+        let runtimeLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        let interfaceLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfNotNull(value: runtimeName, target: runtimeLabel))
+        instructions.append(.jump(interfaceLabel))
+        instructions.append(.label(runtimeLabel))
+        // Re-read with the String result type so the backend bridges the raw
+        // handle into the caller's String representation.
+        emitNonThrowingCall(
+            callee: getNameCallee,
+            arg: loweredReceiverID,
+            result: result,
+            into: &instructions
+        )
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(interfaceLabel))
+        return endLabel
+    }
+
+    func tryLowerMemberPropertyAccessorRead(
+        _ exprID: ExprID,
+        loweredReceiverID: KIRExprID,
+        receiverExpr: ExprID,
+        result: KIRExprID,
+        args: [CallArgument],
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard args.isEmpty,
+              let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+              memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
+        else {
+            return nil
+        }
+
+        if isRuntimeBackedSetSizeProperty(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_set_size"),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
+        if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+            propertySymbol: propertySymbol,
+            receiverExpr: receiverExpr,
+            accessorKind: .getter,
+            ast: ast,
+            sema: sema,
+            interner: interner
+        ) {
+            instructions.append(.virtualCall(
+                symbol: accessorSymbol,
+                callee: interner.intern("get"),
+                receiver: loweredReceiverID,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
+            ))
+            return result
+        }
+
+        let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+
+        // An interface-owned property whose getter link is not a runtime
+        // bridge has no single concrete implementation to call directly --
+        // like `MatchGroupCollection.size`, it must dispatch through the
+        // interface's itable to reach whichever type actually implements it.
+        // This function's only caller always retries the read through
+        // tryLowerStoredMemberPropertyRead next, which already carries that
+        // itable fallback; defer to it here instead of duplicating it, so a
+        // property whose consumer-side accessor link exists only for
+        // inline-body call-site remapping (KSP-472) is not miscompiled into
+        // a direct, non-virtual call to that placeholder accessor symbol.
+        if sema.symbols.parentSymbol(for: propertySymbol).flatMap({ sema.symbols.symbol($0) })?.kind == .interface,
+           !kirIsRuntimeBridgedCallee(getterSymbol, sema: sema)
+        {
+            return nil
+        }
+
+        instructions.append(.call(
+            symbol: getterSymbol,
+            callee: interner.intern("get"),
+            arguments: [loweredReceiverID],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return result
+    }
+
+    private func isRuntimeBackedSetSizeProperty(
+        _ propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.symbols.symbol(propertySymbol)?.name == interner.intern("size"),
+              let receiverType = sema.bindings.exprTypes[receiverExpr]
+        else {
+            return false
+        }
+        return isSetLikeType(
+            receiverType,
+            sema: sema,
+            interner: interner
+        )
+    }
+
     func tryLowerEnumEntryPropertyRead(
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
-        receiverExpr _: ExprID,
+        receiverExpr: ExprID,
         calleeName: InternedString,
         args: [CallArgument],
         sema: SemaModule,
@@ -245,22 +938,70 @@ extension CallLowerer {
         guard args.isEmpty else { return nil }
         let calleeStr = interner.resolve(calleeName)
         guard calleeStr == "name" || calleeStr == "ordinal" else { return nil }
-        guard case let .symbolRef(entrySym) = arena.expr(loweredReceiverID),
-              isEnumEntryField(entrySym, sema: sema),
-              let entryInfo = sema.symbols.symbol(entrySym)
-        else { return nil }
-        let entryName = interner.resolve(entryInfo.name)
-        let helperSuffix = calleeStr == "name" ? "$enumName" : "$enumOrdinal"
-        let helperName = interner.intern(entryName + helperSuffix)
         let resultType = sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
-                ? sema.types.make(.primitive(.string, .nonNull))
+                ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        if case let .symbolRef(entrySym) = arena.expr(loweredReceiverID),
+           isEnumEntryField(entrySym, sema: sema),
+           let entryInfo = sema.symbols.symbol(entrySym)
+        {
+            let helperName = calleeStr == "name"
+                ? NameMangler.enumEntryNameHelperName(for: entryInfo, interner: interner)
+                : NameMangler.enumEntryOrdinalHelperName(for: entryInfo, interner: interner)
+            let ownerFQName = Array(entryInfo.fqName.dropLast())
+            let helperSymbol = sema.symbols.lookupAll(fqName: ownerFQName + [helperName]).first { id in
+                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+            }
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: helperSymbol,
+                callee: helperName,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        // The receiver isn't a compile-time-known entry (e.g. a reassigned
+        // `var` or a function parameter) — fall back to a dynamic lookup
+        // keyed off the receiver's own runtime value instead of returning
+        // nil. Returning nil here would fall through to the generic
+        // member-call path, which silently drops the receiver argument for
+        // this synthetic property (it has no FunctionSignature.receiverType
+        // for appendReceiverToMemberArguments to key off), producing an
+        // unresolved "name"/"ordinal" external symbol at link time.
+        guard let receiverType = sema.bindings.exprTypes[receiverExpr],
+              let (_, classSym) = resolveClassTypeSymbol(receiverType, sema: sema),
+              classSym.kind == .enumClass
+        else {
+            return nil
+        }
+        if calleeStr == "ordinal" {
+            // Enum values are represented as their boxed ordinal (see
+            // DataEnumSealedSynthesisPass's $enumOrdinalToName, which unboxes
+            // its receiver-typed parameter the same way), so `.ordinal` on a
+            // dynamic receiver is just that unboxing.
+            return emitNonThrowingCall(
+                callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+                arg: loweredReceiverID,
+                resultType: resultType,
+                arena: arena,
+                into: &instructions
+            )
+        }
+        // "name": the $enumOrdinalToName helper doesn't exist yet at
+        // KIR-build time (DataEnumSealedSynthesisPass synthesizes it during
+        // the later Lowering phase) — emit a receiverless-named placeholder
+        // call carrying the receiver as its sole argument, matching what
+        // EnumNameAccessLoweringPass rewrites into a real call to that
+        // helper once it exists.
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
-            callee: helperName,
-            arguments: [],
+            callee: calleeName,
+            arguments: [loweredReceiverID],
             result: result,
             canThrow: false,
             thrownResult: nil
@@ -271,6 +1012,7 @@ extension CallLowerer {
     func tryLowerExternalMemberPropertyRead(
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
+        receiverExpr: ExprID,
         args: [CallArgument],
         sema: SemaModule,
         arena: KIRArena,
@@ -285,10 +1027,23 @@ extension CallLowerer {
             return nil
         }
 
+        // A source-backed Collection.size declaration is inherited by concrete
+        // collection receivers. Let the normal collection dispatch preserve
+        // List/Set/EnumEntries-specific bridges instead of taking the generic
+        // Collection ABI link here.
+        if shouldDeferCollectionSizePropertyRead(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
+            return nil
+        }
+
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: propertySymbol,
             callee: interner.intern(externalLinkName),
@@ -307,6 +1062,56 @@ extension CallLowerer {
         )
     }
 
+    func shouldDeferCollectionSizePropertyRead(
+        _ propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let property = sema.symbols.symbol(propertySymbol),
+              property.name == interner.intern("size"),
+              let ownerID = sema.symbols.parentSymbol(for: propertySymbol)
+        else {
+            return false
+        }
+        // `Collection.size` (and, since KSP-1063, the `List.size` redeclaration
+        // that claims the `__kk_collection_size` link) must defer when the
+        // receiver is not a concrete list box: for a user interface extending
+        // List, the direct `__kk_*_size` call would read 0 on Kotlin-defined
+        // implementations instead of dispatching through the interface itable.
+        let ownerFQName = sema.symbols.symbol(ownerID)?.fqName
+        let kotlin = interner.intern("kotlin")
+        let collections = interner.intern("collections")
+        let isListFamilySizeOwner = ownerFQName == [kotlin, collections, interner.intern("Collection")]
+            || ownerFQName == [kotlin, collections, interner.intern("List")]
+        guard isListFamilySizeOwner,
+              let receiverType = sema.bindings.exprTypes[receiverExpr]
+        else {
+            return false
+        }
+        return unresolvedCollectionMemberCallee(
+            memberName: "size",
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil
+    }
+
+    /// Whether an object-literal property is read by calling its `get`
+    /// accessor rather than by loading its instance field directly. Shared by
+    /// the explicit-receiver read (`tryLowerObjectLiteralStoredPropertyRead`)
+    /// and the implicit-receiver one (`ExprLowerer+ControlFlowAndBlocks.swift`)
+    /// so the two cannot disagree: a `call get` that
+    /// `ObjectLiteralLowerer.lowerObjectLiteralPropertyAccessors` never emits
+    /// becomes an undefined-`_get` link error, and a field load on a computed
+    /// property reads a slot nothing ever writes (KSP-CAP-018 symptom 2 — the
+    /// implicit path used to always take the field load).
+    ///
+    /// The `getter.body != .unit` test matches that emitter's own condition
+    /// exactly. Delegated properties are included because the same emitter
+    /// synthesizes their getValue/setValue-forwarding accessors via
+    /// `MemberLowerer.lowerDelegateAccessor` (BUG-267) — keeping them in this
+    /// predicate is what makes explicit and implicit reads agree.
     func objectLiteralPropertyUsesAccessor(
         _ propertySymbol: SymbolID,
         ast: ASTModule,
@@ -320,7 +1125,43 @@ extension CallLowerer {
             else {
                 continue
             }
-            return propertyDecl.getter != nil || propertyDecl.delegateExpression != nil
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                return true
+            }
+            return propertyDecl.delegateExpression != nil
+        }
+        return false
+    }
+
+    func memberPropertyUsesAccessor(
+        _ propertySymbol: SymbolID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        if sema.symbols.propertyHasCustomGetter(for: propertySymbol) {
+            return true
+        }
+        if sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil {
+            return true
+        }
+        // CLASS-008: a synthetic forwarding property for `by` delegation has
+        // no `.propertyDecl` AST node for the loop below to find — its getter
+        // reads through the delegate field, not a real backing field.
+        if sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil {
+            return true
+        }
+        for rawDecl in ast.arena.decls.indices {
+            let declID = DeclID(rawValue: Int32(rawDecl))
+            guard sema.bindings.declSymbols[declID] == propertySymbol,
+                  let decl = ast.arena.decl(declID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            if let getter = propertyDecl.getter {
+                return getter.body != .unit
+            }
+            return propertyDecl.delegateExpression != nil
         }
         return false
     }
@@ -334,23 +1175,61 @@ extension CallLowerer {
         arena: KIRArena,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // The receiver may itself be a qualified member-access chain (e.g. the
+        // `Base64.PaddingOption` prefix of `Base64.PaddingOption.ABSENT`, where
+        // `PaddingOption` is nested inside `Base64`), not just a bare name
+        // reference. `identifierSymbol` already carries the resolved nominal
+        // type regardless of the receiver expression's AST shape -- except when
+        // Sema itself resolved the receiver via the raw-name scope-lookup
+        // fallback in `classNameReceiverNominalSymbol`
+        // (CallTypeChecker+MemberCallInferenceRegularResolution.swift), which
+        // never binds anything to the receiver expression itself. Mirror that
+        // same fallback here (by short name, over the global symbol table
+        // rather than a scope, since KIR lowering has no scope stack) so a
+        // bare-nameRef receiver like `Outer` in `Outer.Color` still qualifies.
         guard args.isEmpty,
-              sema.bindings.callBindings[exprID] == nil,
-              let receiverExprNode = ast.arena.expr(receiverExpr),
-              case .nameRef = receiverExprNode,
-              let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverExpr),
-              let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
+              let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverExpr)
+                  ?? bareNameRefClassLikeSymbol(receiverExpr, ast: ast, sema: sema),
+              let receiverSymbol = sema.symbols.symbol(receiverSymbolID),
+              receiverSymbol.kind == .class || receiverSymbol.kind == .interface
+                  || receiverSymbol.kind == .enumClass || receiverSymbol.kind == .annotationClass
         else {
             return nil
         }
-        guard receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass,
-              let valueSymbolID = sema.bindings.identifierSymbol(for: exprID),
-              let valueSymbol = sema.symbols.symbol(valueSymbolID)
+        // A qualified static member (enum entry, nested object, const val) is
+        // sometimes bound via `identifierSymbol` and sometimes via a 0-arg
+        // `CallBinding` (the same resolution path ordinary property reads use)
+        // depending on how the type checker resolved the member — both carry
+        // the same target symbol, so accept either. A *further* nested-type
+        // qualifier segment (e.g. the `Color` in `Outer.Color.values()`) gets
+        // neither: Sema resolves a class-name-receiver call like
+        // `Outer.Color.values()` directly from `Outer`'s FQ name
+        // (CallTypeChecker+MemberCallInferenceRegularResolution.swift) without
+        // ever independently type-checking the `Outer.Color` prefix as its own
+        // expression, so no binding of any kind exists for it. Reconstruct the
+        // same answer directly from the symbol table.
+        guard let valueSymbolID = sema.bindings.identifierSymbol(for: exprID)
+            ?? sema.bindings.callBindings[exprID]?.chosenCallee
+            ?? nestedClassLikeMemberSymbol(exprID, ownerSymbol: receiverSymbolID, ast: ast, sema: sema),
+            let valueSymbol = sema.symbols.symbol(valueSymbolID)
         else {
             return nil
         }
 
         switch valueSymbol.kind {
+        case .property where valueSymbol.flags.contains(.static)
+            && receiverSymbol.kind == .enumClass:
+            // Enum static properties such as `Color.entries` are represented
+            // by the enum lowering pass, not by an instance field or an enum
+            // constructor property. Preserve the property symbol so
+            // EnumEntriesLoweringPass can route `entries` to `entries$get`.
+            let valueType = sema.bindings.exprTypes[exprID]
+                ?? sema.symbols.propertyType(for: valueSymbolID)
+                ?? sema.types.anyType
+            let valueID = arena.appendExpr(.symbolRef(valueSymbolID), type: valueType)
+            instructions.append(.constValue(result: valueID, value: .symbolRef(valueSymbolID)))
+            return valueID
+
         case .property where valueSymbol.flags.contains(.constValue):
             guard let constant = sema.symbols.constValueExprKind(for: valueSymbolID) else {
                 return nil
@@ -373,7 +1252,32 @@ extension CallLowerer {
             instructions.append(.constValue(result: valueID, value: .symbolRef(valueSymbolID)))
             return valueID
 
-        case .object:
+        case .object, .class, .interface, .enumClass, .annotationClass:
+            // The "member" is itself a further nominal-type qualifier, e.g. the
+            // `Color` in `Outer.Color.values()`. Unlike `.object`, it isn't a
+            // singleton with an instance accessor, but it must short-circuit
+            // the same way: otherwise this falls through to the generic
+            // `driver.lowerExpr(receiverExpr, ...)` path below, which emits a
+            // `.call` using the qualifier's bare short name expecting a 0-arg
+            // instance accessor that was never synthesized, leaving an
+            // undefined symbol at link time.
+            //
+            // BUG-274: when the qualifier resolves to a real `object` (e.g.
+            // the `N` in `Outer.N.v`), this is the *only* place its bare
+            // value is ever materialized for an external, further-qualified
+            // access -- neither `tryLowerObjectMemberPropertyRead` nor
+            // `ExprLowerer`'s bare-object-reference fallback ever runs for a
+            // receiver this deep in a qualifier chain, since this whole
+            // function only exists because Sema left no ordinary expression
+            // binding for it. Without the guard here, a nested named
+            // object's superclass constructor (and its own property
+            // initializers) never ran, silently keeping every inherited
+            // property at its zeroed default.
+            if valueSymbol.kind == .object {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: valueSymbolID, arena: arena, sema: sema, instructions: &instructions
+                )
+            }
             let valueType = sema.bindings.exprTypes[exprID] ?? sema.types.make(.classType(ClassType(
                 classSymbol: valueSymbolID,
                 args: [],
@@ -385,6 +1289,55 @@ extension CallLowerer {
 
         default:
             return nil
+        }
+    }
+
+    /// Resolves a further nested-type qualifier segment (e.g. the `Color` in
+    /// `Outer.Color.values()`, once `Outer` is already known to be
+    /// `ownerSymbol`) directly from the symbol table, for the case described
+    /// above `tryLowerClassNameMemberValueExpr`'s callers where Sema left no
+    /// binding at all for this expression. Mirrors the `nestedOwnerSymbols`
+    /// lookup in `CallTypeChecker+MemberCallInferenceRegularResolution.swift`.
+    private func nestedClassLikeMemberSymbol(_ expr: ExprID, ownerSymbol: SymbolID, ast: ASTModule, sema: SemaModule) -> SymbolID? {
+        guard case let .memberCall(_, calleeName, _, memberArgs, _) = ast.arena.expr(expr), memberArgs.isEmpty,
+              let owner = sema.symbols.symbol(ownerSymbol)
+        else {
+            return nil
+        }
+        return sema.symbols.lookupAll(fqName: owner.fqName + [calleeName]).first { candidate in
+            guard sema.symbols.parentSymbol(for: candidate) == ownerSymbol else {
+                return false
+            }
+            switch sema.symbols.symbol(candidate)?.kind {
+            case .class, .interface, .enumClass, .object, .annotationClass:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    /// Resolves a bare `nameRef` receiver (e.g. `Outer` in `Outer.Color`) to a
+    /// class/interface/enum-class symbol by short name, for the cases where
+    /// Sema's own `classNameReceiverNominalSymbol` fallback
+    /// (CallTypeChecker+MemberCallInferenceRegularResolution.swift) resolved it
+    /// via a raw-name scope lookup instead of `bindIdentifier`, leaving no
+    /// `identifierSymbol` binding for KIR lowering to read. A global
+    /// short-name lookup can't see local shadowing the way Sema's scope lookup
+    /// could, but by this point in a member-access chain the receiver can only
+    /// be a nominal type reference, not a local, so the ambiguity that matters
+    /// for Sema's lookup doesn't apply here.
+    private func bareNameRefClassLikeSymbol(_ expr: ExprID, ast: ASTModule, sema: SemaModule) -> SymbolID? {
+        guard case let .nameRef(name, _) = ast.arena.expr(expr) else {
+            return nil
+        }
+        return sema.symbols.lookupByShortName(name).first { candidate in
+            switch sema.symbols.symbol(candidate)?.kind {
+            case .class, .interface, .enumClass, .annotationClass:
+                true
+            default:
+                false
+            }
         }
     }
 

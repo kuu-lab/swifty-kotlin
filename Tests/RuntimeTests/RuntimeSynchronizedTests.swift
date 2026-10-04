@@ -1,5 +1,7 @@
+#if canImport(Testing)
+import Foundation
+import Testing
 @testable import Runtime
-import XCTest
 
 private let synchronizedCapturedClosureRawLock = NSLock()
 nonisolated(unsafe) private var _synchronizedCapturedClosureRaw = 0
@@ -49,9 +51,21 @@ private var synchronizedNestedClosureRaw: Int {
     }
 }
 
+private let synchronizedSharedLockProbe = DispatchSemaphore(value: 0)
+
+@_cdecl("runtime_synchronized_shared_lock_probe")
+private func runtime_synchronized_shared_lock_probe(
+    _: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    synchronizedSharedLockProbe.signal()
+    return 1
+}
+
 @_cdecl("runtime_synchronized_success_lambda")
 private func runtime_synchronized_success_lambda(
-    _ closureRaw: Int,
+    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
@@ -60,7 +74,7 @@ private func runtime_synchronized_success_lambda(
 
 @_cdecl("runtime_synchronized_failure_lambda")
 private func runtime_synchronized_failure_lambda(
-    _ closureRaw: Int,
+    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = runtimeAllocateThrowable(message: "synchronized failure")
@@ -82,52 +96,58 @@ private func runtime_synchronized_reentrant_lambda(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let result = kk_synchronized(closureRaw, synchronizedNestedFnPtr, synchronizedNestedClosureRaw, outThrown)
+    let result = __kk_synchronized(closureRaw, synchronizedNestedFnPtr, synchronizedNestedClosureRaw, outThrown)
     if outThrown?.pointee ?? 0 != 0 {
         return 0
     }
     return result + 1
 }
 
-final class RuntimeSynchronizedTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
+@Suite(.serialized)
+struct RuntimeSynchronizedTests {
+    init() {
         synchronizedCapturedClosureRaw = 0
         synchronizedNestedFnPtr = 0
         synchronizedNestedClosureRaw = 0
     }
 
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+    @Test
     func testSynchronizedReturnsBlockResult() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+
         let fn = unsafeBitCast(
             runtime_synchronized_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
         )
         var thrown = 0
-        let result = kk_synchronized(101, fn, 0, &thrown)
+        let result = __kk_synchronized(101, fn, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 123)
+        #expect(thrown == 0)
+        #expect(result == 123)
     }
 
+    @Test
     func testSynchronizedPropagatesThrownValue() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+
         let fn = unsafeBitCast(
             runtime_synchronized_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
         )
         var thrown = 0
-        let result = kk_synchronized(202, fn, 0, &thrown)
+        let result = __kk_synchronized(202, fn, 0, &thrown)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testSynchronizedPassesClosureRawToThunk() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+
         synchronizedCapturedClosureRaw = 0
         let fn = unsafeBitCast(
             runtime_synchronized_capture_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -135,14 +155,18 @@ final class RuntimeSynchronizedTests: XCTestCase {
         )
         var thrown = 0
         let sentinel = 4242
-        let result = kk_synchronized(303, fn, sentinel, &thrown)
+        let result = __kk_synchronized(303, fn, sentinel, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 77)
-        XCTAssertEqual(synchronizedCapturedClosureRaw, sentinel)
+        #expect(thrown == 0)
+        #expect(result == 77)
+        #expect(synchronizedCapturedClosureRaw == sentinel)
     }
 
+    @Test
     func testSynchronizedSupportsReentrantLocking() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+
         let nestedFn = unsafeBitCast(
             runtime_synchronized_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -156,9 +180,47 @@ final class RuntimeSynchronizedTests: XCTestCase {
         )
         var thrown = 0
         let lockKey = 404
-        let result = kk_synchronized(lockKey, outerFn, lockKey, &thrown)
+        let result = __kk_synchronized(lockKey, outerFn, lockKey, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 124)
+        #expect(thrown == 0)
+        #expect(result == 124)
+    }
+
+    @Test
+    func testLazyAndSynchronizedShareLockObject() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+
+        let key = 505
+        _ = __kk_lazy_sync_lock(key)
+        var ownsLazyLock = true
+        defer {
+            if ownsLazyLock {
+                _ = __kk_lazy_sync_unlock(key)
+            }
+        }
+
+        let fn = unsafeBitCast(
+            runtime_synchronized_shared_lock_probe as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global().async {
+            var thrown = 0
+            _ = __kk_synchronized(key, fn, 0, &thrown)
+            group.leave()
+        }
+
+        #expect(
+            synchronizedSharedLockProbe.wait(timeout: .now() + .milliseconds(100)) == .timedOut,
+            "synchronized(lock) must wait while lazy(lock) owns the same lock"
+        )
+        _ = __kk_lazy_sync_unlock(key)
+        ownsLazyLock = false
+
+        #expect(group.wait(timeout: .now() + .seconds(5)) == .success)
+        #expect(synchronizedSharedLockProbe.wait(timeout: .now() + .seconds(1)) == .success)
     }
 }
+#endif

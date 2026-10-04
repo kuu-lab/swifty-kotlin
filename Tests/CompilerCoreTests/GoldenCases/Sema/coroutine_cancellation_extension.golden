@@ -1,23 +1,16 @@
-symbol fq=__local_0.job kind=local vis=private flags=_ type=kotlinx.coroutines.Job
-symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
-symbol fq=kotlinx.coroutines.Job kind=class vis=public flags=synthetic type=kotlinx.coroutines.Job
-symbol fq=kotlinx.coroutines.Job.cancel kind=function vis=public flags=synthetic sig=recv=kotlinx.coroutines.Job params=[] ret=Unit
-symbol fq=kotlinx.coroutines.Job.join kind=function vis=public flags=synthetic sig=recv=kotlinx.coroutines.Job params=[] ret=Unit
-symbol fq=kotlinx.coroutines.launch#1 kind=function vis=public flags=synthetic sig=recv=_ params=[suspend () -> Unit] ret=kotlinx.coroutines.Job
-symbol fq=kotlinx.coroutines.launch.block kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlinx.coroutines.runBlocking kind=function vis=public flags=synthetic sig=recv=_ params=[suspend () -> Any] ret=Any
-symbol fq=kotlinx.coroutines.runBlocking.block kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
-  decl d0 fun main sym=golden.sema.main
-expr e0 int(10) type=Long
-expr e1 call callee=e2 args=[_:e0] type=Unit
-expr e3 lambda params=[] body=e1 label=launch type=suspend () -> Unit
-expr e4 call callee=e5 args=[_:e3] type=kotlinx.coroutines.Job call=kotlinx.coroutines.launch#1
-expr e6 localDecl job mutable=0 type=_ init=e4 type=Unit ref=__local_0.job
-expr e7 name(job) type=kotlinx.coroutines.Job ref=__local_0.job
-expr e8 memberCall recv=e7 callee=cancel args=[] type=Unit call=kotlinx.coroutines.Job.cancel
-expr e9 name(job) type=kotlinx.coroutines.Job ref=__local_0.job
-expr e10 memberCall recv=e9 callee=join args=[] type=Unit call=kotlinx.coroutines.Job.join
-expr e11 blockExpr stmts=[e6,e8] trailing=e10 type=Unit
-expr e12 lambda params=[] body=e11 label=runBlocking type=suspend () -> Any
-expr e13 call callee=e14 args=[_:e12] type=Any call=kotlinx.coroutines.runBlocking
+symbol fq=__local_0.job[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.Job
+symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
+file fcoroutine_cancellation_extension package=golden.sema
+  decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
+expr e@8:15 int(10) type=Long
+expr e@8:9 call callee=e@8:9#1 args=[_:e@8:15] type=Unit
+expr e@7:22 lambda params=[] body=e@8:9 label=launch type=suspend () -> Unit
+expr e@7:15 call callee=e@7:15#1 args=[_:e@7:22] type=kotlinx.coroutines.Job call=kotlinx.coroutines.launch[kind=fun;params=fn{su;p=;ret=Unit}]
+expr e@7:5 localDecl job mutable=0 type=_ init=e@7:15 type=Unit ref=__local_0.job[kind=local]
+expr e@10:5 name(job) type=kotlinx.coroutines.Job ref=__local_0.job[kind=local]
+expr e@10:5#1 memberCall recv=e@10:5 callee=cancel args=[] type=Unit call=kotlinx.coroutines.Job.cancel[kind=fun;recv=kotlinx.coroutines.Job;params=]
+expr e@11:5 name(job) type=kotlinx.coroutines.Job ref=__local_0.job[kind=local]
+expr e@11:5#1 memberCall recv=e@11:5 callee=join args=[] type=Unit call=kotlinx.coroutines.Job.join[kind=fun;recv=kotlinx.coroutines.Job;params=]
+expr e@7:5#1 blockExpr stmts=[e@7:5,e@10:5#1] trailing=e@11:5#1 type=Unit
+expr e@6:26 lambda params=[] body=e@7:5#1 label=runBlocking type=suspend () -> Any
+expr e@6:14 call callee=e@6:14#1 args=[_:e@6:26] type=Any call=kotlinx.coroutines.runBlocking[kind=fun;params=fn{su;p=;ret=Any}]

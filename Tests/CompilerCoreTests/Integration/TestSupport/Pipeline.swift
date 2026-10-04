@@ -1,24 +1,25 @@
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Foundation
 
-func makeSemaModule() -> (ctx: SemaModule, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
-    let symbols = SymbolTable()
-    let types = TypeSystem()
-    let bindings = BindingTable()
-    let diagnostics = DiagnosticEngine()
-    let ctx = SemaModule(
-        symbols: symbols,
-        types: types,
-        bindings: bindings,
-        diagnostics: diagnostics
-    )
-    return (ctx, symbols, types, StringInterner())
+func makeSemaModule(
+    symbols: SymbolTable = SymbolTable(),
+    types: TypeSystem = TypeSystem(),
+    bindings: BindingTable = BindingTable(),
+    diagnostics: DiagnosticEngine = DiagnosticEngine()
+) -> (ctx: SemaModule, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
+    CompilerTestSupport.makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
 }
 
 func defaultTargetTriple() -> TargetTriple {
-    TargetTriple.hostDefault()
+    CompilerTestSupport.defaultTargetTriple()
 }
 
+/// CompilerCoreTests default to compiling the bundled stdlib from source
+/// (`allowDefaultStdlibLibrary: false`) because most Core tests inspect KIR
+/// callee names in their original Kotlin source form (e.g. `"map"`), which
+/// only holds when the stdlib is compiled alongside the test input rather
+/// than linked from the precompiled artifact.
 func makeCompilationContext(
     inputs: [String],
     moduleName: String = "TestModule",
@@ -27,72 +28,133 @@ func makeCompilationContext(
     searchPaths: [String] = [],
     irFlags: [String] = [],
     frontendFlags: [String] = [],
+    includeStdlib: Bool = true,
     interner: StringInterner? = nil,
-    diagnostics: DiagnosticEngine? = nil
+    diagnostics: DiagnosticEngine? = nil,
+    stdlibOnly: Bool = false,
+    stdlibLibraryPath: String? = nil,
+    allowDefaultStdlibLibrary: Bool = false
 ) -> CompilationContext {
-    let destination = outputPath ?? FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-        .path
-    let options = CompilerOptions(
-        moduleName: moduleName,
+    CompilerTestSupport.makeCompilationContext(
         inputs: inputs,
-        outputPath: destination,
+        moduleName: moduleName,
         emit: emit,
+        outputPath: outputPath,
         searchPaths: searchPaths,
-        target: defaultTargetTriple(),
+        irFlags: irFlags,
         frontendFlags: frontendFlags,
-        irFlags: irFlags
-    )
-    return CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: diagnostics ?? DiagnosticEngine(),
-        interner: interner ?? StringInterner()
+        includeStdlib: includeStdlib,
+        interner: interner,
+        diagnostics: diagnostics,
+        stdlibOnly: stdlibOnly,
+        stdlibLibraryPath: stdlibLibraryPath,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
 }
 
 func runFrontend(_ ctx: CompilationContext) throws {
-    try LoadSourcesPhase().run(ctx)
-    try LexPhase().run(ctx)
-    try ParsePhase().run(ctx)
-    try BuildASTPhase().run(ctx)
+    try CompilerTestSupport.runFrontend(ctx)
 }
 
 func runSema(_ ctx: CompilationContext) throws {
-    try runFrontend(ctx)
-    try SemaPhase().run(ctx)
+    try CompilerTestSupport.runSema(ctx)
 }
 
 func runToKIR(_ ctx: CompilationContext) throws {
-    try runSema(ctx)
-    try BuildKIRPhase().run(ctx)
+    try CompilerTestSupport.runToKIR(ctx)
 }
 
 func runToLowering(_ ctx: CompilationContext) throws {
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
+    try CompilerTestSupport.runToLowering(ctx)
 }
 
 func makeContextFromSource(
     _ source: String,
-    frontendFlags: [String] = []
+    moduleName: String = "TestModule",
+    frontendFlags: [String] = [],
+    emit: EmitMode = .kirDump,
+    allowDefaultStdlibLibrary: Bool = false
 ) -> CompilationContext {
-    let fakePath = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString + ".kt").path
-    let ctx = makeCompilationContext(inputs: [fakePath], frontendFlags: frontendFlags)
-    _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-    return ctx
+    CompilerTestSupport.makeContextFromSource(
+        source,
+        moduleName: moduleName,
+        frontendFlags: frontendFlags,
+        emit: emit,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+    )
 }
 
-func makeContextFromSources(_ sources: [String]) -> CompilationContext {
+func makeContextFromSources(
+    _ sources: [String],
+    moduleName: String = "TestModule",
+    allowDefaultStdlibLibrary: Bool = false
+) -> CompilationContext {
     let tempDir = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
     let fakePaths = sources.indices.map { index in
         tempDir.appendingPathComponent("input\(index).kt").path
     }
-    let ctx = makeCompilationContext(inputs: fakePaths)
+    let ctx = makeCompilationContext(
+        inputs: fakePaths,
+        moduleName: moduleName,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+    )
     for (path, source) in zip(fakePaths, sources) {
         _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
     }
+    return ctx
+}
+
+/// A `KIRContext` for tests that drive a single `KIRPass` directly instead of
+/// the whole `LoweringPhase`. `moduleName` is defaulted because no lowering
+/// pass reads `CompilerOptions` — nothing under `Sources/CompilerCore/Lowering`
+/// touches `options`, so the value is unobservable from a pass test.
+func makeKIRContext(
+    moduleName: String = "KIRTest",
+    interner: StringInterner,
+    sema: SemaModule? = nil,
+    diagnostics: DiagnosticEngine = DiagnosticEngine()
+) -> KIRContext {
+    let ctx = makeCompilationContext(
+        inputs: [],
+        moduleName: moduleName,
+        interner: interner,
+        diagnostics: diagnostics
+    )
+    return makeKIRContext(from: ctx, sema: sema)
+}
+
+/// The `KIRContext` that `LoweringPhase.run` builds for `context`, for tests
+/// that run one pass against an already-built `CompilationContext`.
+func makeKIRContext(from context: CompilationContext, sema: SemaModule? = nil) -> KIRContext {
+    KIRContext(
+        diagnostics: context.diagnostics,
+        options: context.options,
+        interner: context.interner,
+        sema: sema ?? context.sema
+    )
+}
+
+/// Run `LoweringPhase` over a hand-built `module`, the shape every
+/// pass-level lowering test needs.
+@discardableResult
+func runLowering(
+    module: KIRModule,
+    interner: StringInterner,
+    moduleName: String,
+    emit: EmitMode = .kirDump,
+    sema: SemaModule? = nil,
+    diagnostics: DiagnosticEngine = DiagnosticEngine()
+) throws -> CompilationContext {
+    let ctx = makeCompilationContext(
+        inputs: [],
+        moduleName: moduleName,
+        emit: emit,
+        interner: interner,
+        diagnostics: diagnostics
+    )
+    ctx.kir = module
+    ctx.sema = sema
+    try LoweringPhase().run(ctx)
     return ctx
 }

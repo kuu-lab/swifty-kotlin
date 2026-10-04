@@ -10,6 +10,8 @@
 ///   to call the wrapper symbol (receiver argument removed).
 final class JvmStaticLoweringPass: LoweringPass {
     static let name = "JvmStaticLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     private struct WrapperInfo {
         let symbol: SymbolID
@@ -93,6 +95,7 @@ final class JvmStaticLoweringPass: LoweringPass {
                     valueParameterSymbols: signature.valueParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
+                    valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     typeParameterSymbols: signature.typeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBounds: signature.typeParameterUpperBounds,
@@ -135,10 +138,13 @@ final class JvmStaticLoweringPass: LoweringPass {
         if !wrappersByOriginal.isEmpty {
             arena.transformFunctions { function in
                 var updated = function
-                updated.replaceBody(rewriteCalls(
-                    in: function.body,
-                    wrappersByOriginal: wrappersByOriginal
-                ))
+                updated.replaceBody(
+                    rewriteCalls(
+                        in: function.body,
+                        wrappersByOriginal: wrappersByOriginal
+                    ),
+                    locations: function.instructionLocations
+                )
                 return updated
             }
             for decl in newDecls {
@@ -213,9 +219,7 @@ final class JvmStaticLoweringPass: LoweringPass {
             ))
             body.append(.returnUnit)
         } else {
-            let callResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: originalFunction.returnType
+            let callResult = arena.appendTemporary(type: originalFunction.returnType
             )
             body.append(.call(
                 symbol: originalFunction.symbol,

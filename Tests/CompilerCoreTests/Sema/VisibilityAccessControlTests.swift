@@ -4,62 +4,6 @@ import Testing
 
 @Suite
 struct VisibilityAccessControlTests {
-    @Test
-    func testPublicFunctionAccessibleWithinSameFile() throws {
-        let source = """
-        package test
-        public fun greet(): Int = 1
-        fun main(): Int = greet()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "VisPub")
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0041", in: ctx)
-        }
-    }
-
-    @Test
-    func testInternalFunctionAccessibleWithinSameFile() throws {
-        let source = """
-        package test
-        internal fun helper(): Int = 1
-        fun main(): Int = helper()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "VisInternal")
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
-        }
-    }
-
-    @Test
-    func testPrivateFunctionAccessibleWithinSameFile() throws {
-        let source = """
-        package test
-        private fun secret(): Int = 42
-        fun main(): Int = secret()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "VisPrivSame")
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
-        }
-    }
-
-    @Test
-    func testPrivatePropertyAccessibleWithinSameFile() throws {
-        let source = """
-        package test
-        private val secretVal: Int = 99
-        fun main(): Int = secretVal
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "VisPrivPropSame")
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-0040", in: ctx)
-        }
-    }
 
     private func defineSymbol(
         _ symbols: SymbolTable,
@@ -67,7 +11,8 @@ struct VisibilityAccessControlTests {
         kind: SymbolKind,
         name: String,
         visibility: Visibility,
-        file: FileID = FileID(rawValue: 0)
+        file: FileID = FileID(rawValue: 0),
+        flags: SymbolFlags = []
     ) -> SymbolID {
         let interned = interner.intern(name)
         return symbols.define(
@@ -76,101 +21,478 @@ struct VisibilityAccessControlTests {
             fqName: [interned],
             declSite: makeRange(file: file),
             visibility: visibility,
-            flags: []
+            flags: flags
         )
     }
 
-    @Test
-    func testVisibilityCheckerPublicAlwaysAccessible() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "pubFn", visibility: .public)
-        let symbol = try #require(symbols.symbol(sym))
-        #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
-    }
+    // MARK: - Consolidated runSema clean tests
 
     @Test
-    func testVisibilityCheckerInternalAlwaysAccessible() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "intFn", visibility: .internal)
-        let symbol = try #require(symbols.symbol(sym))
-        #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
+    func testRunSemaClean() throws {
+
+        let sources: [String] = [
+            // testPublicFunctionAccessibleWithinSameFile
+            """
+            package sample0
+
+                    package test
+                    public fun greet(): Int = 1
+                    fun main(): Int = greet()
+
+            """,
+            // testInternalFunctionAccessibleWithinSameFile
+            """
+            package sample1
+
+                    package test
+                    internal fun helper(): Int = 1
+                    fun main(): Int = helper()
+
+            """,
+            // testPrivateFunctionAccessibleWithinSameFile
+            """
+            package sample2
+
+                    package test
+                    private fun secret(): Int = 42
+                    fun main(): Int = secret()
+
+            """,
+            // testPrivatePropertyAccessibleWithinSameFile
+            """
+            package sample3
+
+                    package test
+                    private val secretVal: Int = 99
+                    fun main(): Int = secretVal
+
+            """,
+            // testVisibilityCheckerPublicAlwaysAccessible
+            """
+            package sample4
+            fun noop() {}
+            """,
+            // testVisibilityCheckerInternalAlwaysAccessible
+            """
+            package sample5
+            fun noop() {}
+            """,
+            // testVisibilityCheckerPrivateSameFile
+            """
+            package sample6
+            fun noop() {}
+            """,
+            // testVisibilityCheckerPrivateDifferentFile
+            """
+            package sample7
+            fun noop() {}
+            """,
+            // testVisibilityCheckerProtectedInSameClass
+            """
+            package sample8
+            fun noop() {}
+            """,
+            // testVisibilityCheckerProtectedOutsideClass
+            """
+            package sample9
+            fun noop() {}
+            """,
+            // testVisibilityCheckerProtectedInSubclass
+            """
+            package sample10
+            fun noop() {}
+            """,
+            // testVisibilityCheckerPrivateMemberInSameClass
+            """
+            package sample11
+            fun noop() {}
+            """,
+            // testVisibilityCheckerPrivateMemberOutsideClass
+            """
+            package sample12
+            fun noop() {}
+            """,
+            // testInheritedPrivateConstructorAccessibleFromCompanionObjectInitializer
+            // BUG-217 regression: a top-level `private class` with no explicit
+            // constructor visibility gets its implicit constructor's visibility
+            // inherited from the class. Constructing it from an unrelated
+            // companion object property initializer in the same file must not
+            // be rejected merely because the constructor is a class "member"
+            // with no direct class-hierarchy relationship to the companion.
+            """
+            package sample13
+
+                    package test
+                    class Holder private constructor(msb: Long) {
+                        companion object {
+                            private val state: HelperState = HelperState()
+                        }
+                    }
+                    private class HelperState {
+                        var x: Long = 0L
+                    }
+                    fun main(): Long = 0L
+
+            """,
+            // testInheritedPrivateConstructorAccessibleFromUnrelatedTopLevelFunction
+            // Same BUG-217 shape without a companion object: any unrelated
+            // top-level declaration in the same file must be able to construct
+            // a file-private top-level class through its implicit constructor.
+            """
+            package sample14
+
+                    package test
+                    private class Widget(val value: Int)
+                    fun makeWidget(): Int = Widget(1).value
+                    fun main(): Int = makeWidget()
+
+            """,
+            // testInheritedPrivateSecondaryConstructorAccessibleWithinSameFile
+            // Same inheritance rule applies to a class whose only constructor
+            // is a secondary constructor (no primary constructor syntax).
+            """
+            package sample15
+
+                    package test
+                    private class Gadget {
+                        val value: Int
+                        constructor(value: Int) {
+                            this.value = value
+                        }
+                    }
+                    fun makeGadget(): Int = Gadget(1).value
+                    fun main(): Int = makeGadget()
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
+            try runSema(ctx)
+
+            _ = try #require(ctx.ast)
+
+            _ = try #require(ctx.sema)
+
+
+            // === testPublicFunctionAccessibleWithinSameFile ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample0Diagnostics)
+                assertNoDiagnostic("KSWIFTK-SEMA-0041", in: sample0Diagnostics)
+
+            }
+
+            // === testInternalFunctionAccessibleWithinSameFile ===
+
+            do {
+
+                let sample1Path = paths[1]
+
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample1Diagnostics)
+
+            }
+
+            // === testPrivateFunctionAccessibleWithinSameFile ===
+
+            do {
+
+                let sample2Path = paths[2]
+
+
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample2Diagnostics)
+
+            }
+
+            // === testPrivatePropertyAccessibleWithinSameFile ===
+
+            do {
+
+                let sample3Path = paths[3]
+
+
+                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample3Diagnostics)
+
+            }
+
+            // === testVisibilityCheckerPublicAlwaysAccessible ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "pubFn", visibility: .public)
+                let symbol = try #require(symbols.symbol(sym))
+                #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
+
+            }
+
+            // === testVisibilityCheckerInternalAlwaysAccessible ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "intFn", visibility: .internal)
+                let symbol = try #require(symbols.symbol(sym))
+                #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
+
+            }
+
+            // === testVisibilityCheckerPrivateSameFile ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "privFn", visibility: .private, file: FileID(rawValue: 0))
+                let symbol = try #require(symbols.symbol(sym))
+                #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 0), enclosingClass: nil))
+
+            }
+
+            // === testVisibilityCheckerPrivateDifferentFile ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "privFn2", visibility: .private, file: FileID(rawValue: 0))
+                let symbol = try #require(symbols.symbol(sym))
+                #expect(!(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil)))
+
+            }
+
+            // === testVisibilityCheckerProtectedInSameClass ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "MyClass", visibility: .public)
+                let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protMethod", visibility: .protected)
+                symbols.setParentSymbol(classSym, for: memberSym)
+                let member = try #require(symbols.symbol(memberSym))
+                #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: classSym))
+
+            }
+
+            // === testVisibilityCheckerProtectedOutsideClass ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "MyClass2", visibility: .public)
+                let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protMethod2", visibility: .protected)
+                symbols.setParentSymbol(classSym, for: memberSym)
+                let member = try #require(symbols.symbol(memberSym))
+                #expect(!(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: nil)))
+
+            }
+
+            // === testVisibilityCheckerProtectedInSubclass ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let baseSym = defineSymbol(symbols, interner: interner, kind: .class, name: "Base", visibility: .public)
+                let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protSubMethod", visibility: .protected)
+                symbols.setParentSymbol(baseSym, for: memberSym)
+                let childSym = defineSymbol(symbols, interner: interner, kind: .class, name: "Child", visibility: .public)
+                symbols.setDirectSupertypes([baseSym], for: childSym)
+                let member = try #require(symbols.symbol(memberSym))
+                #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: childSym))
+
+            }
+
+            // === testVisibilityCheckerPrivateMemberInSameClass ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "PrivClass", visibility: .public)
+                let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privMethod", visibility: .private)
+                symbols.setParentSymbol(classSym, for: memberSym)
+                let member = try #require(symbols.symbol(memberSym))
+                #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: classSym))
+
+            }
+
+            // === testVisibilityCheckerPrivateMemberOutsideClass ===
+
+            do {
+
+
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OwnerClass", visibility: .public)
+                let otherClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OtherClass", visibility: .public)
+                let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privMethod2", visibility: .private)
+                symbols.setParentSymbol(classSym, for: memberSym)
+                let member = try #require(symbols.symbol(memberSym))
+                #expect(!(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: otherClassSym)))
+
+            }
+
+            // === testInheritedPrivateConstructorAccessibleFromCompanionObjectInitializer ===
+
+            do {
+
+                let sample13Path = paths[13]
+
+                let sample13Diagnostics = diagnosticsForPath(sample13Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample13Diagnostics)
+
+            }
+
+            // === testInheritedPrivateConstructorAccessibleFromUnrelatedTopLevelFunction ===
+
+            do {
+
+                let sample14Path = paths[14]
+
+                let sample14Diagnostics = diagnosticsForPath(sample14Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample14Diagnostics)
+
+            }
+
+            // === testInheritedPrivateSecondaryConstructorAccessibleWithinSameFile ===
+
+            do {
+
+                let sample15Path = paths[15]
+
+                let sample15Diagnostics = diagnosticsForPath(sample15Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample15Diagnostics)
+
+            }
+
+            // === testVisibilityCheckerSharedEnclosingClassPrivateAccess ===
+
+            do {
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let outerClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OuterClass", visibility: .public)
+                let nestedASym = defineSymbol(symbols, interner: interner, kind: .class, name: "NestedA", visibility: .private)
+                symbols.setParentSymbol(outerClassSym, for: nestedASym)
+                let nestedBSym = defineSymbol(symbols, interner: interner, kind: .class, name: "NestedB", visibility: .public)
+                symbols.setParentSymbol(outerClassSym, for: nestedBSym)
+
+                let nestedAMemberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privA", visibility: .private)
+                symbols.setParentSymbol(nestedASym, for: nestedAMemberSym)
+                let nestedAMember = try #require(symbols.symbol(nestedAMemberSym))
+
+                let unrelatedClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "UnrelatedClass", visibility: .public)
+
+                // Access from outer class to nested private member
+                #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: outerClassSym))
+                // Access from sibling nested class to nested private member
+                #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: nestedBSym))
+                // Access from unrelated class should be rejected
+                #expect(!checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: unrelatedClassSym))
+
+            }
+
+            // === testVisibilityCheckerInheritedConstructorVisibilityFallsBackToOwnerFileScope ===
+            // BUG-217: an implicit constructor's `.private` visibility, when
+            // inherited from a top-level `private class` owner (no explicit
+            // modifier on the constructor itself), must be resolved against the
+            // owner's own accessibility (file scope here) rather than a
+            // class-hierarchy relationship the accessor will never have.
+
+            do {
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let classSym = defineSymbol(
+                    symbols, interner: interner, kind: .class, name: "InheritedOwner",
+                    visibility: .private, file: FileID(rawValue: 0)
+                )
+                let ctorSym = defineSymbol(
+                    symbols, interner: interner, kind: .constructor, name: "InheritedOwner",
+                    visibility: .private, flags: .constructorVisibilityInherited
+                )
+                symbols.setParentSymbol(classSym, for: ctorSym)
+                let ctor = try #require(symbols.symbol(ctorSym))
+
+                // Same file, unrelated top-level accessor (no enclosing class at all).
+                #expect(checker.isAccessible(ctor, fromFile: FileID(rawValue: 0), enclosingClass: nil))
+                // Different file: must stay rejected.
+                #expect(!checker.isAccessible(ctor, fromFile: FileID(rawValue: 1), enclosingClass: nil))
+
+            }
+
+            // === testVisibilityCheckerExplicitPrivateConstructorNotWidenedByInheritedFallback ===
+            // Sanity guard: without the inherited flag (an explicitly-written
+            // `private constructor`), the fallback to the owner's file scope
+            // must NOT kick in, even when the owner's own declSite is in the
+            // same file as the accessor — otherwise the classic private-
+            // constructor factory-method pattern would leak file-wide.
+
+            do {
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let classSym = defineSymbol(
+                    symbols, interner: interner, kind: .class, name: "ExplicitOwner",
+                    visibility: .public, file: FileID(rawValue: 0)
+                )
+                let ctorSym = defineSymbol(
+                    symbols, interner: interner, kind: .constructor, name: "ExplicitOwner",
+                    visibility: .private, file: FileID(rawValue: 0)
+                )
+                symbols.setParentSymbol(classSym, for: ctorSym)
+                let ctor = try #require(symbols.symbol(ctorSym))
+
+                // Same file, unrelated top-level accessor: must stay rejected.
+                #expect(!checker.isAccessible(ctor, fromFile: FileID(rawValue: 0), enclosingClass: nil))
+                // Companion-object bridge access is unaffected by this change.
+                let companionSym = defineSymbol(symbols, interner: interner, kind: .object, name: "Companion", visibility: .public)
+                symbols.setCompanionObjectSymbol(companionSym, for: classSym)
+                #expect(checker.isAccessible(ctor, fromFile: FileID(rawValue: 0), enclosingClass: companionSym))
+
+            }
+
+        }
     }
 
-    @Test
-    func testVisibilityCheckerPrivateSameFile() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "privFn", visibility: .private, file: FileID(rawValue: 0))
-        let symbol = try #require(symbols.symbol(sym))
-        #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 0), enclosingClass: nil))
-    }
-
-    @Test
-    func testVisibilityCheckerPrivateDifferentFile() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "privFn2", visibility: .private, file: FileID(rawValue: 0))
-        let symbol = try #require(symbols.symbol(sym))
-        #expect(!(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil)))
-    }
-
-    @Test
-    func testVisibilityCheckerProtectedInSameClass() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "MyClass", visibility: .public)
-        let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protMethod", visibility: .protected)
-        symbols.setParentSymbol(classSym, for: memberSym)
-        let member = try #require(symbols.symbol(memberSym))
-        #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: classSym))
-    }
-
-    @Test
-    func testVisibilityCheckerProtectedOutsideClass() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "MyClass2", visibility: .public)
-        let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protMethod2", visibility: .protected)
-        symbols.setParentSymbol(classSym, for: memberSym)
-        let member = try #require(symbols.symbol(memberSym))
-        #expect(!(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: nil)))
-    }
-
-    @Test
-    func testVisibilityCheckerProtectedInSubclass() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let baseSym = defineSymbol(symbols, interner: interner, kind: .class, name: "Base", visibility: .public)
-        let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protSubMethod", visibility: .protected)
-        symbols.setParentSymbol(baseSym, for: memberSym)
-        let childSym = defineSymbol(symbols, interner: interner, kind: .class, name: "Child", visibility: .public)
-        symbols.setDirectSupertypes([baseSym], for: childSym)
-        let member = try #require(symbols.symbol(memberSym))
-        #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: childSym))
-    }
-
-    @Test
-    func testVisibilityCheckerPrivateMemberInSameClass() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "PrivClass", visibility: .public)
-        let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privMethod", visibility: .private)
-        symbols.setParentSymbol(classSym, for: memberSym)
-        let member = try #require(symbols.symbol(memberSym))
-        #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: classSym))
-    }
-
-    @Test
-    func testVisibilityCheckerPrivateMemberOutsideClass() throws {
-        let (_, symbols, _, interner) = makeSemaModule()
-        let checker = VisibilityChecker(symbols: symbols)
-        let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OwnerClass", visibility: .public)
-        let otherClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OtherClass", visibility: .public)
-        let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privMethod2", visibility: .private)
-        symbols.setParentSymbol(classSym, for: memberSym)
-        let member = try #require(symbols.symbol(memberSym))
-        #expect(!(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: otherClassSym)))
-    }
 }

@@ -170,7 +170,7 @@ extension CallTypeChecker {
         let resultType: TypeID? = switch (memberName, args.count) {
         case ("toRegex", 0), ("toRegex", 1):
             regexType ?? sema.types.anyType
-        case ("indexOf", 1), ("indexOf", 2), ("lastIndexOf", 1):
+        case ("indexOf", 1), ("indexOf", 2), ("lastIndexOf", 1), ("lastIndexOf", 2):
             sema.types.intType
         case ("indexOfFirst", 1), ("indexOfLast", 1):
             sema.types.intType
@@ -319,6 +319,9 @@ extension CallTypeChecker {
         {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
         }
+        if memberName == "lastIndexOf", args.indices.contains(1) {
+            _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+        }
         if args.indices.contains(0), let regexType {
             let expectedType = memberName == "replace" || memberName == "replaceFirst"
                 || memberName == "contains" || memberName == "matches" || memberName == "split"
@@ -396,8 +399,7 @@ extension CallTypeChecker {
         }
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-              let owner = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, owner) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
               owner.fqName.count == 3,
               interner.resolve(owner.fqName[0]) == "java",
               interner.resolve(owner.fqName[1]) == "io",
@@ -580,87 +582,6 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-        let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
-        sema.bindings.bindExprType(id, type: finalType)
-        return finalType
-    }
-
-    func tryPathCharsetReadExtensionFallback(
-        _ id: ExprID,
-        calleeName: InternedString,
-        isClassNameReceiver: Bool,
-        safeCall: Bool,
-        receiverID: ExprID,
-        args: [CallArgument],
-        ctx: TypeInferenceContext,
-        locals: inout LocalBindings
-    ) -> TypeID? {
-        let sema = ctx.sema
-        let interner = ctx.interner
-        guard !isClassNameReceiver, args.count == 1 else {
-            return nil
-        }
-
-        let memberName = interner.resolve(calleeName)
-        guard memberName == "readText" || memberName == "readLines" else {
-            return nil
-        }
-
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-              let owner = sema.symbols.symbol(classType.classSymbol),
-              owner.fqName.count == 4,
-              interner.resolve(owner.fqName[0]) == "kotlin",
-              interner.resolve(owner.fqName[1]) == "io",
-              interner.resolve(owner.fqName[2]) == "path",
-              interner.resolve(owner.fqName[3]) == "Path",
-              let charsetSymbol = sema.symbols.lookup(fqName: [
-                  interner.intern("kotlin"),
-                  interner.intern("text"),
-                  interner.intern("Charset"),
-              ])
-        else {
-            return nil
-        }
-
-        let charsetType = sema.types.make(.classType(ClassType(
-            classSymbol: charsetSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let argType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: charsetType)
-        guard sema.types.isSubtype(sema.types.makeNonNullable(argType), charsetType) else {
-            return nil
-        }
-
-        let functionFQName = [
-            interner.intern("kotlin"),
-            interner.intern("io"),
-            interner.intern("path"),
-            calleeName,
-        ]
-        guard let chosen = sema.symbols.lookupAll(fqName: functionFQName).first(where: { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                return false
-            }
-            return signature.receiverType == nonNullReceiverType
-                && signature.parameterTypes == [charsetType]
-        }) else {
-            return nil
-        }
-
-        let returnType = bindCallAndResolveReturnType(
-            id,
-            chosen: chosen,
-            resolved: ResolvedCall(
-                chosenCallee: chosen,
-                substitutedTypeArguments: [:],
-                parameterMapping: [0: 0],
-                diagnostic: nil
-            ),
-            sema: sema
-        )
         let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType

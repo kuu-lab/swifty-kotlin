@@ -25,10 +25,11 @@ extension CallTypeChecker {
         for candidate in candidates {
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   signature.receiverType == nil,
-                  // Only opt into the experimental path for functions that are
-                  // explicitly annotated. This avoids hijacking stdlib helpers
-                  // like `with` and the existing builder DSL stubs.
-                  hasExperimentalTypeInferenceAnnotation(candidate, sema: ctx.sema),
+                  // The experimental path handles annotated Kotlin builders, while
+                  // generic collection-receiver lambdas also need body-first
+                  // inference even when they are ordinary user declarations.
+                  (hasExperimentalTypeInferenceAnnotation(candidate, sema: ctx.sema)
+                    || hasGenericCollectionReceiverLambda(signature: signature, sema: ctx.sema, interner: ctx.interner)),
                   isEligibleExperimentalBuilderCandidate(
                     signature: signature,
                     args: args,
@@ -42,7 +43,13 @@ extension CallTypeChecker {
                 signature: signature,
                 callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
                 symbols: ctx.sema.symbols,
-                typeSystem: ctx.sema.types
+                typeSystem: ctx.sema.types,
+                isCallableArgument: { index in
+                    if case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr) {
+                        return true
+                    }
+                    return false
+                }
             ) else {
                 continue
             }
@@ -50,7 +57,8 @@ extension CallTypeChecker {
                 args: args,
                 parameterMapping: parameterMapping,
                 signature: signature,
-                sema: ctx.sema
+                sema: ctx.sema,
+                ast: ctx.ast
             ) else {
                 continue
             }
@@ -114,21 +122,9 @@ extension CallTypeChecker {
     }
 
     func builderDSLKind(for name: InternedString, interner: StringInterner) -> BuilderDSLKind? {
-        let knownNames = KnownCompilerNames(interner: interner)
-        switch name {
-        case knownNames.buildString:
-            return .buildString
-        case knownNames.buildStringBuilder:
-            return .buildStringBuilder
-        case knownNames.buildList:
-            return .buildList
-        case knownNames.buildSet:
-            return .buildSet
-        case knownNames.buildMap:
-            return .buildMap
-        default:
-            return nil
-        }
+        // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
+        // and use @ExperimentalTypeInference. They no longer use builder-DSL special handling.
+        return nil
     }
 
     func shouldUseBuilderDSLSpecialHandling(
@@ -144,10 +140,30 @@ extension CallTypeChecker {
         if ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
             guard let sym = ctx.cachedSymbol(candidate) else { return false }
             return !sym.flags.contains(.synthetic)
+                && !isSourceBackedStdlibBuilderDSLSymbol(sym, calleeName: calleeName, interner: ctx.interner)
         }) {
             return false
         }
         return true
+    }
+
+    private func isSourceBackedStdlibBuilderDSLSymbol(
+        _ symbol: SemanticSymbol,
+        calleeName: InternedString,
+        interner: StringInterner
+    ) -> Bool {
+        // KSP-1519: sequence {} / iterator {} are source-backed
+        // (Stdlib/kotlin/sequences/SequenceBuilder.kt) but still need the
+        // builder-DSL lambda-receiver-type bootstrap below (T is recovered from
+        // yield()/yieldAll() calls inside the lambda, which ordinary overload
+        // resolution cannot do). buildList/buildSet/buildMap no longer need this
+        // carve-out (KSP-622, KSP-623; they use @ExperimentalTypeInference instead).
+        let kotlinName = interner.intern("kotlin")
+        let sequencesName = interner.intern("sequences")
+        return symbol.fqName.count == 3
+            && symbol.fqName[0] == kotlinName
+            && symbol.fqName[1] == sequencesName
+            && symbol.fqName[2] == calleeName
     }
 
     func isValidBuilderLambdaArgument(_ argumentExprID: ExprID, ast: ASTModule) -> Bool {
@@ -182,8 +198,6 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID {
         switch kind {
-        case .buildString, .buildStringBuilder:
-            return ensureSyntheticStringBuilderType(sema: sema, interner: interner)
         case .buildList:
             let elementType = builderDSLListElementType(
                 lambdaExprID: lambdaExprID,
@@ -354,8 +368,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsListFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName,
               let firstArg = classType.args.first
@@ -379,8 +392,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsSetFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableSetFQName,
               let firstArg = classType.args.first
@@ -404,8 +416,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsMapFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName,
               classType.args.count >= 2
@@ -452,8 +463,6 @@ extension CallTypeChecker {
 
         var previewLocals = locals
         switch kind {
-        case .buildString, .buildStringBuilder:
-            return .unary([])
         case .buildList, .buildSet:
             let argumentTypes = unaryArgumentExprs.compactMap { exprID -> TypeID? in
                 let inferredType = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
@@ -479,6 +488,39 @@ extension CallTypeChecker {
         }
     }
 
+    private func hasGenericCollectionReceiverLambda(
+        signature: FunctionSignature,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        signature.parameterTypes.contains { parameterType in
+            guard case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(parameterType)),
+                  let receiver = functionType.receiver,
+                  let (_, symbol) = resolveClassTypeSymbol(receiver, sema: sema),
+                  let name = symbol.fqName.last,
+                  let classType = resolveClassType(receiver, sema: sema)
+            else {
+                return false
+            }
+            let simpleName = interner.resolve(name)
+            let hasTypeParameter = classType.args.contains { argument in
+                let type: TypeID
+                switch argument {
+                case let .invariant(value), let .out(value), let .in(value):
+                    type = value
+                case .star:
+                    return false
+                }
+                if case .typeParam = sema.types.kind(of: type) {
+                    return true
+                }
+                return false
+            }
+            return ["MutableList", "MutableSet", "MutableMap"].contains(simpleName)
+                && hasTypeParameter
+        }
+    }
+
     private func isEligibleExperimentalBuilderCandidate(
         signature: FunctionSignature,
         args: [CallArgument],
@@ -495,10 +537,17 @@ extension CallTypeChecker {
                 signature: signature,
                 callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
                 symbols: ctx.sema.symbols,
-                typeSystem: ctx.sema.types
+                typeSystem: ctx.sema.types,
+                isCallableArgument: { index in
+                    if case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr) {
+                        return true
+                    }
+                    return false
+                }
             ) ?? [:],
             signature: signature,
-            sema: ctx.sema
+            sema: ctx.sema,
+            ast: ctx.ast
         ) != nil
     }
 
@@ -506,9 +555,13 @@ extension CallTypeChecker {
         args: [CallArgument],
         parameterMapping: [Int: Int],
         signature: FunctionSignature,
-        sema: SemaModule
+        sema: SemaModule,
+        ast: ASTModule
     ) -> Int? {
         let indices = args.indices.filter { argIndex in
+            guard isValidBuilderLambdaArgument(args[argIndex].expr, ast: ast) else {
+                return false
+            }
             guard let paramIndex = parameterMapping[argIndex],
                   paramIndex < signature.parameterTypes.count
             else {
@@ -608,9 +661,7 @@ extension CallTypeChecker {
         into substitution: inout [TypeVarID: TypeID]
     ) {
         let sema = ctx.sema
-        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
               let simpleName = symbol.fqName.last
         else {
             return
@@ -692,7 +743,7 @@ extension CallTypeChecker {
     }
 
     private func typeArguments(of type: TypeID, sema: SemaModule) -> [TypeArg] {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)) else {
+        guard let classType = resolveClassType(type, sema: sema) else {
             return []
         }
         return classType.args
@@ -825,7 +876,8 @@ extension CallTypeChecker {
                 collectBuilderDSLArgumentExprs(in: initializer, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             }
         case let .localAssign(_, value, _),
-             let .memberAssign(_, _, value, _):
+             let .memberAssign(_, _, value, _),
+             let .memberCompoundAssign(_, _, _, value, _):
             collectBuilderDSLArgumentExprs(in: value, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
         default:
             break
@@ -834,8 +886,6 @@ extension CallTypeChecker {
 
     private func isMatchingBuilderDSLFunctionName(_ name: String, kind: BuilderDSLKind) -> Bool {
         switch kind {
-        case .buildString, .buildStringBuilder:
-            name == "append" || name == "appendLine" || name == "appendRange"
         case .buildList, .buildSet:
             name == "add"
         case .buildMap:
@@ -1000,7 +1050,7 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
         let elementType: TypeID
-        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(sequenceType)),
+        if let classType = resolveClassType(sequenceType, sema: sema),
            let firstArg = classType.args.first
         {
             switch firstArg {
@@ -1062,6 +1112,115 @@ extension CallTypeChecker {
         )))
     }
 
+    func inferSequenceScopeYieldAllImplicitReceiverCall(
+        _ id: ExprID,
+        calleeName: InternedString?,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        explicitTypeArgs: [TypeID]
+    ) -> TypeID? {
+        guard let calleeName,
+              ctx.interner.resolve(calleeName) == "yieldAll",
+              args.count == 1,
+              explicitTypeArgs.isEmpty,
+              let receiverType = ctx.implicitReceiverType,
+              isSequenceScopeReceiver(receiverType, sema: ctx.sema, interner: ctx.interner)
+        else {
+            return nil
+        }
+
+        let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        let nonNullReceiver = ctx.sema.types.makeNonNullable(receiverType)
+        let candidates = driver.helpers.collectMemberFunctionCandidates(
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
+        let preferredOwnerName = sequenceScopeYieldAllPreferredParameterOwnerName(
+            for: argumentType,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
+
+        guard let chosen = candidates.sorted(by: { $0.rawValue < $1.rawValue }).first(where: { candidate in
+            guard ctx.sema.symbols.externalLinkName(for: candidate) == "__kk_sequence_builder_yieldAll",
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1
+            else {
+                return false
+            }
+            if ctx.sema.types.isSubtype(argumentType, signature.parameterTypes[0]) {
+                return true
+            }
+            guard let preferredOwnerName else {
+                return false
+            }
+            return classSimpleName(of: signature.parameterTypes[0], sema: ctx.sema, interner: ctx.interner) == preferredOwnerName
+        }) else {
+            return nil
+        }
+
+        let resolved = ResolvedCall(
+            chosenCallee: chosen,
+            substitutedTypeArguments: [:],
+            parameterMapping: [0: 0],
+            diagnostic: nil
+        )
+        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: ctx.sema)
+        ctx.sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        ctx.sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    private func isSequenceScopeReceiver(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
+              let name = symbol.fqName.last
+        else {
+            return false
+        }
+        return interner.resolve(name) == "SequenceScope"
+            && symbol.fqName.dropLast().map(interner.resolve) == ["kotlin", "sequences"]
+    }
+
+    private func sequenceScopeYieldAllPreferredParameterOwnerName(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        guard let simpleName = classSimpleName(of: type, sema: sema, interner: interner) else {
+            return nil
+        }
+        switch simpleName {
+        case "Iterator":
+            return "Iterator"
+        case "Sequence":
+            return "Sequence"
+        case "Iterable", "Collection", "MutableCollection", "List", "MutableList", "Set", "MutableSet":
+            return "Iterable"
+        default:
+            return nil
+        }
+    }
+
+    private func classSimpleName(
+        of type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
+              let name = symbol.fqName.last
+        else {
+            return nil
+        }
+        return interner.resolve(name)
+    }
+
     func produceBuilderReceiverType(
         channelType: TypeID,
         sema: SemaModule,
@@ -1077,7 +1236,7 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
         let elementType: TypeID
-        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(channelType)),
+        if let classType = resolveClassType(channelType, sema: sema),
            classType.classSymbol == channelSymbol,
            let firstArg = classType.args.first
         {
@@ -1153,19 +1312,183 @@ extension CallTypeChecker {
         )))
     }
 
+    /// KSP-1573: bind `produce { }` / `produce(capacity) { }` to the bundled
+    /// source-backed `CoroutineScope.produce` extension. The element type
+    /// keeps the same `send`-scan inference the synthetic launcher path used,
+    /// but the bound callee is the real generic function whose block is a
+    /// boxed suspend lambda — not the kk_produce launcher thunk. Returns nil
+    /// when no source-backed produce overload applies (residual synthetic
+    /// path or user-defined produce handles the call instead).
+    func tryBindSourceBackedProduceCall(
+        _ id: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        ast: ASTModule
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
+
+        // The extension needs an implicit CoroutineScope receiver: an ambient
+        // coroutine-builder lambda scope, or an implicit receiver whose type
+        // is already a CoroutineScope.
+        let hasScopeReceiver = ctx.isCoroutineBuilderLambdaScope
+            || (ctx.implicitReceiverType.map {
+                isCoroutineScopeType($0, sema: sema, interner: interner)
+            } ?? false)
+        guard hasScopeReceiver else { return nil }
+
+        // Imported library symbols always carry `.synthetic` (they have no
+        // source declSite), so the stub-exclusion test must distinguish a
+        // genuinely synthetic launcher (kk_produce) from a source-backed
+        // decl that merely arrived via .kklib metadata.
+        let produceSymbol = ctx.cachedScopeLookup(calleeName).first { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
+                  symbol.fqName == knownNames.kotlinxCoroutinesProduceFQName,
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.receiverType != nil,
+                  signature.parameterTypes.count == args.count
+            else { return false }
+            return true
+        }
+        guard let produceSymbol,
+              let signature = sema.symbols.functionSignature(for: produceSymbol),
+              let blockParamType = signature.parameterTypes.last
+        else { return nil }
+
+        guard let lastArgumentExprID = args.last?.expr else { return nil }
+
+        // Infer the produced element type exactly like the synthetic path:
+        // prefer an expected Channel<E>/ReceiveChannel<E>, otherwise LUB the
+        // `send(...)` argument types seen in the lambda body.
+        let channelType = produceBuilderChannelType(
+            lambdaExprID: lastArgumentExprID,
+            expectedType: expectedType,
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        )
+        let elementType = produceBuilderElementType(of: channelType, sema: sema)
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let substitution: [TypeVarID: TypeID] = [
+            TypeVarID(rawValue: 0): elementType,
+        ]
+        let lambdaExpectedType = sema.types.substituteTypeParameters(
+            in: blockParamType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+        let receiverType: TypeID = {
+            guard case let .functionType(fnType) = sema.types.kind(of: lambdaExpectedType),
+                  let fnReceiver = fnType.receiver
+            else {
+                return produceBuilderReceiverType(channelType: channelType, sema: sema, interner: interner)
+            }
+            return fnReceiver
+        }()
+
+        // Non-lambda leading arguments (e.g. `capacity`) type-check normally.
+        for (index, argument) in args.dropLast().enumerated() {
+            let paramExpected: TypeID? = index < signature.parameterTypes.count
+                ? sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[index],
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                : nil
+            _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: paramExpected)
+        }
+
+        // Same marking the synthetic produce path applied (CORO-075): the
+        // block's captures must ride the launcher-continuation convention
+        // (CoroutineLoweringPass+LauncherSupport's rewrite) and the lowered
+        // lambda must keep its receiver-first param layout — see
+        // LambdaLowerer's receiverFirstLauncherABI gate.
+        sema.bindings.markCoroutineLauncherLambdaExpr(lastArgumentExprID)
+        _ = driver.inferExpr(
+            lastArgumentExprID,
+            ctx: ctx.with(implicitReceiverType: receiverType),
+            locals: &locals,
+            expectedType: lambdaExpectedType
+        )
+
+        // Re-refine once the lambda has been checked, mirroring CORO-075.
+        let refinedChannelType = produceBuilderChannelType(
+            lambdaExprID: lastArgumentExprID,
+            expectedType: expectedType,
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        )
+        let refinedElementType = produceBuilderElementType(of: refinedChannelType, sema: sema)
+
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: produceSymbol,
+                substitutedTypeArguments: signature.typeParameterSymbols.map { _ in refinedElementType },
+                parameterMapping: Dictionary(
+                    uniqueKeysWithValues: args.indices.map { ($0, $0) }
+                )
+            )
+        )
+        sema.bindings.bindCallableTarget(id, target: .symbol(produceSymbol))
+        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        markCoroutineScopeImplicitReceiverCallIfNeeded(
+            id,
+            chosenCallee: produceSymbol,
+            receiverType: ctx.implicitReceiverType
+                ?? coroutineScopeType(sema: sema, interner: interner)
+                ?? sema.types.anyType,
+            ctx: ctx
+        )
+
+        let resultType = sema.types.substituteTypeParameters(
+            in: signature.returnType,
+            substitution: [TypeVarID(rawValue: 0): refinedElementType],
+            typeVarBySymbol: typeVarBySymbol
+        )
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    private func produceBuilderElementType(
+        of channelType: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        guard let classType = resolveClassType(channelType, sema: sema),
+              let firstArg = classType.args.first
+        else {
+            return sema.types.anyType
+        }
+        switch firstArg {
+        case let .invariant(type), let .out(type), let .in(type):
+            return type
+        case .star:
+            return sema.types.anyType
+        }
+    }
+
     private func produceBuilderExpectedElementType(
         _ expectedType: TypeID?,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
         guard let expectedType,
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType))
+              let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema)
         else {
             return nil
         }
         let knownNames = KnownCompilerNames(interner: interner)
-        guard let symbol = sema.symbols.symbol(classType.classSymbol),
-              symbol.fqName == knownNames.kotlinxCoroutinesChannelFQName,
+        guard symbol.fqName == knownNames.kotlinxCoroutinesChannelFQName,
               let firstArg = classType.args.first
         else {
             return nil
@@ -1197,9 +1520,24 @@ extension CallTypeChecker {
             sendArgumentExprs: &sendArgumentExprs
         )
 
+        // Speculative scan: on the pre-check pass the lambda body hasn't been
+        // checked yet, so its internal bindings (loop variables, local vals)
+        // are absent from previewLocals. Snapshot/truncate discards the
+        // spurious diagnostics emitted for those names — the real lambda
+        // check re-emits genuine errors. On the post-check re-refine the
+        // send args already carry real types in the binding table, so consult
+        // it first (same pattern as the sequence-builder yield scan above).
         var previewLocals = locals
+        let diagnosticEngine = ctx.semaCtx.diagnostics
         let argumentTypes = sendArgumentExprs.compactMap { exprID -> TypeID? in
+            if let cached = sema.bindings.exprType(for: exprID),
+               cached != sema.types.errorType
+            {
+                return cached
+            }
+            let snapshot = diagnosticEngine.count
             let inferredType = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
+            diagnosticEngine.truncate(to: snapshot)
             return inferredType == sema.types.errorType ? nil : inferredType
         }
         return .unary(argumentTypes)
@@ -1302,42 +1640,11 @@ extension CallTypeChecker {
             if let initializer {
                 collectProduceBuilderSendExprs(in: initializer, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
             }
-        case .localAssign, .compoundAssign, .memberAssign, .indexedAssign, .indexedCompoundAssign:
+        case .localAssign, .compoundAssign, .memberAssign, .indexedAssign, .indexedCompoundAssign, .memberCompoundAssign:
             break
         default:
             break
         }
-    }
-
-    func ensureSyntheticStringBuilderType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        let symbols = sema.symbols
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        let kotlinTextPkg: [InternedString] = kotlinPkg + [interner.intern("text")]
-        _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
-        _ = ensureSyntheticPackage(fqName: kotlinTextPkg, symbols: symbols)
-
-        let stringBuilderName = interner.intern("StringBuilder")
-        let stringBuilderFQName = kotlinTextPkg + [stringBuilderName]
-        let stringBuilderSymbol: SymbolID = if let existing = symbols.lookup(fqName: stringBuilderFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .class,
-                name: stringBuilderName,
-                fqName: stringBuilderFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: stringBuilderSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
     }
 
     private func sequenceBuilderElementType(
@@ -1427,8 +1734,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         guard let expectedType,
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
+              let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema)
         else {
             return nil
         }
@@ -1461,8 +1767,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         let nonNullType = sema.types.makeNonNullable(collectionType)
-        if case let .classType(classType) = sema.types.kind(of: nonNullType),
-           let symbol = sema.symbols.symbol(classType.classSymbol),
+        if let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
            let simpleName = symbol.fqName.last
         {
             let resolved = interner.resolve(simpleName)

@@ -20,6 +20,12 @@ extension DataFlowSemaPhase {
                   let existingSymbol = symbols.symbol(existingID),
                   existingSymbol.kind == newSymbol.kind,
                   !canCoexistAsExpectActualPair(newSymbol, existingSymbol),
+                  !canCoexistAsSyntheticFallback(newSymbol, existingSymbol),
+                  !canCoexistAsPrivateTopLevelCallableAcrossSourceFiles(
+                      newSymbol,
+                      existingSymbol,
+                      symbols: symbols
+                  ),
                   let existingSignature = symbols.functionSignature(for: existingID)
             else {
                 return false
@@ -40,6 +46,25 @@ extension DataFlowSemaPhase {
         }
     }
 
+    private func canCoexistAsPrivateTopLevelCallableAcrossSourceFiles(
+        _ lhs: SemanticSymbol,
+        _ rhs: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> Bool {
+        // Kotlin private top-level callables are file-scoped, so distinct source
+        // files compile them into distinct JVM file facades.
+        guard lhs.visibility == .private,
+              rhs.visibility == .private,
+              symbols.parentSymbol(for: lhs.id) == nil,
+              symbols.parentSymbol(for: rhs.id) == nil,
+              let lhsFileID = symbols.sourceFileID(for: lhs.id),
+              let rhsFileID = symbols.sourceFileID(for: rhs.id)
+        else {
+            return false
+        }
+        return lhsFileID != rhsFileID
+    }
+
     func hasSameJVMErasedCallableSignature(
         _ lhs: FunctionSignature,
         _ rhs: FunctionSignature,
@@ -53,17 +78,26 @@ extension DataFlowSemaPhase {
             return false
         }
 
+        let lhsVarargs = normalizedVarargFlags(lhs.valueParameterIsVararg, count: lhs.parameterTypes.count)
+        let rhsVarargs = normalizedVarargFlags(rhs.valueParameterIsVararg, count: rhs.parameterTypes.count)
+        guard lhsVarargs == rhsVarargs else {
+            return false
+        }
+
         let lhsParameters = lhs.parameterTypes.map { jvmErasedCallableType($0, types: types) }
         let rhsParameters = rhs.parameterTypes.map { jvmErasedCallableType($0, types: types) }
         return zip(lhsParameters, rhsParameters).allSatisfy(==)
     }
 
+    private func normalizedVarargFlags(_ flags: [Bool], count: Int) -> [Bool] {
+        flags.isEmpty ? Array(repeating: false, count: count) : flags
+    }
+
     func jvmErasedCallableType(_ type: TypeID, types: TypeSystem) -> TypeID {
         switch types.kind(of: type) {
-        case let .primitive(primitive, _):
-            if primitive == .string {
-                return types.makeNonNullable(type)
-            }
+        case .stringStruct:
+            return types.makeNonNullable(type)
+        case .primitive:
             return type
         default:
             return types.makeNonNullable(type)
@@ -87,5 +121,9 @@ extension DataFlowSemaPhase {
         }
 
         return (lhsIsExpect && rhsIsActual) || (lhsIsActual && rhsIsExpect)
+    }
+
+    func canCoexistAsSyntheticFallback(_ lhs: SemanticSymbol, _ rhs: SemanticSymbol) -> Bool {
+        lhs.flags.contains(.synthetic) != rhs.flags.contains(.synthetic)
     }
 }

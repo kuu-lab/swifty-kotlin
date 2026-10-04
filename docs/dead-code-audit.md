@@ -2,10 +2,94 @@
 
 > **ステータス**: Section A（完全到達不能 102 個）と Section C（参照ゼロ Swift 関数 6 個）は **削除済み**。
 > 参照元ファイル（`RuntimeLogging.swift`, `RuntimeFlowErrorHandling.swift` 等）も既に存在しない。
-> Section B（テストのみ参照 127 個）はトリアージ完了（2026-06-23 実施）。RF-DEAD-002 結果参照。
+> Section B（テストのみ参照 120 個）はトリアージ完了（2026-06-23 実施）。RF-DEAD-002 結果参照。
+> Section D（テストのみ参照 Swift シンボル）はトリアージ完了（2026-07-02 実施）。DEADCODE-013 結果参照。
 > 本ドキュメントは監査の履歴記録として保持する。
 
 TODO.md の Phase RF9（RF-DEAD-001〜004）の根拠インベントリ。検出手法と全リストを記録する。
+
+## 継続監査（DEADCODE-014、2026-09-16）
+
+現行 HEAD（`ec7eb414c`）で `Scripts/dead_code_audit.sh --self-test` を再実行した。
+監査スクリプトは、`@_cdecl("__kk_x")` と Swift 関数名 `kk_x` が異なる Runtime
+エクスポートについて、Tests と Runtime 内部の Swift 名呼び出しも cdecl 名へ写像する。
+これにより `__kk_mutable_map_iterator_*` などの別名呼び出しを誤って完全到達不能と
+分類しない。実行前の集計は Runtime export 1,678 件、compiler-unreachable 147 件、
+A 25 件、B 82 件だった。
+
+今回、source-backed 化後に E0（compiler / Tests / Runtime 内部の参照が 0）を満たす
+次の 11 export と対応する `RuntimeABISpec` エントリを削除した。
+
+```
+__kk_kfunction_get_name __kk_kfunction_get_arity __kk_kfunction_get_return_type
+kk_callable_ref_name kk_callable_ref_arity kk_callable_ref_is_suspend kk_callable_ref_parameters
+__kk_kproperty_stub_name __kk_kproperty_stub_return_type
+kk_indexed_value_new __kk_mutable_collection_addAll_sequence
+```
+
+削除後の再実行では Runtime export 1,667 件、compiler-unreachable 136 件、A 14 件、
+B 82 件となり、セルフテスト（静的 emit、2 段階 prefix、fatalError 自己言及、Swift 名
+別名呼び出し）は全て PASS した。
+
+KCallable の共通 `name` / `returnType` bridge、callable-reference の tag / call、
+KProperty stub の create、`IndexedValue` の Kotlin data class、MutableCollection の
+Sequence 拡張は引き続き実働経路として保持している。残る A 候補（KProperty の完全
+メタデータ拡張、`kk_cinterop_writeBits`、HTTP の追加設定・応答メタデータ）は、
+それぞれ MIGRATION-PROP-001、STDLIB-CINTEROP-FN-046、HTTP surface の所有タスクで
+扱うため今回の削除対象から除外した。
+
+## 継続監査（DEADCODE-014、2026-09-23）
+
+現行 HEAD（`59dd246ff`）で `Scripts/dead_code_audit.sh --self-test` を再実行し、
+#6881 マージコミット（`a3f3a4b12`、2026-09-16 後状態）の worktree で同じ監査を
+再現してリスト差分を取った。
+
+| 指標 | 2026-09-16 (#6881) | 2026-09-23 (HEAD) |
+|---|---|---|
+| Runtime `@_cdecl` export | 1,665 | 1,702（+78 追加 / −41 削除） |
+| compiler-unreachable | 136 | 130 |
+| A: 完全到達不能 | 14 | 14（変化なし） |
+| B: テストのみ | 82 | 76（−7 +1） |
+| runtime-internal のみ | 40 | 40（変化なし） |
+
+self-test は 4/4 PASS。セルフテスト fixture の既知誤分類（静的 emit、2 段階
+prefix、fatalError 自己言及、Swift 名別名）はいずれも再発していない。
+
+**B 減少の内訳**（全て source-backed 移行または本線配線による正当な減少）:
+
+- `kk_freezable_atomic_ref_{load,store,compareAndSet,compareAndSwap,is_frozen}` —
+  #6914 で FreezableAtomicReference が Kotlin ソース実装へ移行し、bridge・spec・
+  テストごと削除
+- `kk_cpointer_new` — DetachedObjectGraph 実装（#6893）で compiler emit 経路へ配線
+- `kk_instant_from_epoch_seconds` — kotlin.time stdlib API（#6932）で同様に配線
+
+**B 増加**: `kk_object_release`（#7039、ARCH-016）。retained box の明示解放
+オーナーとして新設され、compiler emit 側の配線待ちで意図的にテストのみの状態。
+
+**A 候補 14 件の見直し** — いずれも前回の延期理由が現行 HEAD で再確認でき、
+本サイクルも削除しない:
+
+- `__kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility}` — bundled
+  stdlib に KProperty 系（`kotlin/KProperty*.kt`・`properties/Delegates.kt`）は
+  存在するが、完全メタデータ（isConst / isLateinit / visibility）の Kotlin 側
+  消費者が未実装。MIGRATION-PROP 系作業で配線予定のまま
+- `kk_cinterop_writeBits` — `kotlinx.cinterop` は `StableRef.kt` のみで
+  `writeBits` 消費 API が未実装（STDLIB-CINTEROP-FN 系の後続タスク待ち）
+- `kk_http_*` 9 件 — `RuntimeNetwork.swift` の HTTP クライアントは Linear で
+  現在有効なセキュリティ改善対象（KUU-805/817）として所有されている surface。
+  Kotlin 側 HTTP stdlib がまだ無く、新規 stdlib 配線時に必要になる設定・
+  応答メタデータ関数のため保持
+
+**他監査軸の再確認**:
+
+- tracked `.c/.h/.cc/.cpp` — 2 件（`Sources/RuntimeCAtomics/`）。#7121 で
+  kotlin.concurrent.Atomic* の NSLock ストレージを C `stdatomic` セルへ置換した
+  SwiftPM C ターゲット。`kkrt_atomic_*` は `static inline` のため本監査の
+  `@_cdecl` 範囲外だが dead ではない
+- `DiagnosticRegistry` — 現行 99 descriptor、全て Sources 内に production
+  発行箇所あり（発行 0 のコードなし）
+- `SKIP-DIFF (DEBT-DIFF-007)` — 10 タグ（2026-09-16 計測と同数、DEBT-DIFF-007 の
+  所有タスクで継続中）
 
 ## 検出手法
 
@@ -14,8 +98,8 @@ TODO.md の Phase RF9（RF-DEAD-001〜004）の根拠インベントリ。検出
 1. **静的 emit**: CompilerCore 内の `kk_*` 文字列リテラル参照
 2. **動的 emit（文字列補間）**: `"kk_xxx_\(...)"` 形式 25 プレフィックス（`kk_op_` / `kk_range_` / `kk_base64_*_` / `kk_match_result_destructured_component` 等）。前方一致で除外
 3. **動的 emit（表駆動）**: `StdlibSurfaceSpec.collectionHOFRuntimeLinkName` 経由の 164 link name（list / set / map / sequence の HOF。`array` は対象外）
-4. **テスト参照**: `Tests/` からの直接呼び出し（語境界一致。superstring 誤検知に注意: `kk_http_client_post` は `kk_http_client_post_async` とは別物）
-5. **Runtime 内部呼び出し**: 他のランタイム関数からの Swift レベル呼び出し
+4. **テスト参照**: `Tests/` からの直接呼び出し（語境界一致。superstring 誤検知に注意: `kk_http_client_post` は `kk_http_client_post_async` とは別物）。`@_cdecl("__kk_x")` の Swift 名別名も照合
+5. **Runtime 内部呼び出し**: 他のランタイム関数からの Swift レベル呼び出し（cdecl 名と Swift 名の別名も照合）
 6. **プロトコル経由・エントリポイント**: `URLSessionTaskDelegate.urlSession(...)`（Foundation が呼ぶ）、`GoldenHarnessWorkerMain`（実行ターゲットエントリ）等は dead ではない
 
 **重要**: `RuntimeABISpec`（`+ABIParity` / `+RuntimeOnlyBridge`）への登録は exported シンボルの必須ミラーであり、**使用の証拠ではない**。spec 登録のみで他に参照がない関数はコンパイル済み Kotlin プログラムから到達不能。
@@ -130,7 +214,7 @@ kk_mem_scope_enter
 kk_native_alloc_bytes kk_native_heap_free
 ```
 
-## B. テストのみが参照する `kk_*` 関数（127 個）→ RF-DEAD-002
+## B. テストのみが参照する `kk_*` 関数（120 個）→ RF-DEAD-002
 
 CompilerCore が emit できないため Kotlin プログラムからは到達不能だが、`Tests/RuntimeTests` が Swift から直接呼んで延命している。「(a) 配線予定 / (b) テスト支援 API / (c) 削除」のトリアージが必要。
 
@@ -157,7 +241,7 @@ kk_base64_encodeToByteArray_instance kk_base64_encode_instance
 kk_base64_withPadding_default kk_base64_withPadding_mime kk_base64_withPadding_urlsafe
 kk_byte_to_char kk_byte_to_uint kk_byte_to_ulong
 kk_channel_is_closed_token
-kk_char_fromCode kk_char_minus
+kk_char_minus
 kk_check_not_null_lazy
 kk_cleaner_clean
 kk_clock_gettime_monotonic_ns kk_clock_monotonic_mark_now
@@ -174,7 +258,6 @@ kk_exception_handler_invoke
 kk_float_max_value kk_float_min_value kk_float_nan
 kk_float_negative_infinity kk_float_positive_infinity
 kk_flow_count kk_flow_emit_with_timestamp kk_flow_fold kk_flow_reduce
-kk_freezable_atomic_ref_is_frozen kk_freezable_atomic_ref_store
 kk_hexformat_prefix kk_hexformat_suffix
 kk_http_client_get kk_http_client_new kk_http_client_post_async
 kk_instant_from_epoch_seconds
@@ -182,12 +265,9 @@ kk_int_max_value kk_int_min_value
 kk_kclass_get_arity
 kk_kproperty_stub_create_full kk_kproperty_stub_is_const
 kk_kproperty_stub_is_lateinit kk_kproperty_stub_visibility
-kk_list_firstOrNull_predicate
 kk_long_max_value kk_long_min_value
 kk_output_stream_bufferedWriter_default
 kk_panic
-kk_parallel_pool_new kk_parallel_stream_forEach kk_parallel_stream_from_collection
-kk_parallel_stream_map kk_parallel_stream_reduce kk_parallel_stream_to_list
 kk_pinned_get
 kk_platform_isDebugBinary
 kk_register_global_root kk_unregister_global_root
@@ -208,7 +288,7 @@ kk_write_barrier
 - `kk_write_barrier` / `kk_register_global_root` / `kk_unregister_global_root` / `kk_panic` は GC・ランタイム基盤の名前だが現行 codegen は emit していない（global root は `kk_global_root_slot_*` 動的名で処理）。設計上の予約か取り残しかの判断が必要
 - `kk_set_*` HOF 群は TEST-COL-012（TODO.md テスト改善タスク）が Codegen 統合テスト追加を予定している領域と重なる。削除ではなく配線が正解の可能性あり
 
-> **注**: `kk_hexformat_prefix` / `kk_hexformat_suffix` / `kk_panic` / `kk_write_barrier` は監査時点でソースに存在せず（既削除またはリスト誤記）。実際に存在するのは 123 個。
+> **注**: `kk_hexformat_prefix` / `kk_hexformat_suffix` / `kk_panic` / `kk_write_barrier` は監査時点でソースに存在せず（既削除またはリスト誤記）。実際に存在するのは 116 個。
 
 ### RF-DEAD-002 トリアージ結果（2026-06-23 実施）
 
@@ -222,30 +302,30 @@ kk_write_barrier
 | `kk_runtime_force_reset` | `RuntimeGC.swift` | テスト間ランタイム全状態リセット |
 | `kk_runtime_heap_object_count` | `RuntimeGC.swift` | テスト間ヒープオブジェクト数検査 |
 
-#### (c) 削除 — 3 個（HTTP クライアント。ターゲット外）
+#### (c) 削除 — 9 個
 
 | 関数 | 削除済みファイル |
 |---|---|
 | `kk_http_client_new` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
 | `kk_http_client_get` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
 | `kk_http_client_post_async` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
+| `kk_parallel_pool_new` / `kk_parallel_stream_{from_collection,to_list,map,forEach,reduce}` | `RuntimeParallel.swift` + `RuntimeABISpec+Parallel.swift` |
 
-テスト: `Tests/RuntimeTests/RuntimeHTTPClientTests.swift` 全削除。
+テスト: `Tests/RuntimeTests/RuntimeHTTPClientTests.swift` / `Tests/RuntimeTests/RuntimeParallelTests.swift` 全削除。
 
-#### (a) 配線予定 — 115 個
+#### (a) 配線予定 — 108 個
 
 | タスク / 領域 | 関数群 | ファイル |
 |---|---|---|
 | **MIGRATION-ATOMIC-001** (AtomicIntArray) | `kk_atomic_int_array_create/size/loadAt/storeAt/exchangeAt/compareAndSetAt/compareAndExchangeAt/fetchAndUpdateAt/fetchAndAddAt/addAndFetchAt/fetchAndIncrementAt/incrementAndFetchAt/fetchAndDecrementAt/decrementAndFetchAt` | `RuntimeAtomic.swift` |
 | **MIGRATION-ATOMIC-001** (AtomicLongArray) | 同上 `long` 版 | `RuntimeAtomic.swift` |
 | **MIGRATION-ATOMIC-001** (getAndUpdate/updateAndGet) | `kk_atomic_{int,long,bool,ref}_{getAndUpdate,updateAndGet}` | `RuntimeAtomic.swift` |
-| **STDLIB-PERF-155** | `kk_parallel_pool_new` / `kk_parallel_stream_{from_collection,to_list,map,forEach,reduce}` | `RuntimeParallel.swift` |
 | **TEST-COL-012** (Set HOF) | `kk_set_{map,forEach,filterNot,mapNotNull,flatMap,count_predicate}` | `RuntimeCollectionHOF.swift` |
 | **Flow API 完全実装** | `kk_flow_{count,fold,reduce,emit_with_timestamp}` | `RuntimeCoroutineFlow.swift` |
-| **STDLIB-CINTEROP-FN-009/042** | `kk_pinned_get` / `kk_copaque_pointer_{new,address}` / `kk_cpointer_{new,address}` / `kk_cname_{lookup,register}` / `kk_cleaner_clean` | `RuntimeNativeAPI.swift` |
+| **STDLIB-CINTEROP-FN-009/042** | ~~`kk_pinned_get`~~（2026-07-10 訂正: `HeaderHelpers+SyntheticCInteropStubs.swift` で externalLinkName 配線済み — 本表から除外） / `kk_copaque_pointer_{new,address}` / `kk_cpointer_{new,address}` / `kk_cname_{lookup,register}` / `kk_cleaner_clean` | `RuntimeNativeAPI.swift` |
 | **MIGRATION-ENC-001** (Base64) | `kk_base64_{encode,encodeToByteArray}_instance` / `kk_base64_withPadding_{default,mime,urlsafe}` | `RuntimeBase64.swift` |
 | **数値型変換** | `kk_byte_to_{char,uint,ulong}` / `kk_short_to_{char,uint,ulong}` | `RuntimeNumericCoercion.swift` |
-| **Char 演算** | `kk_char_fromCode` / `kk_char_minus` | `RuntimeChar.swift` |
+| **Char 演算** | `kk_char_minus` | `RuntimeChar.swift` |
 | **coroutine channel** | `kk_channel_is_closed_token` | `RuntimeCoroutineChannel.swift` |
 | **lazy not-null** | `kk_check_not_null_lazy` / `kk_require_not_null_lazy` | `RuntimePreconditions.swift` |
 | **TimeSource.Monotonic** | `kk_clock_gettime_monotonic_ns` / `kk_clock_monotonic_mark_now` | `RuntimeTime.swift` |
@@ -254,9 +334,7 @@ kk_write_barrier
 | **coroutine scope** | `kk_coroutine_{cancel,name_get}` / `kk_coroutine_scope_{is_active,is_cancelled}` | `RuntimeCoroutine.swift` |
 | **MIGRATION-PROP-001** | `kk_delegate_{get,set}_value` / `kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility}` | `RuntimeDelegates.swift` |
 | **数値コンパニオン定数** | `kk_double_{max,min}_value` / `kk_double_{nan,negative_infinity,positive_infinity}` / `kk_float_*` 同様 / `kk_int_{max,min}_value` / `kk_long_{max,min}_value` | `RuntimeMath.swift` |
-| **FreezableAtomicRef** | `kk_freezable_atomic_ref_{is_frozen,store}` | `RuntimeNativeConcurrentABI.swift` |
 | **STDLIB-REFLECT-067** | `kk_kclass_get_arity` | `RuntimeReflection.swift` |
-| **List HOF** | `kk_list_firstOrNull_predicate` | `RuntimeCollectionHOF.swift` |
 | **Array HOF** | `kk_array_mapNotNull` | `RuntimeCollectionHOFArray.swift` |
 | **IO** | `kk_output_stream_bufferedWriter_default` | `RuntimeFileIO.swift` |
 | **Platform** | `kk_platform_isDebugBinary` | `RuntimePlatform.swift` |
@@ -280,5 +358,35 @@ kk_write_barrier
 
 - `RuntimeHTTPRedirectDelegate.urlSession(_:task:willPerformHTTPRedirection:...)` — `URLSessionTaskDelegate` 準拠。Foundation が呼ぶ
 - `GoldenHarnessWorkerMain` — `Sources/GoldenHarnessWorker/main.swift` の実行ターゲットエントリポイント
-- `kk_match_result_destructured_component1`〜`9` — `HeaderHelpers+SyntheticRegexStubs.swift:448` の文字列補間で emit される
 - `_kswiftkRuntimeAutolinkAnchor`（`LinkPhase.swift`）— Foundation/Dispatch シンボルを強制リンクするためのアンカー（意図的な未呼び出し）
+
+## D. テストのみ参照 Swift シンボル → DEADCODE-013 ✅ トリアージ済み
+
+2026-07-02 に `TODO.md` の DEADCODE-013 候補を現 HEAD で再確認した。下記の製品コード上のテスト専用シンボルは削除、または Tests 側へ移動した。
+
+| 判定 | シンボル | 処置 |
+|---|---|---|
+| 削除 | `KotlinParser.canStartTypeArguments(after:)` overloads | 製品コードから削除。テストは製品コードも使う `canStartTypeArgumentsInternal(hasAnchorToken:)` と parse 経路で維持 |
+| 削除 | `SymbolTable.setTypeParameterUpperBound` | 単数 setter を削除。テスト/呼び出し側は `setTypeParameterUpperBounds` に統一 |
+| 削除 | `RuntimeMetadataCodec` | JSON wrapper を削除。テストは `JSONEncoder` / `JSONDecoder` で metadata model の Codable round-trip を直接検証 |
+| 削除 | `RuntimeMemoryLeakReport` / `runtimeDetectMemoryLeak` | Runtime API として未配線の leak detector を削除。公開 memory metrics テストのみ残す |
+| 削除 | `RuntimeJobHandle.completeCancellationIfNeeded` | テスト専用 terminal transition helper を削除。テストは cancellation 後の `complete(with:)` 経路で terminal state を検証 |
+| 削除 | `RuntimeABIExterns.externDecl` | テスト内の `allExterns` 辞書 lookup に置換。製品側 lookup cache は削除 |
+| Tests へ移動 | `RuntimeReflectionMetadataDecoder` | Reflection metadata round-trip 検証用 decoder として `RuntimeReflectionMetadataEmitterTests` 内の private helper に移動 |
+
+現 HEAD では、DEADCODE-013 の元リストのうち以下は既に存在しない、または名称が変わっており、追加処置なしとした。
+
+```
+PhaseTimer.exportTSV / exportJSON
+KotlinLanguageVersion / CompilerVersion
+BlockScope / validateExpectActualLinks / hasContractReturnsNotNull
+smartCastTypeForWhenSubjectCase
+DataFlow.invalidateVariable / DataFlow.narrowToNonNull
+IncrementalCompilationCache.clearCache
+SemaCacheContext.invalidateScope
+FileFingerprint.mtimeUnchanged
+DependencyGraph.clearFile
+compilerPluginMetadata
+```
+
+なお `KotlinParser.canStartTypeArgumentsInternal(hasAnchorToken:)` は parser 本体（declaration parsing）から使用されるため dead ではない。`RuntimeABIExterns.allExterns` は ABI parity の canonical extern view として残した。

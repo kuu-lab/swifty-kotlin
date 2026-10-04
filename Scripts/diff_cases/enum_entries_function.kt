@@ -1,3 +1,5 @@
+import kotlin.enums.enumEntries
+
 enum class Color { RED, GREEN, BLUE }
 
 fun main() {

@@ -1,16 +1,20 @@
-/// Synthetic stubs for kotlin.time experimental time APIs (STDLIB-TIME-180).
+/// Residual compiler/runtime anchors for kotlin.time experimental time APIs
+/// (STDLIB-TIME-180).
 ///
-/// Registers:
+/// The public operations are implemented in bundled Kotlin source. This file
+/// retains only the opt-in marker, nominal/bootstrap anchors, and hidden
+/// bridge declarations needed by compiler/runtime dispatch. It registers:
 /// - `@ExperimentalTime`
 /// - `TimeSource` with nested `WithComparableMarks`, `Monotonic`, `markNow()`, and `asClock()`
-/// - `TimeMark` with elapsed/boolean checks and +/- Duration
-/// - `ComparableTimeMark` with TimeMark operations plus mark-to-mark diff/comparison
-/// - `AbstractDoubleTimeSource` / `AbstractLongTimeSource` / `TestTimeSource` surfaces
+/// - `TimeMark` / `ComparableTimeMark` nominal types (their operations are Kotlin source,
+///   see `Stdlib/kotlin/time/TimeMark.kt`)
+/// - `AbstractDoubleTimeSource` / `AbstractLongTimeSource` / `TestTimeSource` nominal anchors
 extension DataFlowSemaPhase {
     func registerSyntheticExperimentalTimeStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let kotlinTimePkg = ensurePackage(
             path: ["kotlin", "time"],
@@ -28,18 +32,18 @@ extension DataFlowSemaPhase {
             experimentalTimeSymbol,
             symbols: symbols
         )
-
-        let durationSymbol = ensureClassSymbol(
-            named: "Duration",
-            in: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let durationType = types.make(.classType(ClassType(
-            classSymbol: durationSymbol,
+        let experimentalTimeType = types.make(.classType(ClassType(
+            classSymbol: experimentalTimeSymbol,
             args: [],
             nullability: .nonNull
         )))
+        registerSyntheticExperimentalTimeConstructor(
+            ownerSymbol: experimentalTimeSymbol,
+            ownerType: experimentalTimeType,
+            symbols: symbols,
+            interner: interner
+        )
+
         let instantSymbol = ensureClassSymbol(
             named: "Instant",
             in: kotlinTimePkg,
@@ -51,7 +55,7 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        let clockSymbol = ensureClassSymbol(
+        let clockSymbol = ensureInterfaceSymbol(
             named: "Clock",
             in: kotlinTimePkg,
             symbols: symbols,
@@ -62,21 +66,7 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        let durationUnitSymbol = ensureClassSymbol(
-            named: "DurationUnit",
-            in: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let durationUnitType = types.make(.classType(ClassType(
-            classSymbol: durationUnitSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let boolType = types.make(.primitive(.boolean, .nonNull))
-        let intType = types.intType
-
-        let timeMarkSymbol = ensureClassSymbol(
+        let timeMarkSymbol = ensureInterfaceSymbol(
             named: "TimeMark",
             in: kotlinTimePkg,
             symbols: symbols,
@@ -88,7 +78,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        let comparableTimeMarkSymbol = ensureClassSymbol(
+        let comparableTimeMarkSymbol = ensureInterfaceSymbol(
             named: "ComparableTimeMark",
             in: kotlinTimePkg,
             symbols: symbols,
@@ -99,134 +89,13 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        symbols.setDirectSupertypes([timeMarkSymbol], for: comparableTimeMarkSymbol)
+        types.setNominalDirectSupertypes([timeMarkSymbol], for: comparableTimeMarkSymbol)
 
-        registerExperimentalTimeMemberFunction(
-            named: "elapsedNow",
-            externalLinkName: "kk_time_mark_elapsed_now",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "hasPassedNow",
-            externalLinkName: "kk_time_mark_has_passed_now",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "hasNotPassedNow",
-            externalLinkName: "kk_time_mark_has_not_passed_now",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "plus",
-            externalLinkName: "kk_time_mark_plus_duration",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: timeMarkType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "minus",
-            externalLinkName: "kk_time_mark_minus_duration",
-            ownerSymbol: timeMarkSymbol,
-            ownerType: timeMarkType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: timeMarkType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-
-        registerExperimentalTimeMemberFunction(
-            named: "elapsedNow",
-            externalLinkName: "kk_time_mark_elapsed_now",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "hasPassedNow",
-            externalLinkName: "kk_time_mark_has_passed_now",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "hasNotPassedNow",
-            externalLinkName: "kk_time_mark_has_not_passed_now",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [],
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "plus",
-            externalLinkName: "kk_time_mark_plus_duration",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "minus",
-            externalLinkName: "kk_time_mark_minus_duration",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "minus",
-            externalLinkName: "kk_time_mark_minus_mark",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [(name: "other", type: comparableTimeMarkType)],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "compareTo",
-            externalLinkName: "kk_time_mark_compare",
-            ownerSymbol: comparableTimeMarkSymbol,
-            ownerType: comparableTimeMarkType,
-            parameters: [(name: "other", type: comparableTimeMarkType)],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
+        // KSP-648: TimeMark / ComparableTimeMark members (elapsedNow, hasPassedNow,
+        // hasNotPassedNow, plus/minus Duration, mark-to-mark minus, compareTo) are Kotlin
+        // extensions in Stdlib/kotlin/time/TimeMark.kt. Only the nominal types stay
+        // synthetic so that markNow() and friends can refer to them.
 
         let timeSourceSymbol = ensureInterfaceSymbol(
             named: "TimeSource",
@@ -239,26 +108,31 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        registerExperimentalTimeMemberFunction(
-            named: "markNow",
-            externalLinkName: "kk_time_source_mark_now",
-            ownerSymbol: timeSourceSymbol,
-            ownerType: timeSourceType,
-            parameters: [],
-            returnType: timeMarkType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeExtensionFunction(
-            named: "asClock",
-            externalLinkName: "kk_time_source_as_clock",
-            packageFQName: kotlinTimePkg,
-            receiverType: timeSourceType,
-            parameters: [(name: "origin", type: instantType)],
-            returnType: clockType,
-            symbols: symbols,
-            interner: interner
-        )
+        let timeSourceFQName = kotlinTimePkg + [interner.intern("TimeSource")]
+        if !bundledIndex.contains(ownerFQName: timeSourceFQName, name: interner.intern("markNow"), arity: 0) {
+            registerExperimentalTimeMemberFunction(
+                named: "markNow",
+                externalLinkName: "kk_time_source_mark_now",
+                ownerSymbol: timeSourceSymbol,
+                ownerType: timeSourceType,
+                parameters: [],
+                returnType: timeMarkType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(ownerFQName: timeSourceFQName, name: interner.intern("asClock"), arity: 1) {
+            registerExperimentalTimeExtensionFunction(
+                named: "asClock",
+                externalLinkName: "kk_time_source_as_clock",
+                packageFQName: kotlinTimePkg,
+                receiverType: timeSourceType,
+                parameters: [(name: "origin", type: instantType)],
+                returnType: clockType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         let withComparableMarksFQName = ensureExperimentalTimeNestedInterface(
             named: "WithComparableMarks",
@@ -277,17 +151,19 @@ extension DataFlowSemaPhase {
         )))
         symbols.setDirectSupertypes([timeSourceSymbol], for: withComparableMarksSymbol)
         types.setNominalDirectSupertypes([timeSourceSymbol], for: withComparableMarksSymbol)
-        registerExperimentalTimeMemberFunction(
-            named: "markNow",
-            externalLinkName: "kk_time_source_mark_now",
-            ownerSymbol: withComparableMarksSymbol,
-            ownerType: withComparableMarksType,
-            parameters: [],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner,
-            flags: [.synthetic, .abstractType, .overrideMember]
-        )
+        if !bundledIndex.contains(ownerFQName: withComparableMarksFQName, name: interner.intern("markNow"), arity: 0) {
+            registerExperimentalTimeMemberFunction(
+                named: "markNow",
+                externalLinkName: "kk_time_source_mark_now",
+                ownerSymbol: withComparableMarksSymbol,
+                ownerType: withComparableMarksType,
+                parameters: [],
+                returnType: comparableTimeMarkType,
+                symbols: symbols,
+                interner: interner,
+                flags: [.synthetic, .abstractType, .overrideMember]
+            )
+        }
 
         let abstractDoubleTimeSourceSymbol = ensureClassSymbol(
             named: "AbstractDoubleTimeSource",
@@ -298,49 +174,6 @@ extension DataFlowSemaPhase {
         symbols.insertFlags([.abstractType, .synthetic], for: abstractDoubleTimeSourceSymbol)
         symbols.setDirectSupertypes([withComparableMarksSymbol], for: abstractDoubleTimeSourceSymbol)
         types.setNominalDirectSupertypes([withComparableMarksSymbol], for: abstractDoubleTimeSourceSymbol)
-        let abstractDoubleTimeSourceType = types.make(.classType(ClassType(
-            classSymbol: abstractDoubleTimeSourceSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        registerExperimentalTimeConstructor(
-            ownerSymbol: abstractDoubleTimeSourceSymbol,
-            ownerType: abstractDoubleTimeSourceType,
-            parameters: [(name: "unit", type: durationUnitType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberProperty(
-            named: "unit",
-            ownerSymbol: abstractDoubleTimeSourceSymbol,
-            returnType: durationUnitType,
-            visibility: .protected,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "read",
-            externalLinkName: nil,
-            ownerSymbol: abstractDoubleTimeSourceSymbol,
-            ownerType: abstractDoubleTimeSourceType,
-            parameters: [],
-            returnType: types.doubleType,
-            symbols: symbols,
-            interner: interner,
-            visibility: .protected,
-            flags: [.synthetic, .abstractType]
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "markNow",
-            externalLinkName: "kk_time_source_mark_now",
-            ownerSymbol: abstractDoubleTimeSourceSymbol,
-            ownerType: abstractDoubleTimeSourceType,
-            parameters: [],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner,
-            flags: [.synthetic, .openType, .overrideMember]
-        )
 
         let abstractLongTimeSourceSymbol = ensureClassSymbol(
             named: "AbstractLongTimeSource",
@@ -351,49 +184,6 @@ extension DataFlowSemaPhase {
         symbols.insertFlags([.abstractType, .synthetic], for: abstractLongTimeSourceSymbol)
         symbols.setDirectSupertypes([withComparableMarksSymbol], for: abstractLongTimeSourceSymbol)
         types.setNominalDirectSupertypes([withComparableMarksSymbol], for: abstractLongTimeSourceSymbol)
-        let abstractLongTimeSourceType = types.make(.classType(ClassType(
-            classSymbol: abstractLongTimeSourceSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        registerExperimentalTimeConstructor(
-            ownerSymbol: abstractLongTimeSourceSymbol,
-            ownerType: abstractLongTimeSourceType,
-            parameters: [(name: "unit", type: durationUnitType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberProperty(
-            named: "unit",
-            ownerSymbol: abstractLongTimeSourceSymbol,
-            returnType: durationUnitType,
-            visibility: .protected,
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "read",
-            externalLinkName: nil,
-            ownerSymbol: abstractLongTimeSourceSymbol,
-            ownerType: abstractLongTimeSourceType,
-            parameters: [],
-            returnType: types.longType,
-            symbols: symbols,
-            interner: interner,
-            visibility: .protected,
-            flags: [.synthetic, .abstractType]
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "markNow",
-            externalLinkName: "kk_time_source_mark_now",
-            ownerSymbol: abstractLongTimeSourceSymbol,
-            ownerType: abstractLongTimeSourceType,
-            parameters: [],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner,
-            flags: [.synthetic, .openType, .overrideMember]
-        )
 
         let testTimeSourceSymbol = ensureClassSymbol(
             named: "TestTimeSource",
@@ -404,53 +194,6 @@ extension DataFlowSemaPhase {
         symbols.insertFlags([.synthetic], for: testTimeSourceSymbol)
         symbols.setDirectSupertypes([abstractLongTimeSourceSymbol], for: testTimeSourceSymbol)
         types.setNominalDirectSupertypes([abstractLongTimeSourceSymbol], for: testTimeSourceSymbol)
-        let testTimeSourceType = types.make(.classType(ClassType(
-            classSymbol: testTimeSourceSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        registerExperimentalTimeConstructor(
-            ownerSymbol: testTimeSourceSymbol,
-            ownerType: testTimeSourceType,
-            parameters: [],
-            externalLinkName: "kk_test_time_source_new",
-            symbols: symbols,
-            interner: interner
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "read",
-            externalLinkName: "kk_test_time_source_read",
-            ownerSymbol: testTimeSourceSymbol,
-            ownerType: testTimeSourceType,
-            parameters: [],
-            returnType: types.longType,
-            symbols: symbols,
-            interner: interner,
-            visibility: .protected,
-            flags: [.synthetic, .openType, .overrideMember]
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "plusAssign",
-            externalLinkName: "kk_test_time_source_plus_assign",
-            ownerSymbol: testTimeSourceSymbol,
-            ownerType: testTimeSourceType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-        registerExperimentalTimeMemberFunction(
-            named: "markNow",
-            externalLinkName: "kk_test_time_source_mark_now",
-            ownerSymbol: testTimeSourceSymbol,
-            ownerType: testTimeSourceType,
-            parameters: [],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner,
-            flags: [.synthetic, .openType, .overrideMember]
-        )
 
         let monotonicFQName = ensureExperimentalTimeNestedObject(
             named: "Monotonic",
@@ -469,16 +212,18 @@ extension DataFlowSemaPhase {
         )))
         symbols.setDirectSupertypes([withComparableMarksSymbol], for: monotonicSymbol)
         types.setNominalDirectSupertypes([withComparableMarksSymbol], for: monotonicSymbol)
-        registerExperimentalTimeMemberFunction(
-            named: "markNow",
-            externalLinkName: "kk_time_source_monotonic_mark_now",
-            ownerSymbol: monotonicSymbol,
-            ownerType: monotonicType,
-            parameters: [],
-            returnType: comparableTimeMarkType,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: monotonicFQName, name: interner.intern("markNow"), arity: 0) {
+            registerExperimentalTimeMemberFunction(
+                named: "markNow",
+                externalLinkName: "kk_time_source_monotonic_mark_now",
+                ownerSymbol: monotonicSymbol,
+                ownerType: monotonicType,
+                parameters: [],
+                returnType: comparableTimeMarkType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
     }
 
     private func ensureExperimentalTimeNestedInterface(
@@ -549,6 +294,51 @@ extension DataFlowSemaPhase {
             annotations.append(retention)
         }
         symbols.setAnnotations(annotations, for: annotationSymbol)
+    }
+
+    private func registerSyntheticExperimentalTimeConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let initName = interner.intern("<init>")
+        let constructorFQName = ownerInfo.fqName + [initName]
+        if symbols.lookupAll(fqName: constructorFQName).contains(where: { symbolID in
+            guard symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes.isEmpty && signature.returnType == ownerType
+        }) {
+            return
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: [],
+                returnType: ownerType,
+                isSuspend: false,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: []
+            ),
+            for: constructorSymbol
+        )
     }
 
     private func ensureExperimentalTimeNestedObject(
@@ -726,103 +516,4 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func registerExperimentalTimeConstructor(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        externalLinkName: String? = nil,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let initName = interner.intern("<init>")
-        let constructorFQName = ownerInfo.fqName + [initName]
-        let desiredParameterTypes = parameters.map { $0.type }
-        if symbols.lookupAll(fqName: constructorFQName).contains(where: { symbolID in
-            guard symbols.symbol(symbolID)?.kind == .constructor,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.parameterTypes == desiredParameterTypes
-        }) {
-            return
-        }
-
-        let constructorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: constructorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
-        if let externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: constructorSymbol)
-        }
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: constructorFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(constructorSymbol, for: parameterSymbol)
-            symbols.setPropertyType(parameter.type, for: parameterSymbol)
-            valueParameterSymbols.append(parameterSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: desiredParameterTypes,
-                returnType: ownerType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: constructorSymbol
-        )
-    }
-
-    private func registerExperimentalTimeMemberProperty(
-        named name: String,
-        ownerSymbol: SymbolID,
-        returnType: TypeID,
-        visibility: Visibility,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-        }) {
-            symbols.setPropertyType(returnType, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: visibility,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(returnType, for: propertySymbol)
-    }
 }

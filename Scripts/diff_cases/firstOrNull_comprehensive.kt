@@ -5,8 +5,8 @@ fun main() {
     println("=== List Tests ===")
     
     // Empty list
-    val emptyList = emptyList<Int>()
-    println("emptyList.firstOrNull(): ${emptyList.firstOrNull()}")
+    val emptyIntList = emptyList<Int>()
+    println("emptyList.firstOrNull(): ${emptyIntList.firstOrNull()}")
     
     // Single element list
     val singleList = listOf(42)

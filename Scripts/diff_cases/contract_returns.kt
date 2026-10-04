@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalContracts::class)
+
 import kotlin.contracts.*
 
 fun ensurePositive(value: Int) {

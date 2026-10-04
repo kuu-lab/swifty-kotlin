@@ -9,53 +9,6 @@ import Testing
 struct OperatorAndForLoweringTests {
     // MARK: - Helper
 
-    private func makeKIRContext(interner: StringInterner, sema: SemaModule? = nil) -> KIRContext {
-        let options = CompilerOptions(
-            moduleName: "OpForTest",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        return KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: options,
-            interner: interner,
-            sema: sema
-        )
-    }
-
-    private func makeModule(
-        body: [KIRInstruction],
-        interner: StringInterner,
-        arena: KIRArena,
-        fnName: String = "main"
-    ) -> (KIRModule, KIRDeclID) {
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern(fnName),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: body,
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
-    }
-
-    private func calleesInDecl(_ declID: KIRDeclID, module: KIRModule, interner: StringInterner) -> [String] {
-        guard case let .function(fn) = module.arena.decl(declID) else { return [] }
-        return extractCallees(from: fn.body, interner: interner)
-    }
-
-    private func bodyInDecl(_ declID: KIRDeclID, module: KIRModule) -> [KIRInstruction] {
-        guard case let .function(fn) = module.arena.decl(declID) else { return [] }
-        return fn.body
-    }
-
     // MARK: - OperatorLoweringPass: println
 
     @Test
@@ -84,16 +37,11 @@ struct OperatorAndForLoweringTests {
     }
 
     @Test
-    func testOperatorLoweringRewritesCharPrintlnAndPreservesUnitResult() throws {
+    func testOperatorLoweringLeavesPrintlnUnchanged() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
-        let sema = SemaModule(
-            symbols: SymbolTable(),
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(types: types).ctx
 
         let arg = arena.appendExpr(.temporary(0), type: types.charType)
         let result = arena.appendExpr(.temporary(1), type: types.unitType)
@@ -111,21 +59,14 @@ struct OperatorAndForLoweringTests {
         try OperatorLoweringPass().run(module: module, ctx: ctx)
 
         let body = bodyInDecl(declID, module: module)
-        #expect(body.count >= 2)
+        #expect(body.count == 2)
 
         guard case let .call(_, loweredCallee, _, loweredResult, _, _, _, _) = body[0] else {
             Issue.record("Expected first lowered instruction to be a call")
             return
         }
-        #expect(interner.resolve(loweredCallee) == "kk_println_char")
-        #expect(loweredResult == nil, "Lowered primitive println call should be side-effect only")
-
-        guard case let .constValue(unitResult, value) = body[1] else {
-            Issue.record("Expected second lowered instruction to synthesize Unit")
-            return
-        }
-        #expect(unitResult == result)
-        #expect(value == .unit)
+        #expect(interner.resolve(loweredCallee) == "println")
+        #expect(loweredResult == result)
     }
 
     // MARK: - OperatorLoweringPass: binary ops
@@ -192,6 +133,100 @@ struct OperatorAndForLoweringTests {
         #expect(hasNullCheckCall, "nullAssert should produce kk_op_notnull, got callees: \(callees)")
     }
 
+    /// Regression coverage for a bug where `x == 3.0` (and a `when` constant
+    /// branch against a Double/Float literal) silently corrupted an
+    /// Any-typed `x`: the numeric widening path below reinterpreted its
+    /// boxed pointer as a raw Int, then converted that garbage to Double.
+    /// Equality with a reference-typed operand must always go through
+    /// `kk_structural_eq`, regardless of the other operand's numeric rank.
+    @Test
+    func testOperatorLoweringUsesStructuralEqualityForAnyVsDoubleLiteral() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let sema = makeSemaModule(types: types).ctx
+
+        let lhs = arena.appendExpr(.temporary(0), type: types.anyType)
+        let rhs = arena.appendExpr(.doubleLiteral(3.0), type: types.make(.primitive(.double, .nonNull)))
+        let result = arena.appendExpr(.temporary(1), type: types.make(.primitive(.boolean, .nonNull)))
+        let (module, declID) = makeModule(
+            body: [
+                .binary(op: .equal, lhs: lhs, rhs: rhs, result: result),
+
+                .returnUnit
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try OperatorLoweringPass().run(module: module, ctx: ctx)
+
+        let body = bodyInDecl(declID, module: module)
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(
+            !callees.contains("kk_int_to_double_bits"),
+            "An Any-typed operand must not be reinterpreted as raw Int bits, got callees: \(callees)"
+        )
+        guard case let .call(_, callee, arguments, callResult, _, _, _, _) = body.first(
+            where: { if case .call = $0 { true } else { false } }
+        ) else {
+            Issue.record("Expected exactly one call instruction, got: \(body)")
+            return
+        }
+        #expect(interner.resolve(callee) == "kk_structural_eq")
+        #expect(arguments == [lhs, rhs], "kk_structural_eq should receive the original, unconverted operands")
+        #expect(callResult == result)
+    }
+
+    /// Sibling to the above: a genuinely mixed-primitive comparison (no
+    /// reference-typed operand) must still take the numeric widening path,
+    /// and the intermediate conversion register must carry the *widened
+    /// numeric* type (Double), not the comparison's own Boolean result type
+    /// -- otherwise later ABI lowering misreads it as a boxed Boolean
+    /// needing its own unboxing.
+    @Test
+    func testOperatorLoweringWidensIntToDoubleWithCorrectIntermediateType() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let sema = makeSemaModule(types: types).ctx
+
+        let lhs = arena.appendExpr(.temporary(0), type: types.make(.primitive(.int, .nonNull)))
+        let rhs = arena.appendExpr(.doubleLiteral(0.6), type: types.make(.primitive(.double, .nonNull)))
+        let result = arena.appendExpr(.temporary(1), type: types.make(.primitive(.boolean, .nonNull)))
+        let (module, declID) = makeModule(
+            body: [
+                .binary(op: .lessOrEqual, lhs: lhs, rhs: rhs, result: result),
+
+                .returnUnit
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try OperatorLoweringPass().run(module: module, ctx: ctx)
+
+        let body = bodyInDecl(declID, module: module)
+        guard case let .call(_, _, conversionArgs, convertedResult, _, _, _, _) = body.first(
+            where: { if case let .call(_, callee, _, _, _, _, _, _) = $0 { interner.resolve(callee) == "kk_int_to_double_bits" } else { false } }
+        ) else {
+            Issue.record("Expected an kk_int_to_double_bits conversion call, got: \(body)")
+            return
+        }
+        #expect(conversionArgs == [lhs])
+        let convertedResultID = try #require(convertedResult)
+        let convertedType = try #require(module.arena.exprType(convertedResultID))
+        #expect(
+            types.kind(of: convertedType) == .primitive(.double, .nonNull),
+            "The widened Int operand must be typed as Double, not left as the comparison's Boolean result type"
+        )
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(callees.contains("kk_op_dle"), "got callees: \(callees)")
+    }
+
     // MARK: - OperatorLoweringPass: shouldRun
 
     @Test
@@ -227,28 +262,6 @@ struct OperatorAndForLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [.binary(op: .add, lhs: v0, rhs: v1, result: v2)],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        let ctx = makeKIRContext(interner: interner)
-
-        #expect(OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
-    }
-
-    @Test
-    func testOperatorLoweringShouldRunReturnsTrueForPrintlnCall() {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let v0 = arena.appendExpr(.temporary(0))
-        let v1 = arena.appendExpr(.temporary(1))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [.call(symbol: nil, callee: interner.intern("println"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil)],
             isSuspend: false,
             isInline: false
         )

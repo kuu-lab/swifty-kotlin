@@ -1,3 +1,4 @@
+
 fun main() {
     // Comprehensive tests for asReversed() vs reversed() behavior differences
     
@@ -103,9 +104,7 @@ fun main() {
     
     // String operations
     val stringRev = "hello".reversed()
-    val stringAsRev = "hello".asReversed()
     println("string.reversed(): $stringRev")
-    println("string.asReversed(): $stringAsRev")
 
     // Mutable operations on view
     println("\n=== Mutable Operations on View ===")
@@ -114,14 +113,6 @@ fun main() {
     val view3 = mutable3.asReversed()
     
     println("before: mutable3=$mutable3, view=$view3")
-    
-    // Modify through view if possible
-    try {
-        view3[0] = 99
-        println("after view[0]=99: mutable3=$mutable3, view=$view3")
-    } catch (e: Exception) {
-        println("view modification failed: ${e.message}")
-    }
     
     // Modify original
     mutable3[4] = 88

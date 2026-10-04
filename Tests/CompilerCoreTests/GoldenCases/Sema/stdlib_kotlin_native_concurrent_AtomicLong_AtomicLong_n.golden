@@ -1,0 +1,54 @@
+symbol fq=golden.sema.atomicLongAddAndGet.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongAddAndGet.$0.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongAddAndGet[kind=fun;params=kotlin.native.concurrent.AtomicLong,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong,Int] ret=Long
+symbol fq=golden.sema.atomicLongCompareAndSwap.$1.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongCompareAndSwap.$1.expected[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongCompareAndSwap.$1.update[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicLong,Long,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong,Long,Long] ret=Long
+symbol fq=golden.sema.atomicLongDecrement.$2.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongDecrement[kind=fun;params=kotlin.native.concurrent.AtomicLong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong] ret=Unit
+symbol fq=golden.sema.atomicLongGetAndAdd.$3.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongGetAndAdd.$3.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongGetAndAdd[kind=fun;params=kotlin.native.concurrent.AtomicLong,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong,Long] ret=Long
+symbol fq=golden.sema.atomicLongGetAndDecrement.$4.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongGetAndDecrement[kind=fun;params=kotlin.native.concurrent.AtomicLong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong] ret=Long
+symbol fq=golden.sema.atomicLongGetAndIncrement.$5.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongGetAndIncrement[kind=fun;params=kotlin.native.concurrent.AtomicLong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong] ret=Long
+symbol fq=golden.sema.atomicLongIncrement.$6.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongIncrement[kind=fun;params=kotlin.native.concurrent.AtomicLong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong] ret=Unit
+symbol fq=golden.sema.atomicLongToString.$7.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongToString[kind=fun;params=kotlin.native.concurrent.AtomicLong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong] ret=String
+symbol fq=golden.sema.atomicLongValue.$8.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongValue[kind=fun;params=kotlin.native.concurrent.AtomicLong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.AtomicLong] ret=Long
+file fstdlib_kotlin_native_concurrent_AtomicLong_AtomicLong_n package=golden.sema annotations=[@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.atomicLongValue[kind=fun;params=kotlin.native.concurrent.AtomicLong] fun atomicLongValue sym=golden.sema.atomicLongValue[kind=fun;params=kotlin.native.concurrent.AtomicLong]
+  decl golden.sema.atomicLongAddAndGet[kind=fun;params=kotlin.native.concurrent.AtomicLong,Int] fun atomicLongAddAndGet sym=golden.sema.atomicLongAddAndGet[kind=fun;params=kotlin.native.concurrent.AtomicLong,Int]
+  decl golden.sema.atomicLongCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicLong,Long,Long] fun atomicLongCompareAndSwap sym=golden.sema.atomicLongCompareAndSwap[kind=fun;params=kotlin.native.concurrent.AtomicLong,Long,Long]
+  decl golden.sema.atomicLongDecrement[kind=fun;params=kotlin.native.concurrent.AtomicLong] fun atomicLongDecrement sym=golden.sema.atomicLongDecrement[kind=fun;params=kotlin.native.concurrent.AtomicLong]
+  decl golden.sema.atomicLongGetAndAdd[kind=fun;params=kotlin.native.concurrent.AtomicLong,Long] fun atomicLongGetAndAdd sym=golden.sema.atomicLongGetAndAdd[kind=fun;params=kotlin.native.concurrent.AtomicLong,Long]
+  decl golden.sema.atomicLongGetAndDecrement[kind=fun;params=kotlin.native.concurrent.AtomicLong] fun atomicLongGetAndDecrement sym=golden.sema.atomicLongGetAndDecrement[kind=fun;params=kotlin.native.concurrent.AtomicLong]
+  decl golden.sema.atomicLongGetAndIncrement[kind=fun;params=kotlin.native.concurrent.AtomicLong] fun atomicLongGetAndIncrement sym=golden.sema.atomicLongGetAndIncrement[kind=fun;params=kotlin.native.concurrent.AtomicLong]
+  decl golden.sema.atomicLongIncrement[kind=fun;params=kotlin.native.concurrent.AtomicLong] fun atomicLongIncrement sym=golden.sema.atomicLongIncrement[kind=fun;params=kotlin.native.concurrent.AtomicLong]
+  decl golden.sema.atomicLongToString[kind=fun;params=kotlin.native.concurrent.AtomicLong] fun atomicLongToString sym=golden.sema.atomicLongToString[kind=fun;params=kotlin.native.concurrent.AtomicLong]
+expr e@7:49 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongValue.$8.atomic[kind=vparam]
+expr e@7:49#1 memberCall recv=e@7:49 callee=value args=[] type=Long ref=kotlin.native.concurrent.AtomicLong.value[kind=prop]
+expr e@9:65 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongAddAndGet.$0.atomic[kind=vparam]
+expr e@9:82 name(delta) type=Int ref=golden.sema.atomicLongAddAndGet.$0.delta[kind=vparam]
+expr e@9:65#1 memberCall recv=e@9:65 callee=addAndGet args=[_:e@9:82] type=Long call=kotlin.native.concurrent.AtomicLong.addAndGet[kind=fun;recv=kotlin.native.concurrent.AtomicLong;params=Int]
+expr e@12:5 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongCompareAndSwap.$1.atomic[kind=vparam]
+expr e@12:27 name(expected) type=Long ref=golden.sema.atomicLongCompareAndSwap.$1.expected[kind=vparam]
+expr e@12:37 name(update) type=Long ref=golden.sema.atomicLongCompareAndSwap.$1.update[kind=vparam]
+expr e@12:5#1 memberCall recv=e@12:5 callee=compareAndSwap args=[_:e@12:27,_:e@12:37] type=Long call=kotlin.native.concurrent.AtomicLong.compareAndSwap[kind=fun;recv=kotlin.native.concurrent.AtomicLong;params=Long,Long]
+expr e@14:53 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongDecrement.$2.atomic[kind=vparam]
+expr e@14:53#1 memberCall recv=e@14:53 callee=decrement args=[] type=Unit call=kotlin.native.concurrent.AtomicLong.decrement[kind=fun;recv=kotlin.native.concurrent.AtomicLong;params=]
+expr e@16:66 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongGetAndAdd.$3.atomic[kind=vparam]
+expr e@16:83 name(delta) type=Long ref=golden.sema.atomicLongGetAndAdd.$3.delta[kind=vparam]
+expr e@16:66#1 memberCall recv=e@16:66 callee=getAndAdd args=[_:e@16:83] type=Long call=kotlin.native.concurrent.AtomicLong.getAndAdd[kind=fun;recv=kotlin.native.concurrent.AtomicLong;params=Long]
+expr e@18:59 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongGetAndDecrement.$4.atomic[kind=vparam]
+expr e@18:59#1 memberCall recv=e@18:59 callee=getAndDecrement args=[] type=Long call=kotlin.native.concurrent.AtomicLong.getAndDecrement[kind=fun;recv=kotlin.native.concurrent.AtomicLong;params=]
+expr e@20:59 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongGetAndIncrement.$5.atomic[kind=vparam]
+expr e@20:59#1 memberCall recv=e@20:59 callee=getAndIncrement args=[] type=Long call=kotlin.native.concurrent.AtomicLong.getAndIncrement[kind=fun;recv=kotlin.native.concurrent.AtomicLong;params=]
+expr e@22:53 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongIncrement.$6.atomic[kind=vparam]
+expr e@22:53#1 memberCall recv=e@22:53 callee=increment args=[] type=Unit call=kotlin.native.concurrent.AtomicLong.increment[kind=fun;recv=kotlin.native.concurrent.AtomicLong;params=]
+expr e@24:54 name(atomic) type=kotlin.native.concurrent.AtomicLong ref=golden.sema.atomicLongToString.$7.atomic[kind=vparam]
+expr e@24:54#1 memberCall recv=e@24:54 callee=toString args=[] type=String call=kotlin.native.concurrent.AtomicLong.toString[kind=fun;recv=kotlin.native.concurrent.AtomicLong;params=]

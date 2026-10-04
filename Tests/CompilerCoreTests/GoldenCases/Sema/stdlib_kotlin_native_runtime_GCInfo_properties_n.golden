@@ -1,0 +1,107 @@
+symbol fq=__local_0.info[kind=local] kind=local vis=private flags=_ type=kotlin.native.runtime.GCInfo
+symbol fq=golden.sema.gcInfoProperties[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
+file fstdlib_kotlin_native_runtime_GCInfo_properties_n package=golden.sema
+  decl golden.sema.gcInfoProperties[kind=fun;params=] fun gcInfoProperties sym=golden.sema.gcInfoProperties[kind=fun;params=]
+expr e@11:17 long(1) type=Long
+expr e@12:23 long(2) type=Long
+expr e@13:21 long(3) type=Long
+expr e@14:35 long(4) type=Long
+expr e@15:33 long(5) type=Long
+expr e@16:31 long(6) type=Long
+expr e@17:36 name(null) type=Nothing?
+expr e@18:34 name(null) type=Nothing?
+expr e@19:32 name(null) type=Nothing?
+expr e@20:31 name(null) type=Nothing?
+expr e@21:37 long(7) type=Long
+expr e@21:41 long(8) type=Long
+expr e@21:45 long(9) type=Long
+expr e@21:49 long(10) type=Long
+expr e@21:19 call callee=e@21:19#1 args=[_:e@21:37,_:e@21:41,_:e@21:45,_:e@21:49] type=kotlin.native.runtime.RootSetStatistics call=kotlin.native.runtime.RootSetStatistics.<init>[kind=ctor;recv=kotlin.native.runtime.RootSetStatistics;params=Long,Long,Long,Long]
+expr e@22:23 long(11) type=Long
+expr e@23:33 string(mutator) type=String
+expr e@23:62 long(12) type=Long
+expr e@23:67 long(13) type=Long
+expr e@23:46 call callee=e@23:46#1 args=[_:e@23:62,_:e@23:67] type=kotlin.native.runtime.SweepStatistics call=kotlin.native.runtime.SweepStatistics.<init>[kind=ctor;recv=kotlin.native.runtime.SweepStatistics;params=Long,Long]
+expr e@23:33#1 memberCall recv=e@23:33 callee=to args=[_:e@23:46] type=kotlin.Pair<String, kotlin.native.runtime.SweepStatistics> call=kotlin.to[kind=fun;recv=T0;params=T1;gen=2] targs=[String,kotlin.native.runtime.SweepStatistics]
+expr e@23:27 call callee=e@23:27#1 args=[_:e@23:33#1] type=kotlin.collections.Map<String, kotlin.native.runtime.SweepStatistics> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;gen=2] targs=[String,kotlin.native.runtime.SweepStatistics]
+expr e@24:35 string(heap) type=String
+expr e@24:57 long(14) type=Long
+expr e@24:45 call callee=e@24:45#1 args=[_:e@24:57] type=kotlin.native.runtime.MemoryUsage call=kotlin.native.runtime.MemoryUsage.<init>[kind=ctor;recv=kotlin.native.runtime.MemoryUsage;params=Long]
+expr e@24:35#1 memberCall recv=e@24:35 callee=to args=[_:e@24:45] type=kotlin.Pair<String, kotlin.native.runtime.MemoryUsage> call=kotlin.to[kind=fun;recv=T0;params=T1;gen=2] targs=[String,kotlin.native.runtime.MemoryUsage]
+expr e@24:29 call callee=e@24:29#1 args=[_:e@24:35#1] type=kotlin.collections.Map<String, kotlin.native.runtime.MemoryUsage> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;gen=2] targs=[String,kotlin.native.runtime.MemoryUsage]
+expr e@25:34 string(heap) type=String
+expr e@25:56 long(15) type=Long
+expr e@25:44 call callee=e@25:44#1 args=[_:e@25:56] type=kotlin.native.runtime.MemoryUsage call=kotlin.native.runtime.MemoryUsage.<init>[kind=ctor;recv=kotlin.native.runtime.MemoryUsage;params=Long]
+expr e@25:34#1 memberCall recv=e@25:34 callee=to args=[_:e@25:44] type=kotlin.Pair<String, kotlin.native.runtime.MemoryUsage> call=kotlin.to[kind=fun;recv=T0;params=T1;gen=2] targs=[String,kotlin.native.runtime.MemoryUsage]
+expr e@25:28 call callee=e@25:28#1 args=[_:e@25:34#1] type=kotlin.collections.Map<String, kotlin.native.runtime.MemoryUsage> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;gen=2] targs=[String,kotlin.native.runtime.MemoryUsage]
+expr e@10:16 call callee=e@10:16#1 args=[epoch:e@11:17,startTimeNs:e@12:23,endTimeNs:e@13:21,firstPauseRequestTimeNs:e@14:35,firstPauseStartTimeNs:e@15:33,firstPauseEndTimeNs:e@16:31,secondPauseRequestTimeNs:e@17:36,secondPauseStartTimeNs:e@18:34,secondPauseEndTimeNs:e@19:32,postGcCleanupTimeNs:e@20:31,rootSet:e@21:19,markedCount:e@22:23,sweepStatistics:e@23:27,memoryUsageBefore:e@24:29,memoryUsageAfter:e@25:28] type=kotlin.native.runtime.GCInfo call=kotlin.native.runtime.GCInfo.<init>[kind=ctor;recv=kotlin.native.runtime.GCInfo;params=Long,Long,Long,Long,Long,Long,Long?,Long?,Long?,Long?,kotlin.native.runtime.RootSetStatistics,Long,kotlin.collections.Map<String,kotlin.native.runtime.SweepStatistics>,kotlin.collections.Map<String,kotlin.native.runtime.MemoryUsage>,kotlin.collections.Map<String,kotlin.native.runtime.MemoryUsage>]
+expr e@10:5 localDecl info mutable=0 type=_ init=e@10:16 type=Unit ref=__local_0.info[kind=local]
+expr e@27:12 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@27:12#1 memberCall recv=e@27:12 callee=epoch args=[] type=Long ref=kotlin.native.runtime.GCInfo.epoch[kind=prop]
+expr e@27:25 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@27:25#1 memberCall recv=e@27:25 callee=startTimeNs args=[] type=Long ref=kotlin.native.runtime.GCInfo.startTimeNs[kind=prop]
+expr e@27:12#2 binary(add) lhs=e@27:12#1 rhs=e@27:25#1 type=Long
+expr e@27:44 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@27:44#1 memberCall recv=e@27:44 callee=endTimeNs args=[] type=Long ref=kotlin.native.runtime.GCInfo.endTimeNs[kind=prop]
+expr e@27:12#3 binary(add) lhs=e@27:12#2 rhs=e@27:44#1 type=Long
+expr e@28:9 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@28:9#1 memberCall recv=e@28:9 callee=firstPauseRequestTimeNs args=[] type=Long ref=kotlin.native.runtime.GCInfo.firstPauseRequestTimeNs[kind=prop]
+expr e@27:12#4 binary(add) lhs=e@27:12#3 rhs=e@28:9#1 type=Long
+expr e@28:40 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@28:40#1 memberCall recv=e@28:40 callee=firstPauseStartTimeNs args=[] type=Long ref=kotlin.native.runtime.GCInfo.firstPauseStartTimeNs[kind=prop]
+expr e@27:12#5 binary(add) lhs=e@27:12#4 rhs=e@28:40#1 type=Long
+expr e@28:69 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@28:69#1 memberCall recv=e@28:69 callee=firstPauseEndTimeNs args=[] type=Long ref=kotlin.native.runtime.GCInfo.firstPauseEndTimeNs[kind=prop]
+expr e@27:12#6 binary(add) lhs=e@27:12#5 rhs=e@28:69#1 type=Long
+expr e@29:10 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@29:10#1 memberCall recv=e@29:10 callee=secondPauseRequestTimeNs args=[] type=Long? ref=kotlin.native.runtime.GCInfo.secondPauseRequestTimeNs[kind=prop]
+expr e@29:43 long(0) type=Long
+expr e@29:10#2 binary(elvis) lhs=e@29:10#1 rhs=e@29:43 type=Long
+expr e@27:12#7 binary(add) lhs=e@27:12#6 rhs=e@29:10#2 type=Long
+expr e@29:50 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@29:50#1 memberCall recv=e@29:50 callee=secondPauseStartTimeNs args=[] type=Long? ref=kotlin.native.runtime.GCInfo.secondPauseStartTimeNs[kind=prop]
+expr e@29:81 long(0) type=Long
+expr e@29:50#2 binary(elvis) lhs=e@29:50#1 rhs=e@29:81 type=Long
+expr e@27:12#8 binary(add) lhs=e@27:12#7 rhs=e@29:50#2 type=Long
+expr e@30:10 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@30:10#1 memberCall recv=e@30:10 callee=secondPauseEndTimeNs args=[] type=Long? ref=kotlin.native.runtime.GCInfo.secondPauseEndTimeNs[kind=prop]
+expr e@30:39 long(0) type=Long
+expr e@30:10#2 binary(elvis) lhs=e@30:10#1 rhs=e@30:39 type=Long
+expr e@27:12#9 binary(add) lhs=e@27:12#8 rhs=e@30:10#2 type=Long
+expr e@30:46 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@30:46#1 memberCall recv=e@30:46 callee=postGcCleanupTimeNs args=[] type=Long? ref=kotlin.native.runtime.GCInfo.postGcCleanupTimeNs[kind=prop]
+expr e@30:74 long(0) type=Long
+expr e@30:46#2 binary(elvis) lhs=e@30:46#1 rhs=e@30:74 type=Long
+expr e@27:12#10 binary(add) lhs=e@27:12#9 rhs=e@30:46#2 type=Long
+expr e@31:9 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@31:9#1 memberCall recv=e@31:9 callee=rootSet args=[] type=kotlin.native.runtime.RootSetStatistics ref=kotlin.native.runtime.GCInfo.rootSet[kind=prop]
+expr e@31:9#2 memberCall recv=e@31:9#1 callee=threadLocalReferences args=[] type=Long ref=kotlin.native.runtime.RootSetStatistics.threadLocalReferences[kind=prop]
+expr e@27:12#11 binary(add) lhs=e@27:12#10 rhs=e@31:9#2 type=Long
+expr e@32:9 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@32:9#1 memberCall recv=e@32:9 callee=markedCount args=[] type=Long ref=kotlin.native.runtime.GCInfo.markedCount[kind=prop]
+expr e@27:12#12 binary(add) lhs=e@27:12#11 rhs=e@32:9#1 type=Long
+expr e@33:10 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@33:10#1 memberCall recv=e@33:10 callee=sweepStatistics args=[] type=kotlin.collections.Map<String, kotlin.native.runtime.SweepStatistics> ref=kotlin.native.runtime.GCInfo.sweepStatistics[kind=prop]
+expr e@33:31 string(mutator) type=String
+expr e@33:10#2 indexedAccess receiver=e@33:10#1 indices=[e@33:31] type=kotlin.native.runtime.SweepStatistics? call=kotlin.collections.Map.get[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T0;gen=2] targs=[String,kotlin.native.runtime.SweepStatistics]
+expr e@33:10#3 safeMemberCall recv=e@33:10#2 callee=sweptCount args=[] type=Long? ref=kotlin.native.runtime.SweepStatistics.sweptCount[kind=prop]
+expr e@33:57 long(0) type=Long
+expr e@33:10#4 binary(elvis) lhs=e@33:10#3 rhs=e@33:57 type=Long
+expr e@27:12#13 binary(add) lhs=e@27:12#12 rhs=e@33:10#4 type=Long
+expr e@34:10 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@34:10#1 memberCall recv=e@34:10 callee=memoryUsageBefore args=[] type=kotlin.collections.Map<String, kotlin.native.runtime.MemoryUsage> ref=kotlin.native.runtime.GCInfo.memoryUsageBefore[kind=prop]
+expr e@34:33 string(heap) type=String
+expr e@34:10#2 indexedAccess receiver=e@34:10#1 indices=[e@34:33] type=kotlin.native.runtime.MemoryUsage? call=kotlin.collections.Map.get[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T0;gen=2] targs=[String,kotlin.native.runtime.MemoryUsage]
+expr e@34:10#3 safeMemberCall recv=e@34:10#2 callee=totalObjectsSizeBytes args=[] type=Long? ref=kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes[kind=prop]
+expr e@34:67 long(0) type=Long
+expr e@34:10#4 binary(elvis) lhs=e@34:10#3 rhs=e@34:67 type=Long
+expr e@27:12#14 binary(add) lhs=e@27:12#13 rhs=e@34:10#4 type=Long
+expr e@35:10 name(info) type=kotlin.native.runtime.GCInfo ref=__local_0.info[kind=local]
+expr e@35:10#1 memberCall recv=e@35:10 callee=memoryUsageAfter args=[] type=kotlin.collections.Map<String, kotlin.native.runtime.MemoryUsage> ref=kotlin.native.runtime.GCInfo.memoryUsageAfter[kind=prop]
+expr e@35:32 string(heap) type=String
+expr e@35:10#2 indexedAccess receiver=e@35:10#1 indices=[e@35:32] type=kotlin.native.runtime.MemoryUsage? call=kotlin.collections.Map.get[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T0;gen=2] targs=[String,kotlin.native.runtime.MemoryUsage]
+expr e@35:10#3 safeMemberCall recv=e@35:10#2 callee=totalObjectsSizeBytes args=[] type=Long? ref=kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes[kind=prop]
+expr e@35:66 long(0) type=Long
+expr e@35:10#4 binary(elvis) lhs=e@35:10#3 rhs=e@35:66 type=Long
+expr e@27:12#15 binary(add) lhs=e@27:12#14 rhs=e@35:10#4 type=Long
+expr e@27:5 return value=e@27:12#15 type=Nothing

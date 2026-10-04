@@ -3,26 +3,34 @@
 import Foundation
 import Testing
 
-// MARK: - AST Equivalence Regression Tests (P5-58)
-
-// Verify that decl/expr counts and source ranges remain consistent
-// after BuildAST optimisation changes.
-
 @Suite
 struct ASTEquivalenceRegressionTests {
     // MARK: - Helpers
 
+    // Compiling the probe source is expensive (bundled stdlib), so cache it.
+    private static nonisolated(unsafe) var _bundledStdlibDeclarationCount: Int?
+
     private var bundledStdlibDeclarationCount: Int {
+        if let cached = Self._bundledStdlibDeclarationCount {
+            return cached
+        }
         let ctx: CompilationContext = makeContextFromSource("fun __probe__() {}")
         try! runFrontend(ctx)
-        return ctx.ast!.declarationCount - 1
+        let count = ctx.ast!.declarationCount - 1
+        Self._bundledStdlibDeclarationCount = count
+        return count
     }
 
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
-        let ctx: CompilationContext = makeContextFromSource(source)
-        try runFrontend(ctx)
-        let ast = try #require(ctx.ast)
-        return (ast, ctx)
+        try buildASTModule(from: source)
+    }
+
+    private func userClassDecls(in ast: ASTModule, ctx: CompilationContext) -> [ClassDecl] {
+        ast.arena.declarations().compactMap { decl -> ClassDecl? in
+            guard case let .classDecl(classDecl) = decl else { return nil }
+            guard isUserSourceRange(classDecl.range, in: ctx) else { return nil }
+            return classDecl
+        }
     }
 
     private func assertValidSourceRange(
@@ -38,6 +46,13 @@ struct ASTEquivalenceRegressionTests {
         #expect(range.start.offset <= range.end.offset, "\(label): start (\(range.start.offset)) should be <= end (\(range.end.offset))")
     }
 
+    private func assertAllExprRangesValid(in ast: ASTModule) {
+        for i in ast.arena.exprs.indices {
+            let id = ExprID(rawValue: Int32(i))
+            assertValidSourceRange(ast.arena.exprRange(id), label: "expr[\(i)]")
+        }
+    }
+
     // MARK: - Simple function
 
     @Test
@@ -48,7 +63,6 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 54 bundled stdlib functions (37 collections + 17 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount, "Expected 56 top-level declarations (2 user + 54 bundled stdlib)")
         #expect(ast.arena.exprs.count >= 2, "Expected at least 2 expressions")
 
@@ -77,15 +91,10 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
-        // At least: localDecl(a), localDecl(b), compoundAssign, returnExpr, + body expressions
         #expect(ast.arena.exprs.count >= 6)
 
-        for i in ast.arena.exprs.indices {
-            let id = ExprID(rawValue: Int32(i))
-            assertValidSourceRange(ast.arena.exprRange(id), label: "expr[\(i)]")
-        }
+        assertAllExprRangesValid(in: ast)
     }
 
     // MARK: - Class with members
@@ -100,20 +109,16 @@ struct ASTEquivalenceRegressionTests {
         }
         fun main() = Counter(0).get()
         """
-        let (ast, _) = try buildAST(from: source)
+        let (ast, ctx) = try buildAST(from: source)
 
-        // classDecl + funDecl(main) + 24 bundled stdlib functions (7 collections + 13 text)
+        // classDecl + funDecl(main) + bundled stdlib declarations
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
-        let classDecls = ast.arena.declarations().compactMap { decl -> ClassDecl? in
-            guard case let .classDecl(c) = decl else { return nil }
-            return c
-        }
+        let classDecls = userClassDecls(in: ast, ctx: ctx)
         #expect(classDecls.count == 1)
         let counterClass = classDecls[0]
         assertValidSourceRange(counterClass.range, label: "Counter class")
 
-        // Should have member decls: property(count), fun(increment), fun(get)
         #expect(counterClass.memberFunctions.count >= 2)
         #expect(counterClass.memberProperties.count >= 1)
     }
@@ -138,15 +143,10 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
-        // localDecl(a), localDecl(b), forExpr, localDecl(tmp), localAssign(a), localAssign(b), returnExpr etc.
         #expect(ast.arena.exprs.count >= 8)
 
-        for i in ast.arena.exprs.indices {
-            let id = ExprID(rawValue: Int32(i))
-            assertValidSourceRange(ast.arena.exprRange(id), label: "expr[\(i)]")
-        }
+        assertAllExprRangesValid(in: ast)
     }
 
     // MARK: - Lambda and when expression
@@ -170,14 +170,10 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 3 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
         #expect(ast.arena.exprs.count >= 6)
 
-        for i in ast.arena.exprs.indices {
-            let id = ExprID(rawValue: Int32(i))
-            assertValidSourceRange(ast.arena.exprRange(id), label: "expr[\(i)]")
-        }
+        assertAllExprRangesValid(in: ast)
     }
 
     // MARK: - Interface and inheritance
@@ -193,17 +189,18 @@ struct ASTEquivalenceRegressionTests {
         }
         fun main() = Circle(5.0).area()
         """
-        let (ast, _) = try buildAST(from: source)
+        let (ast, ctx) = try buildAST(from: source)
 
-        // interface + class + fun(main) + 24 bundled stdlib functions (7 collections + 13 text)
+        // interface + class + fun(main) + bundled stdlib declarations
         #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
 
-        let interfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
+        let userInterfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
             guard case let .interfaceDecl(i) = decl else { return nil }
+            guard isUserSourceRange(i.range, in: ctx) else { return nil }
             return i
         }
-        #expect(interfaceDecls.count == 1)
-        assertValidSourceRange(interfaceDecls[0].range, label: "Shape interface")
+        #expect(userInterfaceDecls.count == 1)
+        assertValidSourceRange(userInterfaceDecls[0].range, label: "Shape interface")
     }
 
     // MARK: - Properties with accessors
@@ -219,13 +216,9 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
-        for i in ast.arena.exprs.indices {
-            let id = ExprID(rawValue: Int32(i))
-            assertValidSourceRange(ast.arena.exprRange(id), label: "expr[\(i)]")
-        }
+        assertAllExprRangesValid(in: ast)
     }
 
     // MARK: - All source ranges are valid across a complex file
@@ -253,10 +246,8 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // class + factorial + main + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
 
-        // Verify ALL decl ranges are valid
         for decl in ast.arena.declarations() {
             switch decl {
             case let .funDecl(f):
@@ -276,11 +267,7 @@ struct ASTEquivalenceRegressionTests {
             }
         }
 
-        // Verify ALL expr ranges are valid
-        for i in ast.arena.exprs.indices {
-            let id = ExprID(rawValue: Int32(i))
-            assertValidSourceRange(ast.arena.exprRange(id), label: "expr[\(i)]")
-        }
+        assertAllExprRangesValid(in: ast)
     }
 
     // MARK: - Script mode

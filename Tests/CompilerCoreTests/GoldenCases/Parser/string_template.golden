@@ -1,10 +1,10 @@
-node kotlinFile f0:0..31
+node kotlinFile f0:0..166
   node packageHeader f0:0..21
     tok keyword(package) f0:0..7
     tok identifier(golden) f0:8..14
     tok symbol(.) f0:14..15
     tok identifier(parser) f0:15..21
-  node funDecl f0:23..31
+  node funDecl f0:23..166
     tok keyword(fun) f0:23..26
     tok identifier(main) f0:27..31
     node statement f0:31..33

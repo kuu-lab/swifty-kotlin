@@ -491,11 +491,9 @@ extension CoroutineLoweringPass {
         _ value: Int64,
         intType: TypeID?,
         module: KIRModule,
-        lowered: inout [KIRInstruction]
+        lowered: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        let expr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: intType
+        let expr = module.arena.appendTemporary(type: intType
         )
         lowered.append(.constValue(result: expr, value: .intLiteral(value)))
         return expr

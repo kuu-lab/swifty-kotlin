@@ -40,7 +40,7 @@ extension CallLowerer {
             let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-            let loaded = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: propertyType)
+            let loaded = arena.appendTemporary(type: propertyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
@@ -62,15 +62,13 @@ extension CallLowerer {
 
         let resultType = sema.bindings.exprType(for: exprID)
             ?? sema.types.make(.primitive(.boolean, .nonNull))
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        let result = arena.appendTemporary(type: resultType)
+        emitNonThrowingCall(
             callee: interner.intern("kk_lateinit_is_initialized"),
-            arguments: [storageExpr],
+            arg: storageExpr,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 

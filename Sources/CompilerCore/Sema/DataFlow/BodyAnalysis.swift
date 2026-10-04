@@ -56,9 +56,18 @@ extension DataFlowSemaPhase {
         relativeOwnerFQName: [InternedString]? = nil,
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        recursionDepth: Int = 0,
+        usageRange: SourceRange? = nil
     ) -> TypeID? {
-        let builtinNames = BuiltinTypeNames(interner: interner)
+        guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-TYPE-DEPTH",
+                "Type nesting is too deep (exceeded maximum depth of \(DataFlowSemaPhase.maxStructuralRecursionDepth)).",
+                range: nil
+            )
+            return types.errorType
+        }
         guard let typeRefID, let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
         }
@@ -79,8 +88,7 @@ extension DataFlowSemaPhase {
                 shortName,
                 nullability: nullability,
                 types: types,
-                interner: interner,
-                builtinNames: builtinNames
+                interner: interner
             ) {
                 return builtinType
             }
@@ -101,7 +109,8 @@ extension DataFlowSemaPhase {
                         for: path,
                         currentPackageFQName: currentPackageFQName,
                         imports: imports,
-                        symbols: symbols
+                        symbols: symbols,
+                        interner: interner
                     )
                     if !fqCandidates.isEmpty {
                         candidates = fqCandidates
@@ -114,7 +123,8 @@ extension DataFlowSemaPhase {
                     for: path,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    symbols: symbols
+                    symbols: symbols,
+                    interner: interner
                 )
                 if !fqCandidates.isEmpty {
                     candidates = fqCandidates
@@ -125,6 +135,29 @@ extension DataFlowSemaPhase {
                 }
             }
             if let resolved = candidates.first(where: { isNominalTypeSymbol($0.kind) }) {
+                if resolved.flags.contains(.importedLibrary), let usageRange {
+                    let fileID = usageRange.start.file
+                    let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    } == true
+                    let checker = VisibilityChecker(
+                        symbols: symbols,
+                        invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
+                    )
+                    if !checker.isAccessible(resolved, fromFile: fileID, enclosingClass: nil) {
+                        let label = resolved.visibility == .internal ? "internal" : "private"
+                        diagnostics?.error(
+                            resolved.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",
+                            "Cannot access '\(interner.resolve(shortName))': it is \(label).",
+                            range: usageRange
+                        )
+                        return types.errorType
+                    }
+                }
                 let resolvedArgs = resolveTypeArgRefs(
                     argRefs,
                     ast: ast,
@@ -135,7 +168,9 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth,
+                    usageRange: usageRange
                 )
                 if resolved.kind == .typeAlias {
                     if let underlying = resolveTypeAliasUnderlying(
@@ -144,6 +179,7 @@ extension DataFlowSemaPhase {
                         types: types,
                         typeArgs: resolvedArgs,
                         visited: [],
+                        recursionDepth: recursionDepth,
                         diagnostics: diagnostics
                     ) {
                         if nullability == .nullable {
@@ -155,12 +191,68 @@ extension DataFlowSemaPhase {
                     // underlying type is not yet available (e.g. unresolved RHS,
                     // imported alias without signature metadata).
                 }
+                if resolved.id == types.kClassInterfaceSymbol
+                    || resolved.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
+                {
+                    // Preserve star and contravariant KClass projections in the
+                    // nominal representation. A covariant projection is
+                    // equivalent to the dedicated KClass<T> representation.
+                    if let firstArg = resolvedArgs.first {
+                        switch firstArg {
+                        case .star, .in:
+                            return types.make(.classType(ClassType(
+                                classSymbol: resolved.id,
+                                args: resolvedArgs,
+                                nullability: nullability
+                            )))
+                        case .invariant, .out:
+                            break
+                        }
+                    }
+                    let argumentType: TypeID = if let firstArg = resolvedArgs.first {
+                        switch firstArg {
+                        case let .invariant(t):
+                            t
+                        case .star:
+                            types.anyType
+                        case let .out(t), let .in(t):
+                            t
+                        }
+                    } else {
+                        types.anyType
+                    }
+                    return types.makeKClassType(argument: argumentType, nullability: nullability)
+                }
                 return types.make(.classType(ClassType(classSymbol: resolved.id, args: resolvedArgs, nullability: nullability)))
+            }
+            if candidates.isEmpty,
+               let builtinNestedSymbol = resolveBuiltinClassNestedType(
+                   path: path,
+                   types: types,
+                   symbols: symbols,
+                   interner: interner
+               ),
+               isNominalTypeSymbol(builtinNestedSymbol.kind)
+            {
+                let resolvedArgs = resolveTypeArgRefs(
+                    argRefs,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: localTypeParameters,
+                    relativeOwnerFQName: relativeOwnerFQName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth
+                )
+                return types.make(.classType(ClassType(classSymbol: builtinNestedSymbol.id, args: resolvedArgs, nullability: nullability)))
             }
             diagnostics?.error(
                 "KSWIFTK-SEMA-0025",
                 "Unresolved type '\(interner.resolve(shortName))'.",
-                range: nil
+                range: usageRange
             )
             return types.errorType
 
@@ -178,7 +270,9 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) else {
                     return nil
                 }
@@ -195,7 +289,9 @@ extension DataFlowSemaPhase {
                     localTypeParameters: localTypeParameters,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 )
             }
             var paramTypes: [TypeID] = []
@@ -210,7 +306,9 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) else {
                     return nil
                 }
@@ -226,7 +324,9 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1,
+                usageRange: usageRange
             ) ?? types.unitType
             return types.make(.functionType(FunctionType(
                 contextReceivers: contextReceiverTypes,
@@ -248,7 +348,9 @@ extension DataFlowSemaPhase {
                     localTypeParameters: localTypeParameters,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 )
             }
             guard partTypes.count == partRefs.count else { return nil }
@@ -265,7 +367,9 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1,
+                usageRange: usageRange
             ) else {
                 return nil
             }
@@ -275,7 +379,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                range: usageRange
             )
         }
     }
@@ -284,10 +389,9 @@ extension DataFlowSemaPhase {
         _ name: InternedString,
         nullability: Nullability,
         types: TypeSystem,
-        interner: StringInterner,
-        builtinNames: BuiltinTypeNames
+        interner: StringInterner
     ) -> TypeID? {
-        if let builtin = builtinNames.resolveBuiltinType(name, nullability: nullability, types: types) {
+        if let builtin = builtinTypeNames(interner: interner).resolveBuiltinType(name, nullability: nullability, types: types) {
             return builtin
         }
         if name == interner.intern("Byte") || name == interner.intern("Short") {
@@ -333,31 +437,76 @@ extension DataFlowSemaPhase {
         for path: [InternedString],
         currentPackageFQName: [InternedString]?,
         imports: [ImportDecl],
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) -> [SemanticSymbol] {
         guard !path.isEmpty else {
             return []
         }
 
-        var candidatePaths: [[InternedString]] = [path]
-        if path.count == 1,
+        var candidatePaths: [[InternedString]] = {
+            var paths: [[InternedString]] = []
+            if path.count == 1 {
+                if let currentPackageFQName,
+                   !currentPackageFQName.isEmpty
+                {
+                    paths.append(currentPackageFQName + path)
+                }
+                if let shortName = path.first {
+                    var wildcardPaths: [[InternedString]] = []
+                    for importDecl in imports {
+                        if let alias = importDecl.alias, alias == shortName {
+                            paths.append(importDecl.path)
+                        } else if importDecl.alias == nil,
+                                  importDecl.isWildcard
+                        {
+                            // `import pkg.*` exposes `pkg.Name` as `Name`;
+                            // without this expansion a same-named root-package
+                            // symbol (e.g. the CancellationException
+                            // compatibility class, KSP-1150) shadows the
+                            // wildcard-imported declaration.
+                            wildcardPaths.append(importDecl.path + path)
+                        } else if importDecl.alias == nil,
+                                  importDecl.path.last == shortName
+                        {
+                            paths.append(importDecl.path)
+                        }
+                    }
+                    // Wildcard imports rank below same-package and explicit
+                    // imports, matching Kotlin's unqualified-name precedence.
+                    paths.append(contentsOf: wildcardPaths)
+                }
+                // Header types are resolved before TypeCheck builds file scopes.
+                // Expand star imports here as well; otherwise a same-named
+                // stdlib class found by the short-name fallback can replace the
+                // imported class in a function signature (KUU-916).
+                if let shortName = path.first {
+                    for importDecl in imports where importDecl.alias == nil {
+                        let imported = symbols.lookupAll(fqName: importDecl.path)
+                        if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                            paths.append(importDecl.path + [shortName])
+                        }
+                    }
+                }
+                // An unqualified root symbol is the final fallback. This ordering
+                // keeps an explicit import from being shadowed by a compatibility
+                // alias with the same short name (KSP-1150).
+                paths.append(path)
+            } else {
+                paths = [path]
+            }
+            return paths
+        }()
+
+        // For qualified nested-type references within the current package (e.g. a
+        // Companion-scoped extension "Duration.Companion.ZERO" written in the same
+        // file/package as "class Duration"), try the path prefixed by the current
+        // package FQName before falling back to import expansion.
+        if path.count > 1,
            let currentPackageFQName,
            !currentPackageFQName.isEmpty
         {
             candidatePaths.append(currentPackageFQName + path)
-        }
-        if path.count == 1,
-           let shortName = path.first
-        {
-            for importDecl in imports {
-                if let alias = importDecl.alias, alias == shortName {
-                    candidatePaths.append(importDecl.path)
-                } else if importDecl.alias == nil,
-                          importDecl.path.last == shortName
-                {
-                    candidatePaths.append(importDecl.path)
-                }
-            }
         }
 
         // For qualified nested-type references (e.g. "KMutableProperty.Setter"), expand
@@ -368,10 +517,27 @@ extension DataFlowSemaPhase {
                 if let alias = importDecl.alias, alias == firstComponent {
                     candidatePaths.append(importDecl.path + tail)
                 } else if importDecl.alias == nil,
+                          importDecl.isWildcard
+                {
+                    candidatePaths.append(importDecl.path + path)
+                } else if importDecl.alias == nil,
                           importDecl.path.last == firstComponent
                 {
                     candidatePaths.append(importDecl.path + tail)
                 }
+            }
+            for importDecl in imports where importDecl.alias == nil {
+                let imported = symbols.lookupAll(fqName: importDecl.path)
+                if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                    candidatePaths.append(importDecl.path + path)
+                }
+            }
+            // A nested type can be rooted in a default-imported declaration,
+            // such as Map.Entry. Header resolution must use the same import
+            // packages as expression/type checking instead of requiring an
+            // explicit import of the outer declaration.
+            for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                candidatePaths.append(defaultPackage + path)
             }
         }
 
@@ -393,7 +559,9 @@ extension DataFlowSemaPhase {
         relativeOwnerFQName: [InternedString]? = nil,
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        recursionDepth: Int = 0,
+        usageRange: SourceRange? = nil
     ) -> [TypeArg] {
         var result: [TypeArg] = []
         result.reserveCapacity(argRefs.count)
@@ -410,7 +578,9 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.invariant(resolved))
             case let .out(innerRef):
@@ -424,7 +594,9 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.out(resolved))
             case let .in(innerRef):
@@ -438,7 +610,9 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.in(resolved))
             case .star:
@@ -476,6 +650,11 @@ extension DataFlowSemaPhase {
     /// Maximum depth for recursive typealias expansion to prevent infinite loops.
     private static let maxAliasExpansionDepth = 32
 
+    /// Maximum structural recursion depth for type resolution and substitution.
+    /// Keep one parser level available so source at the semantic boundary can
+    /// still be parsed and rejected by Sema with the semantic depth diagnostic.
+    static let maxStructuralRecursionDepth = TypeRefParserCore.maxRecursionDepth - 1
+
     private func resolveTypeAliasUnderlying(
         _ symbolID: SymbolID,
         symbols: SymbolTable,
@@ -483,6 +662,7 @@ extension DataFlowSemaPhase {
         typeArgs: [TypeArg] = [],
         visited: Set<SymbolID>,
         depth: Int = 0,
+        recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID? {
         // Cycle detection
@@ -512,6 +692,7 @@ extension DataFlowSemaPhase {
             typeArgs: typeArgs,
             symbols: symbols,
             types: types,
+            recursionDepth: recursionDepth,
             diagnostics: diagnostics
         )
         if case let .classType(classType) = types.kind(of: expanded),
@@ -528,6 +709,7 @@ extension DataFlowSemaPhase {
                 typeArgs: chainArgs,
                 visited: newVisited,
                 depth: depth + 1,
+                recursionDepth: recursionDepth,
                 diagnostics: diagnostics
             ) {
                 if classType.nullability == .nullable {
@@ -546,6 +728,7 @@ extension DataFlowSemaPhase {
         typeArgs: [TypeArg],
         symbols: SymbolTable,
         types: TypeSystem,
+        recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID {
         let typeParamSymbols = symbols.typeAliasTypeParameters(for: aliasSymbol)
@@ -576,6 +759,7 @@ extension DataFlowSemaPhase {
             argSubstitution: argSubstitution,
             types: types,
             symbols: symbols,
+            recursionDepth: recursionDepth,
             diagnostics: diagnostics
         )
     }
@@ -585,8 +769,17 @@ extension DataFlowSemaPhase {
         argSubstitution: [SymbolID: TypeArg],
         types: TypeSystem,
         symbols: SymbolTable,
+        recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID {
+        guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-TYPE-DEPTH",
+                "Type substitution nesting is too deep (exceeded maximum depth of \(DataFlowSemaPhase.maxStructuralRecursionDepth)).",
+                range: nil
+            )
+            return types.errorType
+        }
         switch types.kind(of: typeID) {
         case let .typeParam(tp):
             if let replacement = argSubstitution[tp.symbol] {
@@ -612,25 +805,27 @@ extension DataFlowSemaPhase {
                     argSubstitution: argSubstitution,
                     types: types,
                     symbols: symbols,
+                    recursionDepth: recursionDepth + 1,
                     diagnostics: diagnostics
                 )
             }
             return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: newArgs, nullability: ct.nullability)))
         case let .functionType(ft):
             let newContextReceivers = ft.contextReceivers.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newReceiver = ft.receiver.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newParams = ft.params.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newReturn = applySubstitution(
                 ft.returnType,
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             )
             return types.make(.functionType(FunctionType(contextReceivers: newContextReceivers, receiver: newReceiver, params: newParams, returnType: newReturn, isSuspend: ft.isSuspend, nullability: ft.nullability)))
@@ -640,15 +835,16 @@ extension DataFlowSemaPhase {
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             )
             if newArg == kc.argument { return typeID }
             return types.make(.kClassType(KClassType(argument: newArg, nullability: kc.nullability)))
-        case .primitive, .any, .unit, .nothing, .error:
+        case .stringStruct, .primitive, .any, .unit, .nothing, .error:
             return typeID
         case let .intersection(parts):
             let newParts = parts.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             return types.make(.intersection(newParts))
         }
@@ -665,6 +861,7 @@ extension DataFlowSemaPhase {
         argSubstitution: [SymbolID: TypeArg],
         types: TypeSystem,
         symbols: SymbolTable,
+        recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeArg {
         switch arg {
@@ -684,6 +881,7 @@ extension DataFlowSemaPhase {
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             ))
         case let .out(inner):
@@ -701,6 +899,7 @@ extension DataFlowSemaPhase {
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             ))
         case let .in(inner):
@@ -717,6 +916,7 @@ extension DataFlowSemaPhase {
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             ))
         case .star:
@@ -756,8 +956,9 @@ extension DataFlowSemaPhase {
     }
 
     /// Check whether the function body contains a self-recursive call in tail position.
-    /// For block bodies, checks ALL return expressions (not just the last statement)
-    /// to handle patterns like `if (cond) return f(x); return base`.
+    /// Tail positions are tracked through `if`/`when`/block/elvis branches so
+    /// expression bodies (`= if (c) acc else f(x)`) and early returns nested in
+    /// branches (`if (c) { return f(x) }`) are recognised.
     func checkTailRecursiveBody(
         _ body: FunctionBody, functionName: InternedString, ast: ASTModule
     ) -> Bool {
@@ -765,25 +966,85 @@ extension DataFlowSemaPhase {
         case .unit:
             return false
         case let .expr(exprID, _):
-            return isSelfRecursiveCall(exprID, functionName: functionName, ast: ast)
+            return containsTailCall(exprID, isValuePosition: true, functionName: functionName, ast: ast)
         case let .block(exprIDs, _):
-            // Check any explicit return expression in the block whose value
-            // is a self-recursive call — the tail call may appear in an
-            // early-return branch, not necessarily the last statement.
-            for exprID in exprIDs {
-                if let expr = ast.arena.expr(exprID),
-                   case let .returnExpr(value, _, _) = expr,
-                   let value
-                {
-                    if isSelfRecursiveCall(value, functionName: functionName, ast: ast) {
-                        return true
-                    }
+            for (index, exprID) in exprIDs.enumerated() {
+                // The last statement doubles as the implicit result; earlier
+                // statements only count through an explicit `return`.
+                let isLast = index == exprIDs.count - 1
+                if containsTailCall(exprID, isValuePosition: isLast, functionName: functionName, ast: ast) {
+                    return true
                 }
             }
-            // Also check the last expression for implicit return (expression-body style).
-            guard let lastExprID = exprIDs.last else { return false }
-            return isSelfRecursiveCall(lastExprID, functionName: functionName, ast: ast)
+            return false
         }
+    }
+
+    /// `isValuePosition` is true when the expression's value is the function's
+    /// result; otherwise only an explicit `return f(..)` inside it counts.
+    private func containsTailCall(
+        _ exprID: ExprID, isValuePosition: Bool, functionName: InternedString, ast: ASTModule
+    ) -> Bool {
+        guard let expr = ast.arena.expr(exprID) else { return false }
+        func recurse(_ id: ExprID, _ valuePosition: Bool) -> Bool {
+            containsTailCall(id, isValuePosition: valuePosition, functionName: functionName, ast: ast)
+        }
+        switch expr {
+        case let .returnExpr(value, _, _):
+            return value.map { recurse($0, true) } ?? false
+        case .call, .memberCall, .safeMemberCall:
+            return isValuePosition && isSelfRecursiveCall(exprID, functionName: functionName, ast: ast)
+        case let .ifExpr(_, thenExpr, elseExpr, _):
+            return recurse(thenExpr, isValuePosition) || (elseExpr.map { recurse($0, isValuePosition) } ?? false)
+        case let .whenExpr(_, branches, elseExpr, _):
+            return branches.contains { recurse($0.body, isValuePosition) }
+                || (elseExpr.map { recurse($0, isValuePosition) } ?? false)
+        case let .blockExpr(statements, trailingExpr, _):
+            return statements.contains { recurse($0, false) }
+                || (trailingExpr.map { recurse($0, isValuePosition) } ?? false)
+        case let .binary(op, _, rhs, _):
+            return op == .elvis && recurse(rhs, isValuePosition)
+        default:
+            return false
+        }
+    }
+
+    /// Resolve a nested type reference (e.g. `Char.Companion`) inside a builtin
+    /// type's synthetic class symbol when normal nominal lookup fails.
+    private func resolveBuiltinClassNestedType(
+        path: [InternedString],
+        types: TypeSystem,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SemanticSymbol? {
+        guard path.count > 1, let first = path.first else { return nil }
+
+        let rootClassSymbol: SymbolID?
+        if first == interner.intern("Char") {
+            rootClassSymbol = types.charClassSymbol
+        } else if first == interner.intern("String") {
+            rootClassSymbol = types.stringClassSymbol
+        } else if first == interner.intern("Any") {
+            rootClassSymbol = types.anyClassSymbol
+        } else if first == interner.intern("Byte")
+            || first == interner.intern("Long")
+            || first == interner.intern("Short")
+        {
+            let kotlinFQName = [interner.intern("kotlin"), first]
+            rootClassSymbol = symbols.lookupAll(fqName: kotlinFQName).first(where: { symbolID in
+                guard let symbol = symbols.symbol(symbolID) else { return false }
+                return symbol.kind == .class
+            })
+        } else {
+            rootClassSymbol = nil
+        }
+
+        guard let root = rootClassSymbol, let rootInfo = symbols.symbol(root) else {
+            return nil
+        }
+        let nestedFQName = rootInfo.fqName + Array(path.dropFirst())
+        guard let symbolID = symbols.lookupAll(fqName: nestedFQName).first else { return nil }
+        return symbols.symbol(symbolID)
     }
 
     /// Check if the given expression is a call to a function with the given name.

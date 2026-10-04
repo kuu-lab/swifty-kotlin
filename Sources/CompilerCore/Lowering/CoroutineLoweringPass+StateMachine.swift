@@ -1,6 +1,11 @@
 
+/// Label base for coroutine state machine dispatch labels, chosen to avoid
+/// collision with user labels and tailrec loop-head labels.
+let coroutineDispatchLabelBase: Int32 = 1000
+
 struct StateMachineTypeContext {
     let continuationType: TypeID
+    let anyType: TypeID
     let intType: TypeID?
     let unitType: TypeID?
 }
@@ -8,6 +13,7 @@ struct StateMachineTypeContext {
 extension CoroutineLoweringPass {
     func lowerSuspendBodyToStateMachineSkeleton(
         originalBody: [KIRInstruction],
+        originalLocations: [SourceRange?],
         continuationParameterSymbol: SymbolID,
         loweredSymbol: SymbolID,
         module: KIRModule,
@@ -16,11 +22,14 @@ extension CoroutineLoweringPass {
         suspendFunctionNames: Set<InternedString>,
         runtimeSuspendCallNames: Set<InternedString>,
         runtimeDelayCallee: InternedString,
+        runtimeYieldCallee: InternedString,
+        sourceYieldCallee: InternedString,
         suspendPlan: SuspendLoweringPlan,
         spillSlotByExpr: [KIRExprID: Int64],
         smTypes: StateMachineTypeContext
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         let continuationType = smTypes.continuationType
+        let anyType = smTypes.anyType
         let intType = smTypes.intType
         let unitType = smTypes.unitType
         let enterCallee = interner.intern("kk_coroutine_state_enter")
@@ -42,13 +51,15 @@ extension CoroutineLoweringPass {
             interner.intern("kk_kxmini_async_await"),
             interner.intern("kk_job_join"),
             interner.intern("kk_job_await_completion"),
+            interner.intern("__kk_deep_recursive_scope_callRecursive"),
+            interner.intern("__kk_deep_recursive_function_callRecursive"),
         ]
         let stateBlocks = suspendPlan.stateBlocks
         let transitionsByResumeLabel = suspendPlan.transitionsByResumeLabel
         let spillPlan = suspendPlan.spillPlan
 
-        var lowered: [KIRInstruction] = []
-        lowered.reserveCapacity(originalBody.count * 6 + 24)
+        var lowered = KIRLoweringEmitContext()
+        lowered.instructions.reserveCapacity(originalBody.count * 6 + 24)
 
         func slotForSpillExpr(_ exprID: KIRExprID) -> Int64? {
             if let overridden = spillSlotByExpr[exprID] {
@@ -57,21 +68,15 @@ extension CoroutineLoweringPass {
             return spillPlan.slotByExpr[exprID]
         }
 
-        let continuationExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: continuationType
+        let continuationExpr = module.arena.appendTemporary(type: continuationType
         )
         lowered.append(.constValue(result: continuationExpr, value: .symbolRef(continuationParameterSymbol)))
 
-        let functionIDExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: intType
+        let functionIDExpr = module.arena.appendTemporary(type: intType
         )
         lowered.append(.constValue(result: functionIDExpr, value: .intLiteral(Int64(loweredSymbol.rawValue))))
 
-        let resumeLabelExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: intType
+        let resumeLabelExpr = module.arena.appendTemporary(type: intType
         )
         lowered.append(
             .call(
@@ -84,10 +89,13 @@ extension CoroutineLoweringPass {
             )
         )
 
-        for block in stateBlocks {
-            let expectedResumeExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: intType
+        // Only the entry block and actual suspension continuations can be
+        // entered from the dispatcher. Ordinary CFG blocks depend on values
+        // defined by their predecessors and have no spill reload prologue.
+        for block in stateBlocks where block.resumeLabel == stateBlocks.first?.resumeLabel
+            || transitionsByResumeLabel[block.resumeLabel] != nil
+        {
+            let expectedResumeExpr = module.arena.appendTemporary(type: intType
             )
             lowered.append(.constValue(result: expectedResumeExpr, value: .intLiteral(block.resumeLabel)))
             lowered.append(
@@ -126,21 +134,22 @@ extension CoroutineLoweringPass {
                     )
                 }
                 if let callResultExpr = transition.callResultExpr {
+                    let completionTokenExpr = module.arena.appendTemporary(type: anyType
+                    )
                     lowered.append(
                         .call(
                             symbol: nil,
                             callee: getCompletionCallee,
                             arguments: [continuationExpr],
-                            result: callResultExpr,
+                            result: completionTokenExpr,
                             canThrow: false,
                             thrownResult: nil
                         )
                     )
+                    lowered.append(.copy(from: completionTokenExpr, to: callResultExpr))
                 }
 
-                let thrownExceptionExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: intType
+                let thrownExceptionExpr = module.arena.appendTemporary(type: intType
                 )
                 lowered.append(
                     .call(
@@ -165,9 +174,7 @@ extension CoroutineLoweringPass {
                 // If cancelled, kk_coroutine_check_cancellation writes a
                 // CancellationException into the original call's thrown slot so
                 // surrounding try/catch blocks can observe it.
-                let cancelCheckResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: intType
+                let cancelCheckResult = module.arena.appendTemporary(type: intType
                 )
                 lowered.append(
                     .call(
@@ -181,17 +188,32 @@ extension CoroutineLoweringPass {
                 )
                 lowered.append(.jump(continueLabel))
                 lowered.append(.label(throwLabel))
-                lowered.append(
-                    .call(
-                        symbol: nil,
-                        callee: exitCallee,
-                        arguments: [continuationExpr, thrownExceptionExpr],
-                        result: nil,
-                        canThrow: false,
-                        thrownResult: nil
+                if let thrownResultSlot = transition.suspendingInstructionCallInfo?.thrownResult {
+                    // STDLIB-CORO-BUG-03: this suspend call sits inside a
+                    // try/catch (or similar) region, which tracks in-flight
+                    // exceptions via a value in thrownResultSlot rather than a
+                    // native throw -- see the jumpIfNotNull checks generated
+                    // for the surrounding try elsewhere in this function.
+                    // Route the resumed exception through that same slot
+                    // instead of hard-rethrowing past it, otherwise the
+                    // surrounding catch never observes it. The function has
+                    // not finished (the exception may be caught locally), so
+                    // its continuation must stay alive -- kk_coroutine_state_exit
+                    // only runs once, at the function's real exit point.
+                    lowered.append(.copy(from: thrownExceptionExpr, to: thrownResultSlot))
+                } else {
+                    lowered.append(
+                        .call(
+                            symbol: nil,
+                            callee: exitCallee,
+                            arguments: [continuationExpr, thrownExceptionExpr],
+                            result: nil,
+                            canThrow: false,
+                            thrownResult: nil
+                        )
                     )
-                )
-                lowered.append(.rethrow(value: thrownExceptionExpr))
+                    lowered.append(.rethrow(value: thrownExceptionExpr))
+                }
                 lowered.append(.label(continueLabel))
             }
             let nextResumeLabel = stateBlocks.indices.contains(index + 1)
@@ -199,6 +221,9 @@ extension CoroutineLoweringPass {
                 : nil
 
             for stateInstruction in block.instructions {
+                lowered.currentSourceRange = stateInstruction.sourceIndex < originalLocations.count
+                    ? originalLocations[stateInstruction.sourceIndex]
+                    : nil
                 let instruction = stateInstruction.instruction
                 let suspendCallInfo = extractCallInfo(instruction)
                 if let suspendCallInfo,
@@ -234,9 +259,7 @@ extension CoroutineLoweringPass {
                         )
                     }
 
-                    let resumeLabelExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: intType
+                    let resumeLabelExpr = module.arena.appendTemporary(type: intType
                     )
                     lowered.append(.constValue(result: resumeLabelExpr, value: .intLiteral(nextResumeLabel)))
 
@@ -251,9 +274,8 @@ extension CoroutineLoweringPass {
                         )
                     )
 
-                    let suspensionResult = suspendCallInfo.result ?? module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: continuationType
+                    let userResultExpr = suspendCallInfo.result
+                    let suspendTokenResult = module.arena.appendTemporary(type: anyType
                     )
                     let loweredSuspendCallee: InternedString
                     var loweredSuspendArguments: [KIRExprID]
@@ -264,6 +286,10 @@ extension CoroutineLoweringPass {
                         }
                         loweredSuspendCallee = interner.intern("kk_function_invoke")
                         loweredSuspendArguments = [blockExpr, continuationExpr]
+                    } else if suspendCallInfo.callee == sourceYieldCallee {
+                        loweredSuspendCallee = runtimeYieldCallee
+                        loweredSuspendArguments = suspendCallInfo.arguments
+                        loweredSuspendArguments.append(continuationExpr)
                     } else {
                         loweredSuspendCallee = suspendCallInfo.callee == sourceDelayCallee ? runtimeDelayCallee : suspendCallInfo.callee
                         loweredSuspendArguments = suspendCallInfo.arguments
@@ -278,6 +304,18 @@ extension CoroutineLoweringPass {
                     if suspendCallInfo.callee == suspendCoroutineRuntimeCallee {
                         loweredSuspendArguments.append(continuationExpr)
                     }
+                    // The direct-call rewrite appends the continuation to
+                    // source-backed suspend calls before they reach this
+                    // state machine. Virtual calls bypass that rewrite, so
+                    // forward the current continuation here as their final
+                    // argument to the dispatched method body.
+                    if suspendCallInfo.isVirtual,
+                       !runtimeSuspendCallNames.contains(suspendCallInfo.callee),
+                       (suspendCallInfo.symbol.map { suspendFunctionSymbols.contains($0) } == true
+                           || suspendFunctionNames.contains(suspendCallInfo.callee))
+                    {
+                        loweredSuspendArguments.append(continuationExpr)
+                    }
                     if suspendCallInfo.isVirtual,
                        case let .virtualCall(_, _, receiver, _, _, _, _, dispatch) = suspendCallInfo.originalInstruction
                     {
@@ -287,7 +325,7 @@ extension CoroutineLoweringPass {
                                 callee: loweredSuspendCallee,
                                 receiver: receiver,
                                 arguments: loweredSuspendArguments,
-                                result: suspensionResult,
+                                result: suspendTokenResult,
                                 canThrow: suspendCallInfo.canThrow,
                                 thrownResult: suspendCallInfo.thrownResult,
                                 dispatch: dispatch
@@ -299,7 +337,7 @@ extension CoroutineLoweringPass {
                                 symbol: suspendCallInfo.symbol,
                                 callee: loweredSuspendCallee,
                                 arguments: loweredSuspendArguments,
-                                result: suspensionResult,
+                                result: suspendTokenResult,
                                 canThrow: suspendCallInfo.canThrow,
                                 thrownResult: suspendCallInfo.thrownResult,
                                 isSuperCall: suspendCallInfo.isSuperCall
@@ -307,9 +345,7 @@ extension CoroutineLoweringPass {
                         )
                     }
 
-                    let suspendedExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: continuationType
+                    let suspendedExpr = module.arena.appendTemporary(type: anyType
                     )
                     lowered.append(
                         .call(
@@ -321,25 +357,26 @@ extension CoroutineLoweringPass {
                             thrownResult: nil
                         )
                     )
-                    lowered.append(.returnIfEqual(lhs: suspensionResult, rhs: suspendedExpr))
+                    lowered.append(.returnIfEqual(lhs: suspendTokenResult, rhs: suspendedExpr))
                     lowered.append(
                         .call(
                             symbol: nil,
                             callee: setCompletionCallee,
-                            arguments: [continuationExpr, suspensionResult],
+                            arguments: [continuationExpr, suspendTokenResult],
                             result: nil,
                             canThrow: false,
                             thrownResult: nil
                         )
                     )
+                    if let userResultExpr {
+                        lowered.append(.copy(from: suspendTokenResult, to: userResultExpr))
+                    }
                     continue
                 }
 
                 switch instruction {
                 case let .returnValue(value):
-                    let exitValueExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: continuationType
+                    let exitValueExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
                         .call(
@@ -355,9 +392,7 @@ extension CoroutineLoweringPass {
 
                 case .returnUnit:
                     let unitExpr = module.arena.appendExpr(.unit, type: unitType)
-                    let exitValueExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: continuationType
+                    let exitValueExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
                         .call(
@@ -381,7 +416,7 @@ extension CoroutineLoweringPass {
     }
 
     func stateDispatchLabel(for resumeLabel: Int64) -> Int32 {
-        Int32(1000 + resumeLabel)
+        coroutineDispatchLabelBase + Int32(resumeLabel)
     }
 
     struct IndexedInstruction {

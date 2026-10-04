@@ -1,6 +1,8 @@
 // STDLIB-NUM-130: Floating-point precision complete implementation
 // Tests: isNaN, isInfinite, isFinite, ulp, nextUp, nextDown, toBits, toRawBits, fromBits
 
+import kotlin.math.*
+
 fun main() {
     // isNaN
     println(Double.NaN.isNaN())                    // true
@@ -33,9 +35,15 @@ fun main() {
     val floatRawBits = 1.0f.toRawBits()
     println(floatRawBits == 1065353216)           // true
 
+    // Negative Float bit patterns keep the sign bit (Int is 32-bit signed)
+    println((-1.0f).toRawBits())                  // -1082130432
+    println((-1.0f).toBits())                     // -1082130432
+    println((-0.0f).toRawBits() < 0)              // true
+
     // fromBits round-trip: Double.fromBits(1.0.toBits()) == 1.0
     println(Double.fromBits(1.0.toBits()) == 1.0)  // true
     println(Float.fromBits(1.0f.toBits()) == 1.0f) // true
+    println(Float.fromBits((-1.0f).toRawBits()) == -1.0f) // true
 
     // ulp (unit of least precision)
     val ulpVal = 1.0.ulp

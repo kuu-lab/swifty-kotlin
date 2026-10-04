@@ -1,9 +1,78 @@
+private func typeArgInnerType(_ arg: TypeArg) -> TypeID? {
+    switch arg {
+    case let .invariant(type), let .out(type), let .in(type):
+        return type
+    case .star:
+        return nil
+    }
+}
+
+private func starProjectionUpperBound(for type: TypeID, typeSystem: TypeSystem) -> TypeID {
+    guard case let .typeParam(typeParam) = typeSystem.kind(of: type),
+          let symbolTable = typeSystem.symbolTable
+    else {
+        return typeSystem.nullableAnyType
+    }
+    let upperBounds = symbolTable.typeParameterUpperBounds(for: typeParam.symbol)
+    guard !upperBounds.isEmpty else {
+        return typeSystem.nullableAnyType
+    }
+    return typeSystem.glb(upperBounds)
+}
+
+private func comparableArgument(of subtype: TypeID, typeSystem: TypeSystem) -> TypeID? {
+    let nonNullSubtype = typeSystem.makeNonNullable(subtype)
+    switch typeSystem.kind(of: nonNullSubtype) {
+    case .primitive, .stringStruct:
+        return nonNullSubtype
+    case let .classType(classType):
+        guard let comparableSymbol = typeSystem.comparableInterfaceSymbol,
+              let supertypeArgs = typeSystem.liftedNominalSupertypeArgs(
+                  from: classType.classSymbol,
+                  childArgs: classType.args,
+                  to: comparableSymbol
+              ),
+              let comparableArg = supertypeArgs.first
+        else {
+            return nil
+        }
+        return typeArgInnerType(comparableArg)
+    case let .typeParam(typeParam):
+        guard let symbolTable = typeSystem.symbolTable,
+              let comparableSymbol = typeSystem.comparableInterfaceSymbol
+        else {
+            return nil
+        }
+        for upperBound in symbolTable.typeParameterUpperBounds(for: typeParam.symbol) {
+            guard case let .classType(boundClass) = typeSystem.kind(of: upperBound),
+                  boundClass.classSymbol == comparableSymbol,
+                  let comparableArg = boundClass.args.first,
+                  let argument = typeArgInnerType(comparableArg)
+            else {
+                continue
+            }
+            return argument
+        }
+        return nil
+    case let .intersection(parts):
+        for part in parts {
+            if let argument = comparableArgument(of: part, typeSystem: typeSystem) {
+                return argument
+            }
+        }
+        return nil
+    default:
+        return nil
+    }
+}
+
 extension OverloadResolver {
     func buildParameterMapping(
         signature: FunctionSignature,
         callArgs: [CallArg],
         symbols: SymbolTable,
-        typeSystem: TypeSystem
+        typeSystem: TypeSystem,
+        isCallableArgument: ((Int) -> Bool)? = nil
     ) -> [Int: Int]? {
         let paramCount = signature.parameterTypes.count
         if paramCount == 0 {
@@ -24,8 +93,9 @@ extension OverloadResolver {
             return false
         }
         func trailingLambdaParameterIndex(for argIndex: Int) -> Int? {
+            let argumentIsCallable = isCallableArgument?(argIndex) ?? isCallableLike(callArgs[argIndex].type)
             guard argIndex == callArgs.count - 1,
-                  isCallableLike(callArgs[argIndex].type)
+                  argumentIsCallable
             else {
                 return nil
             }
@@ -92,6 +162,13 @@ extension OverloadResolver {
         var boundNonVarargParams: Set<Int> = []
         var sawNamedArgument = false
         var positionalCursor = 0
+        // Highest parameter index bound so far by any argument (named or
+        // positional). Kotlin only allows a positional argument after a named
+        // one when the parameter order still matches declaration order; a
+        // vararg parameter that is declared *before* an already-bound named
+        // parameter (e.g. `fun f(vararg items: Int, name: String)` called as
+        // `f(name = "x", 1, 2)`) would otherwise be silently accepted here.
+        var maxBoundParamIndex = -1
 
         for (argIndex, arg) in callArgs.enumerated() {
             if let label = arg.label {
@@ -104,6 +181,7 @@ extension OverloadResolver {
                 }
                 if isVararg[paramIndex] {
                     mapping[argIndex] = paramIndex
+                    maxBoundParamIndex = max(maxBoundParamIndex, paramIndex)
                     continue
                 }
                 if boundNonVarargParams.contains(paramIndex) {
@@ -111,6 +189,7 @@ extension OverloadResolver {
                 }
                 boundNonVarargParams.insert(paramIndex)
                 mapping[argIndex] = paramIndex
+                maxBoundParamIndex = max(maxBoundParamIndex, paramIndex)
                 if paramIndex == positionalCursor {
                     positionalCursor += 1
                 }
@@ -122,12 +201,15 @@ extension OverloadResolver {
                 // are allowed only when they bind to a vararg parameter.
                 // Trailing lambdas are also allowed after named arguments when
                 // they map to the final function-typed parameter.
-                if let trailingLambdaParamIndex = trailingLambdaParameterIndex(for: argIndex) {
+                if let trailingLambdaParamIndex = trailingLambdaParameterIndex(for: argIndex),
+                   trailingLambdaParamIndex >= maxBoundParamIndex
+                {
                     if boundNonVarargParams.contains(trailingLambdaParamIndex) {
                         return nil
                     }
                     boundNonVarargParams.insert(trailingLambdaParamIndex)
                     mapping[argIndex] = trailingLambdaParamIndex
+                    maxBoundParamIndex = max(maxBoundParamIndex, trailingLambdaParamIndex)
                     if trailingLambdaParamIndex == positionalCursor {
                         positionalCursor += 1
                     }
@@ -135,9 +217,10 @@ extension OverloadResolver {
                 }
                 // Advance the cursor past already-bound non-vararg params.
                 advancePositionalCursor(for: argIndex)
-                if positionalCursor >= paramCount || !isVararg[positionalCursor] {
+                if positionalCursor >= paramCount || !isVararg[positionalCursor] || positionalCursor < maxBoundParamIndex {
                     return nil
                 }
+                maxBoundParamIndex = max(maxBoundParamIndex, positionalCursor)
                 mapping[argIndex] = positionalCursor
                 continue
             }
@@ -147,7 +230,16 @@ extension OverloadResolver {
                 return nil
             }
 
-            let paramIndex = positionalCursor
+            // Trailing lambda: a callable last argument can be bound to a later
+            // function-typed parameter when the intervening parameters have
+            // default values.
+            let paramIndex: Int
+            if argIndex == callArgs.count - 1,
+               let trailingIndex = trailingLambdaParameterIndex(for: argIndex) {
+                paramIndex = trailingIndex
+            } else {
+                paramIndex = positionalCursor
+            }
             if arg.isSpread, !isVararg[paramIndex] {
                 return nil
             }
@@ -157,7 +249,11 @@ extension OverloadResolver {
             }
             boundNonVarargParams.insert(paramIndex)
             mapping[argIndex] = paramIndex
-            positionalCursor += 1
+            if paramIndex == positionalCursor {
+                positionalCursor += 1
+            } else {
+                positionalCursor = max(positionalCursor, paramIndex + 1)
+            }
         }
 
         for paramIndex in paramNames.indices {
@@ -316,9 +412,16 @@ extension OverloadResolver {
         {
             if typeParam.nullability != .nonNull {
                 if case .nothing(.nullable) = typeSystem.kind(of: subtype) {
-                    // `null` / `Nothing?` is compatible with `T?` but does not
-                    // constrain the underlying non-null type variable.
-                    return []
+                    // `null` has type `Nothing?`. Although it is compatible
+                    // with every nullable `T?`, it still provides the bottom
+                    // type as the lower bound, so unconstrained calls such as
+                    // `requireNotNull(null)` infer T = Nothing.
+                    return [VariableConstraint(
+                        kind: .subtype,
+                        left: .type(typeSystem.nothingType),
+                        right: .variable(variable),
+                        blameRange: blameRange
+                    )]
                 }
                 let nonNullSubtype = typeSystem.makeNonNullable(subtype)
                 return [VariableConstraint(
@@ -355,12 +458,68 @@ extension OverloadResolver {
             }
         }
 
-        // Case 2: supertype is a class type with type args containing type variables.
+        // Comparable is a compiler-backed conformance for primitive values and
+        // type parameters whose upper bound is Comparable<Self>. Those receivers
+        // do not always have a classType that the generic decomposition below can
+        // lift, so recover the concrete Comparable argument before solving the
+        // member's class type parameter.
+        if case let .classType(superClass) = supertypeKind,
+           superClass.classSymbol == typeSystem.comparableInterfaceSymbol,
+           superClass.args.count == 1,
+           let superArgument = typeArgInnerType(superClass.args[0]),
+           containsTypeVariable(superArgument, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem),
+           let actualArgument = comparableArgument(of: subtype, typeSystem: typeSystem)
+        {
+            return decomposeSubtypeConstraintImpl(
+                subtype: actualArgument,
+                supertype: superArgument,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: typeSystem,
+                blameRange: blameRange,
+                depth: depth + 1
+            )
+        }
+
+        // Case 2: supertype is a generic class type with inferable variables or
+        // use-site projections. Projections such as `Comparator<in Char>` are
+        // otherwise left to the nominal subtype check, which cannot distinguish
+        // a valid projected argument from an invariant one.
         if case let .classType(superClass) = supertypeKind,
            !superClass.args.isEmpty,
-           containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+           (containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+               || superClass.args.contains(where: { arg in
+                   switch arg {
+                   case .in, .out:
+                       true
+                   case .invariant, .star:
+                       false
+                   }
+               }))
         {
             let subtypeKind = typeSystem.kind(of: subtype)
+            // Kotlin function types are represented as `Function<R>` in source
+            // declarations such as `callsInPlace` and `holdsIn`. Preserve the
+            // lambda return-type constraint when the source-backed interface is
+            // generic, even though the lambda itself is modeled as a function type.
+            if superClass.classSymbol == typeSystem.functionInterfaceSymbol,
+               case let .functionType(subFunction) = subtypeKind,
+               superClass.args.count == 1,
+               let returnArg = superClass.args.first
+            {
+                switch returnArg {
+                case let .out(type), let .invariant(type):
+                    return decomposeSubtypeConstraintImpl(
+                        subtype: subFunction.returnType,
+                        supertype: type,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: blameRange,
+                        depth: depth + 1
+                    )
+                case .in, .star:
+                    break
+                }
+            }
             if case let .kClassType(subKClass) = subtypeKind,
                superClass.classSymbol == typeSystem.kClassInterfaceSymbol,
                subKClass.nullability == superClass.nullability || superClass.nullability == .nullable,
@@ -413,14 +572,18 @@ extension OverloadResolver {
                     )]
                 }
                 var result: [VariableConstraint] = []
-                for (subArg, superArg) in zip(alignedClass.args, superClass.args) {
+                for (index, (subArg, superArg)) in zip(alignedClass.args, superClass.args).enumerated() {
                     let decomposed = decomposeTypeArgConstraintImpl(
                         subArg: subArg,
                         superArg: superArg,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange,
-                        depth: depth + 1
+                        depth: depth + 1,
+                        declarationVariance: typeSystem.normalizedNominalVariances(
+                            for: superClass.classSymbol,
+                            arity: superClass.args.count
+                        )[index]
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -464,9 +627,17 @@ extension OverloadResolver {
             )
         }
 
-        // Case 3: supertype is a function type with type variables in params/return.
+        // Case 3: either side is a function type with type variables in
+        // params/return. Invariant generic arguments decompose in both
+        // directions. The reverse direction can place the variable-bearing
+        // function on the subtype side, for example:
+        // `(T) -> Unit <: (String) -> Unit` from
+        // `Box<(String) -> Unit> <: Box<(T) -> Unit>`.
+        // Leaving that as a type-to-type constraint asks isSubtype to compare
+        // the unresolved T before the solver applies its bounds.
         if case let .functionType(superFunc) = supertypeKind,
-           containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+           containsTypeVariable(subtype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+               || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             let subtypeKind = typeSystem.kind(of: subtype)
             let receiverShapesMatch: Bool = {
@@ -549,18 +720,44 @@ extension OverloadResolver {
                subClass.nullability == superClass.nullability || superClass.nullability == .nullable
             {
                 var result: [VariableConstraint] = []
-                for (subArg, superArg) in zip(subClass.args, superClass.args) {
+                for (index, (subArg, superArg)) in zip(subClass.args, superClass.args).enumerated() {
                     let decomposed = decomposeTypeArgConstraintImpl(
                         subArg: subArg,
                         superArg: superArg,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange,
-                        depth: depth + 1
+                        depth: depth + 1,
+                        declarationVariance: typeSystem.normalizedNominalVariances(
+                            for: superClass.classSymbol,
+                            arity: superClass.args.count
+                        )[index]
                     )
                     result.append(contentsOf: decomposed)
                 }
                 return result
+            }
+            // Generic subtype against a concrete supertype instantiation
+            // (e.g. `MutableSharedFlow<T> <: SharedFlow<Int>`): lift the
+            // subtype to the supertype's nominal symbol so the type variables
+            // inside its arguments stay inferable.
+            if case let .classType(superClass) = supertypeKind,
+               subClass.classSymbol != superClass.classSymbol,
+               let liftedSubtype = liftClassType(
+                   subClass,
+                   to: superClass.classSymbol,
+                   typeSystem: typeSystem
+               ),
+               liftedSubtype != subtype
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: liftedSubtype,
+                    supertype: supertype,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: blameRange,
+                    depth: depth + 1
+                )
             }
         }
 
@@ -635,9 +832,25 @@ extension OverloadResolver {
         typeVarBySymbol: [SymbolID: TypeVarID],
         typeSystem: TypeSystem,
         blameRange: SourceRange?,
-        depth: Int
+        depth: Int,
+        declarationVariance: TypeVariance = .invariant
     ) -> [VariableConstraint] {
-        switch (subArg, superArg) {
+        // Kotlin declaration-site variance applies even when source syntax uses
+        // invariant type arguments (`Sequence<T>` is still covariant because
+        // Sequence declares `out T`). Without this projection, a generic
+        // source-backed return such as Sequence<Int> cannot flow into
+        // Sequence<Any> during type-variable solving.
+        // Star projections carry their own variance, so projecting them would hide the
+        // dedicated star handling below and leave type variables unconstrained.
+        let involvesStar = isStarProjection(subArg) || isStarProjection(superArg)
+        let projectedSubArg = involvesStar
+            ? subArg
+            : applyDeclarationVariance(subArg, declarationVariance: declarationVariance)
+        let projectedSuperArg = involvesStar
+            ? superArg
+            : applyDeclarationVariance(superArg, declarationVariance: declarationVariance)
+
+        switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
             // Invariant: both directions (equality).
             var result = decomposeSubtypeConstraintImpl(
@@ -672,14 +885,16 @@ extension OverloadResolver {
 
         case let (.star, .invariant(superInner)):
             // Subtype is star (e.g. receiver `Box<*>` against signature `Box<T>`).
-            // Star projection is equivalent to `out Any?`, so constrain T = Any?
-            // to ensure the solver can infer the type variable.
+            // A star projection is equivalent to `out TUpperBound`, where the
+            // upper bound comes from the declaration of the projected type.
+            // Use Any? only for an unbounded type parameter.
+            let starUpperBound = starProjectionUpperBound(for: superInner, typeSystem: typeSystem)
             return decomposeSubtypeConstraintImpl(
-                subtype: typeSystem.nullableAnyType, supertype: superInner,
+                subtype: starUpperBound, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                 blameRange: blameRange, depth: depth
             ) + decomposeSubtypeConstraintImpl(
-                subtype: superInner, supertype: typeSystem.nullableAnyType,
+                subtype: superInner, supertype: starUpperBound,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                 blameRange: blameRange, depth: depth
             )
@@ -708,6 +923,35 @@ extension OverloadResolver {
                 blameRange: blameRange, depth: depth
             ))
             return fallback
+        }
+    }
+
+    private func isStarProjection(_ arg: TypeArg) -> Bool {
+        if case .star = arg { return true }
+        return false
+    }
+
+    private func applyDeclarationVariance(
+        _ arg: TypeArg,
+        declarationVariance: TypeVariance
+    ) -> TypeArg {
+        switch declarationVariance {
+        case .invariant:
+            return arg
+        case .out:
+            switch arg {
+            case let .invariant(type), let .out(type):
+                return .out(type)
+            case .in, .star:
+                return arg
+            }
+        case .in:
+            switch arg {
+            case let .invariant(type), let .in(type):
+                return .in(type)
+            case .out, .star:
+                return arg
+            }
         }
     }
 

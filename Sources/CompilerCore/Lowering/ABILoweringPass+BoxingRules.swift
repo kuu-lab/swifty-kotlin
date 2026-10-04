@@ -1,3 +1,45 @@
+/// Resolves a value class's `TypeKind` to the `TypeKind` of its underlying
+/// primitive, so the caller's boxing-callee lookup treats a value class like
+/// its underlying representation (value classes are unboxed everywhere
+/// except at reference-type boundaries — ValueClassUnboxingPass — and except
+/// when the value class implements an interface, in which case it stays
+/// boxed for polymorphic dispatch; see `effectiveValueClassUnderlyingType`).
+/// Non-null enum classes resolve the same way, to `Int`: enum constants are
+/// raw ordinal Ints everywhere outside Any-erased slots (see
+/// `emitBoxCallWithValueClassTag`, which boxes them via
+/// `kk_enum_box_ordinal` instead of the plain `kk_box_int` this resolution
+/// would otherwise imply). Non-value-class/non-enum kinds, and nullable
+/// value classes/enums, pass through unchanged.
+///
+/// Shared as a free function (rather than an `ABILoweringPass` method) so
+/// `CollectionLiteralLoweringPass`'s `listOf`/`setOf`/array-literal boxing —
+/// which must stay in sync with ABILoweringPass's typeParam boxing boundary,
+/// per `typeParamBoxingBoundaryCallees` below — can resolve value classes the
+/// same way.
+func resolveValueClassKind(
+    _ kind: TypeKind,
+    types: TypeSystem,
+    symbols: SymbolTable?
+) -> TypeKind {
+    guard let symbols else { return kind }
+    guard case let .classType(classType) = kind,
+          classType.nullability == .nonNull
+    else {
+        return kind
+    }
+    guard let sym = symbols.symbol(classType.classSymbol) else {
+        return kind
+    }
+    if sym.kind == .enumClass {
+        return .primitive(.int, .nonNull)
+    }
+    guard sym.flags.contains(.valueType),
+          let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+    else {
+        return kind
+    }
+    return types.kind(of: underlyingType)
+}
 
 extension ABILoweringPass {
     /// Callees whose `typeParam`-typed parameter stores the argument verbatim into a
@@ -8,36 +50,74 @@ extension ABILoweringPass {
     /// element inserted via `add`/`set` is boxed identically to one created by
     /// `listOf(...)` / `setOf(...)` / `toMutableList()`.
     static let typeParamBoxingBoundaryCallees: Set<String> = [
-        "kk_pair_new",
-        "kk_triple_new",
-        "kk_mutable_list_add",
-        "kk_mutable_list_add_at",
-        "kk_mutable_list_set",
-        "kk_mutable_set_add",
-        "kk_mutable_map_put",
-        "kk_mutable_map_putAll",
-        "kk_mutable_map_getOrPut",
-        "kk_mutable_map_plusAssign_pair",
+        "__kk_pair_new",
+        "__kk_triple_new",
+        "__kk_mutable_collection_add",
+        "__kk_mutable_list_add",
+        "__kk_mutable_list_add_at",
+        "__kk_mutable_list_set",
+        "__kk_mutable_set_add",
+        "__kk_mutable_map_put",
+        "__kk_mutable_map_putAll",
+        "__kk_mutable_map_plusAssign_pair",
+        // Lookups must carry the same concrete type tag as inserted keys, or a
+        // bare `Char`/`Int`/`Long` code would match a key of another type.
+        "__kk_set_contains",
+        "__kk_map_get",
+        "__kk_mutable_set_remove",
+        "__kk_mutable_map_remove",
+        "__kk_sequence_builder_yield",
+        "__kk_iterator_builder_yield",
     ]
 
-    func resolveValueClassKind(
-        _ kind: TypeKind,
-        types: TypeSystem,
-        symbols: SymbolTable?
-    ) -> TypeKind {
-        guard let symbols else { return kind }
-        guard case let .classType(classType) = kind,
-              classType.nullability == .nonNull
+    /// The key-lookup subset of `typeParamBoxingBoundaryCallees`. Their point is to
+    /// keep a primitive key's concrete tag (Char vs Int vs Long); an enum entry is a
+    /// plain object, and `resolveValueClassKind` only models it as an Int for
+    /// unboxing, so boxing it here would not match how library code stored it.
+    static let keyLookupBoundaryCallees: Set<String> = [
+        "__kk_set_contains",
+        "__kk_map_get",
+        "__kk_mutable_set_remove",
+        "__kk_mutable_map_remove",
+    ]
+
+    /// True when the call target is a declaration compiled from Kotlin source —
+    /// bundled stdlib source in this compilation (no external link name) or the
+    /// same declaration imported from a library artifact (`kk_fn_*`). Such a
+    /// callee follows the compiler's own generic ABI, where type-parameter
+    /// slots carry boxed values; every other `kk_*` symbol is a hand-written
+    /// runtime bridge whose raw parameter convention must be left alone.
+    func isKotlinSourceCallee(_ callSymbol: SymbolID?, symbols: SymbolTable?) -> Bool {
+        guard let callSymbol, let symbols, let symbol = symbols.symbol(callSymbol),
+              (symbol.kind == .function || symbol.kind == .constructor),
+              symbols.isSourceBackedSymbol(callSymbol)
         else {
-            return kind
+            return false
         }
-        guard let sym = symbols.symbol(classType.classSymbol),
-              sym.flags.contains(.valueType),
-              let underlyingType = symbols.valueClassUnderlyingType(for: classType.classSymbol)
+        guard let linkName = symbols.externalLinkName(for: callSymbol), !linkName.isEmpty else {
+            return true
+        }
+        return linkName.hasPrefix("kk_fn_")
+    }
+
+    /// True when a `kk_array_get` receiver is the generic `kotlin.Array` class
+    /// (whose elements are stored boxed) rather than one of the primitive array
+    /// classes (`DoubleArray`, `IntArray`, ...) which store raw values.
+    func isGenericArrayReceiver(
+        _ receiver: KIRExprID?,
+        module: KIRModule,
+        types: TypeSystem?,
+        symbols: SymbolTable?,
+        arrayName: InternedString
+    ) -> Bool {
+        guard let receiver, let types, let symbols,
+              let receiverType = module.arena.exprType(receiver),
+              case let .classType(classType) = types.kind(of: types.makeNonNullable(receiverType)),
+              let symbol = symbols.symbol(classType.classSymbol)
         else {
-            return kind
+            return false
         }
-        return types.kind(of: underlyingType)
+        return symbol.name == arrayName
     }
 
     func boxingCallee(
@@ -46,12 +126,28 @@ extension ABILoweringPass {
         callee: InternedString?,
         types: TypeSystem,
         interner: StringInterner,
-        boxCallees: BoxingCalleeNames,
-        symbols: SymbolTable? = nil
+        boxingCalleeTable: BoxingCalleeTable,
+        symbols: SymbolTable? = nil,
+        boxTypeParamBoundary: Bool = false,
+        preferStaticPrimitive: Bool = false
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
+        if let callee,
+           ABILoweringPass.keyLookupBoundaryCallees.contains(interner.resolve(callee)),
+           case let .classType(argClass) = types.kind(of: types.makeNonNullable(argType)),
+           symbols?.symbol(argClass.classSymbol)?.kind == .enumClass
+        {
+            return nil
+        }
         let argKind = resolveValueClassKind(rawArgKind, types: types, symbols: symbols)
-        let paramKind = types.kind(of: paramType)
+        // Resolve the parameter's value-class type to its underlying kind too —
+        // otherwise a parameter declared as a value class (e.g. `s: SecondsXYZ`)
+        // looks like any other `.classType` reference boundary and gets boxed,
+        // even though the callee (post-ValueClassUnboxingPass) expects the raw
+        // unboxed underlying value. That mismatch corrupted arithmetic: a boxed
+        // Double pointer fed into `kk_op_dmul` as if it were the raw bit pattern.
+        let rawParamKind = types.kind(of: paramType)
+        let paramKind = resolveValueClassKind(rawParamKind, types: types, symbols: symbols)
 
         // Treat Any/Any?, reference types, and type parameters as boxing boundaries.
         // Type parameters are erased to Any at runtime, so primitives must be boxed.
@@ -72,11 +168,31 @@ extension ABILoweringPass {
                 // constructors and the mutable-collection element-insertion helpers),
                 // keeping `add`/`set` consistent with how `listOf(...)` / `setOf(...)`
                 // / `toMutableList()` already box every element.
+                // A call to a Kotlin-source declaration (bundled stdlib source
+                // or the same declaration imported from a library artifact)
+                // always uses the erased boxed representation for its generic
+                // parameters, so e.g. `Array<T>.fold(initial: R, ...)` must
+                // receive `0.0` as a `kk_box_double` handle rather than the raw
+                // bit pattern the callee would then reinterpret as a pointer.
+                if boxTypeParamBoundary {
+                    return true
+                }
                 if let callee {
                     let calleeName = interner.resolve(callee)
                     if ABILoweringPass.typeParamBoxingBoundaryCallees.contains(calleeName) {
                         return true
                     }
+                }
+                // Floating-point arguments must be boxed at every erased `T`
+                // parameter, not just the containers above: a raw Double word
+                // is indistinguishable from an Int of the same bits, and -0.0
+                // is bit-identical to the null sentinel, so an unboxed value
+                // reaching a generic callee compares unequal to the boxed
+                // elements it is matched against (e.g. Array<Double>.contains).
+                if case let .primitive(argPrimitive, .nonNull) = argKind,
+                   argPrimitive == .double || argPrimitive == .float
+                {
+                    return true
                 }
                 return false
             }
@@ -88,58 +204,29 @@ extension ABILoweringPass {
                case let .primitive(argPrimitive, .nonNull) = argKind,
                paramPrimitive == argPrimitive
             {
-                switch argPrimitive {
-                case .int:
-                    return boxCallees.int
-                case .long:
-                    return boxCallees.long
-                case .boolean:
-                    return boxCallees.bool
-                case .float:
-                    return boxCallees.float
-                case .double:
-                    return boxCallees.double
-                case .char:
-                    return boxCallees.char
-                case .uint, .ubyte, .ushort:
-                    return boxCallees.int
-                case .ulong:
-                    return boxCallees.long
-                default:
-                    return nil
-                }
+                return boxingCalleeTable.boxCallee(
+                    for: .primitive(argPrimitive, .nonNull),
+                    requireNonNull: true,
+                    preferStaticPrimitive: preferStaticPrimitive
+                )
             }
             return nil
         }
 
-        switch argKind {
-        case .primitive(.int, _):
-            return boxCallees.int
-        case .primitive(.long, _):
-            return boxCallees.long
-        case .primitive(.boolean, _):
-            return boxCallees.bool
-        case .primitive(.float, _):
-            return boxCallees.float
-        case .primitive(.double, _):
-            return boxCallees.double
-        case .primitive(.char, _):
-            return boxCallees.char
-        case .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
-            return boxCallees.int
-        case .primitive(.ulong, _):
-            return boxCallees.long
-        default:
-            return nil
-        }
+        return boxingCalleeTable.boxCallee(
+            for: argKind,
+            requireNonNull: false,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
     }
 
     func unboxingCallee(
         sourceKind: TypeKind,
         targetKind: TypeKind,
-        unboxCallees: UnboxingCalleeNames,
+        boxingCalleeTable: BoxingCalleeTable,
         types: TypeSystem? = nil,
-        symbols: SymbolTable? = nil
+        symbols: SymbolTable? = nil,
+        preferStaticPrimitive: Bool = false
     ) -> InternedString? {
         let resolvedTargetKind: TypeKind = if let types, let symbols {
             resolveValueClassKind(targetKind, types: types, symbols: symbols)
@@ -150,26 +237,11 @@ extension ABILoweringPass {
             return nil
         }
 
-        switch resolvedTargetKind {
-        case .primitive(.int, _):
-            return unboxCallees.int
-        case .primitive(.long, _):
-            return unboxCallees.long
-        case .primitive(.boolean, _):
-            return unboxCallees.bool
-        case .primitive(.float, _):
-            return unboxCallees.float
-        case .primitive(.double, _):
-            return unboxCallees.double
-        case .primitive(.char, _):
-            return unboxCallees.char
-        case .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
-            return unboxCallees.int
-        case .primitive(.ulong, _):
-            return unboxCallees.long
-        default:
-            return nil
-        }
+        return boxingCalleeTable.unboxCallee(
+            for: resolvedTargetKind,
+            requireNonNull: true,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
     }
 
     func intrinsicArgType(
@@ -196,7 +268,7 @@ extension ABILoweringPass {
             case .boolLiteral:
                 return types.make(.primitive(.boolean, .nonNull))
             case .stringLiteral:
-                return types.make(.primitive(.string, .nonNull))
+                return types.stringType
             default:
                 break
             }
@@ -211,14 +283,28 @@ extension ABILoweringPass {
         return false
     }
 
+    func isNonNullableStringStruct(_ kind: TypeKind) -> Bool {
+        if case let .stringStruct(nullability) = kind {
+            return nullability == .nonNull
+        }
+        return false
+    }
+
     func isNonValueClassReference(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
         guard case let .classType(classType) = kind else { return false }
-        // Exclude value classes — they are unboxed to their underlying primitive.
-        if let symbols,
-           let sym = symbols.symbol(classType.classSymbol),
-           sym.flags.contains(.valueType)
-        {
-            return false
+        // Non-null enum values use their raw ordinal representation outside
+        // Any-erased and nullable slots, just like value classes use their
+        // underlying primitive. Keep an enum-typed copy from being mistaken
+        // for a reference boundary and boxed unnecessarily.
+        if let symbols, let sym = symbols.symbol(classType.classSymbol) {
+            if classType.nullability == .nonNull, sym.kind == .enumClass {
+                return false
+            }
+            // Exclude value classes — they are unboxed to their underlying
+            // primitive.
+            if sym.flags.contains(.valueType) {
+                return false
+            }
         }
         return true
     }
@@ -230,6 +316,9 @@ extension ABILoweringPass {
     ) -> Bool {
         if isAnyOrNullableAny(sourceKind) {
             if case .primitive(_, .nonNull) = targetKind {
+                return true
+            }
+            if isNonNullableStringStruct(targetKind) {
                 return true
             }
             return false
@@ -287,8 +376,8 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
-        unboxCallees: UnboxingCalleeNames,
-        newBody: inout [KIRInstruction]
+        boxingCalleeTable: BoxingCalleeTable,
+        newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         // Literal expressions hold raw (never-boxed) values. Inserting kk_unbox_long
         // on a raw Long.MIN_VALUE literal would hit the null-sentinel path and return 0.
@@ -311,23 +400,19 @@ extension ABILoweringPass {
         guard needsUnboxing(sourceKind: operandKind, targetKind: resultKind, symbols: symbols),
               let callee = unboxingCallee(
                   sourceKind: operandKind, targetKind: resultKind,
-                  unboxCallees: unboxCallees, types: types, symbols: symbols
+                  boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
+                  preferStaticPrimitive: true
               )
         else {
             return operand
         }
-        let unboxed = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: resultType
-        )
-        newBody.append(.call(
-            symbol: nil,
+        let unboxed = emitNonThrowingCall(
             callee: callee,
-            arguments: [operand],
-            result: unboxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: operand,
+            resultType: resultType,
+            arena: module.arena,
+            into: &newBody
+        )
         return unboxed
     }
 
@@ -349,8 +434,8 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
-        unboxCallees: UnboxingCalleeNames,
-        newBody: inout [KIRInstruction]
+        boxingCalleeTable: BoxingCalleeTable,
+        newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         if let expr = module.arena.expr(operand) {
             switch expr {
@@ -385,50 +470,34 @@ extension ABILoweringPass {
         guard needsUnboxing(sourceKind: sourceKind, targetKind: targetKind, symbols: symbols),
               let callee = unboxingCallee(
                   sourceKind: sourceKind, targetKind: targetKind,
-                  unboxCallees: unboxCallees, types: types, symbols: symbols
+                  boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
+                  preferStaticPrimitive: true
               )
         else {
             return operand
         }
         let resultType = operandType ?? types.make(targetKind)
-        let unboxed = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: resultType
-        )
-        newBody.append(.call(
-            symbol: nil,
+        let unboxed = emitNonThrowingCall(
             callee: callee,
-            arguments: [operand],
-            result: unboxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: operand,
+            resultType: resultType,
+            arena: module.arena,
+            into: &newBody
+        )
         return unboxed
     }
 
     func boxCalleeForPrimitive(
         _ kind: TypeKind,
-        boxCallees: BoxingCalleeNames
+        boxingCalleeTable: BoxingCalleeTable,
+        preferStaticPrimitive: Bool = false
     ) -> InternedString? {
-        switch kind {
-        case .primitive(.int, .nonNull):
-            boxCallees.int
-        case .primitive(.long, .nonNull):
-            boxCallees.long
-        case .primitive(.boolean, .nonNull):
-            boxCallees.bool
-        case .primitive(.float, .nonNull):
-            boxCallees.float
-        case .primitive(.double, .nonNull):
-            boxCallees.double
-        case .primitive(.char, .nonNull):
-            boxCallees.char
-        case .primitive(.uint, .nonNull), .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
-            boxCallees.int
-        case .primitive(.ulong, .nonNull):
-            boxCallees.long
-        default:
-            nil
-        }
+        // Unit is a builtin value rather than a PrimitiveType, but it still
+        // needs a heap representation when it crosses an erased Any boundary.
+        boxingCalleeTable.boxCallee(
+            for: kind,
+            requireNonNull: true,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
     }
 }

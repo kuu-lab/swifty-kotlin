@@ -1,4 +1,5 @@
-// SKIP-DIFF: advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
+// Regression coverage for implicit CoroutineScope extension resolution and the
+// receiver-aware ABI of a produce builder lambda.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 

@@ -1,7 +1,9 @@
 
 extension DataFlowSemaPhase {
-    /// Registers synthetic enum stdlib stubs: kotlin.Enum<T>, EnumEntries<T>,
-    /// enumValues<T>(), enumValueOf<T>(String).
+    /// Registers synthetic enum type/container stubs: kotlin.Enum<T> and
+    /// EnumEntries<T>. The top-level enum functions are bundled source
+    /// declarations; their concrete calls are expanded by the enum-specific
+    /// type checker/lowerer.
     func registerSyntheticEnumStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -29,11 +31,18 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // kotlin.Enum<T> with name: String, ordinal: Int
+        // Bootstrap kotlin.Enum<T> with name: String, ordinal: Int. KSP-732
+        // and KSP-837 declare the nominal class and its six public members in
+        // `Stdlib/kotlin/Enum.kt`; bundle loading reuses this shell and its
+        // source-backed members replace the fallback properties below. Keep
+        // the shell's type parameter in the TypeSystem so header collection
+        // does not define a fresh, orphaned `kotlin.Enum.$<id>.T`.
         let enumName = interner.intern("Enum")
         let enumFQName = kotlinPkg + [enumName]
         let enumSymbol = ensureEnumClassSymbol(symbols: symbols, interner: interner, kotlinPkg: kotlinPkg)
-        _ = ensureEnumTypeParameter(symbols: symbols, interner: interner, enumFQName: enumFQName)
+        let enumTypeParamSymbol = ensureEnumTypeParameter(symbols: symbols, interner: interner, enumFQName: enumFQName)
+        types.setNominalTypeParameterSymbols([enumTypeParamSymbol], for: enumSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: enumSymbol)
         registerEnumNameOrdinalProperties(
             symbols: symbols,
             types: types,
@@ -43,35 +52,21 @@ extension DataFlowSemaPhase {
         )
 
         // kotlin.enums.EnumEntries<T> — List-like read-only container for enum entries
-        _ = ensureEnumEntriesInterface(
-            symbols: symbols,
-            interner: interner,
-            kotlinEnumsPkg: kotlinEnumsPkg
-        )
-
-        // enumValues<T>(): Array<T> — top-level inline reified
-        registerEnumValuesFunction(
+        let enumEntriesInterfaceSymbol = ensureEnumEntriesInterface(
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinPkg: kotlinPkg
+            kotlinEnumsPkg: kotlinEnumsPkg,
+            kotlinCollectionsPkg: kotlinCollectionsPkg
         )
-
-        // enumValueOf<T>(name: String): T — top-level inline reified
-        registerEnumValueOfFunction(
+        registerEnumEntriesGetOperator(
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinPkg: kotlinPkg
+            kotlinEnumsPkg: kotlinEnumsPkg,
+            enumEntriesSymbol: enumEntriesInterfaceSymbol
         )
 
-        // enumEntries<T>(): EnumEntries<T> — top-level inline reified (Kotlin 1.9+)
-        registerEnumEntriesFunction(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinEnumsPkg: kotlinEnumsPkg
-        )
     }
 
     private func ensureEnumClassSymbol(
@@ -125,7 +120,7 @@ extension DataFlowSemaPhase {
         enumSymbol: SymbolID,
         enumFQName: [InternedString]
     ) {
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let intType = types.make(.primitive(.int, .nonNull))
 
         func ensureProperty(name: String, returnType: TypeID) {
@@ -152,208 +147,118 @@ extension DataFlowSemaPhase {
 
     private func ensureEnumEntriesInterface(
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner,
-        kotlinEnumsPkg: [InternedString]
+        kotlinEnumsPkg: [InternedString],
+        kotlinCollectionsPkg: [InternedString]
     ) -> SymbolID {
         let enumEntriesName = interner.intern("EnumEntries")
         let enumEntriesFQName = kotlinEnumsPkg + [enumEntriesName]
-        if let existing = symbols.lookup(fqName: enumEntriesFQName) {
-            return existing
-        }
         let tParamName = interner.intern("T")
         let tParamFQName = enumEntriesFQName + [tParamName]
-        _ = symbols.define(
-            kind: .typeParameter,
-            name: tParamName,
-            fqName: tParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let enumEntriesSymbol = symbols.define(
-            kind: .interface,
-            name: enumEntriesName,
-            fqName: enumEntriesFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let pkg = symbols.lookup(fqName: kotlinEnumsPkg), pkg != .invalid {
-            symbols.setParentSymbol(pkg, for: enumEntriesSymbol)
+
+        let enumEntriesSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: enumEntriesFQName) {
+            enumEntriesSymbol = existing
+        } else {
+            _ = symbols.define(
+                kind: .typeParameter,
+                name: tParamName,
+                fqName: tParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            enumEntriesSymbol = symbols.define(
+                kind: .interface,
+                name: enumEntriesName,
+                fqName: enumEntriesFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            if let pkg = symbols.lookup(fqName: kotlinEnumsPkg), pkg != .invalid {
+                symbols.setParentSymbol(pkg, for: enumEntriesSymbol)
+            }
         }
+
+        // kotlin.enums.EnumEntries<T> : kotlin.collections.List<T> (Kotlin 1.9+:
+        // `EnumClass.entries` is a read-only List<T>). Registering the
+        // supertype relationship in both the SymbolTable and TypeSystem
+        // nominal-supertype graphs (mirroring how List/Collection/Iterable
+        // register their own supertypes, e.g. registerSyntheticListStub) lets
+        // ordinary member-call resolution and the collection member-call
+        // fallback find List's real members (.size, .forEach, etc.) on an
+        // EnumEntries<T>-typed receiver instead of reporting "Unresolved
+        // member function".
+        guard let tParamSymbol = symbols.lookup(fqName: tParamFQName),
+              let listInterfaceSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("List")])
+        else {
+            return enumEntriesSymbol
+        }
+        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
+        types.setNominalTypeParameterSymbols([tParamSymbol], for: enumEntriesSymbol)
+        types.setNominalTypeParameterVariances([.out], for: enumEntriesSymbol)
+        symbols.setDirectSupertypes([listInterfaceSymbol], for: enumEntriesSymbol)
+        types.setNominalDirectSupertypes([listInterfaceSymbol], for: enumEntriesSymbol)
+        symbols.setSupertypeTypeArgs([.out(tParamType)], for: enumEntriesSymbol, supertype: listInterfaceSymbol)
+        types.setNominalSupertypeTypeArgs([.out(tParamType)], for: enumEntriesSymbol, supertype: listInterfaceSymbol)
+
         return enumEntriesSymbol
     }
 
-    private func registerEnumValuesFunction(
+    /// Registers `operator fun get(index: Int): T` on `EnumEntries<T>`.
+    ///
+    /// `EnumEntries<T>` has no declared members or supertypes (see
+    /// `ensureEnumEntriesInterface`), so without an owned `get`, indexed access
+    /// (`entries[0]`) finds no `operator fun get` candidate in Sema and the KIR
+    /// indexed-access lowering falls back to the generic built-in path, which
+    /// always emits `kk_array_get` regardless of the receiver's actual runtime
+    /// representation. `entries`'s runtime representation is a `RuntimeListBox`
+    /// (`kk_enum_make_entries_list_cached`), not a `RuntimeArrayBox`, so that
+    /// fallback panics at runtime (BUG-178). EnumEntries uses a dedicated
+    /// checked bridge because its get contract throws on an invalid index.
+    private func registerEnumEntriesGetOperator(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinPkg: [InternedString]
+        kotlinEnumsPkg: [InternedString],
+        enumEntriesSymbol: SymbolID
     ) {
-        let enumValuesName = interner.intern("enumValues")
-        let enumValuesFQName = kotlinPkg + [enumValuesName]
-        guard symbols.lookupAll(fqName: enumValuesFQName).isEmpty else { return }
+        let enumEntriesFQName = kotlinEnumsPkg + [interner.intern("EnumEntries")]
+        let tParamFQName = enumEntriesFQName + [interner.intern("T")]
+        guard let tParamSymbol = symbols.lookup(fqName: tParamFQName) else { return }
 
-        let arrayName = interner.intern("Array")
-        let arrayFQName = kotlinPkg + [arrayName]
-        guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else { return }
+        let getName = interner.intern("get")
+        let getFQName = enumEntriesFQName + [getName]
+        guard symbols.lookup(fqName: getFQName) == nil else { return }
 
-        let tParamName = interner.intern("T")
-        let tParamFQName = enumValuesFQName + [tParamName]
-        let tParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tParamName,
-            fqName: tParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
         let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-        let arrayType = types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.invariant(tParamType)],
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: enumEntriesSymbol,
+            args: [.out(tParamType)],
             nullability: .nonNull
         )))
-
-        let funcSymbol = symbols.define(
+        let getSymbol = symbols.define(
             kind: .function,
-            name: enumValuesName,
-            fqName: enumValuesFQName,
+            name: getName,
+            fqName: getFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic, .inlineFunction]
+            flags: [.synthetic, .operatorFunction, .throwingFunction]
         )
-        if let pkg = symbols.lookup(fqName: kotlinPkg), pkg != .invalid {
-            symbols.setParentSymbol(pkg, for: funcSymbol)
-        }
+        symbols.setParentSymbol(enumEntriesSymbol, for: getSymbol)
+        symbols.setExternalLinkName("__kk_enum_entries_get", for: getSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
-                parameterTypes: [],
-                returnType: arrayType,
-                isSuspend: false,
-                typeParameterSymbols: [tParamSymbol],
-                reifiedTypeParameterIndices: [0],
-                typeParameterUpperBoundsList: [[]],
-                classTypeParameterCount: 0
-            ),
-            for: funcSymbol
-        )
-    }
-
-    private func registerEnumValueOfFunction(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinPkg: [InternedString]
-    ) {
-        let enumValueOfName = interner.intern("enumValueOf")
-        let enumValueOfFQName = kotlinPkg + [enumValueOfName]
-        guard symbols.lookupAll(fqName: enumValueOfFQName).isEmpty else { return }
-
-        let tParamName = interner.intern("T")
-        let tParamFQName = enumValueOfFQName + [tParamName]
-        let tParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tParamName,
-            fqName: tParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-        let stringType = types.make(.primitive(.string, .nonNull))
-
-        let paramName = interner.intern("name")
-        let paramFQName = enumValueOfFQName + [paramName]
-        let paramSymbol = symbols.define(
-            kind: .valueParameter,
-            name: paramName,
-            fqName: paramFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-
-        let funcSymbol = symbols.define(
-            kind: .function,
-            name: enumValueOfName,
-            fqName: enumValueOfFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        if let pkg = symbols.lookup(fqName: kotlinPkg), pkg != .invalid {
-            symbols.setParentSymbol(pkg, for: funcSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [stringType],
+                receiverType: receiverType,
+                parameterTypes: [types.intType],
                 returnType: tParamType,
-                isSuspend: false,
-                valueParameterSymbols: [paramSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
+                canThrow: true,
                 typeParameterSymbols: [tParamSymbol],
-                reifiedTypeParameterIndices: [0],
-                typeParameterUpperBoundsList: [[]]
+                classTypeParameterCount: 1
             ),
-            for: funcSymbol
-        )
-    }
-
-    private func registerEnumEntriesFunction(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinEnumsPkg: [InternedString]
-    ) {
-        let enumEntriesName = interner.intern("enumEntries")
-        let enumEntriesFQName = kotlinEnumsPkg + [enumEntriesName]
-        guard symbols.lookupAll(fqName: enumEntriesFQName).isEmpty else { return }
-
-        let enumEntriesInterfaceName = interner.intern("EnumEntries")
-        let enumEntriesInterfaceFQName = kotlinEnumsPkg + [enumEntriesInterfaceName]
-        guard let enumEntriesInterfaceSymbol = symbols.lookup(fqName: enumEntriesInterfaceFQName) else { return }
-
-        let tParamName = interner.intern("T")
-        let tParamFQName = enumEntriesFQName + [tParamName]
-        let tParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tParamName,
-            fqName: tParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-        let enumEntriesType = types.make(.classType(ClassType(
-            classSymbol: enumEntriesInterfaceSymbol,
-            args: [.invariant(tParamType)],
-            nullability: .nonNull
-        )))
-
-        let funcSymbol = symbols.define(
-            kind: .function,
-            name: enumEntriesName,
-            fqName: enumEntriesFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        if let pkg = symbols.lookup(fqName: kotlinEnumsPkg), pkg != .invalid {
-            symbols.setParentSymbol(pkg, for: funcSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [],
-                returnType: enumEntriesType,
-                isSuspend: false,
-                typeParameterSymbols: [tParamSymbol],
-                reifiedTypeParameterIndices: [0],
-                typeParameterUpperBoundsList: [[]],
-                classTypeParameterCount: 0
-            ),
-            for: funcSymbol
+            for: getSymbol
         )
     }
 
@@ -367,7 +272,7 @@ extension DataFlowSemaPhase {
         scope: Scope,
         interner: StringInterner
     ) {
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let intType = types.make(.primitive(.int, .nonNull))
 
         for (name, returnType) in [("name", stringType), ("ordinal", intType)] {
@@ -390,6 +295,74 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Registers the synthetic `values(): Array<T>` static factory on an enum
+    /// class itself (e.g. `Direction.values()`), mirroring how real Kotlin
+    /// exposes `values()` as a pseudo-static member of the enum class rather
+    /// than its companion. Unlike `valueOf`/`entries` (registered on the
+    /// companion by `collectSyntheticEnumCompanionMembers`), `values()` is
+    /// looked up directly under the enum class's own FQ name by the
+    /// class-name-receiver static-call resolution path (see
+    /// `inferRegularMemberCall`'s `staticMethodFQName` lookup), so its owner
+    /// here must be `ownerSymbol` (the enum class), not the companion.
+    ///
+    /// The corresponding KIR function body is synthesized later by
+    /// `DataEnumSealedSynthesisPass.appendSyntheticEnumValuesIfNeeded`, which
+    /// reuses this exact symbol (by FQ name + owner) so the call resolved
+    /// here at Sema time links to the KIR body generated during Lowering.
+    /// Called from HeaderCollection when processing enum classes.
+    func collectSyntheticEnumValuesMember(
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        enumType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        scope: Scope,
+        interner: StringInterner
+    ) {
+        let valuesName = interner.intern("values")
+        // Source-backed enum extensions such as
+        // `RequiresOptIn.Level.values()` own the class-name API. Do not add
+        // the generated enum member as a duplicate in that case.
+        guard !BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: ownerFQName,
+            name: valuesName,
+            arity: 0
+        ) else {
+            return
+        }
+        let valuesFQName = ownerFQName + [valuesName]
+        guard symbols.lookupAll(fqName: valuesFQName).compactMap({ symbols.symbol($0) }).allSatisfy({ $0.kind != .function }) else {
+            return
+        }
+        let arrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
+        guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else {
+            return
+        }
+        let arrayType = types.make(.classType(ClassType(
+            classSymbol: arraySymbol,
+            args: [.invariant(enumType)],
+            nullability: .nonNull
+        )))
+        let funcSymbol = symbols.define(
+            kind: .function,
+            name: valuesName,
+            fqName: valuesFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [],
+                returnType: arrayType,
+                isSuspend: false
+            ),
+            for: funcSymbol
+        )
+        scope.insert(funcSymbol)
+    }
+
     /// Registers synthetic companion members (valueOf, entries) for enum classes.
     /// Call with companionSymbol and companionScope when the companion exists (or was synthesized).
     func collectSyntheticEnumCompanionMembers(
@@ -401,7 +374,7 @@ extension DataFlowSemaPhase {
         scope: Scope,
         interner: StringInterner
     ) {
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let companionType = types.make(.classType(ClassType(
             classSymbol: companionSymbol,
             args: [],

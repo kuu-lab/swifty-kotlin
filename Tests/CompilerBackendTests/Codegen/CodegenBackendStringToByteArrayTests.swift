@@ -1,0 +1,72 @@
+#if canImport(Testing)
+@testable import CompilerCore
+@testable import CompilerBackend
+import Foundation
+import Testing
+
+@Suite
+struct CodegenBackendStringToByteArrayTests {
+
+    @Test
+    func testCodegenStringToByteArrayNoArg() throws {
+        let source = """
+        fun main() {
+            val bytes = "abc".toByteArray()
+            println(bytes.size)
+            println(bytes[0])
+            println(bytes[1])
+            println(bytes[2])
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "StringToByteArrayNoArg", expected: "3\n97\n98\n99\n")
+    }
+
+    @Test
+    func testCodegenStringToByteArrayCharsets() throws {
+        let source = """
+        fun main() {
+            val utf8 = "hello".toByteArray(Charsets.UTF_8)
+            println(utf8.size)
+
+            val latin1 = "hello".toByteArray(Charsets.ISO_8859_1)
+            println(latin1.size)
+
+            val ascii = "hello".toByteArray(Charsets.US_ASCII)
+            println(ascii.size)
+
+            // UTF-16BE: 2 bytes per BMP char, no BOM
+            val utf16be = "ab".toByteArray(Charsets.UTF_16BE)
+            println(utf16be.size)
+
+            // UTF-16LE: 2 bytes per BMP char, no BOM
+            val utf16le = "ab".toByteArray(Charsets.UTF_16LE)
+            println(utf16le.size)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "StringToByteArrayCharsets", expected: "5\n5\n5\n4\n4\n")
+    }
+
+    @Test
+    func testCodegenStringToByteArrayCharsetsUseSignedBytes() throws {
+        let source = """
+        fun main() {
+            val utf8 = "é".toByteArray(Charsets.UTF_8)
+            println(utf8.contentToString())
+            println(utf8[0])
+            println(utf8[0].toInt())
+
+            val latin1 = "é".toByteArray(Charsets.ISO_8859_1)
+            println(latin1.contentToString())
+
+            val utf16 = "é".toByteArray(Charsets.UTF_16)
+            println(utf16.contentToString())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToByteArrayCharsetSignedBytes",
+            expected: "[-61, -87]\n-61\n-61\n[-23]\n[-2, -1, 0, -23]\n"
+        )
+    }
+}
+#endif

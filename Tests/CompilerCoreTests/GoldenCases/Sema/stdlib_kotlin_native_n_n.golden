@@ -1,0 +1,94 @@
+symbol fq=__local_0.platformModel[kind=local] kind=local vis=private flags=_ type=kotlin.native.MemoryModel
+symbol fq=__local_1.currentHook[kind=local] kind=local vis=private flags=_ type=((kotlin.Throwable) -> Unit)?
+symbol fq=__local_2.previousHook[kind=local] kind=local vis=private flags=_ type=((kotlin.Throwable) -> Unit)?
+symbol fq=__local_3.floatVector[kind=local] kind=local vis=private flags=_ type=kotlinx.cinterop.Vector128
+symbol fq=__local_4.intVector[kind=local] kind=local vis=private flags=_ type=kotlinx.cinterop.Vector128
+symbol fq=__local_5.createdBlob[kind=local] kind=local vis=private flags=_ type=kotlin.native.ImmutableBlob
+symbol fq=golden.sema.SwiftRefined[kind=anno] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.eagerTopLevel[kind=prop] kind=property vis=public flags=_ type=Int
+symbol fq=golden.sema.nativeTopLevelSurface.$0.architecture[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.nativeTopLevelSurface.$0.bitSet[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.nativeTopLevelSurface.$0.blob[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.nativeTopLevelSurface.$0.error[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.nativeTopLevelSurface.$0.hook[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.nativeTopLevelSurface.$0.memoryModel[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.nativeTopLevelSurface.$0.osFamily[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.nativeTopLevelSurface[kind=fun;params=kotlin.native.OsFamily,kotlin.native.CpuArchitecture,kotlin.native.MemoryModel,kotlin.native.ImmutableBlob?,fn{p=kotlin.Throwable;ret=Unit}?,kotlin.native.BitSet,kotlin.native.IncorrectDereferenceException] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.OsFamily,kotlin.native.CpuArchitecture,kotlin.native.MemoryModel,kotlin.native.ImmutableBlob?,((kotlin.Throwable) -> Unit)?,kotlin.native.BitSet,kotlin.native.IncorrectDereferenceException] ret=Int
+symbol fq=golden.sema.nativeTopLevel[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.terminateTopLevel.$1.error[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.terminateTopLevel[kind=fun;params=kotlin.Throwable] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Throwable] ret=Nothing
+file fstdlib_kotlin_native_n_n package=golden.sema annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class,kotlin.ExperimentalStdlibApi::class,kotlin.experimental.ExperimentalObjCName::class,kotlin.experimental.ExperimentalObjCRefinement::class,kotlin.native.SymbolNameIsInternal::class,kotlin.native.ObsoleteNativeApi::class),@file:Suppress("DEPRECATION_ERROR")]
+  decl golden.sema.SwiftRefined[kind=anno] class SwiftRefined sym=golden.sema.SwiftRefined[kind=anno]
+  decl golden.sema.nativeTopLevel[kind=fun;params=] fun nativeTopLevel sym=golden.sema.nativeTopLevel[kind=fun;params=]
+  decl golden.sema.eagerTopLevel[kind=prop] property eagerTopLevel var=0 sym=golden.sema.eagerTopLevel[kind=prop]
+  decl golden.sema.nativeTopLevelSurface[kind=fun;params=kotlin.native.OsFamily,kotlin.native.CpuArchitecture,kotlin.native.MemoryModel,kotlin.native.ImmutableBlob?,fn{p=kotlin.Throwable;ret=Unit}?,kotlin.native.BitSet,kotlin.native.IncorrectDereferenceException] fun nativeTopLevelSurface sym=golden.sema.nativeTopLevelSurface[kind=fun;params=kotlin.native.OsFamily,kotlin.native.CpuArchitecture,kotlin.native.MemoryModel,kotlin.native.ImmutableBlob?,fn{p=kotlin.Throwable;ret=Unit}?,kotlin.native.BitSet,kotlin.native.IncorrectDereferenceException]
+  decl golden.sema.terminateTopLevel[kind=fun;params=kotlin.Throwable] fun terminateTopLevel sym=golden.sema.terminateTopLevel[kind=fun;params=kotlin.Throwable]
+expr e@52:29 int(42) type=Int
+expr e@55:21 int(1) type=Int
+expr e@66:25 name(Platform) type=kotlin.native.Platform ref=kotlin.native.Platform[kind=obj]
+expr e@66:25#1 memberCall recv=e@66:25 callee=memoryModel args=[] type=kotlin.native.MemoryModel ref=kotlin.native.Platform.memoryModel[kind=prop]
+expr e@66:5 localDecl platformModel mutable=0 type=_ init=e@66:25#1 type=Unit ref=__local_0.platformModel[kind=local]
+expr e@67:23 call callee=e@67:23#1 args=[] type=((kotlin.Throwable) -> Unit)? call=kotlin.native.getUnhandledExceptionHook[kind=fun;params=]
+expr e@67:5 localDecl currentHook mutable=0 type=_ init=e@67:23 type=Unit ref=__local_1.currentHook[kind=local]
+expr e@68:50 name(hook) type=((kotlin.Throwable) -> Unit)? ref=golden.sema.nativeTopLevelSurface.$0.hook[kind=vparam]
+expr e@68:24 call callee=e@68:24#1 args=[_:e@68:50] type=((kotlin.Throwable) -> Unit)? call=kotlin.native.setUnhandledExceptionHook[kind=fun;params=fn{p=kotlin.Throwable;ret=Unit}?]
+expr e@68:5 localDecl previousHook mutable=0 type=_ init=e@68:24 type=Unit ref=__local_2.previousHook[kind=local]
+expr e@69:5 call callee=e@69:5#1 args=[] type=Unit call=kotlin.native.initRuntimeIfNeeded[kind=fun;params=]
+expr e@70:31 name(error) type=kotlin.native.IncorrectDereferenceException ref=golden.sema.nativeTopLevelSurface.$0.error[kind=vparam]
+expr e@70:5 call callee=e@70:5#1 args=[_:e@70:31] type=Unit call=kotlin.native.processUnhandledException[kind=fun;params=kotlin.Throwable]
+expr e@71:32 float(1.0) type=Float
+expr e@71:38 float(2.0) type=Float
+expr e@71:44 float(3.0) type=Float
+expr e@71:50 float(4.0) type=Float
+expr e@71:23 call callee=e@71:23#1 args=[_:e@71:32,_:e@71:38,_:e@71:44,_:e@71:50] type=kotlinx.cinterop.Vector128 call=kotlin.native.vectorOf[kind=fun;params=Float,Float,Float,Float]
+expr e@71:5 localDecl floatVector mutable=0 type=_ init=e@71:23 type=Unit ref=__local_3.floatVector[kind=local]
+expr e@72:30 int(1) type=Int
+expr e@72:33 int(2) type=Int
+expr e@72:36 int(3) type=Int
+expr e@72:39 int(4) type=Int
+expr e@72:21 call callee=e@72:21#1 args=[_:e@72:30,_:e@72:33,_:e@72:36,_:e@72:39] type=kotlinx.cinterop.Vector128 call=kotlin.native.vectorOf[kind=fun;params=Int,Int,Int,Int]
+expr e@72:5 localDecl intVector mutable=0 type=_ init=e@72:21 type=Unit ref=__local_4.intVector[kind=local]
+expr e@73:39 int(1) type=Short
+expr e@73:42 int(2) type=Short
+expr e@73:45 int(3) type=Short
+expr e@73:23 call callee=e@73:23#1 args=[_:e@73:39,_:e@73:42,_:e@73:45] type=kotlin.native.ImmutableBlob call=kotlin.native.immutableBlobOf[kind=fun;params=*Short]
+expr e@73:5 localDecl createdBlob mutable=0 type=_ init=e@73:23 type=Unit ref=__local_5.createdBlob[kind=local]
+expr e@75:9 call callee=e@75:9#1 args=[] type=Boolean call=kotlin.native.isExperimentalMM[kind=fun;params=]
+expr e@76:9 name(platformModel) type=kotlin.native.MemoryModel ref=__local_0.platformModel[kind=local]
+expr e@76:26 name(MemoryModel) type=kotlin.native.MemoryModel ref=kotlin.native.MemoryModel[kind=enum]
+expr e@76:26#1 memberCall recv=e@76:26 callee=EXPERIMENTAL args=[] type=kotlin.native.MemoryModel ref=kotlin.native.MemoryModel.EXPERIMENTAL[kind=field]
+expr e@76:9#1 binary(equal) lhs=e@76:9 rhs=e@76:26#1 type=Boolean call=kotlin.Enum.equals[kind=fun;recv=kotlin.Enum<T0>;params=Any?;gen=1] targs=[kotlin.native.MemoryModel]
+expr e@75:9#2 binary(logicalAnd) lhs=e@75:9 rhs=e@76:9#1 type=Boolean
+expr e@77:9 name(currentHook) type=((kotlin.Throwable) -> Unit)? ref=__local_1.currentHook[kind=local]
+expr e@77:25 name(previousHook) type=((kotlin.Throwable) -> Unit)? ref=__local_2.previousHook[kind=local]
+expr e@77:9#1 binary(identityEqual) lhs=e@77:9 rhs=e@77:25 type=Boolean
+expr e@75:9#3 binary(logicalAnd) lhs=e@75:9#2 rhs=e@77:9#1 type=Boolean
+expr e@78:9 name(blob) type=kotlin.native.ImmutableBlob? ref=golden.sema.nativeTopLevelSurface.$0.blob[kind=vparam]
+expr e@78:18 name(createdBlob) type=kotlin.native.ImmutableBlob ref=__local_5.createdBlob[kind=local]
+expr e@78:9#1 binary(identityEqual) lhs=e@78:9 rhs=e@78:18 type=Boolean
+expr e@75:9#4 binary(logicalAnd) lhs=e@75:9#3 rhs=e@78:9#1 type=Boolean
+expr e@79:9 name(floatVector) type=kotlinx.cinterop.Vector128 ref=__local_3.floatVector[kind=local]
+expr e@79:25 name(intVector) type=kotlinx.cinterop.Vector128 ref=__local_4.intVector[kind=local]
+expr e@79:9#1 binary(identityEqual) lhs=e@79:9 rhs=e@79:25 type=Boolean
+expr e@75:9#5 binary(logicalAnd) lhs=e@75:9#4 rhs=e@79:9#1 type=Boolean
+expr e@80:9 name(bitSet) type=kotlin.native.BitSet ref=golden.sema.nativeTopLevelSurface.$0.bitSet[kind=vparam]
+expr e@80:9#1 memberCall recv=e@80:9 callee=size args=[] type=Int ref=kotlin.native.BitSet.size[kind=prop]
+expr e@80:24 int(0) type=Int
+expr e@80:9#2 binary(greaterOrEqual) lhs=e@80:9#1 rhs=e@80:24 type=Boolean
+expr e@75:9#6 binary(logicalAnd) lhs=e@75:9#5 rhs=e@80:9#2 type=Boolean
+expr e@81:9 name(osFamily) type=kotlin.native.OsFamily ref=golden.sema.nativeTopLevelSurface.$0.osFamily[kind=vparam]
+expr e@81:21 name(OsFamily) type=kotlin.native.OsFamily ref=kotlin.native.OsFamily[kind=enum]
+expr e@81:21#1 memberCall recv=e@81:21 callee=UNKNOWN args=[] type=kotlin.native.OsFamily ref=kotlin.native.OsFamily.UNKNOWN[kind=field]
+expr e@81:9#1 binary(equal) lhs=e@81:9 rhs=e@81:21#1 type=Boolean call=kotlin.Enum.equals[kind=fun;recv=kotlin.Enum<T0>;params=Any?;gen=1] targs=[kotlin.native.OsFamily]
+expr e@75:9#7 binary(logicalAnd) lhs=e@75:9#6 rhs=e@81:9#1 type=Boolean
+expr e@82:9 name(architecture) type=kotlin.native.CpuArchitecture ref=golden.sema.nativeTopLevelSurface.$0.architecture[kind=vparam]
+expr e@82:25 name(CpuArchitecture) type=kotlin.native.CpuArchitecture ref=kotlin.native.CpuArchitecture[kind=enum]
+expr e@82:25#1 memberCall recv=e@82:25 callee=UNKNOWN args=[] type=kotlin.native.CpuArchitecture ref=kotlin.native.CpuArchitecture.UNKNOWN[kind=field]
+expr e@82:9#1 binary(equal) lhs=e@82:9 rhs=e@82:25#1 type=Boolean call=kotlin.Enum.equals[kind=fun;recv=kotlin.Enum<T0>;params=Any?;gen=1] targs=[kotlin.native.CpuArchitecture]
+expr e@75:9#8 binary(logicalAnd) lhs=e@75:9#7 rhs=e@82:9#1 type=Boolean
+expr e@83:7 int(1) type=Int
+expr e@83:14 int(0) type=Int
+expr e@74:12 if cond=e@75:9#8 then=e@83:7 else=e@83:14 type=Int
+expr e@74:5 return value=e@74:12 type=Nothing
+expr e@86:84 name(error) type=kotlin.Throwable ref=golden.sema.terminateTopLevel.$1.error[kind=vparam]
+expr e@86:52 call callee=e@86:52#1 args=[_:e@86:84] type=Nothing call=kotlin.native.terminateWithUnhandledException[kind=fun;params=kotlin.Throwable]

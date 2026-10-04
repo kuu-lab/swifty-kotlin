@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.contracts.ExperimentalContracts::class)
+
 import kotlin.contracts.contract
 
 fun requireNotNullText(value: String?) {

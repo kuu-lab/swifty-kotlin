@@ -37,7 +37,7 @@ fun main() {
 
     // map and toList
     println((1UL..5UL).map { it * 2UL }.toList())
-    println((1UL..5UL).mapIndexed { index, value -> index + value })
+    println((1UL..5UL).mapIndexed { index, value -> index.toULong() + value })
 
     // count
     println((1UL..10UL).count())

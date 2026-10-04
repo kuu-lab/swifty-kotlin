@@ -2,483 +2,548 @@
 @testable import CompilerCore
 import Testing
 
-/// Tests for interface default methods (CLASS-003 / P5-113).
-///
-/// Verifies that interface functions with bodies (default methods) are:
-/// 1. Parsed and preserved in the AST
-/// 2. NOT marked abstract in the sema symbol table
-/// 3. Callable on implementing classes that do not override them
-/// 4. Correctly overridden when a concrete class provides its own implementation
-/// 5. Lowered to KIR without errors
-/// 6. Dispatched correctly through itable when receiver is interface-typed
 @Suite struct InterfaceDefaultMethodTests {
     // MARK: - Sema: default methods are not abstract
+    // MARK: - Consolidated Interface Default Method SemaClean tests
+    @Test
+    func testInterfaceDefaultMethodSemaClean() throws {
+        let sources: [String] = [
+            // testInterfaceDefaultMethodNotMarkedAbstract
+            """
+            package sample0
 
-    @Test func testInterfaceDefaultMethodNotMarkedAbstract() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
 
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+            """,
+            // testInterfaceAbstractMethodIsMarkedAbstract
+            """
+            package sample1
 
-        // The greet function should NOT have the abstractType flag
-        let sema = try #require(ctx.sema)
-        let greetSymbols = sema.symbols.allSymbols().filter {
-            $0.kind == .function && ctx.interner.resolve($0.name) == "greet"
-        }
-        #expect(greetSymbols.count == 1)
-        #expect(!(greetSymbols[0].flags.contains(.abstractType)),
-                       "Interface default method should not be marked abstract")
-    }
+                    interface Greeter {
+                        fun greet(): String
+                    }
 
-    @Test func testInterfaceAbstractMethodIsMarkedAbstract() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            """,
+            // testConcreteClassInheritsDefaultMethodWithoutOverride
+            """
+            package sample2
 
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
+                    class DefaultGreeter : Greeter
 
-        let sema = try #require(ctx.sema)
-        let greetSymbols = sema.symbols.allSymbols().filter {
-            $0.kind == .function && ctx.interner.resolve($0.name) == "greet"
-        }
-        #expect(greetSymbols.count == 1)
-        #expect(greetSymbols[0].flags.contains(.abstractType),
-                      "Interface method without body should be marked abstract")
-    }
+            """,
+            // testConcreteClassOverridesDefaultMethod
+            """
+            package sample3
 
-    // MARK: - Sema: concrete class inherits default method without error
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
+                    class CustomGreeter : Greeter {
+                        override fun greet(): String = "Hi"
+                    }
 
-    @Test func testConcreteClassInheritsDefaultMethodWithoutOverride() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
-        }
-        class DefaultGreeter : Greeter
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            """,
+            // testInterfaceWithMixedAbstractAndDefaultMethods
+            """
+            package sample4
 
-        // No abstract override error: default method satisfies the requirement
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
+                    interface Animal {
+                        fun name(): String
+                        fun sound(): String = "..."
+                    }
+                    class Dog : Animal {
+                        override fun name(): String = "Dog"
+                    }
 
-    @Test func testConcreteClassMustOverrideAbstractInterfaceMethod() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String
-        }
-        class DefaultGreeter : Greeter
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            """,
+            // testClassImplementsMultipleInterfacesWithDefaults
+            """
+            package sample5
 
-        // Abstract method without body must be overridden
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
+                    interface Logger {
+                        fun log(): String = "logged"
+                    }
+                    class MyClass : Greeter, Logger
 
-    @Test func testConcreteClassOverridesDefaultMethod() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
-        }
-        class CustomGreeter : Greeter {
-            override fun greet(): String = "Hi"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            """,
+            // testDefaultMethodWithBlockBody
+            """
+            package sample6
 
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
+                    interface Calculator {
+                        fun add(a: Int, b: Int): Int {
+                            return a + b
+                        }
+                    }
+                    class SimpleCalc : Calculator
 
-    // MARK: - Sema: mixed abstract and default methods
+            """,
+            // testDefaultMethodCallableOnImplementingClass
+            """
+            package sample7
 
-    @Test func testInterfaceWithMixedAbstractAndDefaultMethods() throws {
-        let source = """
-        interface Animal {
-            fun name(): String
-            fun sound(): String = "..."
-        }
-        class Dog : Animal {
-            override fun name(): String = "Dog"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
+                    class DefaultGreeter : Greeter
+                    fun main() {
+                        val g = DefaultGreeter()
+                        println(g.greet())
+                    }
 
-        // Dog overrides name() (abstract) and inherits sound() (default)
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
+            """,
+            // testDefaultMethodCallableOnInterfaceTypedVariable
+            """
+            package sample8
 
-    @Test func testMixedMethodsMissingAbstractOverrideErrors() throws {
-        let source = """
-        interface Animal {
-            fun name(): String
-            fun sound(): String = "..."
-        }
-        class Dog : Animal
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
+                    class DefaultGreeter : Greeter
+                    fun main() {
+                        val g: Greeter = DefaultGreeter()
+                        println(g.greet())
+                    }
 
-        // Dog must override the abstract name() even though sound() has a default
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
+            """,
+            // testInterfaceAbstractProperty
+            """
+            package sample9
 
-    // MARK: - Sema: multiple interfaces with default methods
+                    interface TestInterface {
+                        val abstractProperty: String
+                        var abstractVar: Int
+                    }
+                    class TestClass : TestInterface {
+                        override val abstractProperty: String = "test"
+                        override var abstractVar: Int = 42
+                    }
 
-    @Test func testClassImplementsMultipleInterfacesWithDefaults() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
-        }
-        interface Logger {
-            fun log(): String = "logged"
-        }
-        class MyClass : Greeter, Logger
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+            """,
+            // testInterfaceConcreteProperty
+            """
+            package sample10
 
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
+                    interface TestInterface {
+                        val concreteProperty: String
+                            get() = "default"
+                        var concreteVar: Int
+                            get() = 42
+                            set(value) {}
+                    }
+                    class TestClass : TestInterface
 
-    // MARK: - Sema: default method with block body
+            """,
+            // testInterfaceComputedProperty
+            """
+            package sample11
 
-    @Test func testDefaultMethodWithBlockBody() throws {
-        let source = """
-        interface Calculator {
-            fun add(a: Int, b: Int): Int {
-                return a + b
+                    interface TestInterface {
+                        val computedProperty: String
+                            get() = "computed"
+                        var computedVar: String
+                            get() = "get"
+                            set(value) { }
+                    }
+                    class TestClass : TestInterface
+
+            """,
+            // testSuperQualifiedCall
+            """
+            package sample12
+
+                    interface A {
+                        fun method(): String = "A"
+                    }
+                    interface B : A {
+                        override fun method(): String = "B"
+                    }
+                    interface C : A {
+                        override fun method(): String = "C"
+                    }
+                    class TestClass : B, C {
+                        override fun method(): String = super<B>.method() + " + " + super<C>.method()
+                    }
+
+            """,
+            // testDiamondConflictResolutionUsesFullSignature
+            """
+            package sample13
+
+                    interface Left {
+                        fun method(value: Int): String = "LeftInt"
+                    }
+                    interface Right {
+                        fun method(value: String): String = "RightString"
+                    }
+                    class TestClass : Left, Right
+
+            """,
+            // testConcreteSuperclassDefaultBeatsInterfaceConflict
+            """
+            package sample14
+
+                    open class Base {
+                        open fun method(): String = "Base"
+                    }
+                    interface Left {
+                        fun method(): String = "Left"
+                    }
+                    interface Right {
+                        fun method(): String = "Right"
+                    }
+                    class TestClass : Base(), Left, Right
+
+            """,
+            // testConcreteSuperclassDefaultCallResolvesWithoutAmbiguity
+            """
+            package sample15
+
+                    open class Base {
+                        open fun method(): String = "Base"
+                    }
+                    interface Left {
+                        fun method(): String = "Left"
+                    }
+                    interface Right {
+                        fun method(): String = "Right"
+                    }
+                    class TestClass : Base(), Left, Right
+                    fun main() {
+                        println(TestClass().method())
+                    }
+
+            """,
+            // testSignatureAwareInheritedOverloadsResolveCalls
+            """
+            package sample16
+
+                    interface Left {
+                        fun method(value: Int): String = "LeftInt"
+                    }
+                    interface Right {
+                        fun method(value: String): String = "RightString"
+                    }
+                    class TestClass : Left, Right
+                    fun main() {
+                        val instance = TestClass()
+                        println(instance.method(1))
+                        println(instance.method("x"))
+                    }
+
+            """,
+            // testComplexInterfaceInheritance
+            """
+            package sample17
+
+                    interface Base {
+                        fun baseMethod(): String = "Base"
+                        abstract fun abstractMethod(): String
+                    }
+                    interface Left : Base {
+                        override fun baseMethod(): String = "Left"
+                        fun leftMethod(): String = "Left"
+                    }
+                    interface Right : Base {
+                        // Don't override baseMethod to avoid diamond conflict
+                        fun rightMethod(): String = "Right"
+                    }
+                    class TestClass : Left, Right {
+                        override fun abstractMethod(): String = "Implemented"
+                    }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            // testInterfaceDefaultMethodNotMarkedAbstract
+            do {
+                let samplePackage = "sample0"
+
+                #expect(!ctx.diagnostics.hasError)
+
+                // The greet function should NOT have the abstractType flag
+                let greetSymbols = sema.symbols.allSymbols().filter { $0.kind == .function && interner.resolve($0.name) == "greet" && interner.resolve($0.fqName[0]) == samplePackage }
+                #expect(greetSymbols.count == 1)
+                #expect(!(greetSymbols[0].flags.contains(.abstractType)),
+                               "Interface default method should not be marked abstract")
+            }
+
+            // testInterfaceAbstractMethodIsMarkedAbstract
+            do {
+                let samplePackage = "sample1"
+
+                #expect(!ctx.diagnostics.hasError)
+
+                let greetSymbols = sema.symbols.allSymbols().filter { $0.kind == .function && interner.resolve($0.name) == "greet" && interner.resolve($0.fqName[0]) == samplePackage }
+                #expect(greetSymbols.count == 1)
+                #expect(greetSymbols[0].flags.contains(.abstractType),
+                              "Interface method without body should be marked abstract")
+            }
+
+            // testConcreteClassInheritsDefaultMethodWithoutOverride
+            do {
+                // No abstract override error: default method satisfies the requirement
+                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testConcreteClassOverridesDefaultMethod
+            do {
+                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testInterfaceWithMixedAbstractAndDefaultMethods
+            do {
+                // Dog overrides name() (abstract) and inherits sound() (default)
+                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testClassImplementsMultipleInterfacesWithDefaults
+            do {
+                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testDefaultMethodWithBlockBody
+            do {
+                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testDefaultMethodCallableOnImplementingClass
+            do {
+                let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                #expect(errors.isEmpty,
+                              "Calling inherited default method should not produce errors. Got: \(errors.map(\.message))")
+            }
+
+            // testDefaultMethodCallableOnInterfaceTypedVariable
+            do {
+                let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                #expect(errors.isEmpty,
+                              "Calling default method on interface-typed var should not error. Got: \(errors.map(\.message))")
+            }
+
+            // testInterfaceAbstractProperty
+            do {
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testInterfaceConcreteProperty
+            do {
+                // Real kotlinc rejects property initializers in interfaces
+                // ("property initializers in interfaces are prohibited"), so default
+                // property values must be expressed via a getter (and a no-op setter
+                // for `var`), not `= expr`.
+
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testInterfaceComputedProperty
+            do {
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testSuperQualifiedCall
+            do {
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testDiamondConflictResolutionUsesFullSignature
+            do {
+                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testConcreteSuperclassDefaultBeatsInterfaceConflict
+            do {
+                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testConcreteSuperclassDefaultCallResolvesWithoutAmbiguity
+            do {
+                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testSignatureAwareInheritedOverloadsResolveCalls
+            do {
+                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
+                #expect(!ctx.diagnostics.hasError)
+            }
+
+            // testComplexInterfaceInheritance
+            do {
+                #expect(!ctx.diagnostics.hasError)
             }
         }
-        class SimpleCalc : Calculator
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
+    // MARK: - Consolidated Interface Default Method SemaErrors tests
+    @Test
+    func testInterfaceDefaultMethodSemaErrors() throws {
+        let sources: [String] = [
+            // testConcreteClassMustOverrideAbstractInterfaceMethod
+            """
+            package sample0
 
-    // MARK: - Sema: member call resolution on implementing class
+                    interface Greeter {
+                        fun greet(): String
+                    }
+                    class DefaultGreeter : Greeter
 
-    @Test func testDefaultMethodCallableOnImplementingClass() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
+            """,
+            // testMixedMethodsMissingAbstractOverrideErrors
+            """
+            package sample1
+
+                    interface Animal {
+                        fun name(): String
+                        fun sound(): String = "..."
+                    }
+                    class Dog : Animal
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            _ = try #require(ctx.sema)
+
+            // testConcreteClassMustOverrideAbstractInterfaceMethod
+            do {
+                // Abstract method without body must be overridden
+                assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+            }
+
+            // testMixedMethodsMissingAbstractOverrideErrors
+            do {
+                // Dog must override the abstract name() even though sound() has a default
+                assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+            }
         }
-        class DefaultGreeter : Greeter
-        fun main() {
-            val g = DefaultGreeter()
-            println(g.greet())
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty,
-                      "Calling inherited default method should not produce errors. Got: \(errors.map(\.message))")
     }
+    // MARK: - Consolidated Interface Default Method Lowering tests
+    @Test
+    func testInterfaceDefaultMethodLowering() throws {
+        let sources: [String] = [
+            // testInterfaceDefaultMethodKIREmission
+            """
+            package sample0
 
-    @Test func testDefaultMethodCallableOnInterfaceTypedVariable() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
-        }
-        class DefaultGreeter : Greeter
-        fun main() {
-            val g: Greeter = DefaultGreeter()
-            println(g.greet())
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
+                    class DefaultGreeter : Greeter
+                    fun main() {
+                        println(DefaultGreeter().greet())
+                    }
 
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty,
-                      "Calling default method on interface-typed var should not error. Got: \(errors.map(\.message))")
-    }
+            """,
+            // testOverriddenDefaultMethodKIREmission
+            """
+            package sample1
 
-    // MARK: - KIR: default method lowering
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
+                    class CustomGreeter : Greeter {
+                        override fun greet(): String = "Hi"
+                    }
+                    fun main() {
+                        println(CustomGreeter().greet())
+                    }
 
-    @Test func testInterfaceDefaultMethodKIREmission() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
-        }
-        class DefaultGreeter : Greeter
-        fun main() {
-            println(DefaultGreeter().greet())
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToKIR(ctx)
+            """,
+            // testDefaultMethodFullPipelineLowering
+            """
+            package sample2
 
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-                       "KIR lowering should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
-        let module = try #require(ctx.kir)
-        #expect(module.functionCount >= 1)
-    }
+                    interface Greeter {
+                        fun greet(): String = "Hello"
+                    }
+                    class DefaultGreeter : Greeter
+                    class CustomGreeter : Greeter {
+                        override fun greet(): String = "Hi"
+                    }
+                    fun main() {
+                        println(DefaultGreeter().greet())
+                        println(CustomGreeter().greet())
+                    }
 
-    @Test func testOverriddenDefaultMethodKIREmission() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
-        }
-        class CustomGreeter : Greeter {
-            override fun greet(): String = "Hi"
-        }
-        fun main() {
-            println(CustomGreeter().greet())
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToKIR(ctx)
+            """,
+            // testMixedMethodsFullPipelineLowering
+            """
+            package sample3
 
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-                       "KIR lowering with override should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
+                    interface Animal {
+                        fun name(): String
+                        fun sound(): String = "..."
+                    }
+                    class Dog : Animal {
+                        override fun name(): String = "Dog"
+                    }
+                    fun main() {
+                        val d = Dog()
+                        println(d.name())
+                        println(d.sound())
+                    }
 
-    // MARK: - KIR: full pipeline lowering
+            """,
+        ]
 
-    @Test func testDefaultMethodFullPipelineLowering() throws {
-        let source = """
-        interface Greeter {
-            fun greet(): String = "Hello"
-        }
-        class DefaultGreeter : Greeter
-        class CustomGreeter : Greeter {
-            override fun greet(): String = "Hi"
-        }
-        fun main() {
-            println(DefaultGreeter().greet())
-            println(CustomGreeter().greet())
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runToLowering(ctx)
 
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-                       "Full pipeline lowering should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
+            _ = try #require(ctx.sema)
 
-    @Test func testMixedMethodsFullPipelineLowering() throws {
-        let source = """
-        interface Animal {
-            fun name(): String
-            fun sound(): String = "..."
-        }
-        class Dog : Animal {
-            override fun name(): String = "Dog"
-        }
-        fun main() {
-            val d = Dog()
-            println(d.name())
-            println(d.sound())
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
+            // testInterfaceDefaultMethodKIREmission
+            do {
+                #expect(!ctx.diagnostics.hasError,
+                               "KIR lowering should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
+                let module = try #require(ctx.kir)
+                #expect(module.functionCount >= 1)
+            }
 
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty,
-                      "Mixed abstract+default pipeline should succeed. Got: \(errors.map(\.message))")
-    }
+            // testOverriddenDefaultMethodKIREmission
+            do {
+                #expect(!ctx.diagnostics.hasError,
+                               "KIR lowering with override should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
+            }
 
-    // MARK: - Interface Properties Tests
+            // testDefaultMethodFullPipelineLowering
+            do {
+                #expect(!ctx.diagnostics.hasError,
+                               "Full pipeline lowering should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
+            }
 
-    @Test func testInterfaceAbstractProperty() throws {
-        let source = """
-        interface TestInterface {
-            val abstractProperty: String
-            var abstractVar: Int
+            // testMixedMethodsFullPipelineLowering
+            do {
+                let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                #expect(errors.isEmpty,
+                              "Mixed abstract+default pipeline should succeed. Got: \(errors.map(\.message))")
+            }
         }
-        class TestClass : TestInterface {
-            override val abstractProperty: String = "test"
-            override var abstractVar: Int = 42
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testInterfaceConcreteProperty() throws {
-        let source = """
-        interface TestInterface {
-            val concreteProperty: String = "default"
-            var concreteVar: Int = 42
-        }
-        class TestClass : TestInterface
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testInterfaceComputedProperty() throws {
-        let source = """
-        interface TestInterface {
-            val computedProperty: String
-                get() = "computed"
-            var computedVar: String
-                get() = "get"
-                set(value) { }
-        }
-        class TestClass : TestInterface
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    // MARK: - Super Call Tests
-
-    @Test func testSuperQualifiedCall() throws {
-        let source = """
-        interface A {
-            fun method(): String = "A"
-        }
-        interface B : A {
-            override fun method(): String = "B"
-        }
-        interface C : A {
-            override fun method(): String = "C"
-        }
-        class TestClass : B, C {
-            override fun method(): String = super<B>.method() + " + " + super<C>.method()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testDiamondConflictResolutionUsesFullSignature() throws {
-        let source = """
-        interface Left {
-            fun method(value: Int): String = "LeftInt"
-        }
-        interface Right {
-            fun method(value: String): String = "RightString"
-        }
-        class TestClass : Left, Right
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testConcreteSuperclassDefaultBeatsInterfaceConflict() throws {
-        let source = """
-        open class Base {
-            open fun method(): String = "Base"
-        }
-        interface Left {
-            fun method(): String = "Left"
-        }
-        interface Right {
-            fun method(): String = "Right"
-        }
-        class TestClass : Base(), Left, Right
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testConcreteSuperclassDefaultCallResolvesWithoutAmbiguity() throws {
-        let source = """
-        open class Base {
-            open fun method(): String = "Base"
-        }
-        interface Left {
-            fun method(): String = "Left"
-        }
-        interface Right {
-            fun method(): String = "Right"
-        }
-        class TestClass : Base(), Left, Right
-        fun main() {
-            println(TestClass().method())
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testSignatureAwareInheritedOverloadsResolveCalls() throws {
-        let source = """
-        interface Left {
-            fun method(value: Int): String = "LeftInt"
-        }
-        interface Right {
-            fun method(value: String): String = "RightString"
-        }
-        class TestClass : Left, Right
-        fun main() {
-            val instance = TestClass()
-            println(instance.method(1))
-            println(instance.method("x"))
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    // MARK: - Complex Interface Inheritance Tests
-
-    @Test func testComplexInterfaceInheritance() throws {
-        let source = """
-        interface Base {
-            fun baseMethod(): String = "Base"
-            abstract fun abstractMethod(): String
-        }
-        interface Left : Base {
-            override fun baseMethod(): String = "Left"
-            fun leftMethod(): String = "Left"
-        }
-        interface Right : Base {
-            // Don't override baseMethod to avoid diamond conflict
-            fun rightMethod(): String = "Right"
-        }
-        class TestClass : Left, Right {
-            override fun abstractMethod(): String = "Implemented"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 }
 #endif

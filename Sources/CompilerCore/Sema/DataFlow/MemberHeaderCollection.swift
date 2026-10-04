@@ -17,6 +17,7 @@ extension DataFlowSemaPhase {
         members: MemberDeclarations,
         owner: OwnerContext,
         sourceFileID: FileID,
+        ctx: CompilationContext,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -27,7 +28,8 @@ extension DataFlowSemaPhase {
         classTypeParameterSymbols: [SymbolID] = [],
         classLocalTypeParameters: [InternedString: SymbolID] = [:]
     ) {
-        let sourceFile = ast.files.first { $0.fileID == sourceFileID }
+        let sourceManager = ctx.sourceManager
+        let sourceFile = ast.file(for: sourceFileID)
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
         let ownerFQName = owner.fqName
@@ -35,6 +37,44 @@ extension DataFlowSemaPhase {
         let ownerType = owner.type
         let anyType = types.anyType
         let unitType = types.unitType
+
+        // Nested class/object symbols must exist before sibling member
+        // signatures are resolved, since a function's parameter/return type
+        // may reference a type nested in this same body (e.g. `PaddingOption`
+        // nested in `Base64`, referenced by `withPadding(option: PaddingOption)`).
+        for declID in members.nestedClasses {
+            collectNestedClassOrInterfaceHeader(
+                declID: declID,
+                ownerFQName: ownerFQName,
+                ownerSymbol: ownerSymbol,
+                sourceFileID: sourceFileID,
+                ctx: ctx,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                bindings: bindings,
+                scope: scope,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+
+        for declID in members.nestedObjects {
+            collectNestedObjectHeader(
+                declID: declID,
+                ownerFQName: ownerFQName,
+                ownerSymbol: ownerSymbol,
+                sourceFileID: sourceFileID,
+                ctx: ctx,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                bindings: bindings,
+                scope: scope,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
 
         for declID in members.functions {
             guard let decl = ast.arena.decl(declID),
@@ -53,7 +93,16 @@ extension DataFlowSemaPhase {
                 newFlags: memberFlags
             )
             // Kotlin: interface functions without a body are implicitly abstract.
-            if symbols.symbol(ownerSymbol)?.kind == .interface, funDecl.body == .unit {
+            // Bundled stdlib interfaces also use body-less functions as runtime
+            // bridge declarations. An external function or a function carrying
+            // @KsSymbolName has an implementation outside the Kotlin body, so it
+            // must remain available as the interface's default implementation.
+            let hasRuntimeBridge = funDecl.modifiers.contains(.external)
+                || hasCompilerAnnotation(.ksSymbolName, on: funDecl.annotations)
+            if symbols.symbol(ownerSymbol)?.kind == .interface,
+               funDecl.body == .unit,
+               !hasRuntimeBridge
+            {
                 memberFlags.insert(.abstractType)
             }
 
@@ -83,19 +132,55 @@ extension DataFlowSemaPhase {
                     range: funDecl.range
                 )
             }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: funDecl.name,
+            let memberSymbol: SymbolID
+            if let existingSyntheticFunction = reusableSyntheticMemberFunctionSymbol(
                 fqName: memberFQName,
-                declSite: funDecl.range,
-                visibility: visibility(from: funDecl.modifiers),
-                flags: memberFlags
-            )
+                ownerSymbol: ownerSymbol,
+                valueParamCount: funDecl.valueParams.count,
+                expectedVisibility: visibility(from: funDecl.modifiers),
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
+                symbols: symbols
+            ) {
+                memberSymbol = existingSyntheticFunction
+                symbols.removeFlags(.synthetic, for: memberSymbol)
+                // Clear placeholder-only flags so the source declaration's modifiers
+                // fully determine the final symbol state; memberFlags will re-add any
+                // flags that the bundled declaration actually declares.
+                symbols.removeFlags([.abstractType, .static, .finalMember, .overrideMember], for: memberSymbol)
+                symbols.insertFlags(memberFlags, for: memberSymbol)
+                // SequenceScope's yield methods are rewritten by the builder
+                // lowering pass, so the bundled declarations must not retain
+                // the synthetic runtime bridge. Other bundled members may be
+                // intentionally retained runtime bridges (for example the
+                // Collection interface methods), so do not clear them globally.
+                if ownerFQName.map(interner.resolve) == ["kotlin", "sequences", "SequenceScope"] {
+                    symbols.clearExternalLinkName(for: memberSymbol)
+                }
+                symbols.setDeclSite(funDecl.range, for: memberSymbol)
+            } else {
+                memberSymbol = symbols.define(
+                    kind: .function,
+                    name: funDecl.name,
+                    fqName: memberFQName,
+                    declSite: funDecl.range,
+                    visibility: visibility(from: funDecl.modifiers),
+                    flags: memberFlags
+                )
+            }
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
+            diagnoseReservedExternalFunctionUse(
+                funDecl,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics
+            )
             registerAnnotations(
                 for: decl,
                 symbol: memberSymbol,
                 declRange: funDecl.range,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -133,6 +218,21 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 fallbackType: anyType
             )
+            let contextReceiverTypes = funDecl.contextReceivers.compactMap { contextReceiver in
+                resolveTypeRef(
+                    contextReceiver.type,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: mergedLocalTypeParameters,
+                    relativeOwnerFQName: ownerFQName,
+                    currentPackageFQName: sourcePackageFQName,
+                    imports: sourceImports,
+                    diagnostics: diagnostics,
+                    usageRange: funDecl.range
+                )
+            }
 
             let returnType: TypeID = if let explicit = resolveTypeRef(
                 funDecl.returnType,
@@ -144,7 +244,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: ownerFQName,
                 currentPackageFQName: sourcePackageFQName,
                 imports: sourceImports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: funDecl.range
             ) {
                 explicit
             } else {
@@ -171,21 +272,51 @@ extension DataFlowSemaPhase {
             let offsetReifiedIndices: Set<Int> = classTPCount == 0
                 ? typeParamResult.reifiedIndices
                 : Set(typeParamResult.reifiedIndices.map { $0 + classTPCount })
+            // A companion's member extension has two receivers in Kotlin: the
+            // companion singleton (dispatch) and the declared extension type.
+            // The singleton needs no runtime argument, so represent the latter
+            // as the function's receiver for call resolution and lowering.
+            let isCompanionMember = symbols.parentSymbol(for: ownerSymbol).map { parent in
+                symbols.companionObjectSymbol(for: parent) == ownerSymbol
+            } ?? false
+            let extensionReceiverType = isCompanionMember ? resolveTypeRef(
+                funDecl.receiverType,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                localTypeParameters: mergedLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                diagnostics: diagnostics,
+                usageRange: funDecl.range
+            ) : nil
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: ownerType,
+                    receiverType: extensionReceiverType ?? ownerType,
+                    contextReceiverTypes: contextReceiverTypes,
                     parameterTypes: params.paramTypes,
                     returnType: returnType,
                     isSuspend: funDecl.isSuspend,
                     valueParameterSymbols: params.paramSymbols,
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,
                     valueParameterIsVararg: params.paramIsVararg,
+                    valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
                     typeParameterSymbols: allTypeParameterSymbols,
                     reifiedTypeParameterIndices: offsetReifiedIndices,
                     typeParameterUpperBoundsList: memberUpperBounds,
                     classTypeParameterCount: classTPCount
                 ),
                 for: memberSymbol
+            )
+            attachUuidSourceMigrationBridgeIfNeeded(
+                to: memberSymbol,
+                fqName: memberFQName,
+                sourceFileID: sourceFileID,
+                ctx: ctx,
+                symbols: symbols,
+                interner: interner
             )
             checkAndReportJVMErasedCallableConflict(
                 for: memberSymbol,
@@ -205,14 +336,28 @@ extension DataFlowSemaPhase {
             }
             let memberFQName = ownerFQName + [propertyDecl.name]
             var propertyFlags = flags(from: propertyDecl.modifiers)
-            checkAndReportDuplicateDeclaration(
-                newKind: .property,
+            let isExtensionProperty = propertyDecl.receiverType != nil
+            let reusableSyntheticProperty = reusableSyntheticMemberPropertySymbol(
                 fqName: memberFQName,
-                range: propertyDecl.range,
+                ownerSymbol: ownerSymbol,
+                ownerFQName: ownerFQName,
+                expectedVisibility: visibility(from: propertyDecl.modifiers),
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 symbols: symbols,
-                diagnostics: diagnostics,
-                newFlags: propertyFlags
+                interner: interner
             )
+            if reusableSyntheticProperty == nil {
+                checkAndReportDuplicateDeclaration(
+                    newKind: .property,
+                    fqName: memberFQName,
+                    range: propertyDecl.range,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    newFlags: propertyFlags,
+                    newIsExtensionProperty: isExtensionProperty
+                )
+            }
 
             // STDLIB-CLASS-010: Abstract properties cannot have initializers
             if propertyDecl.modifiers.contains(.abstract) && propertyDecl.initializer != nil {
@@ -264,27 +409,62 @@ extension DataFlowSemaPhase {
             }
 
             // Kotlin: interface properties without getter/setter body are implicitly abstract.
-            // Properties with custom accessors (getter/setter) or initializer are concrete.
+            // Properties with custom accessors (getter/setter) are concrete; interfaces
+            // cannot hold per-instance state, so initializers and delegate expressions
+            // are rejected outright (matches kotlinc's "property initializers in
+            // interfaces are prohibited" / "delegated properties in interfaces are
+            // prohibited").
             if symbols.symbol(ownerSymbol)?.kind == .interface {
                 let hasCustomAccessor = propertyDecl.getter != nil || propertyDecl.setter != nil
                 let hasInitializer = propertyDecl.initializer != nil
-                if !hasCustomAccessor && !hasInitializer {
+                let hasDelegate = propertyDecl.delegateExpression != nil
+                if hasInitializer {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0303",
+                        "Property initializers in interfaces are prohibited.",
+                        range: propertyDecl.range
+                    )
+                }
+                if hasDelegate {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0304",
+                        "Delegated properties in interfaces are prohibited.",
+                        range: propertyDecl.range
+                    )
+                }
+                // A rejected initializer/delegate still provides no real accessor
+                // body, so keep treating the property as abstract for override
+                // checking (`collectInheritedAbstractMembers` in Inheritance.swift)
+                // instead of silently letting implementing classes skip overriding it.
+                if !hasCustomAccessor {
                     propertyFlags.insert(.abstractType)
                 }
             }
-            let memberSymbol = symbols.define(
-                kind: .property,
-                name: propertyDecl.name,
-                fqName: memberFQName,
-                declSite: propertyDecl.range,
-                visibility: visibility(from: propertyDecl.modifiers),
-                flags: propertyFlags
-            )
+            let memberSymbol: SymbolID
+            if let reusableSyntheticProperty {
+                memberSymbol = reusableSyntheticProperty
+                symbols.removeFlags(.synthetic, for: memberSymbol)
+                symbols.removeFlags([.abstractType, .static, .finalMember, .overrideMember, .mutable], for: memberSymbol)
+                symbols.insertFlags(propertyFlags, for: memberSymbol)
+                symbols.setDeclSite(propertyDecl.range, for: memberSymbol)
+            } else {
+                memberSymbol = symbols.define(
+                    kind: .property,
+                    name: propertyDecl.name,
+                    fqName: memberFQName,
+                    declSite: propertyDecl.range,
+                    visibility: visibility(from: propertyDecl.modifiers),
+                    flags: propertyFlags,
+                    isExtensionProperty: isExtensionProperty
+                )
+            }
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
             registerAnnotations(
                 for: decl,
                 symbol: memberSymbol,
                 declRange: propertyDecl.range,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -321,9 +501,75 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: ownerFQName,
                 currentPackageFQName: sourcePackageFQName,
                 imports: sourceImports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: propertyDecl.range
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: memberSymbol)
+
+            // Kotlin permits extension properties inside a companion object,
+            // such as `val Int.seconds` in `Duration.Companion`. Keep these
+            // declarations in the owner scope, but model their receiver and
+            // synthetic accessors exactly like top-level extension properties
+            // so imports and member-style reads use the normal resolver path.
+            if let receiverType = resolveTypeRef(
+                propertyDecl.receiverType,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                localTypeParameters: classLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                diagnostics: diagnostics,
+                usageRange: propertyDecl.range
+            ) {
+                symbols.setExtensionPropertyReceiverType(receiverType, for: memberSymbol)
+
+                let getterSymbol = symbols.define(
+                    kind: .function,
+                    name: interner.intern("get"),
+                    fqName: memberFQName + [interner.intern("$get")],
+                    declSite: propertyDecl.range,
+                    visibility: visibility(from: propertyDecl.modifiers),
+                    flags: [.synthetic]
+                )
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [],
+                        returnType: resolvedType
+                    ),
+                    for: getterSymbol
+                )
+                symbols.setParentSymbol(memberSymbol, for: getterSymbol)
+                symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: memberSymbol)
+
+                if propertyDecl.isVar {
+                    let setterSymbol = symbols.define(
+                        kind: .function,
+                        name: interner.intern("set"),
+                        fqName: memberFQName + [interner.intern("$set")],
+                        declSite: propertyDecl.range,
+                        visibility: visibility(from: propertyDecl.modifiers),
+                        flags: [.synthetic]
+                    )
+                    symbols.setFunctionSignature(
+                        FunctionSignature(
+                            receiverType: receiverType,
+                            parameterTypes: [resolvedType],
+                            returnType: unitType
+                        ),
+                        for: setterSymbol
+                    )
+                    symbols.setParentSymbol(memberSymbol, for: setterSymbol)
+                    symbols.setExtensionPropertySetterAccessor(setterSymbol, for: memberSymbol)
+                }
+            }
+
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                symbols.setPropertyHasCustomGetter(true, for: memberSymbol)
+            }
 
             validateConstPropertyDeclaration(
                 propertyDecl,
@@ -332,7 +578,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                interner: interner
             )
 
             // Materialize a backing field symbol for properties with custom accessors
@@ -344,13 +591,19 @@ extension DataFlowSemaPhase {
             // need a backing field because they have no storage — the getter
             // body is evaluated on every access.
             // STDLIB-CLASS-010: Abstract properties cannot have backing fields.
+            // Interfaces never need a backing field either — properties in an
+            // interface have no instance state of their own (KIR lowering
+            // suppresses storage emission for them; keep the symbol table
+            // consistent so `field` bindings aren't wired up to a nonexistent
+            // field for interface accessor bodies).
             let isAbstractProperty = propertyFlags.contains(.abstractType)
+            let isInterfaceOwner = symbols.symbol(ownerSymbol)?.kind == .interface
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
             let isGetterOnlyComputed = propertyDecl.getter != nil
                 && propertyDecl.setter == nil
                 && propertyDecl.initializer == nil
                 && !hasExplicitBackingField
-            let needsBackingField = !isAbstractProperty && (
+            let needsBackingField = !isAbstractProperty && !isInterfaceOwner && (
                 hasExplicitBackingField
                 || (!isGetterOnlyComputed
                     && (propertyDecl.getter != nil || propertyDecl.setter != nil))
@@ -383,7 +636,8 @@ extension DataFlowSemaPhase {
                         relativeOwnerFQName: ownerFQName,
                         currentPackageFQName: sourcePackageFQName,
                         imports: sourceImports,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        usageRange: propertyDecl.range
                     ) ?? resolvedType
                 } else {
                     backingFieldType = resolvedType
@@ -411,38 +665,6 @@ extension DataFlowSemaPhase {
                 symbols.setDelegateStorageSymbol(delegateStorageSymbol, for: memberSymbol)
             }
         }
-
-        for declID in members.nestedClasses {
-            collectNestedClassOrInterfaceHeader(
-                declID: declID,
-                ownerFQName: ownerFQName,
-                ownerSymbol: ownerSymbol,
-                sourceFileID: sourceFileID,
-                ast: ast,
-                symbols: symbols,
-                types: types,
-                bindings: bindings,
-                scope: scope,
-                diagnostics: diagnostics,
-                interner: interner
-            )
-        }
-
-        for declID in members.nestedObjects {
-            collectNestedObjectHeader(
-                declID: declID,
-                ownerFQName: ownerFQName,
-                ownerSymbol: ownerSymbol,
-                sourceFileID: sourceFileID,
-                ast: ast,
-                symbols: symbols,
-                types: types,
-                bindings: bindings,
-                scope: scope,
-                diagnostics: diagnostics,
-                interner: interner
-            )
-        }
     }
 
     private func collectNestedDeclarationHeader(
@@ -455,34 +677,64 @@ extension DataFlowSemaPhase {
         duplicateCheckFlags: SymbolFlags,
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
+        sourceManager: SourceManager,
         declID: DeclID,
         decl: Decl,
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         bindings: BindingTable,
-        scope: Scope
+        scope: Scope,
+        ast: ASTModule,
+        interner: StringInterner
     ) -> SymbolID {
-        checkAndReportDuplicateDeclaration(
-            newKind: kind,
-            fqName: fqName,
-            range: declSite,
-            symbols: symbols,
-            diagnostics: diagnostics,
-            newFlags: duplicateCheckFlags
-        )
-        let nestedSymbol = symbols.define(
-            kind: kind,
-            name: name,
-            fqName: fqName,
-            declSite: declSite,
-            visibility: visibility,
-            flags: flags
-        )
+        let reusableSyntheticSymbol: SymbolID? = {
+            guard let file = ast.file(for: sourceFileID) else {
+                return nil
+            }
+            return reusableSyntheticDeclarationSymbol(
+                kind: kind,
+                fqName: fqName,
+                declarationFlags: duplicateCheckFlags,
+                file: file,
+                sourceManager: sourceManager,
+                symbols: symbols
+            )
+        }()
+        if reusableSyntheticSymbol == nil {
+            checkAndReportDuplicateDeclaration(
+                newKind: kind,
+                fqName: fqName,
+                range: declSite,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                newFlags: duplicateCheckFlags
+            )
+        }
+        let nestedSymbol: SymbolID
+        if let reusableSyntheticSymbol {
+            nestedSymbol = reusableSyntheticSymbol
+            symbols.removeFlags(.synthetic, for: nestedSymbol)
+            symbols.insertFlags(flags, for: nestedSymbol)
+            if shouldRestoreDeclSiteForReusableSyntheticSymbol(fqName: fqName, interner: interner) {
+                symbols.setDeclSite(declSite, for: nestedSymbol)
+            }
+        } else {
+            nestedSymbol = symbols.define(
+                kind: kind,
+                name: name,
+                fqName: fqName,
+                declSite: declSite,
+                visibility: visibility,
+                flags: flags
+            )
+        }
         symbols.setSourceFileID(sourceFileID, for: nestedSymbol)
         registerAnnotations(
             for: decl,
             symbol: nestedSymbol,
             declRange: declSite,
+            sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -497,6 +749,7 @@ extension DataFlowSemaPhase {
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
+        ctx: CompilationContext,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -505,10 +758,11 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(declID) else {
             return
         }
-        let sourceFile = ast.files.first { $0.fileID == sourceFileID }
+        let sourceFile = ast.file(for: sourceFileID)
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
         let anyType = types.anyType
@@ -527,12 +781,15 @@ extension DataFlowSemaPhase {
                 duplicateCheckFlags: nestedClassFlags,
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 declID: declID,
                 decl: decl,
                 symbols: symbols,
                 diagnostics: diagnostics,
                 bindings: bindings,
-                scope: scope
+                scope: scope,
+                ast: ast,
+                interner: interner
             )
 
             if !nestedClass.typeParams.isEmpty {
@@ -565,12 +822,49 @@ extension DataFlowSemaPhase {
                 ownerSymbol: nestedSymbol,
                 thisType: nestedType
             )
+
+            collectNestedTypeAliases(
+                nestedClass.nestedTypeAliases,
+                ownerFQName: nestedFQName,
+                sourceFileID: sourceFileID,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+
+            // Nested class/object headers must be collected before the primary
+            // constructor parameter types are resolved, because those parameter
+            // types (or their default values) may reference a nested type
+            // (e.g. `annotation class Marker(val level: Level = Level.ERROR)`).
+            collectMemberHeaders(
+                members: MemberDeclarations(
+                    functions: [],
+                    properties: [],
+                    nestedClasses: nestedClass.nestedClasses,
+                    nestedObjects: nestedClass.nestedObjects
+                ),
+                owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
+                sourceFileID: sourceFileID,
+                ctx: ctx,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                bindings: bindings,
+                scope: nestedScope,
+                diagnostics: diagnostics,
+                interner: interner,
+                classTypeParameterSymbols: nestedTypeParamSymbols,
+                classLocalTypeParameters: nestedLocalTypeParameters
+            )
+
             let ctorName = interner.intern("<init>")
             let nestedCtorFQName = nestedFQName + [ctorName]
             let nestedHasPrimaryCtorSyntax = nestedClass.hasPrimaryConstructorSyntax
             let nestedHasSecondaryCtors = !nestedClass.secondaryConstructors.isEmpty
             if nestedHasPrimaryCtorSyntax || !nestedHasSecondaryCtors {
-                let nestedPrimaryCtorVisibility = primaryConstructorVisibility(
+                let nestedPrimaryCtorVisibilityDetail = primaryConstructorVisibilityDetail(
                     for: nestedClass,
                     classKind: nestedClassKind,
                     declarationVisibility: visibility(from: nestedClass.modifiers)
@@ -580,8 +874,8 @@ extension DataFlowSemaPhase {
                     name: nestedClass.name,
                     fqName: nestedCtorFQName,
                     declSite: nestedClass.range,
-                    visibility: nestedPrimaryCtorVisibility,
-                    flags: []
+                    visibility: nestedPrimaryCtorVisibilityDetail.visibility,
+                    flags: nestedPrimaryCtorVisibilityDetail.isInheritedFromOwner ? [.constructorVisibilityInherited] : []
                 )
                 nestedScope.insert(nestedPrimaryCtorSymbol)
                 symbols.setParentSymbol(nestedSymbol, for: nestedPrimaryCtorSymbol)
@@ -593,6 +887,8 @@ extension DataFlowSemaPhase {
                         declSite: nestedClass.range,
                         ast: ast, symbols: symbols, types: types,
                         interner: interner,
+                        localTypeParameters: nestedLocalTypeParameters,
+                        relativeOwnerFQName: nestedFQName,
                         currentPackageFQName: sourcePackageFQName,
                         imports: sourceImports,
                         diagnostics: diagnostics,
@@ -605,20 +901,29 @@ extension DataFlowSemaPhase {
                             returnType: nestedType,
                             valueParameterSymbols: params.paramSymbols,
                             valueParameterHasDefaultValues: params.paramHasDefaultValues,
-                            valueParameterIsVararg: params.paramIsVararg
+                            valueParameterIsVararg: params.paramIsVararg,
+                            valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
+                            typeParameterSymbols: nestedTypeParamSymbols,
+                            classTypeParameterCount: nestedTypeParamSymbols.count
                         ),
                         for: nestedPrimaryCtorSymbol
                     )
                 }
             }
             for (ctorIndex, secondaryCtor) in nestedClass.secondaryConstructors.enumerated() {
+                let secCtorVisibilityDetail = constructorVisibilityDetail(
+                    explicitModifiers: secondaryCtor.modifiers,
+                    classKind: nestedClassKind,
+                    isSealedClass: nestedClass.modifiers.contains(.sealed),
+                    declarationVisibility: visibility(from: nestedClass.modifiers)
+                )
                 let secCtorSymbol = symbols.define(
                     kind: .constructor,
                     name: nestedClass.name,
                     fqName: nestedCtorFQName,
                     declSite: secondaryCtor.range,
-                    visibility: visibility(from: secondaryCtor.modifiers),
-                    flags: []
+                    visibility: secCtorVisibilityDetail.visibility,
+                    flags: secCtorVisibilityDetail.isInheritedFromOwner ? [.constructorVisibilityInherited] : []
                 )
                 nestedScope.insert(secCtorSymbol)
                 symbols.setParentSymbol(nestedSymbol, for: secCtorSymbol)
@@ -629,6 +934,8 @@ extension DataFlowSemaPhase {
                     declSite: secondaryCtor.range,
                     ast: ast, symbols: symbols, types: types,
                     interner: interner,
+                    localTypeParameters: nestedLocalTypeParameters,
+                    relativeOwnerFQName: nestedFQName,
                     currentPackageFQName: sourcePackageFQName,
                     imports: sourceImports,
                     diagnostics: diagnostics,
@@ -641,10 +948,48 @@ extension DataFlowSemaPhase {
                         returnType: nestedType,
                         valueParameterSymbols: params.paramSymbols,
                         valueParameterHasDefaultValues: params.paramHasDefaultValues,
-                        valueParameterIsVararg: params.paramIsVararg
+                        valueParameterIsVararg: params.paramIsVararg,
+                        valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
+                        typeParameterSymbols: nestedTypeParamSymbols,
+                        classTypeParameterCount: nestedTypeParamSymbols.count
                     ),
                     for: secCtorSymbol
                 )
+            }
+
+            // Value class validation: must have exactly one primary constructor parameter
+            if isValueClassDeclaration(nestedClass) {
+                symbols.insertFlags(.valueType, for: nestedSymbol)
+                let valParams = nestedClass.primaryConstructorParams
+                if valParams.count != 1 {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0070",
+                        "Value class must have exactly one primary constructor parameter.",
+                        range: nestedClass.range
+                    )
+                } else {
+                    let singleParam = valParams[0]
+                    let underlyingType = resolveTypeRef(
+                        singleParam.type,
+                        ast: ast,
+                        symbols: symbols,
+                        types: types,
+                        interner: interner,
+                        localTypeParameters: nestedLocalTypeParameters,
+                        relativeOwnerFQName: nestedFQName,
+                        currentPackageFQName: sourcePackageFQName,
+                        imports: sourceImports,
+                        diagnostics: diagnostics
+                    ) ?? anyType
+                    symbols.setValueClassUnderlyingType(underlyingType, for: nestedSymbol)
+                }
+                if !nestedClass.secondaryConstructors.isEmpty {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0071",
+                        "Value class cannot have secondary constructors.",
+                        range: nestedClass.range
+                    )
+                }
             }
 
             if classSymbolKind(for: nestedClass) == .enumClass {
@@ -667,7 +1012,42 @@ extension DataFlowSemaPhase {
                     )
                     symbols.setParentSymbol(nestedSymbol, for: entrySymbol)
                     symbols.setPropertyType(nestedType, for: entrySymbol)
+                    nestedScope.insert(entrySymbol)
                 }
+                collectEnumEntryMemberHeaders(
+                    entries: nestedClass.enumEntries,
+                    ownerFQName: nestedFQName,
+                    ownerSymbol: nestedSymbol,
+                    enumType: nestedType,
+                    sourceFileID: sourceFileID,
+                    ctx: ctx,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    bindings: bindings,
+                    scope: nestedScope,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    classTypeParameterSymbols: nestedTypeParamSymbols,
+                    classLocalTypeParameters: nestedLocalTypeParameters
+                )
+                collectSyntheticEnumEntryProperties(
+                    ownerSymbol: nestedSymbol,
+                    ownerFQName: nestedFQName,
+                    symbols: symbols,
+                    types: types,
+                    scope: nestedScope,
+                    interner: interner
+                )
+                collectSyntheticEnumValuesMember(
+                    ownerSymbol: nestedSymbol,
+                    ownerFQName: nestedFQName,
+                    enumType: nestedType,
+                    symbols: symbols,
+                    types: types,
+                    scope: nestedScope,
+                    interner: interner
+                )
             }
             if nestedClass.modifiers.contains(.data) {
                 collectSyntheticDataClassMethods(
@@ -685,32 +1065,25 @@ extension DataFlowSemaPhase {
                     localTypeParameters: nestedLocalTypeParameters
                 )
             }
-            collectNestedTypeAliases(
-                nestedClass.nestedTypeAliases,
-                ownerFQName: nestedFQName,
-                sourceFileID: sourceFileID,
-                ast: ast,
-                symbols: symbols,
-                types: types,
-                diagnostics: diagnostics,
-                interner: interner
-            )
             collectMemberHeaders(
                 members: MemberDeclarations(
                     functions: nestedClass.memberFunctions,
                     properties: nestedClass.memberProperties,
-                    nestedClasses: nestedClass.nestedClasses,
-                    nestedObjects: nestedClass.nestedObjects
+                    nestedClasses: [],
+                    nestedObjects: []
                 ),
                 owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
                 sourceFileID: sourceFileID,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
                 bindings: bindings,
                 scope: nestedScope,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                classTypeParameterSymbols: nestedTypeParamSymbols,
+                classLocalTypeParameters: nestedLocalTypeParameters
             )
             if nestedClass.modifiers.contains(.data) {
                 collectSyntheticDataClassMethods(
@@ -735,12 +1108,44 @@ extension DataFlowSemaPhase {
                     ownerSymbol: nestedSymbol,
                     ownerType: nestedType,
                     sourceFileID: sourceFileID,
+                    ctx: ctx,
                     ast: ast,
                     symbols: symbols,
                     types: types,
                     bindings: bindings,
                     scope: nestedScope,
                     diagnostics: diagnostics,
+                    interner: interner
+                )
+            } else if nestedClassKind == .enumClass {
+                // Synthesize implicit companion for enum classes (valueOf, entries)
+                let companionName = interner.intern("Companion")
+                let companionFQName = nestedFQName + [companionName]
+                let companionSymbol = symbols.define(
+                    kind: .object,
+                    name: companionName,
+                    fqName: companionFQName,
+                    declSite: nestedClass.range,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(nestedSymbol, for: companionSymbol)
+                symbols.setCompanionObjectSymbol(companionSymbol, for: nestedSymbol)
+                nestedScope.insert(companionSymbol)
+                let companionType = types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                let companionScope = ClassMemberScope(
+                    parent: nestedScope,
+                    symbols: symbols,
+                    ownerSymbol: companionSymbol,
+                    thisType: companionType
+                )
+                collectSyntheticEnumCompanionMembers(
+                    companionSymbol: companionSymbol,
+                    companionFQName: companionFQName,
+                    enumType: nestedType,
+                    symbols: symbols,
+                    types: types,
+                    scope: companionScope,
                     interner: interner
                 )
             }
@@ -760,27 +1165,43 @@ extension DataFlowSemaPhase {
                 duplicateCheckFlags: flags(from: nestedInterface.modifiers),
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 declID: declID,
                 decl: decl,
                 symbols: symbols,
                 diagnostics: diagnostics,
                 bindings: bindings,
-                scope: scope
+                scope: scope,
+                ast: ast,
+                interner: interner
             )
 
-            let nestedType = types.make(.classType(ClassType(classSymbol: nestedSymbol, args: [], nullability: .nonNull)))
+            let nestedTypeParams = registerNominalTypeParameters(
+                nestedInterface.typeParams,
+                ownerSymbol: nestedSymbol,
+                fqName: nestedFQName,
+                namespacePrefix: "$iface",
+                declSite: nestedInterface.range,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                diagnostics: diagnostics
+            )
+            let nestedTypeArgs: [TypeArg] = nestedTypeParams.symbols.map {
+                .invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            let nestedType = types.make(.classType(ClassType(
+                classSymbol: nestedSymbol, args: nestedTypeArgs, nullability: .nonNull
+            )))
             let nestedScope = ClassMemberScope(
                 parent: scope,
                 symbols: symbols,
                 ownerSymbol: nestedSymbol,
                 thisType: nestedType
             )
-            if !nestedInterface.typeParams.isEmpty {
-                types.setNominalTypeParameterVariances(
-                    nestedInterface.typeParams.map(\.variance),
-                    for: nestedSymbol
-                )
-            }
             collectNestedTypeAliases(
                 nestedInterface.nestedTypeAliases,
                 ownerFQName: nestedFQName,
@@ -800,13 +1221,16 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
                 sourceFileID: sourceFileID,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
                 bindings: bindings,
                 scope: nestedScope,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                classTypeParameterSymbols: nestedTypeParams.symbols,
+                classLocalTypeParameters: nestedTypeParams.localMap
             )
             if let companionDeclID = nestedInterface.companionObject {
                 collectCompanionObjectHeader(
@@ -815,6 +1239,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: nestedSymbol,
                     ownerType: nestedType,
                     sourceFileID: sourceFileID,
+                    ctx: ctx,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -834,6 +1259,7 @@ extension DataFlowSemaPhase {
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
+        ctx: CompilationContext,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -842,6 +1268,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(declID),
               case let .objectDecl(nestedObject) = decl
         else {
@@ -859,12 +1286,15 @@ extension DataFlowSemaPhase {
             duplicateCheckFlags: nestedObjectFlags,
             ownerSymbol: ownerSymbol,
             sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             declID: declID,
             decl: decl,
             symbols: symbols,
             diagnostics: diagnostics,
             bindings: bindings,
-            scope: scope
+            scope: scope,
+            ast: ast,
+            interner: interner
         )
 
         let nestedType = types.make(.classType(ClassType(classSymbol: nestedSymbol, args: [], nullability: .nonNull)))
@@ -893,6 +1323,7 @@ extension DataFlowSemaPhase {
             ),
             owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
             sourceFileID: sourceFileID,
+            ctx: ctx,
             ast: ast,
             symbols: symbols,
             types: types,
@@ -928,4 +1359,69 @@ extension DataFlowSemaPhase {
     // Collects companion object header: creates the companion symbol, links it to the owner class,
     // and registers companion members under the companion's fully qualified name. Resolution of
     // `ClassName.memberName` to companion members is handled separately by the call/type checker.
+
+    /// Returns a synthetic member function placeholder with the same fully-qualified
+    /// name and parent, so bundled source declarations can claim pre-registered
+    /// methods instead of creating a duplicate symbol.
+    ///
+    /// Reuse is restricted to bundled stdlib sources to avoid accidentally
+    /// overwriting user-declared symbols. The placeholder's value-parameter count
+    /// and visibility must also match the source declaration so the bundled
+    /// implementation fully replaces the stub.
+    private func reusableSyntheticMemberFunctionSymbol(
+        fqName: [InternedString],
+        ownerSymbol: SymbolID,
+        valueParamCount: Int,
+        expectedVisibility: Visibility,
+        sourceFileID: FileID,
+        sourceManager: SourceManager,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        let isBundledSource = sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true
+        guard isBundledSource else {
+            return nil
+        }
+
+        return symbols.lookupAll(fqName: fqName).first { symbolID in
+            guard let symbol = symbols.symbol(symbolID),
+                  symbol.kind == .function,
+                  symbol.flags.contains(.synthetic),
+                  symbol.visibility == expectedVisibility,
+                  symbols.parentSymbol(for: symbolID) == ownerSymbol,
+                  let signature = symbols.functionSignature(for: symbolID),
+                  signature.parameterTypes.count == valueParamCount
+            else {
+                return false
+            }
+            return true
+        }
+    }
+
+    /// Returns a synthetic property placeholder with the same fully-qualified name
+    /// and parent, so bundled source declarations can claim runtime-backed properties.
+    private func reusableSyntheticMemberPropertySymbol(
+        fqName: [InternedString],
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        expectedVisibility: Visibility,
+        sourceFileID: FileID,
+        sourceManager: SourceManager,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let isBundledSource = sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true
+        let isAllowedOwner = ownerFQName == [interner.intern("kotlin"), interner.intern("Comparator")]
+        guard isBundledSource || isAllowedOwner else {
+            return nil
+        }
+
+        return symbols.lookupAll(fqName: fqName).first { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else { return false }
+            return symbol.kind == .property
+                && symbol.flags.contains(.synthetic)
+                && symbol.visibility == expectedVisibility
+                && symbols.parentSymbol(for: symbolID) == ownerSymbol
+        }
+    }
+
 }

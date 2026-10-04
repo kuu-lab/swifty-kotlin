@@ -1,4 +1,3 @@
-// SKIP-DIFF
 @JvmInline
 value class Wrapper(val value: Int)
 

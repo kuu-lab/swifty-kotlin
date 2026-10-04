@@ -15,7 +15,7 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
-        // --- Scope functions: let, run, apply, also (STDLIB-004) ---
+        // --- Residual scope functions: use, usePinned, useContents (STDLIB-004) --
         // Must intercept BEFORE eager arg inference so the lambda argument
         // is inferred with the correct expected type (it vs. receiver this).
         // Skip interception when the receiver type defines a real member
@@ -23,11 +23,10 @@ extension CallTypeChecker {
         if args.count == 1 {
             let calleeStr = interner.resolve(calleeName)
             let scopeKind: ScopeFunctionKind? = switch calleeStr {
-            case "let": .scopeLet
-            case "run": .scopeRun
-            case "apply": .scopeApply
-            case "also": .scopeAlso
             case "use" where isCloseableReceiver(receiverType, sema: sema): .scopeUse
+            case "usePinned": .scopeUsePinned
+            case "useContents" where extractCValueCStructContentType(receiverType, sema: sema, interner: interner) != nil:
+                .scopeUseContents
             default: nil
             }
             let hasUserDefinedMember = if scopeKind != nil {
@@ -46,116 +45,12 @@ extension CallTypeChecker {
                     : receiverType
 
                 switch scopeKind {
-                case .scopeLet:
-                    // let: lambda receives `it` parameter typed as T, returns R
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [nonNullReceiverType],
-                        returnType: expectedType ?? sema.types.anyType
-                    )))
-                    let lambdaType = driver.inferExpr(
-                        args[0].expr, ctx: ctx, locals: &locals,
-                        expectedType: lambdaExpectedType
-                    )
-                    let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
-                        fnType.returnType
-                    } else {
-                        sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
-                            if case let .functionType(fnType) = sema.types.kind(of: typeID) {
-                                return fnType.returnType
-                            }
-                            return nil
-                        } ?? sema.types.anyType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
-                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-
-                case .scopeRun:
-                    // run: lambda has receiver T as `this`, returns R
-                    let receiverCtx = ctx.with(implicitReceiverType: nonNullReceiverType)
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        receiver: nonNullReceiverType,
-                        params: [],
-                        returnType: expectedType ?? sema.types.anyType
-                    )))
-                    let lambdaType = driver.inferExpr(
-                        args[0].expr, ctx: receiverCtx, locals: &locals,
-                        expectedType: lambdaExpectedType
-                    )
-                    let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
-                        fnType.returnType
-                    } else {
-                        sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
-                            if case let .functionType(fnType) = sema.types.kind(of: typeID) {
-                                return fnType.returnType
-                            }
-                            return nil
-                        } ?? sema.types.anyType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
-                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-
-                case .scopeApply:
-                    // apply: lambda has receiver T as `this`, returns T (receiver itself)
-                    let receiverCtx = ctx.with(implicitReceiverType: nonNullReceiverType)
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        receiver: nonNullReceiverType,
-                        params: [],
-                        returnType: sema.types.unitType
-                    )))
-                    _ = driver.inferExpr(
-                        args[0].expr, ctx: receiverCtx, locals: &locals,
-                        expectedType: lambdaExpectedType
-                    )
-                    let finalType = safeCall
-                        ? sema.types.makeNullable(nonNullReceiverType)
-                        : nonNullReceiverType
-                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
-                    // Propagate collection marking: apply returns receiver unchanged,
-                    // so chained member calls (e.g. .let { it.size }) must still see
-                    // the collection type. (STDLIB-002-BUG-01)
-                    if isCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                        sema.bindings.markCollectionExpr(id)
-                    }
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-
-                case .scopeAlso:
-                    // also: lambda receives `it` parameter typed as T, returns T
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [nonNullReceiverType],
-                        returnType: sema.types.unitType
-                    )))
-                    _ = driver.inferExpr(
-                        args[0].expr, ctx: ctx, locals: &locals,
-                        expectedType: lambdaExpectedType
-                    )
-                    let finalType = safeCall
-                        ? sema.types.makeNullable(nonNullReceiverType)
-                        : nonNullReceiverType
-                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
-                    // Propagate collection marking: also returns receiver unchanged,
-                    // so chained member calls (e.g. .let { it.size }) must still see
-                    // the collection type. (STDLIB-002-BUG-01)
-                    if isCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                        sema.bindings.markCollectionExpr(id)
-                    }
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-
                 case .scopeUse:
                     // use: lambda receives `it` parameter typed as T, returns R.
                     // Semantically equivalent to `let` but wraps in try-finally { close() }.
-                    // NOTE: The lambda inference below intentionally duplicates scopeLet logic.
-                    // The duplication is deliberate — use and let share the same type inference
-                    // semantics (receiver passed as `it`, lambda return type becomes call result)
-                    // but differ in lowering (use emits try-finally with close()).
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [nonNullReceiverType],
-                        returnType: expectedType ?? sema.types.anyType
+                        returnType: expectedType ?? sema.types.nullableAnyType
                     )))
                     let lambdaType = driver.inferExpr(
                         args[0].expr, ctx: ctx, locals: &locals,
@@ -169,17 +64,18 @@ extension CallTypeChecker {
                                 return fnType.returnType
                             }
                             return nil
-                        } ?? sema.types.anyType
+                        } ?? sema.types.nullableAnyType
                     }
                     // Refine the call result type using the lambda body's concrete type,
-                    // but ONLY when no expected type was provided (i.e. expected was anyType).
+                    // but ONLY when no expected type was provided (i.e. expected was
+                    // nullableAnyType, the placeholder for "unconstrained").
                     // This lets downstream sema resolve member accesses on the result:
                     //   val lines = bufferedReader().use { reader -> reader.readLines() }
                     //   lines.size  ← resolves because lines is List<String>, not Any
                     // We skip Nothing-typed bodies (always-throw lambdas) to avoid
                     // disrupting the KIR try-finally exception propagation for use{}.
                     let refinedReturnType: TypeID = {
-                        guard returnType == sema.types.anyType else { return returnType }
+                        guard returnType == sema.types.nullableAnyType else { return returnType }
                         guard let lambdaExpr = ast.arena.expr(args[0].expr),
                               case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr,
                               let bodyType = sema.bindings.exprTypes[bodyExprID],
@@ -199,14 +95,85 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 
-                case .scopeWith:
-                    break // with is handled in inferCallExpr (top-level function)
+                case .scopeUsePinned:
+                    // usePinned: like `use`, but the lambda receives Pinned<T> (the pinned
+                    // handle) instead of the receiver itself, and lowering calls pin()/unpin()
+                    // instead of close(). Requires the synthetic kotlinx.cinterop.Pinned class
+                    // to already be registered (always true — see registerSyntheticCInteropStubs).
+                    let pinnedFQName: [InternedString] = [
+                        interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("Pinned"),
+                    ]
+                    guard let pinnedClassSymbol = sema.symbols.lookup(fqName: pinnedFQName) else {
+                        break
+                    }
+                    let pinnedOfReceiverType = sema.types.make(.classType(ClassType(
+                        classSymbol: pinnedClassSymbol,
+                        args: [.invariant(nonNullReceiverType)],
+                        nullability: .nonNull
+                    )))
+                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: [pinnedOfReceiverType],
+                        returnType: expectedType ?? sema.types.nullableAnyType
+                    )))
+                    let lambdaType = driver.inferExpr(
+                        args[0].expr, ctx: ctx, locals: &locals,
+                        expectedType: lambdaExpectedType
+                    )
+                    let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                        fnType.returnType
+                    } else {
+                        sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
+                            if case let .functionType(fnType) = sema.types.kind(of: typeID) {
+                                return fnType.returnType
+                            }
+                            return nil
+                        } ?? sema.types.nullableAnyType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
+                    // Force the capturing-lambda lowering path so try/finally exception
+                    // propagation around the block call works correctly (mirrors scopeUse).
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+
+                case .scopeUseContents:
+                    // useContents: the lambda has T as its receiver, where the call
+                    // receiver is CValue<T>. The block result becomes the call result.
+                    guard let contentType = extractCValueCStructContentType(
+                        nonNullReceiverType,
+                        sema: sema,
+                        interner: interner
+                    ) else {
+                        break
+                    }
+                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        receiver: contentType,
+                        params: [],
+                        returnType: expectedType ?? sema.types.nullableAnyType
+                    )))
+                    let receiverCtx = ctx.with(implicitReceiverType: contentType)
+                    let lambdaType = driver.inferExpr(
+                        args[0].expr, ctx: receiverCtx, locals: &locals,
+                        expectedType: lambdaExpectedType
+                    )
+                    let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                        fnType.returnType
+                    } else {
+                        sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
+                            if case let .functionType(fnType) = sema.types.kind(of: typeID) {
+                                return fnType.returnType
+                            }
+                            return nil
+                        } ?? sema.types.nullableAnyType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
 
                 case .scopeContext:
                     break // context is handled in inferCallExpr (top-level function)
-
-                case .scopeTopLevelRun:
-                    break // top-level run is handled in inferCallExpr
                 }
             }
         }
@@ -214,7 +181,7 @@ extension CallTypeChecker {
         // --- Result member functions (STDLIB-590) ---
         // Result<T>.onSuccess/onFailure/getOrElse/getOrDefault/map/fold/recover
         // These require special handling because the generic type parameter T
-        // needs to be extracted from the receiver's Result<out T> type and used
+        // needs to be extracted from the receiver's Result<T> type and used
         // to construct the expected lambda parameter types.
         if args.count >= 1, args.count <= 2 {
             let calleeStr = interner.resolve(calleeName)
@@ -268,9 +235,20 @@ extension CallTypeChecker {
 
                 case "getOrElse" where args.count == 1:
                     // getOrElse(onFailure: (Throwable) -> T): T
+                    // A Result<Nothing> has no successful value to constrain T.
+                    // Infer the fallback naturally in that case, matching the
+                    // bottom-type behavior of Kotlin's generic getOrElse API.
+                    let isBottomResult = if case .nothing(.nonNull) = sema.types.kind(of: resultElementType) {
+                        true
+                    } else {
+                        false
+                    }
+                    let fallbackExpectedType = isBottomResult
+                        ? (expectedType ?? sema.types.nullableAnyType)
+                        : resultElementType
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [throwableType],
-                        returnType: resultElementType
+                        returnType: fallbackExpectedType
                     )))
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -281,7 +259,10 @@ extension CallTypeChecker {
                             parameterMapping: [0: 0]
                         ))
                     }
-                    let finalType = safeCall ? sema.types.makeNullable(resultElementType) : resultElementType
+                    let inferredFallbackType = isBottomResult
+                        ? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
+                        : resultElementType
+                    let finalType = safeCall ? sema.types.makeNullable(inferredFallbackType) : inferredFallbackType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 
@@ -329,21 +310,33 @@ extension CallTypeChecker {
                     return finalType
 
                 case "recover" where args.count == 1:
-                    // recover(transform: (Throwable) -> T): Result<T>
+                    // recover(transform: (Throwable) -> R): Result<R>
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [throwableType],
-                        returnType: resultElementType
+                        returnType: expectedType.flatMap {
+                            extractResultElementType($0, sema: sema, interner: interner)
+                        } ?? sema.types.anyType
                     )))
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    let lambdaType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    let recoveredType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                        fnType.returnType
+                    } else {
+                        sema.types.anyType
+                    }
                     if let recoverSymbol = lookupResultMember("recover", sema: sema, interner: interner) {
                         sema.bindings.bindCall(id, binding: CallBinding(
                             chosenCallee: recoverSymbol,
-                            substitutedTypeArguments: [resultElementType],
+                            substitutedTypeArguments: [resultElementType, recoveredType],
                             parameterMapping: [0: 0]
                         ))
                     }
-                    let finalType = safeCall ? sema.types.makeNullable(nonNullReceiverType) : nonNullReceiverType
+                    let recoverResultType = makeResultType(
+                        elementType: recoveredType,
+                        sema: sema,
+                        interner: interner
+                    ) ?? sema.types.anyType
+                    let finalType = safeCall ? sema.types.makeNullable(recoverResultType) : recoverResultType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 
@@ -383,46 +376,7 @@ extension CallTypeChecker {
             }
         }
 
-        // --- takeIf / takeUnless (STDLIB-160) ---
-        // T.takeIf((T) -> Boolean): T? / T.takeUnless((T) -> Boolean): T?
-        // Inline-expanded by CallLowerer; no runtime call.
-        if args.count == 1 {
-            let calleeStr = interner.resolve(calleeName)
-            let takeKind: TakeIfTakeUnlessKind? = switch calleeStr {
-            case "takeIf": .takeIf
-            case "takeUnless": .takeUnless
-            default: nil
-            }
-            let hasUserDefinedMember = if takeKind != nil {
-                !driver.helpers.collectMemberFunctionCandidates(
-                    named: calleeName,
-                    receiverType: receiverType,
-                    sema: sema,
-                    interner: interner
-                ).isEmpty
-            } else {
-                false
-            }
-            if let takeKind, !hasUserDefinedMember {
-                let nonNullReceiverType = safeCall
-                    ? sema.types.makeNonNullable(receiverType)
-                    : receiverType
-                let boolType = sema.types.make(.primitive(.boolean, .nonNull))
-                let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: [nonNullReceiverType],
-                    returnType: boolType
-                )))
-                _ = driver.inferExpr(
-                    args[0].expr, ctx: ctx, locals: &locals,
-                    expectedType: lambdaExpectedType
-                )
-                let nullableReceiverType = sema.types.makeNullable(nonNullReceiverType)
-                let finalType = nullableReceiverType
-                sema.bindings.markTakeIfTakeUnlessExpr(id, kind: takeKind)
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
+
 
         // --- STDLIB-IO-FN-016: File.forEachBlock ---
         // forEachBlock(action: (ByteArray, Int) -> Unit)          -- 1 arg
@@ -506,8 +460,12 @@ extension CallTypeChecker {
                     } else {
                         sema.types.anyType
                     }
-                    lambdaReturnType = expectedType ?? sema.types.anyType
-                    callReturnType = expectedType ?? sema.types.anyType
+                    // Keep an unconstrained result distinct from a concrete Any
+                    // result.  The lambda body must be allowed to infer T so the
+                    // result can be used in a following member access, e.g.
+                    // `file.useLines { it.toList() }.size`.
+                    lambdaReturnType = expectedType ?? sema.types.nullableAnyType
+                    callReturnType = expectedType ?? sema.types.nullableAnyType
                 }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [lambdaParamType],
@@ -520,87 +478,64 @@ extension CallTypeChecker {
                     expectedType: lambdaExpectedType
                 )
                 // For useLines, extract the actual return type from the lambda
-                let finalReturnType: TypeID = if calleeStr == "useLines" {
-                    if case let .functionType(fnType) = sema.types.kind(of: inferredLambdaType) {
+                let finalReturnType: TypeID
+                if calleeStr == "useLines" {
+                    let inferredReturnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: inferredLambdaType) {
                         fnType.returnType
                     } else {
                         callReturnType
                     }
+                    // `inferLambdaLiteralExpr` retains the placeholder in the
+                    // function type when T is unconstrained.  Refine the call
+                    // result from the lambda body in that case, just as the
+                    // residual `use` path does above.
+                    if expectedType == nil,
+                       inferredReturnType == sema.types.nullableAnyType,
+                       let lambdaExpr = ast.arena.expr(args[0].expr),
+                       case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr,
+                       let bodyType = sema.bindings.exprType(for: bodyExprID),
+                       bodyType != sema.types.anyType
+                    {
+                        if case .nothing = sema.types.kind(of: bodyType) {
+                            finalReturnType = inferredReturnType
+                        } else {
+                            finalReturnType = bodyType
+                        }
+                    } else {
+                        finalReturnType = inferredReturnType
+                    }
                 } else {
-                    callReturnType
+                    finalReturnType = callReturnType
+                }
+
+                // File.forEachLine/useLines are bundled Kotlin source functions.
+                // This special path owns lambda inference, so it must also bind the
+                // call to the source symbol; otherwise lowering leaves a raw
+                // `forEachLine`/`useLines` linker name instead of inlining the body.
+                let fileIOFunction = sema.symbols.lookupAll(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("io"),
+                    calleeName,
+                ]).first { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    return signature.receiverType == sema.types.makeNonNullable(receiverType)
+                        && signature.parameterTypes.count == 1
+                }
+                if let fileIOFunction {
+                    let substitutions = calleeStr == "useLines" ? [finalReturnType] : []
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: fileIOFunction,
+                        substitutedTypeArguments: substitutions,
+                        parameterMapping: [0: 0]
+                    ))
+                    sema.bindings.bindCallableTarget(id, target: .symbol(fileIOFunction))
                 }
                 let finalType = safeCall ? sema.types.makeNullable(finalReturnType) : finalReturnType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
             }
-        }
-
-        // --- STDLIB-IO-PATH-FN-038: Path.useLines(charset?, block) ---
-        // Path.useLines receives a `(Sequence<String>) -> T` block and can be called
-        // as `path.useLines { lines -> ... }` (1 arg) or
-        // `path.useLines(Charsets.UTF_8) { lines -> ... }` (2 args: charset + block).
-        // The lambda argument is always the last one.
-        if (args.count == 1 || args.count == 2),
-           interner.resolve(calleeName) == "useLines",
-           isPathType(receiverType, sema: sema, interner: interner)
-        {
-            let lambdaArgIndex = args.count - 1
-            let lambdaArg = args[lambdaArgIndex]
-            if let lambdaExpr = ast.arena.expr(lambdaArg.expr), case .lambdaLiteral = lambdaExpr {
-                sema.bindings.markCollectionHOFLambdaExpr(lambdaArg.expr)
-            }
-            // The block receives Sequence<String>; materialize the type.
-            let sequenceSymbol = sema.symbols.lookupByShortName(interner.intern("Sequence")).first
-            let sequenceOfStringType: TypeID = if let seqSym = sequenceSymbol {
-                sema.types.make(.classType(ClassType(
-                    classSymbol: seqSym,
-                    args: [.out(sema.types.stringType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                sema.types.anyType
-            }
-            let lambdaReturnType = expectedType ?? sema.types.anyType
-            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [sequenceOfStringType],
-                returnType: lambdaReturnType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            // Infer the non-lambda arg (charset) if present using the normal path.
-            if args.count == 2 {
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
-            }
-            let inferredLambdaType = driver.inferExpr(
-                lambdaArg.expr, ctx: ctx, locals: &locals,
-                expectedType: lambdaExpectedType
-            )
-            let finalReturnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: inferredLambdaType) {
-                fnType.returnType
-            } else {
-                lambdaReturnType
-            }
-            let finalType = safeCall ? sema.types.makeNullable(finalReturnType) : finalReturnType
-            sema.bindings.bindExprType(id, type: finalType)
-            // Bind the call to the correct Path.useLines stub so the KIR builder
-            // picks up externalLinkName and prepends the receiver as first argument.
-            let pathUseLinesFQName: [InternedString] = [
-                interner.intern("kotlin"),
-                interner.intern("io"),
-                interner.intern("path"),
-                interner.intern("useLines")
-            ]
-            if let useLinesSymbol = sema.symbols.lookupAll(fqName: pathUseLinesFQName).first(where: { symbolID in
-                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return sig.parameterTypes.count == args.count && sig.typeParameterSymbols.count == 1
-            }) {
-                sema.bindings.bindCall(id, binding: CallBinding(
-                    chosenCallee: useLinesSymbol,
-                    substitutedTypeArguments: [finalReturnType],
-                    parameterMapping: Dictionary(uniqueKeysWithValues: (0..<args.count).map { ($0, $0) })
-                ))
-            }
-            return finalType
         }
 
         return nil

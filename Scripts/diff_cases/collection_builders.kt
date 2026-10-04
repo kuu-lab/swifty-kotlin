@@ -1,4 +1,10 @@
 fun main() {
+    val text = buildString {
+        append("hello ")
+        append("world")
+    }
+    println(text)
+
     val list = buildList {
         add(1)
         add(2)

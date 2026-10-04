@@ -35,6 +35,10 @@ class Toggle(private val enabled: Boolean) {
     fun value(): Boolean = enabled
 }
 
+// Counter defines `plus` but not `plusAssign`, so `+=` must desugar to
+// `x = x.plus(other)` for both top-level and local variables.
+var topLevelCounter = Counter(100)
+
 fun main() {
     val base = Counter(10)
     val add = Counter(3)
@@ -60,6 +64,13 @@ fun main() {
     assigned /= Counter(11)
     assigned %= Counter(3)
     println(assigned.value)
+
+    var localCounter = Counter(1)
+    localCounter += Counter(2)
+    println(localCounter.value)
+
+    topLevelCounter += Counter(23)
+    println(topLevelCounter.value)
 
     val toggle = Toggle(false)
     println((!toggle).value())

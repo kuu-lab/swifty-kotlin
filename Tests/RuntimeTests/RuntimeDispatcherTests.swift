@@ -1,7 +1,7 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 /// Thread-safe box for capturing a value from an async closure in Swift 6.
 private final class AtomicBox<T>: @unchecked Sendable {
@@ -38,103 +38,103 @@ func runtime_test_dispatcher_observe_entry(
     return kk_coroutine_state_exit(continuation, tag)
 }
 
-final class RuntimeDispatcherTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeDispatcherTests {
     // MARK: - Dispatcher tag identity
 
-    func testDefaultDispatcherReturnsKnownTag() {
+    @Test func defaultDispatcherReturnsKnownTag() {
         let tag = kk_dispatcher_default()
-        XCTAssertEqual(tag, 0x4B4B_4401, "Default dispatcher tag should be KKD\\x01")
+        #expect(tag == 0x4B4B_4401, "Default dispatcher tag should be KKD\\x01")
     }
 
-    func testIODispatcherReturnsKnownTag() {
+    @Test func ioDispatcherReturnsKnownTag() {
         let tag = kk_dispatcher_io()
-        XCTAssertEqual(tag, 0x4B4B_4402, "IO dispatcher tag should be KKD\\x02")
+        #expect(tag == 0x4B4B_4402, "IO dispatcher tag should be KKD\\x02")
     }
 
-    func testMainDispatcherReturnsKnownTag() {
+    @Test func mainDispatcherReturnsKnownTag() {
         let tag = kk_dispatcher_main()
-        XCTAssertEqual(tag, 0x4B4B_4403, "Main dispatcher tag should be KKD\\x03")
+        #expect(tag == 0x4B4B_4403, "Main dispatcher tag should be KKD\\x03")
     }
 
-    func testDispatcherTagsAreDistinct() {
+    @Test func dispatcherTagsAreDistinct() {
         let tags = [kk_dispatcher_default(), kk_dispatcher_io(), kk_dispatcher_main()]
-        XCTAssertEqual(Set(tags).count, 3, "All dispatcher tags should be distinct")
+        #expect(Set(tags).count == 3, "All dispatcher tags should be distinct")
     }
 
     // MARK: - Resolve dispatcher
 
-    func testResolveDispatcherDefault() {
+    @Test func resolveDispatcherDefault() {
         let d = runtimeResolveDispatcher(from: kk_dispatcher_default())
-        XCTAssertEqual(d.tag, kk_dispatcher_default())
+        #expect(d.tag == kk_dispatcher_default())
     }
 
-    func testResolveDispatcherIO() {
+    @Test func resolveDispatcherIO() {
         let d = runtimeResolveDispatcher(from: kk_dispatcher_io())
-        XCTAssertEqual(d.tag, kk_dispatcher_io())
+        #expect(d.tag == kk_dispatcher_io())
     }
 
-    func testResolveDispatcherMain() {
+    @Test func resolveDispatcherMain() {
         let d = runtimeResolveDispatcher(from: kk_dispatcher_main())
-        XCTAssertEqual(d.tag, kk_dispatcher_main())
+        #expect(d.tag == kk_dispatcher_main())
     }
 
-    func testResolveDispatcherUnknownFallsBackToDefault() {
+    @Test func resolveDispatcherUnknownFallsBackToDefault() {
         let d = runtimeResolveDispatcher(from: 0xDEAD)
-        XCTAssertEqual(d.tag, kk_dispatcher_default(),
-                       "Unknown dispatcher should resolve to Default")
+        #expect(d.tag == kk_dispatcher_default(),
+                "Unknown dispatcher should resolve to Default")
     }
 
     // MARK: - RuntimeDispatcher.current thread-local
 
-    func testCurrentDispatcherIsNilByDefault() {
+    @Test func currentDispatcherIsNilByDefault() {
         // On the test thread, no dispatcher should be active unless set.
         // Clear to be sure (tests may inherit state from prior tests).
         let saved = RuntimeDispatcher.current
         RuntimeDispatcher.current = nil
-        XCTAssertNil(RuntimeDispatcher.current)
+        #expect(RuntimeDispatcher.current == nil)
         RuntimeDispatcher.current = saved
     }
 
-    func testDispatchSyncSetsCurrentDispatcher() {
+    @Test func dispatchSyncSetsCurrentDispatcher() {
         let dispatcher = runtimeResolveDispatcher(from: kk_dispatcher_io())
         let observedTag: Int? = dispatcher.dispatchSync {
             RuntimeDispatcher.current?.tag
         }
-        XCTAssertEqual(observedTag, kk_dispatcher_io(),
-                       "dispatchSync should set RuntimeDispatcher.current")
+        #expect(observedTag == kk_dispatcher_io(),
+                "dispatchSync should set RuntimeDispatcher.current")
     }
 
-    func testDispatchSyncRestoresCurrentDispatcherAfterCompletion() {
+    @Test func dispatchSyncRestoresCurrentDispatcherAfterCompletion() {
         let saved = RuntimeDispatcher.current
         RuntimeDispatcher.current = nil
 
         let dispatcher = runtimeResolveDispatcher(from: kk_dispatcher_io())
         dispatcher.dispatchSync { /* no-op */ }
 
-        XCTAssertNil(RuntimeDispatcher.current,
-                     "dispatchSync should restore previous dispatcher on completion")
+        #expect(RuntimeDispatcher.current == nil,
+                "dispatchSync should restore previous dispatcher on completion")
         RuntimeDispatcher.current = saved
     }
 
-    func testDispatchAsyncSetsCurrentDispatcher() {
+    @Test func dispatchAsyncSetsCurrentDispatcher() {
         let dispatcher = runtimeResolveDispatcher(from: kk_dispatcher_io())
-        let expectation = XCTestExpectation(description: "async block executed")
+        let done = DispatchSemaphore(value: 0)
         let observedTag = AtomicBox<Int?>(nil)
 
         dispatcher.dispatchAsync {
             observedTag.value = RuntimeDispatcher.current?.tag
-            expectation.fulfill()
+            done.signal()
         }
-        wait(for: [expectation], timeout: 2.0)
-        XCTAssertEqual(observedTag.value, kk_dispatcher_io(),
-                       "dispatchAsync should set RuntimeDispatcher.current")
+        #expect(done.wait(timeout: .now() + 2.0) == .success,
+                "async block should execute")
+        #expect(observedTag.value == kk_dispatcher_io(),
+                "dispatchAsync should set RuntimeDispatcher.current")
     }
 
     // MARK: - withContext actual dispatch
 
-    func testWithContextExecutesOnIODispatcher() {
+    @Test func withContextExecutesOnIODispatcher() {
         typealias SuspendEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
         let entryRaw = unsafeBitCast(
             runtime_test_dispatcher_observe_entry as SuspendEntry,
@@ -142,11 +142,11 @@ final class RuntimeDispatcherTests: IsolatedRuntimeXCTestCase {
         )
         let continuation = kk_coroutine_continuation_new(7001)
         let result = kk_with_context(kk_dispatcher_io(), entryRaw, continuation)
-        XCTAssertEqual(result, kk_dispatcher_io(),
-                       "withContext(IO) should execute with IO dispatcher active")
+        #expect(result == kk_dispatcher_io(),
+                "withContext(IO) should execute with IO dispatcher active")
     }
 
-    func testWithContextExecutesOnDefaultDispatcher() {
+    @Test func withContextExecutesOnDefaultDispatcher() {
         typealias SuspendEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
         let entryRaw = unsafeBitCast(
             runtime_test_dispatcher_observe_entry as SuspendEntry,
@@ -154,11 +154,11 @@ final class RuntimeDispatcherTests: IsolatedRuntimeXCTestCase {
         )
         let continuation = kk_coroutine_continuation_new(7002)
         let result = kk_with_context(kk_dispatcher_default(), entryRaw, continuation)
-        XCTAssertEqual(result, kk_dispatcher_default(),
-                       "withContext(Default) should execute with Default dispatcher active")
+        #expect(result == kk_dispatcher_default(),
+                "withContext(Default) should execute with Default dispatcher active")
     }
 
-    func testWithContextFallsBackToDefaultForUnknownTag() {
+    @Test func withContextFallsBackToDefaultForUnknownTag() {
         typealias SuspendEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
         let entryRaw = unsafeBitCast(
             runtime_test_dispatcher_observe_entry as SuspendEntry,
@@ -166,36 +166,37 @@ final class RuntimeDispatcherTests: IsolatedRuntimeXCTestCase {
         )
         let continuation = kk_coroutine_continuation_new(7003)
         let result = kk_with_context(0xBEEF, entryRaw, continuation)
-        XCTAssertEqual(result, kk_dispatcher_default(),
-                       "withContext(unknown) should fall back to Default dispatcher")
+        #expect(result == kk_dispatcher_default(),
+                "withContext(unknown) should fall back to Default dispatcher")
     }
 
-    func testWithContextInvalidEntryDoesNotCrash() {
+    @Test func withContextInvalidEntryDoesNotCrash() {
         // Note: kk_with_context now releases the continuation on the invalid-entry
         // early-return path, so no manual cleanup is needed here.
         let continuation = kk_coroutine_continuation_new(7004)
         let result = kk_with_context(kk_dispatcher_default(), 0, continuation)
-        XCTAssertEqual(result, 0, "Invalid entry should return 0 without crash")
+        #expect(result == 0, "Invalid entry should return 0 without crash")
     }
 
     // MARK: - KxMiniRuntime.launch with dispatcher
 
-    func testLaunchOnDispatcherExecutesBlock() {
+    @Test func launchOnDispatcherExecutesBlock() {
         let dispatcher = runtimeResolveDispatcher(from: kk_dispatcher_io())
-        let expectation = XCTestExpectation(description: "block executed on IO dispatcher")
+        let done = DispatchSemaphore(value: 0)
         let observedTag = AtomicBox<Int?>(nil)
 
         KxMiniRuntime.launch(on: dispatcher) {
             observedTag.value = RuntimeDispatcher.current?.tag
-            expectation.fulfill()
+            done.signal()
         }
-        wait(for: [expectation], timeout: 2.0)
-        XCTAssertEqual(observedTag.value, kk_dispatcher_io())
+        #expect(done.wait(timeout: .now() + 2.0) == .success,
+                "block should execute on IO dispatcher")
+        #expect(observedTag.value == kk_dispatcher_io())
     }
 
     // MARK: - Nested dispatcher context
 
-    func testNestedWithContextSwitchesAndRestores() {
+    @Test func nestedWithContextSwitchesAndRestores() {
         typealias SuspendEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
         let entryRaw = unsafeBitCast(
             runtime_test_dispatcher_observe_entry as SuspendEntry,
@@ -211,9 +212,9 @@ final class RuntimeDispatcherTests: IsolatedRuntimeXCTestCase {
             let inner = kk_with_context(kk_dispatcher_default(), entryRaw, continuation)
             return (outer, inner)
         }
-        XCTAssertEqual(outerTag, kk_dispatcher_io(),
-                       "Outer context should be IO")
-        XCTAssertEqual(innerTag, kk_dispatcher_default(),
-                       "Inner withContext should switch to Default")
+        #expect(outerTag == kk_dispatcher_io(),
+                "Outer context should be IO")
+        #expect(innerTag == kk_dispatcher_default(),
+                "Inner withContext should switch to Default")
     }
 }

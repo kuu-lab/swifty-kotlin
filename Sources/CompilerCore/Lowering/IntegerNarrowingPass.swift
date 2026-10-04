@@ -24,6 +24,8 @@
 /// builtins are never matched, so their behavior is unchanged.
 final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
     static let name = "IntegerNarrowing"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .integerNarrowed
 
     /// Binary / unary integer builtins whose `Int` result must wrap to 32 bits.
     /// `Long` variants (`kk_op_lmod`, `kk_op_lfloor_div`, …) are intentionally
@@ -72,6 +74,9 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
         let arena = module.arena
         let narrowCallee = interner.intern("kk_int_narrow")
         let unarrowCallee = interner.intern("kk_uint_narrow")
+        let charArithmeticAdd = interner.intern("kk_op_add")
+        let charArithmeticSub = interner.intern("kk_op_sub")
+        let charWrapCallee = interner.intern("kk_int_to_char")
         let narrowingIDs = Set(Self.narrowingCalleeNames.map { interner.intern($0) })
         let intShiftRenameIDs: [InternedString: InternedString] = Dictionary(
             uniqueKeysWithValues: Self.intShiftRenameNames.map { (interner.intern($0.key), interner.intern($0.value)) }
@@ -91,9 +96,12 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
 
         module.arena.transformFunctions { function in
             var updated = function
-            var newBody: [KIRInstruction] = []
-            newBody.reserveCapacity(function.body.count)
-            for instruction in function.body {
+            var newBody = KIRLoweringEmitContext()
+            newBody.instructions.reserveCapacity(function.body.count)
+            for (index, instruction) in function.body.enumerated() {
+                newBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction else {
                     newBody.append(instruction)
                     continue
@@ -125,7 +133,7 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                 // wrap its Int result to 32 bits via kk_int_narrow.
                 if narrowingIDs.contains(callee), let result, resultKind == .int {
                     let resultType = arena.exprType(result) ?? types.intType
-                    let rawResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                    let rawResult = arena.appendTemporary(type: resultType)
                     newBody.append(.call(
                         symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
                         canThrow: canThrow, thrownResult: thrownResult,
@@ -138,10 +146,25 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
+                // Char results (`Char + Int` / `Char - Int`): wrap to 16 bits.
+                if callee == charArithmeticAdd || callee == charArithmeticSub, let result, resultKind == .char {
+                    let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? types.charType)
+                    newBody.append(.call(
+                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
+                        canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+                    ))
+                    newBody.append(.call(
+                        symbol: nil, callee: charWrapCallee, arguments: [rawResult], result: result,
+                        canThrow: false, thrownResult: nil
+                    ))
+                    continue
+                }
+
                 // UInt results: mask to 32 bits via kk_uint_narrow (zero-extend low 32 bits).
                 if narrowingIDs.contains(callee), let result, resultKind == .uint {
                     let resultType = arena.exprType(result) ?? types.uintType
-                    let rawResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                    let rawResult = arena.appendTemporary(type: resultType)
                     newBody.append(.call(
                         symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
                         canThrow: canThrow, thrownResult: thrownResult,

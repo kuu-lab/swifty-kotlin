@@ -1,4 +1,5 @@
 // STDLIB-REFL-172: metadata API baseline
+import kotlin.reflect.full.findAnnotation
 
 annotation class Meta(val label: String)
 

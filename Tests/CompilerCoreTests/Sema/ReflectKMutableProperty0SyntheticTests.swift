@@ -4,24 +4,24 @@ import Testing
 
 @Suite
 struct ReflectKMutableProperty0SyntheticTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
+    private static let fixture = SemaFixture(surface: "KMutableProperty0")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KMutableProperty0 surface to resolve cleanly, got: \(diagnostics)"))
-            result = try (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test func testKMutableProperty0SurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
-        let functionPackage = ["kotlin", "Function"].map { interner.intern($0) }
 
         let kProperty0Symbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KProperty0")]
@@ -32,13 +32,11 @@ struct ReflectKMutableProperty0SyntheticTests {
         let kMutableProperty0Symbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty0")]
         ))
-        let function0Symbol = try #require(sema.symbols.lookup(
-            fqName: functionPackage + [interner.intern("Function0")]
-        ))
 
         let kMutableProperty0Info = try #require(sema.symbols.symbol(kMutableProperty0Symbol))
         #expect(kMutableProperty0Info.kind == .interface)
-        #expect(kMutableProperty0Info.flags.contains(.synthetic))
+        // KSP-682: KMutableProperty0 is now bundled Kotlin source, not a synthetic stub.
+        #expect(!kMutableProperty0Info.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kMutableProperty0Symbol)
         #expect(typeParams.count == 1)
@@ -48,18 +46,17 @@ struct ReflectKMutableProperty0SyntheticTests {
             symbol: typeParams[0],
             nullability: .nonNull
         )))
+        // KSP-682: source declares `KMutableProperty0<V> : KProperty0<V>,
+        // KMutableProperty<V>`, so Function0 is a transitive supertype via
+        // KProperty0 rather than a direct one (matching Kotlin).
         let supertypes = sema.symbols.directSupertypes(for: kMutableProperty0Symbol)
         #expect(supertypes.contains(kProperty0Symbol))
         #expect(supertypes.contains(kMutablePropertySymbol))
-        #expect(supertypes.contains(function0Symbol))
         #expect(
             sema.symbols.supertypeTypeArgs(for: kMutableProperty0Symbol, supertype: kProperty0Symbol) == [.invariant(valueType)]
         )
         #expect(
             sema.symbols.supertypeTypeArgs(for: kMutableProperty0Symbol, supertype: kMutablePropertySymbol) == [.invariant(valueType)]
-        )
-        #expect(
-            sema.symbols.supertypeTypeArgs(for: kMutableProperty0Symbol, supertype: function0Symbol) == [.out(valueType)]
         )
 
         let setSymbol = try #require(sema.symbols.lookup(

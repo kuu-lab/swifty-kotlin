@@ -1,230 +1,184 @@
-
-extension CollectionLiteralLoweringPass {
-    private func shouldPreserveSourceBackedListAggregateCall(
+extension CollectionLiteralConstructionLoweringPass {
+    /// Keep resolved source declarations on the original call path unless the
+    /// receiver is a confirmed runtime Sequence box. Runtime-specific
+    /// collection intrinsics are emitted under their `kk_*` callee before this
+    /// gate and therefore do not need an API-name exception here.
+    private func shouldPreserveSourceBackedCall(
         symbol: SymbolID?,
-        callee: InternedString,
-        lookup: CollectionLiteralLookupTables,
+        arguments: [KIRExprID],
+        module: KIRModule,
+        state: CollectionRewriteState,
         ctx: KIRContext
     ) -> Bool {
-        guard callee == lookup.foldName
-            || callee == lookup.foldRightName
-            || callee == lookup.reduceName
-            || callee == lookup.reduceOrNullName
-            || callee == lookup.scanName
-            || callee == lookup.runningFoldName,
-            let symbol,
-            let sema = ctx.sema,
-            let semanticSymbol = sema.symbols.symbol(symbol),
-            semanticSymbol.declSite != nil
-        else {
-            return false
-        }
-        return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        sourceBackedPreservation.preserves(
+            resolution: SourceBackedCalleeResolution(symbol: symbol, sema: ctx.sema),
+            sequenceRuntimeRepresentation: sequenceRuntimeRepresentationForCall(
+                symbol: symbol,
+                receiver: arguments.first,
+                state: state,
+                module: module,
+                sema: ctx.sema,
+                interner: ctx.interner
+            )
+        )
     }
 
-    func rewriteCalls(module: KIRModule, ctx: KIRContext) throws {
-        let lookup = CollectionLiteralLookupTables(interner: ctx.interner)
-        let builderLambdaKinds = collectBuilderLambdaKinds(
+    func lowerCallInstruction(
+        instruction: KIRInstruction,
+        symbol: SymbolID?,
+        callee: InternedString,
+        arguments: [KIRExprID],
+        result: KIRExprID?,
+        canThrow: Bool,
+        thrownResult: KIRExprID?,
+        function: KIRFunction,
+        module: KIRModule,
+        ctx: KIRContext,
+        lookup: CollectionLiteralLookupTables,
+        state: inout CollectionRewriteState,
+        loweredBody: inout KIRLoweringEmitContext
+    ) {
+        // kk_sequence_requireNoNulls is emitted directly by CallLowerer when the
+        // bundled source declaration is absent. Track its result as a runtime
+        // Sequence handle so downstream take/drop rewrites still fire.
+        if callee == lookup.kkSequenceRequireNoNullsName, let result {
+            state.sequenceExprIDs.insert(result.rawValue)
+        }
+        if rewriteFactoryAndBuilderCall(
+            symbol: symbol,
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
+            lookup: lookup,
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            // Concrete-class collection constructors (`LinkedHashSet()`,
+            // `HashMap()`, ...) are rewritten to runtime factories whose
+            // returned boxes never pass `kk_object_new`, so the
+            // constructor-site vtable registrations never ran for them.
+            // Register the nominal vtable implementations on the box so an
+            // open member dispatch (e.g. `LinkedHashSet.size`) resolves
+            // instead of trapping at `kk_vtable_lookup`. No-ops for
+            // interface-typed results.
+            appendFactoryResultVtableRegistrations(
+                result: result,
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
+            return
+        }
+
+        if rewriteFileCall(
+            symbol: symbol,
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
+            lookup: lookup,
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            return
+        }
+
+        if rewriteArrayAndIteratorBridgeCall(
+            symbol: symbol,
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
+            lookup: lookup,
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            return
+        }
+
+        if shouldPreserveSourceBackedCall(
+            symbol: symbol,
+            arguments: arguments,
+            module: module,
+            state: state,
+            ctx: ctx
+        ) {
+            loweredBody.append(instruction)
+            return
+        }
+
+        if rewriteCollectionMemberCall(
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
+            lookup: lookup,
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            return
+        }
+
+        if rewriteSequenceCollectionCall(
+            symbol: symbol,
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            instruction: instruction,
+            module: module,
+            ctx: ctx,
+            lookup: lookup,
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            return
+        }
+
+        if rewriteHigherOrderCollectionCall(
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
+            lookup: lookup,
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            return
+        }
+
+        if rewriteRuntimeAdapterCall(
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            function: function,
             module: module,
             lookup: lookup,
-            ctx: ctx
-        )
-
-        func transformFunction(_ function: KIRFunction) -> KIRFunction {
-            var updated: KIRFunction = function
-
-            // Phase 1: Identify collection-typed expression IDs
-            var state = CollectionRewriteState()
-
-            collectInitialCollectionExprIDs(
-                function: function,
-                lookup: lookup,
-                arena: module.arena,
-                sema: ctx.sema,
-                interner: ctx.interner,
-                listExprIDs: &state.listExprIDs,
-                setExprIDs: &state.setExprIDs,
-                mapExprIDs: &state.mapExprIDs,
-                arrayExprIDs: &state.arrayExprIDs,
-                sequenceExprIDs: &state.sequenceExprIDs,
-                rangeExprIDs: &state.rangeExprIDs,
-                charRangeExprIDs: &state.charRangeExprIDs,
-                ulongRangeExprIDs: &state.ulongRangeExprIDs,
-                stringExprIDs: &state.stringExprIDs,
-                fileExprIDs: &state.fileExprIDs,
-                pathExprIDs: &state.pathExprIDs
-            )
-
-            // Phase 2: Rewrite instructions
-            var loweredBody: [KIRInstruction] = []
-            loweredBody.reserveCapacity(function.body.count + 32)
-
-            for instruction in function.body {
-                switch instruction {
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, _, _):
-                    if rewriteFactoryAndBuilderCall(
-                        symbol: symbol,
-                        callee: callee,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: canThrow,
-                        thrownResult: thrownResult,
-                        function: function,
-                        builderLambdaKinds: builderLambdaKinds,
-                        module: module,
-                        ctx: ctx,
-                        lookup: lookup,
-                        state: &state,
-                        loweredBody: &loweredBody
-                    ) {
-                        continue
-                    }
-
-                    if rewriteFileCall(
-                        symbol: symbol,
-                        callee: callee,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: canThrow,
-                        thrownResult: thrownResult,
-                        module: module,
-                        ctx: ctx,
-                        lookup: lookup,
-                        state: &state,
-                        loweredBody: &loweredBody
-                    ) {
-                        continue
-                    }
-
-                    if rewriteArrayAndIteratorBridgeCall(
-                        symbol: symbol,
-                        callee: callee,
-                        arguments: arguments,
-                        result: result,
-                        module: module,
-                        ctx: ctx,
-                        lookup: lookup,
-                        state: &state,
-                        loweredBody: &loweredBody
-                    ) {
-                        continue
-                    }
-
-                    if rewriteCollectionMemberCall(
-                        callee: callee,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: canThrow,
-                        thrownResult: thrownResult,
-                        module: module,
-                        ctx: ctx,
-                        lookup: lookup,
-                        state: &state,
-                        loweredBody: &loweredBody
-                    ) {
-                        continue
-                    }
-
-                    if rewriteSequenceCollectionCall(
-                        symbol: symbol,
-                        callee: callee,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: canThrow,
-                        thrownResult: thrownResult,
-                        instruction: instruction,
-                        module: module,
-                        ctx: ctx,
-                        lookup: lookup,
-                        state: &state,
-                        loweredBody: &loweredBody
-                    ) {
-                        continue
-                    }
-
-                    if shouldPreserveSourceBackedListAggregateCall(
-                        symbol: symbol,
-                        callee: callee,
-                        lookup: lookup,
-                        ctx: ctx
-                    ) {
-                        loweredBody.append(instruction)
-                        continue
-                    }
-
-                    if rewriteHigherOrderCollectionCall(
-                        callee: callee,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: canThrow,
-                        thrownResult: thrownResult,
-                        function: function,
-                        module: module,
-                        lookup: lookup,
-                        state: &state,
-                        loweredBody: &loweredBody
-                    ) {
-                        continue
-                    }
-
-                    if rewriteRuntimeAdapterCall(
-                        callee: callee,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: canThrow,
-                        thrownResult: thrownResult,
-                        function: function,
-                        module: module,
-                        lookup: lookup,
-                        state: &state,
-                        loweredBody: &loweredBody
-                    ) {
-                        continue
-                    }
-
-                    // Default: keep instruction as-is
-                    loweredBody.append(instruction)
-
-                case let .virtualCall(_, callee, receiver, arguments, result, origCanThrow, origThrownResult, _):
-                    if rewriteVirtualCallInstruction(
-                        callee: callee,
-                        receiver: receiver,
-                        arguments: arguments,
-                        result: result,
-                        origCanThrow: origCanThrow,
-                        origThrownResult: origThrownResult,
-                        context: .init(module: module, lookup: lookup, functionBody: function.body, sema: ctx.sema, interner: ctx.interner),
-                        listExprIDs: &state.listExprIDs,
-                        setExprIDs: &state.setExprIDs,
-                        mapExprIDs: &state.mapExprIDs,
-                        arrayExprIDs: &state.arrayExprIDs,
-                        sequenceExprIDs: &state.sequenceExprIDs,
-                        rangeExprIDs: &state.rangeExprIDs,
-                        charRangeExprIDs: &state.charRangeExprIDs,
-                        ulongRangeExprIDs: &state.ulongRangeExprIDs,
-                        fileExprIDs: &state.fileExprIDs,
-                        pathExprIDs: &state.pathExprIDs,
-                        indexingIterableExprIDs: &state.indexingIterableExprIDs,
-                        loweredBody: &loweredBody
-                    ) {
-                        continue
-                    }
-                    loweredBody.append(instruction)
-
-                case let .copy(from, to):
-                    // Track copies of collection expressions
-                    state.propagateCopy(from: from, to: to)
-                    loweredBody.append(instruction)
-
-                default:
-                    loweredBody.append(instruction)
-                }
-            }
-
-            updated.replaceBody(loweredBody)
-            return updated
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            return
         }
-        module.arena.transformFunctions(transformFunction)
-        module.recordLowering(Self.name)
+
+        loweredBody.append(instruction)
     }
 }

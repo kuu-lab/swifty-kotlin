@@ -1,4 +1,4 @@
-// SKIP-DIFF: kotlin.native.* and kotlinx.cinterop.* are Kotlin/Native-only APIs not available in JVM kotlinc
+// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* and kotlinx.cinterop.* are Kotlin/Native-only APIs not available in JVM kotlinc
 @file:OptIn(
     kotlin.experimental.ExperimentalNativeApi::class,
     kotlin.experimental.ExperimentalObjCEnum::class,

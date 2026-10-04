@@ -133,37 +133,6 @@ public struct KotlinMetadata: Codable, Equatable, Sendable {
     }
 }
 
-enum RuntimeMetadataCodec {
-    enum Error: Swift.Error, Equatable {
-        case invalidUTF8
-        case decodingFailed(String)
-    }
-
-    static func serialize(_ metadata: KotlinMetadata) throws -> String {
-        let encoder = JSONEncoder()
-        if #available(macOS 10.13, *) {
-            encoder.outputFormatting = [.sortedKeys]
-        }
-        let data = try encoder.encode(metadata)
-        guard let encoded = String(data: data, encoding: .utf8) else {
-            throw Error.invalidUTF8
-        }
-        return encoded
-    }
-
-    static func deserialize(_ string: String) throws -> KotlinMetadata {
-        let decoder = JSONDecoder()
-        guard let data = string.data(using: .utf8) else {
-            throw Error.invalidUTF8
-        }
-        do {
-            return try decoder.decode(KotlinMetadata.self, from: data)
-        } catch {
-            throw Error.decodingFailed(String(describing: error))
-        }
-    }
-}
-
 // MARK: - Runtime box conversion helpers
 
 extension KmValueParameter {

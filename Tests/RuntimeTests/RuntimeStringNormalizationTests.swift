@@ -1,42 +1,84 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
-final class RuntimeStringNormalizationTests: XCTestCase {
-    private func runtimeString(_ text: String) -> Int {
-        text.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
-                Int(bitPattern: kk_string_from_utf8(ptr, Int32(text.utf8.count)))
-            }
+@Suite
+struct RuntimeStringNormalizationTests {
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) throws -> T
+    ) rethrows -> T {
+        let bytes = Array(value.utf8)
+        return try bytes.withUnsafeBufferPointer { buffer in
+            let pointer = buffer.baseAddress
+            let count = bytes.count
+            return try body(pointer, value.count, count, value.hashValue)
         }
     }
 
-    private func stringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
+    private func flatStringValue(data: UnsafeMutablePointer<UInt8>?, byteCount: Int) -> String {
+        guard let data else { return "" }
+        let buffer = UnsafeBufferPointer(start: UnsafePointer(data), count: byteCount)
+        return String(decoding: buffer, as: UTF8.self)
     }
 
+    private func normalizedFlatValue(_ value: String, form: Int) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let resultData = __kk_string_normalize_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                form,
+                &outLength,
+                &outByteCount,
+                &outHash
+            )
+            return flatStringValue(data: resultData, byteCount: outByteCount)
+        }
+    }
+
+    // KSP-717: form tags are the NormalizationForm.tag values assigned in
+    // Stdlib/kotlin/text/StringNormalize.kt (NFC=0, NFD=1, NFKC=2, NFKD=3);
+    // the __kk_normalization_form_nf* Swift wrappers that used to name them
+    // are gone now that NormalizationForms is a plain Kotlin object.
+    private static let nfcTag = 0
+    private static let nfdTag = 1
+    private static let nfkcTag = 2
+
+    @Test
     func testNormalizeNFCComposesDecomposedAccent() {
         let decomposed = "e\u{0301}"
-        let result = kk_string_normalize(runtimeString(decomposed), kk_normalization_form_nfc())
-        XCTAssertEqual(stringValue(result), "\u{00E9}")
+        #expect(normalizedFlatValue(decomposed, form: Self.nfcTag) == "\u{00E9}")
     }
 
+    @Test
     func testNormalizeNFDDecomposesPrecomposedAccent() {
         let precomposed = "\u{00E9}"
-        let result = kk_string_normalize(runtimeString(precomposed), kk_normalization_form_nfd())
-        XCTAssertEqual(stringValue(result), "e\u{0301}")
+        #expect(normalizedFlatValue(precomposed, form: Self.nfdTag) == "e\u{0301}")
     }
 
+    @Test
     func testNormalizeNFKCRewritesCompatibilityGlyph() {
         let source = "\u{FB01}"
-        let result = kk_string_normalize(runtimeString(source), kk_normalization_form_nfkc())
-        XCTAssertEqual(stringValue(result), "fi")
+        #expect(normalizedFlatValue(source, form: Self.nfkcTag) == "fi")
     }
 
-    func testIsNormalizedDetectsCanonicalForm() {
-        let decomposed = runtimeString("e\u{0301}")
-        XCTAssertEqual(kk_string_isNormalized(decomposed, kk_normalization_form_nfc()), 0)
-
-        let normalized = kk_string_normalize(decomposed, kk_normalization_form_nfc())
-        XCTAssertEqual(kk_string_isNormalized(normalized, kk_normalization_form_nfc()), 1)
+    @Test
+    func testFlatIsNormalizedDetectsCanonicalForm() {
+        withFlatString("e\u{0301}") { data, length, byteCount, hash in
+            #expect(
+                __kk_string_isNormalized_flat(data, length, byteCount, hash, Self.nfcTag) == 0
+            )
+        }
+        withFlatString("\u{00E9}") { data, length, byteCount, hash in
+            #expect(
+                __kk_string_isNormalized_flat(data, length, byteCount, hash, Self.nfcTag) == 1
+            )
+        }
     }
 }
+#endif

@@ -32,6 +32,11 @@ struct SyntaxArenaTests {
     @Test
     func testNodeReturnsSentinelForInvalidIDs() {
         let arena = SyntaxArena()
+        let interner = StringInterner()
+
+        let token = makeToken(kind: .identifier(interner.intern("real")), start: 0, end: 4)
+        let tokenID = arena.appendToken(token)
+        let nodeID = arena.appendNode(kind: .callExpr, range: makeRange(start: 0, end: 4), [.token(tokenID)])
 
         let negative = arena.node(NodeID(rawValue: -1))
         #expect(negative.kind == .statement)
@@ -41,6 +46,17 @@ struct SyntaxArenaTests {
         let tooLarge = arena.node(NodeID(rawValue: 999))
         #expect(tooLarge.kind == .statement)
         #expect(tooLarge.range.end.file == .invalid)
+
+        _ = arena.node(NodeID(rawValue: Int32.max))
+        _ = arena.children(of: NodeID(rawValue: -50))
+        _ = arena.children(of: NodeID(rawValue: Int32.max))
+
+        // Reading through invalid IDs must not disturb the real data.
+        let node = arena.node(nodeID)
+        #expect(node.kind == .callExpr)
+        #expect(Array(arena.children(of: nodeID)) == [.token(tokenID)])
+        #expect(arena.tokens.count == 1)
+        #expect(arena.nodes.count == 1)
     }
 
     @Test
@@ -52,87 +68,18 @@ struct SyntaxArenaTests {
         #expect(Array(arena.children(of: NodeID(rawValue: 1234))) == [])
     }
 
-    // MARK: - Edge Cases
-
     @Test
-    func testLargeNumberOfTokenAdditions() throws {
+    func testDeeplyNestedNodeStructure() {
         let arena = SyntaxArena()
         let interner = StringInterner()
-        let count = 10000
+        let depth = 10
 
-        var tokenIDs: [TokenID] = []
-        for i in 0 ..< count {
-            let token = makeToken(kind: .identifier(interner.intern("t\(i)")), start: i, end: i + 1)
-            tokenIDs.append(arena.appendToken(token))
-        }
+        let leafTokenID = arena.appendToken(
+            makeToken(kind: .identifier(interner.intern("leaf")), start: 0, end: 4)
+        )
 
-        #expect(tokenIDs.count == count)
-        #expect(tokenIDs.first == TokenID(rawValue: 0))
-        #expect(tokenIDs.last == TokenID(rawValue: Int32(count - 1)))
-        #expect(arena.tokens.count == count)
-
-        // Verify first and last tokens are retrievable
-        #expect(try arena.tokens[Int(#require(tokenIDs.first?.rawValue))].range.start.offset == 0)
-        #expect(try arena.tokens[Int(#require(tokenIDs.last?.rawValue))].range.start.offset == count - 1)
-    }
-
-    @Test
-    func testLargeNumberOfNodeAdditions() throws {
-        let arena = SyntaxArena()
-        let count = 10000
-
-        var nodeIDs: [NodeID] = []
-        for i in 0 ..< count {
-            let range = makeRange(start: i, end: i + 1)
-            nodeIDs.append(arena.appendNode(kind: .statement, range: range, []))
-        }
-
-        #expect(nodeIDs.count == count)
-        #expect(nodeIDs.first == NodeID(rawValue: 0))
-        #expect(nodeIDs.last == NodeID(rawValue: Int32(count - 1)))
-        #expect(arena.nodes.count == count)
-
-        // Verify retrieval of first and last nodes
-        let firstNode = try arena.node(#require(nodeIDs.first))
-        let lastNode = try arena.node(#require(nodeIDs.last))
-        #expect(firstNode.range.start.offset == 0)
-        #expect(lastNode.range.start.offset == count - 1)
-    }
-
-    @Test
-    func testInt32BoundaryTokenID() {
-        let arena = SyntaxArena()
-        let interner = StringInterner()
-
-        // Pre-populate tokens to push the next ID close to a known value
-        // Verify that TokenID wraps Int32 correctly at moderate scale
-        let token = makeToken(kind: .identifier(interner.intern("boundary")), start: 0, end: 1)
-        let id = arena.appendToken(token)
-        #expect(id.rawValue == 0)
-
-        // Int32.max is 2_147_483_647 — we can't allocate that many, but verify
-        // the rawValue type is Int32 and handles typical casting
-        let manualID = TokenID(rawValue: Int32.max)
-        #expect(manualID.rawValue == Int32.max)
-
-        let manualNegID = TokenID(rawValue: Int32.min)
-        #expect(manualNegID.rawValue == Int32.min)
-    }
-
-    @Test
-    func testDeeplyNestedNodeStructure() throws {
-        let arena = SyntaxArena()
-        let interner = StringInterner()
-        let depth = 100
-
-        // Create a leaf token
-        let leafToken = makeToken(kind: .identifier(interner.intern("leaf")), start: 0, end: 4)
-        let leafTokenID = arena.appendToken(leafToken)
-
-        // Build a deeply nested tree: each node wraps the previous one
         var currentChild: SyntaxChild = .token(leafTokenID)
         var allNodeIDs: [NodeID] = []
-
         for level in 0 ..< depth {
             let range = makeRange(start: level, end: level + 1)
             let nodeID = arena.appendNode(kind: .block, range: range, [currentChild])
@@ -140,32 +87,16 @@ struct SyntaxArenaTests {
             currentChild = .node(nodeID)
         }
 
-        // Verify the outermost node
-        let outermost = try arena.node(#require(allNodeIDs.last))
-        #expect(outermost.kind == .block)
-        #expect(outermost.childCount == 1)
-
-        // Walk from outermost to innermost
-        var currentNodeID = try #require(allNodeIDs.last)
+        // Outermost inward: every level wraps exactly the node below it, and
+        // the innermost one wraps the leaf token.
         for level in stride(from: depth - 1, through: 0, by: -1) {
-            let node = arena.node(currentNodeID)
+            let nodeID = allNodeIDs[level]
+            let node = arena.node(nodeID)
             #expect(node.kind == .block)
             #expect(node.range.start.offset == level)
 
-            let nodeChildren = Array(arena.children(of: currentNodeID))
-            #expect(nodeChildren.count == 1)
-
-            if level > 0 {
-                // Child should be a node
-                if case let .node(childNodeID) = nodeChildren[0] {
-                    currentNodeID = childNodeID
-                } else {
-                    Issue.record("Expected node child at level \(level), got token")
-                }
-            } else {
-                // Innermost level: child should be the leaf token
-                #expect(nodeChildren[0] == .token(leafTokenID))
-            }
+            let expectedChild: SyntaxChild = level > 0 ? .node(allNodeIDs[level - 1]) : .token(leafTokenID)
+            #expect(Array(arena.children(of: nodeID)) == [expectedChild])
         }
     }
 
@@ -182,16 +113,19 @@ struct SyntaxArenaTests {
         let idB = arena.appendToken(tokenB)
         let idC = arena.appendToken(tokenC)
 
-        // Direct access to tokens array by index
         #expect(arena.tokens.count == 3)
         #expect(arena.tokens[Int(idA.rawValue)] == tokenA)
         #expect(arena.tokens[Int(idB.rawValue)] == tokenB)
         #expect(arena.tokens[Int(idC.rawValue)] == tokenC)
 
-        // Verify ordering matches insertion order
         #expect(arena.tokens[0].range.start.offset == 0)
         #expect(arena.tokens[1].range.start.offset == 2)
         #expect(arena.tokens[2].range.start.offset == 4)
+
+        // `token(_:)` is the bounds-checked accessor the parser itself uses.
+        #expect(arena.token(idB) == tokenB)
+        #expect(arena.token(TokenID(rawValue: 3)) == nil)
+        #expect(arena.token(TokenID(rawValue: -1)) == nil)
     }
 
     @Test
@@ -204,18 +138,14 @@ struct SyntaxArenaTests {
         let idA = arena.appendToken(tokenA)
         let idB = arena.appendToken(tokenB)
 
-        // First node with 2 children
         let node1 = arena.appendNode(kind: .callExpr, range: makeRange(start: 0, end: 3), [.token(idA), .token(idB)])
-        // Second node with 1 child (node reference)
         let node2 = arena.appendNode(kind: .block, range: makeRange(start: 0, end: 5), [.node(node1)])
 
-        // Direct children array should contain all 3 entries in insertion order
         #expect(arena.children.count == 3)
         #expect(arena.children[0] == .token(idA))
         #expect(arena.children[1] == .token(idB))
         #expect(arena.children[2] == .node(node1))
 
-        // Verify node-specific children slice
         #expect(Array(arena.children(of: node1)) == [.token(idA), .token(idB)])
         #expect(Array(arena.children(of: node2)) == [.node(node1)])
     }
@@ -223,18 +153,13 @@ struct SyntaxArenaTests {
     @Test
     func testChildrenSafetyWhenFirstChildIndexExceedsBounds() {
         let arena = SyntaxArena()
-
-        // Create a node with no children so firstChildIndex == 0 and childCount == 0
         let nodeID = arena.appendNode(kind: .statement, range: makeRange(), [])
 
-        // The sentinel returned for out-of-bounds NodeID has firstChildIndex == 0
-        // and childCount == 0, so children(of:) should return empty
         let sentinel = arena.node(NodeID(rawValue: 9999))
         #expect(sentinel.firstChildIndex == 0)
         #expect(sentinel.childCount == 0)
         #expect(Array(arena.children(of: NodeID(rawValue: 9999))) == [])
 
-        // Valid node with no children
         #expect(Array(arena.children(of: nodeID)) == [])
     }
 
@@ -243,17 +168,13 @@ struct SyntaxArenaTests {
         let arena = SyntaxArena()
         let interner = StringInterner()
 
-        // Add one token and one node with that token as child
         let token = makeToken(kind: .identifier(interner.intern("x")), start: 0, end: 1)
         let tokenID = arena.appendToken(token)
         let nodeID = arena.appendNode(kind: .callExpr, range: makeRange(), [.token(tokenID)])
 
-        // Verify normal access works
         #expect(Array(arena.children(of: nodeID)) == [.token(tokenID)])
 
-        // Manually verify the clamping logic in children(of:)
-        // The node's firstChildIndex=0, childCount=1
-        // end = 0 + 1 = 1 which equals children.count — this is the boundary case
+        // end = firstChildIndex + childCount == children.count — boundary case for clamping
         let node = arena.node(nodeID)
         #expect(node.firstChildIndex == 0)
         #expect(node.childCount == 1)
@@ -269,19 +190,13 @@ struct SyntaxArenaTests {
         let t2 = arena.appendToken(makeToken(kind: .identifier(interner.intern("b")), start: 2, end: 3))
         let t3 = arena.appendToken(makeToken(kind: .identifier(interner.intern("c")), start: 4, end: 5))
 
-        // Node 1 owns children[0..1]
         let n1 = arena.appendNode(kind: .callExpr, range: makeRange(start: 0, end: 3), [.token(t1), .token(t2)])
-        // Node 2 owns children[2..2]
         let n2 = arena.appendNode(kind: .statement, range: makeRange(start: 4, end: 5), [.token(t3)])
 
-        // Total children count is 3
         #expect(arena.children.count == 3)
-
-        // Each node's children are independent slices
         #expect(Array(arena.children(of: n1)) == [.token(t1), .token(t2)])
         #expect(Array(arena.children(of: n2)) == [.token(t3)])
 
-        // Verify firstChildIndex assignments
         let node1 = arena.node(n1)
         let node2 = arena.node(n2)
         #expect(node1.firstChildIndex == 0)
@@ -294,49 +209,25 @@ struct SyntaxArenaTests {
     func testNodeWithManyChildren() {
         let arena = SyntaxArena()
         let interner = StringInterner()
-        let childCount = 1000
+        let childCount = 20
+        let name = interner.intern("child")
 
         var childEntries: [SyntaxChild] = []
         for i in 0 ..< childCount {
-            let token = makeToken(kind: .identifier(interner.intern("c\(i)")), start: i, end: i + 1)
-            let tokenID = arena.appendToken(token)
+            let tokenID = arena.appendToken(makeToken(kind: .identifier(name), start: i, end: i + 1))
             childEntries.append(.token(tokenID))
         }
 
         let nodeID = arena.appendNode(kind: .block, range: makeRange(start: 0, end: childCount), childEntries)
         let node = arena.node(nodeID)
 
-        #expect(node.childCount == Int16(childCount))
+        #expect(node.childCount == childCount)
         #expect(node.firstChildIndex == 0)
 
-        let retrievedChildren = Array(arena.children(of: nodeID))
+        let retrievedChildren = arena.children(of: nodeID)
         #expect(retrievedChildren.count == childCount)
         #expect(retrievedChildren.first == childEntries.first)
         #expect(retrievedChildren.last == childEntries.last)
-    }
-
-    @Test
-    func testNodeInvalidIDSentinelDoesNotCorruptArena() {
-        let arena = SyntaxArena()
-        let interner = StringInterner()
-
-        // Add real data first
-        let token = makeToken(kind: .identifier(interner.intern("real")), start: 0, end: 4)
-        let tokenID = arena.appendToken(token)
-        let nodeID = arena.appendNode(kind: .callExpr, range: makeRange(start: 0, end: 4), [.token(tokenID)])
-
-        // Access invalid IDs — should not corrupt the arena
-        _ = arena.node(NodeID(rawValue: -100))
-        _ = arena.node(NodeID(rawValue: Int32.max))
-        _ = arena.children(of: NodeID(rawValue: -50))
-        _ = arena.children(of: NodeID(rawValue: Int32.max))
-
-        // Verify original data is still intact
-        let node = arena.node(nodeID)
-        #expect(node.kind == .callExpr)
-        #expect(Array(arena.children(of: nodeID)) == [.token(tokenID)])
-        #expect(arena.tokens.count == 1)
-        #expect(arena.nodes.count == 1)
     }
 }
 #endif

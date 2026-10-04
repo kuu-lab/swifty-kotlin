@@ -19,11 +19,10 @@ extension StdlibSurfaceSpec {
             package: .kotlinCollections,
             ownerKind: .list,
             memberName: memberName,
-            arity: StdlibSurfaceArity(arity),
+            arity: StdlibSurfaceArity(arity...arity),
             runtimeLinkName: runtimeLinkName,
             returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation,
-            loweringCategory: .collectionHOF
+            lambdaExpectation: lambdaExpectation
         )
     }
 
@@ -38,11 +37,10 @@ extension StdlibSurfaceSpec {
             package: .kotlinCollections,
             ownerKind: .set,
             memberName: memberName,
-            arity: StdlibSurfaceArity(arity),
+            arity: StdlibSurfaceArity(arity...arity),
             runtimeLinkName: runtimeLinkName,
             returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation,
-            loweringCategory: .setHOF
+            lambdaExpectation: lambdaExpectation
         )
     }
 
@@ -57,11 +55,10 @@ extension StdlibSurfaceSpec {
             package: .kotlinCollections,
             ownerKind: .map,
             memberName: memberName,
-            arity: StdlibSurfaceArity(arity),
+            arity: StdlibSurfaceArity(arity...arity),
             runtimeLinkName: runtimeLinkName,
             returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation,
-            loweringCategory: .mapHOF
+            lambdaExpectation: lambdaExpectation
         )
     }
 
@@ -76,11 +73,10 @@ extension StdlibSurfaceSpec {
             package: .kotlinSequences,
             ownerKind: .sequence,
             memberName: memberName,
-            arity: StdlibSurfaceArity(arity),
+            arity: StdlibSurfaceArity(arity...arity),
             runtimeLinkName: runtimeLinkName,
             returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation,
-            loweringCategory: .sequenceHOF
+            lambdaExpectation: lambdaExpectation
         )
     }
 }

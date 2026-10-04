@@ -51,21 +51,109 @@ private final class LockedCommandOutput: @unchecked Sendable {
     }
 }
 
+private final class CommandPipeDrain: @unchecked Sendable {
+    private let handle: FileHandle
+    private let output: LockedCommandOutput
+    private let stream: CommandOutputStream
+    private let group: DispatchGroup
+    private let name: String
+
+    init(handle: FileHandle, output: LockedCommandOutput, stream: CommandOutputStream, group: DispatchGroup, name: String) {
+        self.handle = handle
+        self.output = output
+        self.stream = stream
+        self.group = group
+        self.name = name
+    }
+
+    func start() {
+        group.enter()
+        let thread = Thread { [self] in
+            defer { group.leave() }
+            output.store(handle.readDataToEndOfFile(), for: stream)
+        }
+        thread.name = name
+        thread.start()
+    }
+}
+
 package enum CommandRunner {
     private static let drainTimeoutSeconds: TimeInterval = 20
     private static let terminationGracePeriodSeconds: TimeInterval = 1
+#if os(Linux)
+    /// swift-corelibs-foundation's `Process.run()` is not thread-safe on Linux:
+    /// concurrent launches race on posix_spawn / `/proc/self/fd` and can SIGSEGV
+    /// (see CommandRunnerTests timeout note). Serialize only the spawn window so
+    /// child processes still run in parallel.
+    private static let processLaunchLock = NSLock()
+#endif
 
+    private static func withProcessLaunchLock<T>(_ body: () throws -> T) rethrows -> T {
+#if os(Linux)
+        processLaunchLock.lock()
+        defer { processLaunchLock.unlock() }
+#endif
+        return try body()
+    }
+
+    /// Resolves an executable by scanning `$PATH`, but only trusts directories
+    /// whose directory and final executable cannot be tampered with by another
+    /// local user. Empty, relative, group/other-writable, or foreign-owned PATH
+    /// entries and unsafe executable files are skipped; if no trusted match is
+    /// found, `fallback` is returned.
     package static func resolveExecutable(_ name: String, fallback: String) -> String {
+        resolveExecutable(
+            name,
+            fallback: fallback,
+            pathEnvironment: ProcessInfo.processInfo.environment["PATH"] ?? ""
+        )
+    }
+
+    package static func resolveExecutable(
+        _ name: String,
+        fallback: String,
+        pathEnvironment: String
+    ) -> String {
         let fileManager = FileManager.default
-        if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {
-            for directory in pathEnv.split(separator: ":") {
-                let candidate = String(directory) + "/" + name
-                if fileManager.isExecutableFile(atPath: candidate) {
-                    return candidate
-                }
+        for directory in pathEnvironment.split(separator: ":", omittingEmptySubsequences: false) {
+            let directoryPath = String(directory)
+            // An empty entry resolves to the current working directory and a
+            // relative entry can be influenced by the process's CWD; neither
+            // is trustworthy, so require an absolute path.
+            guard directoryPath.hasPrefix("/") else { continue }
+            guard TrustedFileSystem.isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
+            let candidate = directoryPath + "/" + name
+            if isTrustedExecutable(candidate, fileManager: fileManager) {
+                return candidate
             }
         }
         return fallback
+    }
+
+    /// Checks the opened final target rather than relying on attributes of the
+    /// candidate path (which may itself be a symlink). The target's immediate
+    /// containing directory must also be protected: otherwise another user
+    /// could replace a trusted, read-only executable between this check and
+    /// launch. Only the immediate parent is verified; deeper ancestors are not
+    /// required to be trusted because shared tool-install roots (e.g. the
+    /// runner toolcache) are commonly owned by a different provisioning user.
+    private static func isTrustedExecutable(_ path: String, fileManager: FileManager) -> Bool {
+        guard fileManager.isExecutableFile(atPath: path) else { return false }
+
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+        let parentPath = URL(fileURLWithPath: resolvedPath).deletingLastPathComponent().path
+        guard TrustedFileSystem.isTrustedDirectory(parentPath, fileManager: fileManager) else { return false }
+
+        let descriptor = open(resolvedPath, O_RDONLY | O_CLOEXEC)
+        guard descriptor >= 0 else { return false }
+        defer { _ = close(descriptor) }
+
+        var status = stat()
+        guard fstat(descriptor, &status) == 0 else { return false }
+        guard status.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else { return false }
+        guard status.st_mode & mode_t(0o111) != 0 else { return false }
+        guard status.st_mode & mode_t(0o022) == 0 else { return false }
+        return status.st_uid == 0 || status.st_uid == getuid()
     }
 
     /// Runs a command and records its wall-clock time as a sub-phase in the
@@ -81,58 +169,74 @@ package enum CommandRunner {
     ) throws -> CommandResult {
         let startTime: UInt64 = (phaseTimer != nil && subPhaseName != nil) ? DispatchTime.now().uptimeNanoseconds : 0
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        if let currentDirectoryPath {
-            process.currentDirectoryURL = URL(fileURLWithPath: currentDirectoryPath)
-        }
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        do {
-            try process.run()
-        } catch {
-            throw CommandRunnerError.launchFailed("Failed to launch \(executable): \(error)")
-        }
-        // Drain both pipes before waiting for process termination to avoid
-        // deadlocks when child output exceeds the kernel pipe buffer.
         let output = LockedCommandOutput()
         let drainGroup = DispatchGroup()
-        let exitGroup = DispatchGroup()
+        let terminatedSemaphore = DispatchSemaphore(value: 0)
+        var didStartDrain = false
 
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            defer { drainGroup.leave() }
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            output.store(data, for: .stdout)
-        }
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            defer { drainGroup.leave() }
-            let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            output.store(data, for: .stderr)
+        do {
+            try withProcessLaunchLock {
+                process.executableURL = URL(fileURLWithPath: executable)
+                process.arguments = arguments
+                if let currentDirectoryPath {
+                    process.currentDirectoryURL = URL(fileURLWithPath: currentDirectoryPath)
+                }
+
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
+                let stdoutReadHandle = stdoutPipe.fileHandleForReading
+                let stderrReadHandle = stderrPipe.fileHandleForReading
+                let stdoutWriteHandle = stdoutPipe.fileHandleForWriting
+                let stderrWriteHandle = stderrPipe.fileHandleForWriting
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
+
+                // Drain both pipes before waiting for process termination to avoid
+                // deadlocks when child output exceeds the kernel pipe buffer.
+                let stdoutDrain = CommandPipeDrain(
+                    handle: stdoutReadHandle,
+                    output: output,
+                    stream: .stdout,
+                    group: drainGroup,
+                    name: "CommandRunner.stdout"
+                )
+                let stderrDrain = CommandPipeDrain(
+                    handle: stderrReadHandle,
+                    output: output,
+                    stream: .stderr,
+                    group: drainGroup,
+                    name: "CommandRunner.stderr"
+                )
+                stdoutDrain.start()
+                stderrDrain.start()
+                didStartDrain = true
+
+                process.terminationHandler = { _ in
+                    terminatedSemaphore.signal()
+                }
+
+                do {
+                    try process.run()
+                } catch {
+                    stdoutWriteHandle.closeFile()
+                    stderrWriteHandle.closeFile()
+                    throw error
+                }
+                stdoutWriteHandle.closeFile()
+                stderrWriteHandle.closeFile()
+            }
+        } catch {
+            if didStartDrain {
+                _ = wait(for: drainGroup, timeout: drainTimeoutSeconds)
+            }
+            throw CommandRunnerError.launchFailed("Failed to launch \(executable): \(error)")
         }
 
-        exitGroup.enter()
-        DispatchQueue.global().async {
-            defer { exitGroup.leave() }
-            process.waitUntilExit()
-        }
-
-        var didExit = wait(for: exitGroup, timeout: timeout)
+        var didExit = wait(for: terminatedSemaphore, timeout: timeout)
         let didTimeOut = !didExit
         if !didExit {
             process.terminate()
-            // Re-enter group to wait for process exit after terminate
-            exitGroup.enter()
-            DispatchQueue.global().async {
-                defer { exitGroup.leave() }
-                process.waitUntilExit()
-            }
-            didExit = wait(for: exitGroup, timeout: terminationGracePeriodSeconds)
+            didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
             if !didExit {
                 // Check if process is still running before sending SIGKILL to avoid killing wrong process
                 // Note: There's a race condition between this check and the kill() call where the process
@@ -145,13 +249,7 @@ package enum CommandRunner {
                         // Other errors are unusual but we continue anyway
                     }
                 }
-                // Re-enter group to wait for process exit after SIGKILL
-                exitGroup.enter()
-                DispatchQueue.global().async {
-                    defer { exitGroup.leave() }
-                    process.waitUntilExit()
-                }
-                didExit = wait(for: exitGroup, timeout: terminationGracePeriodSeconds)
+                didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
                 // Verify process exited after SIGKILL
                 if !didExit && process.isRunning {
                     // Process is still running despite SIGKILL - this is unusual but possible
@@ -217,6 +315,11 @@ package enum CommandRunner {
     private static func wait(for group: DispatchGroup, timeout: TimeInterval) -> Bool {
         let milliseconds = max(1, Int((timeout * 1000).rounded()))
         return group.wait(timeout: .now() + .milliseconds(milliseconds)) == .success
+    }
+
+    private static func wait(for semaphore: DispatchSemaphore, timeout: TimeInterval) -> Bool {
+        let milliseconds = max(1, Int((timeout * 1000).rounded()))
+        return semaphore.wait(timeout: .now() + .milliseconds(milliseconds)) == .success
     }
 
     private static func timeoutMessage(

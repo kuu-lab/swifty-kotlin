@@ -1,0 +1,1139 @@
+#if canImport(Testing)
+@testable import CompilerCore
+@testable import CompilerBackend
+import Foundation
+import Testing
+
+@Suite
+struct CodegenBackendSequenceEdgeCasesTests {
+    @Test
+    func testCodegenCompilesSequenceEdgeCases() throws {
+        let source = """
+        fun main() {
+            val generated = generateSequence(1) { current -> if (current >= 3) null else current + 1 }
+            println(generated.take(2).toList())
+
+            val filtered = sequenceOf(1, 2, 3, 4)
+                .map { it * 2 }
+                .filter { it % 4 == 0 }
+
+            println(filtered.take(1).toList())
+            println(filtered.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceEdgeCases",
+            expected:
+                """
+                [1, 2]
+                [4]
+                [4, 8]
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenSequencePartitionSplitsElements() throws {
+        let source = """
+        fun main() {
+            val (evens, odds) = sequenceOf(1, 2, 3, 4, 5).partition { value -> value % 2 == 0 }
+            val (emptyYes, emptyNo) = emptySequence<Int>().partition { value -> value > 0 }
+
+            println(evens)
+            println(odds)
+            println(emptyYes.size)
+            println(emptyNo.size)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequencePartition", expected: "[2, 4]\n[1, 3, 5]\n0\n0\n")
+    }
+
+    @Test
+    func testCodegenSequenceNoneOverloads() throws {
+        let source = """
+        fun main() {
+            println(emptySequence<Int>().none())
+            println(sequenceOf(1, 2, 3).none())
+            println(sequenceOf(1, 3, 5).none { value -> value % 2 == 0 })
+            println(sequenceOf(1, 2, 3).none { value -> value % 2 == 0 })
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceNoneOverloads", expected: "true\nfalse\ntrue\nfalse\n")
+    }
+
+    @Test
+    func testCodegenSequencePlusConcatenatesSequences() throws {
+        let source = """
+        fun main() {
+            val memberResult = sequenceOf(1, 2).plus(sequenceOf(3, 4)).toList()
+            val operatorResult = (sequenceOf(5, 6) + sequenceOf(7, 8)).toList()
+
+            println(memberResult)
+            println(operatorResult)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequencePlus", expected: "[1, 2, 3, 4]\n[5, 6, 7, 8]\n")
+    }
+
+    @Test
+    func testCodegenSequenceReduceIndexedOrNull() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4)
+                .reduceIndexedOrNull { index, acc, value -> acc + index * value }
+            val empty = emptySequence<Int>()
+                .reduceIndexedOrNull { index, acc, value -> acc + index * value }
+            val single = sequenceOf(42)
+                .reduceIndexedOrNull { index, acc, value -> acc + index * value }
+
+            println(reduced)
+            println(empty)
+            println(single)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReduceIndexedOrNull", expected: "21\nnull\n42\n")
+    }
+
+    @Test
+    func testCodegenSequenceContainsUsesRuntime() throws {
+        let source = """
+        fun main() {
+            val values = sequenceOf(1, 2, 3)
+            println(values.contains(2))
+            println(values.contains(9))
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceContains", expected: "true\nfalse\n")
+    }
+
+    @Test
+    func testCodegenSequenceReduceRightIndexedReturnsRightFoldedValueOrThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4)
+                .reduceRightIndexed { index, value, acc -> index * 100 + value * 10 + acc }
+            val single = sequenceOf(42)
+                .reduceRightIndexed { index, value, acc -> index + value + acc }
+
+            println(reduced)
+            println(single)
+            try {
+                emptySequence<Int>().reduceRightIndexed { index, value, acc -> index + value + acc }
+                println("unexpected")
+            } catch (t: Throwable) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexed", expected: "364\n42\nempty\n")
+    }
+
+    @Test
+    func testCodegenSequenceReduceRightIndexedOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4)
+                .reduceRightIndexedOrNull { index, value, acc -> index * 100 + value * 10 + acc }
+            val single = sequenceOf(42)
+                .reduceRightIndexedOrNull { index, value, acc -> index + value + acc }
+            val empty = emptySequence<Int>()
+                .reduceRightIndexedOrNull { index, value, acc -> index + value + acc }
+
+            println(reduced)
+            println(single)
+            println(empty ?: -1)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexedOrNull", expected: "364\n42\n-1\n")
+    }
+
+    @Test
+    func testCodegenSequenceReduceRightOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4)
+                .reduceRightOrNull { value, acc -> value * 10 + acc }
+            val single = sequenceOf(42)
+                .reduceRightOrNull { value, acc -> value + acc }
+            val empty = emptySequence<Int>()
+                .reduceRightOrNull { value, acc -> value + acc }
+
+            println(reduced)
+            println(single)
+            println(empty ?: -1)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReduceRightOrNull", expected: "64\n42\n-1\n")
+    }
+
+    @Test
+    func testCodegenSequenceReduceOrNullReturnsAccumulatedValueOrNullOnEmpty() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4).reduceOrNull { acc, value -> acc + value }
+            val empty = emptySequence<Int>().reduceOrNull { acc, value -> acc + value }
+            val single = sequenceOf(42).reduceOrNull { acc, value -> acc + value }
+
+            println(reduced)
+            println(empty)
+            println(single)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReduceOrNull", expected: "10\nnull\n42\n")
+    }
+
+    @Test
+    func testCodegenSequenceReduceRightReturnsRightFoldedValueOrThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4)
+                .reduceRight { value, acc -> value * 10 + acc }
+            val single = sequenceOf(42)
+                .reduceRight { value, acc -> value * 10 + acc }
+
+            println(reduced)
+            println(single)
+
+            try {
+                emptySequence<Int>().reduceRight { value, acc -> value + acc }
+                println("missing")
+            } catch (e: Throwable) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReduceRight", expected: "64\n42\nempty\n")
+    }
+
+    @Test
+    func testCodegenSequenceReduceReturnsAccumulatedValueOrThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4).reduce { acc, value -> acc + value }
+            println(reduced)
+
+            try {
+                emptySequence<Int>().reduce { acc, value -> acc + value }
+                println("missing")
+            } catch (e: Throwable) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReduce", expected: "10\nempty\n")
+    }
+
+    @Test
+    func testCodegenSequenceReduceIndexedReturnsAccumulatedValueOrThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4)
+                .reduceIndexed { index, acc, value -> acc + index * value }
+            val single = sequenceOf(42)
+                .reduceIndexed { index, acc, value -> acc + index * value }
+
+            println(reduced)
+            println(single)
+
+            try {
+                emptySequence<Int>().reduceIndexed { index, acc, value -> acc + index * value }
+                println("missing")
+            } catch (e: Throwable) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReduceIndexed", expected: "21\n42\nempty\n")
+    }
+
+    @Test
+    func testCodegenSequenceFlatMapIndexedUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("sequence_flatmap_indexed.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapIndexed",
+            expected:
+                """
+                [0, 10, 1, 20]
+                [1, 100, 3, 200]
+                [0, 1, 1]
+                []
+                """
+                    + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenSequenceFirstNotNullOfUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("sequence_firstnotnullof.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFirstNotNullOf",
+            expected:
+                """
+                three
+                missing
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenSequenceFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("sequence_firstnotnullofornull.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFirstNotNullOfOrNull",
+            expected:
+                """
+                three
+                missing
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenSequenceMinusElementUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("sequence_minuselement.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceMinusElement",
+            expected:
+                """
+                [1, 3, 2]
+                [1, 2, 3, 2]
+                []
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenSequenceMinusRemovesSingleElement() throws {
+        let source = """
+        fun main() {
+            println((sequenceOf(1, 2, 3, 2) - 2).toList())
+            println(sequenceOf(1, 2, 3).minus(99).toList())
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMinus", expected: "[1, 3, 2]\n[1, 2, 3]\n")
+    }
+
+    @Test
+    func testCodegenSequenceSumByUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("sequence_sumby.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceSumBy",
+            expected:
+                """
+                14
+                0
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenSequenceSumByDoubleUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("sequence_sumbydouble.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceSumByDouble",
+            expected:
+                """
+                2.0
+                0.0
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testSourceSequenceObjectTerminalHofTraversesIterator() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2, 3).map { it * 2 }.sumBy { it })
+            println(emptySequence<Int>().sumBy { 5 })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SourceSeqTerminalHof",
+            expected:
+                """
+                12
+                0
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testSequenceRunningReduceIndexedAccumulatesWithIndex() throws {
+        let source = """
+        fun main() {
+            val reduced = sequenceOf(1, 2, 3, 4)
+                .runningReduceIndexed { index, acc, value -> acc + index * value }
+                .toList()
+            val empty = emptySequence<Int>()
+                .runningReduceIndexed { index, acc, value -> acc + index * value }
+                .toList()
+
+            println(reduced)
+            println(empty)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceRunningReduceIndexed", expected: "[1, 3, 9, 21]\n[]\n")
+    }
+
+    @Test
+    func testCodegenSequenceShuffledUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("sequence_shuffled.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceShuffled",
+            expected:
+                """
+                4
+                [1, 2, 3, 4]
+                4
+                [1, 2, 3, 4]
+                []
+                [42]
+                """
+                    + "\n"
+        )
+    }
+
+    @Test
+    func testSequenceToCollectionAppendsIntoDestination() throws {
+        let source = """
+        fun main() {
+            val seq = sequenceOf(1, 2, 2, 3)
+
+            val listDest = mutableListOf(0)
+            val listResult = seq.toCollection(listDest)
+            listResult.add(4)
+            println(listDest)
+
+            val setDest = mutableSetOf(10, 2)
+            val setResult = sequenceOf(1, 2, 2, 3).toCollection(setDest)
+            setResult.add(4)
+            println(setDest)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceToCollectionEdgeCases",
+            expected:
+                """
+                [0, 1, 2, 2, 3, 4]
+                [10, 2, 1, 3, 4]
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testSequenceFlatMapIndexedSupportsIterableAndSequenceTransforms() throws {
+        let source = """
+        fun main() {
+            val iterableResult = sequenceOf("a", "bc")
+                .flatMapIndexed { index, value -> listOf(index.toString() + ":" + value, value + value) }
+                .toList()
+
+            val sequenceResult = sequenceOf("x", "yz")
+                .flatMapIndexed { index, value -> sequenceOf(index.toString(), value) }
+                .toList()
+
+            println(iterableResult)
+            println(sequenceResult)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapIndexedEdgeCases",
+            expected:
+                """
+                [0:a, aa, 1:bc, bcbc]
+                [0, x, 1, yz]
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesSequenceWindowedTransformOverload() throws {
+        let source = """
+        fun main() {
+            val sums = sequenceOf(1, 2, 3, 4, 5).windowed(3, 2, true) { window ->
+                window[0] + window.size
+            }
+            println(sums.toList())
+
+            val labels = sequenceOf("ab", "cd", "ef", "gh").windowed(2, 3, true) { window ->
+                window.joinToString("|")
+            }
+            println(labels.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceWindowedTransformEdgeCases",
+            expected:
+                """
+                [4, 6, 6]
+                [ab|cd, gh]
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesSequenceChunked() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2, 3, 4, 5).chunked(2).toList())
+            println(emptySequence<Int>().chunked(3).toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceChunkedEdgeCases",
+            expected:
+                """
+                [[1, 2], [3, 4], [5]]
+                []
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesSequenceChunkedTransformOverload() throws {
+        let source = """
+        fun main() {
+            val sums = sequenceOf(1, 2, 3, 4, 5).chunked(2) { chunk ->
+                chunk[0] + chunk.size
+            }
+            println(sums.toList())
+
+            val labels = sequenceOf("ab", "cd", "ef").chunked(2) { chunk ->
+                chunk.joinToString("|")
+            }
+            println(labels.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceChunkedTransformEdgeCases",
+            expected:
+                """
+                [3, 5, 6]
+                [ab|cd, ef]
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesSequenceOrEmpty() throws {
+        let source = """
+        fun main() {
+            val missing: Sequence<Int>? = null
+            val present: Sequence<Int>? = sequenceOf(1, 2, 3)
+
+            println(missing.orEmpty().toList())
+            println(present.orEmpty().toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceOrEmptyEdgeCases",
+            expected:
+                """
+                []
+                [1, 2, 3]
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesSequenceShuffledOverloads() throws {
+        let source = """
+        import kotlin.random.Random
+
+        fun main() {
+            println(sequenceOf(3, 1, 2).shuffled().toList().sorted())
+            println(sequenceOf(6, 4, 5).shuffled(Random(42)).toList().sorted())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceShuffledEdgeCases",
+            expected:
+                """
+                [1, 2, 3]
+                [4, 5, 6]
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCompilesSequenceRequireNoNulls() throws {
+        let source = """
+        fun main() {
+            val values = sequenceOf(1, 2, 3)
+                .requireNoNulls()
+                .toList()
+
+            println(values)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceRequireNoNullsEdgeCases", expected: "[1, 2, 3]\n")
+    }
+
+    @Test
+    func testCodegenSequenceReversedReturnsElementsInReverseOrder() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2, 3, 4).reversed().toList())
+            println(emptySequence<Int>().reversed().toList())
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceReversedEdgeCases", expected: "[4, 3, 2, 1]\n[]\n")
+    }
+
+    @Test
+    func testCodegenSequenceRunningFoldIncludesInitialAccumulator() throws {
+        let source = """
+        fun main() {
+            val values = sequenceOf(1, 2, 3)
+                .runningFold(10) { acc, value -> acc + value }
+                .toList()
+            val empty = emptySequence<Int>()
+                .runningFold(7) { acc, value -> acc + value }
+                .toList()
+
+            println(values)
+            println(empty)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceRunningFoldEdgeCases", expected: "[10, 11, 13, 16]\n[7]\n")
+    }
+
+    @Test
+    func testCodegenSequenceRequireNoNullsThrowsOnNullElement() throws {
+        let source = """
+        fun main() {
+            try {
+                println(sequenceOf(1, null, 3).requireNoNulls().toList())
+                println("unexpected")
+            } catch (t: Throwable) {
+                println("null")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceRequireNoNullsThrows", expected: "null\n")
+    }
+
+    @Test
+    func testCodegenCompilesSequenceFirstNotNullOfOrNull() throws {
+        let source = """
+        fun main() {
+            val result: String? = sequenceOf(1, 2, 3)
+                .firstNotNullOfOrNull { if (it > 1) "hit" else null }
+            println(result)
+
+            val missing: String? = sequenceOf(1, 3, 5)
+                .firstNotNullOfOrNull { if (it % 2 == 0) "even" else null }
+            println(missing)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFirstNotNullOfOrNullEdgeCases",
+            expected:
+                """
+                hit
+                null
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testSequenceFirstNotNullOfReturnsFirstValueOrThrows() throws {
+        let source = """
+        fun main() {
+            val result: String = sequenceOf(1, 2, 3)
+                .firstNotNullOf { if (it > 1) "hit" else null }
+            println(result)
+
+            try {
+                sequenceOf(1, 3, 5)
+                    .firstNotNullOf { if (it % 2 == 0) "even" else null }
+                println("unexpected")
+            } catch (e: NoSuchElementException) {
+                println("missing")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceFirstNotNullOf", expected: "hit\nmissing\n")
+    }
+
+    @Test
+    func testSequenceRandomReturnsOnlyElementOrThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(42).random())
+            try {
+                emptySequence<Int>().random()
+                println("unexpected")
+            } catch (e: NoSuchElementException) {
+                println("empty")
+            }
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "SequenceRandom", expected: "42\nempty\n")
+    }
+
+    @Test
+    func testSequenceRandomOrNullReturnsOnlyElementOrNullOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(42).randomOrNull())
+            println(emptySequence<Int>().randomOrNull() == null)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceRandomOrNull", expected: "42\ntrue\n")
+    }
+
+    @Test
+    func testSequenceZipWithNextTransformReturnsAdjacentResults() throws {
+        // zipWithNext(transform) on a Sequence receiver returns a lazy
+        // Sequence<R>, not a List<R> — .toList() is required to inspect
+        // contents. Printing the Sequence directly (as an earlier version of
+        // this test did) prints an opaque object identity on both kotlinc and
+        // this compiler; only the exact opaque representation differs, so
+        // that isn't a meaningful comparison either way.
+        let source = """
+        fun main() {
+            val transformed = sequenceOf(1, 2, 4, 8)
+                .zipWithNext { left, right -> right - left }
+                .toList()
+            val empty = emptySequence<Int>()
+                .zipWithNext { left, right -> right - left }
+                .toList()
+            val single = sequenceOf(42)
+                .zipWithNext { left, right -> right - left }
+                .toList()
+
+            println(transformed.toList())
+            println(empty.toList())
+            println(single.toList())
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceZipWithNextTransform", expected: "[1, 2, 4]\n[]\n[]\n")
+    }
+
+    @Test
+    func testSequenceOnEachIndexedPreservesElementsAndLaziness() throws {
+        let source = """
+        fun main() {
+            var trace = ""
+            val result = sequenceOf(10, 20, 30)
+                .onEachIndexed { index, value -> trace += "$index:$value;" }
+                .take(2)
+                .toList()
+
+            println(result)
+            println(trace)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceOnEachIndexed",
+            expected:
+                """
+                [10, 20]
+                0:10;1:20;
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testSequenceOnEachPreservesElementsAndLaziness() throws {
+        let source = """
+        fun main() {
+            var trace = ""
+            val result = sequenceOf(10, 20, 30)
+                .onEach { value -> trace += "$value;" }
+                .take(2)
+                .toList()
+
+            println(result)
+            println(trace)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceOnEach",
+            expected:
+                """
+                [10, 20]
+                10;20;
+                """
+                + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenSequenceRequireNoNullsUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("sequence_require_no_nulls.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceRequireNoNulls",
+            expected:
+                """
+                [1, 2, 3]
+                [1]
+                caught
+                """
+                    + "\n"
+        )
+    }
+
+    @Test
+    func testSequencePlusOperatorAndPlusElementAppendElements() throws {
+        let source = """
+        fun main() {
+            val withPlus = sequenceOf(1, 2) + 3
+            val result = withPlus
+                .plusElement(4)
+                .toList()
+
+            println(result)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequencePlusElement", expected: "[1, 2, 3, 4]\n")
+    }
+
+    @Test
+    func testCodegenSequenceMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(5, 2, 3).minOf { it * 10 })
+            try {
+                emptySequence<Int>().minOf { it * 10 }
+                println("missing")
+            } catch (t: Throwable) {
+                println("caught")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMinOf", expected: "20\ncaught\n")
+    }
+
+    @Test
+    func testCodegenSequenceMinReturnsSmallestElementAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(3, 1, 4, 2).min())
+            try {
+                emptySequence<Int>().min()
+                println("missing")
+            } catch (t: Throwable) {
+                println("caught")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMin", expected: "1\ncaught\n")
+    }
+
+    @Test
+    func testCodegenSequenceMaxOfReturnsLargestSelectorValueAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(3, 1, 4, 2).maxOf { -it })
+            try {
+                emptySequence<Int>().maxOf { it }
+                println("unexpected")
+            } catch (e: Throwable) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMaxOfRuntime", expected: "-1\nempty\n")
+    }
+
+    @Test
+    func testCodegenSequenceMinOfOrNullReturnsSmallestSelectedValueAndNullOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(5, 2, 3).minOfOrNull { it * 10 })
+            println(emptySequence<Int>().minOfOrNull { it * 10 } == null)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMinOfOrNull", expected: "20\ntrue\n")
+    }
+
+    @Test
+    func testCodegenSequenceMaxReturnsLargestValueAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(3, 1, 4, 2).max())
+            try {
+                emptySequence<Int>().max()
+                println("unexpected")
+            } catch (e: NoSuchElementException) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMaxRuntime", expected: "4\nempty\n")
+    }
+
+    @Test
+    func testCodegenSequenceMinByReturnsSmallestSelectedElementAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(5, 2, 3).minBy { it % 3 })
+            try {
+                emptySequence<Int>().minBy { it }
+                println("missing")
+            } catch (t: Throwable) {
+                println("caught")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMinBy", expected: "3\ncaught\n")
+    }
+
+    @Test
+    func testCodegenSequenceMaxOfOrNullReturnsLargestSelectorValueOrNull() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(3, 1, 4, 2).maxOfOrNull { -it })
+            println(emptySequence<Int>().maxOfOrNull { it } == null)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMaxOfOrNull", expected: "-1\ntrue\n")
+    }
+
+    @Test
+    func testCodegenSequenceMinOrNullReturnsSmallestElementAndNullOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(5, 2, 3).minOrNull())
+            println(emptySequence<Int>().minOrNull() == null)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMinOrNull", expected: "2\ntrue\n")
+    }
+
+    @Test
+    func testCodegenSequenceMaxWithReturnsLargestElementAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(3, 1, 4, 2).maxWith { left, right -> left - right })
+            try {
+                emptySequence<Int>().maxWith { left, right -> left - right }
+                println("missing")
+            } catch (t: Throwable) {
+                println("caught")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMaxWith", expected: "4\ncaught\n")
+    }
+
+    @Test
+    func testCodegenSequenceMaxByOrNullReturnsLargestSelectorValueOrNull() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(3, 1, 4, 2).maxByOrNull { -it })
+            println(emptySequence<Int>().maxByOrNull { it } == null)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMaxByOrNullRuntime", expected: "1\ntrue\n")
+    }
+
+    @Test
+    func testCodegenSequenceMinWithOrNullReturnsComparatorMinimumAndNullOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(5, 2, 3).minWithOrNull(reverseOrder<Int>()))
+            println(emptySequence<Int>().minWithOrNull(reverseOrder<Int>()) == null)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMinWithOrNull", expected: "5\ntrue\n")
+    }
+
+    @Test
+    func testCodegenSequenceMaxByReturnsLargestSelectorValueAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(3, 1, 4, 2).maxBy { -it })
+            try {
+                emptySequence<Int>().maxBy { it }
+                println("unexpected")
+            } catch (e: Throwable) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMaxByRuntime", expected: "1\nempty\n")
+    }
+
+    @Test
+    func testCodegenSequenceMinWithReturnsComparatorMinimumAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(5, 2, 3).minWith(reverseOrder<Int>()))
+            try {
+                emptySequence<Int>().minWith(reverseOrder<Int>())
+            } catch (e: NoSuchElementException) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMinWith", expected: "5\nempty\n")
+    }
+
+    @Test
+    func testCodegenSequenceMaxOrNullReturnsLargestElementOrNull() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(3, 1, 4, 2).maxOrNull())
+            println(emptySequence<Int>().maxOrNull() == null)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMaxOrNull", expected: "4\ntrue\n")
+    }
+
+    @Test
+    func testCodegenSequenceMinByOrNullReturnsSmallestSelectedElementAndNullOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(5, 2, 3).minByOrNull { it % 3 })
+            println(emptySequence<Int>().minByOrNull { it } == null)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceMinByOrNull", expected: "3\ntrue\n")
+    }
+
+    // KSP-441 / BUG-155 regression: object-expression Sequence/Iterator pipelines must
+    // support for-in iteration and virtual dispatch of the overridden iterator().
+    @Test
+    func testCodegenSequenceObjectExpressionIteratorSupportsForIn() throws {
+        let source = """
+        interface MySeq<out T> {
+            operator fun iterator(): Iterator<T>
+        }
+
+        fun main() {
+            val it = object : Iterator<Int> {
+                var i = 1
+                override fun hasNext(): Boolean = i <= 3
+                override fun next(): Int {
+                    val current = i
+                    i = i + 1
+                    return current
+                }
+            }
+            val seq = object : MySeq<Int> {
+                override fun iterator(): Iterator<Int> = it
+            }
+            for (x in seq) println(x)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceObjectExpressionForIn", expected: "1\n2\n3\n")
+    }
+
+    // KSP-441 regression: flatMap/flatMapIndexed on source Sequence objects must
+    // traverse nested source Iterators and accept Iterable sub-collections.
+    @Test
+    func testCodegenSequenceFlatMapAndFlatMapIndexedOverSourceSequence() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2).flatMap { listOf(it, it * 10) }.toList())
+            println(sequenceOf(1, 2).flatMapIndexed { index, value -> listOf(index, value * 10) }.toList())
+            println(emptySequence<Int>().flatMapIndexed { index, value -> listOf(index, value) }.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapRegression",
+            expected: "[1, 10, 2, 20]\n[0, 10, 1, 20]\n[]\n"
+        )
+    }
+
+}
+#endif

@@ -3,20 +3,24 @@
 import Testing
 
 @Suite
-struct PropertyDelegateProviderSyntheticStubTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+struct PropertyDelegateProviderSourceTests {
+    private static let fixture = SemaFixture(surface: "PropertyDelegateProvider")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test func testPropertyDelegateProviderSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
         let providerFQName = propertiesFQName + [interner.intern("PropertyDelegateProvider")]
         let kPropertyFQName = ["kotlin", "reflect", "KProperty"].map { interner.intern($0) }
@@ -25,7 +29,8 @@ struct PropertyDelegateProviderSyntheticStubTests {
         let providerInfo = try #require(sema.symbols.symbol(providerSymbol))
         #expect(providerInfo.kind == .interface)
         #expect(providerInfo.flags.contains(.funInterface))
-        #expect(providerInfo.flags.contains(.synthetic))
+        #expect(!providerInfo.flags.contains(.synthetic))
+        #expect(providerInfo.declSite != nil)
 
         let typeParameters = sema.types.nominalTypeParameterSymbols(for: providerSymbol)
         #expect(try resolvedNames(typeParameters, sema: sema, interner: interner) == ["T", "D"])
@@ -54,7 +59,9 @@ struct PropertyDelegateProviderSyntheticStubTests {
         let provideSymbol = try #require(sema.symbols.lookup(fqName: providerFQName + [interner.intern("provideDelegate")]))
         let provideInfo = try #require(sema.symbols.symbol(provideSymbol))
         #expect(provideInfo.kind == .function)
-        #expect(provideInfo.flags.isSuperset(of: [.abstractType, .operatorFunction, .synthetic]))
+        #expect(provideInfo.flags.isSuperset(of: [.abstractType, .operatorFunction]))
+        #expect(!provideInfo.flags.contains(.synthetic))
+        #expect(provideInfo.declSite != nil)
 
         let signature = try #require(sema.symbols.functionSignature(for: provideSymbol))
         #expect(signature.receiverType == providerType)

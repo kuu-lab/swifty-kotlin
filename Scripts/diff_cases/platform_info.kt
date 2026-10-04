@@ -1,4 +1,4 @@
-// SKIP-DIFF: kotlin.native.* APIs are not available in the kotlinc diff reference environment.
+// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are not available in the kotlinc diff reference environment.
 import kotlin.native.CpuArchitecture
 import kotlin.native.OsFamily
 import kotlin.native.Platform

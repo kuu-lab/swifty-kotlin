@@ -13,19 +13,44 @@ extension NativeEmitter {
         let zeroValue: LLVMCAPIBindings.LLVMValueRef
         let context: LLVMCAPIBindings.LLVMContextRef?
         let module: LLVMCAPIBindings.LLVMModuleRef?
+        let typeLowering: LLVMTypeLowering?
+        /// Entry block of the function being emitted, used to keep stack slots out
+        /// of loop bodies (see `LLVMCAPIBindings.buildEntryAlloca`).
+        let entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef?
+        let allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef?
 
         init(
             builder: LLVMCAPIBindings.LLVMBuilderRef,
             int64Type: LLVMCAPIBindings.LLVMTypeRef,
             zeroValue: LLVMCAPIBindings.LLVMValueRef,
             context: LLVMCAPIBindings.LLVMContextRef? = nil,
-            module: LLVMCAPIBindings.LLVMModuleRef? = nil
+            module: LLVMCAPIBindings.LLVMModuleRef? = nil,
+            typeLowering: LLVMTypeLowering? = nil,
+            entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef? = nil,
+            allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef? = nil
         ) {
             self.builder = builder
             self.int64Type = int64Type
             self.zeroValue = zeroValue
             self.context = context
             self.module = module
+            self.typeLowering = typeLowering
+            self.entryBlock = entryBlock
+            self.allocaBuilder = allocaBuilder
+        }
+
+        /// Allocates an i64 stack slot in the entry block of the current function.
+        func buildEntrySlot(
+            _ bindings: LLVMCAPIBindings,
+            name: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            bindings.buildEntryAlloca(
+                type: int64Type,
+                name: name,
+                entryBlock: entryBlock,
+                allocaBuilder: allocaBuilder,
+                fallbackBuilder: builder
+            )
         }
     }
 
@@ -33,11 +58,182 @@ extension NativeEmitter {
     func lowerBuiltinCall(
         calleeName: String,
         argumentValues: [LLVMCAPIBindings.LLVMValueRef],
+        argumentTypes: [TypeID?] = [],
+        resultType: TypeID? = nil,
         state: EmissionBuilderState,
         instructionIndex: Int
     ) -> (handled: Bool, value: LLVMCAPIBindings.LLVMValueRef?) {
         let lhs = argumentValues.count > 0 ? argumentValues[0] : state.zeroValue
         let rhs = argumentValues.count > 1 ? argumentValues[1] : state.zeroValue
+
+        func isStringAggregateType(_ type: TypeID?) -> Bool {
+            guard let type,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: type)
+            else {
+                return false
+            }
+            return state.typeLowering != nil
+        }
+
+        func stringAggregateFields(
+            _ value: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> [LLVMCAPIBindings.LLVMValueRef]? {
+            // See the matching comment in NativeEmitter+FunctionEmission.swift: a KIR
+            // expression typed as String may still be materialized as a raw (boxed)
+            // Int64 handle rather than a flat struct (e.g. a HOF lambda parameter), so
+            // confirm the actual LLVM value is an aggregate before extracting fields.
+            let aggregate: LLVMCAPIBindings.LLVMValueRef
+            if bindings.isAggregateStructValue(value) {
+                aggregate = value
+            } else if let bridged = bridgeRuntimeRawToStringAggregate(value, suffix: "\(suffix)_from_raw") {
+                aggregate = bridged
+            } else {
+                return nil
+            }
+            guard let data = bindings.buildExtractValue(state.builder, aggregate: aggregate, index: 0, name: "str_data_\(suffix)"),
+                  let length = bindings.buildExtractValue(state.builder, aggregate: aggregate, index: 1, name: "str_length_\(suffix)"),
+                  let byteCount = bindings.buildExtractValue(state.builder, aggregate: aggregate, index: 2, name: "str_bytes_\(suffix)"),
+                  let hash = bindings.buildExtractValue(state.builder, aggregate: aggregate, index: 3, name: "str_hash_\(suffix)")
+            else {
+                return nil
+            }
+            return [data, length, byteCount, hash]
+        }
+
+        func declareTypedExternalFunction(
+            named name: String,
+            parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?],
+            returnType: LLVMCAPIBindings.LLVMTypeRef?
+        ) -> LLVMFunction? {
+            guard let externalType = bindings.functionType(
+                returnType: returnType,
+                parameters: parameterTypes,
+                isVarArg: false
+            ) else {
+                return nil
+            }
+            let externalValue = bindings.getNamedFunction(module: state.module, name: name)
+                ?? bindings.addFunction(module: state.module, name: name, functionType: externalType)
+            guard let externalValue else {
+                return nil
+            }
+            return LLVMFunction(value: externalValue, type: externalType)
+        }
+
+        func bridgeStringAggregateToRuntimeRaw(
+            _ value: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let typeLowering = state.typeLowering,
+                  let fields = stringAggregateFields(value, suffix: "\(suffix)_to_raw"),
+                  let bridgeFunction = declareTypedExternalFunction(
+                      named: "kk_string_from_flat",
+                      parameterTypes: [
+                          typeLowering.dataPointerType,
+                          state.int64Type,
+                          state.int64Type,
+                          state.int64Type,
+                      ],
+                      returnType: state.int64Type
+                  )
+            else {
+                return nil
+            }
+            return bindings.buildCall(
+                state.builder,
+                functionType: bridgeFunction.type,
+                callee: bridgeFunction.value,
+                arguments: fields,
+                name: "string_raw_\(suffix)"
+            ).flatMap { raw in
+                // String? uses null data in aggregate form and the runtime null
+                // sentinel at erased/raw boundaries.
+                guard let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
+                      let isNull = bindings.buildICmpEqual(
+                          state.builder,
+                          lhs: fields[0],
+                          rhs: nullData,
+                          name: "string_raw_isnull_\(suffix)"
+                      ),
+                      let sentinel = bindings.constInt(state.int64Type, value: UInt64(bitPattern: Int64.min), signExtend: true)
+                else {
+                    return raw
+                }
+                return bindings.buildSelect(
+                    state.builder,
+                    condition: isNull,
+                    thenValue: sentinel,
+                    elseValue: raw,
+                    name: "string_raw_nullable_\(suffix)"
+                ) ?? raw
+            }
+        }
+
+        func bridgeRuntimeRawToStringAggregate(
+            _ raw: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let typeLowering = state.typeLowering,
+                  let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
+                  let lengthSlot = state.buildEntrySlot(bindings, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = state.buildEntrySlot(bindings, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = state.buildEntrySlot(bindings, name: "string_bridge_hash_\(suffix)")
+            else {
+                return nil
+            }
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: lengthSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: byteCountSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: hashSlot)
+            guard let bridgeFunction = declareTypedExternalFunction(
+                named: "kk_string_to_flat",
+                parameterTypes: [
+                    state.int64Type,
+                    pointerType,
+                    pointerType,
+                    pointerType,
+                ],
+                returnType: typeLowering.dataPointerType
+            ),
+                let data = bindings.buildCall(
+                    state.builder,
+                    functionType: bridgeFunction.type,
+                    callee: bridgeFunction.value,
+                    arguments: [raw, lengthSlot, byteCountSlot, hashSlot],
+                    name: "string_bridge_data_\(suffix)"
+                ),
+                let length = bindings.buildLoad(
+                    state.builder,
+                    type: state.int64Type,
+                    pointer: lengthSlot,
+                    name: "string_bridge_length_val_\(suffix)"
+                ),
+                let byteCount = bindings.buildLoad(
+                    state.builder,
+                    type: state.int64Type,
+                    pointer: byteCountSlot,
+                    name: "string_bridge_bytes_val_\(suffix)"
+                ),
+                let hash = bindings.buildLoad(
+                    state.builder,
+                    type: state.int64Type,
+                    pointer: hashSlot,
+                    name: "string_bridge_hash_val_\(suffix)"
+                )
+            else {
+                return nil
+            }
+            return buildStringAggregate(
+                builder: state.builder,
+                lowering: typeLowering,
+                data: data,
+                length: length,
+                byteCount: byteCount,
+                hash: hash,
+                name: "string_bridge_\(suffix)"
+            )
+        }
 
         func boolCondition(
             from value: LLVMCAPIBindings.LLVMValueRef,
@@ -82,10 +278,95 @@ extension NativeEmitter {
             return bindings.buildAShr(state.builder, lhs: widened, rhs: thirtyTwo, name: "\(name)_\(instructionIndex)")
         }
 
+        /// Emit a call to `__kk_string_equals_flat` when at least one operand is a
+        /// String aggregate. This is required for `==`/`!=` on generic `K` that
+        /// is instantiated with `String`, because the inlined function body ends
+        /// up comparing flat `{ i8*, i64, i64, i64 }` values and LLVM cannot
+        /// `icmp` a struct. Returns `nil` when neither operand is a String aggregate.
+        func emitStringAggregateEquality(
+            lhsValue: LLVMCAPIBindings.LLVMValueRef,
+            lhsType: TypeID?,
+            rhsValue: LLVMCAPIBindings.LLVMValueRef,
+            rhsType: TypeID?,
+            invert: Bool
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard isStringAggregateType(lhsType) || isStringAggregateType(rhsType),
+                  let lhsFields = stringAggregateFields(lhsValue, suffix: "eq_lhs_\(instructionIndex)"),
+                  let rhsFields = stringAggregateFields(rhsValue, suffix: "eq_rhs_\(instructionIndex)")
+            else {
+                return nil
+            }
+            let parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?] = [
+                state.typeLowering?.dataPointerType, state.int64Type, state.int64Type, state.int64Type,
+                state.typeLowering?.dataPointerType, state.int64Type, state.int64Type, state.int64Type,
+            ]
+            guard let equalsFunction = declareTypedExternalFunction(
+                named: "__kk_string_equals_flat",
+                parameterTypes: parameterTypes,
+                returnType: state.int64Type
+            ),
+                  let eqResult = bindings.buildCall(
+                      state.builder,
+                      functionType: equalsFunction.type,
+                      callee: equalsFunction.value,
+                      arguments: lhsFields + rhsFields,
+                      name: "string_eq_\(instructionIndex)"
+                  )
+            else {
+                return nil
+            }
+            guard invert else { return eqResult }
+            guard let one = bindings.constInt(state.int64Type, value: 1),
+                  let inverted = bindings.buildXor(state.builder, lhs: eqResult, rhs: one, name: "string_ne_\(instructionIndex)")
+            else {
+                return nil
+            }
+            return inverted
+        }
+
         let lowered: LLVMCAPIBindings.LLVMValueRef?
         switch calleeName {
+        case "__kk_string_struct_get_length", "kk_string_struct_get_length", "length":
+            guard argumentValues.count == 1,
+                  state.typeLowering != nil
+            else {
+                return (false, nil)
+            }
+            let firstType = argumentTypes.first.flatMap { $0 }
+            // `firstType` only reflects the Kotlin-level type (String → .stringStruct);
+            // it says nothing about how this particular KIR expression was materialized.
+            // Values that pass through a boxed/erased path (e.g. a HOF lambda parameter
+            // sourced from a collection element) are raw Int64 handles even though their
+            // semantic type is .stringStruct. Extracting a struct field from such a value
+            // crashes LLVM, so confirm the actual LLVM value is an aggregate before doing so.
+            if let firstType,
+               let typeSystem,
+               case .stringStruct = typeSystem.kind(of: firstType),
+               bindings.isAggregateStructValue(lhs)
+            {
+                lowered = bindings.buildExtractValue(
+                    state.builder,
+                    aggregate: lhs,
+                    index: 1,
+                    name: "string_length_\(instructionIndex)"
+                )
+            } else if let bridged = bridgeRuntimeRawToStringAggregate(
+                lhs,
+                suffix: "string_length_raw_\(instructionIndex)"
+            ) {
+                lowered = bindings.buildExtractValue(
+                    state.builder,
+                    aggregate: bridged,
+                    index: 1,
+                    name: "string_length_raw_\(instructionIndex)"
+                )
+            } else {
+                return (false, nil)
+            }
         case "kk_op_add":
             lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "add_\(instructionIndex)")
+        case "__kk_int_range_induction_add":
+            lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "range_induction_add_\(instructionIndex)")
         case "kk_op_sub":
             lowered = bindings.buildSub(state.builder, lhs: lhs, rhs: rhs, name: "sub_\(instructionIndex)")
         case "kk_op_mul":
@@ -112,22 +393,38 @@ extension NativeEmitter {
             } else {
                 lowered = nil
             }
-        case "kk_op_udiv":
-            lowered = bindings.buildUDiv(state.builder, lhs: lhs, rhs: rhs, name: "udiv_\(instructionIndex)")
         case "kk_op_floor_mod":
             lowered = buildSignedFloorMod(name: "floor_mod")
         case "kk_op_lfloor_mod":
             lowered = buildSignedFloorMod(name: "lfloor_mod")
-        case "kk_op_urem":
-            lowered = bindings.buildURem(state.builder, lhs: lhs, rhs: rhs, name: "urem_\(instructionIndex)")
+        // kk_op_udiv/kk_op_urem are intentionally NOT lowered as native LLVM
+        // UDiv/URem here (unlike kk_op_uge/ugt/ule/ult below): LLVM's udiv/urem
+        // by zero is undefined behavior (traps at the hardware level), but
+        // Kotlin division/remainder must throw a catchable ArithmeticException
+        // on zero divisor (PEC-NUM-0002 / KSP-466). Falling through to the
+        // generic external-call path below routes these to the throwing
+        // Sources/Runtime/RuntimeNumericCompat.swift implementations, exactly
+        // like kk_op_div/kk_op_mod (which are likewise absent from this switch).
         case "kk_op_eq":
-            if let compared = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: rhs, name: "eq_\(instructionIndex)") {
+            if let stringEq = emitStringAggregateEquality(
+                lhsValue: lhs, lhsType: argumentTypes.indices.contains(0) ? argumentTypes[0] : nil,
+                rhsValue: rhs, rhsType: argumentTypes.indices.contains(1) ? argumentTypes[1] : nil,
+                invert: false
+            ) {
+                lowered = stringEq
+            } else if let compared = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: rhs, name: "eq_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "eq64_\(instructionIndex)")
             } else {
                 lowered = nil
             }
         case "kk_op_ne":
-            if let compared = bindings.buildICmpNotEqual(state.builder, lhs: lhs, rhs: rhs, name: "ne_\(instructionIndex)") {
+            if let stringNe = emitStringAggregateEquality(
+                lhsValue: lhs, lhsType: argumentTypes.indices.contains(0) ? argumentTypes[0] : nil,
+                rhsValue: rhs, rhsType: argumentTypes.indices.contains(1) ? argumentTypes[1] : nil,
+                invert: true
+            ) {
+                lowered = stringNe
+            } else if let compared = bindings.buildICmpNotEqual(state.builder, lhs: lhs, rhs: rhs, name: "ne_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "ne64_\(instructionIndex)")
             } else {
                 lowered = nil
@@ -141,6 +438,12 @@ extension NativeEmitter {
         case "kk_op_le":
             if let compared = bindings.buildICmpSignedLessOrEqual(state.builder, lhs: lhs, rhs: rhs, name: "le_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "le64_\(instructionIndex)")
+            } else {
+                lowered = nil
+            }
+        case "__kk_int_range_induction_le":
+            if let compared = bindings.buildICmpSignedLessOrEqual(state.builder, lhs: lhs, rhs: rhs, name: "range_induction_le_\(instructionIndex)") {
+                lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "range_induction_le64_\(instructionIndex)")
             } else {
                 lowered = nil
             }
@@ -287,11 +590,89 @@ extension NativeEmitter {
         case "kk_op_inv":
             lowered = bindings.buildNot(state.builder, value: lhs, name: "inv_\(instructionIndex)")
         case "kk_op_elvis":
-            let sentinel = bindings.constInt(state.int64Type, value: UInt64(bitPattern: Int64.min), signExtend: true) ?? state.zeroValue
-            if let isNull = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: sentinel, name: "elvis_isnull_\(instructionIndex)") {
-                lowered = bindings.buildSelect(state.builder, condition: isNull, thenValue: rhs, elseValue: lhs, name: "elvis_\(instructionIndex)")
+            let lhsType = argumentTypes.indices.contains(0) ? argumentTypes[0] : nil
+            let rhsType = argumentTypes.indices.contains(1) ? argumentTypes[1] : nil
+            let lhsIsString = isStringAggregateType(lhsType)
+            let rhsIsString = isStringAggregateType(rhsType)
+            let resultIsString = isStringAggregateType(resultType)
+            if resultIsString {
+                let lhsValue: LLVMCAPIBindings.LLVMValueRef?
+                if lhsIsString {
+                    lhsValue = lhs
+                } else {
+                    lhsValue = bridgeRuntimeRawToStringAggregate(lhs, suffix: "elvis_\(instructionIndex)_lhs")
+                }
+                guard let typeLowering = state.typeLowering,
+                      let lhsValue,
+                      let lhsData = bindings.buildExtractValue(
+                          state.builder,
+                          aggregate: lhsValue,
+                          index: 0,
+                          name: "elvis_str_data_\(instructionIndex)"
+                      ),
+                      let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
+                      let isNull = bindings.buildICmpEqual(
+                          state.builder,
+                          lhs: lhsData,
+                          rhs: nullData,
+                          name: "elvis_string_isnull_\(instructionIndex)"
+                      )
+                else {
+                    lowered = nil
+                    break
+                }
+                let rhsValue: LLVMCAPIBindings.LLVMValueRef?
+                if rhsIsString {
+                    rhsValue = rhs
+                } else {
+                    rhsValue = bridgeRuntimeRawToStringAggregate(rhs, suffix: "elvis_\(instructionIndex)_rhs")
+                }
+                if let rhsValue {
+                    lowered = bindings.buildSelect(
+                        state.builder,
+                        condition: isNull,
+                        thenValue: rhsValue,
+                        elseValue: lhsValue,
+                        name: "elvis_\(instructionIndex)"
+                    )
+                } else {
+                    lowered = nil
+                }
             } else {
-                lowered = nil
+                let lhsValue: LLVMCAPIBindings.LLVMValueRef?
+                if lhsIsString {
+                    lhsValue = bridgeStringAggregateToRuntimeRaw(lhs, suffix: "elvis_\(instructionIndex)_lhs")
+                } else {
+                    lhsValue = lhs
+                }
+                let sentinel = bindings.constInt(state.int64Type, value: UInt64(bitPattern: Int64.min), signExtend: true) ?? state.zeroValue
+                guard let lhsValue,
+                      let isNull = bindings.buildICmpEqual(
+                    state.builder,
+                    lhs: lhsValue,
+                    rhs: sentinel,
+                    name: "elvis_isnull_\(instructionIndex)"
+                ) else {
+                    lowered = nil
+                    break
+                }
+                let rhsValue: LLVMCAPIBindings.LLVMValueRef?
+                if rhsIsString {
+                    rhsValue = bridgeStringAggregateToRuntimeRaw(rhs, suffix: "elvis_\(instructionIndex)_rhs")
+                } else {
+                    rhsValue = rhs
+                }
+                if let rhsValue {
+                    lowered = bindings.buildSelect(
+                        state.builder,
+                        condition: isNull,
+                        thenValue: rhsValue,
+                        elseValue: lhsValue,
+                        name: "elvis_\(instructionIndex)"
+                    )
+                } else {
+                    lowered = nil
+                }
             }
         default:
             return (false, nil)
@@ -303,17 +684,89 @@ extension NativeEmitter {
 
     func emitConstantValue(
         _ expression: KIRExprKind,
-        expressionRawID: Int32?,
+        expectedType: TypeID? = nil,
         state: EmissionBuilderState,
         parameterValues: [SymbolID: LLVMCAPIBindings.LLVMValueRef],
         internalFunctions: [SymbolID: LLVMFunction],
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
-        generatedStringLiteralCount: inout Int32,
+        nameCounter: GeneratedNameCounter,
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
+        func nullStringAggregateIfExpected() -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let expectedType,
+                  let typeLowering = state.typeLowering,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: expectedType)
+            else {
+                return nil
+            }
+            return buildNullStringAggregate(
+                builder: state.builder,
+                lowering: typeLowering,
+                name: nameCounter.nextName("null_string_")
+            )
+        }
+
+        func bridgeRuntimeRawToStringAggregateIfNeeded(
+            _ raw: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let expectedType,
+                  let typeLowering = state.typeLowering,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: expectedType)
+            else {
+                return raw
+            }
+            guard let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
+                  let lengthSlot = state.buildEntrySlot(bindings, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = state.buildEntrySlot(bindings, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = state.buildEntrySlot(bindings, name: "string_bridge_hash_\(suffix)")
+            else {
+                return nil
+            }
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: lengthSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: byteCountSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: hashSlot)
+            guard let bridgeFunctionType = bindings.functionType(
+                    returnType: typeLowering.dataPointerType,
+                    parameters: [state.int64Type, pointerType, pointerType, pointerType],
+                    isVarArg: false
+                ),
+                  let bridgeFunctionValue = bindings.getNamedFunction(module: state.module, name: "kk_string_to_flat")
+                    ?? bindings.addFunction(module: state.module, name: "kk_string_to_flat", functionType: bridgeFunctionType),
+                  let data = bindings.buildCall(
+                      state.builder,
+                      functionType: bridgeFunctionType,
+                      callee: bridgeFunctionValue,
+                      arguments: [raw, lengthSlot, byteCountSlot, hashSlot],
+                      name: "string_bridge_data_\(suffix)"
+                  ),
+                  let length = bindings.buildLoad(state.builder, type: state.int64Type, pointer: lengthSlot, name: "string_bridge_length_val_\(suffix)"),
+                  let byteCount = bindings.buildLoad(state.builder, type: state.int64Type, pointer: byteCountSlot, name: "string_bridge_bytes_val_\(suffix)"),
+                  let hash = bindings.buildLoad(state.builder, type: state.int64Type, pointer: hashSlot, name: "string_bridge_hash_val_\(suffix)")
+            else {
+                return nil
+            }
+            return buildStringAggregate(
+                builder: state.builder,
+                lowering: typeLowering,
+                data: data,
+                length: length,
+                byteCount: byteCount,
+                hash: hash,
+                name: "string_bridge_\(suffix)"
+            )
+        }
+
         switch expression {
         case let .intLiteral(number):
+            if number == 0,
+               let nullString = nullStringAggregateIfExpected()
+            {
+                return nullString
+            }
             return bindings.constInt(state.int64Type, value: UInt64(bitPattern: number), signExtend: true) ?? state.zeroValue
         case let .longLiteral(number):
             return bindings.constInt(state.int64Type, value: UInt64(bitPattern: number), signExtend: true) ?? state.zeroValue
@@ -337,19 +790,13 @@ extension NativeEmitter {
             return bindings.constInt(state.int64Type, value: value ? 1 : 0) ?? state.zeroValue
         case let .stringLiteral(interned):
             let text = interner.resolve(interned)
-            let literalID: Int32
-            if let expressionRawID {
-                literalID = expressionRawID
-            } else {
-                literalID = generatedStringLiteralCount
-                generatedStringLiteralCount += 1
-            }
+            let globalStringPointerName = nameCounter.nextName("str_lit_")
             guard let globalStringPointer = bindings.buildGlobalStringPtrNullSafe(
                 state.builder,
                 context: state.context,
                 module: state.module,
                 value: text,
-                name: "str_lit_\(literalID)"
+                name: globalStringPointerName
             ) else {
                 return state.zeroValue
             }
@@ -357,25 +804,28 @@ extension NativeEmitter {
                 state.builder,
                 value: globalStringPointer,
                 type: state.int64Type,
-                name: "str_ptr_\(literalID)"
+                name: nameCounter.nextName("str_ptr_")
             ) else {
                 return state.zeroValue
             }
             let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
             guard let stringFromUTF8 = declareExternalFunction(
-                "kk_string_from_utf8",
+                "__kk_string_literal_from_utf8",
                 2,
                 false
             ) else {
                 return state.zeroValue
             }
-            return bindings.buildCall(
+            let raw = bindings.buildCall(
                 state.builder,
                 functionType: stringFromUTF8.type,
                 callee: stringFromUTF8.value,
                 arguments: [pointerAsInt, lengthValue],
-                name: "str_from_utf8_\(literalID)"
+                name: nameCounter.nextName("str_literal_")
             ) ?? state.zeroValue
+            return bridgeRuntimeRawToStringAggregateIfNeeded(
+                raw, suffix: nameCounter.nextName("literal_")
+            ) ?? raw
         case let .externSymbolAddress(symbolName):
             let symbolStr = interner.resolve(symbolName)
             if let externFn = declareExternalFunction(symbolStr, 4, false) {
@@ -396,19 +846,53 @@ extension NativeEmitter {
                    state.builder,
                    value: internalFunction.value,
                    type: state.int64Type,
-                   name: "fn_ptr_\(symbol.rawValue)"
+                   name: nameCounter.nextName("fn_ptr_")
                )
             {
                 return functionPointer
             }
             // Load from LLVM global variable if this symbol refers to a global.
+            // Global slots always hold raw runtime handles (i64); bridge to the
+            // lowered aggregate representation only when the expected KIR type is
+            // the String struct.
             if let globalPtr = globalVariables[symbol] {
-                return bindings.buildLoad(
+                guard let loaded = bindings.buildLoad(
                     state.builder,
                     type: state.int64Type,
                     pointer: globalPtr,
-                    name: "global_load_\(symbol.rawValue)"
-                ) ?? state.zeroValue
+                    name: nameCounter.nextName("global_load_")
+                ) else {
+                    return state.zeroValue
+                }
+                return bridgeRuntimeRawToStringAggregateIfNeeded(
+                    loaded,
+                    suffix: nameCounter.nextName("global_")
+                ) ?? loaded
+            }
+            // Imported library artifact functions are not internal to the current module,
+            // but they may be referenced as function pointers (e.g. for vtable/itable
+            // registration). Resolve them by their external link name.
+            //
+            // Declarations are cached module-wide by name, so the thrown channel here must
+            // match the callee's real ABI; hardcoding `true` mis-sized non-throwing runtime
+            // callees (e.g. kk_list_iterator) for every other call site reached later.
+            if let symbols = self.symbols,
+               let signature = symbols.functionSignature(for: symbol),
+               let linkName = symbols.externalLinkName(for: symbol),
+               !linkName.isEmpty,
+               let externFn = declareExternalFunction(
+                   linkName,
+                   [signature.receiverType].compactMap { $0 }.count + signature.parameterTypes.count,
+                   Self.runtimeABIFunctionByName[linkName]?.isThrowing ?? true
+               ),
+               let functionPointer = bindings.buildPtrToInt(
+                   state.builder,
+                   value: externFn.value,
+                   type: state.int64Type,
+                   name: nameCounter.nextName("extern_fn_ptr_")
+               )
+            {
+                return functionPointer
             }
             return state.zeroValue
         case let .temporary(raw):
@@ -418,6 +902,9 @@ extension NativeEmitter {
                 signExtend: true
             ) ?? state.zeroValue
         case .null:
+            if let nullString = nullStringAggregateIfExpected() {
+                return nullString
+            }
             return bindings.constInt(
                 state.int64Type,
                 value: UInt64(bitPattern: Int64.min),

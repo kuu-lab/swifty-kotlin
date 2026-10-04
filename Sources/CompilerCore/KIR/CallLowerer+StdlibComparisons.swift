@@ -18,9 +18,10 @@ extension CallLowerer {
             return nil
         }
 
+        let knownNames = KnownCompilerNames(interner: interner)
         let isStdlibComparisonsFn = chosenSymbol.fqName.count >= 3
-            && chosenSymbol.fqName[0] == interner.intern("kotlin")
-            && chosenSymbol.fqName[1] == interner.intern("comparisons")
+            && chosenSymbol.fqName[0] == knownNames.kotlin
+            && chosenSymbol.fqName[1] == knownNames.comparisons
         let chosenCalleeName = interner.resolve(chosenSymbol.name)
         let isStdlibMaxOfCall = isStdlibComparisonsFn && chosenCalleeName == "maxOf"
         let isStdlibMinOfCall = isStdlibComparisonsFn && chosenCalleeName == "minOf"
@@ -45,19 +46,68 @@ extension CallLowerer {
         }
 
         let comparisonOp: KIRBinaryOp
+        // Float/Double route through the kk_min_float/kk_max_float/kk_min_double/
+        // kk_max_double runtime helpers instead of a plain `<`/`>` comparison so
+        // that NaN propagation and signed-zero ordering match Kotlin's actual
+        // minOf/maxOf semantics (see RuntimeNumericCompat.swift for details).
+        let floatingPointRuntimeCallee: String?
         switch specialKind {
-        case .maxOfInt, .maxOfLong, .maxOfDouble, .maxOfFloat:
+        case .maxOfInt, .maxOfLong:
             guard args.count == 2 else { return nil }
             comparisonOp = .greaterThan
-        case .minOfInt, .minOfLong, .minOfDouble, .minOfFloat:
+            floatingPointRuntimeCallee = nil
+        case .maxOfDouble:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .greaterThan
+            floatingPointRuntimeCallee = "kk_max_double"
+        case .maxOfFloat:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .greaterThan
+            floatingPointRuntimeCallee = "kk_max_float"
+        case .minOfInt, .minOfLong:
             guard args.count == 2 else { return nil }
             comparisonOp = .lessThan
-        case .maxOfInt3, .maxOfLong3, .maxOfDouble3, .maxOfFloat3:
+            floatingPointRuntimeCallee = nil
+        case .minOfDouble:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = "kk_min_double"
+        case .minOfFloat:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte, .minOfShort:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
+        case .maxOfInt3, .maxOfLong3:
             guard args.count == 3 else { return nil }
             comparisonOp = .greaterThan
-        case .minOfInt3, .minOfLong3, .minOfDouble3, .minOfFloat3:
+            floatingPointRuntimeCallee = nil
+        case .maxOfDouble3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .greaterThan
+            floatingPointRuntimeCallee = "kk_max_double"
+        case .maxOfFloat3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .greaterThan
+            floatingPointRuntimeCallee = "kk_max_float"
+        case .minOfInt3, .minOfLong3:
             guard args.count == 3 else { return nil }
             comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
+        case .minOfDouble3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = "kk_min_double"
+        case .minOfFloat3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte3, .minOfShort3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         default:
             return nil
         }
@@ -71,6 +121,7 @@ extension CallLowerer {
             return lowerTwoArgComparison(
                 args: args,
                 comparisonOp: comparisonOp,
+                floatingPointRuntimeCallee: floatingPointRuntimeCallee,
                 boolType: boolType,
                 resultType: resultType,
                 ast: ast,
@@ -84,6 +135,7 @@ extension CallLowerer {
             return lowerThreeArgComparison(
                 args: args,
                 comparisonOp: comparisonOp,
+                floatingPointRuntimeCallee: floatingPointRuntimeCallee,
                 boolType: boolType,
                 resultType: resultType,
                 ast: ast,
@@ -127,19 +179,30 @@ extension CallLowerer {
         // (minOf) / greater (maxOf) than the running result.
         let primitiveOp: KIRBinaryOp = isMin ? .lessThan : .greaterThan
 
-        let isGenericComparable = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
+        let isComparatorOverload = signature.parameterTypes.contains(where: { paramType in
+            isComparatorType(paramType, sema: sema, interner: interner)
+        })
+        let hasComparableUpperBound = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
             upperBounds.contains(where: { bound in
                 isComparableUpperBound(bound, sema: sema)
             })
         })
-        let isComparatorOverload = !isGenericComparable
-            && signature.parameterTypes.contains(where: { paramType in
-                isComparatorType(paramType, sema: sema, interner: interner)
-            })
-        let isPrimitiveOverload = !isGenericComparable
-            && !isComparatorOverload
+        let isPrimitiveOverload = !isComparatorOverload
             && signature.typeParameterSymbols.isEmpty
             && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema) })
+        let isGenericTypeParameterOverload = !signature.typeParameterSymbols.isEmpty
+            && !isComparatorOverload
+            && isUniformTypeParameterOverload(signature, sema: sema)
+        // Source-backed maxOf/minOf declare `T : Comparable<T>`. Precompiled
+        // .kklib metadata currently drops type-parameter upper bounds, so the
+        // imported signature has type parameters without bounds. Still treat
+        // that shape as the generic-comparable overload so we lower via
+        // kk_compare_any instead of a bare `maxOf` external call.
+        let isGenericComparable = hasComparableUpperBound
+            || isGenericTypeParameterOverload
+            || (!isComparatorOverload
+                && !isPrimitiveOverload
+                && !signature.typeParameterSymbols.isEmpty)
 
         guard isGenericComparable || isComparatorOverload || isPrimitiveOverload else {
             return nil
@@ -166,7 +229,7 @@ extension CallLowerer {
         func selectCandidate(lhs: KIRExprID, rhs: KIRExprID, conditionExpr: KIRExprID) -> KIRExprID {
             let useRightLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
-            let resultExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let resultExpr = arena.appendTemporary(type: resultType)
 
             instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: useRightLabel))
             instructions.append(.copy(from: lhs, to: resultExpr))
@@ -179,12 +242,21 @@ extension CallLowerer {
 
         enum ComparisonStrategy {
             case primitive
+            /// Float/Double: dispatches to kk_min_float/kk_max_float/kk_min_double/
+            /// kk_max_double instead of a plain `<`/`>` so NaN propagation and
+            /// signed-zero ordering match Kotlin's minOf/maxOf (see lowerTwoArgComparison).
+            case floatingPoint(runtimeCallee: InternedString)
             case genericComparable
-            case comparator(comparatorArgIndex: Int, trampolineCallee: InternedString)
+            case comparator(comparatorArgIndex: Int)
         }
 
         let comparisonStrategy: ComparisonStrategy
-        if isPrimitiveOverload {
+        if isPrimitiveOverload,
+           let firstParamType = signature.parameterTypes.first,
+           let floatingPointCallee = floatingPointMinMaxRuntimeCallee(for: firstParamType, sema: sema, isMin: isMin)
+        {
+            comparisonStrategy = .floatingPoint(runtimeCallee: interner.intern(floatingPointCallee))
+        } else if isPrimitiveOverload {
             comparisonStrategy = .primitive
         } else if isGenericComparable {
             comparisonStrategy = .genericComparable
@@ -200,21 +272,8 @@ extension CallLowerer {
             guard comparatorArgIndex >= 0, comparatorArgIndex < loweredArgIDs.count else {
                 return nil
             }
-            guard let trampolineName = comparatorTrampolineName(
-                comparatorExprID: args[comparatorArgIndex].expr,
-                loweredComparatorID: loweredArgIDs[comparatorArgIndex],
-                sema: sema,
-                interner: interner,
-                instructions: instructions
-            ) else {
-                return nil
-            }
-            let trampolineCallee = interner.intern(trampolineName)
             comparisonArgIndices = args.indices.filter { $0 != comparatorArgIndex }
-            comparisonStrategy = .comparator(
-                comparatorArgIndex: comparatorArgIndex,
-                trampolineCallee: trampolineCallee
-            )
+            comparisonStrategy = .comparator(comparatorArgIndex: comparatorArgIndex)
         }
 
         guard !comparisonArgIndices.isEmpty else {
@@ -228,18 +287,29 @@ extension CallLowerer {
 
         for argIndex in comparisonArgIndices.dropFirst() {
             let candidateExpr = loweredArgIDs[argIndex]
+            if case let .floatingPoint(runtimeCallee) = comparisonStrategy {
+                let newCurrent = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: runtimeCallee,
+                    arguments: [candidateExpr, currentExpr],
+                    result: newCurrent,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                currentExpr = newCurrent
+                continue
+            }
             let conditionExpr: KIRExprID
             switch comparisonStrategy {
             case .primitive:
-                conditionExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boolType
+                conditionExpr = arena.appendTemporary(type: boolType
                 )
                 instructions.append(.binary(op: primitiveOp, lhs: candidateExpr, rhs: currentExpr, result: conditionExpr))
+            case .floatingPoint:
+                fatalError("unreachable: floatingPoint handled above via early continue")
             case .genericComparable:
-                let compareResultExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: intType
+                let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -249,9 +319,7 @@ extension CallLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                conditionExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boolType
+                conditionExpr = arena.appendTemporary(type: boolType
                 )
                 instructions.append(.binary(
                     op: primitiveOp,
@@ -259,22 +327,18 @@ extension CallLowerer {
                     rhs: zeroExpr,
                     result: conditionExpr
                 ))
-            case let .comparator(comparatorArgIndex, trampolineCallee):
-                let compareResultExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: intType
+            case let .comparator(comparatorArgIndex):
+                let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: trampolineCallee,
+                    callee: interner.intern("__kk_compare_with_comparator"),
                     arguments: [loweredArgIDs[comparatorArgIndex], candidateExpr, currentExpr],
                     result: compareResultExpr,
                     canThrow: true,
                     thrownResult: nil
                 ))
-                conditionExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boolType
+                conditionExpr = arena.appendTemporary(type: boolType
                 )
                 instructions.append(.binary(
                     op: primitiveOp,
@@ -308,24 +372,52 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: type),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return interner.resolve(symbol.name) == "Comparator"
+        return symbol.name == KnownCompilerNames(interner: interner).comparator
+    }
+
+    /// True when every value parameter of the signature is the same type
+    /// parameter. This captures generic `maxOf`/`minOf` overloads whose upper
+    /// bounds were lost during metadata round-trip but are still known to be
+    /// `Comparable<T>` by the stdlib contract.
+    private func isUniformTypeParameterOverload(
+        _ signature: FunctionSignature,
+        sema: SemaModule
+    ) -> Bool {
+        guard let firstParamType = signature.parameterTypes.first else {
+            return false
+        }
+        return signature.parameterTypes.allSatisfy { paramType in
+            paramType == firstParamType && isTypeParameter(paramType, sema: sema)
+        }
+    }
+
+    private func isTypeParameter(
+        _ type: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        switch sema.types.kind(of: type) {
+        case .typeParam:
+            return true
+        default:
+            return false
+        }
     }
 
     /// True for the numeric primitive types whose ordering can be lowered to a
-    /// direct `<` / `>` comparison: the signed primitives (Int/Long/Float/Double,
-    /// which Byte/Short widen into) plus the unsigned primitives. Used by the
-    /// vararg `minOf` / `maxOf` lowering to fold the arguments inline.
+    /// direct `<` / `>` comparison: all signed and unsigned primitive types.
+    /// Used by the vararg `minOf` / `maxOf` lowering to fold the arguments
+    /// inline without widening Byte or Short.
     private func isPrimitiveComparisonType(
         _ type: TypeID,
         sema: SemaModule
     ) -> Bool {
         switch sema.types.kind(of: type) {
-        case .primitive(.int, .nonNull),
+        case .primitive(.byte, .nonNull),
+             .primitive(.short, .nonNull),
+             .primitive(.int, .nonNull),
              .primitive(.long, .nonNull),
              .primitive(.float, .nonNull),
              .primitive(.double, .nonNull),
@@ -339,10 +431,34 @@ extension CallLowerer {
         }
     }
 
+    /// Returns the NaN/signed-zero-aware runtime helper for a Float/Double
+    /// `minOf`/`maxOf` element type, or nil for other primitive types (Int,
+    /// Long, unsigned types) which have no NaN/signed-zero distinction and
+    /// can keep using a plain `<`/`>` comparison.
+    private func floatingPointMinMaxRuntimeCallee(
+        for type: TypeID,
+        sema: SemaModule,
+        isMin: Bool
+    ) -> String? {
+        switch sema.types.kind(of: type) {
+        case .primitive(.float, .nonNull):
+            return isMin ? "kk_min_float" : "kk_max_float"
+        case .primitive(.double, .nonNull):
+            return isMin ? "kk_min_double" : "kk_max_double"
+        default:
+            return nil
+        }
+    }
+
     /// Lowers maxOf(a, b) / minOf(a, b) as: if (a > b) a else b
+    /// When `floatingPointRuntimeCallee` is set (Float/Double overloads), the
+    /// comparison instead dispatches to a `kk_min_float`/`kk_max_float`/
+    /// `kk_min_double`/`kk_max_double` runtime call, which implements NaN
+    /// propagation and signed-zero ordering that a plain `<`/`>` cannot.
     private func lowerTwoArgComparison(
         args: [CallArgument],
         comparisonOp: KIRBinaryOp,
+        floatingPointRuntimeCallee: String?,
         boolType: TypeID,
         resultType: TypeID,
         ast: ASTModule,
@@ -352,9 +468,6 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
-        instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
-
         let lhsExpr = driver.lowerExpr(
             args[0].expr,
             ast: ast,
@@ -374,7 +487,23 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        let conditionExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        if let floatingPointRuntimeCallee {
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(floatingPointRuntimeCallee),
+                arguments: [lhsExpr, rhsExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
+        let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
+
+        let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.binary(
             op: comparisonOp,
             lhs: lhsExpr,
@@ -384,7 +513,7 @@ extension CallLowerer {
 
         let useRightLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
 
         instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: useRightLabel))
         instructions.append(.copy(from: lhsExpr, to: result))
@@ -396,9 +525,13 @@ extension CallLowerer {
     }
 
     /// Lowers maxOf(a, b, c) / minOf(a, b, c) as: val tmp = maxOf(a, b); maxOf(tmp, c)
+    /// When `floatingPointRuntimeCallee` is set (Float/Double overloads), both
+    /// steps dispatch to the runtime min/max helper instead of a plain `<`/`>`
+    /// comparison; see `lowerTwoArgComparison` for why.
     private func lowerThreeArgComparison(
         args: [CallArgument],
         comparisonOp: KIRBinaryOp,
+        floatingPointRuntimeCallee: String?,
         boolType: TypeID,
         resultType: TypeID,
         ast: ASTModule,
@@ -408,9 +541,6 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
-        instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
-
         let aExpr = driver.lowerExpr(
             args[0].expr,
             ast: ast,
@@ -439,12 +569,38 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        let cond1 = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        if let floatingPointRuntimeCallee {
+            let calleeID = interner.intern(floatingPointRuntimeCallee)
+            let tmp = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: calleeID,
+                arguments: [aExpr, bExpr],
+                result: tmp,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: calleeID,
+                arguments: [tmp, cExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
+        let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
+
+        let cond1 = arena.appendTemporary(type: boolType)
         instructions.append(.binary(op: comparisonOp, lhs: aExpr, rhs: bExpr, result: cond1))
 
         let useBLabel = driver.ctx.makeLoopLabel()
         let afterFirstLabel = driver.ctx.makeLoopLabel()
-        let tmp = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let tmp = arena.appendTemporary(type: resultType)
 
         instructions.append(.jumpIfEqual(lhs: cond1, rhs: falseExpr, target: useBLabel))
         instructions.append(.copy(from: aExpr, to: tmp))
@@ -453,12 +609,12 @@ extension CallLowerer {
         instructions.append(.copy(from: bExpr, to: tmp))
         instructions.append(.label(afterFirstLabel))
 
-        let cond2 = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let cond2 = arena.appendTemporary(type: boolType)
         instructions.append(.binary(op: comparisonOp, lhs: tmp, rhs: cExpr, result: cond2))
 
         let useCLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
 
         instructions.append(.jumpIfEqual(lhs: cond2, rhs: falseExpr, target: useCLabel))
         instructions.append(.copy(from: tmp, to: result))

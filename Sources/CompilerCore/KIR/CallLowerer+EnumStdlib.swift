@@ -32,7 +32,7 @@ extension CallLowerer {
             exprID,
             args: args,
             kind: .enumEntries,
-            runtimeCalleeName: "kk_enum_make_entries_list",
+            runtimeCalleeName: "kk_enum_make_entries_list_cached",
             sema: sema,
             arena: arena,
             interner: interner,
@@ -74,37 +74,44 @@ extension CallLowerer {
                 return $0.id.rawValue < $1.id.rawValue
             })
 
-        let entryType = sema.types.make(.classType(ClassType(
-            classSymbol: nominalSymbol.id,
-            args: [],
-            nullability: .nonNull
-        )))
-        let enumValuesArray = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let enumValuesArray = arena.appendTemporary(type: sema.types.anyType)
         let entriesCountExpr = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
         instructions.append(.constValue(result: entriesCountExpr, value: .intLiteral(Int64(entries.count))))
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_new"),
-            arguments: [entriesCountExpr],
+            arg: entriesCountExpr,
             result: enumValuesArray,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
 
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
+        let boxOrdinalCallee = interner.intern("kk_enum_box_ordinal")
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: classType.classSymbol,
+            symbols: sema.symbols,
+            interner: interner
+        )
+        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
         for (index, entry) in entries.enumerated() {
             let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
-            // Call the synthesized `<EntryName>$enumName()` helper so that
-            // enumValues<T>()[i] returns the entry name string ("RED" etc.) rather
-            // than the raw ordinal integer.
-            let entryNameStr = interner.resolve(entry.name)
-            let enumNameCallee = interner.intern("\(entryNameStr)$enumName")
-            let entryExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
+
+            let nameExpr = arena.appendExpr(.stringLiteral(entry.name), type: stringType)
+            instructions.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
+
+            // Box the ordinal (tagged with its declared name and the enum
+            // class's stable nominal type ID, see kk_enum_box_ordinal) instead
+            // of storing a pre-baked name string -- see the matching fix in
+            // DataEnumSealedSynthesisPass+EnumSynthesis.swift's
+            // appendEnumOrdinalArrayCreation for the full rationale. This is
+            // a separate, duplicated code path (enumValues<T>()/enumEntries<T>()
+            // rather than T.values()/T.entries) that had the same bug.
+            let entryExpr = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
-                callee: enumNameCallee,
-                arguments: [],
+                callee: boxOrdinalCallee,
+                arguments: [indexExpr, nameExpr, classIDExpr],
                 result: entryExpr,
                 canThrow: false,
                 thrownResult: nil
@@ -127,7 +134,7 @@ extension CallLowerer {
 
         let countExpr: KIRExprID
         if let countSymbol {
-            let countResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let countResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
                 symbol: countSymbol,
                 callee: countHelperName,
@@ -144,11 +151,14 @@ extension CallLowerer {
             countExpr = countLiteral
         }
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+        let cachedClassIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+        instructions.append(.constValue(result: cachedClassIDExpr, value: .intLiteral(classID)))
+
+        let result = arena.appendTemporary(type: boundType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(runtimeCalleeName),
-            arguments: [enumValuesArray, countExpr],
+            arguments: [enumValuesArray, countExpr, cachedClassIDExpr],
             result: result,
             canThrow: false,
             thrownResult: nil
@@ -207,7 +217,7 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+        let result = arena.appendTemporary(type: boundType)
         instructions.append(.call(
             symbol: valueOfSymbol,
             callee: valueOfName,

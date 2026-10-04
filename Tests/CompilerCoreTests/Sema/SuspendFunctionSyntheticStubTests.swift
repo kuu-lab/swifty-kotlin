@@ -4,19 +4,20 @@ import Testing
 
 @Suite
 struct SuspendFunctionSyntheticStubTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             result = try (#require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        return semaResult
     }
 
     @Test
     func testSuspendFunctionMarkerInterfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "coroutines", "SuspendFunction"].map { interner.intern($0) }
         let symbol = try #require(
@@ -24,7 +25,7 @@ struct SuspendFunctionSyntheticStubTests {
             "Expected kotlin.coroutines.SuspendFunction to be registered"
         )
         #expect(sema.symbols.symbol(symbol)?.kind == .interface)
-        #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == true)
+        #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
 
         let typeParameters = sema.types.nominalTypeParameterSymbols(for: symbol)
         #expect(typeParameters.count == 1)

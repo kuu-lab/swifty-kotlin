@@ -7,19 +7,9 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> FunctionBody {
         let directTokens = collectDirectTokens(from: nodeID, in: arena)
-        let hasExpressionBody: Bool = {
-            var depth = BracketDepth()
-            for token in directTokens {
-                if token.kind == .symbol(.assign), depth.isAtTopLevel {
-                    return true
-                }
-                if token.kind == .symbol(.lBrace), depth.isAtTopLevel {
-                    return false
-                }
-                depth.track(token.kind)
-            }
-            return false
-        }()
+        let hasExpressionBody = firstTopLevelIndex(
+            of: .symbol(.assign), in: directTokens, stoppingAt: .symbol(.lBrace)
+        ) != nil
 
         if !hasExpressionBody {
             for child in arena.children(of: nodeID) {
@@ -31,16 +21,7 @@ extension BuildASTPhase {
         }
 
         let tokens = collectTokens(from: nodeID, in: arena)
-        var assignIndex: Int?
-        var depth = BracketDepth()
-        for (index, token) in tokens.enumerated() {
-            if token.kind == .symbol(.assign), depth.isAtTopLevel {
-                assignIndex = index
-                break
-            }
-            depth.track(token.kind)
-        }
-        guard let assignIndex else {
+        guard let assignIndex = firstTopLevelIndex(of: .symbol(.assign), in: tokens) else {
             return .unit
         }
 
@@ -49,7 +30,9 @@ extension BuildASTPhase {
             return .unit
         }
         let exprTokens = tokens[bodyStartIndex...]
-        let parser = ExpressionParser(tokens: exprTokens, interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: exprTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let exprID = parser.parse() else {
             return .unit
         }
@@ -59,27 +42,46 @@ extension BuildASTPhase {
         return .expr(exprID, range)
     }
 
+    /// Returns the index of the first token matching `kind` at bracket-top-level,
+    /// or `nil` if `stoppingAt` is reached at top-level first (or if neither is
+    /// found).
+    private func firstTopLevelIndex(
+        of kind: TokenKind, in tokens: [Token], stoppingAt otherKind: TokenKind? = nil
+    ) -> Int? {
+        var depth = BracketDepth()
+        for (index, token) in tokens.enumerated() {
+            if token.kind == kind, depth.isAtTopLevel {
+                return index
+            }
+            if let otherKind, token.kind == otherKind, depth.isAtTopLevel {
+                return nil
+            }
+            depth.track(token.kind)
+        }
+        return nil
+    }
+
     func blockExpressions(
         from blockNodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        excludingNodeIDs: Set<NodeID> = []
     ) -> [ExprID] {
-        // Phase 1 – gather per-CST-statement token arrays, merging
+        // Phase 1 – gather per-CST-statement token groups, merging
         // dot-continuation lines into the previous group.
         // The Kotlin CST parser may split `expr\n  .member()` into
         // separate statement nodes, but `.member()` is a continuation
         // of the previous expression, not a standalone statement.
-        var rawGroups: [[Token]] = []
-        var filteredGroups: [[Token]] = []
-        collectBlockStatementGroups(from: blockNodeID, in: arena,
-                                    rawGroups: &rawGroups, filteredGroups: &filteredGroups)
+        let groups = collectBlockStatementGroups(
+            from: blockNodeID, in: arena, excludingNodeIDs: excludingNodeIDs
+        )
 
         // Phase 2 – parse each (potentially merged) token group.
         var result: [ExprID] = []
-        for idx in rawGroups.indices {
+        for group in groups {
             if let exprID = parseStatementGroup(
-                raw: rawGroups[idx], filtered: filteredGroups[idx],
+                raw: group.raw, filtered: group.filtered,
                 interner: interner, astArena: astArena
             ) {
                 result.append(exprID)
@@ -93,63 +95,105 @@ extension BuildASTPhase {
     private func collectBlockStatementGroups(
         from blockNodeID: NodeID,
         in arena: SyntaxArena,
-        rawGroups: inout [[Token]],
-        filteredGroups: inout [[Token]]
-    ) {
+        excludingNodeIDs: Set<NodeID> = []
+    ) -> [(raw: [Token], filtered: [Token])] {
+        var groups: [(raw: [Token], filtered: [Token])] = []
         for child in arena.children(of: blockNodeID) {
             guard case let .node(nodeID) = child else { continue }
             let node = arena.node(nodeID)
             guard isStatementLikeKind(node.kind) else { continue }
+            // Top-level `fun` declarations at script root are already recorded
+            // as real file-scope FunDecls by the caller (see
+            // FrontendPhases.buildFileAST); re-parsing them here too would
+            // additionally nest them as shadowing local functions inside the
+            // synthesized `main()` body.
+            if excludingNodeIDs.contains(nodeID) { continue }
 
             let rawTokens = collectTokens(from: nodeID, in: arena)
             // Strip only top-level semicolons; keep semicolons inside braces so
             // that nested block expressions (e.g. `if (c) { a; b }`) can still
             // split on them later in ExpressionParser.
-            let filtered = filterTopLevelSemicolons(rawTokens)
+            let filtered = filterTopLevelSemicolons(rawTokens[...])
             guard !filtered.isEmpty else { continue }
 
-            // If the first token is `.` or `?.`, merge into the previous group.
-            let isDotContinuation = filtered.first.map {
-                $0.kind == .symbol(.dot) || $0.kind == .symbol(.questionDot)
-            } ?? false
             let shouldMergeWithPrevious: Bool
-            if !rawGroups.isEmpty {
-                let previousFiltered = filteredGroups[filteredGroups.count - 1]
-                let previousEndsWithContinuation = previousFiltered.last.map {
-                    Self.isBinaryOperatorToken($0.kind)
-                        || $0.kind == .symbol(.lParen)
-                        || $0.kind == .symbol(.comma)
-                } ?? false
-                let currentStartsWithContinuation = filtered.first.map {
-                    Self.isBinaryOperatorToken($0.kind)
-                        || $0.kind == .symbol(.comma)
-                        || $0.kind == .symbol(.rParen)
-                        || $0.kind == .symbol(.rBracket)
-                } ?? false
-                shouldMergeWithPrevious = isDotContinuation
-                    || previousEndsWithContinuation
-                    || currentStartsWithContinuation
-                    || startsWithTrailingLambdaGroup(filtered)
-                        && Self.canAcceptTrailingLambda(on: previousFiltered)
-                    || hasUnclosedStatementDelimiter(previousFiltered)
+            if let previousFiltered = groups.last?.filtered {
+                shouldMergeWithPrevious = Self.isContinuationBoundary(
+                    previousTail: previousFiltered, nextHead: filtered[...]
+                )
             } else {
                 shouldMergeWithPrevious = false
             }
             if shouldMergeWithPrevious {
-                rawGroups[rawGroups.count - 1].append(contentsOf: rawTokens)
-                filteredGroups[filteredGroups.count - 1].append(contentsOf: filtered)
+                groups[groups.count - 1].raw.append(contentsOf: rawTokens)
+                groups[groups.count - 1].filtered.append(contentsOf: filtered)
                 continue
             }
 
-            rawGroups.append(rawTokens)
-            filteredGroups.append(filtered)
+            groups.append((raw: rawTokens, filtered: filtered))
         }
+        return groups
+    }
+
+    /// Decides whether `nextHead` (the start of a candidate new statement)
+    /// is actually a continuation of `previousTail` (the tokens accumulated
+    /// so far for the previous statement) rather than the start of a new one.
+    /// Shared by all three statement-splitting loops in this file and in
+    /// `BuildASTPhase+ExpressionParserBlocks.swift`; each loop differs only in
+    /// how it iterates (per CST-statement-group, per-token-with-newline, or
+    /// per-token-with-explicit-depth-tracking) and in how it gates *when* to
+    /// consult this predicate — the merge decision itself lives here once.
+    ///
+    /// The unclosed-delimiter check only ever fires for the CST-group caller:
+    /// the two flat-token callers already gate on bracket-depth zero before
+    /// calling this, which makes `previousTail` provably balanced there.
+    static func isContinuationBoundary<Prev: BidirectionalCollection, Next: Collection>(
+        previousTail: Prev,
+        nextHead: Next
+    ) -> Bool where Prev.Element == Token, Next.Element == Token {
+        guard let last = previousTail.last else {
+            return false
+        }
+        if isStatementContinuationAtLineEnd(last.kind)
+            || last.kind == .symbol(.lParen)
+            || last.kind == .symbol(.comma)
+        {
+            return true
+        }
+        if hasUnclosedStatementDelimiter(previousTail) {
+            return true
+        }
+        // `a or\n    (b)`: Kotlin allows a newline after an infix function
+        // name, and `if (a)\n    body`: the branch body may start on the line
+        // after the condition. The CST parser splits both at the newline.
+        if KotlinParser.endsWithPendingInfixOperator(previousTail)
+            || KotlinParser.endsWithControlFlowCondition(previousTail)
+        {
+            return true
+        }
+        guard let first = nextHead.first else {
+            return false
+        }
+        // `isBinaryOperatorToken` already covers `.`/`?.`, so a dot-continuation
+        // line (`.member()`) is a continuation via this check too.
+        if isBinaryOperatorToken(first.kind)
+            || first.kind == .symbol(.comma)
+            || first.kind == .symbol(.rParen)
+            || first.kind == .symbol(.rBracket)
+        {
+            return true
+        }
+        if first.kind == .symbol(.lBrace), canAcceptTrailingLambda(on: previousTail) {
+            return true
+        }
+        return false
     }
 
     /// Filter out semicolons that are at the outermost brace level,
     /// preserving those inside nested braces (e.g. lambda bodies).
-    private func filterTopLevelSemicolons(_ tokens: [Token]) -> [Token] {
+    func filterTopLevelSemicolons(_ tokens: ArraySlice<Token>) -> [Token] {
         var result: [Token] = []
+        result.reserveCapacity(tokens.count)
         var braceDepth = 0
         for token in tokens {
             switch token.kind {
@@ -165,26 +209,15 @@ extension BuildASTPhase {
         return result
     }
 
-    private func hasUnclosedStatementDelimiter(_ tokens: [Token]) -> Bool {
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+    private static func hasUnclosedStatementDelimiter<C: Collection>(_ tokens: C) -> Bool where C.Element == Token {
+        var depth = BracketDepth()
         for token in tokens {
-            switch token.kind {
-            case .symbol(.lParen): parenDepth += 1
-            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket): bracketDepth += 1
-            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace): braceDepth += 1
-            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-            default: break
-            }
+            depth.track(token.kind)
         }
-        return parenDepth > 0 || bracketDepth > 0 || braceDepth > 0
-    }
-
-    private func startsWithTrailingLambdaGroup(_ tokens: [Token]) -> Bool {
-        tokens.first?.kind == .symbol(.lBrace)
+        // Deliberately ignores `depth.angle`: an unmatched `<`/`>` from a
+        // generic or comparison in the previous group must not affect the
+        // merge decision, unlike `BracketDepth.isAtTopLevel`.
+        return depth.paren > 0 || depth.bracket > 0 || depth.brace > 0
     }
 
     static func canAcceptTrailingLambda<C: BidirectionalCollection>(on tokens: C) -> Bool where C.Element == Token {
@@ -209,13 +242,24 @@ extension BuildASTPhase {
 
     /// Parse a single (possibly merged) statement token group, trying local
     /// fun-decl, local-decl, local-assign, then generic expression.
-    private func parseStatementGroup(
+    ///
+    /// Shared by the CST-driven top-level path (blockExpressions) and the
+    /// token-driven local-function-body path (parseBraceBody in
+    /// BuildASTPhase+LocalFunParsing.swift) so both dispatch identically.
+    func parseStatementGroup(
         raw: [Token],
         filtered: [Token],
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
+        let raw = skipLeadingLocalAnnotations(raw, interner: interner)
+        let filtered = skipLeadingLocalAnnotations(filtered, interner: interner)
         if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
+            return expr
+        }
+        if let expr = Self.parseLocalNominalDeclExpr(
+            from: raw, interner: interner, astArena: astArena, diagnostics: diagnostics
+        ) {
             return expr
         }
         if let expr = parseLocalDeclarationExpr(from: filtered, interner: interner, astArena: astArena) {
@@ -224,7 +268,9 @@ extension BuildASTPhase {
         if let expr = parseLocalAssignmentExpr(from: filtered, interner: interner, astArena: astArena) {
             return expr
         }
-        let parser = ExpressionParser(tokens: filtered, interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: filtered, interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         return parser.parse()
     }
 
@@ -232,8 +278,8 @@ extension BuildASTPhase {
         var groups: [[Token]] = []
         var current: [Token] = []
         var depth = BracketDepth()
-        for token in tokens {
-            if depth.isAtTopLevel {
+        for (idx, token) in tokens.enumerated() {
+            if depth.isBracketBraceParenTopLevel {
                 if token.kind == .symbol(.semicolon) {
                     if !current.isEmpty {
                         groups.append(current)
@@ -245,14 +291,11 @@ extension BuildASTPhase {
                     if case .newline = piece { return true }
                     return false
                 }
-                if hasNewline, !current.isEmpty {
-                    let lastIsContinuation = current.last.map { Self.isBinaryOperatorToken($0.kind) } ?? false
-                    let nextIsContinuation = Self.isBinaryOperatorToken(token.kind)
-                    let nextIsTrailingLambda = token.kind == .symbol(.lBrace) && Self.canAcceptTrailingLambda(on: current)
-                    if !lastIsContinuation, !nextIsContinuation, !nextIsTrailingLambda {
-                        groups.append(current)
-                        current = []
-                    }
+                if hasNewline, !current.isEmpty,
+                   !Self.isContinuationBoundary(previousTail: current, nextHead: tokens[idx...])
+                {
+                    groups.append(current)
+                    current = []
                 }
             }
             depth.track(token.kind)
@@ -282,6 +325,18 @@ extension BuildASTPhase {
             true
         default:
             false
+        }
+    }
+
+    /// A closing `>` can be either a binary comparison operator or the end of
+    /// a generic type argument list. At a line ending it completes the latter,
+    /// so it must not merge the following statement into the current group.
+    static func isStatementContinuationAtLineEnd(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.greaterThan):
+            return false
+        default:
+            return isBinaryOperatorToken(kind)
         }
     }
 
@@ -351,7 +406,7 @@ extension BuildASTPhase {
         switch kind {
         case .statement, .propertyDecl, .loopStmt,
              .ifExpr, .whenExpr, .tryExpr, .callExpr,
-             .funDecl:
+             .funDecl, .classDecl, .objectDecl:
             true
         default:
             false
@@ -367,34 +422,7 @@ extension BuildASTPhase {
     func declarationAnnotations(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> [AnnotationNode] {
-        let tokens = collectTokens(from: nodeID, in: arena)
-        var annotations: [AnnotationNode] = []
-        var index = 0
-        while index < tokens.count {
-            let token = tokens[index]
-            // Stop scanning when we hit the declaration introducer keyword
-            // (`class`, `fun`, `val`, ...). Modifiers may appear before/after
-            // annotations, so they must not terminate the scan.
-            if isDeclarationStart(token.kind) {
-                break
-            }
-            guard token.kind == .symbol(.at) else {
-                index += 1
-                continue
-            }
-            guard let parsed = AnnotationParsingSupport.parseAnnotation(
-                from: tokens,
-                start: index,
-                interner: interner,
-                allowUseSiteTarget: true
-            ) else {
-                index += 1
-                continue
-            }
-            annotations.append(parsed.annotation)
-            index = parsed.nextIndex
-        }
-        return annotations
+        annotationsFromTokens(collectTokens(from: nodeID, in: arena), interner: interner)
     }
 
     /// Parses leading annotations from an arbitrary token array, stopping at a
@@ -414,6 +442,26 @@ extension BuildASTPhase {
             index = parsed.nextIndex
         }
         return annotations
+    }
+
+    /// Skips leading annotation tokens (`@Name`, `@Name(...)`, optionally with
+    /// a use-site target) from a local statement's token list. Local
+    /// statements have no AST representation for annotations, so callers that
+    /// dispatch on a statement's leading keyword must strip them first —
+    /// otherwise a leading `@` token is unrecognized by every local-statement
+    /// parser (and by the generic `ExpressionParser` fallback), silently
+    /// dropping the entire statement.
+    func skipLeadingLocalAnnotations(_ tokens: [Token], interner: StringInterner) -> [Token] {
+        var index = 0
+        while index < tokens.count, tokens[index].kind == .symbol(.at) {
+            guard let parsed = AnnotationParsingSupport.parseAnnotation(
+                from: tokens, start: index, interner: interner, allowUseSiteTarget: true
+            ) else {
+                break
+            }
+            index = parsed.nextIndex
+        }
+        return index == 0 ? tokens : Array(tokens[index...])
     }
 
     /// Checks if a token represents a declaration start keyword.

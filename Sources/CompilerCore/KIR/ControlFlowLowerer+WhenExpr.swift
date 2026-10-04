@@ -37,7 +37,7 @@ extension ControlFlowLowerer {
             }
         }
         let endLabel = driver.ctx.makeLoopLabel()
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.errorType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.errorType)
 
         var nextBranchLabels: [Int32] = []
         for _ in branches {
@@ -191,7 +191,7 @@ extension ControlFlowLowerer {
             let typeToken = arena.appendExpr(.intLiteral(typeTokenLiteral), type: intType)
             instructions.append(.constValue(result: typeToken, value: .intLiteral(typeTokenLiteral)))
 
-            let isResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+            let isResult = arena.appendTemporary(type: boolType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_op_is"),
@@ -203,9 +203,46 @@ extension ControlFlowLowerer {
             guard negated else {
                 return isResult
             }
-            let negatedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+            let negatedResult = arena.appendTemporary(type: boolType)
             instructions.append(.binary(op: .equal, lhs: isResult, rhs: falseID, result: negatedResult))
             return negatedResult
+        }
+
+        // `in a..b -> ...` / `!in a..b -> ...`: unlike a plain value condition
+        // (which desugars to `subject == condition`), `in`/`!in` already
+        // stands alone as a complete Boolean test against the subject
+        // (`.inExpr`/`.notInExpr` embed the subject as their own `lhs`), so
+        // its lowered value is the match result directly. Route through
+        // `lowerContainsCheck` with the subject's already-lowered value
+        // (`loweredSubjectID`) rather than re-lowering the whole condition —
+        // that would re-lower `lhsExpr` (the subject) from scratch and
+        // re-evaluate a side-effecting subject once per `in`/`!in` branch.
+        if let loweredSubjectID,
+           let conditionExpr = ast.arena.expr(conditionExprID)
+        {
+            let inCondition: (lhsExpr: ExprID, rhsExpr: ExprID, negated: Bool)? = switch conditionExpr {
+            case let .inExpr(lhsExpr, rhsExpr, _): (lhsExpr, rhsExpr, false)
+            case let .notInExpr(lhsExpr, rhsExpr, _): (lhsExpr, rhsExpr, true)
+            default: nil
+            }
+            if let inCondition,
+               isSameWhenSubjectExpression(inCondition.lhsExpr, subjectExprID: subjectExprID, sema: sema)
+            {
+                return driver.exprLowerer.lowerContainsCheck(
+                    exprID: conditionExprID,
+                    lhsID: loweredSubjectID,
+                    lhsExpr: inCondition.lhsExpr,
+                    rhsExpr: inCondition.rhsExpr,
+                    negated: inCondition.negated,
+                    boundType: boolType,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
         }
 
         let conditionValueID = driver.lowerExpr(
@@ -219,11 +256,25 @@ extension ControlFlowLowerer {
         )
 
         if let loweredSubjectID {
-            let matchesID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+            let matchesID = arena.appendTemporary(type: boolType)
+            // Mirror the boxed-vs-raw normalization in
+            // CallLowerer+Operators.swift's lowerBinaryExpr: `when (e0) {
+            // Direction.NORTH -> ... }` desugars to `==` comparisons here,
+            // not through lowerBinaryExpr, so it needs the same fix.
+            let normalizedSubjectID = unboxIfEnumTyped(
+                loweredSubjectID,
+                staticType: subjectExprID.flatMap { sema.bindings.exprTypes[$0] },
+                sema: sema, arena: arena, interner: interner, into: &instructions
+            )
+            let normalizedConditionID = unboxIfEnumTyped(
+                conditionValueID,
+                staticType: sema.bindings.exprTypes[conditionExprID],
+                sema: sema, arena: arena, interner: interner, into: &instructions
+            )
             instructions.append(.binary(
                 op: .equal,
-                lhs: loweredSubjectID,
-                rhs: conditionValueID,
+                lhs: normalizedSubjectID,
+                rhs: normalizedConditionID,
                 result: matchesID
             ))
             return matchesID

@@ -1,12 +1,15 @@
+#if canImport(Testing)
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-FN-040 lambda thunks for useLines
 //
-// Block receives the materialised lines as a boxed Int (RuntimeListBox raw pointer).
-// We unbox the list, read its size, and box the count back as an Int — matching the
-// collection HOF lambda ABI consumed by `runtimeInvokeCollectionLambda1`.
+// Block receives the remaining lines as a boxed Int — a `RuntimeSequenceBox`
+// raw pointer whose pull-source drains the reader lazily. We materialise it
+// through the sequence source path, read its size, and box the count back as
+// an Int — matching the collection HOF lambda ABI consumed by
+// `runtimeInvokeCollectionLambda1`.
 
 // MARK: - STDLIB-IO-FN-017 lambda thunks for forEachLine
 //
@@ -31,12 +34,10 @@ private let forEachLineAlwaysThrows: @convention(c) (Int, Int, UnsafeMutablePoin
 
 private let useLinesCountsLines: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
     outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
-          let list = tryCast(ptr, to: RuntimeListBox.self)
-    else {
+    guard let elements = runtimeSequenceSourceElements(from: value) else {
         return kk_box_int(-1)
     }
-    return kk_box_int(list.elements.count)
+    return kk_box_int(elements.count)
 }
 
 private let useLinesAlwaysThrows: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
@@ -48,353 +49,330 @@ private func fnPtrInt(_ fn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
     Int(bitPattern: unsafeBitCast(fn, to: UnsafeRawPointer.self))
 }
 
-final class RuntimeBufferedReaderTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testBufferedReaderHandlesMixedLineEndingsAndNoTrailingEmptyLine() throws {
+@Suite(.serialized, .runtimeIsolation(.gcOnly))
+struct RuntimeBufferedReaderTests {
+    @Test func testBufferedReaderHandlesMixedLineEndingsAndNoTrailingEmptyLine() throws {
         let fileURL = try makeTempFile(contents: "alpha\r\nbeta\rgamma\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(readerRaw, 0)
-        XCTAssertEqual(readString(kk_buffered_reader_readLine(readerRaw)), "alpha")
-        XCTAssertEqual(readString(kk_buffered_reader_readLine(readerRaw)), "beta")
-        XCTAssertEqual(readString(kk_buffered_reader_readLine(readerRaw)), "gamma")
-        XCTAssertEqual(kk_buffered_reader_readLine(readerRaw), runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(readerRaw != 0)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "alpha")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "beta")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "gamma")
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
     }
 
-    func testBufferedReaderEmptyFileIsImmediateEOF() throws {
+    @Test func testBufferedReaderEmptyFileIsImmediateEOF() throws {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(readerRaw, 0)
-        XCTAssertEqual(kk_buffered_reader_readLine(readerRaw), runtimeNullSentinelInt)
-        let linesRaw = kk_buffered_reader_readLines(readerRaw)
-        XCTAssertEqual(runtimeListBox(from: linesRaw)?.elements.count, 0)
+        #expect(thrown == 0)
+        #expect(readerRaw != 0)
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        let linesRaw = __kk_buffered_reader_readLines(readerRaw)
+        #expect(runtimeListBox(from: linesRaw)?.elements.count == 0)
     }
 
     // MARK: - STDLIB-IO-FN-022: BufferedReader.iterator()
 
-    func testBufferedReaderIteratorYieldsLinesInOrder() throws {
+    @Test func testBufferedReaderIteratorYieldsLinesInOrder() throws {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(readerRaw, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
+        #expect(readerRaw != 0)
 
-        let iterRaw = kk_buffered_reader_iterator(readerRaw)
-        XCTAssertNotEqual(iterRaw, 0)
-        XCTAssertNotNil(runtimeListIteratorBox(from: iterRaw))
+        let iterRaw = __kk_buffered_reader_iterator(readerRaw)
+        #expect(iterRaw != 0)
+        #expect(runtimeBufferedLineIteratorBox(from: iterRaw) != nil)
 
-        XCTAssertEqual(kk_iterator_hasNext(iterRaw), 1)
-        XCTAssertEqual(readString(kk_iterator_next(iterRaw)), "alpha")
-        XCTAssertEqual(kk_iterator_hasNext(iterRaw), 1)
-        XCTAssertEqual(readString(kk_iterator_next(iterRaw)), "beta")
-        XCTAssertEqual(kk_iterator_hasNext(iterRaw), 1)
-        XCTAssertEqual(readString(kk_iterator_next(iterRaw)), "gamma")
-        XCTAssertEqual(kk_iterator_hasNext(iterRaw), 0)
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 1)
+        #expect(readString(kk_iterator_next(iterRaw, nil)) == "alpha")
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 1)
+        #expect(readString(kk_iterator_next(iterRaw, nil)) == "beta")
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 1)
+        #expect(readString(kk_iterator_next(iterRaw, nil)) == "gamma")
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 0)
     }
 
-    func testBufferedReaderIteratorOnEmptyFileYieldsNoElements() throws {
+    @Test func testBufferedReaderIteratorOnEmptyFileYieldsNoElements() throws {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        let iterRaw = kk_buffered_reader_iterator(readerRaw)
-        XCTAssertNotEqual(iterRaw, 0)
-        XCTAssertEqual(kk_iterator_hasNext(iterRaw), 0)
+        let iterRaw = __kk_buffered_reader_iterator(readerRaw)
+        #expect(iterRaw != 0)
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 0)
     }
 
     // MARK: - STDLIB-IO-FN-033: Reader.readText()
 
-    func testReaderReadTextReturnsRemainingContentsAsSingleString() throws {
+    @Test func testReaderReadTextReturnsRemainingContentsAsSingleString() throws {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(readerRaw, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
+        #expect(readerRaw != 0)
 
-        let textRaw = kk_reader_readText(readerRaw)
-        XCTAssertEqual(readString(textRaw), "alpha\nbeta\ngamma")
+        let textRaw = __kk_reader_readText(readerRaw)
+        #expect(readString(textRaw) == "alpha\nbeta\ngamma")
     }
 
-    func testReaderReadTextAfterPartialReadReturnsOnlyTheRemainder() throws {
+    @Test func testReaderReadTextAfterPartialReadReturnsOnlyTheRemainder() throws {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        XCTAssertEqual(readString(kk_buffered_reader_readLine(readerRaw)), "alpha")
-        let textRaw = kk_reader_readText(readerRaw)
-        XCTAssertEqual(readString(textRaw), "beta\ngamma")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "alpha")
+        let textRaw = __kk_reader_readText(readerRaw)
+        #expect(readString(textRaw) == "beta\ngamma")
     }
 
-    func testReaderReadTextOnEmptyFileReturnsEmptyString() throws {
+    @Test func testReaderReadTextOnEmptyFileReturnsEmptyString() throws {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        let textRaw = kk_reader_readText(readerRaw)
-        XCTAssertEqual(readString(textRaw), "")
+        let textRaw = __kk_reader_readText(readerRaw)
+        #expect(readString(textRaw) == "")
     }
 
-    func testReaderReadTextAfterCloseReturnsEmptyString() throws {
+    @Test func testReaderReadTextAfterCloseReturnsEmptyString() throws {
         let fileURL = try makeTempFile(contents: "alpha\nbeta")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_buffered_reader_close(readerRaw), 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
+        #expect(__kk_buffered_reader_close(readerRaw) == 0)
 
-        let textRaw = kk_reader_readText(readerRaw)
-        XCTAssertEqual(readString(textRaw), "")
+        let textRaw = __kk_reader_readText(readerRaw)
+        #expect(readString(textRaw) == "")
     }
 
-    func testReaderReadTextHandlesMultilineUTF8Content() throws {
+    @Test func testReaderReadTextHandlesMultilineUTF8Content() throws {
         let fileURL = try makeTempFile(contents: "α\nβ\nγ")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        let textRaw = kk_reader_readText(readerRaw)
-        XCTAssertEqual(readString(textRaw), "α\nβ\nγ")
+        let textRaw = __kk_reader_readText(readerRaw)
+        #expect(readString(textRaw) == "α\nβ\nγ")
     }
 
-    func testBufferedReaderIteratorAfterCloseYieldsNoElements() throws {
+    @Test func testBufferedReaderIteratorAfterCloseYieldsNoElements() throws {
         let fileURL = try makeTempFile(contents: "first\nsecond\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_buffered_reader_close(readerRaw), 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
+        #expect(__kk_buffered_reader_close(readerRaw) == 0)
 
-        let iterRaw = kk_buffered_reader_iterator(readerRaw)
-        XCTAssertNotEqual(iterRaw, 0)
-        XCTAssertEqual(kk_iterator_hasNext(iterRaw), 0)
+        let iterRaw = __kk_buffered_reader_iterator(readerRaw)
+        #expect(iterRaw != 0)
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 0)
     }
 
-    func testBufferedReaderCloseStopsReading() throws {
+    @Test func testBufferedReaderCloseStopsReading() throws {
         let fileURL = try makeTempFile(contents: "first\nsecond")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(readString(kk_buffered_reader_readLine(readerRaw)), "first")
-        XCTAssertEqual(kk_buffered_reader_close(readerRaw), 0)
-        XCTAssertEqual(kk_buffered_reader_readLine(readerRaw), runtimeNullSentinelInt)
-        let linesRaw = kk_buffered_reader_readLines(readerRaw)
-        XCTAssertEqual(runtimeListBox(from: linesRaw)?.elements.count, 0)
+        #expect(thrown == 0)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "first")
+        #expect(__kk_buffered_reader_close(readerRaw) == 0)
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        let linesRaw = __kk_buffered_reader_readLines(readerRaw)
+        #expect(runtimeListBox(from: linesRaw)?.elements.count == 0)
     }
 
-    func testBufferedReaderOpenFailureReturnsNoReaderObject() {
+    @Test func testBufferedReaderOpenFailureReturnsNoReaderObject() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .path
-        let fileRaw = runtimeTestFileHandle(missingPath)
         let baselineObjectCount = kk_runtime_heap_object_count()
 
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
+        let readerRaw = openBufferedReader(missingPath, outThrown: &thrown)
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(readerRaw, 0)
-        XCTAssertEqual(kk_runtime_heap_object_count(), baselineObjectCount)
+        #expect(thrown != 0)
+        #expect(readerRaw == 0)
+        #expect(kk_runtime_heap_object_count() == baselineObjectCount)
     }
 
-    func testPathBufferedReaderHandlesSmallBufferReads() throws {
+    @Test func testPathBufferedReaderHandlesSmallBufferReads() throws {
         let fileURL = try makeTempFile(contents: "path-alpha\npath-beta")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(2), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, bufferSize: 2, outThrown: &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(readerRaw, 0)
-        XCTAssertEqual(readString(kk_buffered_reader_readLine(readerRaw)), "path-alpha")
-        XCTAssertEqual(readString(kk_buffered_reader_readLine(readerRaw)), "path-beta")
-        XCTAssertEqual(kk_buffered_reader_readLine(readerRaw), runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(readerRaw != 0)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "path-alpha")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "path-beta")
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
     }
 
-    func testPathBufferedReaderOpenFailureReturnsNoReaderObject() {
+    @Test func testPathBufferedReaderOpenFailureReturnsNoReaderObject() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .path
-        let pathRaw = runtimeTestPathHandle(missingPath)
         let baselineObjectCount = kk_runtime_heap_object_count()
 
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(4096), 0, &thrown)
+        let readerRaw = openBufferedReader(missingPath, bufferSize: 4096, outThrown: &thrown)
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(readerRaw, 0)
-        XCTAssertEqual(kk_runtime_heap_object_count(), baselineObjectCount)
+        #expect(thrown != 0)
+        #expect(readerRaw == 0)
+        #expect(kk_runtime_heap_object_count() == baselineObjectCount)
     }
 
     // MARK: - STDLIB-IO-FN-040: BufferedReader.useLines
 
-    func testBufferedReaderUseLinesInvokesBlockWithMaterialisedLines() throws {
+    @Test func testBufferedReaderUseLinesInvokesBlockWithMaterialisedLines() throws {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(readerRaw, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
+        #expect(readerRaw != 0)
 
-        let result = kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_unbox_int(result), 3)
+        let result = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_unbox_int(result) == 3)
     }
 
-    func testBufferedReaderUseLinesEmptyFileReturnsZeroLines() throws {
+    @Test func testBufferedReaderUseLinesEmptyFileReturnsZeroLines() throws {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        let result = kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_unbox_int(result), 0)
+        let result = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_unbox_int(result) == 0)
     }
 
-    func testBufferedReaderUseLinesPropagatesThrownFromBlock() throws {
+    @Test func testBufferedReaderUseLinesPropagatesThrownFromBlock() throws {
         let fileURL = try makeTempFile(contents: "one\ntwo\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        let result = kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesAlwaysThrows), 0, &thrown)
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0, "block exception should surface via outThrown")
+        let result = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesAlwaysThrows), 0, &thrown)
+        #expect(result == 0)
+        #expect(thrown != 0, "block exception should surface via outThrown")
     }
 
-    func testBufferedReaderUseLinesClosesReaderAfterBlock() throws {
+    @Test func testBufferedReaderUseLinesClosesReaderAfterBlock() throws {
         let fileURL = try makeTempFile(contents: "first\nsecond\nthird\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        _ = kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        _ = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
+        #expect(thrown == 0)
 
         // After useLines returns, the reader is closed and yields no further lines
         // (mirrors the JVM `use { }` contract on the underlying Reader).
-        XCTAssertEqual(kk_buffered_reader_readLine(readerRaw), runtimeNullSentinelInt)
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
     }
 
     // MARK: - STDLIB-IO-FN-017: BufferedReader.forEachLine
 
-    func testBufferedReaderForEachLineInvokesActionForEachLine() throws {
+    @Test func testBufferedReaderForEachLineInvokesActionForEachLine() throws {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         forEachLineCollectedLines = []
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(readerRaw, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
+        #expect(readerRaw != 0)
 
-        _ = kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(forEachLineCollectedLines, ["alpha", "beta", "gamma"])
+        _ = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
+        #expect(thrown == 0)
+        #expect(forEachLineCollectedLines == ["alpha", "beta", "gamma"])
     }
 
-    func testBufferedReaderForEachLineEmptyFileInvokesNoAction() throws {
+    @Test func testBufferedReaderForEachLineEmptyFileInvokesNoAction() throws {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         forEachLineCollectedLines = []
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        _ = kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(forEachLineCollectedLines, [], "action should not be called for an empty file")
+        _ = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
+        #expect(thrown == 0)
+        #expect(forEachLineCollectedLines == [], "action should not be called for an empty file")
     }
 
-    func testBufferedReaderForEachLinePropagatesThrownFromAction() throws {
+    @Test func testBufferedReaderForEachLinePropagatesThrownFromAction() throws {
         let fileURL = try makeTempFile(contents: "one\ntwo\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
-        let result = kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineAlwaysThrows), 0, &thrown)
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0, "action exception should surface via outThrown")
+        let result = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineAlwaysThrows), 0, &thrown)
+        #expect(result == 0)
+        #expect(thrown != 0, "action exception should surface via outThrown")
     }
 
-    func testBufferedReaderForEachLineDoesNotCloseReaderAfterIteration() throws {
+    @Test func testBufferedReaderForEachLineDoesNotCloseReaderAfterIteration() throws {
         let fileURL = try makeTempFile(contents: "first\nsecond\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_file_bufferedReader(fileRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
+        #expect(thrown == 0)
 
         forEachLineCollectedLines = []
-        _ = kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(forEachLineCollectedLines, ["first", "second"])
+        _ = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
+        #expect(thrown == 0)
+        #expect(forEachLineCollectedLines == ["first", "second"])
 
         // After forEachLine returns, the reader is still open. All lines have been
         // consumed, so the next readLine returns null sentinel — but the reader handle
         // itself is still valid (not released). This differs from useLines.
-        XCTAssertEqual(kk_buffered_reader_readLine(readerRaw), runtimeNullSentinelInt,
-                       "all lines already consumed; reader still open but at EOF")
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt,
+                "all lines already consumed; reader still open but at EOF")
     }
 
     private func makeTempFile(contents: String) throws -> URL {
@@ -403,25 +381,21 @@ final class RuntimeBufferedReaderTests: IsolatedRuntimeXCTestCase {
         return url
     }
 
-    private func runtimeTestFileHandle(_ path: String) -> Int {
-        let bytes = Array(path.utf8)
-        let stringRaw = bytes.withUnsafeBufferPointer { buffer -> Int in
-            let baseAddress = buffer.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 0x1)!
-            return Int(bitPattern: kk_string_from_utf8(baseAddress, Int32(bytes.count)))
+    /// Fixture replacement for the removed `kk_path_bufferedReader` (CLEANUP-STUB-115):
+    /// opens `path` directly and boxes the result exactly as that cdecl did.
+    private func openBufferedReader(_ path: String, bufferSize: Int = 8192, outThrown: inout Int) -> Int {
+        outThrown = 0
+        do {
+            let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
+            return registerRuntimeObject(RuntimeBufferedReaderBox(fileHandle: fileHandle, chunkSize: bufferSize))
+        } catch {
+            outThrown = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+            return 0
         }
-        return kk_file_new(stringRaw)
-    }
-
-    private func runtimeTestPathHandle(_ path: String) -> Int {
-        let bytes = Array(path.utf8)
-        let stringRaw = bytes.withUnsafeBufferPointer { buffer -> Int in
-            let baseAddress = buffer.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 0x1)!
-            return Int(bitPattern: kk_string_from_utf8(baseAddress, Int32(bytes.count)))
-        }
-        return kk_path_new(stringRaw)
     }
 
     private func readString(_ raw: Int) -> String? {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
     }
 }
+#endif

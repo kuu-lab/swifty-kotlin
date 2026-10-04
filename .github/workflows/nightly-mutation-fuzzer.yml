@@ -1,0 +1,108 @@
+name: Nightly Mutation Fuzzer
+
+on:
+  schedule:
+    - cron: '30 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-mutation-fuzzer
+  cancel-in-progress: true
+
+jobs:
+  mutation-fuzzer:
+    name: Bounded mutation fuzzer and crash corpus replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FUZZ_SEED: "23023"
+      FUZZ_CASES: "64"
+      FUZZ_DURATION_SECONDS: "900"
+      # A single kswiftc compile (sema through link) legitimately takes tens of
+      # seconds on this runner; the CI diff job allows 180s per compile for the
+      # same kswiftc + KSwiftKStdlib.kklib path. A smaller budget turns every
+      # compilable case into a bogus "timeout" finding.
+      FUZZ_TIMEOUT_SECONDS: "180"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check remote Action pins
+        run: python3 Scripts/check_action_pins.py
+      - name: Run mutation-generator smoke test
+        run: bash Scripts/test_mutation_fuzzer.sh
+      - name: Run diff_kotlinc.sh script-mode classification regression test
+        run: bash Scripts/test_diff_kotlinc_script_classification.sh
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Setup LLVM
+        uses: ./.github/actions/setup-llvm
+      - name: Build release kswiftc
+        env:
+          SWIFT_BUILD_JOBS: "4"
+        run: swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6
+      - name: Build shared stdlib artifact
+        env:
+          KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc
+        run: |
+          mkdir -p "$RUNNER_TEMP/nightly-mutation-fuzzer"
+          "$KSWIFTC" --stdlib-only --emit library \
+            -o "$RUNNER_TEMP/nightly-mutation-fuzzer/KSwiftKStdlib.kklib"
+      - name: Replay committed crash corpus
+        env:
+          KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc
+        run: |
+          python3 Scripts/mutate_diff_cases.py \
+            --kswiftc "$KSWIFTC" \
+            --replay-dir Tests/CrashCorpus \
+            --stdlib-library "$RUNNER_TEMP/nightly-mutation-fuzzer/KSwiftKStdlib.kklib" \
+            --timeout-seconds "$FUZZ_TIMEOUT_SECONDS" \
+            --workers 1
+      - name: Baseline compile sanity check
+        env:
+          KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc
+        run: |
+          # Guardrail: an unmutated known-good input must compile within the
+          # fuzz timeout. Otherwise every compilable mutation case is reported
+          # as a bogus timeout finding instead of a real signal.
+          start=$(date +%s)
+          if timeout "$FUZZ_TIMEOUT_SECONDS" "$KSWIFTC" \
+            --no-stdlib \
+            --stdlib-library "$RUNNER_TEMP/nightly-mutation-fuzzer/KSwiftKStdlib.kklib" \
+            Scripts/diff_cases/hello.kt \
+            -o "$RUNNER_TEMP/nightly-mutation-fuzzer/baseline-hello"; then
+            echo "Baseline hello.kt compile finished in $(( $(date +%s) - start ))s (budget: ${FUZZ_TIMEOUT_SECONDS}s)"
+          else
+            rc=$?
+            echo "::error::Baseline compile of Scripts/diff_cases/hello.kt failed or exceeded the ${FUZZ_TIMEOUT_SECONDS}s fuzz timeout (rc=$rc). Raise FUZZ_TIMEOUT_SECONDS or fix the environment before trusting timeout findings."
+            exit "$rc"
+          fi
+      - name: Run bounded mutation fuzzer
+        env:
+          KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc
+        run: |
+          mkdir -p "$RUNNER_TEMP/nightly-mutation-fuzzer/corpus"
+          python3 Scripts/mutate_diff_cases.py \
+            --kswiftc "$KSWIFTC" \
+            --stdlib-library "$RUNNER_TEMP/nightly-mutation-fuzzer/KSwiftKStdlib.kklib" \
+            --seed-dir Scripts/diff_cases \
+            --seed "$FUZZ_SEED" \
+            --cases "$FUZZ_CASES" \
+            --duration-seconds "$FUZZ_DURATION_SECONDS" \
+            --timeout-seconds "$FUZZ_TIMEOUT_SECONDS" \
+            --workers 1 \
+            --corpus-dir "$RUNNER_TEMP/nightly-mutation-fuzzer/corpus" \
+            --report "$RUNNER_TEMP/nightly-mutation-fuzzer/report.json"
+      - name: Upload fuzzer artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nightly-mutation-fuzzer-${{ github.run_id }}
+          path: ${{ runner.temp }}/nightly-mutation-fuzzer
+          if-no-files-found: warn
+          retention-days: 30

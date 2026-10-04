@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
 @_cdecl("runtime_result_success_lambda")
 private func runtime_result_success_lambda(
-    _ closureRaw: Int,
+    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
@@ -12,7 +13,7 @@ private func runtime_result_success_lambda(
 
 @_cdecl("runtime_result_failure_lambda")
 private func runtime_result_failure_lambda(
-    _ closureRaw: Int,
+    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = runtimeAllocateThrowable(message: "boom")
@@ -21,59 +22,109 @@ private func runtime_result_failure_lambda(
 
 @_cdecl("runtime_result_transform_lambda")
 private func runtime_result_transform_lambda(
-    _ closureRaw: Int,
-    _ argument: Int,
+    _: Int,
+    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     return 1
 }
 
-final class RuntimeResultTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+@Suite
+struct RuntimeResultTests {
+    @Test
     func testResultSuccessStateAndGetOrThrow() {
         var thrown = 0
         let fn = unsafeBitCast(runtime_result_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
-        let resultRaw = kk_runCatching(fn, 0, &thrown)
+        let resultRaw = runtimeResultRunCatching(fn, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 1)
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 0)
-        XCTAssertEqual(kk_result_getOrThrow(resultRaw, &thrown), 42)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
+        #expect(runtimeResultSuccessFlag(resultRaw) == 1)
+        #expect(runtimeResultFailureFlag(resultRaw) == 0)
+        #expect(runtimeResultGetOrThrow(resultRaw, &thrown) == 42)
+        #expect(thrown == 0)
     }
 
+    @Test
+    func testRunCatchingAcceptsBoxedFunctionValue() {
+        var thrown = 0
+        let fn = unsafeBitCast(runtime_result_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let boxedFn = kk_function_create_0(fn, 0, &thrown)
+        #expect(thrown == 0)
+
+        let resultRaw = runtimeResultRunCatching(boxedFn, 0, &thrown)
+
+        #expect(thrown == 0)
+        #expect(runtimeResultSuccessFlag(resultRaw) == 1)
+        #expect(runtimeResultGetOrThrow(resultRaw, &thrown) == 42)
+        #expect(thrown == 0)
+    }
+
+    @Test
     func testResultFailureStateAndGetOrThrowRethrows() {
         var thrown = 0
         let fn = unsafeBitCast(runtime_result_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
-        let resultRaw = kk_runCatching(fn, 0, &thrown)
+        let resultRaw = runtimeResultRunCatching(fn, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 0)
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 1)
-        _ = kk_result_getOrThrow(resultRaw, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown == 0)
+        #expect(runtimeResultSuccessFlag(resultRaw) == 0)
+        #expect(runtimeResultFailureFlag(resultRaw) == 1)
+        _ = runtimeResultGetOrThrow(resultRaw, &thrown)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testResultGetOrElseUsesFailureTransform() {
         var thrown = 0
         let failureFn = unsafeBitCast(runtime_result_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
         let transformFn = unsafeBitCast(runtime_result_transform_lambda as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
 
-        let resultRaw = kk_runCatching(failureFn, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        let resultRaw = runtimeResultRunCatching(failureFn, 0, &thrown)
+        #expect(thrown == 0)
 
-        let fallbackValue = kk_result_getOrElse(resultRaw, transformFn, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(fallbackValue, 1)
+        let fallbackValue = runtimeResultGetOrElse(resultRaw, transformFn, 0, &thrown)
+        #expect(thrown == 0)
+        #expect(fallbackValue == 1)
+    }
+
+    @Test
+    func testResultGetOrElseAcceptsBoxedFunctionValue() {
+        var thrown = 0
+        let failureFn = unsafeBitCast(runtime_result_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let transformFn = unsafeBitCast(runtime_result_transform_lambda as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let boxedTransform = kk_function_create_1(transformFn, 0, &thrown)
+        #expect(thrown == 0)
+
+        let resultRaw = runtimeResultRunCatching(failureFn, 0, &thrown)
+        #expect(thrown == 0)
+
+        let fallbackValue = runtimeResultGetOrElse(resultRaw, boxedTransform, 0, &thrown)
+        #expect(thrown == 0)
+        #expect(fallbackValue == 1)
+    }
+
+    @Test
+    func testResultComponentsExposeValueAndExceptionSlots() {
+        var thrown = 0
+        let successFn = unsafeBitCast(runtime_result_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let failureFn = unsafeBitCast(runtime_result_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+
+        let successRaw = runtimeResultRunCatching(successFn, 0, &thrown)
+        #expect(thrown == 0)
+        #expect(runtimeResultValueOrNull(successRaw) == 42)
+        #expect(runtimeResultExceptionOrNull(successRaw) == runtimeNullSentinelInt)
+
+        let failureRaw = runtimeResultRunCatching(failureFn, 0, &thrown)
+        #expect(thrown == 0)
+        #expect(runtimeResultValueOrNull(failureRaw) == runtimeNullSentinelInt)
+        #expect(runtimeResultExceptionOrNull(failureRaw) != runtimeNullSentinelInt)
+
+        #expect(runtimeResultValueOrNull(runtimeNullSentinelInt) == runtimeNullSentinelInt)
+        #expect(runtimeResultExceptionOrNull(runtimeNullSentinelInt) == runtimeNullSentinelInt)
+        #expect(runtimeResultSuccessFlag(runtimeNullSentinelInt) == 0)
+        #expect(runtimeResultFailureFlag(runtimeNullSentinelInt) == 1)
+        #expect(runtimeResultValueOrNull(runtimeNullSentinelInt) == runtimeNullSentinelInt)
+        #expect(runtimeResultValueOrDefault(runtimeNullSentinelInt, 7) == 7)
     }
 }
+#endif

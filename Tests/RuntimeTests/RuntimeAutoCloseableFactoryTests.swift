@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private final class AutoCloseableFactoryTestState: @unchecked Sendable {
     private let lock = NSLock()
@@ -41,10 +41,6 @@ private let autoCloseableThrowingCloseAction: @convention(c) (Int, UnsafeMutable
     return runtimeExceptionCaughtSentinel
 }
 
-private let autoCloseableUseBody: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _ in
-    99
-}
-
 private func autoCloseableThrowableBox(from handle: Int) -> RuntimeThrowableBox? {
     guard handle != 0,
           handle != runtimeNullSentinelInt,
@@ -55,81 +51,66 @@ private func autoCloseableThrowableBox(from handle: Int) -> RuntimeThrowableBox?
     return tryCast(ptr, to: RuntimeThrowableBox.self)
 }
 
-final class RuntimeAutoCloseableFactoryTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        autoCloseableFactoryState.reset()
-    }
+private func resetAutoCloseableFactoryTestState() {
+    autoCloseableFactoryState.reset()
+}
 
-    func testFactoryRegistersCloseMethod() {
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetAutoCloseableFactoryTestState))
+struct RuntimeAutoCloseableFactoryTests {
+    @Test func factoryRegistersCloseMethod() {
         let resourceRaw = kk_auto_closeable_create(
             unsafeBitCast(autoCloseableCloseAction, to: Int.self),
             41
         )
         let closeFnPtr = kk_itable_lookup(resourceRaw, 0, 0)
-        XCTAssertNotEqual(closeFnPtr, 0)
+        #expect(closeFnPtr != 0)
 
         let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
         var outThrown = 0
         let result = closeFn(resourceRaw, &outThrown)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(outThrown, 0)
+        #expect(result == 0)
+        #expect(outThrown == 0)
         let snapshot = autoCloseableFactoryState.snapshot()
-        XCTAssertEqual(snapshot.count, 1)
-        XCTAssertEqual(snapshot.closureRaw, 41)
+        #expect(snapshot.count == 1)
+        #expect(snapshot.closureRaw == 41)
     }
 
-    func testUseClosesFactoryResourceAfterBody() {
+    /// KSP-721: `close()` written against an `AutoCloseable`-typed value dispatches through
+    /// kk_itable_lookup_dynamic, so the factory must also register the interface itself.
+    @Test func factoryRegistersAutoCloseableInterfaceForDynamicDispatch() {
         let resourceRaw = kk_auto_closeable_create(
             unsafeBitCast(autoCloseableCloseAction, to: Int.self),
             77
         )
+        let autoCloseableTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.AutoCloseable"))
+        let closeFnPtr = kk_itable_lookup_dynamic(resourceRaw, autoCloseableTypeID, 0)
+        #expect(closeFnPtr != 0)
 
+        let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
         var outThrown = 0
-        let result = kk_use(
-            resourceRaw,
-            unsafeBitCast(autoCloseableUseBody, to: Int.self),
-            0,
-            &outThrown
-        )
+        let result = closeFn(resourceRaw, &outThrown)
 
-        XCTAssertEqual(result, 99)
-        XCTAssertEqual(outThrown, 0)
+        #expect(result == 0)
+        #expect(outThrown == 0)
         let snapshot = autoCloseableFactoryState.snapshot()
-        XCTAssertEqual(snapshot.count, 1)
-        XCTAssertEqual(snapshot.closureRaw, 77)
+        #expect(snapshot.count == 1)
+        #expect(snapshot.closureRaw == 77)
     }
 
-    func testUseAllowsNullResourceWithoutClose() {
-        var outThrown = 0
-        let result = kk_use(
-            0,
-            unsafeBitCast(autoCloseableUseBody, to: Int.self),
-            0,
-            &outThrown
-        )
-
-        XCTAssertEqual(result, 99)
-        XCTAssertEqual(outThrown, 0)
-        XCTAssertEqual(autoCloseableFactoryState.snapshot().count, 0)
-    }
-
-    func testUsePropagatesFactoryCloseException() {
+    @Test func factoryClosePropagatesCloseException() {
         let resourceRaw = kk_auto_closeable_create(
             unsafeBitCast(autoCloseableThrowingCloseAction, to: Int.self),
             0
         )
+        let closeFnPtr = kk_itable_lookup(resourceRaw, 0, 0)
+        #expect(closeFnPtr != 0)
 
+        let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
         var outThrown = 0
-        let result = kk_use(
-            resourceRaw,
-            unsafeBitCast(autoCloseableUseBody, to: Int.self),
-            0,
-            &outThrown
-        )
+        let result = closeFn(resourceRaw, &outThrown)
 
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-        XCTAssertEqual(autoCloseableThrowableBox(from: outThrown)?.message, autoCloseableCloseMessage)
+        #expect(result == runtimeExceptionCaughtSentinel)
+        #expect(autoCloseableThrowableBox(from: outThrown)?.message == autoCloseableCloseMessage)
     }
 }

@@ -7,7 +7,8 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
     ) {
         guard propertyDecl.modifiers.contains(.const) else {
             return
@@ -35,6 +36,8 @@ extension DataFlowSemaPhase {
             let isConstCompatible = switch types.kind(of: resolvedType) {
             case let .primitive(_, nullability):
                 nullability == .nonNull
+            case let .stringStruct(nullability):
+                nullability == .nonNull
             default:
                 false
             }
@@ -52,7 +55,7 @@ extension DataFlowSemaPhase {
         // reject the declaration since const val requires a constant.
         if let initExpr = propertyDecl.initializer {
             let constCollector = ConstantCollector()
-            if let constKind = constCollector.literalConstantExpr(initExpr, ast: ast) {
+            if let constKind = constCollector.literalConstantExpr(initExpr, ast: ast, interner: interner) {
                 symbols.setConstValueExprKind(constKind, for: propertySymbol)
             } else {
                 diagnostics.error(

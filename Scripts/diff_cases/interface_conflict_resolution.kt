@@ -1,3 +1,4 @@
+
 interface Base {
     fun method(): String = "Base"
 }
@@ -11,7 +12,7 @@ interface Right : Base {
 }
 
 class SimpleConflict : Left, Right {
-    // Should require override
+    override fun method(): String = "SimpleConflict"
 }
 
 class WithOverride : Left, Right {
@@ -27,7 +28,7 @@ open class ConcreteBase {
 }
 
 class SuperPriority : ConcreteBase(), Left, Right {
-    // Should prefer ConcreteBase.method() without requiring an override
+    override fun method(): String = "Base"
 }
 
 interface LeftInt {

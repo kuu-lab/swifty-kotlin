@@ -4,14 +4,15 @@ import Testing
 
 @Suite
 struct RangeUntilSyntheticMemberLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        return semaResult
     }
 
     private func untilSymbols(for sema: SemaModule, interner: StringInterner) -> [SymbolID] {
@@ -22,12 +23,45 @@ struct RangeUntilSyntheticMemberLinkTests {
         ])
     }
 
-    private func untilCallExprIDs(in ast: ASTModule, interner: StringInterner) -> [ExprID] {
+    private func classType(
+        named name: String,
+        in sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let fqName = ["kotlin", "ranges", name].map { interner.intern($0) }
+        guard let symbol = sema.symbols.lookup(fqName: fqName) else {
+            return nil
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    private func intRangeType(in sema: SemaModule, interner: StringInterner) -> TypeID? {
+        classType(named: "IntRange", in: sema, interner: interner)
+    }
+
+    private func longRangeType(in sema: SemaModule, interner: StringInterner) -> TypeID? {
+        classType(named: "LongRange", in: sema, interner: interner)
+    }
+
+    private func untilCallExprIDs(
+        in ast: ASTModule,
+        interner: StringInterner,
+        sourceManager: SourceManager
+    ) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == "until"
+                  interner.resolve(callee) == "until",
+                  // Exclude bundled stdlib source (e.g. kotlin.random.Random's own
+                  // `until` usage) so this only counts calls from the test's own
+                  // fixture, regardless of how the stdlib itself uses `until`.
+                  let range = ast.arena.exprRange(exprID),
+                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             else {
                 return nil
             }
@@ -36,15 +70,17 @@ struct RangeUntilSyntheticMemberLinkTests {
     }
 
     @Test func testUntilOverloadsHaveExpectedSignaturesAndLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
+        let intRange = try #require(intRangeType(in: sema, interner: interner), "IntRange class type")
+        let longRange = try #require(longRangeType(in: sema, interner: interner), "LongRange class type")
         let untilSymbolIDs = untilSymbols(for: sema, interner: interner)
 
-        // Byte and Short collapse to intType internally; mixed Int/Long calls widen to Long.
-        let expected: [(receiver: TypeID, parameter: TypeID, returnType: TypeID, link: String)] = [
-            (sema.types.intType, sema.types.intType, sema.types.intType, "kk_op_rangeUntil"),
-            (sema.types.intType, sema.types.longType, sema.types.longType, "kk_op_rangeUntil"),
-            (sema.types.longType, sema.types.intType, sema.types.longType, "kk_op_rangeUntil"),
-            (sema.types.longType, sema.types.longType, sema.types.longType, "kk_op_rangeUntil"),
+        // Bundled Kotlin sources provide class-returning `until` extensions.
+        let expected: [(receiver: TypeID, parameter: TypeID, returnType: TypeID)] = [
+            (sema.types.intType, sema.types.intType, intRange),
+            (sema.types.intType, sema.types.longType, longRange),
+            (sema.types.longType, sema.types.intType, longRange),
+            (sema.types.longType, sema.types.longType, longRange),
         ]
 
         for entry in expected {
@@ -56,10 +92,10 @@ struct RangeUntilSyntheticMemberLinkTests {
                     && signature.parameterTypes == [entry.parameter]
                     && signature.returnType == entry.returnType
             }
-            let symbol = try #require(matchingSymbol, Comment(rawValue: "Expected until stub for \(entry.receiver)"))
+            let symbol = try #require(matchingSymbol, Comment(rawValue: "Expected until overload for \(entry.receiver)"))
             #expect(
-                sema.symbols.externalLinkName(for: symbol) == entry.link,
-                Comment(rawValue: "Expected \(entry.receiver).until to link to \(entry.link)")
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                Comment(rawValue: "Expected \(entry.receiver).until to be source-backed (no external link)")
             )
         }
     }
@@ -81,17 +117,20 @@ struct RangeUntilSyntheticMemberLinkTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let untilCalls = untilCallExprIDs(in: ast, interner: ctx.interner)
+        let untilCalls = untilCallExprIDs(in: ast, interner: ctx.interner, sourceManager: ctx.sourceManager)
 
         #expect(untilCalls.count == 6)
 
-        let expected: [(type: TypeID, link: String, isUIntRange: Bool, isULongRange: Bool)] = [
-            (sema.types.intType, "kk_op_rangeUntil", false, false),
-            (sema.types.intType, "kk_op_rangeUntil", false, false),
-            (sema.types.intType, "kk_op_rangeUntil", false, false),
-            (sema.types.longType, "kk_op_rangeUntil", false, false),
-            (sema.types.longType, "kk_op_rangeUntil", false, false),
-            (sema.types.longType, "kk_op_rangeUntil", false, false),
+        let intRange = try #require(intRangeType(in: sema, interner: ctx.interner), "IntRange class type")
+        let longRange = try #require(longRangeType(in: sema, interner: ctx.interner), "LongRange class type")
+
+        let expected: [(type: TypeID, link: String?, isUIntRange: Bool, isULongRange: Bool)] = [
+            (intRange, nil, false, false),
+            (intRange, nil, false, false),
+            (intRange, nil, false, false),
+            (longRange, nil, false, false),
+            (longRange, nil, false, false),
+            (longRange, nil, false, false),
         ]
 
         for (exprID, entry) in zip(untilCalls, expected) {
@@ -99,7 +138,7 @@ struct RangeUntilSyntheticMemberLinkTests {
             let chosen = binding.chosenCallee
             #expect(
                 sema.symbols.externalLinkName(for: chosen) == entry.link,
-                Comment(rawValue: "Expected until call to resolve to \(entry.link)")
+                Comment(rawValue: "Expected until call to be source-backed (no external link)")
             )
             #expect(
                 sema.bindings.exprType(for: exprID) == entry.type,

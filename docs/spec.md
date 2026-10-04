@@ -2,6 +2,12 @@
 
 実装レベルの API 仕様（Swift の型・関数・データフォーマットまで固定）を Phase ごとに "Doc" として提示する。これだけを参照すれば、外部ドキュメントを読まずとも（曖昧点は `kotlinc` による差分テストで確定させる前提で）完成まで走れる粒度を目指す。
 
+監査メモ（2026-07-02）：
+
+* この文書内の repo 内ファイル参照は、コード例の架空入力ファイルを除き、実在パスとして確認する。
+* 実装が先行している API では、該当する Sources 配下のファイルを source of truth とし、本書は現行の public surface と設計意図を同期する。
+* VS Code など個人 IDE 設定は追跡対象にしない。
+
 前提（この仕様書で固定する基準）：
 
 * **Kotlin 2.3.10 の stable 範囲**を対象（公式 Grammar は “latest stable で experimental 無効ルール除外” を明示） ([Kotlin][1])
@@ -47,30 +53,27 @@ Kotlin 2.3.0 で stable 化／既定有効化された要素は互換対象：
 
 ## J1.1 主要型（Swift）
 
+現行の public compiler option surface は `Sources/CompilerCore/Sema/Models/CompilerTypes.swift` を正とする。
+
 ```swift
-public struct CompilerVersion: Equatable {
-    public let major: Int, minor: Int, patch: Int
-    public let gitHash: String?
-}
-
-public enum KotlinLanguageVersion: Equatable {
-    case v2_3_10
-}
-
 public struct TargetTriple: Equatable {
-    public let arch: String         // "arm64" or "x86_64"
-    public let vendor: String       // "apple"
-    public let os: String           // "macosx"
+    public let arch: String         // "arm64" or "x86_64" in supported hosts
+    public let vendor: String       // "apple" or "unknown"
+    public let os: String           // "macosx" or "linux-gnu"
     public let osVersion: String?   // optional
+
+    public static func hostDefault() -> TargetTriple
 }
 
 public enum OptimizationLevel: Int { case O0, O1, O2, O3 }
+public enum EmitMode: String { case executable, object, llvmIR, kirDump, library }
+public enum DiagnosticsFormat: String { case text, json }
 
 public struct CompilerOptions: Equatable {
     public var moduleName: String
-    public var inputs: [String]              // paths
+    public var inputs: [String]              // .kt paths
     public var outputPath: String
-    public var emit: EmitMode                // exe/obj/llvm/kir
+    public var emit: EmitMode
     public var searchPaths: [String]         // -I
     public var libraryPaths: [String]        // -L
     public var linkLibraries: [String]       // -l
@@ -80,9 +83,20 @@ public struct CompilerOptions: Equatable {
     public var frontendFlags: [String]
     public var irFlags: [String]
     public var runtimeFlags: [String]
-}
+    public var diagnosticsFormat: DiagnosticsFormat
+    public var stdlibSearchPaths: [String]
+    public var includeStdlib: Bool
+    public var incrementalCachePath: String?
 
-public enum EmitMode { case executable, object, llvmIR, kirDump, library }
+    /// When true, compile only the bundled/residual stdlib into a .kklib.
+    public var stdlibOnly: Bool
+    /// Path to a prebuilt stdlib .kklib. Disables bundled source injection.
+    public var stdlibLibraryPath: String?
+    /// Search paths ordered with stdlibLibraryPath first and duplicates removed.
+    public var effectiveLibrarySearchPaths: [String]
+
+    public static func defaultStdlibSearchPaths() -> [String]
+}
 ```
 
 ## J1.2 コンパイルの “単位”
@@ -93,25 +107,37 @@ public enum EmitMode { case executable, object, llvmIR, kirDump, library }
 
 ## J1.3 パイプライン API（固定）
 
+`CompilerDriver` は `Sources/CompilerCore/Driver/Driver.swift` にあり、backend phase は `CompilerBackend` 側から注入する。
+
 ```swift
 public final class CompilerDriver {
-    public init(version: CompilerVersion, kotlinVersion: KotlinLanguageVersion)
+    public init(backendPhases: @escaping @Sendable () -> [CompilerPhase] = { [] })
 
     public func run(options: CompilerOptions) -> Int  // exit code
 }
 
-public final class CompilationContext {
+public final class CompilationContext: @unchecked Sendable {
     public let options: CompilerOptions
     public let sourceManager: SourceManager
     public let diagnostics: DiagnosticEngine
+    public let interner: StringInterner
 
-    public var tokens: [Token] = []
-    public var cst: SyntaxArena? = nil
-    public var ast: ASTModule? = nil
-    public var sema: SemaModule? = nil
-    public var kir: KIRModule? = nil
+    public internal(set) var tokens: [Token] = []
+    public internal(set) var tokensByFile: [(FileID, [Token])] = []
+    public internal(set) var syntaxTree: SyntaxArena? = nil
+    public internal(set) var syntaxTreeRoot: NodeID = .init()
+    public internal(set) var syntaxTrees: [(FileID, SyntaxArena, NodeID)] = []
+    public internal(set) var ast: ASTModule? = nil
+    public internal(set) var sema: SemaModule? = nil
+    public internal(set) var kir: KIRModule? = nil
+    public internal(set) var generatedObjectPath: String? = nil
+    public internal(set) var generatedLLVMIRPath: String? = nil
 }
 ```
+
+上記 `CompilationContext` はコアフィールドの抜粋。incremental compilation 系
+（`incrementalCache` / `incrementalRecompileSet` / `incrementalFrontendState` 等）や `phaseTimer` を含む
+全フィールドは `Sources/CompilerCore/Driver/CompilationContext.swift` を正とする。
 
 ## J1.4 Phase 実行プロトコル
 
@@ -122,17 +148,18 @@ public protocol CompilerPhase {
 }
 ```
 
-* `CompilerDriver` は以下順で Phase を実行し、失敗時は診断を出して停止：
+* `CompilerDriver` は以下順で frontend/core Phase を実行し、失敗時は診断を出して停止：
 
   1. LoadSources
   2. Lex
   3. Parse
   4. BuildAST
-  5. SemaPasses（複数）
+  5. Sema
   6. BuildKIR
-  7. Lowerings（複数）
-  8. Codegen
-  9. Link
+  7. Lowering
+
+* `emit == .kirDump` では driver が KIR dump を直接書き出す。
+* それ以外の backend は `Sources/CompilerBackend/BackendPhaseProvider.swift` の `makeBackendPhases()` が `Codegen` → `Link` を追加する。`Link` は `emit == .executable` の場合だけ動く。
 
 ---
 
@@ -183,6 +210,8 @@ public final class SourceManager {
 
 ## J2.3 DiagnosticEngine
 
+現行実装は `Sources/CompilerCore/Driver/Diagnostics.swift`。
+
 ```swift
 public enum DiagnosticSeverity { case error, warning, note, info }
 
@@ -192,19 +221,41 @@ public struct Diagnostic: Equatable {
     public let message: String
     public let primaryRange: SourceRange?
     public let secondaryRanges: [SourceRange]
+    public let codeActions: [DiagnosticCodeAction]
 }
 
-public final class DiagnosticEngine {
-    public private(set) var diagnostics: [Diagnostic] = []
+public final class DiagnosticEngine: @unchecked Sendable {
+    public static let defaultMaxDiagnosticsPerFile: Int   // 1_000
+    public var diagnostics: [Diagnostic] { get }
+
+    public init(maxDiagnosticsPerFile: Int = defaultMaxDiagnosticsPerFile)
 
     public func emit(_ d: Diagnostic)
-    public func error(_ code: String, _ message: String, range: SourceRange?)
-    public func warning(_ code: String, _ message: String, range: SourceRange?)
+    public func error(_ code: String, _ message: String, range: SourceRange?, codeActions: [DiagnosticCodeAction])
+    public func warning(_ code: String, _ message: String, range: SourceRange?, codeActions: [DiagnosticCodeAction])
+    public func note(_ code: String, _ message: String, range: SourceRange?, codeActions: [DiagnosticCodeAction])
+    public func info(_ code: String, _ message: String, range: SourceRange?, codeActions: [DiagnosticCodeAction])
     public var hasError: Bool { get }
+    public var hasWarning: Bool { get }
+    public var hasNote: Bool { get }
+    public var hasInfo: Bool { get }
+    public var errorCount: Int { get }
+    public var warningCount: Int { get }
+    public var noteCount: Int { get }
+    public var infoCount: Int { get }
+    public var count: Int { get }
+
+    public func addSuppression(code: String, range: SourceRange)
+    public func truncate(to count: Int)
+    public func sortBySourceLocation()
+    public func render(_ sourceManager: SourceManager) -> String
+    public func printDiagnostics(format: DiagnosticsFormat, from sourceManager: SourceManager)
 }
 ```
 
-表示フォーマットは Doc 0 の通り。
+表示フォーマットは human-readable text と LSP-compatible JSON（`DiagnosticsFormat`）を持つ。
+
+重複検査は `Set` による平均 O(1) で、ファイル (`primaryRange.start.file`、range なしは共通バケット) ごとに `maxDiagnosticsPerFile` 件まで保持する。上限超過分は破棄し、ファイルごとに 1 件だけ `KSWIFTK-PIPELINE-0005` の打ち切り diagnostic を発行する（破棄物に `.error` が含まれた時点で notice も `.error` に昇格し、error 喪失時に exit code が成功にならないことを保証する）。
 
 ---
 
@@ -216,11 +267,16 @@ public final class DiagnosticEngine {
 * `String` 比較を避け、`Int32` 比較に寄せる。
 
 ```swift
-public struct InternedString: Hashable { public let rawValue: Int32 }
+public struct InternedString: Hashable, Sendable, Codable {
+    public let rawValue: Int32
+    public static let invalid: InternedString
+}
 
-public final class StringInterner {
+public final class StringInterner: @unchecked Sendable {
     public func intern(_ s: String) -> InternedString
     public func resolve(_ id: InternedString) -> String
+    public func snapshotValues() -> [String]
+    public func preload(_ strings: [String])
 }
 ```
 
@@ -237,6 +293,8 @@ Kotlin の lexical/syntax ルールは spec と公式 grammar を基準にする
 実装時の参照として Kotlin spec の ANTLR lexer 定義（KotlinLexer.g4）も利用可能（ただしコード生成はしない）。 ([GitHub][7])
 
 ## J4.1 Token モデル
+
+現行実装は `Sources/CompilerCore/Lexer/TokenModel.swift`。
 
 ```swift
 public enum TriviaPiece: Equatable {
@@ -257,18 +315,23 @@ public enum TokenKind: Equatable {
 
     case intLiteral(String)    // raw text (後で数値化)
     case longLiteral(String)
+    case uintLiteral(String)
+    case ulongLiteral(String)
     case floatLiteral(String)
     case doubleLiteral(String)
     case charLiteral(UInt32)   // unicode scalar
     case stringSegment(InternedString) // "abc" の literal 部分
     case stringQuote           // "
     case rawStringQuote        // """
+    case multiDollarStringQuote(dollarCount: Int)
+    case multiDollarRawStringQuote(dollarCount: Int)
     case templateExprStart     // ${
     case templateExprEnd       // }
     case templateSimpleNameStart // $name
 
     case symbol(Symbol)        // operators & punctuators
     case eof
+    indirect case missing(expected: TokenKind)
 }
 
 public struct Token: Equatable {
@@ -769,25 +832,8 @@ public protocol KIRPass {
 
 ## J12.1 パス順（固定）
 
-1. TailrecLowering（tailrec 関数のループ変換）
-2. NormalizeBlocks
-3. OperatorLowering
-4. ForLowering（iterator/hasNext/next）
-5. CollectionLiteralLowering
-6. FlowLowering（Kotlin Flow 構築・変換）
-7. ValueClassUnboxing（value class アンボクシング）
-8. PropertyLowering（backing field / delegated）
-9. StdlibDelegateLowering（lazy/observable/vetoable delegate）
-10. JvmStaticLowering（@JvmStatic）
-11. JvmOverloadsLowering（@JvmOverloads）
-12. DataEnumSealedSynthesis
-13. EnumEntriesLowering（enum entries プロパティ合成）
-14. EnumNameAccessLowering（enum name アクセス展開）
-15. LambdaClosureConversion
-16. InlineLowering
-17. CoroutineLowering
-18. IntegerNarrowing（整数型ナローイング最適化）
-19. ABILowering（boxing/exception channel/vtable slots）
+パス一覧と実行順序は `Sources/CompilerCore/Lowering/LoweringPhase.swift` の `passes` 配列を単一の正とする。
+現行の一覧・順序依存の注記は [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) の「Lowering パス実行順序」を参照（本書では二重管理しない）。
 
 ## J12.2 各 lowering の “入力/出力条件”
 
@@ -895,46 +941,76 @@ Foo.kklib/
 }
 ```
 
+`--stdlib-only --emit library` artifacts add the following required fields:
+
+```json
+{
+  "libraryKind": "stdlib",
+  "stdlibManifestHash": "<hash>"
+}
+```
+
+The stdlib artifact's `target`, metadata file, object list, and inline-KIR
+directory are validated before import. A missing or mismatched field is a
+hard error; the compiler does not fall back to injecting bundled sources.
+
 ## J14.3 `metadata.bin`（最小要件）
 
 * public API の “ヘッダ情報” を入れる（型・シグネチャ・vtable slot・field offsets）
 * inline 関数は body を `inline-kir/` に保存し、import 側がインライン展開できるようにする。
+* inline `reified` 関数では、呼び出し側が hidden type-token 引数を追加するため、metadata に reified 型パラメータのインデックス（`reified=...`）も含める。
 
-**注意**：この方式は Kotlin の inline を跨モジュールで成立させるために必須。
+**注意**：この方式は Kotlin の inline / reified を跨モジュールで成立させるために必須。
 
 ---
 
-# Doc J15: LLVM Backend API（`LLVMBackend`）
+# Doc J15: LLVM Backend 実装境界（`CompilerBackend`）
 
 ## J15.1 依存と目標
 
 * Swift から LLVM C API を呼ぶ（modulemap + SwiftPM）。
-* 出力：Mach-O object（.o）→ clang で link。
+* 出力：object（.o）または LLVM IR（.ll）。executable では `LinkPhase` が `swiftc` を呼ぶ。
+* `LLVMBackend` は `CompilerBackend` target 内部型であり、`CompilerCore` の public API にはしない。
 
 ## J15.2 Backend の主要型
 
+現行実装は `Sources/CompilerBackend/LLVMBackend.swift`、phase 接続は `Sources/CompilerBackend/CodegenPhase.swift` / `Sources/CompilerBackend/LinkPhase.swift`。
+
 ```swift
-public final class LLVMBackend {
-    public init(target: TargetTriple,
-                optLevel: OptimizationLevel,
-                debugInfo: Bool,
-                diagnostics: DiagnosticEngine)
+final class LLVMBackend {
+    init(
+        target: TargetTriple,
+        optLevel: OptimizationLevel,
+        debugInfo: Bool,
+        diagnostics: DiagnosticEngine
+    ) throws
 
-    public func emitObject(module: KIRModule,
-                           runtime: RuntimeLinkInfo,
-                           outputObjectPath: String) throws
+    func emitObject(
+        module: KIRModule,
+        outputObjectPath: String,
+        interner: StringInterner,
+        sourceManager: SourceManager?,
+        fileFacadeNamesByFileID: [Int32: String],
+        reflectionMetadataRecords: [MetadataRecord],
+        reflectionMetadataSymbolPrefix: String?,
+        linkOnceODRSymbols: Set<SymbolID>
+    ) throws
 
-    public func emitLLVMIR(module: KIRModule,
-                           runtime: RuntimeLinkInfo,
-                           outputIRPath: String) throws
-}
-
-public struct RuntimeLinkInfo {
-    public let libraryPaths: [String]
-    public let libraries: [String]     // -lKotlinRuntime 等
-    public let extraObjects: [String]
+    func emitLLVMIR(
+        module: KIRModule,
+        outputIRPath: String,
+        interner: StringInterner,
+        sourceManager: SourceManager?,
+        fileFacadeNamesByFileID: [Int32: String],
+        reflectionMetadataRecords: [MetadataRecord],
+        reflectionMetadataSymbolPrefix: String?
+    ) throws
 }
 ```
+
+`RuntimeLinkInfo` 型は存在しない。link に必要な library/search path は `CompilerOptions` が保持し、runtime object discovery と executable link は `LinkPhase` が担当する。
+
+`LinkPhase` が生成するエントリラッパ（`LLVMEntryPointObjectEmitter`）の終了ステータス規約: 正常終了は常に `0`、未捕捉例外は `1`（`KSWIFTK-LINK-0003` を stderr に出力）。`main` 自身の戻り値は終了ステータスに使わない — Kotlin で非ゼロを返す手段は `kotlin.system.exitProcess` だけであり、これは `__kk_system_exitProcess`（`Never`）としてプロセスを直接終了させるためラッパを通らない。なお kotlinc は戻り値型が `Unit` でない `main` をエントリポイントと認めない（`Main-Class` なしの jar を出す）が、kswiftc はこれを受理して値を捨てる: `runBlocking` / `coroutineScope` / `Deferred.await` を `Any` 返しとしてモデル化している都合上、`fun main() = runBlocking { ... }` は本体に関わらず非 `Unit` になるため、拒否すると正当なコードが通らなくなる。
 
 ## J15.3 文字列・配列・例外・コルーチンの呼び出し境界
 
@@ -984,8 +1060,8 @@ public struct KTypeInfo {
 ### 例外
 
 ```swift
-@_cdecl("kk_throwable_new")
-public func kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer
+@_cdecl("__kk_throwable_new")
+public func __kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer
 ```
 
 ### 文字列
@@ -1013,7 +1089,7 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?)
   * globals（singleton/object/companion）
   * thread stacks：**Kotlin フレームマップ**により列挙
   * coroutines：Continuation オブジェクトから辿れる参照も root 扱い
-* 各関数は compile 時に “GC root map” を生成し、runtime に登録する（例：`kk_register_frame_map(functionId, mapPtr)`）
+* 各関数は compile 時に “GC root map” を生成し、runtime に登録する（例：`kk_register_frame_map(functionId, mapPtr)`）（現状は未配線。ARCH-014 で emit 停止、再導入方針は docs/arch-014-frame-map-emission.md）
 
 ## J16.3 オブジェクト header（固定）
 
@@ -1121,21 +1197,23 @@ KIR で `isSuspend = true` の関数。
 
 ---
 
-# Doc J19: Coverage Gate（SwiftPM）
+# Doc J19: Coverage Hygiene（SwiftPM）
 
 ## J19.1 目的
 
-* `CompilerCore` の優先8ファイルに対して、行カバレッジ 80% 以上を継続的に保証する。
+* `CompilerCore` の優先8ファイルに対して、行カバレッジを継続的に監視する。
+* 2026-07-02 時点では専用の tracked gate script は存在しない。未追跡の coverage script や環境変数を前提にしない。
 
 ## J19.2 実行コマンド
 
 ```bash
-bash Scripts/check_coverage.sh
+swift test --enable-code-coverage
+swift test --show-codecov-path
 ```
 
 ## J19.3 判定ルール
 
-* 対象:
+* 優先監視対象:
   * `Sources/CompilerCore/Lexer/TokenStream.swift`
   * `Sources/CompilerCore/Driver/SourceManager.swift`
   * `Sources/CompilerCore/Sema/Resolution/ConstraintSolver.swift`
@@ -1144,5 +1222,4 @@ bash Scripts/check_coverage.sh
   * `Sources/CompilerCore/Sema/Models/CompilerTypes.swift`
   * `Sources/CompilerCore/Lexer/TokenModel.swift`
   * `Sources/CompilerCore/AST/ASTModels.swift`
-* しきい値: 80%（`COVERAGE_THRESHOLD` で上書き可）
-* いずれか1ファイルでも未達なら `exit 1`
+* しきい値を CI gate 化する場合は、`--show-codecov-path` が出力する JSON を parse する tracked script を追加してから、この節へ script 名と環境変数を戻す。

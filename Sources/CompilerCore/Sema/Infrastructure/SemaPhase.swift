@@ -1,15 +1,15 @@
 
-final class SemaPhase: CompilerPhase {
-    static let name = "Sema"
+public final class SemaPhase: CompilerPhase {
+    public static let name = "Sema"
 
     private let passes: [CompilerPhase] = [
         DataFlowSemaPhase(),
         TypeCheckSemaPhase(),
     ]
 
-    init() {}
+    public init() {}
 
-    func run(_ ctx: CompilationContext) throws {
+    public func run(_ ctx: CompilationContext) throws {
         guard ctx.ast != nil else {
             throw CompilerPipelineError.invalidInput("AST phase did not run.")
         }

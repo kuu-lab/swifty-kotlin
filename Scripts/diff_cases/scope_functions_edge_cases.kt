@@ -1,4 +1,3 @@
-// SKIP-DIFF
 fun traceValue(tag: String): String {
     println("value:$tag")
     return tag

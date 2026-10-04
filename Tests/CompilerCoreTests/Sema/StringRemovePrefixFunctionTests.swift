@@ -1,11 +1,11 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-050: Validates that `CharSequence.removePrefix(prefix)` resolves
+/// STDLIB-TEXT-FN-050 / KSP-404: Validates that `String.removePrefix(prefix)` resolves
 /// through Sema for `String` receivers across several invocation shapes (variable,
-/// literal, chained call, and conditional contexts). The synthetic stub is
-/// registered in `HeaderHelpers+SyntheticStringStubs.swift` and lowered to the
-/// runtime helper `kk_string_removePrefix` defined in `RuntimeStringStdlib.swift`.
+/// literal, chained call, and conditional contexts). The function is bundled Kotlin
+/// source (`Stdlib/kotlin/text/StringPrefixSuffix.kt`) and therefore carries no
+/// runtime external link.
 @Suite
 struct StringRemovePrefixFunctionTests {
     @Test func testRemovePrefixResolvesInSource() throws {
@@ -36,30 +36,19 @@ struct StringRemovePrefixFunctionTests {
             errors.isEmpty,
             "Expected removePrefix to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    /// Confirms the synthetic stub for `String.removePrefix(prefix)` is registered
-    /// with the expected runtime link name and `String -> String` shape.
-    @Test func testRemovePrefixResolvesToRuntimeLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "removePrefix"].map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes == [sema.types.stringType]
-            })
-            #expect(
-                sema.symbols.externalLinkName(for: symbol) == "kk_string_removePrefix"
-            )
-            #expect(
-                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
-                "String.removePrefix(prefix) should return String"
-            )
-        }
+        let sema = try #require(ctx.sema)
+        let fq = ["kotlin", "text", "removePrefix"].map { ctx.interner.intern($0) }
+        let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == sema.types.stringType
+                && signature.returnType == sema.types.stringType
+        })
+        #expect(
+            sema.symbols.externalLinkName(for: symbol) == nil,
+            "String.removePrefix should be source-backed (no runtime link) after KSP-404"
+        )
     }
 }

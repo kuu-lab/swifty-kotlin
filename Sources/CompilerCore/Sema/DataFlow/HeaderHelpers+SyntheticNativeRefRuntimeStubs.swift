@@ -6,17 +6,22 @@
 /// type-checking, and opt-in diagnostics work correctly without any runtime
 /// edits:
 ///
-/// - `kotlin.native.ref.WeakReference<T>` — generic weak-reference wrapper.
-/// - `kotlin.native.ref.createCleaner` — top-level factory function tagged
-///   with `@ExperimentalNativeApi`.
+/// - residual `WeakReference<T>` members, retained as a no-op fallback now
+///   that the constructor (KSP-1255) and members (KSP-1256) are source-backed
+///   in Weak.kt; the bundled-declaration check short-circuits registration.
+/// - residual `createCleaner` bridge only when its bundled source declaration
+///   is absent.
 /// - `kotlin.native.runtime.NativeRuntimeApi` — runtime opt-in marker.
-/// - `kotlin.native.runtime.GC` — object providing GC controls, tagged with
-///   `@NativeRuntimeApi`.
+/// - `kotlin.native.runtime.GC` needs no stub here: it is fully source-backed
+///   (see GC.kt), including its own `@NativeRuntimeApi` annotation, so it is
+///   registered by ordinary header collection like any other bundled object.
 /// - `kotlin.native.runtime.RootSetStatistics` — GC root-set statistics DTO.
 /// - `kotlin.native.runtime.SweepStatistics` — GC sweep statistics DTO.
 /// - `kotlin.native.runtime.GCInfo` — GC statistics DTO surface.
-/// - `kotlin.native.runtime.Debugging` — object exposing debug helpers, tagged
-///   with `@NativeRuntimeApi`.
+///
+/// `kotlin.native.runtime.Debugging` is fully source-backed (KSP-1260,
+/// `Stdlib/kotlin/native/runtime/Debugging.kt`) and registers no synthetic
+/// stub here.
 ///
 /// All symbols are compile-time stubs only.  No runtime code is generated or
 /// modified by this registration.
@@ -41,10 +46,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let nativeRuntimeApiSymbol = registerNativeRuntimeApiAnnotation(
-            packageFQName: nativeRuntimePkg,
-            symbols: symbols,
-            interner: interner
+        let nativeRuntimeApiSymbol = symbols.lookup(
+            fqName: nativeRuntimePkg + [interner.intern("NativeRuntimeApi")]
         )
 
         // Ensure ExperimentalNativeApi is a RequiresOptIn marker so that
@@ -65,14 +68,6 @@ extension DataFlowSemaPhase {
         registerCreateCleanerStub(
             packageFQName: nativeRefPkg,
             experimentalNativeApiSymbol: experimentalNativeApiSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerGCObjectStub(
-            packageFQName: nativeRuntimePkg,
-            nativeRuntimeApiSymbol: nativeRuntimeApiSymbol,
             symbols: symbols,
             types: types,
             interner: interner
@@ -102,13 +97,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerDebuggingObjectStub(
-            packageFQName: nativeRuntimePkg,
-            nativeRuntimeApiSymbol: nativeRuntimeApiSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     // MARK: - WeakReference<T>
@@ -142,15 +130,16 @@ extension DataFlowSemaPhase {
         }
 
         // Tag WeakReference itself with @ExperimentalNativeApi so that
-        // callers must opt in.
-        if let experimentalNativeApiSymbol {
-            attachExperimentalNativeApi(
-                to: classSymbol,
-                markerFQName: symbols.symbol(experimentalNativeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
+        // callers must opt in.  The marker is declared in bundled Kotlin
+        // source, so fall back to its fully-qualified name when the symbol
+        // is not yet registered at synthetic-stub time.
+        attachExperimentalNativeApi(
+            to: classSymbol,
+            markerFQName: experimentalNativeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.experimental.ExperimentalNativeApi",
+            symbols: symbols
+        )
 
         // Set up the single type-parameter T (inline, as the NativeInterop
         // helper is private).
@@ -183,102 +172,20 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: classSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: classSymbol)
 
-        registerWeakReferenceConstructor(
-            ownerSymbol: classSymbol,
+        let weakReferenceContext = SyntheticStubRegistrationContext(
             ownerFQName: classFQName,
-            ownerType: ownerType,
-            valueType: tType,
-            typeParameterSymbol: typeParamSymbol,
+            parentSymbol: classSymbol,
+            typeParameterSymbolsByName: ["T": typeParamSymbol]
+        )
+        // KSP-1255: the public constructor is now source-backed in Weak.kt
+        // (`@KsSymbolName("kk_weak_ref_create") constructor(referred: T)`);
+        // no synthetic constructor registration is needed here anymore.
+        registerSyntheticFunctionStubs(
+            SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceMembers,
+            context: weakReferenceContext,
             symbols: symbols,
+            types: types,
             interner: interner
-        )
-
-        let nullableTType = types.makeNullable(tType)
-        registerSimpleMember(
-            named: "get",
-            ownerSymbol: classSymbol,
-            ownerFQName: classFQName,
-            ownerType: ownerType,
-            parameterTypes: [],
-            parameterNames: [],
-            returnType: nullableTType,
-            externalLinkName: "kk_weak_ref_get",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSimpleMember(
-            named: "clear",
-            ownerSymbol: classSymbol,
-            ownerFQName: classFQName,
-            ownerType: ownerType,
-            parameterTypes: [],
-            parameterNames: [],
-            returnType: types.unitType,
-            externalLinkName: "kk_weak_ref_clear",
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    private func registerWeakReferenceConstructor(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        ownerType: TypeID,
-        valueType: TypeID,
-        typeParameterSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerFQName + [initName]
-        let hasMatch = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .constructor,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.parameterTypes == [valueType]
-                && signature.returnType == ownerType
-        }
-        guard !hasMatch else {
-            return
-        }
-
-        let ctorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: ctorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-        symbols.setExternalLinkName("kk_weak_ref_create", for: ctorSymbol)
-
-        let valueParamName = interner.intern("value")
-        let valueParamSymbol = symbols.define(
-            kind: .valueParameter,
-            name: valueParamName,
-            fqName: ctorFQName + [valueParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ctorSymbol, for: valueParamSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [valueType],
-                returnType: ownerType,
-                valueParameterSymbols: [valueParamSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParameterSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: ctorSymbol
         )
     }
 
@@ -294,6 +201,18 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern("createCleaner")
         let functionFQName = packageFQName + [functionName]
         let pkgSymbol = symbols.lookup(fqName: packageFQName)
+
+        // KSP-1254 supplies the exact generic source declaration. Keep the
+        // runtime bridge only for configurations that do not load bundled
+        // Kotlin source; do not leave an Any-based synthetic duplicate beside
+        // the source-backed function.
+        guard !BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: packageFQName,
+            name: functionName,
+            arity: 2
+        ) else {
+            return
+        }
 
         // Avoid double-registration.
         guard symbols.lookupAll(fqName: functionFQName).isEmpty else {
@@ -313,18 +232,19 @@ extension DataFlowSemaPhase {
         }
         symbols.setExternalLinkName("kk_cleaner_create", for: functionSymbol)
 
-        // Tag with @ExperimentalNativeApi.
-        if let experimentalNativeApiSymbol {
-            attachExperimentalNativeApi(
-                to: functionSymbol,
-                markerFQName: symbols.symbol(experimentalNativeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
+        // Tag with @ExperimentalNativeApi.  The marker is declared in bundled
+        // Kotlin source, so fall back to its fully-qualified name when the
+        // symbol is not yet registered at synthetic-stub time.
+        attachExperimentalNativeApi(
+            to: functionSymbol,
+            markerFQName: experimentalNativeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.experimental.ExperimentalNativeApi",
+            symbols: symbols
+        )
 
-        // createCleaner<T>(value: T, block: (T) -> Unit): Cleaner
-        // We use `Any` as a simple approximation for T and the Cleaner return type.
+        // Legacy fallback only. The bundled source declaration carries the
+        // exact generic T and Cleaner signature whenever it is available.
         let anyType = types.anyType
         let blockType = types.make(.functionType(FunctionType(
             params: [anyType],
@@ -363,115 +283,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - GC object
-
-    private func registerGCObjectStub(
-        packageFQName: [InternedString],
-        nativeRuntimeApiSymbol: SymbolID?,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let objectName = interner.intern("GC")
-        let objectFQName = packageFQName + [objectName]
-        let pkgSymbol = symbols.lookup(fqName: packageFQName)
-
-        let objectSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: objectFQName) {
-            objectSymbol = existing
-        } else {
-            objectSymbol = symbols.define(
-                kind: .object,
-                name: objectName,
-                fqName: objectFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if let pkgSymbol {
-            symbols.setParentSymbol(pkgSymbol, for: objectSymbol)
-        }
-
-        let objectType = types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(objectType, for: objectSymbol)
-
-        // Tag with @NativeRuntimeApi.
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: objectSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        // GC.collect(): Unit
-        registerSimpleMember(
-            named: "collect",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            ownerType: objectType,
-            parameterTypes: [],
-            parameterNames: [],
-            returnType: types.unitType,
-            externalLinkName: "kk_gc_collect",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // GC.schedule(): Unit
-        registerSimpleMember(
-            named: "schedule",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            ownerType: objectType,
-            parameterTypes: [],
-            parameterNames: [],
-            returnType: types.unitType,
-            externalLinkName: "kk_gc_schedule",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // GC.targetHeapBytes: Long
-        registerSimpleProperty(
-            named: "targetHeapBytes",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            propertyType: types.longType,
-            externalLinkName: "kk_gc_target_heap_bytes",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // GC.targetHeapUtilization: Double
-        registerSimpleProperty(
-            named: "targetHeapUtilization",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            propertyType: types.doubleType,
-            externalLinkName: "kk_gc_target_heap_utilization",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // GC.maxHeapBytes: Long
-        registerSimpleProperty(
-            named: "maxHeapBytes",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            propertyType: types.longType,
-            externalLinkName: "kk_gc_max_heap_bytes",
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
     // MARK: - RootSetStatistics class
 
     private func registerRootSetStatisticsStub(
@@ -488,42 +299,13 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: classSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        let classFQName = packageFQName + [interner.intern("RootSetStatistics")]
-        let classType = nominalType(classSymbol, types: types)
-        let properties: [(name: String, type: TypeID)] = [
-            ("threadLocalReferences", types.longType),
-            ("stackReferences", types.longType),
-            ("globalReferences", types.longType),
-            ("stableReferences", types.longType),
-        ]
-
-        registerSimpleConstructor(
-            ownerSymbol: classSymbol,
-            ownerFQName: classFQName,
-            ownerType: classType,
-            parameters: properties,
-            symbols: symbols,
-            interner: interner
+        attachNativeRuntimeApi(
+            to: classSymbol,
+            markerFQName: nativeRuntimeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.native.runtime.NativeRuntimeApi",
+            symbols: symbols
         )
-        for property in properties {
-            registerSimpleProperty(
-                named: property.name,
-                ownerSymbol: classSymbol,
-                ownerFQName: classFQName,
-                propertyType: property.type,
-                symbols: symbols,
-                interner: interner
-            )
-        }
     }
 
     // MARK: - SweepStatistics class
@@ -542,40 +324,14 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: classSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        let classFQName = packageFQName + [interner.intern("SweepStatistics")]
-        let classType = nominalType(classSymbol, types: types)
-        let properties: [(name: String, type: TypeID)] = [
-            ("sweptCount", types.longType),
-            ("keptCount", types.longType),
-        ]
-
-        registerSimpleConstructor(
-            ownerSymbol: classSymbol,
-            ownerFQName: classFQName,
-            ownerType: classType,
-            parameters: properties,
-            symbols: symbols,
-            interner: interner
+        attachNativeRuntimeApi(
+            to: classSymbol,
+            markerFQName: nativeRuntimeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.native.runtime.NativeRuntimeApi",
+            symbols: symbols
         )
-        for property in properties {
-            registerSimpleProperty(
-                named: property.name,
-                ownerSymbol: classSymbol,
-                ownerFQName: classFQName,
-                propertyType: property.type,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+
     }
 
     // MARK: - GCInfo class
@@ -594,14 +350,14 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let rootSetStatisticsSymbol = ensureNativeRuntimeClassStub(
+        _ = ensureNativeRuntimeClassStub(
             named: "RootSetStatistics",
             packageFQName: packageFQName,
             symbols: symbols,
             types: types,
             interner: interner
         )
-        let sweepStatisticsSymbol = ensureNativeRuntimeClassStub(
+        _ = ensureNativeRuntimeClassStub(
             named: "SweepStatistics",
             packageFQName: packageFQName,
             symbols: symbols,
@@ -616,191 +372,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: gcInfoSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-            attachNativeRuntimeApi(
-                to: memoryUsageSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        let gcInfoFQName = packageFQName + [interner.intern("GCInfo")]
-        let memoryUsageFQName = packageFQName + [interner.intern("MemoryUsage")]
-        let gcInfoType = nominalType(gcInfoSymbol, types: types)
-        let rootSetStatisticsType = nominalType(rootSetStatisticsSymbol, types: types)
-        let sweepStatisticsType = nominalType(sweepStatisticsSymbol, types: types)
-        let memoryUsageType = nominalType(memoryUsageSymbol, types: types)
-        let nullableLongType = types.makeNullable(types.longType)
-        let sweepStatisticsMapType = mapOfStringTo(
-            sweepStatisticsType,
-            symbols: symbols,
-            types: types,
-            interner: interner
+        let nativeRuntimeApiFQName = nativeRuntimeApiSymbol.flatMap {
+            symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        } ?? "kotlin.native.runtime.NativeRuntimeApi"
+        attachNativeRuntimeApi(
+            to: gcInfoSymbol,
+            markerFQName: nativeRuntimeApiFQName,
+            symbols: symbols
         )
-        let memoryUsageMapType = mapOfStringTo(
-            memoryUsageType,
-            symbols: symbols,
-            types: types,
-            interner: interner
+        attachNativeRuntimeApi(
+            to: memoryUsageSymbol,
+            markerFQName: nativeRuntimeApiFQName,
+            symbols: symbols
         )
 
-        let gcInfoProperties: [(name: String, type: TypeID)] = [
-            ("epoch", types.longType),
-            ("startTimeNs", types.longType),
-            ("endTimeNs", types.longType),
-            ("firstPauseRequestTimeNs", types.longType),
-            ("firstPauseStartTimeNs", types.longType),
-            ("firstPauseEndTimeNs", types.longType),
-            ("secondPauseRequestTimeNs", nullableLongType),
-            ("secondPauseStartTimeNs", nullableLongType),
-            ("secondPauseEndTimeNs", nullableLongType),
-            ("postGcCleanupTimeNs", nullableLongType),
-            ("rootSet", rootSetStatisticsType),
-            ("markedCount", types.longType),
-            ("sweepStatistics", sweepStatisticsMapType),
-            ("memoryUsageBefore", memoryUsageMapType),
-            ("memoryUsageAfter", memoryUsageMapType),
-        ]
-
-        registerSimpleConstructor(
-            ownerSymbol: gcInfoSymbol,
-            ownerFQName: gcInfoFQName,
-            ownerType: gcInfoType,
-            parameters: gcInfoProperties,
-            symbols: symbols,
-            interner: interner
-        )
-        for property in gcInfoProperties {
-            registerSimpleProperty(
-                named: property.name,
-                ownerSymbol: gcInfoSymbol,
-                ownerFQName: gcInfoFQName,
-                propertyType: property.type,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        let memoryUsageProperties: [(name: String, type: TypeID)] = [
-            ("totalObjectsSizeBytes", types.longType),
-        ]
-        registerSimpleConstructor(
-            ownerSymbol: memoryUsageSymbol,
-            ownerFQName: memoryUsageFQName,
-            ownerType: memoryUsageType,
-            parameters: memoryUsageProperties,
-            symbols: symbols,
-            interner: interner
-        )
-        for property in memoryUsageProperties {
-            registerSimpleProperty(
-                named: property.name,
-                ownerSymbol: memoryUsageSymbol,
-                ownerFQName: memoryUsageFQName,
-                propertyType: property.type,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-    }
-
-    // MARK: - Debugging object
-
-    private func registerDebuggingObjectStub(
-        packageFQName: [InternedString],
-        nativeRuntimeApiSymbol: SymbolID?,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let objectName = interner.intern("Debugging")
-        let objectFQName = packageFQName + [objectName]
-        let pkgSymbol = symbols.lookup(fqName: packageFQName)
-
-        let objectSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: objectFQName) {
-            objectSymbol = existing
-        } else {
-            objectSymbol = symbols.define(
-                kind: .object,
-                name: objectName,
-                fqName: objectFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if let pkgSymbol {
-            symbols.setParentSymbol(pkgSymbol, for: objectSymbol)
-        }
-
-        let objectType = types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(objectType, for: objectSymbol)
-
-        // Tag with @NativeRuntimeApi.
-        if let nativeRuntimeApiSymbol {
-            attachNativeRuntimeApi(
-                to: objectSymbol,
-                markerFQName: symbols.symbol(nativeRuntimeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
-
-        // Debugging.isThreadStateRunnable: Boolean
-        registerSimpleProperty(
-            named: "isThreadStateRunnable",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            propertyType: types.booleanType,
-            externalLinkName: "kk_debugging_is_thread_state_runnable",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Debugging.gcSuspendCount: Int
-        registerSimpleProperty(
-            named: "gcSuspendCount",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            propertyType: types.intType,
-            externalLinkName: "kk_debugging_gc_suspend_count",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Debugging.threadCount: Int
-        registerSimpleProperty(
-            named: "threadCount",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            propertyType: types.intType,
-            externalLinkName: "kk_debugging_thread_count",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Debugging.globalObjectCount: Int
-        registerSimpleProperty(
-            named: "globalObjectCount",
-            ownerSymbol: objectSymbol,
-            ownerFQName: objectFQName,
-            propertyType: types.intType,
-            externalLinkName: "kk_debugging_global_object_count",
-            symbols: symbols,
-            interner: interner
-        )
     }
 
     /// Attaches `@RequiresOptIn` to `ExperimentalNativeApi` so the opt-in
@@ -832,61 +417,6 @@ extension DataFlowSemaPhase {
         let fqName = ["kotlin", "experimental", "ExperimentalNativeApi"]
             .map { interner.intern($0) }
         return symbols.lookup(fqName: fqName)
-    }
-
-    private func registerNativeRuntimeApiAnnotation(
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> SymbolID {
-        let annotationSymbol = ensureAnnotationClassSymbol(
-            named: "NativeRuntimeApi",
-            in: packageFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if let pkgSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(pkgSymbol, for: annotationSymbol)
-        }
-
-        var annotations = symbols.annotations(for: annotationSymbol)
-        let requiresOptInRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.RequiresOptIn",
-            arguments: ["level=RequiresOptIn.Level.ERROR"]
-        )
-        if !annotations.contains(requiresOptInRecord) {
-            annotations.append(requiresOptInRecord)
-        }
-
-        let targetRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.annotation.Target",
-            arguments: [
-                "AnnotationTarget.CLASS",
-                "AnnotationTarget.ANNOTATION_CLASS",
-                "AnnotationTarget.PROPERTY",
-                "AnnotationTarget.FIELD",
-                "AnnotationTarget.LOCAL_VARIABLE",
-                "AnnotationTarget.VALUE_PARAMETER",
-                "AnnotationTarget.CONSTRUCTOR",
-                "AnnotationTarget.FUNCTION",
-                "AnnotationTarget.PROPERTY_GETTER",
-                "AnnotationTarget.PROPERTY_SETTER",
-                "AnnotationTarget.TYPEALIAS",
-            ]
-        )
-        if !annotations.contains(targetRecord) {
-            annotations.append(targetRecord)
-        }
-
-        let retentionRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.annotation.Retention",
-            arguments: ["AnnotationRetention.BINARY"]
-        )
-        if !annotations.contains(retentionRecord) {
-            annotations.append(retentionRecord)
-        }
-        symbols.setAnnotations(annotations, for: annotationSymbol)
-        return annotationSymbol
     }
 
     /// Attaches a `@ExperimentalNativeApi` annotation record to the given
@@ -955,181 +485,5 @@ extension DataFlowSemaPhase {
         }
         symbols.setPropertyType(nominalType(classSymbol, types: types), for: classSymbol)
         return classSymbol
-    }
-
-    private func mapOfStringTo(
-        _ valueType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let mapFQName = ["kotlin", "collections", "Map"].map { interner.intern($0) }
-        guard let mapSymbol = symbols.lookup(fqName: mapFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: mapSymbol,
-            args: [.out(types.stringType), .out(valueType)],
-            nullability: .nonNull
-        )))
-    }
-
-    private func registerSimpleConstructor(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        ownerType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerFQName + [initName]
-        let parameterTypes = parameters.map(\.type)
-        let existing = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.parameterTypes == parameterTypes
-                && signature.returnType == ownerType
-        }
-        guard !existing else {
-            return
-        }
-
-        let ctorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: ctorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let paramName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: paramName,
-                fqName: ctorFQName + [paramName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(ctorSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameterTypes,
-                returnType: ownerType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
-                valueParameterIsVararg: Array(repeating: false, count: parameters.count)
-            ),
-            for: ctorSymbol
-        )
-    }
-
-    /// Registers a simple property on `ownerSymbol`.
-    private func registerSimpleProperty(
-        named name: String,
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        propertyType: TypeID,
-        externalLinkName: String? = nil,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerFQName + [propertyName]
-
-        guard symbols.lookup(fqName: propertyFQName) == nil else {
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(propertyType, for: propertySymbol)
-        if let externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        }
-    }
-
-    /// Registers a simple member function on `ownerSymbol`.
-    private func registerSimpleMember(
-        named name: String,
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        ownerType: TypeID,
-        parameterTypes: [TypeID],
-        parameterNames: [String],
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let memberName = interner.intern(name)
-        let memberFQName = ownerFQName + [memberName]
-
-        guard symbols.lookupAll(fqName: memberFQName).first(where: { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
-            }
-            return sig.receiverType == ownerType
-                && sig.parameterTypes == parameterTypes
-                && sig.returnType == returnType
-        }) == nil else {
-            return
-        }
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for (idx, paramType) in parameterTypes.enumerated() {
-            let paramName = interner.intern(idx < parameterNames.count ? parameterNames[idx] : "p\(idx)")
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: paramName,
-                fqName: memberFQName + [paramName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-            _ = paramType  // referenced in FunctionSignature below
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: memberSymbol
-        )
     }
 }

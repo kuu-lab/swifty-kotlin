@@ -19,8 +19,8 @@ fun eq(value: Int): Matcher = EqMatcher(value)
 fun any(): Matcher = AnyMatcher
 
 class MockCounterService : CounterService {
-    private class Stub(val matcher: Matcher) {
-        val returns = mutableListOf<Int>()
+    class Stub(val matcher: Matcher) {
+        val returns: MutableList<Int> = mutableListOf<Int>()
     }
 
     inner class StubBuilder(private val stub: Stub) {

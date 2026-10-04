@@ -1,18 +1,23 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeNativeIdentityHashCodeTests: XCTestCase {
+@Suite
+struct RuntimeNativeIdentityHashCodeTests {
+    @Test
     func testIdentityHashCodeIsStableForRuntimeObject() {
         let objectRaw = kk_array_new(0)
         let first = kk_native_identityHashCode(objectRaw)
         let second = kk_native_identityHashCode(objectRaw)
 
-        XCTAssertNotEqual(first, 0)
-        XCTAssertEqual(first, second)
+        #expect(first != 0)
+        #expect(first == second)
     }
 
+    @Test
     func testIdentityHashCodeReturnsZeroForNull() {
-        XCTAssertEqual(kk_native_identityHashCode(0), 0)
-        XCTAssertEqual(kk_native_identityHashCode(runtimeNullSentinelInt), 0)
+        #expect(kk_native_identityHashCode(0) == 0)
+        #expect(kk_native_identityHashCode(runtimeNullSentinelInt) == 0)
     }
 }
+#endif

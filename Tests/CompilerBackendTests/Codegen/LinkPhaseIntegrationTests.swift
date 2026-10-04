@@ -1,9 +1,144 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class LinkPhaseIntegrationTests: XCTestCase {
+@Suite(.serialized)
+struct LinkPhaseIntegrationTests {
+    @Test
+    func testImportedStoredTopLevelPropertiesInitializeBeforeConsumerProperties() throws {
+        let librarySource = """
+        package extdemo
+
+        var initializationCount = 0
+        fun nextValue(): String {
+            initializationCount += 1
+            return "ready"
+        }
+        val storedValue: String = nextValue()
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "StoredValues") { libraryPath in
+            let manifestURL = URL(fileURLWithPath: libraryPath).appendingPathComponent("manifest.json")
+            let manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
+            #expect(manifest?["topLevelInitializerLinkName"] as? String != nil)
+
+            let appSource = """
+            import extdemo.storedValue
+            import extdemo.initializationCount
+
+            val valueSeenAtStartup = storedValue
+            fun main() {
+                println(valueSeenAtStartup)
+                println(storedValue.length)
+                println(initializationCount)
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let outputPath = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: outputPath) }
+                let ctx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "StoredValuesApp",
+                    emit: .executable,
+                    outputPath: outputPath,
+                    searchPaths: [libraryPath]
+                )
+                try runToKIR(ctx)
+                try LoweringPhase().run(ctx)
+                try CodegenPhase().run(ctx)
+                assertLinkSucceeds(ctx)
+
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "ready\n5\n1\n")
+            }
+        }
+    }
+
+    @Test
+    func testLinkPhaseDoesNotCollectObjectSymlinkOutsideLibrary() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libraryDir = baseDir.appendingPathExtension("kklib")
+        let objectsDir = libraryDir.appendingPathComponent("objects")
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: objectsDir, withIntermediateDirectories: true)
+        let outsideObject = baseDir.appendingPathComponent("external.o")
+        try Data().write(to: outsideObject)
+        try fm.createSymbolicLink(
+            at: objectsDir.appendingPathComponent("external.o"),
+            withDestinationURL: outsideObject
+        )
+        let manifest = #"{"formatVersion":1,"moduleName":"ExternalObject","objects":["objects/external.o"]}"#
+        try manifest.write(to: libraryDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        let linkedObjects = LinkPhase().discoverLibraryObjects(searchPaths: [libraryDir.path])
+        #expect(linkedObjects.isEmpty)
+    }
+
+    @Test
+    func testImportedObjectAndCompanionLazyInitializersRunThroughKklib() throws {
+        let librarySource = """
+        package extdemo
+
+        object ExternalObject {
+            var initCount = 0
+            init { initCount += 1 }
+            val value = 41
+        }
+
+        class ExternalClass {
+            companion object {
+                var initCount = 0
+                init { initCount += 1 }
+                val value = 42
+            }
+        }
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "ExternalLazyInit") { libraryPath in
+            let appSource = """
+            import extdemo.ExternalClass
+            import extdemo.ExternalObject
+
+            val objectValue = ExternalObject.value
+            val companionValue = ExternalClass.value
+
+            fun main() {
+                println(objectValue)
+                println(companionValue)
+                println(ExternalObject.initCount)
+                println(ExternalClass.initCount)
+            }
+            """
+
+            try withTemporaryFile(contents: appSource) { appPath in
+                let outputPath = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .path
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ExternalLazyInitApp",
+                    emit: .executable,
+                    outputPath: outputPath,
+                    searchPaths: [libraryPath]
+                )
+                try runToKIR(appCtx)
+                try LoweringPhase().run(appCtx)
+                try CodegenPhase().run(appCtx)
+                assertLinkSucceeds(appCtx)
+
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(
+                    result.stdout.replacingOccurrences(of: "\r\n", with: "\n") ==
+                        "41\n42\n1\n1\n"
+                )
+            }
+        }
+    }
+
+    @Test
     func testLinkPhaseAutoLinksKotlinLibraryObjectForCrossModuleCall() throws {
         let librarySource = """
         package extdemo
@@ -21,9 +156,14 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try LoweringPhase().run(libraryCtx)
             try CodegenPhase().run(libraryCtx)
 
+            // Observe the cross-module result on stdout: `main`'s own value is
+            // never the process status (see
+            // `testEntryWrapperDiscardsNonUnitMainResult`).
             let appSource = """
             import extdemo.plus
-            fun main() = plus(41)
+            fun main() {
+                println(plus(41))
+            }
             """
             try withTemporaryFile(contents: appSource) { appPath in
                 let outputPath = FileManager.default.temporaryDirectory
@@ -41,20 +181,14 @@ final class LinkPhaseIntegrationTests: XCTestCase {
                 try CodegenPhase().run(appCtx)
                 assertLinkSucceeds(appCtx)
 
-                XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
-                do {
-                    _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                    XCTFail("Expected non-zero exit")
-                    return
-                } catch let CommandRunnerError.nonZeroExit(failed) {
-                    XCTAssertEqual(failed.exitCode, 42)
-                } catch {
-                    XCTFail("Unexpected error: \(error)")
-                }
+                #expect(FileManager.default.fileExists(atPath: outputPath))
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(result.stdout.trimmingCharacters(in: .newlines) == "42")
             }
         }
     }
 
+    @Test
     func testLinkPhaseReportsMissingMainAndCanLinkExecutable() throws {
         try withTemporaryFile(contents: "fun notMain() = 0") { path in
             let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
@@ -63,8 +197,10 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            XCTAssertThrowsError(try LinkPhase().run(ctx))
-            XCTAssertTrue(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0002" })
+            #expect(throws: (any Error).self) {
+                try LinkPhase().run(ctx)
+            }
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0002" })
         }
 
         try withTemporaryFile(contents: "fun main() = 0") { path in
@@ -88,10 +224,11 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(ctx)
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: out))
+            #expect(FileManager.default.fileExists(atPath: out))
         }
     }
 
+    @Test
     func testLinkPhaseWrapperReportsTopLevelThrownException() throws {
         let source = """
         fun main(): Any? {
@@ -107,26 +244,157 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(ctx)
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: out))
+            #expect(FileManager.default.fileExists(atPath: out))
 
             let result: CommandResult
             do {
                 result = try CommandRunner.run(executable: out, arguments: [])
-                XCTFail("Expected executable to fail on unhandled top-level exception.")
+                Issue.record("Expected executable to fail on unhandled top-level exception.")
                 return
             } catch let CommandRunnerError.nonZeroExit(failed) {
                 result = failed
             } catch {
-                XCTFail("Unexpected error: \(error)")
+                Issue.record("Unexpected error: \(error)")
                 return
             }
 
-            XCTAssertEqual(result.exitCode, 1)
-            XCTAssertTrue(result.stderr.contains("KSWIFTK-LINK-0003"))
-            XCTAssertTrue(result.stderr.contains("KSwiftK panic"))
+            #expect(result.exitCode == 1)
+            #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
+            #expect(result.stderr.contains("KSwiftK panic"))
         }
     }
 
+    /// `main`'s own value must never reach the process status.
+    ///
+    /// kotlinc does not recognise a `main` whose return type is not `Unit` as
+    /// an entry point at all, so it emits a jar without a `Main-Class`.
+    /// KSwiftK keeps accepting such a `main` — rejecting it is not an option
+    /// while `runBlocking`/`coroutineScope`/`Deferred.await` are modelled as
+    /// returning `Any`, which makes every `fun main() = runBlocking { ... }`
+    /// non-`Unit` regardless of its body — but the value is discarded, which
+    /// is what a Kotlin program observes: a non-zero status comes only from
+    /// `exitProcess` or an unhandled exception. The entry wrapper used to
+    /// truncate the entry function's `i64` result into `main`'s `i32` ABI, so
+    /// `fun main(): Int = 42` exited 42, and a boxed result leaked the low
+    /// bits of a heap pointer — a different status on each run of one binary.
+    @Test
+    func testEntryWrapperDiscardsNonUnitMainResult() throws {
+        let cases: [(module: String, source: String, expectedStdout: String)] = [
+            (
+                "IntMainExitStatus",
+                """
+                fun main(): Int = 42
+                """,
+                ""
+            ),
+            (
+                // A boxed result is the shape whose leaked status varied
+                // run-to-run, so this case is checked more than once below.
+                "BoxedMainExitStatus",
+                """
+                fun main(): Any {
+                    println("ran")
+                    return "boxed"
+                }
+                """,
+                "ran\n"
+            ),
+        ]
+
+        for testCase in cases {
+            try withTemporaryFile(contents: testCase.source) { path in
+                let out = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: out) }
+                let ctx = makeCompilationContext(
+                    inputs: [path],
+                    moduleName: testCase.module,
+                    emit: .executable,
+                    outputPath: out
+                )
+                try runToKIR(ctx)
+                try LoweringPhase().run(ctx)
+                try CodegenPhase().run(ctx)
+                assertLinkSucceeds(ctx)
+
+                for attempt in 1...3 {
+                    do {
+                        let result = try CommandRunner.run(executable: out, arguments: [])
+                        #expect(result.exitCode == 0)
+                        #expect(result.stdout == testCase.expectedStdout)
+                    } catch let CommandRunnerError.nonZeroExit(failed) {
+                        Issue.record(
+                            """
+                            \(testCase.module) run \(attempt) exited \(failed.exitCode); \
+                            expected 0 because main's value is not the exit status.
+                            """
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// The coroutine shape from the original report: `coroutineScope` and
+    /// `Deferred.await` are modelled as returning `Any`, so a `try` whose body
+    /// is a `coroutineScope { ... }` widens `main` to `Any` and used to leak a
+    /// boxed pointer into the exit status.
+    @Test
+    func testEntryWrapperDiscardsCoroutineMainResult() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        suspend fun boom(): Int {
+            throw RuntimeException("boom")
+        }
+
+        fun main() = runBlocking {
+            try {
+                coroutineScope {
+                    val a = async { 10 }
+                    val b = async { boom() }
+                    a.await()
+                    b.await()
+                }
+            } catch (e: Throwable) {
+                println(e.message)
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let out = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: out) }
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CoroutineMainExitStatus",
+                emit: .executable,
+                outputPath: out
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            assertLinkSucceeds(ctx)
+
+            for attempt in 1...3 {
+                do {
+                    let result = try CommandRunner.run(executable: out, arguments: [])
+                    #expect(result.exitCode == 0)
+                    #expect(result.stdout.trimmingCharacters(in: .newlines) == "boom")
+                } catch let CommandRunnerError.nonZeroExit(failed) {
+                    Issue.record(
+                        """
+                        Coroutine main run \(attempt) exited \(failed.exitCode); \
+                        expected 0 because main's value is not the exit status.
+                        """
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
     func testLinkPhaseAutoLinksKklibManifestObjectsAndDeduplicates() throws {
         let fm = FileManager.default
         let workspaceDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -176,8 +444,17 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             encoding: .utf8
         )
 
+        // `plus` comes from the hand-written object in the manifest and carries no
+        // Kotlin type information (`metadata.bin` declares `symbols=0`), so its
+        // result cannot be printed — `println` would render the raw value as
+        // "null". Route it through `exitProcess`, the only way a Kotlin program
+        // picks a process status: `main`'s own value is discarded by the entry
+        // wrapper (see `testEntryWrapperDiscardsNonUnitMainResult`).
         let appSource = """
-        fun main() = plus(41)
+        import kotlin.system.exitProcess
+        fun main() {
+            exitProcess(plus(41))
+        }
         """
         try withTemporaryFile(contents: appSource) { appPath in
             let outputPath = workspaceDir.appendingPathComponent("AppExecutable").path
@@ -193,38 +470,45 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(appCtx)
             assertLinkSucceeds(appCtx)
 
-            XCTAssertTrue(fm.fileExists(atPath: outputPath))
+            #expect(fm.fileExists(atPath: outputPath))
             do {
                 _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                XCTFail("Expected non-zero exit")
-                return
+                Issue.record("Expected exitProcess(plus(41)) to exit with 42")
             } catch let CommandRunnerError.nonZeroExit(failed) {
-                XCTAssertEqual(failed.exitCode, 42)
+                #expect(failed.exitCode == 42)
             } catch {
-                XCTFail("Unexpected error: \(error)")
+                Issue.record("Unexpected error: \(error)")
             }
         }
     }
 
+    @Test
     func testLinkPhaseSkipsForObjectEmitMode() throws {
         let objectCtx = makeCompilationContext(inputs: [], moduleName: "SkipLink", emit: .object)
-        XCTAssertNoThrow(try LinkPhase().run(objectCtx))
+        try LinkPhase().run(objectCtx)
     }
 
+    @Test
     func testLinkPhaseFailsWhenObjectIsMissingForExecutable() throws {
         let missingObjectCtx = makeCompilationContext(inputs: [], moduleName: "MissingObj", emit: .executable)
-        XCTAssertThrowsError(try LinkPhase().run(missingObjectCtx))
+        #expect(throws: (any Error).self) {
+            try LinkPhase().run(missingObjectCtx)
+        }
     }
 
+    @Test
     func testLinkPhaseFailsWhenKIRModuleIsMissing() throws {
         let tempObjectURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o")
         try Data().write(to: tempObjectURL)
 
         let noKirCtx = makeCompilationContext(inputs: [], moduleName: "NoKir", emit: .executable)
         noKirCtx.generatedObjectPath = tempObjectURL.path
-        XCTAssertThrowsError(try LinkPhase().run(noKirCtx))
+        #expect(throws: (any Error).self) {
+            try LinkPhase().run(noKirCtx)
+        }
     }
 
+    @Test
     func testLinkPhasePassesDebugFlagToExecutableLink() throws {
         let source = "fun main() = 0"
         try withTemporaryFile(contents: source) { path in
@@ -250,38 +534,54 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(ctx)
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
         }
     }
 
+    @Test
     func testLinkerDriverArgsDisablePieForLinuxTargets() {
         let linuxTarget = TargetTriple(arch: "x86_64", vendor: "unknown", os: "linux-gnu", osVersion: nil)
         let args = LinkPhase().linkerDriverArgs(for: linuxTarget)
 
-        XCTAssertEqual(Array(args.prefix(2)), ["-target", "x86_64-unknown-linux-gnu"])
-        XCTAssertTrue(args.contains("-no-pie"))
+        #expect(Array(args.prefix(2)) == ["-target", "x86_64-unknown-linux-gnu"])
+        #expect(Array(args.suffix(5)) == [
+            "-Xlinker", "--gc-sections",
+            "-Xlinker", "-no-pie",
+            "-parse-as-library",
+        ])
     }
 
+    @Test
+    func testLinkerDriverArgsEnableDeadStripForAppleTargets() {
+        let macTarget = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
+        let args = LinkPhase().linkerDriverArgs(for: macTarget)
+
+        #expect(Array(args.suffix(2)) == ["-Xlinker", "-dead_strip"])
+        #expect(!args.contains("--gc-sections"))
+    }
+
+    @Test
     func testLinuxAutolinkStubIsRewrittenWhenCorrupted() throws {
-        // Use a test-only triple so this corruption check never races with regular link tests
-        // that share the default Linux autolink stub path.
+        // Use a test-only triple so the stub path is isolated from any real target, even though
+        // each LinkPhase now writes its autolink stub to a unique per-instance directory.
         let linuxTarget = TargetTriple(arch: "x86_64", vendor: "kswiftkstubtest", os: "linux-gnu", osVersion: nil)
         let linkPhase = LinkPhase()
 
-        let stubPath = try XCTUnwrap(linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
+        let stubPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
         try "corrupted".write(toFile: stubPath, atomically: true, encoding: .utf8)
 
-        let repairedPath = try XCTUnwrap(linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
-        XCTAssertEqual(repairedPath, stubPath)
+        let repairedPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
+        #expect(repairedPath == stubPath)
 
         let contents = try String(contentsOfFile: repairedPath, encoding: .utf8)
-        XCTAssertNotEqual(contents, "corrupted")
-        XCTAssertTrue(contents.contains("_kswiftkRuntimeAutolinkAnchor"))
-        XCTAssertTrue(contents.contains("NSLock()"))
-        XCTAssertTrue(contents.contains("DispatchQueue.global"))
-        XCTAssertTrue(contents.contains("DispatchSemaphore(value: 0)"))
+        #expect(contents != "corrupted")
+        #expect(contents.contains("_kswiftkRuntimeAutolinkAnchor"))
+        #expect(contents.contains("NSLock()"))
+        #expect(contents.contains("DispatchQueue.global"))
+        #expect(contents.contains("DispatchSemaphore(value: 0)"))
     }
 
+    @Test
     func testExecutableEmissionWithOutputExtensionUsesSeparateObjectPath() throws {
         let source = """
         fun main() {
@@ -304,17 +604,18 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            XCTAssertEqual(ctx.generatedObjectPath, outputPath + ".o")
-            XCTAssertNotEqual(ctx.generatedObjectPath, outputPath)
+            #expect(ctx.generatedObjectPath == outputPath + ".o")
+            #expect(ctx.generatedObjectPath != outputPath)
 
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "true FALSE")
+            #expect(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "true FALSE")
         }
     }
 
+    @Test
     func testExecutableEmissionWithObjectOutputPathUsesSeparateIntermediateObjectPath() throws {
         let source = """
         fun main() {
@@ -337,24 +638,25 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            XCTAssertEqual(
-                ctx.generatedObjectPath,
+            #expect(
+                ctx.generatedObjectPath ==
                 URL(fileURLWithPath: outputPath)
                     .deletingPathExtension()
                     .appendingPathExtension("executable")
                     .appendingPathExtension("o")
                     .path
             )
-            XCTAssertNotEqual(ctx.generatedObjectPath, outputPath)
+            #expect(ctx.generatedObjectPath != outputPath)
 
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "42")
+            #expect(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "42")
         }
     }
 
+    @Test
     func testExecutableStringFormatHandlesBoxedScalarsInRuntimeObjects() throws {
         let source = """
         fun main() {
@@ -381,15 +683,16 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(
-                result.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
+            #expect(
+                result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) ==
                 "9223372036854775807 7fffffffffffffff 2.5 A true"
             )
         }
     }
 
+    @Test
     func testExecutableStringFormatSupportsScientificNotation() throws {
         let source = """
         fun main() {
@@ -413,10 +716,11 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             assertLinkSucceeds(ctx)
 
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "1.23e+03")
+            #expect(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "1.23e+03")
         }
     }
 
+    @Test
     func testLinkPhaseReportsDiagnosticForUnsupportedTargetArchitecture() throws {
         let tempObjectURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o")
         try Data().write(to: tempObjectURL)
@@ -451,11 +755,14 @@ final class LinkPhaseIntegrationTests: XCTestCase {
         badTargetCtx.generatedObjectPath = tempObjectURL.path
         badTargetCtx.kir = module
 
-        XCTAssertThrowsError(try LinkPhase().run(badTargetCtx))
-        XCTAssertTrue(badTargetCtx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0001" })
+        #expect(throws: (any Error).self) {
+            try LinkPhase().run(badTargetCtx)
+        }
+        #expect(badTargetCtx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0001" })
     }
 
     #if os(macOS)
+        @Test
         func testRuntimeObjectPathsBuildForAlternateAppleArchitecture() throws {
             let hostTarget = TargetTriple.hostDefault()
             let alternateArch = hostTarget.arch == "arm64" ? "x86_64" : "arm64"
@@ -468,18 +775,14 @@ final class LinkPhaseIntegrationTests: XCTestCase {
 
             let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(target: alternateTarget)
 
-            XCTAssertFalse(runtimeObjects.isEmpty)
-            XCTAssertTrue(runtimeObjects.allSatisfy { FileManager.default.fileExists(atPath: $0) })
-            XCTAssertTrue(runtimeObjects.allSatisfy { $0.contains("\(alternateArch)-apple-macosx") })
+            #expect(!runtimeObjects.isEmpty)
+            #expect(runtimeObjects.allSatisfy { FileManager.default.fileExists(atPath: $0) })
+            #expect(runtimeObjects.allSatisfy { $0.contains("\(alternateArch)-apple-macosx") })
         }
     #endif
 }
 
-private func assertLinkSucceeds(
-    _ ctx: CompilationContext,
-    file: StaticString = #filePath,
-    line: UInt = #line
-) {
+private func assertLinkSucceeds(_ ctx: CompilationContext) {
     do {
         try LinkPhase().run(ctx)
     } catch {
@@ -487,14 +790,12 @@ private func assertLinkSucceeds(
             .map { "\($0.code): \($0.message)" }
             .joined(separator: "\n")
         let diagnosticSummary = diagnostics.isEmpty ? "No diagnostics were recorded." : diagnostics
-        XCTFail(
+        Issue.record(
             """
             LinkPhase failed with error: \(error)
             Diagnostics:
             \(diagnosticSummary)
-            """,
-            file: file,
-            line: line
+            """
         )
     }
 }

@@ -2,8 +2,7 @@
 import Testing
 
 /// STDLIB-TEXT-FN-027: Validates that `CharSequence.isBlank()` resolves through Sema
-/// for `String` / `CharSequence` receivers, dispatching to the runtime link
-/// name `kk_string_isBlank`.
+/// for `String` / `CharSequence` receivers through bundled Kotlin source.
 @Suite
 struct StringIsBlankFunctionTests {
     @Test func testIsBlankFunctionResolvesInSource() throws {
@@ -30,11 +29,6 @@ struct StringIsBlankFunctionTests {
             errors.isEmpty,
             "Expected isBlank to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
-
-    @Test func testIsBlankStringExtensionHasRuntimeLink() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
 
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
@@ -44,8 +38,8 @@ struct StringIsBlankFunctionTests {
             "Expected kotlin.text.isBlank to be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_isBlank",
-            "Expected isBlank extension to link to kk_string_isBlank"
+            sema.symbols.externalLinkName(for: symbol) == nil,
+            "Expected isBlank extension to be bundled Kotlin without a C external link"
         )
     }
 }

@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct MutexSyntheticMemberLinkTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -12,7 +12,8 @@ struct MutexSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        return semaResult
     }
 
     private func externalLinks(
@@ -25,14 +26,14 @@ struct MutexSyntheticMemberLinkTests {
     }
 
     @Test func testMutexMembersHaveCorrectExternalLinks() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
+        // KSP-677: the wrapper layer (Mutex factory, tryLock, isLocked,
+        // withLock) is Kotlin source; only the c-soft kernel primitives
+        // remain as synthetic members.
         let expectations: [(member: String, link: String)] = [
             ("lock", "kk_mutex_lock"),
             ("unlock", "kk_mutex_unlock"),
-            ("tryLock", "kk_mutex_tryLock"),
-            ("isLocked", "kk_mutex_isLocked"),
-            ("withLock", "kk_mutex_withLock"),
         ]
 
         for expectation in expectations {

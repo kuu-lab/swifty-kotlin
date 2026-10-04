@@ -1,11 +1,13 @@
+// Constructor delegation must run the primary initializer for both constructors.
 class Counter(start: Int) {
+    init {
+        println("Counter($start)")
+    }
+
     constructor() : this(0)
 }
 
-fun add(a: Int, b: Int): Int = a + b
-
 fun main() {
-    val c = Counter(1)
-    val d = Counter()
-    println(add(20, 22))
+    Counter(1)
+    Counter()
 }

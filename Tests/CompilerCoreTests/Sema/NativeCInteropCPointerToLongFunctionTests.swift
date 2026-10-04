@@ -4,9 +4,47 @@ import Testing
 
 @Suite
 struct NativeCInteropCPointerToLongFunctionTests {
+
+    // MARK: - Shared Sema context
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
+        fun noop() {}
+        """,
+        """
+        package sample1
+        fun noop() {}
+        """,
+        """
+        package sample2
+        import kotlinx.cinterop.ByteVar
+        import kotlinx.cinterop.CPointer
+        import kotlinx.cinterop.toLong
+
+        fun pointerAsLong(p: CPointer<ByteVar>?): Long {
+            return p.toLong()
+        }
+        """
+    ]
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: Self.sharedSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        return ctx
+    }
     @Test func testCPointerToLongFunctionSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected CPointer<T>?.toLong() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
@@ -70,8 +108,8 @@ struct NativeCInteropCPointerToLongFunctionTests {
     }
 
     @Test func testCPointerToLongFunctionLinksToRuntimeSymbol() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
+
+        let ctx = try sharedCtx()
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
@@ -93,17 +131,8 @@ struct NativeCInteropCPointerToLongFunctionTests {
     }
 
     @Test func testCPointerToLongFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.ByteVar
-        import kotlinx.cinterop.CPointer
-        import kotlinx.cinterop.toLong
 
-        fun pointerAsLong(p: CPointer<ByteVar>?): Long {
-            return p.toLong()
-        }
-        """)
-        try runSema(ctx)
-
+        let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected CPointer<ByteVar>?.toLong() to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }

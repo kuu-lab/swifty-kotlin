@@ -65,7 +65,7 @@ extension OverloadResolverTests {
     @Test func testUnifiedInference_VarargMixedElementTypeLUB() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "uvx_T", symbols: symbols, interner: interner)
         let tType = types.make(.typeParam(TypeParamType(symbol: tSym)))
         let listClassSym = defineSymbol(kind: .class, name: "List", suffix: "uvx_List", symbols: symbols, interner: interner)
@@ -194,7 +194,7 @@ extension OverloadResolverTests {
     // P5-126: fun <K, V> mapOf(k: K, v: V): Map<K, V> – multiple type params
     @Test func testUnifiedInference_MultipleTypeParamsFromNestedClassType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let intType = types.make(.primitive(.int, .nonNull))
         let kSym = defineSymbol(kind: .typeParameter, name: "K", suffix: "mtp_K", symbols: symbols, interner: interner)
         let vSym = defineSymbol(kind: .typeParameter, name: "V", suffix: "mtp_V", symbols: symbols, interner: interner)
@@ -227,7 +227,7 @@ extension OverloadResolverTests {
     // P5-126: backward inference from expected Map<String, Int> for return type Map<K, V>
     @Test func testUnifiedInference_BackwardInferenceMultipleTypeParamsFromExpectedType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let intType = types.make(.primitive(.int, .nonNull))
         let kSym = defineSymbol(kind: .typeParameter, name: "K", suffix: "bmt_K", symbols: symbols, interner: interner)
         let vSym = defineSymbol(kind: .typeParameter, name: "V", suffix: "bmt_V", symbols: symbols, interner: interner)
@@ -281,6 +281,37 @@ extension OverloadResolverTests {
 
         #expect(resolved.chosenCallee == nil)
         #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-INFER")
+    }
+
+    // A null literal has type Nothing?. For a nullable parameter T?, retain
+    // Nothing as the lower bound so a null-only call infers T = Nothing.
+    @Test func testUnifiedInference_NullLiteralUsesNothingAsLowerBound() {
+        let (resolver, types, symbols, interner, ctx) = makeEnv()
+        let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "null_T", symbols: symbols, interner: interner)
+        let tType = types.make(.typeParam(TypeParamType(symbol: tSym, nullability: .nonNull)))
+        let nullableTType = types.make(.typeParam(TypeParamType(symbol: tSym, nullability: .nullable)))
+        let fn = defineSymbol(kind: .function, name: "requireNotNull", suffix: "null_requireNotNull", symbols: symbols, interner: interner)
+        symbols.setTypeParameterUpperBounds([types.anyType], for: tSym)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [nullableTType],
+                returnType: tType,
+                typeParameterSymbols: [tSym],
+                typeParameterUpperBoundsList: [[types.anyType]]
+            ),
+            for: fn
+        )
+
+        let call = CallExpr(
+            range: makeRange(start: 5170, end: 5180),
+            calleeName: interner.intern("requireNotNull"),
+            args: [CallArg(type: types.nullableNothingType)]
+        )
+        let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
+
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == types.nothingType)
     }
 
     // P5-126: fun <T> transform(list: List<T>, f: (T) -> T): List<T>

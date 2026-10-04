@@ -56,7 +56,8 @@ extension KotlinParser {
         var projectionExpected = true
         var sawProjection = false
 
-        for lookahead in 1 ... 32 {
+        var lookahead = 1
+        while true {
             let token = stream.peek(lookahead)
             switch token.kind {
             case .eof:
@@ -101,9 +102,8 @@ extension KotlinParser {
                     return false
                 }
             }
+            lookahead += 1
         }
-
-        return false
     }
 
     func followsTypeArgs(_ token: Token) -> Bool {
@@ -111,7 +111,7 @@ extension KotlinParser {
         case .symbol(.lParen), .symbol(.dot), .symbol(.questionDot), .symbol(.bangBang),
              .symbol(.doubleColon), .symbol(.lessThan), .symbol(.colon), .symbol(.comma),
              .symbol(.lBrace), .symbol(.rParen), .symbol(.rBrace), .symbol(.question),
-             .symbol(.assign):
+             .symbol(.assign), .symbol(.at):
             true
         case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
             true
@@ -122,17 +122,4 @@ extension KotlinParser {
         }
     }
 
-    func canStartTypeArguments(after token: Token) -> Bool {
-        _ = token
-        return canStartTypeArgumentsInternal(hasAnchorToken: true)
-    }
-
-    func canStartTypeArguments(after node: NodeID) -> Bool {
-        guard Int(node.rawValue) >= 0, Int(node.rawValue) < arena.nodes.count else { return false }
-        let nodeKind = arena.node(node).kind
-        if case .typeArgs = nodeKind {
-            return false
-        }
-        return canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil)
-    }
 }

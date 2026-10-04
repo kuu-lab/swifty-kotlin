@@ -1,105 +1,12 @@
-/// Lowerings for the `takeIf` / `takeUnless` (STDLIB-160) and the
-/// `let` / `also` / `apply` / `run` / `with` scope-function family.
+/// Lowerings for the residual `use` / `usePinned` / `useContents`
+/// scope-function family.
 ///
 /// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
 
-    // MARK: - takeIf / takeUnless Lowering (STDLIB-160)
-
-    /// Attempts to lower a takeIf / takeUnless extension call.
-    /// Returns nil if the expression is not a takeIf/takeUnless call.
-    func tryTakeIfTakeUnlessLowering(
-        _ exprID: ExprID,
-        receiverExpr: ExprID,
-        args: [CallArgument],
-        ast: ASTModule,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction],
-        precomputedReceiver: KIRExprID? = nil
-    ) -> KIRExprID? {
-        guard let takeKind = sema.bindings.takeIfTakeUnlessKind(for: exprID),
-              args.count == 1
-        else { return nil }
-
-        let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
-
-        let loweredReceiverID = precomputedReceiver ?? driver.lowerExpr(
-            receiverExpr,
-            ast: ast, sema: sema, arena: arena, interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-
-        // Lower lambda: predicate(receiver) -> Boolean (like scopeLet: lambda takes `it`)
-        let loweredLambdaID = driver.lowerExpr(
-            args[0].expr,
-            ast: ast, sema: sema, arena: arena, interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-
-        guard let info = driver.ctx.callableValueInfo(for: loweredLambdaID) else {
-            return nil
-        }
-
-        let predicateResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: boolType
-        )
-        let callArgs: [KIRExprID]
-        if info.hasClosureParam {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            callArgs = info.captureArguments + [zeroExpr, loweredReceiverID]
-        } else {
-            callArgs = info.captureArguments + [loweredReceiverID]
-        }
-        instructions.append(.call(
-            symbol: info.symbol,
-            callee: info.callee,
-            arguments: callArgs,
-            result: predicateResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
-
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: boundType
-        )
-        let useReceiverLabel = driver.ctx.makeLoopLabel()
-        let endLabel = driver.ctx.makeLoopLabel()
-
-        let testValue: Bool = takeKind == .takeIf
-        let testExpr = arena.appendExpr(.boolLiteral(testValue), type: boolType)
-        instructions.append(.constValue(result: testExpr, value: .boolLiteral(testValue)))
-
-        // takeIf: jump to useReceiver when predicate == true
-        // takeUnless: jump to useReceiver when predicate == false
-        instructions.append(.jumpIfEqual(lhs: predicateResult, rhs: testExpr, target: useReceiverLabel))
-
-        // Predicate failed: write null to result
-        let nullVal = arena.appendExpr(.unit, type: boundType)
-        instructions.append(.constValue(result: nullVal, value: .null))
-        instructions.append(.copy(from: nullVal, to: result))
-        instructions.append(.jump(endLabel))
-
-        // Predicate passed: forward the lowered receiver as-is.
-        // The surrounding lowering/codegen path will box later if needed.
-        instructions.append(.label(useReceiverLabel))
-        instructions.append(.copy(from: loweredReceiverID, to: result))
-        instructions.append(.label(endLabel))
-
-        return result
-    }
-
     // MARK: - Scope Function Lowering (STDLIB-004)
 
-    /// Attempts to lower a scope function call (let/run/apply/also).
+    /// Attempts to lower a residual scope function call (use/usePinned/useContents).
     /// Returns nil if the expression is not a scope function call.
     func tryScopeFunctionLowering(
         _ exprID: ExprID,
@@ -118,6 +25,16 @@ extension CallLowerer {
         else { return nil }
 
         let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+        let previousLambdaAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+        driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+            argumentExpr: args[0].expr,
+            argumentIndex: 0,
+            ast: ast,
+            sema: sema,
+            callBinding: sema.bindings.callBinding(for: exprID),
+            chosen: sema.bindings.callBinding(for: exprID)?.chosenCallee
+        )
+        defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousLambdaAllowance }
 
         // Lower the receiver expression (or use precomputed one for safe calls).
         let loweredReceiverID = precomputedReceiver ?? driver.lowerExpr(
@@ -128,61 +45,41 @@ extension CallLowerer {
         )
 
         switch scopeKind {
-        case .scopeLet, .scopeAlso:
-            // let/also: lambda takes `it` as explicit parameter.
-            // Lower lambda normally, then call it with receiver as argument.
-            let loweredLambdaID = driver.lowerExpr(
-                args[0].expr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
-            )
-            if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
-                let callArgs: [KIRExprID]
-                if info.hasClosureParam {
-                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    callArgs = info.captureArguments + [zeroExpr, loweredReceiverID]
-                } else {
-                    callArgs = info.captureArguments + [loweredReceiverID]
+        case .scopeUseContents:
+            // useContents: lambda has the contained C variable as implicit receiver.
+            let contentType: TypeID? = sema.bindings.exprTypes[args[0].expr].flatMap { lambdaType in
+                if case let .functionType(functionType) = sema.types.kind(of: lambdaType) {
+                    return functionType.receiver
                 }
-                instructions.append(.call(
-                    symbol: info.symbol,
-                    callee: info.callee,
-                    arguments: callArgs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else {
-                // Non-lambda-literal argument (e.g. function reference);
-                // fall back to normal member call lowering.
+                return nil
+            } ?? {
+                guard let receiverType = sema.bindings.exprTypes[receiverExpr],
+                      let classType = resolveClassType(receiverType, sema: sema),
+                      let cValueSymbol = sema.symbols.lookup(fqName: [
+                          interner.intern("kotlinx"),
+                          interner.intern("cinterop"),
+                          interner.intern("CValue"),
+                      ]),
+                      classType.classSymbol == cValueSymbol,
+                      let firstArg = classType.args.first
+                else {
+                    return nil
+                }
+                switch firstArg {
+                case let .invariant(type), let .out(type), let .in(type):
+                    return sema.types.makeNonNullable(type)
+                case .star:
+                    return sema.types.anyType
+                }
+            }()
+            guard let contentType else {
                 return nil
             }
-            if scopeKind == .scopeAlso {
-                // also: result is the receiver, not the lambda return value.
-                instructions.append(.copy(from: loweredReceiverID, to: result))
-            }
-            return result
 
-        case .scopeRun, .scopeApply:
-            // run/apply: lambda has `this` as implicit receiver.
-            // Set the implicit receiver to the lowered receiver before lowering
-            // the lambda so that the lambda captures it.
             let receiverSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let receiverSymExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
+            let receiverSymExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: contentType)
             instructions.append(.copy(from: loweredReceiverID, to: receiverSymExpr))
 
-            let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
-            let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
-            driver.ctx.setLocalValue(receiverSymExpr, for: receiverSymbol)
-            driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverSymExpr)
-
             let loweredLambdaID = driver.lowerExpr(
                 args[0].expr,
                 ast: ast, sema: sema, arena: arena, interner: interner,
@@ -190,30 +87,20 @@ extension CallLowerer {
                 instructions: &instructions
             )
 
-            driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
-
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
-            )
+            let result = arena.appendTemporary(type: boundType)
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
                 instructions.append(.call(
                     symbol: info.symbol,
                     callee: info.callee,
-                    arguments: info.captureArguments,
+                    // The block is a lambda with receiver, so it takes the copied
+                    // C variable as its explicit receiver parameter.
+                    arguments: info.captureArguments + [receiverSymExpr],
                     result: result,
                     canThrow: false,
                     thrownResult: nil
                 ))
             } else {
-                // Non-lambda-literal argument (e.g. function reference);
-                // restore state and fall back to normal member call lowering.
-                driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
                 return nil
-            }
-            if scopeKind == .scopeApply {
-                // apply: result is the receiver, not the lambda return value.
-                instructions.append(.copy(from: loweredReceiverID, to: result))
             }
             return result
 
@@ -227,9 +114,7 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
+            let result = arena.appendTemporary(type: boundType
             )
             guard let info = driver.ctx.callableValueInfo(for: loweredLambdaID) else {
                 return nil
@@ -238,8 +123,8 @@ extension CallLowerer {
             let intType = sema.types.make(.primitive(.int, .nonNull))
 
             // Exception tracking slots for try-finally.
-            let exceptionSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.nullableAnyType)
-            let exceptionTypeSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
+            let exceptionTypeSlot = arena.appendTemporary(type: intType)
             let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
             let zeroTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
             instructions.append(.constValue(result: nullExceptionValue, value: .null))
@@ -252,12 +137,33 @@ extension CallLowerer {
             let endLabel = driver.ctx.makeLoopLabel()
 
             // try: invoke the block lambda.
+            // Collection-HOF-marked lambdas take a leading closureRaw argument:
+            // no captures -> 0, one capture -> the raw capture value, two or more
+            // -> a packed closure object built by makeBoxedCallableCaptureArguments.
+            var closureRawArg: KIRExprID? = nil
+            if info.hasClosureParam {
+                if info.captureArguments.isEmpty {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    closureRawArg = zeroExpr
+                } else if info.captureArguments.count == 1 {
+                    closureRawArg = info.captureArguments[0]
+                } else {
+                    let boxedArgs = makeBoxedCallableCaptureArguments(
+                        callableInfo: info,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    closureRawArg = boxedArgs[0]
+                }
+            }
+
             var blockInstructions: [KIRInstruction] = []
             let callArgs: [KIRExprID]
-            if info.hasClosureParam {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                blockInstructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                callArgs = info.captureArguments + [zeroExpr, loweredReceiverID]
+            if let closureRawArg {
+                callArgs = [closureRawArg, loweredReceiverID]
             } else {
                 callArgs = info.captureArguments + [loweredReceiverID]
             }
@@ -272,6 +178,11 @@ extension CallLowerer {
 
             // Wrap block call with throw-aware instructions so exceptions are
             // captured into exceptionSlot and control jumps to finallyLabel.
+            // CODE-001: the beginFinallyGuard/endFinallyGuard pair prevents
+            // an outer try/catch/use from re-wrapping this already-routed
+            // call if this `use` is itself nested inside one — otherwise the
+            // outer pass would race ahead of the close() cleanup below.
+            instructions.append(.beginFinallyGuard)
             driver.controlFlowLowerer.appendThrowAwareInstructions(
                 blockInstructions,
                 exceptionSlot: exceptionSlot,
@@ -282,11 +193,11 @@ extension CallLowerer {
                 arena: arena,
                 instructions: &instructions
             )
+            instructions.append(.endFinallyGuard)
             instructions.append(.jump(finallyLabel))
 
-            // finally: call close() on the receiver via virtual dispatch.
-            // close() is an interface method on Closeable and requires dynamic dispatch
-            // through the itable so that concrete implementations are invoked correctly.
+            // finally: call the source-backed closeFinally() helper. It preserves the
+            // block exception as primary and records a close exception as suppressed.
             instructions.append(.label(finallyLabel))
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
             let shouldGuardNullableClose = receiverTypeForDispatch.map {
@@ -299,23 +210,37 @@ extension CallLowerer {
                 instructions.append(.jump(closeEndLabel))
                 instructions.append(.label(closeCallLabel))
             }
+            let closeFinallyName = interner.intern("closeFinally")
+            let closeFinallyFQName = [interner.intern("kotlin"), closeFinallyName]
+            let closeFinallySymbol = sema.symbols.lookupAll(fqName: closeFinallyFQName).first { symbolID in
+                guard sema.symbols.symbol(symbolID)?.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.receiverType != nil && signature.parameterTypes.count == 1
+            }
+            let closeResult = arena.appendTemporary(type: sema.types.unitType)
+            let closeWithCauseLabel = driver.ctx.makeLoopLabel()
+            let closeAfterLabel = driver.ctx.makeLoopLabel()
+
+            // A successful block has no primary exception, so call close()
+            // directly. This preserves close-only exception propagation through
+            // the enclosing try/catch. The source-backed helper is used only
+            // when a primary exception needs suppression handling.
+            instructions.append(.jumpIfNotNull(value: exceptionSlot, target: closeWithCauseLabel))
+
+            var directCloseInstructions: [KIRInstruction] = []
             let closeName = interner.intern("close")
-            let closeResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.unitType
-            )
-            // Resolve the close() symbol from the Closeable interface and use
-            // virtualCall with interface dispatch instead of a static .call.
-            let closeableFQName: [InternedString] = [
-                interner.intern("kotlin"), interner.intern("io"), interner.intern("Closeable")
-            ]
-            let closeFQName = closeableFQName + [closeName]
-            let closeSymbol = sema.symbols.lookup(fqName: closeFQName)
+            let closeSymbol: SymbolID? = sema.types.closeableInterfaceSymbol.flatMap { closeableSymbol in
+                let closeableFQName = sema.symbols.symbol(closeableSymbol)?.fqName ?? []
+                return sema.symbols.lookup(fqName: closeableFQName + [closeName])
+            }
             let closeDispatch: KIRDispatchKind? = closeSymbol.flatMap { sym in
-                resolveVirtualDispatch(callee: sym, receiverTypeID: receiverTypeForDispatch, sema: sema)
+                resolveVirtualDispatch(callee: sym, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             }
             if let closeDispatch, let closeSymbol {
-                instructions.append(.virtualCall(
+                directCloseInstructions.append(.virtualCall(
                     symbol: closeSymbol,
                     callee: closeName,
                     receiver: loweredReceiverID,
@@ -326,9 +251,8 @@ extension CallLowerer {
                     dispatch: closeDispatch
                 ))
             } else {
-                // Fallback: if virtual dispatch is not needed (e.g. final class with
-                // no subtypes), resolve the concrete close() method on the receiver type
-                // so that the static call targets the correct mangled name.
+                // If virtual dispatch is unavailable, resolve the concrete close()
+                // method so the fallback still targets the correct symbol.
                 var concreteCloseSymbol: SymbolID?
                 var concreteCloseName = closeName
                 if let recvTypeID = receiverTypeForDispatch,
@@ -339,9 +263,6 @@ extension CallLowerer {
                         let closeCandidateFQ = recvInfo.fqName + [closeName]
                         if let concreteSym = sema.symbols.lookup(fqName: closeCandidateFQ) {
                             concreteCloseSymbol = concreteSym
-                            // Prefer the externalLinkName (e.g. kk_buffered_writer_close) over
-                            // the Kotlin symbol name (which would just be "close") so that the
-                            // generated .call instruction targets the correct runtime C function.
                             if let extLink = sema.symbols.externalLinkName(for: concreteSym),
                                !extLink.isEmpty
                             {
@@ -353,7 +274,7 @@ extension CallLowerer {
                     }
                 }
                 let callSymbol = concreteCloseSymbol ?? closeSymbol
-                instructions.append(.call(
+                directCloseInstructions.append(.call(
                     symbol: callSymbol,
                     callee: concreteCloseName,
                     arguments: [loweredReceiverID],
@@ -362,6 +283,25 @@ extension CallLowerer {
                     thrownResult: nil
                 ))
             }
+            instructions.append(contentsOf: directCloseInstructions)
+            instructions.append(.jump(closeAfterLabel))
+
+            instructions.append(.label(closeWithCauseLabel))
+            if let closeFinallySymbol {
+                instructions.append(.call(
+                    symbol: closeFinallySymbol,
+                    callee: closeFinallyName,
+                    arguments: [loweredReceiverID, exceptionSlot],
+                    result: closeResult,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+            } else {
+                // Keep the legacy direct-close fallback for pre-source-backed stdlib
+                // artifacts that do not contain the closeFinally helper.
+                instructions.append(contentsOf: directCloseInstructions)
+            }
+            instructions.append(.label(closeAfterLabel))
             if let closeEndLabel {
                 instructions.append(.label(closeEndLabel))
             }
@@ -376,14 +316,170 @@ extension CallLowerer {
             instructions.append(.label(endLabel))
             return result
 
-        case .scopeWith:
-            return nil // with is handled in lowerCallExpr
+        case .scopeUsePinned:
+            // usePinned (STDLIB-CINTEROP-FN-042): pin() the receiver, invoke
+            // block(pinned) inside a try, then unpin() in a finally block.
+            // Shaped like scopeUse's try-finally, but: (a) the call that produces
+            // the value handed to the lambda is pin() itself, not the receiver, and
+            // (b) cleanup is a concrete call to Pinned<T>.unpin(), not a virtual
+            // dispatch to close() — Pinned is a final synthetic class.
+            let loweredLambdaID = driver.lowerExpr(
+                args[0].expr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            guard let info = driver.ctx.callableValueInfo(for: loweredLambdaID) else {
+                return nil
+            }
+
+            let pinFQName: [InternedString] = [
+                interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("pin"),
+            ]
+            guard let pinSymbol = sema.symbols.lookup(fqName: pinFQName),
+                  let pinSignature = sema.symbols.functionSignature(for: pinSymbol)
+            else {
+                return nil
+            }
+
+            // The lambda's inferred parameter type is the concrete Pinned<T>;
+            // fall back to pin()'s own (generic) return type if unavailable.
+            let pinnedType: TypeID = sema.bindings.exprTypes[args[0].expr].flatMap { lambdaType in
+                if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                    return fnType.params.first
+                }
+                return nil
+            } ?? pinSignature.returnType
+
+            guard case let .classType(pinnedClassType) = sema.types.kind(of: pinnedType),
+                  let pinnedClassInfo = sema.symbols.symbol(pinnedClassType.classSymbol)
+            else {
+                return nil
+            }
+            let unpinFQName = pinnedClassInfo.fqName + [interner.intern("unpin")]
+            guard let unpinSymbol = sema.symbols.lookup(fqName: unpinFQName) else {
+                return nil
+            }
+
+            func resolvedCalleeName(for symbol: SymbolID, fallback: String) -> InternedString {
+                if let extLink = sema.symbols.externalLinkName(for: symbol), !extLink.isEmpty {
+                    return interner.intern(extLink)
+                }
+                return sema.symbols.symbol(symbol)?.name ?? interner.intern(fallback)
+            }
+
+            let pinnedResult = arena.appendTemporary(type: pinnedType
+            )
+            instructions.append(.call(
+                symbol: pinSymbol,
+                callee: resolvedCalleeName(for: pinSymbol, fallback: "pin"),
+                arguments: [loweredReceiverID],
+                result: pinnedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+
+            let result = arena.appendTemporary(type: boundType
+            )
+
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+
+            // Exception tracking slots for try-finally.
+            let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
+            let exceptionTypeSlot = arena.appendTemporary(type: intType)
+            let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            let zeroTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
+            instructions.append(.constValue(result: nullExceptionValue, value: .null))
+            instructions.append(.constValue(result: zeroTypeToken, value: .intLiteral(0)))
+            instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
+            instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
+
+            let finallyLabel = driver.ctx.makeLoopLabel()
+            let rethrowLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+
+            // try: invoke the block lambda with the pinned handle.
+            // Collection-HOF-marked lambdas take a leading closureRaw argument
+            // (see scopeUse above).
+            var closureRawArg: KIRExprID? = nil
+            if info.hasClosureParam {
+                if info.captureArguments.isEmpty {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    closureRawArg = zeroExpr
+                } else if info.captureArguments.count == 1 {
+                    closureRawArg = info.captureArguments[0]
+                } else {
+                    let boxedArgs = makeBoxedCallableCaptureArguments(
+                        callableInfo: info,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    closureRawArg = boxedArgs[0]
+                }
+            }
+
+            var blockInstructions: [KIRInstruction] = []
+            let callArgs: [KIRExprID]
+            if let closureRawArg {
+                callArgs = [closureRawArg, pinnedResult]
+            } else {
+                callArgs = info.captureArguments + [pinnedResult]
+            }
+            blockInstructions.append(.call(
+                symbol: info.symbol,
+                callee: info.callee,
+                arguments: callArgs,
+                result: result,
+                canThrow: true,
+                thrownResult: nil
+            ))
+
+            // CODE-001: guard against an outer try/catch/use re-wrapping this
+            // already-routed call if `usePinned` is itself nested inside one
+            // (see the matching guard in the scopeUse case above).
+            instructions.append(.beginFinallyGuard)
+            driver.controlFlowLowerer.appendThrowAwareInstructions(
+                blockInstructions,
+                exceptionSlot: exceptionSlot,
+                exceptionTypeSlot: exceptionTypeSlot,
+                thrownTarget: finallyLabel,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                instructions: &instructions
+            )
+            instructions.append(.endFinallyGuard)
+            instructions.append(.jump(finallyLabel))
+
+            // finally: unpin() the handle. Concrete call — Pinned is a final
+            // synthetic class, so no virtual dispatch is needed.
+            instructions.append(.label(finallyLabel))
+            let unpinResult = arena.appendTemporary(type: sema.types.unitType
+            )
+            instructions.append(.call(
+                symbol: unpinSymbol,
+                callee: resolvedCalleeName(for: unpinSymbol, fallback: "unpin"),
+                arguments: [pinnedResult],
+                result: unpinResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+
+            // After finally: rethrow if an exception was caught, otherwise continue.
+            instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
+            instructions.append(.jump(endLabel))
+
+            instructions.append(.label(rethrowLabel))
+            instructions.append(.rethrow(value: exceptionSlot))
+
+            instructions.append(.label(endLabel))
+            return result
 
         case .scopeContext:
             return nil // context is handled in lowerCallExpr
-
-        case .scopeTopLevelRun:
-            return nil // top-level run is handled in lowerCallExpr
         }
     }
 }

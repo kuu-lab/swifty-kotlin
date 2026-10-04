@@ -40,17 +40,24 @@ extension BuildASTPhase {
                 tokenIndex += 1
                 continue
             }
+            if token.kind == .symbol(.at),
+               let annotation = AnnotationParsingSupport.parseAnnotation(
+                   from: tokens,
+                   start: tokenIndex,
+                   interner: interner,
+                   allowUseSiteTarget: false
+               )
+            {
+                tokenIndex = annotation.nextIndex
+                continue
+            }
             if handleVarianceToken(token.kind, pendingVariance: &pendingVariance, pendingReified: &pendingReified) {
                 tokenIndex += 1
                 continue
             }
-            guard isTypeLikeNameToken(token.kind),
+            guard TypeRefParserCore.isTypeLikeNameToken(token.kind),
                   let name = internedIdentifier(from: token, interner: interner)
             else {
-                tokenIndex += 1
-                continue
-            }
-            if case let .keyword(keyword) = token.kind, isLeadingDeclarationKeyword(keyword) {
                 tokenIndex += 1
                 continue
             }
@@ -58,7 +65,8 @@ extension BuildASTPhase {
             let upperBound = parseInlineUpperBound(tokens: tokens, tokenIndex: &tokenIndex,
                                                    interner: interner, astArena: astArena)
             result.append(TypeParamDecl(
-                name: name, variance: pendingVariance, isReified: pendingReified, upperBound: upperBound
+                name: name, variance: pendingVariance, isReified: pendingReified,
+                upperBounds: upperBound.map { [$0] } ?? []
             ))
             pendingVariance = .invariant
             pendingReified = false
@@ -167,7 +175,7 @@ extension BuildASTPhase {
             if token.kind == .symbol(.lBrace) || token.kind == .symbol(.semicolon) {
                 break
             }
-            guard isTypeLikeNameToken(token.kind),
+            guard TypeRefParserCore.isTypeLikeNameToken(token.kind),
                   let name = internedIdentifier(from: token, interner: interner)
             else {
                 index += 1

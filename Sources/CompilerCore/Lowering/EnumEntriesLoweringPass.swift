@@ -3,6 +3,8 @@
 /// Runs after DataEnumSealedSynthesisPass which creates the `entries$get` helper.
 final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "EnumEntriesLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         guard let sema = ctx.sema else {
@@ -13,8 +15,11 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         let entriesGetName = ctx.interner.intern("entries$get")
 
         module.arena.transformFunctions { function in
-            var newBody: [KIRInstruction] = []
-            for instruction in function.body {
+            var newBody = KIRLoweringEmitContext()
+            for (index, instruction) in function.body.enumerated() {
+                newBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 // Match call/virtualCall where callee is "entries" or symbol is
                 // a property named "entries" owned by an enum class.
                 if let rewritten = self.rewriteEntriesAccess(
@@ -32,6 +37,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
                 if let rewritten = self.rewriteEntriesConstValue(
                     instruction: instruction,
                     sema: sema,
+                    arena: module.arena,
                     entriesName: entriesName,
                     entriesGetName: entriesGetName
                 ) {
@@ -44,6 +50,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
                 if let rewritten = self.rewriteEntriesLoadGlobal(
                     instruction: instruction,
                     sema: sema,
+                    arena: module.arena,
                     entriesName: entriesName,
                     entriesGetName: entriesGetName
                 ) {
@@ -104,10 +111,11 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         guard let getter = getterSymbol else {
             return nil
         }
-        let targetResult = result ?? arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
-        )
+        let targetResult = normalizePropertyResult(
+            result,
+            propertySymbol: propSym,
+            arena: arena
+        ) ?? arena.appendTemporary(type: sema.types.anyType)
         return .call(
             symbol: getter,
             callee: entriesGetName,
@@ -124,6 +132,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
     private func rewriteEntriesConstValue(
         instruction: KIRInstruction,
         sema: SemaModule,
+        arena: KIRArena,
         entriesName: InternedString,
         entriesGetName: InternedString
     ) -> KIRInstruction? {
@@ -158,6 +167,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         guard let getter = getterSymbol else {
             return nil
         }
+        _ = normalizePropertyResult(cvResult, propertySymbol: sym, arena: arena)
         return .call(
             symbol: getter,
             callee: entriesGetName,
@@ -174,6 +184,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
     private func rewriteEntriesLoadGlobal(
         instruction: KIRInstruction,
         sema: SemaModule,
+        arena: KIRArena,
         entriesName: InternedString,
         entriesGetName: InternedString
     ) -> KIRInstruction? {
@@ -207,14 +218,34 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         guard let getter = getterSymbol else {
             return nil
         }
+        let normalizedResult = normalizePropertyResult(
+            result,
+            propertySymbol: symbol,
+            arena: arena
+        )
         return .call(
             symbol: getter,
             callee: entriesGetName,
             arguments: [],
-            result: result,
+            result: normalizedResult,
             canThrow: false,
             thrownResult: nil
         )
+    }
+
+    private func normalizePropertyResult(
+        _ result: KIRExprID?,
+        propertySymbol: SymbolID,
+        arena: KIRArena
+    ) -> KIRExprID? {
+        guard let result,
+              case let .symbolRef(referencedSymbol) = arena.expr(result),
+              referencedSymbol == propertySymbol
+        else {
+            return result
+        }
+        arena.replaceExpr(result, with: .temporary(result.rawValue))
+        return result
     }
 
     /// Walk up the parent chain to find the enum class that owns this property.

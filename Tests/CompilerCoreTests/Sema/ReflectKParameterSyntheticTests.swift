@@ -4,27 +4,25 @@ import Testing
 
 @Suite
 struct ReflectKParameterSyntheticTests {
-    private func makeSema(
-        source: String = "fun noop() {}"
+    private static let fixture = SemaFixture(surface: "KParameter")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KParameter surface to resolve cleanly, got: \(diagnostics)"))
-            result = try (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test func testKParameterSurfaceIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
-        let kAnnotatedElementSymbol = try #require(sema.symbols.lookup(
-            fqName: reflectPackage + [interner.intern("KAnnotatedElement")]
-        ))
         let kTypeSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KType")]
         ))
@@ -35,20 +33,19 @@ struct ReflectKParameterSyntheticTests {
         let kParameterInfo = try #require(sema.symbols.symbol(kParameterSymbol))
         #expect(kParameterInfo.kind == .interface)
         #expect(kParameterInfo.flags.contains(.synthetic))
-        #expect(sema.symbols.directSupertypes(for: kParameterSymbol).contains(kAnnotatedElementSymbol))
 
         let kTypeType = sema.types.make(.classType(ClassType(
             classSymbol: kTypeSymbol,
             args: [],
             nullability: .nonNull
         )))
-        let nullableStringType = sema.types.make(.primitive(.string, .nullable))
+        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
         let propertyExpectations: [(name: String, type: TypeID, externalLinkName: String)] = [
-            ("index", sema.types.intType, "kk_kparameter_get_index"),
-            ("name", nullableStringType, "kk_kparameter_get_name"),
-            ("type", kTypeType, "kk_kparameter_get_type"),
-            ("isOptional", sema.types.booleanType, "kk_kparameter_is_optional"),
-            ("kind", sema.types.intType, "kk_kparameter_get_kind"),
+            ("index", sema.types.intType, "__kk_kparameter_get_index"),
+            ("name", nullableStringType, "__kk_kparameter_get_name"),
+            ("type", kTypeType, "__kk_kparameter_get_type"),
+            ("isOptional", sema.types.booleanType, "__kk_kparameter_is_optional"),
+            ("kind", sema.types.intType, "__kk_kparameter_get_kind"),
         ]
 
         for expectation in propertyExpectations {
@@ -63,11 +60,8 @@ struct ReflectKParameterSyntheticTests {
 
     @Test func testKParameterPropertiesResolveInSource() throws {
         let source = """
-        import kotlin.reflect.KAnnotatedElement
         import kotlin.reflect.KParameter
         import kotlin.reflect.KType
-
-        fun annotated(parameter: KParameter): KAnnotatedElement = parameter
 
         fun inspect(parameter: KParameter): KType {
             val index: Int = parameter.index

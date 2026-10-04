@@ -18,4 +18,13 @@ fun main() {
     println(Long.MIN_VALUE)
     println(Double.MAX_VALUE)
     println(Float.MAX_VALUE)
+
+    val largeLong: Long = 123456789012345L
+    println(largeLong.toInt())
+    println(largeLong.toDouble())
+
+    val preciseDouble: Double = 3.14159
+    println(preciseDouble.toInt())
+    println(preciseDouble.toLong())
+    println(preciseDouble.toFloat())
 }

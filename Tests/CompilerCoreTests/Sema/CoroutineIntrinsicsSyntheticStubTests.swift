@@ -3,21 +3,32 @@
 import Foundation
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct CoroutineIntrinsicsSyntheticStubTests {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema {
+            return cached
+        }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
             try runSema(ctx)
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
-        return try #require(result)
+        let semaResult = try #require(result)
+        Self._sharedSema = semaResult
+        return semaResult
     }
 
     @Test
     func testCoroutineIntrinsicsStubsAreRegisteredWithExpectedShapes() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let continuationFQName = ["kotlin", "coroutines", "Continuation"].map { interner.intern($0) }
         let continuationSymbol = try #require(
@@ -72,8 +83,84 @@ struct CoroutineIntrinsicsSyntheticStubTests {
     }
 
     @Test
-    func testSuspendCoroutineIntrinsicsResolveInSource() throws {
-        let source = """
+    func testSourceBackedCoroutineIntrinsicsReplaceResidualStubs() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let package = [
+                interner.intern("kotlin"),
+                interner.intern("coroutines"),
+                interner.intern("intrinsics"),
+            ]
+
+            func symbols(named name: String) -> [SymbolID] {
+                sema.symbols.lookupAll(fqName: package + [interner.intern(name)])
+            }
+
+            let suspendedName = interner.intern("COROUTINE_SUSPENDED")
+            #expect(sema.bundledIndex.contains(ownerFQName: package, name: suspendedName, arity: 0))
+            let suspendedSymbols = symbols(named: "COROUTINE_SUSPENDED")
+            #expect(suspendedSymbols.count == 1)
+            #expect(suspendedSymbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+
+            let singletonSymbols = symbols(named: "CoroutineSingletons")
+            #expect(singletonSymbols.count == 1)
+            let singletonSymbol = try #require(singletonSymbols.first)
+            #expect(sema.symbols.symbol(singletonSymbol)?.kind == .enumClass)
+
+            let fallbackSymbols = symbols(named: "startCoroutineUninterceptedOrReturnFallback")
+            #expect(fallbackSymbols.count == 2)
+            #expect(fallbackSymbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+
+            let suspendName = interner.intern("suspendCoroutineUninterceptedOrReturn")
+            #expect(sema.bundledIndex.contains(ownerFQName: package, name: suspendName, arity: 1))
+            let suspendSymbols = symbols(named: "suspendCoroutineUninterceptedOrReturn")
+            #expect(suspendSymbols.count == 1)
+            #expect(suspendSymbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+
+            let wrapperSymbols = symbols(named: "wrapWithContinuationImpl")
+            #expect(wrapperSymbols.count == 1)
+            #expect(wrapperSymbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) == false })
+        }
+    }
+
+    // MARK: - Shared context for call-site tests
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+    private static nonisolated(unsafe) var _sharedPaths: [String]?
+
+    private func sharedCtx() throws -> (CompilationContext, [String]) {
+        if let cached = Self._sharedCtx, let paths = Self._sharedPaths {
+            return (cached, paths)
+        }
+        var result: CompilationContext?
+        var paths: [String] = []
+        try withTemporaryFiles(contents: Self.sharedSources) { p in
+            paths = p
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedCtx = ctx
+        Self._sharedPaths = paths
+        return (ctx, paths)
+    }
+
+    private static let sharedSources: [String] = [
+        """
+        package sample0
         import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
         import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 
@@ -82,37 +169,76 @@ struct CoroutineIntrinsicsSyntheticStubTests {
                 COROUTINE_SUSPENDED
             }
         }
+        """,
         """
+        package sample1
+        import kotlin.coroutines.RestrictsSuspension
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        @RestrictsSuspension
+        class Scope
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+        @RestrictsSuspension
+        interface ScopeInterface
+        """,
+        """
+        package sample2
+        import kotlin.coroutines.RestrictsSuspension
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                else {
-                    return false
-                }
-                return ctx.interner.resolve(calleeName) == "suspendCoroutineUninterceptedOrReturn"
-            })
+        @RestrictsSuspension
+        fun bad() {}
+        """,
+        """
+        package sample3
+        import kotlin.coroutines.Continuation
+        import kotlin.coroutines.intrinsics.startCoroutineUninterceptedOrReturn
 
-            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .suspendCoroutineUninterceptedOrReturn)
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) ==
-                nil
-            )
-            #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
+        fun probe(block: suspend () -> Int, completion: Continuation<Int>): Any? {
+            return block.startCoroutineUninterceptedOrReturn(completion)
         }
+        """
+    ]
+
+    private func errorDiagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID && $0.severity == .error }
+    }
+
+    @Test
+    func testSuspendCoroutineIntrinsicsResolveInSource() throws {
+        let (ctx, paths) = try sharedCtx()
+        let path = paths[0]
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty)
+
+        let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .call(calleeExpr, _, _, _) = expr,
+                  case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+            else {
+                return false
+            }
+            return ctx.interner.resolve(calleeName) == "suspendCoroutineUninterceptedOrReturn"
+        })
+
+        #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .suspendCoroutineUninterceptedOrReturn)
+        let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+        #expect(
+            sema.symbols.externalLinkName(for: chosenCallee) ==
+            nil
+        )
+        #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
     }
 
     @Test
     func testStartCoroutineUninterceptedOrReturnOverloadsAreRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
 
         let fqName = ["kotlin", "coroutines", "intrinsics", "startCoroutineUninterceptedOrReturn"].map {
             interner.intern($0)
@@ -131,8 +257,37 @@ struct CoroutineIntrinsicsSyntheticStubTests {
     }
 
     @Test
+    func testRestrictsSuspensionIsSourceBackedWithBundledStdlib() throws {
+        try withTemporaryFile(contents: "@kotlin.coroutines.RestrictsSuspension class Scope") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlin", "coroutines", "RestrictsSuspension"].map {
+                ctx.interner.intern($0)
+            }
+            #expect(sema.bundledIndex.containsNominal(fqName: fqName))
+            let symbols = sema.symbols.lookupAll(fqName: fqName)
+            #expect(symbols.count == 1)
+            let symbol = try #require(symbols.first)
+            let info = try #require(sema.symbols.symbol(symbol))
+            #expect(info.kind == .annotationClass)
+            #expect(info.declSite != nil)
+            #expect(!info.flags.contains(.synthetic))
+            let constructors = sema.symbols.lookupAll(fqName: fqName + [ctx.interner.intern("<init>")])
+            #expect(constructors.count == 1)
+            let constructor = try #require(constructors.first)
+            #expect(sema.symbols.functionSignature(for: constructor)?.parameterTypes.isEmpty == true)
+            #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        }
+    }
+
+    @Test
     func testRestrictsSuspensionAnnotationIsRegisteredWithClassTarget() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
 
         let fqName = ["kotlin", "coroutines", "RestrictsSuspension"].map {
             interner.intern($0)
@@ -146,6 +301,26 @@ struct CoroutineIntrinsicsSyntheticStubTests {
         #expect(symbol.visibility == .public)
         #expect(symbol.flags.contains(.synthetic))
 
+        let constructorFQName = fqName + [interner.intern("<init>")]
+        let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
+            sema.symbols.symbol($0)?.kind == .constructor
+        }
+        #expect(constructors.count == 1)
+        let constructor = try #require(
+            constructors.first,
+            "Expected kotlin.coroutines.RestrictsSuspension to expose its implicit no-arg constructor"
+        )
+        let constructorSymbol = try #require(sema.symbols.symbol(constructor))
+        #expect(constructorSymbol.visibility == .public)
+        #expect(constructorSymbol.flags.contains(.synthetic))
+        let constructorSignature = try #require(sema.symbols.functionSignature(for: constructor))
+        #expect(constructorSignature.parameterTypes.isEmpty)
+        #expect(constructorSignature.returnType == sema.types.make(.classType(ClassType(
+            classSymbol: symbolID,
+            args: [],
+            nullability: .nonNull
+        ))))
+
         let annotations = sema.symbols.annotations(for: symbolID)
         #expect(
             annotations.contains {
@@ -154,64 +329,67 @@ struct CoroutineIntrinsicsSyntheticStubTests {
             },
             "RestrictsSuspension should target class-like declarations, got: \(annotations)"
         )
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            },
+            "RestrictsSuspension should use binary retention, got: \(annotations)"
+        )
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.SinceKotlin"
+                    && $0.arguments == ["1.3"]
+            },
+            "RestrictsSuspension should be available since Kotlin 1.3, got: \(annotations)"
+        )
     }
 
     @Test
     func testRestrictsSuspensionAnnotationTargetsClassLikeDeclarationsOnly() throws {
-        let acceptedSource = """
-        import kotlin.coroutines.RestrictsSuspension
+        let (ctx, paths) = try sharedCtx()
+        let acceptedPath = paths[1]
+        let rejectedPath = paths[2]
 
-        @RestrictsSuspension
-        class Scope
-
-        @RestrictsSuspension
-        interface ScopeInterface
-        """
-        let acceptedCtx = makeContextFromSource(acceptedSource)
-        try runSema(acceptedCtx)
-        let acceptedDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: acceptedCtx)
+        let acceptedDiagnostics = diagnosticsForPath(
+            acceptedPath,
+            withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET",
+            in: ctx
+        )
         #expect(
             acceptedDiagnostics.isEmpty,
-            "Expected RestrictsSuspension to accept class-like declarations, got: \(acceptedCtx.diagnostics.diagnostics)"
+            "Expected RestrictsSuspension to accept class-like declarations, got: \(ctx.diagnostics.diagnostics)"
         )
 
-        let rejectedSource = """
-        import kotlin.coroutines.RestrictsSuspension
-
-        @RestrictsSuspension
-        fun bad() {}
-        """
-        let rejectedCtx = makeContextFromSource(rejectedSource)
-        try runSema(rejectedCtx)
-        let rejectedDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: rejectedCtx)
+        let rejectedDiagnostics = diagnosticsForPath(
+            rejectedPath,
+            withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET",
+            in: ctx
+        )
         #expect(
             rejectedDiagnostics.count == 1,
-            "Expected RestrictsSuspension to reject function declarations, got: \(rejectedCtx.diagnostics.diagnostics)"
+            "Expected RestrictsSuspension to reject function declarations, got: \(ctx.diagnostics.diagnostics)"
         )
         #expect(rejectedDiagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
     }
 
     @Test
     func testStartCoroutineUninterceptedOrReturnResolvesInSource() throws {
-        let source = """
-        import kotlin.coroutines.Continuation
-        import kotlin.coroutines.intrinsics.startCoroutineUninterceptedOrReturn
-
-        fun probe(block: suspend () -> Int, completion: Continuation<Int>): Any? {
-            return block.startCoroutineUninterceptedOrReturn(completion)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+        // The no-receiver overload is bundled Kotlin source (SuspendFunction0.kt),
+        // so this needs the bundled stdlib that the shared context omits.
+        try withTemporaryFile(contents: Self.sharedSources[3]) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: false
+            )
             try runSema(ctx)
-
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
-
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            #expect(errorDiagnosticsForPath(path, in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
+
+            let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .memberCall(_, memberName, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(memberName) == "startCoroutineUninterceptedOrReturn"
             })

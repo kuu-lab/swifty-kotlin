@@ -4,15 +4,19 @@ import Testing
 
 @Suite
 struct NativeCInteropBetaInteropApiTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!(ctx.diagnostics.hasError), "Expected BetaInteropApi surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+    private static let fixture = SemaFixture(surface: "BetaInteropApi")
+
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -30,14 +34,14 @@ struct NativeCInteropBetaInteropApiTests {
     }
 
     @Test func testBetaInteropApiAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let symbol = try betaInteropApiSymbol(sema: sema, interner: interner)
 
         #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
     }
 
     @Test func testBetaInteropApiCarriesOfficialTargets() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let symbol = try betaInteropApiSymbol(sema: sema, interner: interner)
         let target = try #require(
             sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.annotation.Target" },
@@ -55,7 +59,7 @@ struct NativeCInteropBetaInteropApiTests {
     }
 
     @Test func testBetaInteropApiCarriesRequiresOptInWarning() throws {
-        let (sema, interner) = try makeSema()
+        let (sema, interner) = try sharedSema()
         let symbol = try betaInteropApiSymbol(sema: sema, interner: interner)
         let requiresOptIn = try #require(
             sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.RequiresOptIn" },
