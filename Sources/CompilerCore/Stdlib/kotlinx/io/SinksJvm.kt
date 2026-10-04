@@ -47,9 +47,9 @@ public fun Sink.asOutputStream(): OutputStream {
     return kkKotlinSinkOutputStream(
         { bytes: ByteArray ->
             if (isClosed()) throw java.io.IOException("Underlying sink is closed.")
-            sink.write(bytes, 0, bytes.size)
+            write(bytes, 0, bytes.size)
         },
-        { if (!isClosed()) sink.flush() },
-        { sink.close() }
+        { if (!isClosed()) flush() },
+        { close() }
     )
 }

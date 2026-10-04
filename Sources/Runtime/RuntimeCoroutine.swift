@@ -2082,6 +2082,33 @@ public func kk_start_coroutine_unintercepted_or_return_no_receiver(
     fatalError("kk_start_coroutine_unintercepted_or_return_no_receiver is rewritten by CoroutineLoweringPass")
 }
 
+/// Link-time marker for the source-backed receiver-bearing
+/// `createCoroutineUnintercepted`. `CoroutineLoweringPass` rewrites every call
+/// into `kk_create_coroutine_unintercepted`; this stub only exists so the
+/// standalone copy of the inline caller in the stdlib library links.
+@_cdecl("kk_create_coroutine_unintercepted_with_receiver")
+public func kk_create_coroutine_unintercepted_with_receiver(
+    _ functionRaw: Int,
+    _ functionContextRaw: Int,
+    _ receiverRaw: Int,
+    _ completionContinuation: Int
+) -> Int {
+    fatalError("kk_create_coroutine_unintercepted_with_receiver is rewritten by CoroutineLoweringPass")
+}
+
+/// Link-time marker for the source-backed receiver-bearing
+/// `startCoroutineUninterceptedOrReturn`; see the create marker above.
+@_cdecl("kk_start_coroutine_unintercepted_or_return_with_receiver")
+public func kk_start_coroutine_unintercepted_or_return_with_receiver(
+    _ functionRaw: Int,
+    _ functionContextRaw: Int,
+    _ receiverRaw: Int,
+    _ completionContinuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    fatalError("kk_start_coroutine_unintercepted_or_return_with_receiver is rewritten by CoroutineLoweringPass")
+}
+
 @_cdecl("kk_start_coroutine_unintercepted_or_return")
 public func kk_start_coroutine_unintercepted_or_return(
     _ entryPointRaw: Int,
