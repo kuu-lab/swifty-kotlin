@@ -1,10 +1,5 @@
 /// Dependency scheduling for snapshots and bounded re-scanning of callers.
 extension InlineLoweringPass {
-    /// Upper bound on how many times a function body is re-scanned for inline
-    /// calls. Nested expansions terminate well below this; the cap only keeps
-    /// mutually recursive inline functions from looping forever.
-    private static let maxInlineExpansionRounds = 8
-
     /// Visit frozen snapshots in callee-before-caller order, including bodies
     /// reached through lambda arguments. Each original is transformed at most
     /// once; a back edge is not revisited, leaving cycles to the residue check.
@@ -68,8 +63,7 @@ extension InlineLoweringPass {
             worklist.append(contentsOf: ordered(dependencies).reversed().map { ($0, false) })
         }
 
-        // Do not pre-expand ordinary inline chains with no bodyless dependency:
-        // their caller-side eight-round contract is unchanged.
+        // Ordinary chains with no bodyless dependency are handled in callers.
         var pending = ordered(affected)
         while let symbol = pending.popLast() {
             for caller in ordered(callers[symbol] ?? []) where affected.insert(caller).inserted {
@@ -152,17 +146,19 @@ extension InlineLoweringPass {
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?,
+        expansionLimits: InlineExpansionBudget.Limits = .init(),
         preserveNonLocalReturns: Bool = false
     ) -> KIRFunction {
         var updated = function
         var body = function.body
         var locations = function.instructionLocations
-        // An expanded inline body can itself call another inline function
-        // (`Grouping.fold` delegating to `foldTo`). Those calls only become
-        // visible once the outer body is spliced in, and inline functions are
-        // not emitted as standalone symbols, so a call left behind here would
-        // dangle at link time. Re-scan until no inline call remains.
-        for _ in 0 ..< Self.maxInlineExpansionRounds {
+        let budget = InlineExpansionBudget(arena: module.arena, limits: expansionLimits)
+        if function.isInline { budget.inlineSymbols.insert(function.symbol) }
+        var pending: [Int: [SymbolID]] = [:]
+        for (offset, instruction) in body.enumerated() {
+            if case .call = instruction { pending[offset] = [function.symbol] }
+        }
+        while !pending.isEmpty, budget.consumeWork(body.count, arena: module.arena) {
             let expansion = expandInlineCalls(
                 in: body,
                 callerLocations: locations,
@@ -172,10 +168,13 @@ extension InlineLoweringPass {
                 module: module,
                 ctx: ctx,
                 unitType: unitType,
+                pending: pending,
+                budget: budget,
                 preserveNonLocalReturns: preserveNonLocalReturns
             )
             body = expansion.body
             locations = expansion.locations
+            pending = expansion.pending
             if !expansion.didExpand {
                 break
             }

@@ -50,13 +50,10 @@ extension CallTypeChecker {
     /// already-inferred body type instead, mirroring the Flow `.map` element-type
     /// readback in CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift.
     ///
-    /// For `async`, `Deferred` is registered with zero class-level type
-    /// parameters (see HeaderHelpers+SyntheticCoroutineRegistry.swift), so
-    /// constructing a `ClassType` with a synthesized type argument here would
-    /// create an arity mismatch that breaks member-candidate matching for
-    /// `.await()`. Instead, the element type is tracked out-of-band via
-    /// `bindDeferredElementType`, mirroring how `flowElementType` tracks Flow's
-    /// element type without touching `ClassType.args`.
+    /// For `async`, preserve the declared `Deferred` shape: the source-backed
+    /// builder uses `Deferred<Any>`, while a synthetic-only fallback may still
+    /// be non-generic. Track the actual element type via `bindDeferredElementType`
+    /// without changing `ClassType.args`.
     func coroutineBuilderNarrowedReturnType(
         id: ExprID,
         launcherName: String,
@@ -82,10 +79,8 @@ extension CallTypeChecker {
         return fallback
     }
 
-    /// `Deferred.await()` resolves as a normal member candidate (the synthetic
-    /// member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift) whose
-    /// signature hardcodes `Any` since `Deferred` has no class-level type
-    /// parameter. When the receiver expression (or the local symbol it was
+    /// `Deferred.await()` resolves as a normal member candidate. When an async
+    /// receiver expression (or the local symbol it was
     /// assigned to) carries a tracked element type from
     /// `coroutineBuilderNarrowedReturnType` above, use that instead of always
     /// widening to `Any?`.

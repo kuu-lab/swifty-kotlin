@@ -316,7 +316,7 @@ func runtimeRangeBox(from rawValue: Int) -> RuntimeRangeBox? {
     return tryCast(pointer, to: RuntimeRangeBox.self)
 }
 
-private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
+func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
     }

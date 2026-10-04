@@ -2,8 +2,7 @@
  * Copyright 2017-2023 JetBrains s.r.o. and respective authors and developers.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
  *
- * Derived from kotlinx-io core/common/src/RealSource.kt (tag 0.9.1), adjusted for the single
- * growable-ByteArray `Buffer` used by this port (see the note in Buffer.kt).
+ * Derived from kotlinx-io core/common/src/RealSource.kt (tag 0.9.1).
  */
 package kotlinx.io
 

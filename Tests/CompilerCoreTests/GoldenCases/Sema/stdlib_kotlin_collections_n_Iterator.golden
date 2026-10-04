@@ -1,5 +1,5 @@
 symbol fq=__local_0.value[kind=local] kind=local vis=private flags=_ type=String?
-symbol fq=golden.sema.NullableIterator.hasNext[kind=fun;recv=golden.sema.NullableIterator;params=] kind=function vis=public flags=overrideMember sig=recv=golden.sema.NullableIterator params=[] ret=Boolean
+symbol fq=golden.sema.NullableIterator.hasNext[kind=fun;recv=golden.sema.NullableIterator;params=] kind=function vis=public flags=operatorFunction|overrideMember sig=recv=golden.sema.NullableIterator params=[] ret=Boolean
 symbol fq=golden.sema.NullableIterator.index[kind=prop] kind=property vis=private flags=mutable type=Int
 symbol fq=golden.sema.NullableIterator.values[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.List<String?>
 symbol fq=golden.sema.NullableIterator[kind=class] kind=class vis=public flags=_
