@@ -1636,6 +1636,8 @@ public final class BindingTable {
     /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
     /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
+    /// Receivers supplied by the running continuation, not by launcherArgs.
+    public private(set) var coroutineScopeLambdaReceiverTypes: [ExprID: TypeID] = [:]
     /// Tracks expressions whose expected type comes from a type annotation
     /// written in source (a property or local declaration's `: Type`), as
     /// opposed to an expected type the compiler synthesized while inferring a
@@ -2216,6 +2218,10 @@ public final class BindingTable {
     /// argument (see `coroutineLauncherLambdaExprIDs`).
     public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
         coroutineLauncherLambdaExprIDs.contains(expr)
+    }
+
+    public func bindCoroutineScopeLambdaReceiverType(_ expr: ExprID, type: TypeID) {
+        coroutineScopeLambdaReceiverTypes[expr] = type
     }
 
     /// Mark an expression as checked against a source-written type annotation
