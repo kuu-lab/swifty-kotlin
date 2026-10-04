@@ -50,6 +50,7 @@ struct ABIMismatchTests {
     func collectionMutationSignaturesIncludeThrowingChannel() throws {
         let expected: [(name: String, parameters: [String])] = [
             ("__kk_mutable_list_add", ["listRaw", "elem", "outThrown"]),
+            ("__kk_mutable_list_remove", ["listRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_add", ["setRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_remove", ["setRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_clear", ["setRaw", "outThrown"]),

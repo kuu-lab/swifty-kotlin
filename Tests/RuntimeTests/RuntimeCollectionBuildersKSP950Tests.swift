@@ -5,6 +5,37 @@ import Testing
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeCollectionBuildersKSP950Tests {
     @Test
+    func testListRemoveChecksFreezeBeforeElementLookup() throws {
+        for populated in [false, true] {
+            let list = __kk_builder_list_new(0)
+            if populated { _ = kk_mutable_list_add(list, 1, nil) }
+            _ = __kk_builder_list_freeze(list)
+            for element in [1, 2] {
+                var thrown = 0
+                #expect(kk_unbox_bool(kk_mutable_list_remove(list, element, &thrown)) == 0)
+                let throwable = try #require(runtimeThrowableBox(from: thrown))
+                #expect(runtimeThrowableBoxHasExactType(throwable, RuntimeUnsupportedOperationExceptionBox.self))
+                #expect(kk_list_size(list) == (populated ? 1 : 0))
+            }
+        }
+    }
+
+    @Test
+    func testMutableListRemoveClearsThrownAndRemovesOnlyFirstMatch() {
+        let list = __kk_builder_list_new(0)
+        _ = kk_mutable_list_add(list, 1, nil)
+        _ = kk_mutable_list_add(list, 1, nil)
+        var thrown = 123
+        #expect(kk_unbox_bool(kk_mutable_list_remove(list, 2, &thrown)) == 0)
+        #expect(thrown == 0)
+        #expect(kk_list_size(list) == 2)
+        thrown = 123
+        #expect(kk_unbox_bool(kk_mutable_list_remove(list, 1, &thrown)) == 1)
+        #expect(thrown == 0)
+        #expect(kk_list_size(list) == 1)
+    }
+
+    @Test
     func testBuilderCapacityFactoriesReturnFreshReadOnlyCollections() {
         let list = __kk_builder_list_new(4)
         let secondList = __kk_builder_list_new(4)
