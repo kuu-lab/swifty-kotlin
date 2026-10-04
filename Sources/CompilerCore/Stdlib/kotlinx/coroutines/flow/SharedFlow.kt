@@ -7,6 +7,8 @@
 
 package kotlinx.coroutines.flow
 
+import kotlinx.coroutines.channels.BufferOverflow
+
 // MIGRATION-FLOW-002 (KSP-675)
 // SharedFlow / MutableSharedFlow migrated from the dedicated runtime handle
 // (kk_mutable_shared_flow_create / kk_mutable_shared_flow_emit /
@@ -24,8 +26,32 @@ public interface SharedFlow<out T> {
     public suspend fun collect(collector: suspend (T) -> Unit)
 }
 
-public class MutableSharedFlow<T>(private val replay: Int) : SharedFlow<T> {
+public class MutableSharedFlow<T>(
+    private val replay: Int = 0,
+    extraBufferCapacity: Int = 0,
+    onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND
+) : SharedFlow<T> {
     private val buffer: MutableList<T> = mutableListOf()
+    private var subscribers: MutableStateFlow<Int>? = null
+
+    init {
+        require(replay >= 0) { "replay cannot be negative" }
+        require(extraBufferCapacity >= 0) { "extraBufferCapacity cannot be negative" }
+        require(onBufferOverflow == BufferOverflow.SUSPEND || replay > 0 || extraBufferCapacity > 0) {
+            "non-default onBufferOverflow requires positive replay or extraBufferCapacity"
+        }
+    }
+
+    public val subscriptionCount: StateFlow<Int>
+        get() = subscriptionCounter()
+
+    private fun subscriptionCounter(): MutableStateFlow<Int> {
+        val existing = subscribers
+        if (existing != null) return existing
+        val counter = MutableStateFlow(0)
+        subscribers = counter
+        return counter
+    }
 
     override val replayCache: List<T>
         get() = buffer.toList()
@@ -44,9 +70,20 @@ public class MutableSharedFlow<T>(private val replay: Int) : SharedFlow<T> {
         tryEmit(value)
     }
 
+    public fun resetReplayCache() {
+        buffer.clear()
+    }
+
     override suspend fun collect(collector: suspend (T) -> Unit) {
-        for (value in replayCache) {
-            collector(value)
+        val snapshot = replayCache
+        val counter = subscriptionCounter()
+        counter.value = counter.value + 1
+        try {
+            for (value in snapshot) {
+                collector(value)
+            }
+        } finally {
+            counter.value = counter.value - 1
         }
     }
 }
