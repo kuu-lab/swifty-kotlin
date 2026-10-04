@@ -67,7 +67,7 @@ extension BuildASTPhase.ExpressionParser {
         case .stringQuote, .rawStringQuote, .multiDollarStringQuote, .multiDollarRawStringQuote:
             return parseStringLiteral()
         case .symbol(.doubleColon):
-            return parseCallableReferenceWithoutReceiver()
+            return parseCallableReference()
         case .symbol(.lParen):
             _ = consume()
             let expr = parseExpression(minPrecedence: 0)
