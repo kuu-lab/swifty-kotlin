@@ -35,6 +35,19 @@ struct ContractCallSiteEffectsTests {
         contract { returns(true) implies condition }
         return condition
     }
+    @OptIn(ExperimentalContracts::class)
+    fun maybe(x: String?): Boolean? {
+        contract { returns(true) implies (x != null) }
+        return if (x != null) true else null
+    }
+    @OptIn(ExperimentalContracts::class)
+    fun ensureBoth(a: String?, b: String?) {
+        contract {
+            returns() implies (a != null)
+            returns() implies (b != null)
+        }
+        if (a == null || b == null) throw IllegalArgumentException()
+    }
     """
 
     @Test
@@ -53,6 +66,8 @@ struct ContractCallSiteEffectsTests {
             "if (both(b = y, a = x)) println(x.length + y.length)",
             "if (predicate(x != null)) println(x.length)",
             "if (!present(x)) return; println(x.length)",
+            "if (maybe(x) == true) println(x.length)",
+            "ensureBoth(b = y, a = x); println(x.length + y.length)",
         ]
         let negative = [
             "present(x); println(x.length)",
@@ -61,6 +76,8 @@ struct ContractCallSiteEffectsTests {
             "if (result(x) == null) println(x.length)",
             "result(x); println(x.length)",
             "if (present(x) || present(y)) println(x.length)",
+            "if (maybe(x) != false) println(x.length)",
+            "if (maybe(x) == false) {} else println(x.length)",
         ]
         let sources = (positive + negative).enumerated().map { index, body in
             "package case\(index)\n" + declarations + "\nfun probe(x: String?, y: String?) { \(body) }"
@@ -120,7 +137,7 @@ struct ContractCallSiteEffectsTests {
         """
         let record = MetadataRecord(
             kind: .function, mangledName: "_KK_present", fqName: "test.present", arity: 1,
-            typeSignature: "F1<S?,Z>",
+            typeSignature: "F1<Q<Lkotlin_String;>,Z>",
             contractImplicationEffects: [ContractImplicationEffect(parameterIndex: 0, returnCondition: .returnsTrue, argumentCondition: .nonNull)],
             valueParameterNames: ["x"]
         )

@@ -177,7 +177,7 @@ final class DataFlowAnalyzer {
         case .equal, .notEqual, .identityEqual, .notIdentityEqual:
             let testedCall: ExprID?
             let trueResult: ContractReturnCondition
-            let falseResult: ContractReturnCondition
+            var falseResult: ContractReturnCondition
             if isNullLiteral(rhsID, ast: ast, interner: interner) || isNullLiteral(lhsID, ast: ast, interner: interner) {
                 testedCall = isNullLiteral(rhsID, ast: ast, interner: interner) ? lhsID : rhsID
                 trueResult = .returnsNull
@@ -196,6 +196,13 @@ final class DataFlowAnalyzer {
                 falseResult = .normally
             }
             if let testedCall, sema.bindings.callBinding(for: testedCall) != nil {
+                if trueResult == .returnsTrue || trueResult == .returnsFalse,
+                   let resultType = sema.bindings.exprTypes[testedCall],
+                   makeTypeNonNullable(resultType, types: sema.types) != resultType
+                {
+                    // A nullable Boolean unequal to a literal may be null, not its opposite.
+                    falseResult = .normally
+                }
                 let branch = ConditionBranch(
                     trueState: applyContractImplications(testedCall, result: trueResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope),
                     falseState: applyContractImplications(testedCall, result: falseResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)

@@ -159,6 +159,7 @@ extension DataFlowSemaPhase {
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
+                contractImplicationEffects: metadataRecord.contractImplicationEffects,
                 canThrow: metadataRecord.canThrow,
                 valueParameterNames: metadataRecord.valueParameterNames,
                 reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,

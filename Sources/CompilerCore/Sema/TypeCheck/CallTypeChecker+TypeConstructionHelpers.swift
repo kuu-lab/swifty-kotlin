@@ -458,6 +458,7 @@ extension CallTypeChecker {
             ast: ctx.ast, sema: sema, interner: ctx.interner, scope: ctx.scope
         )
         driver.exprChecker.applyFlowStateToLocals(state, locals: &locals, sema: sema)
+        guard sema.symbols.contractImplicationEffects(for: chosen).isEmpty else { return }
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return
         }
@@ -483,7 +484,9 @@ extension CallTypeChecker {
         } else {
             return
         }
-        let conditionExpr = args[parameterIndex].expr
+        guard let argumentIndex = sema.bindings.callBinding(for: id)?.parameterMapping.first(where: { $0.value == parameterIndex })?.key,
+              args.indices.contains(argumentIndex) else { return }
+        let conditionExpr = args[argumentIndex].expr
         // Synthetic precondition effects describe a Boolean condition, while
         // source-backed contract effects point directly at the nullable
         // argument from a returns() implies clause.
