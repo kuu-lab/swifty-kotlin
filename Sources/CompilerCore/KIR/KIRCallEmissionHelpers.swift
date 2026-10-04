@@ -133,13 +133,15 @@ func emitThrowingCall<C: RangeReplaceableCollection>(
 /// External members lower to their runtime link name; the resolved symbol is
 /// carried along so that source-defined members (e.g. bundled `kotlin.Pair`)
 /// dispatch to the compiled function instead of a same-named runtime export,
-/// and so that ABI lowering can unbox generic component results.
+/// and so that ABI lowering can unbox generic component results. `candidate`
+/// is the resolved member itself, which `emitDestructuringComponentCall`
+/// needs for virtual dispatch even when `symbol` is withheld from a direct call.
 func resolveDestructuringComponentCallee(
     componentName: InternedString,
     receiverType: TypeID,
     sema: SemaModule,
     interner: StringInterner
-) -> (symbol: SymbolID?, callee: InternedString) {
+) -> (symbol: SymbolID?, callee: InternedString, candidate: SymbolID?) {
     let chosen = TypeCheckHelpers().collectMemberFunctionCandidates(
         named: componentName,
         receiverType: receiverType,
@@ -147,13 +149,57 @@ func resolveDestructuringComponentCallee(
         interner: interner
     ).first
     guard let chosen else {
-        return (nil, componentName)
+        return (nil, componentName, nil)
     }
     let symbol = sema.symbols.isSourceBackedSymbol(chosen) ? chosen : nil
     if let linkName = sema.symbols.externalLinkName(for: chosen), !linkName.isEmpty {
-        return (symbol, interner.intern(linkName))
+        return (symbol, interner.intern(linkName), chosen)
     }
-    return (symbol, componentName)
+    return (symbol, componentName, chosen)
+}
+
+extension CallLowerer {
+    /// Emits `receiver.componentN()` for a destructuring declaration. An open
+    /// `componentN` overridden in a subclass must dispatch on the receiver's
+    /// runtime type (`val (x, y): P = Q(...)` calls `Q.component1`), so the
+    /// resolved member goes through `tryEmitVirtualDispatch` first; only a
+    /// non-virtual member falls back to the direct `symbol`/`callee` call.
+    func emitDestructuringComponentCall(
+        candidate: SymbolID?,
+        symbol: SymbolID?,
+        callee: InternedString,
+        receiverExpr: ExprID?,
+        receiverID: KIRExprID,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        if let virtualInstruction = tryEmitVirtualDispatch(
+            chosenCallee: candidate,
+            calleeName: callee,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: receiverID,
+            isSuperCall: false,
+            finalArguments: [receiverID],
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner
+        ) {
+            instructions.append(virtualInstruction)
+            return
+        }
+        instructions.append(.call(
+            symbol: symbol,
+            callee: callee,
+            arguments: [receiverID],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
 }
 
 /// Unboxes `exprID` via `kk_unbox_int` when `staticType` is a concrete

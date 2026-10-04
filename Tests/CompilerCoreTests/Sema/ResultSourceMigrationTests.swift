@@ -120,12 +120,14 @@ struct ResultSourceMigrationTests {
 
         fun useResult(): Int {
             val success: Result<Int> = runCatching { 41 }
-            val mapped: Result<Any?> = success.map { value -> value }
+            val mapped: Result<Int> = success.map { value -> value + 1 }
             val tapped = mapped.onSuccess { value -> println(value) }
             val failure: Result<Int> = runCatching { failInt() }
-            val recovered: Result<Any?> = failure.recover { 7 }
-            val recoveredCatching: Result<Any?> = failure.recoverCatching { 8 }
-            return tapped.getOrDefault(0) + recovered.getOrDefault(0) + recoveredCatching.getOrDefault(0)
+            val recovered: Result<Int> = failure.recover { 7 }
+            val recoveredCatching: Result<Int> = failure.recoverCatching { 8 }
+            val mappedCatching: Result<String> = success.mapCatching { value -> "v" + value }
+            return tapped.getOrDefault(0) + recovered.getOrDefault(0) + recoveredCatching.getOrDefault(0) +
+                mappedCatching.getOrDefault("").length
         }
         """
 
@@ -162,6 +164,7 @@ struct ResultSourceMigrationTests {
                 "onSuccess": "kk_runtime_result_on_success",
                 "recover": "kk_runtime_result_recover",
                 "recoverCatching": "kk_runtime_result_recover_catching",
+                "mapCatching": nil,
                 "getOrDefault": nil,
             ]
             for (memberName, expectedLink) in expectedMemberLinks {
