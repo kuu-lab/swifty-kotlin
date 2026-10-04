@@ -42,21 +42,58 @@ internal class SelectClause2Impl<P, Q>(val ready: (P) -> Boolean, val value: (P)
 
 public val ReceiveChannel<*>.onReceive: SelectClause1<Any?>
     get() {
-        var result = ChannelResult<Any?>(3)
+        var result: ChannelResult<Any?>? = null
         return SelectClause1Impl({
-            result = __kkSelectTryReceive(this)
-            result.isSuccess || result.isClosed
-        }, { result.getOrThrow() })
+            val polled = __kkSelectTryReceive(this)
+            result = polled
+            polled.isSuccess || polled.isClosed
+        }, { result!!.getOrThrow() })
     }
 
 public val ReceiveChannel<*>.onReceiveCatching: SelectClause1<ChannelResult<Any?>>
     get() {
-        var result = ChannelResult<Any?>(3)
+        var result: ChannelResult<Any?>? = null
         return SelectClause1Impl({
-            result = __kkSelectTryReceive(this)
-            result.isSuccess || result.isClosed
-        }, { result })
+            val polled = __kkSelectTryReceive(this)
+            result = polled
+            polled.isSuccess || polled.isClosed
+        }, { result!! })
     }
+
+public fun <E, R> ReceiveChannel<E>.onReceive(block: suspend (E) -> R) {
+    var result: ChannelResult<Any?>? = null
+    currentSelectBuilder<R>().registerClause({
+        val polled = __kkSelectTryReceive(this)
+        result = polled
+        polled.isSuccess || polled.isClosed
+    }) { block(result!!.getOrThrow() as E) }
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <E, R> ReceiveChannel<E>.onReceiveCatching(block: suspend (ChannelResult<E>) -> R) {
+    var result: ChannelResult<Any?>? = null
+    currentSelectBuilder<R>().registerClause({
+        val polled = __kkSelectTryReceive(this)
+        result = polled
+        polled.isSuccess || polled.isClosed
+    }) { block(result!! as ChannelResult<E>) }
+}
+
+public fun <E, R> Channel<E>.onSend(element: E, block: suspend (Channel<E>) -> R) {
+    currentSelectBuilder<R>().registerClause({
+        val status = __kkSelectTrySend(this, element)
+        if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
+        status == 0
+    }) { block(this) }
+}
+
+public fun <E, R> SendChannel<E>.onSend(element: E, block: suspend (SendChannel<E>) -> R) {
+    currentSelectBuilder<R>().registerClause({
+        val status = __kkSelectTrySend(this, element)
+        if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
+        status == 0
+    }) { block(this) }
+}
 
 public val Channel<*>.onSend: SelectClause2<Any?, Channel<*>>
     get() = SelectClause2Impl({ value ->
@@ -72,7 +109,7 @@ public val SendChannel<*>.onSend: SelectClause2<Any?, SendChannel<*>>
         status == 0
     }, { this })
 
-public val Deferred.onAwait: SelectClause1<Any>
+public val Deferred<*>.onAwait: SelectClause1<Any?>
     get() = SelectClause1Impl({ selectJobReady(this) }, { await() })
 
 public val Job.onJoin: SelectClause0
@@ -81,6 +118,14 @@ public val Job.onJoin: SelectClause0
 internal fun selectJobReady(job: Any): Boolean {
     __kkSelectStart(job)
     return __kkSelectIsCompleted(job) != 0
+}
+
+public fun <T, R> Deferred<T>.onAwait(block: suspend (T) -> R) {
+    currentSelectBuilder<R>().registerClause({ selectJobReady(this) }) { block(await()) }
+}
+
+public fun <R> Job.onJoin(block: suspend () -> R) {
+    currentSelectBuilder<R>().registerClause({ selectJobReady(this) }, block)
 }
 
 public val Mutex.onLock: SelectClause2<Any?, Mutex>

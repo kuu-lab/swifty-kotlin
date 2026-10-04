@@ -3,6 +3,8 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 
 public interface MutableMap<K, V> : Map<K, V> {
+    public interface MutableEntry<K, V> : Map.Entry<K, V>
+
     @IgnorableReturnValue
     @KsSymbolName("__kk_mutable_map_remove")
     public fun remove(key: K): V?

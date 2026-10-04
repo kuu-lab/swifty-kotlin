@@ -2,6 +2,7 @@ package kotlinx.coroutines.selects
 
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
+import kotlin.internal.KsSymbolName
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Deferred
@@ -49,23 +50,25 @@ public interface SelectBuilder<R> {
 
     public fun <E> ReceiveChannel<E>.onReceive(block: suspend (E) -> R) {
         val channel = this
-        var result = ChannelResult<Any?>(3)
+        var result: ChannelResult<Any?>? = null
         this@SelectBuilder.registerClause({
-            result = __kkSelectTryReceive(channel)
-            result.isSuccess || result.isClosed
+            val polled = __kkSelectTryReceive(channel)
+            result = polled
+            polled.isSuccess || polled.isClosed
         }) {
-            block(result.getOrThrow() as E)
+            block(result!!.getOrThrow() as E)
         }
     }
 
     @Suppress("UNCHECKED_CAST")
     public fun <E> ReceiveChannel<E>.onReceiveCatching(block: suspend (ChannelResult<E>) -> R) {
         val channel = this
-        var result = ChannelResult<Any?>(3)
+        var result: ChannelResult<Any?>? = null
         this@SelectBuilder.registerClause({
-            result = __kkSelectTryReceive(channel)
-            result.isSuccess || result.isClosed
-        }) { block(result as ChannelResult<E>) }
+            val polled = __kkSelectTryReceive(channel)
+            result = polled
+            polled.isSuccess || polled.isClosed
+        }) { block(result!! as ChannelResult<E>) }
     }
 
     public fun <E> Channel<E>.onSend(element: E, block: suspend (Channel<E>) -> R) {
@@ -86,7 +89,7 @@ public interface SelectBuilder<R> {
         }) { block(channel) }
     }
 
-    public fun Deferred.onAwait(block: suspend (Any) -> R) {
+    public fun <T> Deferred<T>.onAwait(block: suspend (T) -> R) {
         val deferred = this
         this@SelectBuilder.registerClause({ selectJobReady(deferred) }) { block(deferred.await()) }
     }
@@ -110,6 +113,16 @@ public interface SelectBuilder<R> {
         onTimeout(timeout.inWholeMilliseconds, block)
     }
 }
+
+@KsSymbolName("__kk_select_builder_exchange")
+internal external fun __kkSelectBuilderExchange(builder: Any?): Any?
+
+@KsSymbolName("__kk_select_builder_current")
+internal external fun __kkSelectBuilderCurrent(): Any?
+
+@Suppress("UNCHECKED_CAST")
+internal fun <R> currentSelectBuilder(): SelectBuilder<R> =
+    (__kkSelectBuilderCurrent() ?: error("Select clauses require a select builder")) as SelectBuilder<R>
 
 public interface SelectInstance<R> {
     public val context: CoroutineContext
@@ -175,11 +188,14 @@ public class SelectImplementation<R>(override val context: CoroutineContext) : S
 
 public suspend fun <R> select(builder: SelectBuilder<R>.() -> Unit): R {
     val implementation = SelectImplementation<R>(coroutineContext)
+    val previous = __kkSelectBuilderExchange(implementation)
     try {
         builder(implementation)
     } catch (failure: Throwable) {
         implementation.complete()
         throw failure
+    } finally {
+        __kkSelectBuilderExchange(previous)
     }
     return implementation.doSelect()
 }

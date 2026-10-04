@@ -24,6 +24,11 @@ extension CoroutineLoweringPass {
         /// receiver-less intrinsics (SuspendFunction0.kt) are inlined.
         let createCoroutineUninterceptedNoReceiverCallee: InternedString
         let startCoroutineUninterceptedOrReturnNoReceiverCallee: InternedString
+        /// Marker callees left behind when the source-backed receiver-bearing
+        /// intrinsics (SuspendFunction1.kt) are inlined; rewritten like the
+        /// receiver-less synthetic forms.
+        let createCoroutineUninterceptedWithReceiverCallee: InternedString
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee: InternedString
         let runtimeCreateCoroutineUninterceptedCallee: InternedString
         let runtimeStartCoroutineUninterceptedOrReturnCallee: InternedString
         let runtimeContinuationResumeCallee: InternedString
@@ -68,6 +73,9 @@ extension CoroutineLoweringPass {
             if function.isSuspend,
                let wrapperBody = buildSuspendWrapperBody(for: function, using: rewrite)
             {
+                if function.isInline {
+                    rewrite.module.inlineBodiesBeforeCoroutineLowering[function.symbol] = function.body
+                }
                 updated.replaceBody(
                     wrapperBody,
                     locations: Array(repeating: nil, count: wrapperBody.count)
@@ -312,6 +320,15 @@ extension CoroutineLoweringPass {
                 using: rewrite
             ) {
                 loweredBody.append(yieldInstruction)
+                continue
+            }
+
+            if let isLazyInstructions = rewriteCoroutineStartIsLazyCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            ) {
+                loweredBody.append(contentsOf: isLazyInstructions)
                 continue
             }
 
@@ -1064,27 +1081,67 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
+        // KSP-1566: bundled kotlinx declarations surface here under several
+        // spellings — the Kotlin name for source-injected calls, the
+        // `kk_fn_*` linkname for kklib-imported overloads, and the runtime
+        // `kk_with_timeout*` linkname for the `external` declarations.
+        let calleeName = rewrite.ctx.interner.resolve(call.callee)
         let runtimeCallee: InternedString
-        if call.callee == rewrite.withTimeoutCallee {
-            runtimeCallee = rewrite.runtimeWithTimeoutCallee
-        } else if call.callee == rewrite.withTimeoutOrNullCallee {
+        if calleeName == "withTimeoutOrNull"
+            || calleeName.hasPrefix("withTimeoutOrNull_")
+            || calleeName.hasPrefix("kk_fn_withTimeoutOrNull_")
+            || calleeName.hasPrefix("kk_suspend_withTimeoutOrNull")
+            || call.callee == rewrite.runtimeWithTimeoutOrNullCallee
+        {
             runtimeCallee = rewrite.runtimeWithTimeoutOrNullCallee
+        } else if calleeName == "withTimeout"
+            || calleeName.hasPrefix("withTimeout_")
+            || calleeName.hasPrefix("kk_fn_withTimeout_")
+            || calleeName.hasPrefix("kk_suspend_withTimeout")
+            || call.callee == rewrite.runtimeWithTimeoutCallee
+        {
+            runtimeCallee = rewrite.runtimeWithTimeoutCallee
         } else {
             return nil
         }
 
-        guard call.arguments.count >= 2,
-              let referencedSymbol = symbolReference(
-                  for: call.arguments[1],
-                  module: rewrite.module,
-                  propagatedSymbols: symbolByExprRaw
-              ),
+        guard call.arguments.count >= 2 else {
+            return nil
+        }
+
+        // KSP-1566: a Duration argument arrives unboxed as nanoseconds;
+        // convert to milliseconds inline (`inWholeMilliseconds`). Millis
+        // arguments (Long/Int) pass through untouched.
+        var timeMillisExpr = call.arguments[0]
+        var rewritten: [KIRInstruction] = []
+        if let argType = rewrite.module.arena.exprType(timeMillisExpr) {
+            let longType = rewrite.ctx.sema?.types.make(.primitive(.long, .nonNull))
+            if argType != longType, argType != rewrite.intType {
+                let divisorExpr = rewrite.module.arena.appendExpr(
+                    .intLiteral(1_000_000),
+                    type: longType
+                )
+                let millisExpr = rewrite.module.arena.appendTemporary(type: longType)
+                rewritten.append(.binary(
+                    op: .divide,
+                    lhs: timeMillisExpr,
+                    rhs: divisorExpr,
+                    result: millisExpr
+                ))
+                timeMillisExpr = millisExpr
+            }
+        }
+
+        let referencedSymbol = symbolReference(
+            for: call.arguments[1],
+            module: rewrite.module,
+            propagatedSymbols: symbolByExprRaw
+        )
+        guard let referencedSymbol,
               let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
             return nil
         }
-
-        let timeMillisExpr = call.arguments[0]
         let extraArgs = Array(call.arguments.dropFirst(2))
         let targetArity = rewrite.suspendFunctionArityBySymbol[referencedSymbol] ?? 0
         guard extraArgs.count == targetArity else {
@@ -1097,7 +1154,6 @@ extension CoroutineLoweringPass {
         }
 
         let entryTarget: LoweredSuspendFunction
-        var rewritten: [KIRInstruction] = []
         let continuationFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
         let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
@@ -1170,6 +1226,31 @@ extension CoroutineLoweringPass {
             canThrow: false,
             thrownResult: nil
         )
+    }
+
+    /// `CoroutineStart.isLazy` is registered as a synthetic member property
+    /// with the `kk_coroutine_start_is_lazy` external link name. The enum
+    /// entries are symbolic markers with no distinct runtime value, so the
+    /// read folds here to a Boolean constant from the entry the receiver
+    /// refers to (the same compile-time resolution the launch/async
+    /// start-mode rewrite uses). A receiver that is not a compile-time-known
+    /// `CoroutineStart` entry folds to `false`, mirroring the launcher's
+    /// fallback-to-DEFAULT convention. `kk_coroutine_start_is_lazy` itself is
+    /// never emitted, so it needs no runtime entry point.
+    func rewriteCoroutineStartIsLazyCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction]? {
+        guard call.callee == rewrite.ctx.interner.intern("kk_coroutine_start_is_lazy"),
+              let result = call.result
+        else {
+            return nil
+        }
+        let entryName = call.arguments.first.flatMap {
+            coroutineStartEntryName($0, symbolByExprRaw: symbolByExprRaw, using: rewrite)
+        }
+        return [.constValue(result: result, value: .intLiteral(entryName == "LAZY" ? 1 : 0))]
     }
 
     func rewriteCoroutineBuilderBuildCall(
@@ -1497,7 +1578,8 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee
-                || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee,
+                || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
+                || call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil
@@ -1573,7 +1655,8 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.startCoroutineUninterceptedOrReturnCallee
-                || call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee,
+                || call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
+                || call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil

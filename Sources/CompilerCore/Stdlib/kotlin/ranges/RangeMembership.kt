@@ -2,6 +2,26 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
+@SinceKotlin("1.3")
+@kotlin.internal.InlineOnly
+public inline operator fun IntRange.contains(element: Int?): Boolean = element != null && contains(element)
+
+@SinceKotlin("1.3")
+@kotlin.internal.InlineOnly
+public inline operator fun LongRange.contains(element: Long?): Boolean = element != null && contains(element)
+
+@SinceKotlin("1.3")
+@kotlin.internal.InlineOnly
+public inline operator fun CharRange.contains(element: Char?): Boolean = element != null && contains(element)
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline operator fun UIntRange.contains(element: UInt?): Boolean = element != null && contains(element)
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline operator fun ULongRange.contains(element: ULong?): Boolean = element != null && contains(element)
+
 // MIGRATION-RANGE-001
 // contains(value) / isEmpty() for IntRange, LongRange, CharRange, IntProgression,
 // LongProgression, CharProgression.

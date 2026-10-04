@@ -1,0 +1,6 @@
+version=1
+stdlib-profile=artifact
+target=kotlin.coroutines.ContinuationInterceptor.get
+target=kotlin.coroutines.ContinuationInterceptor.interceptContinuation
+target=kotlin.coroutines.ContinuationInterceptor.minusKey
+target=kotlin.coroutines.ContinuationInterceptor.releaseInterceptedContinuation

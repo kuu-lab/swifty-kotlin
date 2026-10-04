@@ -395,13 +395,12 @@ final class MemberLowerer {
             // excluded — `synthesizeCompanionInitializerIfNeeded` already owns
             // their allocation and super delegation.
             let isCompanion = nested.modifiers.contains(.companion)
-            let needsRuntimeInitialization = sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
+            let needsRuntimeInitialization = !isCompanion && sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
                 let kind = sema.symbols.symbol(superSymbol)?.kind
                 if kind == .interface {
                     return true
                 }
-                return !isCompanion
-                    && (kind == .class || kind == .enumClass)
+                return (kind == .class || kind == .enumClass)
                     && superSymbol != sema.types.anyClassSymbol
             }
             if needsRuntimeInitialization {

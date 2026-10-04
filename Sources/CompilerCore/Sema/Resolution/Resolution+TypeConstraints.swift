@@ -497,6 +497,27 @@ extension OverloadResolver {
                }))
         {
             let subtypeKind = typeSystem.kind(of: subtype)
+            let receiverBounds: [TypeID] = switch subtypeKind {
+            case let .typeParam(parameter):
+                typeSystem.symbolTable?.typeParameterUpperBounds(for: parameter.symbol) ?? []
+            case let .intersection(parts):
+                parts
+            default:
+                []
+            }
+            let matchingBounds = receiverBounds.filter { bound in
+                guard case let .classType(boundClass) = typeSystem.kind(of: bound) else { return false }
+                return typeSystem.isNominalSubtypeSymbol(boundClass.classSymbol, of: superClass.classSymbol)
+            }
+            if !matchingBounds.isEmpty {
+                return matchingBounds.flatMap { bound in
+                    decomposeSubtypeConstraintImpl(
+                        subtype: bound, supertype: supertype,
+                        typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                        blameRange: blameRange, depth: depth + 1
+                    )
+                }
+            }
             // Kotlin function types are represented as `Function<R>` in source
             // declarations such as `callsInPlace` and `holdsIn`. Preserve the
             // lambda return-type constraint when the source-backed interface is
@@ -640,29 +661,25 @@ extension OverloadResolver {
                || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             let subtypeKind = typeSystem.kind(of: subtype)
-            let receiverShapesMatch: Bool = {
-                switch (subtypeKind, supertypeKind) {
-                case let (.functionType(subFunc), .functionType(superFunc)):
-                    switch (subFunc.receiver, superFunc.receiver) {
-                    case (nil, nil):
-                        true
-                    case (.some, .some):
-                        true
-                    default:
-                        false
-                    }
-                default:
-                    false
-                }
-            }()
+            // A function type's receiver is interchangeable with a leading
+            // parameter: `ProducerScope<Int>.() -> Unit` and
+            // `(ProducerScope<Int>) -> Unit` are the same Kotlin type. Align
+            // each side's effective parameter list — receiver first when
+            // present — and decompose pairwise, contravariantly.
+            let effectiveParams: [TypeID] = if case let .functionType(subFunc) = subtypeKind {
+                (subFunc.receiver.map { [$0] } ?? []) + subFunc.params
+            } else {
+                []
+            }
+            let superEffectiveParams =
+                (superFunc.receiver.map { [$0] } ?? []) + superFunc.params
             if case let .functionType(subFunc) = subtypeKind,
-               subFunc.params.count == superFunc.params.count,
+               effectiveParams.count == superEffectiveParams.count,
                subFunc.contextReceivers.count == superFunc.contextReceivers.count,
                // A non-suspend function is usable wherever a suspend one is
                // expected (`() -> T <: suspend () -> T`), but not vice versa.
                superFunc.isSuspend || !subFunc.isSuspend,
-               subFunc.nullability == superFunc.nullability || superFunc.nullability == .nullable,
-               receiverShapesMatch
+               subFunc.nullability == superFunc.nullability || superFunc.nullability == .nullable
             {
                 var result: [VariableConstraint] = []
                 for (subContextReceiver, superContextReceiver) in zip(subFunc.contextReceivers, superFunc.contextReceivers) {
@@ -675,8 +692,10 @@ extension OverloadResolver {
                         depth: depth + 1
                     ))
                 }
-                // Function types are contravariant in parameter types.
-                for (subParam, superParam) in zip(subFunc.params, superFunc.params) {
+                // Function types are contravariant in the receiver and
+                // parameter types: `ProducerScope<Int>.() -> Unit <:
+                // ProducerScope<E>.() -> Unit` binds E to Int.
+                for (subParam, superParam) in zip(effectiveParams, superEffectiveParams) {
                     result.append(contentsOf: decomposeSubtypeConstraintImpl(
                         subtype: superParam,
                         supertype: subParam,

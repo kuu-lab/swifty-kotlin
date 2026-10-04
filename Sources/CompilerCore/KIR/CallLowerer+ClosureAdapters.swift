@@ -340,14 +340,6 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // Receiver-bearing callables cannot cross the kk_function_create_N ABI
-        // (it has no receiver slot; see materializeEscapingCallableValue), and a
-        // suspend callable's leading param is the receiver rather than a
-        // closureRaw, so receiver-bearing suspend values always stay raw.
-        if functionType.isSuspend, functionType.receiver != nil {
-            return loweredArgID
-        }
-
         var loweredCallableID = loweredArgID
         var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if callableInfo == nil,
@@ -366,7 +358,24 @@ extension CallLowerer {
             return loweredArgID
         }
 
-        if !resolvedCallableInfo.hasClosureParam,
+        let concreteCallableType = arena.exprType(loweredCallableID) ?? sema.bindings.exprTypes[argExprID]
+        let hasStringSignature: Bool
+        if let concreteCallableType,
+           case let .functionType(concreteType) = sema.types.kind(of: sema.types.makeNonNullable(concreteCallableType))
+        {
+            hasStringSignature = concreteType.params.contains(where: sema.types.isString)
+                || sema.types.isString(concreteType.returnType)
+        } else {
+            hasStringSignature = false
+        }
+        if functionType.isSuspend,
+           !resolvedCallableInfo.hasClosureParam,
+           sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
+        {
+            return loweredArgID
+        }
+        if (!resolvedCallableInfo.hasClosureParam
+            || functionType.isSuspend && (hasStringSignature || functionType.receiver != nil)),
            let adaptedInfo = makeCollectionHOFCallableAdapter(
                 callableInfo: resolvedCallableInfo,
                 loweredArgID: loweredCallableID,
@@ -717,6 +726,7 @@ extension CallLowerer {
             symbols: sema.symbols,
             interner: interner,
             arena: arena,
+            sema: sema,
             into: &body
         )
         body.append(.returnValue(boxedResult))
@@ -948,6 +958,26 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions
             )
+        }
+
+        // KSP-1583: `runTest` forwards `testBody` — a suspend
+        // `TestScope.() -> Unit` value, usually a variable-held lambda
+        // rather than a literal — to the blocking-run bridge. Expand it to
+        // the (fnPtr, envRaw) pair suspend launcher thunks use at the ABI
+        // boundary; the runtime unpacks env into positional captures and
+        // binds the minted scope handle as `this` itself (the same
+        // convention `__kk_produce_launch` drives).
+        // Literal blocks never reach this path — CoroutineLoweringPass
+        // routes them through `kk_test_run_blocking_with_cont` instead.
+        if externalLinkName == "kk_test_run_blocking", loweredArguments.count == 3 {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                loweredArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return [loweredArguments[0], loweredArguments[1], fnPtrExpr, envPtrExpr]
         }
 
         let legacyNames: Set = ["__kk_sequence_generate"]

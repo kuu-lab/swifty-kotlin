@@ -1,39 +1,56 @@
 /*
  * Copyright 2017-2023 JetBrains s.r.o. and respective authors and developers.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
+ * Copyright (C) 2018 Square, Inc. Licensed under the Apache License, Version 2.0.
  *
- * Derived from kotlinx-io core/common/src/PeekSource.kt (tag 0.9.1). Upstream detects "upstream was
- * read from" by comparing the identity of the buffer's head `Segment` and its read position; this
- * port has no `Segment`, so it compares the upstream buffer's `start` cursor instead.
+ * Derived from kotlinx-io core/common/src/PeekSource.kt (tag 0.9.1).
  */
 package kotlinx.io
 
-internal class PeekSource(private val upstream: Source) : RawSource {
-    private val buf: Buffer = upstream.buffer
-    private var expectedStart: Int = -1
-    private var closed: Boolean = false
-    private var pos: Long = 0L
+/**
+ * A [RawSource] which peeks into an upstream [Source] and allows reading and expanding of the
+ * buffered data without consuming it. Does this by requesting additional data from the upstream
+ * source if needed and copying out of the internal buffer of the upstream source if possible.
+ *
+ * This source also maintains a snapshot of the starting location of the upstream buffer which it
+ * validates against on every read. If the upstream buffer is read from, this source will become
+ * invalid and throw [IllegalStateException] on any future reads.
+ */
+internal class PeekSource(
+    private val upstream: Source
+) : RawSource {
+    @OptIn(InternalIoApi::class)
+    private val buffer = upstream.buffer
+    private var expectedSegment = buffer.head
+    private var expectedPos = buffer.head?.pos ?: -1
+
+    private var closed = false
+    private var pos = 0L
 
     override fun readAtMostTo(sink: Buffer, byteCount: Long): Long {
-        if (closed) {
-            throw IllegalStateException("Source is closed.")
-        }
+        check(!closed) { "Source is closed." }
         checkByteCount(byteCount)
-        if (expectedStart != -1 && expectedStart != buf.start) {
-            throw IllegalStateException("Peek source is invalid because upstream source was used")
+        // Source becomes invalid if there is an expected Segment and it and the expected position
+        // do not match the current head and head position of the upstream buffer
+        check(
+            expectedSegment == null ||
+                    expectedSegment === buffer.head && expectedPos == buffer.head!!.pos
+        ) {
+            "Peek source is invalid because upstream source was used"
         }
-        if (byteCount == 0L) {
-            return 0L
+        if (byteCount == 0L) return 0L
+        if (!upstream.request(pos + 1)) return -1L
+
+        if (expectedSegment == null && buffer.head != null) {
+            // Only once the buffer actually holds data should an expected Segment and position be
+            // recorded. This allows reads from the peek source to repeatedly return -1 and for data to be
+            // added later. Unit tests depend on this behavior.
+            expectedSegment = buffer.head
+            expectedPos = buffer.head!!.pos
         }
-        if (!upstream.request(pos + 1L)) {
-            return -1L
-        }
-        if (expectedStart == -1 && buf.size > 0L) {
-            expectedStart = buf.start
-        }
-        val remaining = buf.size - pos
-        val toCopy = if (byteCount < remaining) byteCount else remaining
-        buf.copyTo(sink, pos, pos + toCopy)
+
+        val toCopy = minOf(byteCount, buffer.size - pos)
+        buffer.copyTo(sink, pos, pos + toCopy)
         pos += toCopy
         return toCopy
     }

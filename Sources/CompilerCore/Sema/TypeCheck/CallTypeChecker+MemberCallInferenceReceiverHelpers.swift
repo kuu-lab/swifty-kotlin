@@ -530,7 +530,7 @@ extension CallTypeChecker {
             "map", "filter", "take", "collect", "collectLatest", "toList", "first",
             "single",
             "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
-            "buffer", "conflate", "flowOn", "debounce", "sample", "delayEach",
+            "buffer", "conflate", "flowOn", "debounce", "delayEach",
             "catch", "retry", "retryWhen", "onErrorReturn", "onErrorResume",
         ]
         guard flowMembers.contains(memberName) else {
@@ -577,7 +577,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
 
-        case "take", "buffer", "debounce", "sample", "delayEach", "flowOn":
+        case "take", "buffer", "debounce", "delayEach", "flowOn":
             guard args.count == 1 else {
                 return nil
             }

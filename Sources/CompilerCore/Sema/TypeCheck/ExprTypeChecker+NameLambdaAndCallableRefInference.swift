@@ -640,6 +640,9 @@ extension ExprTypeChecker {
         sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
         let propType = propResult.type
         let propSymbol = sema.symbols.symbol(propResult.symbol)
+        if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
+            _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
+        }
 
         if let resolvedType = inferIncrementDecrementIfNeeded(
             exprID: id,
@@ -839,6 +842,17 @@ extension ExprTypeChecker {
             )
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
+        }
+        if let receiverType = ctx.implicitReceiverType {
+            candidates.removeAll { candidate in
+                guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
+                    return false
+                }
+                return !sema.types.isSubtype(
+                    sema.types.makeNonNullable(receiverType),
+                    sema.types.makeNonNullable(declaredReceiver)
+                )
+            }
         }
         if candidates.isEmpty {
             if let receiverType = ctx.implicitReceiverType,
@@ -1294,7 +1308,9 @@ extension ExprTypeChecker {
         bodyCtx = bodyCtx.enteringLambdaBody()
         // When the expected function type has a receiver (e.g. StringBuilder.() -> Unit),
         // set the implicit receiver so that unqualified member calls resolve correctly.
-        if let receiverType = expectedFunctionType?.receiver {
+        if let receiverType = expectedFunctionType?.receiver
+            ?? sema.bindings.coroutineScopeLambdaReceiverTypes[id]
+        {
             bodyCtx = bodyCtx.with(implicitReceiverType: receiverType)
             // The lambda's own receiver is its `this`: shadow the enclosing
             // function's receiver in `locals` (which `inferThisRefExpr` reads
@@ -2594,6 +2610,7 @@ extension ExprTypeChecker {
             return sema.types.errorType
         }
         if let thisLocal = locals[ctx.interner.intern("this")] {
+            sema.bindings.bindIdentifier(id, symbol: thisLocal.symbol)
             sema.bindings.bindExprType(id, type: thisLocal.type)
             return thisLocal.type
         }

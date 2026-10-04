@@ -42,9 +42,7 @@ internal fun checkByteCount(byteCount: Long) {
 }
 
 internal fun Short.reverseBytes(): Short {
-    // Bare `toX()` calls do not resolve on the implicit primitive receiver
-    // inside extension bodies in this compiler, so use explicit `this`.
-    val i = this.toInt() and 0xffff
+    val i = toInt() and 0xffff
     return ((i and 0xff00 ushr 8) or (i and 0x00ff shl 8)).toShort()
 }
 
@@ -70,15 +68,20 @@ internal infix fun Byte.and(other: Int): Int = this.toInt() and other
 internal infix fun Byte.and(other: Long): Long = this.toLong() and other
 internal infix fun Byte.xor(other: Byte): Byte = (this.toInt() xor other.toInt()).toByte()
 internal infix fun Int.and(other: Long): Long = this.toLong() and other
-// These mixed-sign helpers shadow kotlin.comparisons.minOf(Long, Long) inside
-// this package, so compare directly instead of recursing into minOf.
+// These helpers shadow kotlin.comparisons.minOf/maxOf inside this package
+// (package-local declarations win over the kotlin.* default imports), so
+// compare directly instead of recursing into minOf/maxOf.
+internal fun minOf(a: Int, b: Int): Int = if (a <= b) a else b
+internal fun minOf(a: Long, b: Long): Long = if (a <= b) a else b
 internal fun minOf(a: Long, b: Int): Long = if (a <= b.toLong()) a else b.toLong()
 internal fun minOf(a: Int, b: Long): Long = if (a.toLong() <= b) a.toLong() else b
+internal fun maxOf(a: Int, b: Int): Int = if (a >= b) a else b
+internal fun maxOf(a: Long, b: Long): Long = if (a >= b) a else b
 
 internal fun Byte.toHexString(): String {
     val result = StringBuilder()
-    result.append(HEX_DIGIT_CHARS[this.toInt() shr 4 and 0xf])
-    result.append(HEX_DIGIT_CHARS[this.toInt() and 0xf])
+    result.append(HEX_DIGIT_CHARS[toInt() shr 4 and 0xf])
+    result.append(HEX_DIGIT_CHARS[toInt() and 0xf])
     return result.toString()
 }
 

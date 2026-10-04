@@ -808,6 +808,7 @@ final class CallSupportLowerer {
                     interner: interner,
                     arena: arena,
                     resultType: signature.parameterTypes[paramIndex],
+                    sema: sema,
                     into: &instructions
                 )
             }

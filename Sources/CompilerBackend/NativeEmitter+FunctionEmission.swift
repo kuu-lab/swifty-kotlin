@@ -2463,7 +2463,9 @@ extension NativeEmitter {
                         argumentCount: argumentValues.count
                     )
                     : nil
-                let shouldAppendThrownChannel = usesThrownChannel || isInternalCall || sourceExternalCallSignature != nil
+                let shouldAppendThrownChannel = isInternalCall
+                    || (Self.runtimeABIFunctionByName[effectiveExternalName]?.isThrowing
+                        ?? (usesThrownChannel || sourceExternalCallSignature != nil))
 
                 if let effectiveSymbol,
                    let internalFunction = internalFunctions[effectiveSymbol]
@@ -2748,6 +2750,8 @@ extension NativeEmitter {
                         currentBlock = continueBlock
                         bindings.positionBuilder(builder, at: continueBlock)
                     }
+                } else if usesThrownChannel {
+                    storeResult(thrownResult, zeroValue)
                 }
 
             case let .virtualCall(symbol, callee, receiver, arguments, result, usesThrownChannel, thrownResult, dispatch):
@@ -2786,7 +2790,28 @@ extension NativeEmitter {
                     }
                     return nil
                 }()
-                let virtualCallReturnsAggregate = calleeName == "get"
+                // The `Throwable.message` vtable slot uses the raw String?
+                // handle ABI: runtime-allocated exceptions answer it with a
+                // runtime bridge, and Kotlin getters are registered through a
+                // raw-return bridge (`appendObjectVtablePropertyAccessorRegistrations`).
+                let isThrowableMessageVirtualGetter: Bool = {
+                    guard case let .vtable(slot) = dispatch,
+                          calleeName == "get",
+                          argumentValues.count == 1,
+                          let symbols,
+                          let typeSystem,
+                          let receiverType = module.arena.exprType(receiver),
+                          case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
+                    else {
+                        return false
+                    }
+                    return symbols.throwableMessageGetterSlot(
+                        for: receiverClass.classSymbol,
+                        interner: interner
+                    ) == slot
+                }()
+                let virtualCallReturnsAggregate = !isThrowableMessageVirtualGetter
+                    && calleeName == "get"
                     && argumentValues.count == 1
                     && typeLowering != nil
                     && (virtualCallDeclaredAggregateResult
@@ -2874,6 +2899,7 @@ extension NativeEmitter {
                 // thrown channel. Keep the indirect function type consistent with
                 // that source-backed ABI (KSP-712).
                 let shouldAppendThrownChannel = usesThrownChannel
+                    || isThrowableMessageVirtualGetter
                     || isInternalCall
                     || sourceExternalCallSignature != nil
                     || virtualSourceCallSignature != nil
@@ -2928,8 +2954,15 @@ extension NativeEmitter {
                     false
                 }
 
-                let calleeFunction: LLVMFunction? = if let effectiveSymbol,
-                                                       let internalFunction = internalFunctions[effectiveSymbol]
+                let calleeFunction: LLVMFunction? = if isThrowableMessageVirtualGetter {
+                    // Only carries the indirect-call type `(Int, Int*) -> Int`.
+                    declareExternalFunction(
+                        named: "__kk_throwable_message__vslot",
+                        argumentCount: 1,
+                        appendThrownChannel: true
+                    )
+                } else if let effectiveSymbol,
+                          let internalFunction = internalFunctions[effectiveSymbol]
                 {
                     internalFunction
                 } else if let fallbackInternal {
@@ -3065,13 +3098,40 @@ extension NativeEmitter {
                 }
 
                 guard let lookupFn = lookupFunction else { continue }
-                guard let fptrRaw = bindings.buildCall(
+                guard var fptrRaw = bindings.buildCall(
                     builder,
                     functionType: lookupFn.type,
                     callee: lookupFn.value,
                     arguments: lookupArgs,
                     name: "lookup_raw_\(instructionIndex)"
                 ) else { continue }
+
+                // Runtime list boxes have no generated List itable. Only the
+                // concrete Kotlin search defaults may fill that missing slot;
+                // a source implementation's override still wins when present.
+                if let effectiveSymbol,
+                   let symbols,
+                   let member = symbols.symbol(effectiveSymbol),
+                   ["indexOf", "lastIndexOf"].contains(interner.resolve(member.name)),
+                   let owner = symbols.parentSymbol(for: effectiveSymbol),
+                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
+                   !member.flags.contains(.abstractType),
+                   symbols.isSourceBackedSymbol(effectiveSymbol),
+                   let defaultPointer = bindings.buildPtrToInt(
+                       builder, value: calleeFunction.value, type: int64Type,
+                       name: "list_search_default_\(instructionIndex)"
+                   ),
+                   let hasOverride = bindings.buildICmpNotEqual(
+                       builder, lhs: fptrRaw, rhs: zeroValue,
+                       name: "list_search_override_\(instructionIndex)"
+                   ),
+                   let searchPointer = bindings.buildSelect(
+                       builder, condition: hasOverride, thenValue: fptrRaw, elseValue: defaultPointer,
+                       name: "list_search_dispatch_\(instructionIndex)"
+                   )
+                {
+                    fptrRaw = searchPointer
+                }
 
                 // Guard against null vtable/itable lookup: if fptrRaw == 0
                 // call kk_dispatch_error runtime trap instead of falling back
@@ -3157,7 +3217,17 @@ extension NativeEmitter {
                 bindings.positionBuilder(builder, at: mergeBlock)
                 currentBlock = mergeBlock
                 let mergedValue: LLVMCAPIBindings.LLVMValueRef
-                if isRuntimeCallbackRawABIVirtualCall,
+                if isThrowableMessageVirtualGetter,
+                   let result,
+                   let vCallValue
+                {
+                    mergedValue = isStringAggregateExpr(result)
+                        ? bridgeRuntimeRawToStringAggregate(
+                            vCallValue,
+                            suffix: "\(instructionIndex)_virtual_throwable_message"
+                        ) ?? vCallValue
+                        : vCallValue
+                } else if isRuntimeCallbackRawABIVirtualCall,
                    let result,
                    isStringAggregateExpr(result),
                    let vCallValue
