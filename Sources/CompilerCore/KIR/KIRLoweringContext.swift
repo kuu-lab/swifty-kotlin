@@ -89,6 +89,9 @@ final class KIRLoweringContext {
     /// never marked, so its thunk keeps the captures-first layout and seeding
     /// the receiver at launcherArgs[0] would corrupt a capture slot.
     var receiverFirstLauncherLambdaSymbols: Set<SymbolID> = []
+    /// Runtime scope handles have no Kotlin CoroutineScope property itable.
+    /// ExprIDs are arena-unique; retain their provenance across nested captures.
+    var runtimeCoroutineScopeReceiverExprIDs: Set<KIRExprID> = []
     /// Lambda literals whose contextual parameter type declares a type
     /// parameter as its return type. `nil` until the first lookup builds it
     /// (see `lambdaReturnsErasedGeneric(for:ast:sema:)`).

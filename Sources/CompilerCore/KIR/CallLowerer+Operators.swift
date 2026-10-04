@@ -816,6 +816,10 @@ extension CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
+            appendRuntimeRangeItableRegistrations(
+                objectValue: result, factoryName: rangeToCallee,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             return result
         case .rangeUntil:
             let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
@@ -850,6 +854,10 @@ extension CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
+            appendRuntimeRangeItableRegistrations(
+                objectValue: result, factoryName: rangeUntilCallee,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             return result
         case .downTo:
             let downToCallee: InternedString

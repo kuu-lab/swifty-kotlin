@@ -687,6 +687,16 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_immediate",
+            parameters: [
+                RuntimeABIParameter(name: "dispatcher", type: .intptr),
+                RuntimeABIParameter(name: "getterSlot", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_with_context",
             parameters: [
                 RuntimeABIParameter(name: "dispatcher", type: .intptr),
@@ -1312,6 +1322,13 @@ public extension RuntimeABISpec {
         ),
         // CoroutineScope hierarchy / lifecycle (STDLIB-CORO-069)
         RuntimeABIFunctionSpec(
+            name: "__kk_coroutine_scope_is_runtime",
+            parameters: [RuntimeABIParameter(name: "handle", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_is_active",
             parameters: [
                 RuntimeABIParameter(name: "scopeHandle", type: .intptr),
@@ -1402,6 +1419,15 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_job_complete_unit",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine",

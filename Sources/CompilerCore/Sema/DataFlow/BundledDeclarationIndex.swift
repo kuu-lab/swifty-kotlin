@@ -644,12 +644,18 @@ struct BundledDeclarationIndex: Sendable {
         var keys: Set<BundledMemberKey> = []
         for file in bundledFiles {
             let topLevelNominalNames = topLevelNominalNamesByPackage[file.packageFQName] ?? []
+            var importedNameToPackage = defaultImportedNameToPackage
+            for importDecl in file.imports where !importDecl.isWildcard && importDecl.alias == nil {
+                if let name = importDecl.path.last {
+                    importedNameToPackage[name] = Array(importDecl.path.dropLast())
+                }
+            }
             for declID in file.topLevelDecls {
                 collectBundledTopLevelDecl(
                     declID: declID,
                     packageFQName: file.packageFQName,
                     topLevelNominalNames: topLevelNominalNames,
-                    defaultImportedNameToPackage: defaultImportedNameToPackage,
+                    defaultImportedNameToPackage: importedNameToPackage,
                     ast: ast,
                     builtinNames: builtinNames,
                     interner: interner,

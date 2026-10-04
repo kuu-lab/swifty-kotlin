@@ -760,6 +760,9 @@ extension CallTypeChecker {
         if !isClassNameReceiver,
            args.isEmpty,
            !ast.arena.isExplicitCall(id),
+           driver.helpers.lookupMemberProperty(
+               named: calleeName, receiverType: memberLookupType, sema: sema
+           ) == nil,
            let sourceFile = ctx.currentASTFile,
            let preferredSourcePackage = preferredBundledStdlibPackage(
                sourceFile: sourceFile,
@@ -2066,7 +2069,13 @@ extension CallTypeChecker {
                     let isUser = symbol.declSite.map {
                         driver.sourceManager?.origin(of: $0.start.file) == .user
                     } ?? false
-                    guard isUser || sema.symbols.isSourceBackedSymbol(candidate) else { return false }
+                    guard isUser || sema.symbols.isSourceBackedSymbol(candidate),
+                          ctx.visibilityChecker.isAccessible(
+                              symbol,
+                              fromFile: ctx.currentFileID,
+                              enclosingClass: ctx.enclosingClassSymbol
+                          )
+                    else { return false }
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
@@ -2811,6 +2820,8 @@ extension CallTypeChecker {
         guard !isClassNameReceiver, !isSuperCall else {
             return nil
         }
+        let scopedExtensionCandidates = Set(ctx.scope.lookupMergingChain(calleeName))
+        let allowsImportlessAtomicExtensions = isAtomicMigrationReceiver(memberLookupType, sema: sema, interner: interner)
         var allCandidates = collectExtensionCallCandidates(
             named: calleeName,
             memberLookupType: memberLookupType,
@@ -2819,7 +2830,12 @@ extension CallTypeChecker {
             ctx: ctx,
             sema: sema,
             interner: interner
-        )
+        ).filter { candidate in
+            !usesOnlyInputTypes(candidate, sema: sema)
+                && (!sema.symbols.isSourceBackedSymbol(candidate)
+                    || scopedExtensionCandidates.contains(candidate)
+                    || allowsImportlessAtomicExtensions)
+        }
         guard !allCandidates.isEmpty else {
             return nil
         }

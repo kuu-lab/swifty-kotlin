@@ -4,6 +4,86 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.internal.KsSymbolName
 import kotlin.sequences.asSequence
 
+public interface Job : CoroutineContext.Element {
+    public companion object Key : CoroutineContext.Key<Job>
+
+    public override val key: CoroutineContext.Key<*> get() = Key
+
+    @KsSymbolName("kk_job_is_active")
+    public val isActive: Boolean
+
+    @KsSymbolName("kk_job_is_completed")
+    public val isCompleted: Boolean
+
+    @KsSymbolName("kk_job_is_cancelled")
+    public val isCancelled: Boolean
+
+    @KsSymbolName("kk_job_cancel")
+    public fun cancel()
+
+    @KsSymbolName("kk_job_cancel_with_cause")
+    public fun cancel(cause: Any?)
+
+    @KsSymbolName("kk_job_join")
+    public suspend fun join()
+
+    @KsSymbolName("kk_job_await_completion")
+    public suspend fun awaitCompletion()
+
+    @KsSymbolName("kk_job_complete")
+    public fun complete(value: Any): Boolean
+
+    @KsSymbolName("kk_job_complete_exceptionally")
+    public fun completeExceptionally(exception: Any?): Boolean
+}
+
+public interface ChildJob : Job {
+    public fun parentCancelled(parentJob: ParentJob)
+}
+
+public interface ParentJob : Job {
+    public fun getChildJobCancellationCause(): CancellationException
+}
+
+public interface ChildHandle : DisposableHandle {
+    public val parent: Job?
+    public fun childCancelled(cause: Throwable): Boolean
+}
+
+@KsSymbolName("kk_job_new")
+internal external fun __kkJobNew(): Job
+
+@KsSymbolName("kk_supervisor_job_new")
+internal external fun __kkSupervisorJobNew(): Job
+
+@KsSymbolName("kk_job_cancel_with_cause")
+internal external fun __kkJobCancel(job: Job, cause: CancellationException?)
+
+public fun Job(parent: Job? = null): CompletableJob = CompletableJobImpl(__kkJobNew(), parent)
+
+public fun SupervisorJob(parent: Job? = null): CompletableJob = CompletableJobImpl(__kkSupervisorJobNew(), parent)
+
+public fun Job.complete(): Boolean = __kkJobComplete(this, Unit)
+
+public fun Job.ensureActive() {
+    if (!isActive) throw getCancellationException()
+}
+
+public val CoroutineContext.isActive: Boolean
+    get() = __kkContextIsActive(this)
+
+@KsSymbolName("kk_context_is_active")
+internal external fun __kkContextIsActive(context: CoroutineContext): Boolean
+
+public fun CoroutineContext.ensureActive() {
+    __kkContextGetJob(this)?.ensureActive()
+}
+
+public fun CoroutineContext.cancel(cause: CancellationException? = null) {
+    val job = __kkContextGetJob(this)
+    if (job != null) __kkJobCancel(job, cause)
+}
+
 // KUU-CORO-101: Job/CoroutineContext members that were unresolved wherever
 // real-world coroutine code reads its own job (`this.coroutineContext.job`),
 // checks why it stopped (`job.getCancellationException()`), or reacts to
@@ -32,7 +112,13 @@ internal external fun __kkJobChildren(job: Job): List<Job>
 internal external fun __kkJobParent(job: Job): Job?
 
 @KsSymbolName("kk_context_get_job")
-internal external fun __kkContextGetJob(context: CoroutineContext): Job?
+internal external fun __kkContextJobHandle(context: CoroutineContext): Long
+
+@KsSymbolName("kk_context_get_job")
+internal external fun __kkContextJob(context: CoroutineContext): Job
+
+internal fun __kkContextGetJob(context: CoroutineContext): Job? =
+    if (__kkContextJobHandle(context) == 0L) null else __kkContextJob(context)
 
 /// The Job that runs in this context, or throws if the context has none.
 public val CoroutineContext.job: Job

@@ -219,11 +219,23 @@ public final class KIRArena {
     private let parallelLock = NSLock()
     var isParallelTransformActive = false
 
+    /// Lazily-built index of function declarations keyed by symbol, giving
+    /// `function(for:)` O(1) amortized lookup instead of a linear scan over
+    /// every declaration. `nil` means "not built yet"; once built it is
+    /// maintained incrementally by `appendDecl` (first-occurrence wins,
+    /// matching the old scan order) and invalidated when a transform changes
+    /// a function's symbol, in which case it is rebuilt on the next query.
+    private var functionIndexBySymbol: [SymbolID: Int]?
+
     public init() {}
 
     public func appendDecl(_ decl: KIRDecl) -> KIRDeclID {
         let id = KIRDeclID(rawValue: Int32(declarations.count))
         declarations.append(decl)
+        if case let .function(function) = decl,
+           functionIndexBySymbol?[function.symbol] == nil {
+            functionIndexBySymbol?[function.symbol] = Int(id.rawValue)
+        }
         return id
     }
 
@@ -289,12 +301,48 @@ public final class KIRArena {
     }
 
     public func function(for symbol: SymbolID) -> KIRFunction? {
-        declarations.lazy.compactMap { decl -> KIRFunction? in
-            guard case let .function(function) = decl, function.symbol == symbol else {
-                return nil
+        // Worker closures may query during parallel transforms; use the
+        // plain scan there so the lazy index is never mutated concurrently.
+        guard !isParallelTransformActive else {
+            return declarations.lazy.compactMap { decl -> KIRFunction? in
+                guard case let .function(function) = decl, function.symbol == symbol else {
+                    return nil
+                }
+                return function
+            }.first
+        }
+        if functionIndexBySymbol == nil {
+            var index: [SymbolID: Int] = [:]
+            index.reserveCapacity(declarations.count)
+            for (declarationIndex, decl) in declarations.enumerated() {
+                guard case let .function(function) = decl,
+                      index[function.symbol] == nil
+                else {
+                    continue
+                }
+                index[function.symbol] = declarationIndex
             }
-            return function
-        }.first
+            functionIndexBySymbol = index
+        }
+        guard let declarationIndex = functionIndexBySymbol?[symbol] else {
+            // The index covers every function declaration currently in the
+            // arena, so a miss means `symbol` names no function here.
+            return nil
+        }
+        guard case let .function(function) = declarations[declarationIndex],
+              function.symbol == symbol
+        else {
+            // A stale index entry should be impossible (transforms that
+            // change a function's symbol invalidate the index); fall back to
+            // the linear scan rather than trusting it.
+            return declarations.lazy.compactMap { decl -> KIRFunction? in
+                guard case let .function(function) = decl, function.symbol == symbol else {
+                    return nil
+                }
+                return function
+            }.first
+        }
+        return function
     }
 
     public func expr(_ id: KIRExprID) -> KIRExprKind? {
@@ -352,7 +400,11 @@ public final class KIRArena {
             guard case let .function(function) = declarations[index] else {
                 continue
             }
-            declarations[index] = .function(transform(function))
+            let transformed = transform(function)
+            if transformed.symbol != function.symbol {
+                functionIndexBySymbol = nil
+            }
+            declarations[index] = .function(transformed)
         }
     }
 
@@ -364,7 +416,11 @@ public final class KIRArena {
         let count = functionIndices.count
         guard count > 4 else {
             for (index, function) in functionIndices {
-                declarations[index] = .function(transform(function))
+                let transformed = transform(function)
+                if transformed.symbol != function.symbol {
+                    functionIndexBySymbol = nil
+                }
+                declarations[index] = .function(transformed)
             }
             return
         }
@@ -382,6 +438,9 @@ public final class KIRArena {
             }
             for i in 0..<count {
                 if let result = work.results[i] {
+                    if result.symbol != functionIndices[i].1.symbol {
+                        functionIndexBySymbol = nil
+                    }
                     declarations[functionIndices[i].0] = .function(result)
                 }
             }
