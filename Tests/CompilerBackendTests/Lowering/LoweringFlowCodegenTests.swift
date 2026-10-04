@@ -66,8 +66,10 @@ struct LoweringFlowCodegenTests {
         }
     }
 
-    @Test
-    func testCapturedSuspendFunctionUsesTwoArgumentInvokeABI() throws {
+    @Test(arguments: [2, 3, 4, 5])
+    func testCapturedSuspendFunctionUsesInvokeABI(arity: Int) throws {
+        let parameterTypes = Array(repeating: "Int", count: arity).joined(separator: ", ")
+        let arguments = (["initial"] + Array(repeating: "value", count: arity - 1)).joined(separator: ", ")
         let source = """
         interface TestFlow
 
@@ -75,9 +77,9 @@ struct LoweringFlowCodegenTests {
 
         suspend fun TestFlow.fold(
             initial: Int,
-            operation: suspend (Int, Int) -> Int
+            operation: suspend (\(parameterTypes)) -> Int
         ): Int {
-            collect { value -> operation(initial, value) }
+            collect { value -> operation(\(arguments)) }
             return initial
         }
         """
@@ -91,9 +93,7 @@ struct LoweringFlowCodegenTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            // A captured suspend (Int, Int) -> Int must use the dedicated
-            // two-argument runtime entry point instead of a native symbol.
-            #expect(allCallees.contains("kk_suspend_function_invoke_2"))
+            #expect(allCallees.contains("kk_suspend_function_invoke_\(arity)"))
             #expect(!allCallees.contains("operation"))
         }
     }

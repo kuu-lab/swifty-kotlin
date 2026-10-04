@@ -21,6 +21,7 @@ private enum RuntimeFlowTag: Int {
     case retryWhen = 8
     case onErrorReturn = 9
     case onErrorResume = 10
+    case buffer = 14
     case conflate = 15
     case debounce = 17
     case sample = 18
@@ -170,6 +171,19 @@ func runtime_test_flow_fixed_values_emitter(_ continuation: Int, _ outThrown: Un
         if result == sentinel { break }
         index += 1
     }
+    return 0
+}
+
+@_cdecl("runtime_test_flow_completing_captured_emitter")
+func runtime_test_flow_completing_captured_emitter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    _ = runtime_test_flow_fixed_values_emitter(continuation, outThrown)
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+@_cdecl("runtime_test_flow_throwing_captured_emitter")
+func runtime_test_flow_throwing_captured_emitter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    _ = runtime_test_flow_completing_captured_emitter(continuation, outThrown)
+    outThrown?.pointee = 42
     return 0
 }
 
@@ -468,6 +482,54 @@ struct RuntimeFlowTests {
         let secondCollect = runtimeFlowTestState.snapshot().values
         #expect(secondCollect == [1, 2, 3, 4], "Cold stream should re-emit on each collect.")
         #expect(runtimeFlowEmitterCallCounter.count == 2, "Emitter should run again on second collect (cold stream).")
+    }
+
+    @Test func testCapturedEmitterGetsFreshContinuationOnEachCollect() {
+        typealias CapturedEmitter = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+        let emitter = unsafeBitCast(runtime_test_flow_completing_captured_emitter as CapturedEmitter, to: Int.self)
+        let collector = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let template = kk_coroutine_continuation_new(0)
+        _ = kk_coroutine_launcher_arg_set(template, 0, 2)
+        _ = kk_coroutine_launcher_arg_set(template, 1, 7)
+        _ = kk_coroutine_launcher_arg_set(template, 2, 9)
+        let flow = kk_flow_create(emitter, template)
+        let derived = kk_flow_emit(flow, 1, RuntimeFlowTag.take.rawValue)
+        defer {
+            _ = __kk_flow_release(flow)
+            _ = __kk_flow_release(derived)
+        }
+
+        for handle in [flow, flow, derived, derived, flow] {
+            runtimeFlowTestState.reset()
+            _ = kk_flow_collect(handle, collector, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == (handle == flow ? [7, 9] : [7]))
+        }
+    }
+
+    @Test func testCapturedEmitterFailureReachesCallerState() {
+        typealias CapturedEmitter = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+        let emitter = unsafeBitCast(runtime_test_flow_throwing_captured_emitter as CapturedEmitter, to: Int.self)
+        let collector = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let template = kk_coroutine_continuation_new(0)
+        _ = kk_coroutine_launcher_arg_set(template, 0, 0)
+        let flow = kk_flow_create(emitter, template)
+        let buffered = kk_flow_emit(flow, 1, RuntimeFlowTag.buffer.rawValue)
+        let callerKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let previousState = RuntimeContinuationState.current
+        let callerState = RuntimeContinuationState(functionID: 0)
+        RuntimeContinuationState.installState(callerState, forTask: callerKey)
+        defer {
+            RuntimeContinuationState.installState(previousState, forTask: callerKey)
+            _ = __kk_flow_release(flow)
+            _ = __kk_flow_release(buffered)
+        }
+
+        for handle in [flow, buffered] {
+            callerState.thrownException = 0
+            #expect(kk_flow_collect(handle, collector, 0, 0) == 42)
+            #expect(callerState.thrownException == 42)
+            #expect(RuntimeContinuationState.current === callerState)
+        }
     }
 
     @Test func testLazyMapOnlyProcessesNeededElements() {

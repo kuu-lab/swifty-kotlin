@@ -620,13 +620,19 @@ extension CallTypeChecker {
                 // A parameter whose type is still an unsubstituted type
                 // parameter (`initialValue: R`) never passes a subtype check
                 // before inference runs, so judge those positions by shape:
-                // reject only when the parameter wants a function type the
-                // argument cannot provide.
+                // reject incompatible function or nominal type shapes.
                 guard typeMentionsTypeParameter(parameterType, sema: sema) else {
                     return false
                 }
                 if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)),
                    !isFunctionTypeLike(inferredType, sema: sema)
+                {
+                    return false
+                }
+                if !args[otherIndex].isSpread,
+                   case let .classType(parameterClass) = sema.types.kind(of: parameterType),
+                   case let .classType(argumentClass) = sema.types.kind(of: inferredType),
+                   !sema.types.isNominalSubtypeSymbol(argumentClass.classSymbol, of: parameterClass.classSymbol)
                 {
                     return false
                 }
@@ -1747,4 +1753,3 @@ extension CallTypeChecker {
         )
     }
 }
-
