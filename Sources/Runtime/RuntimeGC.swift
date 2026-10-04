@@ -612,7 +612,9 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
     }
     runtimeStorage.withGCLock { state in
         for pointer in pointers {
-            state.objectPointers.remove(UInt(bitPattern: pointer))
+            let key = UInt(bitPattern: pointer)
+            state.objectPointers.remove(key)
+            state.seededRandomPointers.remove(key)
         }
     }
     for pointer in pointers {

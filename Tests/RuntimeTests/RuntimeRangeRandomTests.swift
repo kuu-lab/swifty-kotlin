@@ -128,32 +128,50 @@ struct RuntimeRangeRandomTests {
     @Test
     func testRandomUIntRangeBridgeIgnoresCompiledObjectReceiver() {
         let receiver = kk_object_new(1, 0)
-        kk_object_set(receiver, 0, 42)
-        let range = kk_uint_rangeTo(10, 12)
+        setObjectField(receiver, 0, 42)
+        let range = __kk_uint_rangeTo(10, 12)
         var thrown = 0
 
-        let value = kk_random_nextUInt_uintRange(receiver, range, &thrown)
+        let value = __kk_random_nextUInt_uintRange(receiver, range, &thrown)
 
         #expect(thrown == 0)
         #expect(UInt(bitPattern: value) >= 10)
         #expect(UInt(bitPattern: value) <= 12)
-        #expect(kk_object_get(receiver, 0) == 42)
+        #expect(objectField(receiver, 0) == 42)
     }
 
     @Test
     func testRandomULongRangeBridgeIgnoresCompiledObjectReceiver() {
         let receiver = kk_object_new(1, 0)
-        kk_object_set(receiver, 0, 84)
-        let range = kk_ulong_rangeTo(20, 22)
+        setObjectField(receiver, 0, 84)
+        let range = __kk_ulong_rangeTo(20, 22)
         var thrown = 0
 
-        let value = kk_random_nextULong_ulongRange(receiver, range, &thrown)
+        let value = __kk_random_nextULong_ulongRange(receiver, range, &thrown)
 
         #expect(thrown == 0)
         #expect(UInt(bitPattern: value) >= 20)
         #expect(UInt(bitPattern: value) <= 22)
-        #expect(kk_object_get(receiver, 0) == 84)
+        #expect(objectField(receiver, 0) == 84)
     }
 
+    private func setObjectField(_ object: Int, _ index: Int, _ value: Int) {
+        guard let payload = UnsafeMutableRawPointer(bitPattern: object),
+              let box = tryCast(payload, to: RuntimeObjectBox.self)
+        else {
+            Issue.record("expected RuntimeObjectBox")
+            return
+        }
+        box.elements[index] = value
+    }
+
+    private func objectField(_ object: Int, _ index: Int) -> Int? {
+        guard let payload = UnsafeMutableRawPointer(bitPattern: object),
+              let box = tryCast(payload, to: RuntimeObjectBox.self)
+        else {
+            return nil
+        }
+        return box.elements[index]
+    }
 }
 #endif
