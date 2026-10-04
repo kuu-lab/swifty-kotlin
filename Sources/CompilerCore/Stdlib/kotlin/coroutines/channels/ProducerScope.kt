@@ -7,6 +7,7 @@
 
 package kotlinx.coroutines.channels
 
+import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.CoroutineScope
 
 // KSP-1543: ProducerScope is the receiver exposed by channelFlow and
