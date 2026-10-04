@@ -1444,6 +1444,47 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testBundledAtomicExtensionPropertyCompoundAssign(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let source = """
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlin.native.concurrent.AtomicInt
+        fun main() {
+            val i = AtomicInt(10)
+            i.value += 5
+            println(i.value)
+            println(i.value++)
+            println(++i.value)
+            println(i.value--)
+            println(--i.value)
+            i.value -= 3
+            i.value *= 2
+            i.value /= 4
+            i.value %= 4
+            println(i.value)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "AtomicPropertyCompoundAssign",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "15\n15\n17\n17\n15\n2\n")
+        }
+    }
+
     /// Imported runtime-backed interface getters retain a direct external link
     /// in the shared artifact. They must not be redirected to an itable property
     /// slot that the runtime collection boxes do not register.
@@ -2653,6 +2694,69 @@ struct StdlibArtifactRegressionTests {
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "1\ntrue\n1\ntrue\n1\n")
+        }
+    }
+
+    /// KSP-1571: the bundled channel send/close/consume surface (trySend,
+    /// close(cause), isClosedForSend, isEmpty, consumeEach, cancel,
+    /// ChannelResult holder API) must compile and run when the bundled
+    /// Channel.kt / ChannelResult.kt come from a precompiled .kklib artifact,
+    /// and the new `__kk_channel_*` / `kk_channel_*` bridges must link.
+    @Test
+    func testChannelSendApisThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.channels.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            val ch = Channel<Int>(2)
+            println("trySend ok: ${ch.trySend(7).isSuccess}")
+            println("close(cause): ${ch.close(IllegalStateException("boom"))}")
+            val closed = ch.trySend(9)
+            println("closed: ${closed.isClosed}")
+            println("cause: ${closed.exceptionOrNull()?.message}")
+
+            val ch2 = Channel<Int>(3)
+            ch2.send(1)
+            ch2.send(2)
+            ch2.close()
+            var sum = 0
+            ch2.consumeEach { sum += it }
+            println("sum: $sum")
+            println("empty: ${ch2.isEmpty}")
+
+            callbackFlow<Int> {
+                this.trySend(11).onSuccess { println("ps: ok") }
+                println("ps closed: ${this.isClosedForSend}")
+                this.close()
+            }.collect { println("got: $it") }
+
+            println("done")
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ChannelSendApis",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "trySend ok: true\nclose(cause): true\nclosed: true\ncause: boom\nsum: 3\nempty: false\nps: ok\nps closed: false\ngot: 11\ndone\n")
         }
     }
 

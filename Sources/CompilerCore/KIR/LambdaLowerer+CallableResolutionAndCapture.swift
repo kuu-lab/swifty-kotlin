@@ -21,6 +21,7 @@ extension LambdaLowerer {
         ))
         let symbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: exprID)
         driver.ctx.setImplicitReceiver(symbol: symbol, exprID: receiver)
+        driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(receiver)
         driver.ctx.setLocalValue(receiver, for: symbol)
     }
 

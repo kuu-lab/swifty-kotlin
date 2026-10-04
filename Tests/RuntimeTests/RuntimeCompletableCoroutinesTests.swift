@@ -11,6 +11,18 @@ struct RuntimeCompletableCoroutinesTests {
     }
 
     @Test
+    func hierarchyQueriesPreserveSourceWrapperIdentity() throws {
+        let parent = makeWrapper()
+        let child = makeWrapper(parent: parent)
+        #expect(__kk_job_parent(child) == parent)
+        let children = try #require(runtimeListBox(from: __kk_job_children(parent)))
+        #expect(children.elements == [child])
+        #expect(kk_job_complete(child, kk_box_unit(0)) == 1)
+        #expect(__kk_job_parent(child) == runtimeNullSentinelInt)
+        #expect(try #require(runtimeListBox(from: __kk_job_children(parent))).elements.isEmpty)
+    }
+
+    @Test
     func completionQueriesRejectIncompleteAndPreserveResults() {
         let wrapper = makeWrapper()
         var thrown = 0

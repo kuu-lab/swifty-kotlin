@@ -18,6 +18,7 @@ public class UIntRange @KsSymbolName("__kk_uint_rangeTo") constructor(
     start: UInt,
     endInclusive: UInt,
 ) : UIntProgression(start, endInclusive, 1), ClosedRange<UInt>, OpenEndRange<UInt> {
+    public override val start: UInt get() = first
     public override val endInclusive: UInt get() = last
 
     public override val endExclusive: UInt

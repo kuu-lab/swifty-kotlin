@@ -640,6 +640,28 @@ public func kk_dispatcher_main() -> Int {
     RuntimeDispatcherTag.mainDispatcher
 }
 
+// Memory-representation bridge: scheduler tags have no Kotlin vtable, while
+// source-defined MainCoroutineDispatcher implementations retain their getter.
+@_cdecl("__kk_dispatcher_immediate")
+public func kk_dispatcher_immediate(
+    _ dispatcher: Int, _ getterSlot: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if isDispatcherTag(dispatcher) { return dispatcher }
+    let fnPtr = kk_vtable_lookup(dispatcher, getterSlot)
+    let getter = unsafeBitCast(
+        fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = getter(dispatcher, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(
+            thrown, outThrown: outThrown, context: "MainCoroutineDispatcher.immediate"
+        )
+    }
+    return result
+}
+
 /// A simple heap-allocated, `@unchecked Sendable` box used to pass an integer
 /// result from a `DispatchQueue.async` closure back to the waiting thread in
 /// the non-coroutine (semaphore) fallback path of `kk_with_context`.
