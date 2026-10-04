@@ -80,11 +80,12 @@ struct TypeCheckScopeBuilder {
 
         return file.imports.contains { importDecl in
             guard importDecl.alias == nil,
-                  importDecl.path.last == symbol.name
+                  importDecl.isWildcard || importDecl.path.last == symbol.name
             else {
                 return false
             }
-            return sema.symbols.lookupAll(fqName: importDecl.path).contains { importedID in
+            let importedPath = importDecl.isWildcard ? importDecl.path + [symbol.name] : importDecl.path
+            return sema.symbols.lookupAll(fqName: importedPath).contains { importedID in
                 guard let imported = sema.symbols.symbol(importedID) else {
                     return false
                 }
