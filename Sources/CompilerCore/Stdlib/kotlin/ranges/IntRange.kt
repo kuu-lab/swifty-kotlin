@@ -25,6 +25,7 @@ public class IntRange @KsSymbolName("kk_op_rangeTo") constructor(
             return last + 1
         }
     public override fun isEmpty(): Boolean = first > last
+    public override operator fun contains(value: Int): Boolean = value >= first && value <= last
 
     public override fun equals(other: Any?): Boolean {
         if (this === other) return true

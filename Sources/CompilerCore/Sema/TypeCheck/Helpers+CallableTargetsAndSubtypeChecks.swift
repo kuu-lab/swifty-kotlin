@@ -82,6 +82,43 @@ extension TypeCheckHelpers {
         )))
     }
 
+    /// Whether `symbolID` declares an *extension* receiver rather than the
+    /// dispatch receiver a member signature stores. Member functions record
+    /// `extensionReceiverType ?? ownerType` as `signature.receiverType`
+    /// (MemberHeaderCollection), so a non-nil receiver whose nominal differs
+    /// from the function's own parent symbol is an extension receiver.
+    /// Top-level extensions (package/nil parent) count unconditionally:
+    /// Kotlin resolves them only through `Type::ext`/`obj::ext` forms and
+    /// rejects a bare `::name` reference, while member-extensions are
+    /// unreferenceable in every `::` form ("member and an extension at the
+    /// same time").
+    func declaresExtensionReceiver(_ symbolID: SymbolID, sema: SemaModule, interner: StringInterner) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: symbolID),
+              let receiverType = signature.receiverType
+        else { return false }
+        guard let parentID = sema.symbols.parentSymbol(for: symbolID),
+              let parent = sema.symbols.symbol(parentID),
+              parent.kind != .package
+        else { return true }
+        let receiverNominals = allNominalSymbols(
+            of: receiverType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner
+        )
+        if receiverNominals.contains(parentID) {
+            return false
+        }
+        // Builtin nominal shells can be recreated under a fresh SymbolID while
+        // bundled sources are collected; compare FQ identity as well before
+        // concluding the receiver is foreign to the declaring owner.
+        let parentFQName = parent.fqName
+        return !parentFQName.isEmpty
+            && !receiverNominals.contains(where: {
+                sema.symbols.symbol($0)?.fqName == parentFQName
+            })
+    }
+
     func chooseCallableReferenceTarget(
         from candidates: [SymbolID],
         expectedType: TypeID?,

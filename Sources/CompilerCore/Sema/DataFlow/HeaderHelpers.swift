@@ -532,7 +532,7 @@ extension DataFlowSemaPhase {
                 return nonPackageExisting.contains { sym in
                     if isCallableLike(sym.kind) { return false }
                     if sym.kind == .property {
-                        return symbols.extensionPropertyReceiverType(for: sym.id) == nil
+                        return !sym.flags.contains(.synthetic) && !symbols.hasExtensionPropertyReceiver(sym.id)
                     }
                     return true
                 }
@@ -1142,6 +1142,9 @@ extension DataFlowSemaPhase {
                 flags: typeParamFlags
             )
             typeParameterSymbols.append(typeParamSymbol)
+            symbols.setAnnotations(typeParam.annotations.map {
+                MetadataAnnotationRecord(annotationFQName: $0.name, arguments: $0.arguments, useSiteTarget: $0.useSiteTarget)
+            }, for: typeParamSymbol)
             localTypeParameters[typeParam.name] = typeParamSymbol
             if typeParam.isReified {
                 reifiedIndices.insert(index)

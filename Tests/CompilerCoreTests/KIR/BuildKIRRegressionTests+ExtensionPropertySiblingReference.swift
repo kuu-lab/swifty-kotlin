@@ -10,6 +10,45 @@ import Testing
 // `Worker.toString()` print "Worker null" and the `Worker.name` fallback
 // print "worker 0").
 extension BuildKIRRegressionTests {
+    @Test func testImplicitExtensionPropertySelectsCompatibleReceiver() throws {
+        let ctx = makeContextFromSource("""
+        package test
+
+        class Other
+        interface Sender { val raw: Boolean }
+        class Producer(override val raw: Boolean) : Sender
+
+        val Other.closed: Boolean
+            get() = false
+        val Sender.closed: Boolean
+            get() = raw
+
+        fun Producer.inspect(): Boolean = closed
+        """)
+        try runToKIR(ctx)
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let properties = sema.symbols.lookupAll(fqName: [ctx.interner.intern("test"), ctx.interner.intern("closed")])
+        let senderProperty = try #require(properties.first { symbol in
+            guard let receiver = sema.symbols.extensionPropertyReceiverType(for: symbol),
+                  case let .classType(classType) = sema.types.kind(of: receiver)
+            else { return false }
+            return sema.symbols.symbol(classType.classSymbol)?.name == ctx.interner.intern("Sender")
+        })
+        let getter = try #require(sema.symbols.extensionPropertyGetterAccessor(for: senderProperty))
+        let inspect = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "inspect"
+        })
+        #expect(inspect.body.contains { instruction in
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction else { return false }
+            return symbol == getter && arguments.count == 1
+        })
+        #expect(!inspect.body.contains { instruction in
+            guard case let .loadGlobal(_, symbol) = instruction else { return false }
+            return properties.contains(symbol)
+        })
+    }
+
     @Test func testExtensionPropertySiblingReferenceDispatchesToGetterOnImplicitReceiver() throws {
         let source = """
         package test

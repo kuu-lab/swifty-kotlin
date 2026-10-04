@@ -449,7 +449,10 @@ extension DataFlowSemaPhase {
             var paths: [[InternedString]] = []
             if path.count == 1 {
                 if let currentPackageFQName,
-                   !currentPackageFQName.isEmpty
+                   !currentPackageFQName.isEmpty || symbols.lookupAll(fqName: path).contains(where: { symbolID in
+                       guard let symbol = symbols.symbol(symbolID) else { return false }
+                       return isNominalTypeSymbol(symbol.kind) && !symbol.flags.contains(.synthetic)
+                   })
                 {
                     paths.append(currentPackageFQName + path)
                 }
@@ -488,6 +491,9 @@ extension DataFlowSemaPhase {
                             paths.append(importDecl.path + [shortName])
                         }
                     }
+                }
+                for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                    paths.append(defaultPackage + path)
                 }
                 // An unqualified root symbol is the final fallback. This ordering
                 // keeps an explicit import from being shadowed by a compatibility

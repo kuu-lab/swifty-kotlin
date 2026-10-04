@@ -486,7 +486,7 @@ extension BuildASTPhase {
     }
 
     /// Splits the token run between the parentheses of a superclass constructor
-    /// invocation on top-level commas and parses each chunk as an expression.
+    /// invocation on top-level commas and parses each chunk as a call argument.
     private func parseSuperTypeConstructorArgs(
         _ tokens: [Token],
         interner: StringInterner,
@@ -501,8 +501,11 @@ extension BuildASTPhase {
             let parser = ExpressionParser(
                 tokens: current, interner: interner, astArena: astArena, diagnostics: diagnostics
             )
-            if let exprID = parser.parse() {
-                args.append(CallArgument(expr: exprID))
+            // Parse as a call argument (not a bare expression) so `name = value`
+            // labels and `*spread` survive; otherwise `Base(y = 1, x = 2)`
+            // degrades to positional assignment expressions.
+            if let argument = parser.parseCallArgument() {
+                args.append(argument)
             }
             current.removeAll(keepingCapacity: true)
         }

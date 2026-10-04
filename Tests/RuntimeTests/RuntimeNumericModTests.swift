@@ -6,20 +6,29 @@ import Testing
 struct RuntimeNumericModTests {
     @Test
     func testSignedFloorModUsesKotlinRemainderSemantics() {
-        #expect(kk_op_floor_mod(-7, 3) == 2)
-        #expect(kk_op_floor_mod(7, -3) == -2)
-        #expect(kk_op_floor_mod(-7, -3) == -1)
-        #expect(kk_op_floor_mod(1, 0) == 0)
-        #expect(kk_op_floor_mod(Int.min, -1) == 0)
+        #expect(kk_op_floor_mod(-7, 3, nil) == 2)
+        #expect(kk_op_floor_mod(7, -3, nil) == -2)
+        #expect(kk_op_floor_mod(-7, -3, nil) == -1)
+        #expect(kk_op_floor_mod(Int.min, -1, nil) == 0)
     }
 
     @Test
     func testLongFloorModUsesKotlinRemainderSemantics() {
-        #expect(kk_op_lfloor_mod(-7, 3) == 2)
-        #expect(kk_op_lfloor_mod(7, -3) == -2)
-        #expect(kk_op_lfloor_mod(-7, -3) == -1)
-        #expect(kk_op_lfloor_mod(1, 0) == 0)
-        #expect(kk_op_lfloor_mod(Int.min, -1) == 0)
+        #expect(kk_op_lfloor_mod(-7, 3, nil) == 2)
+        #expect(kk_op_lfloor_mod(7, -3, nil) == -2)
+        #expect(kk_op_lfloor_mod(-7, -3, nil) == -1)
+        #expect(kk_op_lfloor_mod(Int.min, -1, nil) == 0)
+    }
+
+    // PEC-NUM-0002: `5.mod(0)` throws ArithmeticException("/ by zero").
+    @Test
+    func testFloorModByZeroThrowsArithmeticException() {
+        for floorMod in [kk_op_floor_mod, kk_op_lfloor_mod] {
+            var outThrown = 0
+            let result = floorMod(5, 0, &outThrown)
+            #expect(result == 0)
+            #expect(outThrown != 0)
+        }
     }
 
     @Test

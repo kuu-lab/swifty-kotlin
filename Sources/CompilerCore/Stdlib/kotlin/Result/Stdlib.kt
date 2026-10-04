@@ -50,7 +50,12 @@ public class Result<out T> {
         __kkRuntimeResultExceptionOrNull(this)
 
     @KsSymbolName("kk_runtime_result_map")
-    public external fun <R> map(transform: (T) -> R): Result<Any?>
+    public external fun <R> map(transform: (T) -> R): Result<R>
+
+    // A failed receiver rethrows its stored exception from getOrThrow(), so
+    // runCatching re-wraps the same throwable, matching Kotlin's mapCatching.
+    public fun <R> mapCatching(transform: (T) -> R): Result<R> =
+        runCatching { transform(getOrThrow()) }
 
     @KsSymbolName("kk_runtime_result_fold")
     public external fun <R> fold(successTransform: (T) -> R, failureTransform: (Throwable) -> R): R
@@ -62,10 +67,10 @@ public class Result<out T> {
     public external fun onFailure(action: (Throwable) -> Unit): Result<T>
 
     @KsSymbolName("kk_runtime_result_recover")
-    public external fun <R> recover(transform: (Throwable) -> R): Result<Any?>
+    public external fun <R> recover(transform: (Throwable) -> R): Result<R>
 
     @KsSymbolName("kk_runtime_result_recover_catching")
-    public external fun <R> recoverCatching(transform: (Throwable) -> R): Result<Any?>
+    public external fun <R> recoverCatching(transform: (Throwable) -> R): Result<R>
 
     public companion object {}
 }

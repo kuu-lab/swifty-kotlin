@@ -7,36 +7,17 @@
 
 package kotlinx.coroutines.channels
 
+import kotlin.coroutines.CoroutineContext
 import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.CoroutineScope
 
 // KSP-1543: ProducerScope is the receiver exposed by channelFlow and
 // callbackFlow. The object is backed by the runtime channel created for each
-// collection; the member operations below keep the public Kotlin shape while
+// collection; the member operations keep the public Kotlin shape while
 // retaining the channel ABI at the boundary.
-
-@JvmInline
-public value class ChannelResult<out T> internal constructor(internal val token: Int) {
-    public val isSuccess: Boolean
-        get() = token == 0
-
-    public val isFailure: Boolean
-        get() = !isSuccess
-
-    public val isClosed: Boolean
-        get() = token == 1 || token == 2
-}
-
-public interface SendChannel<in E> {
-    @KsSymbolName("kk_channel_send")
-    public external suspend fun send(element: E): Unit
-
-    @KsSymbolName("kk_channel_try_send")
-    public external fun trySend(element: E): ChannelResult<Unit>
-
-    @KsSymbolName("kk_channel_close")
-    public external fun close(): Boolean
-}
+//
+// KSP-1571: `SendChannel` moved to Channel.kt and `ChannelResult` to
+// ChannelResult.kt to match the upstream file layout.
 
 // KSP-1573: `ProducerScope.channel` returns the very handle the scope is
 // backed by — the receiver handed to the launched block is the channel
@@ -46,7 +27,13 @@ public interface SendChannel<in E> {
 @KsSymbolName("__kk_identity")
 private external fun <E> __kkProducerScopeChannel(scope: ProducerScope<E>): SendChannel<E>
 
+@KsSymbolName("kk_coroutine_current_context")
+private external fun __kkProducerScopeCurrentContext(): CoroutineContext
+
 public class ProducerScope<in E> : CoroutineScope, SendChannel<E> {
+    public override val coroutineContext: CoroutineContext
+        get() = __kkProducerScopeCurrentContext()
+
     /** A reference to the channel this coroutine sends elements to. */
     public val channel: SendChannel<E>
         get() = __kkProducerScopeChannel(this)

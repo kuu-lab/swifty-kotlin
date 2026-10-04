@@ -75,18 +75,20 @@ struct MemberRuntimeDispatchTests {
         }
 
         let uintProgressionKey = MemberDispatchKey(receiverKind: .uintProgression, memberName: "reduce", arity: 1)
-        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintProgressionKey) == "kk_uint_range_reduce")
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintProgressionKey) == "__kk_uint_range_reduce")
 
-        // KSP-1523 retains the constant-time step property bridge (arity 0).
+        // KSP-1523 retains the constant-time step property bridge (arity 0),
+        // demoted to an internal `__kk_` link by KSP-709.
         let uintStepPropertyKey = MemberDispatchKey(receiverKind: .uintProgression, memberName: "step", arity: 0)
-        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintStepPropertyKey) == "kk_uint_range_step")
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintStepPropertyKey) == "__kk_uint_range_step")
     }
 
     // KSP-1523: none of these 13 members may resolve to a kk_uint_range_*
     // name — those Runtime bridges were deleted, and `rangeRuntimeName`'s
-    // per-member string interpolation (`"kk_uint_range_\(member)"`) would
-    // silently reconstruct a name for a symbol that no longer exists if any
-    // of them fell through the `.uintRange` sourceBacked allowlist.
+    // per-member string interpolation (`"__kk_uint_range_\(member)"` since
+    // KSP-709 demoted the remaining bridges) would silently reconstruct a
+    // name for a symbol that no longer exists if any of them fell through
+    // the `.uintRange` sourceBacked allowlist.
     @Test func testUIntRangeKSP1523MembersNeverResolveToDeletedRuntimeNames() {
         let members: [(String, Int)] = [
             ("contains", 1), ("isEmpty", 0), ("first", 0), ("last", 0),
@@ -98,7 +100,8 @@ struct MemberRuntimeDispatchTests {
             let key = MemberDispatchKey(receiverKind: .uintRange, memberName: member.0, arity: member.1)
             let resolved = MemberRuntimeDispatch.rangeRuntimeLinkName(for: key)
             #expect(
-                resolved?.hasPrefix("kk_uint_range_") != true,
+                resolved?.hasPrefix("kk_uint_range_") != true
+                    && resolved?.hasPrefix("__kk_uint_range_") != true,
                 "UIntRange.\(member.0)/\(member.1) resolved to \(resolved ?? "nil"), a deleted Runtime symbol"
             )
         }
@@ -141,13 +144,15 @@ struct MemberRuntimeDispatchTests {
         }
 
         // reduce/fold/forEach/etc. on ULongProgression are outside KSP-1530's
-        // scope and still share the kk_ulong_range_* runtime prefix.
+        // scope and still share the (KSP-709-demoted) __kk_ulong_range_*
+        // runtime prefix.
         let ulongProgressionKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "reduce", arity: 1)
-        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionKey) == "kk_ulong_range_reduce")
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionKey) == "__kk_ulong_range_reduce")
 
-        // KSP-1524 retains the constant-time step property bridge (arity 0).
+        // KSP-1524 retains the constant-time step property bridge (arity 0),
+        // demoted to an internal `__kk_` link by KSP-709.
         let ulongStepPropertyKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "step", arity: 0)
-        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongStepPropertyKey) == "kk_ulong_range_step")
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongStepPropertyKey) == "__kk_ulong_range_step")
     }
 
     @Test func testULongRangeKSP1524MembersNeverResolveToDeletedRuntimeNames() {
@@ -160,7 +165,8 @@ struct MemberRuntimeDispatchTests {
             let key = MemberDispatchKey(receiverKind: .ulongRange, memberName: member.0, arity: member.1)
             let resolved = MemberRuntimeDispatch.rangeRuntimeLinkName(for: key)
             #expect(
-                resolved?.hasPrefix("kk_ulong_range_") != true,
+                resolved?.hasPrefix("kk_ulong_range_") != true
+                    && resolved?.hasPrefix("__kk_ulong_range_") != true,
                 "ULongRange.\(member.0)/\(member.1) resolved to \(resolved ?? "nil"), a deleted Runtime symbol"
             )
         }

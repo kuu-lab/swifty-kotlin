@@ -357,7 +357,7 @@ extension KotlinParser {
     /// operator exactly when the trailing run of operand / identifier tokens
     /// has even length and ends in an identifier: `x = a or` (2) is pending,
     /// `x = a or b` (3) is complete. Parenthesized / indexed groups count as
-    /// one operand together with a directly preceding call name; a group that
+    /// one operand together with their call target and qualified receiver; a group that
     /// is an `if (...)` / `when (...)` condition ends the run, so
     /// `if (c) foo` is a branch body rather than a pending `foo` operator.
     static func endsWithPendingInfixOperator<C: BidirectionalCollection>(_ tokens: C) -> Bool
@@ -365,6 +365,15 @@ extension KotlinParser {
     {
         guard let last = tokens.last, case .identifier = last.kind else {
             return false
+        }
+        // If the trailing identifier is preceded by `.`, `?.`, or `::`, it is a
+        // qualified member access / property / method, not an infix operator name.
+        let lastIndex = tokens.index(before: tokens.endIndex)
+        if lastIndex > tokens.startIndex {
+            let beforeLast = tokens[tokens.index(before: lastIndex)].kind
+            if beforeLast == .symbol(.dot) || beforeLast == .symbol(.questionDot) || beforeLast == .symbol(.doubleColon) {
+                return false
+            }
         }
         var runLength = 0
         var index = tokens.endIndex
@@ -377,29 +386,85 @@ extension KotlinParser {
                  .floatLiteral, .doubleLiteral, .charLiteral,
                  .keyword(.this), .keyword(.true), .keyword(.false), .keyword(.null):
                 runLength += 1
-                index = current
+                index = postfixOperandStart(in: tokens, endingAt: current)
             case .symbol(.rParen), .symbol(.rBracket):
                 let open: TokenKind = token.kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
-                guard let openIndex = matchingOpenIndex(in: tokens, closingAt: current, open: open, close: token.kind) else {
+                guard matchingOpenIndex(in: tokens, closingAt: current, open: open, close: token.kind) != nil else {
                     return false
                 }
                 if token.kind == .symbol(.rParen), endsWithControlFlowCondition(tokens[tokens.startIndex ... current]) {
                     return runLength >= 2 && runLength.isMultiple(of: 2)
                 }
                 runLength += 1
-                index = openIndex
-                // Deliberately does not also fold a directly preceding identifier
-                // into this run (as it would for a call target in `f(x)`): the
-                // token immediately before a parenthesized operand here is at
-                // least as likely to be a preceding infix name (`a or (b)`) as a
-                // call target, and those are indistinguishable by shape alone.
-                // Counting the group as its own run element keeps the
-                // alternating operand/operator parity correct either way.
+                index = postfixOperandStart(in: tokens, endingAt: current)
             default:
                 return runLength >= 2 && runLength.isMultiple(of: 2)
             }
         }
         return runLength >= 2 && runLength.isMultiple(of: 2)
+    }
+
+    private static func postfixOperandStart<C: BidirectionalCollection>(
+        in tokens: C, endingAt end: C.Index
+    ) -> C.Index where C.Element == Token {
+        var start = end
+        var current = end
+
+        if tokens[current].kind == .symbol(.rParen) || tokens[current].kind == .symbol(.rBracket) {
+            let open: TokenKind = tokens[current].kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
+            guard let openIndex = matchingOpenIndex(in: tokens, closingAt: current, open: open, close: tokens[current].kind) else {
+                return end
+            }
+            start = openIndex
+            current = openIndex
+
+            if tokens[end].kind == .symbol(.rBracket), current > tokens.startIndex {
+                let target = tokens.index(before: current)
+                start = postfixOperandStart(in: tokens, endingAt: target)
+                current = start
+            } else if tokens[end].kind == .symbol(.rParen), current > tokens.startIndex {
+                let target = tokens.index(before: current)
+                let isPrecededByDot: Bool = {
+                    guard target > tokens.startIndex else { return false }
+                    let beforeTarget = tokens[tokens.index(before: target)].kind
+                    return beforeTarget == .symbol(.dot) || beforeTarget == .symbol(.questionDot)
+                }()
+                let isFollowedByDot: Bool = {
+                    let afterEnd = tokens.index(after: end)
+                    guard afterEnd < tokens.endIndex else { return false }
+                    let kind = tokens[afterEnd].kind
+                    return kind == .symbol(.dot) || kind == .symbol(.questionDot)
+                }()
+                if isPrecededByDot || isFollowedByDot {
+                    switch tokens[target].kind {
+                    case .identifier, .backtickedIdentifier:
+                        start = postfixOperandStart(in: tokens, endingAt: target)
+                        current = start
+                    default:
+                        break
+                    }
+                }
+            }
+        }
+
+        while current > tokens.startIndex {
+            let prev = tokens.index(before: current)
+            switch tokens[prev].kind {
+            case .symbol(.bangBang):
+                current = prev
+                start = prev
+            case .symbol(.dot), .symbol(.questionDot):
+                guard prev > tokens.startIndex else { break }
+                let receiverEnd = tokens.index(before: prev)
+                let receiverStart = postfixOperandStart(in: tokens, endingAt: receiverEnd)
+                current = receiverStart
+                start = receiverStart
+            default:
+                return start
+            }
+        }
+
+        return start
     }
 
     private static func matchingOpenIndex<C: BidirectionalCollection>(

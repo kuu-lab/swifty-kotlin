@@ -30,6 +30,8 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("withTimeout"),
             ctx.interner.intern("withTimeoutOrNull"),
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
+            ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
+            ctx.interner.intern("kk_await_cancellation"),
             ctx.interner.intern("flow"),
             ctx.interner.intern("channelFlow"),
             ctx.interner.intern("callbackFlow"),
@@ -58,6 +60,9 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
+            ctx.interner.intern("kk_suspend_function_invoke_3"),
+            ctx.interner.intern("kk_suspend_function_invoke_4"),
+            ctx.interner.intern("kk_suspend_function_invoke_5"),
             ctx.interner.intern("kk_flow_create"),
             ctx.interner.intern("kk_channel_flow_create"),
             ctx.interner.intern("kk_callback_flow_create"),
@@ -73,6 +78,7 @@ final class CoroutineLoweringPass: LoweringPass {
 
         let anyType = ctx.sema?.types.nullableAnyType ?? ctx.sema?.types.anyType
         let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
+        let longType = ctx.sema?.types.make(.primitive(.long, .nonNull))
         let unitType = ctx.sema?.types.unitType
         let sequenceClassSymbol = ctx.sema?.symbols.lookup(fqName: [
             ctx.interner.intern("kotlin"),
@@ -95,6 +101,8 @@ final class CoroutineLoweringPass: LoweringPass {
         let startCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("startCoroutineUninterceptedOrReturn")
         let createCoroutineUninterceptedNoReceiverCallee = ctx.interner.intern("kk_create_coroutine_unintercepted_no_receiver")
         let startCoroutineUninterceptedOrReturnNoReceiverCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return_no_receiver")
+        let createCoroutineUninterceptedWithReceiverCallee = ctx.interner.intern("kk_create_coroutine_unintercepted_with_receiver")
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return_with_receiver")
         let runtimeRunBlockingCallee = ctx.interner.intern("kk_kxmini_run_blocking")
         let runtimeLaunchCallee = ctx.interner.intern("kk_kxmini_launch")
         let runtimeAsyncCallee = ctx.interner.intern("kk_kxmini_async")
@@ -108,6 +116,8 @@ final class CoroutineLoweringPass: LoweringPass {
         let flowCollectCallee = ctx.interner.intern("kk_flow_collect")
         let flowCollectLatestCallee = ctx.interner.intern("__kk_flow_collectLatest")
         let runtimeSuspendCallNames: Set<InternedString> = [
+            flowCollectCallee,
+            flowCollectLatestCallee,
             kxMiniDelayCallee,
             runtimeDelayCallee,
             kxMiniYieldCallee,
@@ -115,15 +125,22 @@ final class CoroutineLoweringPass: LoweringPass {
             runtimeSequenceBuilderYieldCallee,
             runtimeIteratorBuilderYieldCallee,
             suspendCoroutineUninterceptedOrReturnCallee,
+            ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
+            ctx.interner.intern("kk_suspend_function_invoke_3"),
+            ctx.interner.intern("kk_suspend_function_invoke_4"),
+            ctx.interner.intern("kk_suspend_function_invoke_5"),
             ctx.interner.intern("kk_suspend_coroutine"),
             // CORO-004: await / join are real suspend points that consume the
             // caller continuation so the runtime can resume them without blocking.
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
+            // KSP-1568: awaitCancellation() parks on the never-completing
+            // runtimeNonCancellableJob via kk_await_cancellation.
+            ctx.interner.intern("kk_await_cancellation"),
             // KUU-642: DeepRecursive callRecursive parks the caller continuation
             // and returns COROUTINE_SUSPENDED so invoke's trampoline loop can
             // start the next recursive step without growing the native stack.
@@ -224,6 +241,7 @@ final class CoroutineLoweringPass: LoweringPass {
                     continuationType: continuationType,
                     anyType: anyType ?? continuationType,
                     intType: intType,
+                    longType: longType,
                     unitType: unitType
                 )
             )
@@ -338,6 +356,8 @@ final class CoroutineLoweringPass: LoweringPass {
             startCoroutineUninterceptedOrReturnCallee: startCoroutineUninterceptedOrReturnCallee,
             createCoroutineUninterceptedNoReceiverCallee: createCoroutineUninterceptedNoReceiverCallee,
             startCoroutineUninterceptedOrReturnNoReceiverCallee: startCoroutineUninterceptedOrReturnNoReceiverCallee,
+            createCoroutineUninterceptedWithReceiverCallee: createCoroutineUninterceptedWithReceiverCallee,
+            startCoroutineUninterceptedOrReturnWithReceiverCallee: startCoroutineUninterceptedOrReturnWithReceiverCallee,
             runtimeCreateCoroutineUninterceptedCallee: runtimeCreateCoroutineUninterceptedCallee,
             runtimeStartCoroutineUninterceptedOrReturnCallee: runtimeStartCoroutineUninterceptedOrReturnCallee,
             runtimeContinuationResumeCallee: runtimeContinuationResumeCallee,
