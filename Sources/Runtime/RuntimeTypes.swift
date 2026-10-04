@@ -650,6 +650,8 @@ final class RuntimeListBox {
             return 0
         case .subList(let slice):
             return slice.base.modCount
+        case .mapValuesViewOf(let mapRaw):
+            return runtimeMapBox(from: mapRaw)?.modCount ?? 0
         }
     }
 
