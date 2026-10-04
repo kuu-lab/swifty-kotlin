@@ -47,4 +47,22 @@ struct StringBuilderParityTests {
         #expect(errors.first?.code == "KSWIFTK-SEMA-0003")
         #expect(errors.first?.message == "Ambiguous overload resolution.")
     }
+
+    @Test
+    func ambiguousMembersDoNotFallBackToApplicableExtensions() throws {
+        let ctx = makeContextFromSource("""
+        class NullableOverloads {
+            fun accept(value: String?): Int = 1
+            fun accept(value: CharArray?): Int = 2
+        }
+        fun NullableOverloads.accept(value: Any?): Int = 3
+        fun parity() {
+            NullableOverloads().accept(null)
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "\(errors)")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0003")
+    }
 }

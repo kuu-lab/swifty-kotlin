@@ -433,7 +433,7 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         __kk_string_builder_toString()
 
     override operator fun compareTo(other: StringBuilder): Int {
-        val limit = minOf(length, other.length)
+        val limit = if (length < other.length) length else other.length
         var index = 0
         while (index < limit) {
             val difference = this[index].code - other[index].code

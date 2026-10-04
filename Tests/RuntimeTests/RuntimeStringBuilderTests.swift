@@ -22,7 +22,7 @@ struct RuntimeStringBuilderTests {
         #expect(kk_compare_any(lhs, rhs) == -24)
         #expect(__kk_comparable_compareTo(makeBuilder("ab"), makeBuilder("abcd")) == -2)
         #expect(__kk_comparable_compareTo(makeBuilder(""), makeBuilder("abc")) == -3)
-        #expect(__kk_comparable_compareTo(makeBuilder("\u{10000}"), makeBuilder("\u{E000}")) == -2048)
+        #expect(__kk_comparable_compareTo(makeBuilder("\u{10000}"), makeBuilder("\u{E800}")) == -4096)
         let highSurrogate = runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(units: [0xD800])))
         let lowSurrogate = runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(units: [0xDC00])))
         #expect(__kk_comparable_compareTo(highSurrogate, lowSurrogate) == -1024)
