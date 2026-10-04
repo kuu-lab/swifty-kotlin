@@ -365,6 +365,8 @@ package struct KnownCompilerNames {
     let binarySearch: InternedString
     let binarySearchBy: InternedString
     let chunked: InternedString
+    let coerceAtLeast: InternedString
+    let coerceAtMost: InternedString
     let coerceIn: InternedString
     let compareTo: InternedString
     let contains: InternedString
@@ -853,6 +855,8 @@ package struct KnownCompilerNames {
         binarySearch = interner.intern("binarySearch")
         binarySearchBy = interner.intern("binarySearchBy")
         chunked = interner.intern("chunked")
+        coerceAtLeast = interner.intern("coerceAtLeast")
+        coerceAtMost = interner.intern("coerceAtMost")
         coerceIn = interner.intern("coerceIn")
         compareTo = interner.intern("compareTo")
         contains = interner.intern("contains")

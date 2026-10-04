@@ -6,7 +6,7 @@
  * kotlinx-io declares this `sealed`, and several members take default parameter values; both are
  * dropped here (no code exhaustively `when`s over Source, and default values on interface members
  * are not dispatched correctly through an override on this compiler yet). The default-taking forms
- * are provided as extension functions in SourceSinkExtensions.kt instead.
+ * are planned as extension functions (see docs/kotlinx-io-status.md for the remaining surface).
  */
 package kotlinx.io
 
