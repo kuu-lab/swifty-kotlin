@@ -66,6 +66,32 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
     return boxedResult
 }
 
+/// A store into a `P?`-typed slot (nullable primitive class field, captured
+/// variable cell, or backing-field global) must leave the slot
+/// box-or-sentinel: a raw `Long`/`ULong`/`Double`/`Float` scalar whose bits
+/// collide with `runtimeNullSentinelInt` would read as `null` to every null
+/// check (KUU-854). Emitting a `.copy` through a `slotType`-typed temporary
+/// lets ABILoweringPass pick the always-boxing `kk_box_*_nonnull` callee for
+/// a non-null source while passing existing box/sentinel content through
+/// verbatim. Returns `value` unchanged when `slotType` is not a nullable
+/// primitive whose scalar can collide with the sentinel.
+func normalizedValueForNullablePrimitiveSlot<C: RangeReplaceableCollection>(
+    _ value: KIRExprID,
+    slotType: TypeID,
+    types: TypeSystem,
+    arena: KIRArena,
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
+    guard case let .primitive(primitive, .nullable) = types.kind(of: slotType),
+          primitive.rawValueCollidesWithNullSentinel
+    else {
+        return value
+    }
+    let slot = arena.appendTemporary(type: slotType)
+    instructions.append(.copy(from: value, to: slot))
+    return slot
+}
+
 func emitNonThrowingCall<C: RangeReplaceableCollection>(
     callee: InternedString,
     arg: KIRExprID,
