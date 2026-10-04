@@ -1874,7 +1874,21 @@ extension CallTypeChecker {
 
         // Use the companion type as implicit receiver when the candidates were
         // redirected from the owner class to its companion object.
-        let effectiveReceiverType = companionReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
+        let mutableMapSuperReceiverType: TypeID? = {
+            guard isSuperCall,
+                  [interner.intern("put"), knownNames.putAll, knownNames.remove, knownNames.clear].contains(calleeName),
+                  let currentType = ctx.implicitReceiverType,
+                  case let .classType(current) = sema.types.kind(of: currentType),
+                  case let .classType(superclass) = sema.types.kind(of: lookupReceiverType),
+                  let mutableMap = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMutableMapFQName),
+                  sema.types.isNominalSubtypeSymbol(superclass.classSymbol, of: mutableMap),
+                  let arguments = sema.types.liftedNominalSupertypeArgs(
+                      from: current.classSymbol, childArgs: current.args, to: superclass.classSymbol
+                  )
+            else { return nil }
+            return sema.types.make(.classType(ClassType(classSymbol: superclass.classSymbol, args: arguments)))
+        }()
+        let effectiveReceiverType = companionReceiverType ?? mutableMapSuperReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
         // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
         // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
         // normal candidate lookup already resolved one of these names to that
