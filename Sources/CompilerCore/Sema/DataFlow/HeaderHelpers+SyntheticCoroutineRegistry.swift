@@ -2336,6 +2336,108 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([kotlinCoroutineContextSymbol], for: emptyCoroutineContextSymbol)
         }
 
+        // KSP-1583: kotlinx.coroutines.test — opaque runtime-handle nominal
+        // types. `TestScope` values are `RuntimeCoroutineScope` handles
+        // minted by `kk_coroutine_scope_new_with_context` (via the bundled
+        // `TestScope(context)` factory in Stdlib/kotlinx/coroutines/test/),
+        // so declaring `CoroutineScope` as a supertype lets the existing
+        // synthetic members (`launch`/`cancel`/`isActive`) and Kotlin-source
+        // `CoroutineScope` extensions (`produce`/`actor`/`launchIn`) operate
+        // on a real scope handle inside `runTest` bodies — the same reason
+        // `ProducerScope`-style Kotlin implementations cannot be used here:
+        // `kk_coroutine_scope_launch` fatal-errors on non-scope handles.
+        //
+        // NOTE: this handle has no Kotlin vtable. Members later added to
+        // `CoroutineScope` as *source* interface members (e.g.
+        // `coroutineContext` in KSP-1582) must not be resolved on TestScope
+        // through interface dispatch — keep routing this type's scope
+        // operations through the synthetic `kk_coroutine_scope_*` members.
+        //
+        // `testScheduler`/`currentTime`/`backgroundScope` are synthetic
+        // member properties (upstream declares them as `val TestScope.x`
+        // extensions): extension *properties* on the suspend-lambda receiver
+        // do not resolve the implicit-receiver path — they emit a
+        // kk_global_root_slot_* load for a slot that is never defined —
+        // while member properties route through the same kk_ bridge as
+        // `isActive`. The surface syntax (`scope.testScheduler` etc.) is
+        // identical either way.
+        let testPkg = ensureSyntheticCoroutinePackage(
+            coroutinesPkg + [interner.intern("test")],
+            symbols: symbols,
+            interner: interner
+        )
+        // `TestCoroutineScheduler` is an opaque handle to a per-scope virtual
+        // clock (`RuntimeTestScheduler`). Its `currentTime` and the
+        // advance*/runCurrent controls are declared as extensions in
+        // Stdlib/kotlinx/coroutines/test/*.kt bridging to the
+        // `kk_test_scheduler_*` entry points.
+        let testSchedulerSymbol = ensureClassSymbol(
+            named: "TestCoroutineScheduler",
+            in: testPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let testSchedulerType = types.make(.classType(ClassType(
+            classSymbol: testSchedulerSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(testSchedulerType, for: testSchedulerSymbol)
+        registerSyntheticCoroutineConstructor(
+            ownerSymbol: testSchedulerSymbol,
+            ownerType: testSchedulerType,
+            externalLinkName: "kk_test_scheduler_new",
+            parameters: [],
+            symbols: symbols,
+            interner: interner
+        )
+
+        let testScopeSymbol = ensureClassSymbol(
+            named: "TestScope",
+            in: testPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let testScopeType = types.make(.classType(ClassType(
+            classSymbol: testScopeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(testScopeType, for: testScopeSymbol)
+        symbols.setDirectSupertypes([coroutineScopeSymbol], for: testScopeSymbol)
+        types.setNominalDirectSupertypes([coroutineScopeSymbol], for: testScopeSymbol)
+        registerSyntheticObjectProperty(
+            ownerSymbol: testScopeSymbol,
+            ownerType: testScopeType,
+            name: "testScheduler",
+            propertyType: testSchedulerType,
+            externalLinkName: "kk_test_scope_scheduler",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticObjectProperty(
+            ownerSymbol: testScopeSymbol,
+            ownerType: testScopeType,
+            name: "currentTime",
+            propertyType: types.longType,
+            externalLinkName: "kk_test_scope_current_time",
+            symbols: symbols,
+            interner: interner
+        )
+        // Degraded backgroundScope: __kk_identity returns the same scope
+        // handle, aliasing the test scope itself (still a real
+        // RuntimeCoroutineScope) until scopes grow a separately cancellable
+        // child list.
+        registerSyntheticObjectProperty(
+            ownerSymbol: testScopeSymbol,
+            ownerType: testScopeType,
+            name: "backgroundScope",
+            propertyType: coroutineScopeType,
+            externalLinkName: "__kk_identity",
+            symbols: symbols,
+            interner: interner
+        )
+
         // Mutex (kotlinx.coroutines.sync.Mutex)
         let syncPkg = ensureSyntheticCoroutinePackage(
             coroutinesPkg + [interner.intern("sync")],
