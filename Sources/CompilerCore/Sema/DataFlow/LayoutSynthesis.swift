@@ -486,6 +486,20 @@ extension DataFlowSemaPhase {
             }
         }
 
+        let isMutableCollection = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "MutableCollection"
+        if isMutableCollection {
+            let bridgeMethods = ["add", "addAll", "clear", "remove", "removeAll", "retainAll"]
+            return methods.sorted { lhs, rhs in
+                let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
+                let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
+                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
         let isMutableSet = nominalSymbol.fqName.count == 3
             && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
             && interner.resolve(nominalSymbol.fqName[1]) == "collections"

@@ -67,7 +67,49 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
-    func testCapturedSuspendFunctionUsesTwoArgumentInvokeABI() throws {
+    func testImportedFlowCollectorImplicitEmitUsesInterfaceDispatch() throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+
+        suspend fun FlowCollector<Int>.emitTwice(value: Int) {
+            emit(value)
+            emit(value * 10)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "ImportedFlowCollectorDispatch",
+                emit: .kirDump
+            )
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let instructions = findAllKIRFunctions(in: module).flatMap(\.body)
+            let emitDispatches = instructions.compactMap { instruction -> KIRDispatchKind? in
+                guard case let .virtualCall(_, callee, _, _, _, _, _, dispatch) = instruction,
+                      isKotlinCallee(ctx.interner.resolve(callee), named: "emit")
+                else { return nil }
+                return dispatch
+            }
+
+            #expect(!emitDispatches.isEmpty)
+            #expect(emitDispatches.allSatisfy {
+                if case .itableDynamic = $0 { return true }
+                return false
+            })
+            #expect(!instructions.contains {
+                guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+                return isKotlinCallee(ctx.interner.resolve(callee), named: "emit")
+            })
+        }
+    }
+
+    @Test(arguments: [2, 3, 4, 5])
+    func testCapturedSuspendFunctionUsesInvokeABI(arity: Int) throws {
+        let parameterTypes = Array(repeating: "Int", count: arity).joined(separator: ", ")
+        let arguments = (["initial"] + Array(repeating: "value", count: arity - 1)).joined(separator: ", ")
         let source = """
         interface TestFlow
 
@@ -75,9 +117,9 @@ struct LoweringFlowCodegenTests {
 
         suspend fun TestFlow.fold(
             initial: Int,
-            operation: suspend (Int, Int) -> Int
+            operation: suspend (\(parameterTypes)) -> Int
         ): Int {
-            collect { value -> operation(initial, value) }
+            collect { value -> operation(\(arguments)) }
             return initial
         }
         """
@@ -91,9 +133,7 @@ struct LoweringFlowCodegenTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            // A captured suspend (Int, Int) -> Int must use the dedicated
-            // two-argument runtime entry point instead of a native symbol.
-            #expect(allCallees.contains("kk_suspend_function_invoke_2"))
+            #expect(allCallees.contains("kk_suspend_function_invoke_\(arity)"))
             #expect(!allCallees.contains("operation"))
         }
     }
@@ -164,8 +204,11 @@ struct LoweringFlowCodegenTests {
         )
     }
 
-    @Test
-    func testSuspendReceiverCallableAllowsLatestCancellation() throws {
+    @Test(arguments: [1, 2, 3, 4])
+    func testSuspendReceiverCallableAllowsLatestCancellation(arity: Int) throws {
+        let parameterTypes = Array(repeating: "Int", count: arity).joined(separator: ", ")
+        let arguments = Array(repeating: "value", count: arity).joined(separator: ", ")
+        let parameterNames = (0..<arity).map { "value\($0)" }.joined(separator: ", ")
         let source = """
         import kotlinx.coroutines.*
 
@@ -174,7 +217,7 @@ struct LoweringFlowCodegenTests {
             fun append(value: Int) { items.add(value) }
         }
 
-        suspend fun latest(transform: suspend Sink.(Int) -> Unit): List<Int> {
+        suspend fun latest(transform: suspend Sink.(\(parameterTypes)) -> Unit): List<Int> {
             val sink = Sink()
             coroutineScope {
                 var previous: Job? = null
@@ -182,7 +225,7 @@ struct LoweringFlowCodegenTests {
                     previous?.cancel()
                     previous?.join()
                     previous = launch(start = CoroutineStart.UNDISPATCHED) {
-                        sink.transform(value)
+                        sink.transform(\(arguments))
                     }
                 }
                 previous?.join()
@@ -192,10 +235,10 @@ struct LoweringFlowCodegenTests {
 
         fun main() {
             runBlocking {
-                println(latest {
-                    append(it)
+                println(latest { \(parameterNames) ->
+                    append(value0)
                     delay(20)
-                    append(it * 10)
+                    append(value0 * 10)
                 })
             }
         }
@@ -210,14 +253,14 @@ struct LoweringFlowCodegenTests {
                 extractCallees(from: $0.body, interner: ctx.interner)
             }
             #expect(allCallees.contains("kk_suspend_function_create"))
-            #expect(allCallees.contains("kk_suspend_function_invoke_2"))
+            #expect(allCallees.contains("kk_suspend_function_invoke_\(arity + 1)"))
             #expect(!allCallees.contains("transform"))
             for function in functions {
                 for instruction in function.body {
                     guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                          ctx.interner.resolve(callee) == "kk_suspend_function_invoke_2"
+                          ctx.interner.resolve(callee) == "kk_suspend_function_invoke_\(arity + 1)"
                     else { continue }
-                    #expect(arguments.count == 4)
+                    #expect(arguments.count == arity + 3)
                 }
             }
         }
@@ -236,6 +279,9 @@ struct LoweringFlowCodegenTests {
         suspend fun zero(block: suspend () -> String): String = block()
         suspend fun one(block: suspend (Int) -> Int): Int = block(4)
         suspend fun two(block: suspend (Int, Int) -> Int): Int = block(4, 5)
+        suspend fun three(block: suspend (Int, Int, Int) -> Int): Int = block(4, 5, 6)
+        suspend fun four(block: suspend (Int, Int, Int, Int) -> Int): Int = block(4, 5, 6, 7)
+        suspend fun five(block: suspend (Int, Int, Int, Int, Int) -> Int): Int = block(4, 5, 6, 7, 8)
         suspend fun receiver(block: suspend String.(Int) -> String): String = "value".block(6)
         suspend fun referenced(): String { delay(1); return "ref" }
 
@@ -250,6 +296,9 @@ struct LoweringFlowCodegenTests {
                 println(zero { delay(1); prefix })
                 println(one { delay(1); it + 3 })
                 println(two { a, b -> delay(1); a + b })
+                println(three { a, b, c -> delay(1); a + b + c })
+                println(four { a, b, c, d -> delay(1); a + b + c + d })
+                println(five { a, b, c, d, e -> delay(1); a + b + c + d + e })
                 println(receiver(makeReceiver("[", "]")))
                 try { zero { delay(1); throw IllegalStateException("delayed") } }
                 catch (e: IllegalStateException) { println(e.message) }
@@ -262,7 +311,7 @@ struct LoweringFlowCodegenTests {
         try assertFlowExecutableOutput(
             source: source,
             moduleName: "SuspendCallableValuesExecutable",
-            expectedStdout: "capture\n7\n9\n[value:6]\ndelayed\nimmediate\nref\n"
+            expectedStdout: "capture\n7\n9\n15\n22\n30\n[value:6]\ndelayed\nimmediate\nref\n"
         )
     }
 
@@ -270,18 +319,21 @@ struct LoweringFlowCodegenTests {
     func testSuspendBlocksPreserveCapturesInContextAndTimeout() throws {
         let source = """
         import kotlinx.coroutines.*
+        import kotlin.time.Duration.Companion.milliseconds
 
         fun main() = runBlocking {
             val captured = 40
             println(withTimeout(1000) { delay(1); captured + 1 })
             println(withTimeoutOrNull(1000) { delay(1); captured + 2 })
             println(withContext(Dispatchers.Default) { delay(1); captured + 3 })
+            println(withTimeout(1000.milliseconds) { delay(1.milliseconds); captured + 4 })
+            println(withTimeoutOrNull(1000.milliseconds) { delay(1L); captured + 5 })
         }
         """
         try assertFlowExecutableOutput(
             source: source,
             moduleName: "SuspendBlockCapturesExecutable",
-            expectedStdout: "41\n42\n43\n"
+            expectedStdout: "41\n42\n43\n44\n45\n"
         )
     }
 

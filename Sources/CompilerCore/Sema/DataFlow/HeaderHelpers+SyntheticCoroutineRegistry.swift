@@ -446,11 +446,22 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        // Source-backed `Deferred<out T>` (#7485 / KSP-1564) carries one
+        // class-level type parameter. Residual `async` registration often runs
+        // before that declaration is attached when CompilerCoreTests compile
+        // the bundled stdlib from source, so `isSourceBackedSymbol` is still
+        // false here. Always emit the generic shape: `await()` member matching
+        // requires `ClassType.args` to agree with the parameter list once
+        // source processing finishes. A raw `Deferred` (zero args) is what
+        // made `async { 7 }.await()` report KSWIFTK-SEMA-0002 in the harness
+        // even though the `async` call itself type-checked.
+        let deferredTypeParameterCount = types.nominalTypeParameterSymbols(for: deferredSymbol).count
+        let deferredTypeArgs: [TypeArg] = deferredTypeParameterCount > 0
+            ? Array(repeating: .out(types.anyType), count: deferredTypeParameterCount)
+            : [.out(types.anyType)]
         let deferredType = types.make(.classType(ClassType(
             classSymbol: deferredSymbol,
-            args: symbols.isSourceBackedSymbol(deferredSymbol)
-                || bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("Deferred")])
-                ? [.out(types.anyType)] : [],
+            args: deferredTypeArgs,
             nullability: .nonNull
         )))
         // KSP-499 Stage 2: use each class's own type parameter as the receiver
@@ -1221,15 +1232,9 @@ extension DataFlowSemaPhase {
         // KSP-679: `coroutineScope` / `supervisorScope` are now real suspend
         // functions in bundled Kotlin (Stdlib/kotlinx/coroutines/
         // CoroutineScope.kt), delegating to the residual (c) scope primitives.
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "delay",
-            packageFQName: coroutinesPkg,
-            parameterName: "timeMillis",
-            parameterType: types.longType,
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1566: `delay` / `withTimeout` / `withTimeoutOrNull` are bundled
+        // Kotlin now (Stdlib/kotlinx/coroutines/Delay.kt and Timeout.kt),
+        // delegating to the kk_kxmini_delay / kk_with_timeout(_or_null) bridges.
         registerSyntheticCoroutineTopLevelFunction(
             named: "yield",
             packageFQName: coroutinesPkg,
@@ -1259,38 +1264,6 @@ extension DataFlowSemaPhase {
             parameters: [],
             returnType: types.unitType,
             externalLinkName: "kk_ensure_active",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "withTimeout",
-            packageFQName: coroutinesPkg,
-            parameters: [
-                (name: "timeMillis", type: types.longType),
-                (name: "block", type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: true,
-                    nullability: .nonNull
-                )))),
-            ],
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "withTimeoutOrNull",
-            packageFQName: coroutinesPkg,
-            parameters: [
-                (name: "timeMillis", type: types.longType),
-                (name: "block", type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: true,
-                    nullability: .nonNull
-                )))),
-            ],
-            returnType: types.nullableAnyType,
             symbols: symbols,
             interner: interner
         )

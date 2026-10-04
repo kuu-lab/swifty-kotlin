@@ -797,6 +797,14 @@ public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> I
     if let set = runtimeSetBox(from: collectionRaw) {
         return kk_box_bool(set.remove(rawValue: elem) ? 1 : 0)
     }
+    if let result = runtimeSourceInterfaceCall1(
+        collectionRaw, elem,
+        interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+        methodSlot: 3,
+        context: "MutableCollection.remove dispatch"
+    ) {
+        return result
+    }
     return kk_box_bool(0)
 }
 
@@ -810,6 +818,14 @@ public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
         _ = set.removeAll()
         return 0
     }
+    if let result = runtimeSourceInterfaceCall0(
+        collectionRaw,
+        interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+        methodSlot: 2,
+        context: "MutableCollection.clear dispatch"
+    ) {
+        return result
+    }
     return 0
 }
 
@@ -820,6 +836,14 @@ public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw:
     }
     if runtimeSetBox(from: collectionRaw) != nil {
         return kk_mutable_set_removeAll(collectionRaw, elementsRaw, nil)
+    }
+    if let result = runtimeSourceInterfaceCall1(
+        collectionRaw, elementsRaw,
+        interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+        methodSlot: 4,
+        context: "MutableCollection.removeAll dispatch"
+    ) {
+        return result
     }
     return kk_box_bool(0)
 }
@@ -832,11 +856,29 @@ public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw:
     if runtimeSetBox(from: collectionRaw) != nil {
         return kk_mutable_set_retainAll(collectionRaw, elementsRaw, nil)
     }
+    if let result = runtimeSourceInterfaceCall1(
+        collectionRaw, elementsRaw,
+        interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+        methodSlot: 5,
+        context: "MutableCollection.retainAll dispatch"
+    ) {
+        return result
+    }
     return kk_box_bool(0)
 }
 
 @_cdecl("__kk_mutable_collection_addAll")
 public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
+    if runtimeListBox(from: collectionRaw) == nil, runtimeSetBox(from: collectionRaw) == nil,
+       let result = runtimeSourceInterfaceCall1(
+           collectionRaw, elementsRaw,
+           interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+           methodSlot: 1,
+           context: "MutableCollection.addAll dispatch"
+       )
+    {
+        return result
+    }
     guard let values = runtimeCollectionOrArrayValues(from: elementsRaw) else {
         return kk_box_bool(0)
     }
