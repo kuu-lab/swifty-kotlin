@@ -2264,6 +2264,9 @@ final class CallTypeChecker {
             builderContext.isCoroutineBuilderLambdaScope = true
             if let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner) {
                 builderContext = builderContext.with(implicitReceiverType: coroutineScopeType)
+                if sema.bindings.isCoroutineLauncherLambdaExpr(args[launcherIndex].expr) {
+                    sema.bindings.bindCoroutineScopeLambdaReceiverType(args[launcherIndex].expr, type: coroutineScopeType)
+                }
             }
             lambdaContextOverrides[launcherIndex] = builderContext
         }

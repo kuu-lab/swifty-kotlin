@@ -31,6 +31,9 @@ extension CallLowerer {
         else {
             return
         }
+        if sourceArgExprs.contains(where: { sema.bindings.coroutineScopeLambdaReceiverTypes[$0] != nil }) {
+            return
+        }
 
         let block = arguments[blockIndex]
         let callable = driver.ctx.callableValueInfo(for: block)

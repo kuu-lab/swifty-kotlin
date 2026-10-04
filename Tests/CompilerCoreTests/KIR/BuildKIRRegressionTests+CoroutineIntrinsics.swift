@@ -24,7 +24,7 @@ extension BuildKIRRegressionTests {
                 else { return nil }
                 return function
             }
-            #expect(adapters.count >= 2)
+            #expect(adapters.count == 1)
             let capturedAdapter = try #require(adapters.first { $0.params.count == 1 })
             #expect(capturedAdapter.isSuspend)
             let scopeCall = try #require(capturedAdapter.body.first { instruction in

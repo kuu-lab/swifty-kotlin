@@ -172,6 +172,7 @@ final class LambdaLowerer {
 
         // Enhanced receiver parameter handling for lambda with receiver types
         let hasReceiverParam = functionType?.receiver != nil
+            && sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] == nil
         let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
         // A receiver lambda always takes its own receiver parameter, even when the
         // enclosing implicit receiver has a compatible type: `"a".run { "b".apply { this } }`
@@ -226,7 +227,7 @@ final class LambdaLowerer {
             lambdaBodyExprID: bodyExpr,
             ast: ast,
             sema: sema,
-            hasExplicitReceiver: needsExplicitReceiver
+            hasExplicitReceiver: needsExplicitReceiver || sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] != nil
         )
 
         // Non-capturing lambda optimization: if no captures, use function pointer directly
@@ -394,6 +395,7 @@ final class LambdaLowerer {
         // Publish this lambda's receiver under its per-lambda symbol so that
         // `this@callee` (in this body or a nested lambda that captures it)
         // reads this receiver rather than the innermost implicit one.
+        bindCoroutineScopeLambdaReceiver(exprID, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
         registerLambdaReceiverValue(lambdaExprID: exprID, hasReceiverParam: hasReceiverParam)
         // Map param names → symbols for nameRef fallback when identifierSymbols is unbound.
         let effectiveParamNames: [InternedString] = if params.isEmpty, let functionType, !functionType.params.isEmpty {
@@ -2260,6 +2262,7 @@ final class LambdaLowerer {
             }
         }
 
+        bindCoroutineScopeLambdaReceiver(exprID, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
         registerLambdaReceiverValue(lambdaExprID: exprID, hasReceiverParam: functionType?.receiver != nil)
 
         // Set up parameter name mapping for `it` parameter
