@@ -27,6 +27,15 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        if calleeName == knownNames.async,
+           isCoroutineScopeType(receiverType, sema: sema, interner: interner)
+        {
+            for argument in args {
+                if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                    sema.bindings.markCoroutineLauncherLambdaExpr(argument.expr)
+                }
+            }
+        }
         let isFlowReceiver = if sema.bindings.isFlowExpr(receiverID) {
             true
         } else if case .nameRef = ast.arena.expr(receiverID),
@@ -2167,6 +2176,10 @@ extension CallTypeChecker {
                 candidates = regexStringBridgeCandidates
             }
         }
+        let isDeferredAwait = candidates.contains {
+            sema.symbols.externalLinkName(for: $0) == "kk_kxmini_async_await"
+        }
+        let resolutionExpectedType = isDeferredAwait ? nil : expectedType
         var resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
@@ -2174,7 +2187,7 @@ extension CallTypeChecker {
             range: range,
             calleeName: calleeName,
             explicitTypeArgs: explicitTypeArgs,
-            expectedType: expectedType,
+            expectedType: resolutionExpectedType,
             implicitReceiverType: effectiveReceiverType,
             lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
             inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
@@ -2667,13 +2680,17 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        // `Deferred.await()` resolves here as a normal candidate (the synthetic
-        // member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift), whose
-        // signature hardcodes `Any` since `Deferred` has no class-level type
-        // parameter. Narrow it using the element type tracked by
+        // Narrow the async builder's Any contract using the element type tracked by
         // `coroutineBuilderNarrowedReturnType` for the `async {}` call that
         // produced this receiver.
-        let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_kxmini_async_await" {
+        let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_coroutine_scope_async",
+                                          let block = args.first(where: { $0.label == interner.intern("block") }) ?? args.last
+        {
+            coroutineBuilderNarrowedReturnType(
+                id: id, launcherName: "async", lambdaArgExpr: block.expr,
+                fallback: returnType, ast: ast, sema: sema
+            )
+        } else if sema.symbols.externalLinkName(for: chosen) == "kk_kxmini_async_await" {
             deferredAwaitResultType(receiverID: receiverID, fallback: returnType, ast: ast, sema: sema)
         } else {
             returnType

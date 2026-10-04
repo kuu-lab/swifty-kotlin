@@ -1000,6 +1000,28 @@ public extension RuntimeABISpec {
         ),
         // Structured Concurrency (P5-89)
         RuntimeABIFunctionSpec(
+            name: "kk_coroutine_scope_async",
+            parameters: [
+                RuntimeABIParameter(name: "scope", type: .intptr),
+                RuntimeABIParameter(name: "context", type: .intptr),
+                RuntimeABIParameter(name: "start", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr, section: "Coroutine", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_coroutine_scope_async_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "scope", type: .intptr),
+                RuntimeABIParameter(name: "context", type: .intptr),
+                RuntimeABIParameter(name: "start", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr, section: "Coroutine", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_new",
             parameters: [],
             returnType: .intptr,

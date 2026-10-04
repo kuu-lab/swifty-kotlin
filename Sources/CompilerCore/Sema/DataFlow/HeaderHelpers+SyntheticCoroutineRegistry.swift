@@ -448,7 +448,9 @@ extension DataFlowSemaPhase {
         )))
         let deferredType = types.make(.classType(ClassType(
             classSymbol: deferredSymbol,
-            args: symbols.isSourceBackedSymbol(deferredSymbol) ? [.out(types.anyType)] : [],
+            args: symbols.isSourceBackedSymbol(deferredSymbol)
+                || bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("Deferred")])
+                ? [.out(types.anyType)] : [],
             nullability: .nonNull
         )))
         // KSP-499 Stage 2: use each class's own type parameter as the receiver
