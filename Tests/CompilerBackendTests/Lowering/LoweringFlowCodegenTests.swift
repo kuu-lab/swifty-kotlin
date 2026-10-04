@@ -66,6 +66,46 @@ struct LoweringFlowCodegenTests {
         }
     }
 
+    @Test
+    func testImportedFlowCollectorImplicitEmitUsesInterfaceDispatch() throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+
+        suspend fun FlowCollector<Int>.emitTwice(value: Int) {
+            emit(value)
+            emit(value * 10)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "ImportedFlowCollectorDispatch",
+                emit: .kirDump
+            )
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let instructions = findAllKIRFunctions(in: module).flatMap(\.body)
+            let emitDispatches = instructions.compactMap { instruction -> KIRDispatchKind? in
+                guard case let .virtualCall(_, callee, _, _, _, _, _, dispatch) = instruction,
+                      isKotlinCallee(ctx.interner.resolve(callee), named: "emit")
+                else { return nil }
+                return dispatch
+            }
+
+            #expect(!emitDispatches.isEmpty)
+            #expect(emitDispatches.allSatisfy {
+                if case .itableDynamic = $0 { return true }
+                return false
+            })
+            #expect(!instructions.contains {
+                guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+                return isKotlinCallee(ctx.interner.resolve(callee), named: "emit")
+            })
+        }
+    }
+
     @Test(arguments: [2, 3, 4, 5])
     func testCapturedSuspendFunctionUsesInvokeABI(arity: Int) throws {
         let parameterTypes = Array(repeating: "Int", count: arity).joined(separator: ", ")
