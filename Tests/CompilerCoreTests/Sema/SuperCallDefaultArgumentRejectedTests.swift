@@ -40,17 +40,9 @@ import Testing
         try Self._sharedRejectCtx.get()
     }
 
-    @Test func testError_superCallOmittingClassDefaultArgument() throws {
-        let ctx = try sharedRejectCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-0306", in: ctx)
-    }
-
-    @Test func testError_superCallOmittingInterfaceDefaultArgument() throws {
-        let ctx = try sharedRejectCtx()
-        assertHasDiagnostic("KSWIFTK-SEMA-0306", in: ctx)
-    }
-
-    @Test func testError_qualifiedSuperCallOmittingDefaultArgument() throws {
+    // Covers all reject sources: class super call, interface super call, and
+    // qualified `super<I>` call, each omitting a default argument.
+    @Test func testError_superCallOmittingDefaultArgument() throws {
         let ctx = try sharedRejectCtx()
         assertHasDiagnostic("KSWIFTK-SEMA-0306", in: ctx)
     }
@@ -85,12 +77,9 @@ import Testing
         try Self._sharedAcceptCtx.get()
     }
 
-    @Test func testNoError_superCallWithAllArgumentsExplicit() throws {
-        let ctx = try sharedAcceptCtx()
-        assertNoDiagnostic("KSWIFTK-SEMA-0306", in: ctx)
-    }
-
-    @Test func testNoError_nonSuperCallOmittingDefaultArgument() throws {
+    // Covers all accept sources: a super call passing every argument
+    // explicitly, and a non-super virtual call omitting the default.
+    @Test func testNoError_explicitSuperCallOrNonSuperCallOmittingDefault() throws {
         let ctx = try sharedAcceptCtx()
         assertNoDiagnostic("KSWIFTK-SEMA-0306", in: ctx)
     }

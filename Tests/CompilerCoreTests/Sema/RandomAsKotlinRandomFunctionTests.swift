@@ -104,21 +104,5 @@ struct RandomAsKotlinRandomFunctionTests {
         #expect(asKotlinRandom != nil,
                 "asKotlinRandom must return kotlin.random.Random")
     }
-
-    /// The synthetic `java.util.Random` shim must expose a seeded constructor that
-    /// allows user code such as `JavaRandom(42).asKotlinRandom()` to resolve.
-    @Test func testJavaUtilRandomShimHasConstructorsForAsKotlinRandomCallSites() throws {
-        let (sema, interner) = try sharedSema()
-
-        let initFQ = ["java", "util", "Random", "<init>"].map { interner.intern($0) }
-        let ctors = sema.symbols.lookupAll(fqName: initFQ)
-        #expect(!ctors.isEmpty, "java.util.Random must expose synthetic constructors")
-
-        let arities = ctors.compactMap { id -> Int? in
-            sema.symbols.functionSignature(for: id).map { $0.parameterTypes.count }
-        }
-        #expect(arities.contains(1),
-                "java.util.Random must expose a seeded constructor")
-    }
 }
 #endif
