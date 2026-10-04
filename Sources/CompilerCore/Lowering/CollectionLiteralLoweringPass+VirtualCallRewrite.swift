@@ -79,20 +79,24 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 ?? callee
             let bridgeCallee: InternedString?
             if semanticMemberName == context.interner.intern("hasNext") {
-                bridgeCallee = lookup.kkIteratorBuilderHasNextName
+                bridgeCallee = context.interner.intern("kk_iterator_hasNext")
             } else if semanticMemberName == context.interner.intern("next") {
-                bridgeCallee = lookup.kkIteratorBuilderNextName
+                bridgeCallee = context.interner.intern("kk_iterator_next")
             } else {
                 bridgeCallee = nil
             }
             if let bridgeCallee {
+                // kk_iterator_hasNext / kk_iterator_next accept outThrown and
+                // dispatch RuntimeIteratorBuilderBox internally. Preserve the
+                // thrown channel: it may be read right after this call, and
+                // the 1-arg __kk_iterator_builder_* cdecls cannot accept it.
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: bridgeCallee,
                     arguments: [receiver] + arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: origCanThrow,
+                    thrownResult: origThrownResult
                 ))
                 return true
             }
