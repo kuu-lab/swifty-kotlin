@@ -1145,6 +1145,47 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testBundledAtomicExtensionPropertyCompoundAssign(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let source = """
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlin.native.concurrent.AtomicInt
+        fun main() {
+            val i = AtomicInt(10)
+            i.value += 5
+            println(i.value)
+            println(i.value++)
+            println(++i.value)
+            println(i.value--)
+            println(--i.value)
+            i.value -= 3
+            i.value *= 2
+            i.value /= 4
+            i.value %= 4
+            println(i.value)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "AtomicPropertyCompoundAssign",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "15\n15\n17\n17\n15\n2\n")
+        }
+    }
+
     /// Imported runtime-backed interface getters retain a direct external link
     /// in the shared artifact. They must not be redirected to an itable property
     /// slot that the runtime collection boxes do not register.

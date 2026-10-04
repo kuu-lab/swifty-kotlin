@@ -75,6 +75,7 @@ extension BuildASTPhase.ExpressionParser {
         // assignment that performs the mutation.
         let readExpr: ExprID
         let assignExpr: ExprID
+        var statements: [ExprID] = []
         switch operandExpr {
         case let .nameRef(name, _):
             readExpr = astArena.appendExpr(.nameRef(name, operandRange))
@@ -89,9 +90,24 @@ extension BuildASTPhase.ExpressionParser {
             assignExpr = assignment
 
         case let .memberCall(receiver, callee, typeArgs, args, _)
-            where typeArgs.isEmpty && args.isEmpty && isSideEffectFreeReceiver(receiver):
+            where typeArgs.isEmpty && args.isEmpty:
+            let cachedReceiver: ExprID
+            if isSideEffectFreeReceiver(receiver) {
+                cachedReceiver = receiver
+            } else {
+                let receiverRange = astArena.exprRange(receiver) ?? operandRange
+                let receiverName = interner.intern("$incdec$receiver$\(nextIncDecTempID())")
+                statements.append(astArena.appendExpr(.localDecl(
+                    name: receiverName,
+                    isMutable: false,
+                    typeAnnotation: nil,
+                    initializer: receiver,
+                    range: receiverRange
+                )))
+                cachedReceiver = astArena.appendExpr(.nameRef(receiverName, receiverRange))
+            }
             readExpr = astArena.appendExpr(.memberCall(
-                receiver: receiver,
+                receiver: cachedReceiver,
                 callee: callee,
                 typeArgs: [],
                 args: [],
@@ -100,7 +116,7 @@ extension BuildASTPhase.ExpressionParser {
             let one = astArena.appendExpr(.intLiteral(1, opRange))
             let assignment = astArena.appendExpr(.memberCompoundAssign(
                 op: op,
-                receiver: receiver,
+                receiver: cachedReceiver,
                 callee: callee,
                 value: one,
                 range: range
@@ -116,7 +132,7 @@ extension BuildASTPhase.ExpressionParser {
 
         if isPrefix {
             return astArena.appendExpr(.blockExpr(
-                statements: [assignExpr],
+                statements: statements + [assignExpr],
                 trailingExpr: readExpr,
                 range: range
             ))
@@ -131,15 +147,16 @@ extension BuildASTPhase.ExpressionParser {
             range: operandRange
         ))
         let tempRef = astArena.appendExpr(.nameRef(tempName, operandRange))
+        if case .memberCompoundAssign = astArena.expr(assignExpr) {
+            astArena.markIncrementDecrement(assignExpr, cachedValue: tempRef)
+        }
         return astArena.appendExpr(.blockExpr(
-            statements: [tempDecl, assignExpr],
+            statements: statements + [tempDecl, assignExpr],
             trailingExpr: tempRef,
             range: range
         ))
     }
 
-    /// Only receivers that can be evaluated twice without observable effects are
-    /// eligible, because the desugaring reads and writes the member separately.
     private func isSideEffectFreeReceiver(_ exprID: ExprID) -> Bool {
         switch astArena.expr(exprID) {
         case .nameRef, .thisRef:
