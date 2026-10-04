@@ -3791,10 +3791,11 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
 ///    synthetic `kk_kxmini_produce_with_cont` launcher used.
 ///  - A suspend function *value* (a block stored in a variable or received
 ///    from another call) crosses as the (fnPtr, env) pair suspend function
-///    values use at the ABI boundary. A suspend value's invoke thunk is
-///    `(receiver, cap0..capN, outThrown)`, so the channel handle passes as
-///    arg0 and env supplies the captures. The thunk binds arg0 to
-///    launcherArgs[0] itself (nested runBlocking on the worker).
+///    values use at the ABI boundary. A value's invoke thunk keeps the
+///    ordinary captured-lambda layout `(cap0..capN, receiver, outThrown)` —
+///    only literals marked via coroutineLauncherLambdaExprIDs lower
+///    receiver-first — so env expands to the leading slots and the channel
+///    handle passes as the trailing receiver (the scope `this`).
 ///
 /// Both shapes register the child job on the ambient scope
 /// (`RuntimeCoroutineScope.current` — the same scope the synthetic
@@ -3854,8 +3855,10 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     return channelHandle
 }
 
-/// Invokes a suspend launcher thunk `(receiver, cap0..capN, outThrown)`
-/// whose captures arrive at the ABI boundary packed in env.
+/// Invokes a suspend launcher thunk `(cap0..capN, receiver, outThrown)` —
+/// the ordinary captured-lambda layout, captures first and the receiver
+/// (the block's `this`) trailing — whose captures arrive at the ABI
+/// boundary packed in env.
 private func runtimeInvokeSuspendLauncherThunk(
     entryPointRaw: Int,
     receiver: Int,
@@ -3868,16 +3871,16 @@ private func runtimeInvokeSuspendLauncherThunk(
         return invoke(receiver, outThrown)
     case 1:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
-        return invoke(receiver, captures[0], outThrown)
+        return invoke(captures[0], receiver, outThrown)
     case 2:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint3.self)
-        return invoke(receiver, captures[0], captures[1], outThrown)
+        return invoke(captures[0], captures[1], receiver, outThrown)
     case 3:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint4.self)
-        return invoke(receiver, captures[0], captures[1], captures[2], outThrown)
+        return invoke(captures[0], captures[1], captures[2], receiver, outThrown)
     case 4:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint5.self)
-        return invoke(receiver, captures[0], captures[1], captures[2], captures[3], outThrown)
+        return invoke(captures[0], captures[1], captures[2], captures[3], receiver, outThrown)
     default:
         runtimeStructuredPanic("__kk_produce_launch: suspend block captures exceed launcher thunk arity")
         return 0
