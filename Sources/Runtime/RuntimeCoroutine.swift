@@ -3904,15 +3904,14 @@ public func kk_test_scheduler_run_current(_ schedulerHandle: Int) -> Int {
 ///  - A suspend function *value* that does not resolve to a known suspend
 ///    symbol (e.g. an opaque boxed `Function` object) crosses as the
 ///    (entryPointRaw, closureRaw) pair suspend function values use at the
-///    ABI boundary. Its invoke thunk is `(env, receiver, outThrown)` —
-///    the same convention `kk_function_invoke` dispatches for boxed
-///    values — so `launch {}`/`cancel()`/`isActive` inside the body
-///    resolve against the real scope (the degraded "virtual time == real
-///    time" contract of KSP-1583). Blocks that DO resolve — literals and
-///    variable-held lambdas alike — route to `kk_test_run_blocking_with_cont`
-///    instead, which seeds the scope into the receiver launcher slot.
-///    `timeoutRaw` is accepted for signature compatibility but not
-///    enforced (degraded phase-1 contract).
+///    ABI boundary, invoked under `__kk_produce_launch`'s convention: env
+///    expands to the leading slots and the scope handle passes as the
+///    trailing receiver (`(cap0..capN, receiver, outThrown)`). Blocks
+///    that DO resolve — literals and variable-held lambdas alike — route
+///    to `kk_test_run_blocking_with_cont` instead, which seeds the scope
+///    into the receiver launcher slot. `timeoutRaw` is accepted for
+///    signature compatibility but not enforced (degraded phase-1
+///    contract).
 @_cdecl("kk_test_run_blocking")
 public func kk_test_run_blocking(
     _ contextRaw: Int,
@@ -3944,9 +3943,29 @@ public func kk_test_run_blocking(
     RuntimeEventLoop.current = loop
     defer { RuntimeEventLoop.current = previousLoop }
 
+    // Expand the env slot into the thunk's positional captures, the same
+    // packed-shape expansion `__kk_produce_launch` performs: 0 → none, a
+    // packed env object (kk_object_new(2+N, classID: 0), captures at
+    // slots 2..) → N captures, anything else → a single raw capture.
+    let captures: [Int]
+    if closureRaw == 0 {
+        captures = []
+    } else if let envBox = resolveRuntimeHandle(closureRaw, as: RuntimeObjectBox.self),
+              envBox.classID == 0,
+              envBox.elements.count > 2
+    {
+        captures = Array(envBox.elements.dropFirst(2))
+    } else {
+        captures = [closureRaw]
+    }
+
     var thrown = 0
-    let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
-    let result = invoke(closureRaw, scopeHandle, &thrown)
+    let result = runtimeInvokeSuspendLauncherThunk(
+        entryPointRaw: entryPointRaw,
+        receiver: scopeHandle,
+        captures: captures,
+        outThrown: &thrown
+    )
     if thrown != 0 {
         outThrown?.pointee = thrown
         // runTest semantics: a body failure cancels the scope's children.
