@@ -243,9 +243,19 @@ extension CallTypeChecker {
         // parameter (IntRange) by subtyping alone. When a candidate expects a
         // range-like parameter at this position, report the argument as the
         // corresponding range class type so source-backed overloads such as
-        // String.slice(IntRange) resolve.
+        // String.slice(IntRange) resolve. The same holds for a plain
+        // `Iterable<T>` parameter, which every range class implements
+        // (`fun f(x: Iterable<Int>)` called as `f(1..3)`).
         let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
             let type = argTypes[index]
+            // A bare `ClassName` argument denotes the class's companion object.
+            if !lambdaLiteralIndices.contains(index),
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   argument.expr, currentType: type, ast: ast, sema: sema
+               )
+            {
+                return companionType
+            }
             guard !lambdaLiteralIndices.contains(index),
                   let rangeClassType = sourceLevelRangeMemberLookupType(
                       receiverExpr: argument.expr,
@@ -259,8 +269,13 @@ extension CallTypeChecker {
                       else {
                           return false
                       }
+                      let nonNullParameterType = sema.types.makeNonNullable(parameterType)
                       return driver.helpers.isRangeLikeType(
-                          sema.types.makeNonNullable(parameterType),
+                          nonNullParameterType,
+                          sema: sema,
+                          interner: ctx.interner
+                      ) || driver.helpers.isPlainIterableType(
+                          nonNullParameterType,
                           sema: sema,
                           interner: ctx.interner
                       )
