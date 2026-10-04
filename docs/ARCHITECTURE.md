@@ -524,6 +524,25 @@ module.kklib/
 消費側: `-I path/to/module.kklib` でインポート。`Sema/DataFlow/LibraryImport.swift` 系ファイルで読み込み。
 manifest スキーマ・metadata.bin の詳細仕様は [`docs/spec.md`](spec.md) Doc J14 を正とする。
 
+### 13.1 Kotlin/Native `.klib` のインポート
+
+Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチパスから発見・実行できる。packed ZIP アーカイブと unpacked ディレクトリの両方に対応。主要ファイルは `Sources/CompilerCore/Klib/`:
+
+- `ZipArchive.swift` / `Inflate.swift` — 依存ゼロの ZIP リーダ (stored + DEFLATE)
+- `KlibContainer.swift` — packed/unpacked を抽象化するコンテナ
+- `KlibManifest.swift` — Java properties 形式 manifest (`unique_name`, `abi_version`, `depends` など)
+- `ProtoReader.swift` / `KlibIrDecoding.swift` / `KlibIrModel.swift` / `KlibIrTables.swift` / `KlibIrModule.swift` — protobuf ワイヤ + Kotlin IR スキーマのデコーダ
+
+インポートの流れ:
+
+1. `LibraryDiscovery` が `.klib` を発見 → `loadKlibModule` が manifest 検証 (`abi_version` 2.3.x 系を受理、2.4 は best-effort 警告 `KSWIFTK-LIB-0027`)
+2. `KlibRecordMaterializer` (LibraryKlibMaterialization.swift) が IR 宣言を `ImportedLibrarySymbolRecord` に変換し、既存の `.kklib` インポート経路で `SymbolTable`/`TypeSystem` に登録
+3. `resolveKlibDependencies` が manifest `depends` を検証 (欠落は `KSWIFTK-LIB-0030`) し依存順にソート — 依存モジュールの top-level 初期化が先に走る
+4. `KlibBodyLowerer` (KIR/) が `lowerModule` 内で serialized body を KIR に翻訳して注入 — 関数/ctor/accessor/object 初期化/top-level フィールド。ctor は `this` を暗黙バインドして `returnValue(this)` で終える (serialized ctor は dispatch receiver を持たない)。`IrField.initializer` は `instanceInitializerCall` 地点で展開 (Kotlin/Native の匿名初期化子再合成と同じ)。プリミティブ member call は `kk_op_*` intrinsic にマップ
+5. 未対応 IR 形式は `KSWIFTK-LIB-0029` 警告 + `kk_abort_unreachable` (verifier-safe)
+
+`.klib` はコンパイル済みオブジェクトを持たないため、そのグローバルは `.importedLibrary` を保ちつつ `markKlibDefinedGlobal` で本コンパイル側のストレージを持つ印を付け、`NativeEmitter` が extern ではなく実体を出力する。
+
 ---
 
 ## 14. 並列処理

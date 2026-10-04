@@ -150,6 +150,52 @@ func runtime_test_channel_nested_await_close(
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeChannelTests {
+    @Test func selectReceivePollsAndDrainsClosedBuffer() {
+        let channel = kk_channel_create(1)
+        #expect(__kk_channel_result_status(__kk_select_try_receive(channel)) == kChannelResultFailed)
+        #expect(kk_channel_try_send(channel, 42) == kChannelResultSuccess)
+        _ = kk_channel_close(channel)
+        let token = __kk_select_try_receive(channel)
+        #expect(__kk_channel_result_status(token) == kChannelResultSuccess)
+        #expect(__kk_select_receive_value(token) == 42)
+        #expect(__kk_channel_result_status(__kk_select_try_receive(channel)) == kChannelResultClosed)
+        #expect(__kk_select_receive_value(__kk_select_try_receive(channel)) == runtimeNullSentinelInt)
+    }
+
+    @Test(arguments: [0, 1])
+    func selectReceiveResumesWaitingSender(capacity: Int) {
+        let channel = kk_channel_create(capacity)
+        if capacity == 1 {
+            #expect(kk_channel_try_send(channel, 10) == kChannelResultSuccess)
+        }
+        let sent = ChannelTestSignal("selected send completes")
+        let sendResult = ThreadSafeInt()
+        DispatchQueue.global().async {
+            sendResult.set(kk_channel_send(channel, 20, 0))
+            sent.fulfill()
+        }
+        #expect(waitForSuspendedWaiters(in: channel, senders: 1))
+        let token = __kk_select_try_receive(channel)
+        #expect(__kk_select_receive_value(token) == (capacity == 0 ? 20 : 10))
+        waitForSignals([sent], timeout: 2.0)
+        #expect(sendResult.get() == kChannelResultSuccess)
+        if capacity == 1 {
+            #expect(__kk_select_receive_value(__kk_select_try_receive(channel)) == 20)
+        }
+        #expect(__kk_channel_result_status(__kk_select_try_receive(channel)) == kChannelResultFailed)
+        _ = kk_channel_close(channel)
+    }
+
+    @Test func selectBuilderRestoresNestedRegistration() {
+        let previous = __kk_select_builder_exchange(10)
+        defer { _ = __kk_select_builder_exchange(previous) }
+        #expect(__kk_select_builder_current() == 10)
+        #expect(__kk_select_builder_exchange(20) == 10)
+        #expect(__kk_select_builder_exchange(10) == 20)
+        #expect(__kk_select_builder_exchange(runtimeNullSentinelInt) == 10)
+        #expect(__kk_select_builder_current() == runtimeNullSentinelInt)
+    }
+
     @Test func blockingSendReturnsBoxedResult() {
         let channel = kk_channel_create(1)
         let sent = __kk_channel_send_blocking(channel, 42)

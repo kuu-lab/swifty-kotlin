@@ -742,10 +742,7 @@ extension DataFlowSemaPhase {
             types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
         }
 
-        // KSP-499: Flow's cold core remains a compiler/runtime bridge. Keep
-        // `collect` as a synthetic source-visible member so
-        // bundled operator bodies lower them to the retained kk_flow_* ABI
-        // instead of emitting the parameter name as a native symbol.
+        // Runtime-backed members are only needed without bundled Flow declarations.
         let flowElementType = types.make(.typeParam(TypeParamType(
             symbol: flowTypeParamSymbol,
             nullability: .nonNull
@@ -756,38 +753,41 @@ extension DataFlowSemaPhase {
             isSuspend: true,
             nullability: .nonNull
         )))
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "collect",
-            externalLinkName: "kk_flow_collect",
-            returnType: types.unitType,
-            parameters: [(name: "collector", type: flowCollectorType)],
-            isSuspend: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "onErrorReturn",
-            externalLinkName: "",
-            returnType: flowRawType,
-            parameters: [(name: "fallback", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "onErrorResume",
-            externalLinkName: "",
-            returnType: flowRawType,
-            parameters: [(name: "fallback", type: flowRawType)],
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.containsNominal(fqName: flowPkg + [interner.intern("Flow")]),
+           !symbols.isSourceBackedSymbol(flowInterfaceSymbol)
+        {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: flowInterfaceSymbol,
+                ownerType: flowRawType,
+                name: "collect",
+                externalLinkName: "kk_flow_collect",
+                returnType: types.unitType,
+                parameters: [(name: "collector", type: flowCollectorType)],
+                isSuspend: true,
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticCoroutineMember(
+                ownerSymbol: flowInterfaceSymbol,
+                ownerType: flowRawType,
+                name: "onErrorReturn",
+                externalLinkName: "",
+                returnType: flowRawType,
+                parameters: [(name: "fallback", type: types.anyType)],
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticCoroutineMember(
+                ownerSymbol: flowInterfaceSymbol,
+                ownerType: flowRawType,
+                name: "onErrorResume",
+                externalLinkName: "",
+                returnType: flowRawType,
+                parameters: [(name: "fallback", type: flowRawType)],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         let suspendIntrinsicName = interner.intern("suspendCoroutineUninterceptedOrReturn")
         let suspendIntrinsicFQName = kotlinCoroutinesIntrinsicsPkg + [suspendIntrinsicName]
