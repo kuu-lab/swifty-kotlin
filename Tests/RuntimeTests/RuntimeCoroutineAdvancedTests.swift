@@ -508,7 +508,7 @@ struct RuntimeCoroutineAdvancedTests {
     @Test(arguments: [false, true])
     func testTimeoutBridgesPropagateBlockExceptionUnchanged(afterSuspension: Bool) {
         let immediate: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, thrown in
-            thrown?.pointee = kk_coroutine_launcher_arg_get(continuation, 0)
+            thrown?.pointee = Int(kk_coroutine_launcher_arg_get(continuation, 0))
             return 0
         }
         let delayed: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, thrown in
@@ -516,7 +516,7 @@ struct RuntimeCoroutineAdvancedTests {
                 _ = kk_coroutine_state_set_label(continuation, 1)
                 return kk_kxmini_delay(1, continuation)
             }
-            thrown?.pointee = kk_coroutine_launcher_arg_get(continuation, 0)
+            thrown?.pointee = Int(kk_coroutine_launcher_arg_get(continuation, 0))
             return 0
         }
         let entryRaw = unsafeBitCast(afterSuspension ? delayed : immediate, to: Int.self)
@@ -526,7 +526,7 @@ struct RuntimeCoroutineAdvancedTests {
             runtimeAllocateTimeoutCancellationException(timeoutMillis: 10),
         ] {
             let continuation = kk_coroutine_continuation_new(8841)
-            _ = kk_coroutine_launcher_arg_set(continuation, 0, exception)
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(exception))
             var thrown = -1
             #expect(kk_with_timeout(5000, entryRaw, continuation, &thrown) == 0)
             #expect(thrown == exception)
