@@ -12,10 +12,6 @@ import kotlinx.coroutines.ensureActive
 
 public interface Flow<out T>
 
-public interface FlowCollector<in T> {
-    public suspend fun emit(value: T)
-}
-
 @KsSymbolName("kk_flow_collect")
 internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> Unit)
 
@@ -320,18 +316,4 @@ public suspend fun <T> Flow<T>.retryWhen(
             attempt += 1
         }
     }
-}
-
-// `onEmpty` signature adaptation (KSP-1577): upstream's action runs with a
-// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). As with
-// `catch`/`onCompletion` above, this overload drops the receiver and the action
-// cannot emit fallback elements. The
-// action's result is typed `Any` (as `coroutineScope`'s block is): a strict
-// `() -> Unit` parameter does not accept a plain zero-parameter lambda.
-public suspend fun <T> Flow<T>.onEmpty(action: suspend () -> Any): Flow<T> {
-    val items = this.toList()
-    if (items.isEmpty()) {
-        action()
-    }
-    return items.asFlow()
 }

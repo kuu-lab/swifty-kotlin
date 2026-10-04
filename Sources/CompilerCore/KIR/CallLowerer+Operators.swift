@@ -372,14 +372,33 @@ extension CallLowerer {
                     } else {
                         interner.intern(op.kotlinFunctionName)
                     }
-                    instructions.append(.call(
-                        symbol: sourceBackedHashSetEquality ? nil : callBinding.chosenCallee,
-                        callee: loweredCalleeName,
-                        arguments: finalArguments,
-                        result: callResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                    // An open/abstract member operator must dispatch on the
+                    // receiver's runtime type, exactly like `lhs.plus(rhs)`.
+                    if !sourceBackedHashSetEquality,
+                       let virtualInstruction = tryEmitVirtualDispatch(
+                           chosenCallee: callBinding.chosenCallee,
+                           calleeName: loweredCalleeName,
+                           receiverExpr: lhs,
+                           loweredReceiverID: lhsID,
+                           isSuperCall: false,
+                           finalArguments: finalArguments,
+                           result: callResult,
+                           sema: sema,
+                           arena: arena,
+                           interner: interner
+                       )
+                    {
+                        instructions.append(virtualInstruction)
+                    } else {
+                        instructions.append(.call(
+                            symbol: sourceBackedHashSetEquality ? nil : callBinding.chosenCallee,
+                            callee: loweredCalleeName,
+                            arguments: finalArguments,
+                            result: callResult,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
                 }
                 // compareTo desugaring: emit `compareTo(a,b) <op> 0` to produce Bool
                 if isCompareToDesugaring {

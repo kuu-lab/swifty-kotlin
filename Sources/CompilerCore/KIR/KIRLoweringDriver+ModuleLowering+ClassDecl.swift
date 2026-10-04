@@ -931,6 +931,26 @@ extension KIRLoweringDriver {
             // Any's compiler-provided constructor is allocation-only.
             return
         }
+        if delegation.kind == .super_,
+           let resolvedSymbol,
+           let receiver = ctx.activeImplicitReceiverExprID(),
+           let superclassSymbol = sema.symbols.parentSymbol(for: resolvedSymbol),
+           isRuntimeThrowableSuperConstructor(resolvedSymbol, sema: sema)
+        {
+            // `constructor(msg: String) : super(msg)` on an Exception subclass:
+            // the factory's box would be dropped, so copy its state instead.
+            emitRuntimeThrowableSuperInitialization(
+                superCtorSymbol: resolvedSymbol,
+                superclassSymbol: superclassSymbol,
+                receiver: receiver,
+                loweredArgs: loweredArgs,
+                spreadFlags: delegation.args.map(\.isSpread),
+                callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+                shared: shared,
+                body: &body
+            )
+            return
+        }
         emitDelegatedConstructorCall(
             target: resolvedSymbol,
             receiver: ctx.activeImplicitReceiverExprID(),

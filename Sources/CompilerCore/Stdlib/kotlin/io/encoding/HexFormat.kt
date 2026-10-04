@@ -233,19 +233,34 @@ public fun Long.toHexString(format: HexFormat = defaultHexFormat()): String =
     applyNumberFormat(hexDigitsOf(this, 16), format)
 
 @ExperimentalStdlibApi
-public fun ByteArray.toHexString(format: HexFormat = defaultHexFormat()): String {
+public fun ByteArray.toHexString(format: HexFormat = defaultHexFormat()): String =
+    toHexString(0, size, format)
+
+@ExperimentalStdlibApi
+public fun ByteArray.toHexString(
+    startIndex: Int = 0,
+    endIndex: Int = size,
+    format: HexFormat = defaultHexFormat()
+): String {
+    if (startIndex < 0 || endIndex > size) {
+        throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, size: $size")
+    }
+    if (startIndex > endIndex) {
+        throw IllegalArgumentException("startIndex: $startIndex > endIndex: $endIndex")
+    }
     val sb = StringBuilder()
     val bytes = format.bytes
-    var index = 0
-    while (index < this.size) {
-        if (index > 0) {
-            val previousLine = (index - 1) / bytes.bytesPerLine
-            val currentLine = index / bytes.bytesPerLine
+    var index = startIndex
+    while (index < endIndex) {
+        val position = index - startIndex
+        if (position > 0) {
+            val previousLine = (position - 1) / bytes.bytesPerLine
+            val currentLine = position / bytes.bytesPerLine
             if (currentLine != previousLine) {
                 sb.append('\n')
             } else {
-                val previousGroup = (index - 1) / bytes.bytesPerGroup
-                val currentGroup = index / bytes.bytesPerGroup
+                val previousGroup = (position - 1) / bytes.bytesPerGroup
+                val currentGroup = position / bytes.bytesPerGroup
                 if (currentGroup != previousGroup) {
                     sb.append(bytes.groupSeparator as CharSequence)
                 } else {
