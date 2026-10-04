@@ -3093,13 +3093,40 @@ extension NativeEmitter {
                 }
 
                 guard let lookupFn = lookupFunction else { continue }
-                guard let fptrRaw = bindings.buildCall(
+                guard var fptrRaw = bindings.buildCall(
                     builder,
                     functionType: lookupFn.type,
                     callee: lookupFn.value,
                     arguments: lookupArgs,
                     name: "lookup_raw_\(instructionIndex)"
                 ) else { continue }
+
+                // Runtime list boxes have no generated List itable. Only the
+                // concrete Kotlin search defaults may fill that missing slot;
+                // a source implementation's override still wins when present.
+                if let effectiveSymbol,
+                   let symbols,
+                   let member = symbols.symbol(effectiveSymbol),
+                   ["indexOf", "lastIndexOf"].contains(interner.resolve(member.name)),
+                   let owner = symbols.parentSymbol(for: effectiveSymbol),
+                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
+                   !member.flags.contains(.abstractType),
+                   symbols.isSourceBackedSymbol(effectiveSymbol),
+                   let defaultPointer = bindings.buildPtrToInt(
+                       builder, value: calleeFunction.value, type: int64Type,
+                       name: "list_search_default_\(instructionIndex)"
+                   ),
+                   let hasOverride = bindings.buildICmpNotEqual(
+                       builder, lhs: fptrRaw, rhs: zeroValue,
+                       name: "list_search_override_\(instructionIndex)"
+                   ),
+                   let searchPointer = bindings.buildSelect(
+                       builder, condition: hasOverride, thenValue: fptrRaw, elseValue: defaultPointer,
+                       name: "list_search_dispatch_\(instructionIndex)"
+                   )
+                {
+                    fptrRaw = searchPointer
+                }
 
                 // Guard against null vtable/itable lookup: if fptrRaw == 0
                 // call kk_dispatch_error runtime trap instead of falling back

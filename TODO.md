@@ -1052,13 +1052,14 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractList.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1030: kotlin.collections.AbstractList.AbstractList の未実装 stdlib API を実装する（10 件）
+- [~] KSP-1030: kotlin.collections.AbstractList.AbstractList の未実装 stdlib API を実装する（10 件）
   - 対象: `kotlin.collections.AbstractList` / receiver `AbstractList`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractList/AbstractList.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 実装先 .kt: 既存の `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractList.kt`（重複 class は作成しない）。`List/List.kt` の member 契約と揃え、indexOf/lastIndexOf/subList を override（暗黙 open）にした。
+  - bridge/stub 整理: List の get/size/iterator/listIterator、MutableList subList、no-stdlib residual fallback は共有表現用として保持。List 検索 member の適用時は同名 extension より優先し、runtime box のみ Kotlin の検索 default に fallback。read-only subList の source itable dispatch を補完。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_AbstractList_AbstractList_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_AbstractList_AbstractList_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_AbstractList_AbstractList_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - focused 検証: 専用 Sema/metadata/backend は source 注入と fresh library の両経路で通過。検索・equals/hashCode・iterator 境界・subList 範囲/共有ビューの JVM 2.3.10 差分は通常/O2 とも pass。TODO IDs/ABI links は pass。全 Swift/Golden/diff corpus はローカル未実行のため、全体ゲート完了扱いにはしない。
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractList.equals` — fun AbstractList.equals(Any): Boolean  -- `open fun equals(kotlin/Any?): kotlin/Boolean`
     - `kotlin.collections.AbstractList.get` — fun AbstractList.get(Int): #A  -- `abstract fun get(kotlin/Int): #A`
