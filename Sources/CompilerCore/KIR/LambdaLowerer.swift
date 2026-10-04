@@ -97,6 +97,9 @@ final class LambdaLowerer {
             "kk_suspend_function_invoke_0",
             "kk_suspend_function_invoke",
             "kk_suspend_function_invoke_2",
+            "kk_suspend_function_invoke_3",
+            "kk_suspend_function_invoke_4",
+            "kk_suspend_function_invoke_5",
             "kk_suspend_coroutine",
             "kk_with_timeout",
             "kk_with_timeout_or_null",
@@ -226,7 +229,7 @@ final class LambdaLowerer {
             lambdaBodyExprID: bodyExpr,
             ast: ast,
             sema: sema,
-            hasExplicitReceiver: needsExplicitReceiver
+            hasExplicitReceiver: needsExplicitReceiver || sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] != nil
         )
 
         // Non-capturing lambda optimization: if no captures, use function pointer directly
@@ -394,6 +397,7 @@ final class LambdaLowerer {
         // Publish this lambda's receiver under its per-lambda symbol so that
         // `this@callee` (in this body or a nested lambda that captures it)
         // reads this receiver rather than the innermost implicit one.
+        bindCoroutineScopeLambdaReceiver(exprID, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
         registerLambdaReceiverValue(lambdaExprID: exprID, hasReceiverParam: hasReceiverParam)
         // Map param names → symbols for nameRef fallback when identifierSymbols is unbound.
         let effectiveParamNames: [InternedString] = if params.isEmpty, let functionType, !functionType.params.isEmpty {
@@ -437,6 +441,9 @@ final class LambdaLowerer {
         // lambdas retain the historical capture-first layout.
         let receiverFirstLauncherABI = sema.bindings.isCoroutineLauncherLambdaExpr(exprID)
             && needsExplicitReceiver
+        if receiverFirstLauncherABI {
+            driver.ctx.receiverFirstLauncherLambdaSymbols.insert(lambdaSymbol)
+        }
         let functionParameters = receiverFirstLauncherABI
             ? lambdaParameters + functionCaptureBindings.map(\.param)
             : functionCaptureBindings.map(\.param) + lambdaParameters
@@ -689,29 +696,24 @@ final class LambdaLowerer {
             callArguments.append(normalizedParamExpr)
         }
 
-        let lambdaCanThrow = adapterRequiresThrownChannel(lambdaSymbol: lambdaSymbol, arena: arena)
         let callResult = arena.appendTemporary(type: lambdaReturnType)
-        let thrownResult = lambdaCanThrow
-            ? arena.appendTemporary(type: sema.types.nullableAnyType
-            )
-            : nil
+        let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+        body.append(.constValue(result: thrownResult, value: .null))
         body.append(.call(
             symbol: lambdaSymbol,
             callee: syntheticLambdaName(for: exprID, interner: interner),
             arguments: callArguments,
             result: callResult,
-            canThrow: lambdaCanThrow,
+            canThrow: true,
             thrownResult: thrownResult
         ))
-        if let thrownResult {
-            let continueLabel = driver.ctx.makeLoopLabel()
-            let rethrowLabel = driver.ctx.makeLoopLabel()
-            body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
-            body.append(.jump(continueLabel))
-            body.append(.label(rethrowLabel))
-            body.append(.rethrow(value: thrownResult))
-            body.append(.label(continueLabel))
-        }
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+        body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+        body.append(.jump(continueLabel))
+        body.append(.label(rethrowLabel))
+        body.append(.rethrow(value: thrownResult))
+        body.append(.label(continueLabel))
         switch sema.types.kind(of: lambdaReturnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)
@@ -781,25 +783,6 @@ final class LambdaLowerer {
             hasClosureParam: false
         )
         return materializedExpr
-    }
-
-    private func adapterRequiresThrownChannel(lambdaSymbol: SymbolID, arena: KIRArena) -> Bool {
-        guard let function = arena.function(for: lambdaSymbol) else {
-            return false
-        }
-        for instruction in function.body {
-            switch instruction {
-            case let .call(_, _, _, _, canThrow, _, _, _), let .virtualCall(_, _, _, _, _, canThrow, _, _):
-                if canThrow {
-                    return true
-                }
-            case .rethrow:
-                return true
-            default:
-                continue
-            }
-        }
-        return false
     }
 
     private func lowerSamWrapperValue(
@@ -2281,6 +2264,7 @@ final class LambdaLowerer {
             }
         }
 
+        bindCoroutineScopeLambdaReceiver(exprID, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
         registerLambdaReceiverValue(lambdaExprID: exprID, hasReceiverParam: functionType?.receiver != nil)
 
         // Set up parameter name mapping for `it` parameter

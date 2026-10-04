@@ -138,18 +138,28 @@ func runtime_test_channel_pending_launch_send(
     return kk_coroutine_state_exit(continuation, status)
 }
 
+@_cdecl("runtime_test_channel_nested_await_close")
+func runtime_test_channel_nested_await_close(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let channel = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+    _ = __kk_channel_await_close(channel, outThrown)
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeChannelTests {
     @Test func selectReceivePollsAndDrainsClosedBuffer() {
         let channel = kk_channel_create(1)
-        #expect(__kk_select_try_receive(channel) == kChannelResultFailed)
+        #expect(__kk_channel_result_status(__kk_select_try_receive(channel)) == kChannelResultFailed)
         #expect(kk_channel_try_send(channel, 42) == kChannelResultSuccess)
         _ = kk_channel_close(channel)
         let token = __kk_select_try_receive(channel)
-        #expect(token > kChannelResultFailed)
+        #expect(__kk_channel_result_status(token) == kChannelResultSuccess)
         #expect(__kk_select_receive_value(token) == 42)
-        #expect(__kk_select_try_receive(channel) == kChannelResultClosed)
-        #expect(__kk_select_receive_value(kChannelResultClosed) == runtimeNullSentinelInt)
+        #expect(__kk_channel_result_status(__kk_select_try_receive(channel)) == kChannelResultClosed)
+        #expect(__kk_select_receive_value(__kk_select_try_receive(channel)) == runtimeNullSentinelInt)
     }
 
     @Test(arguments: [0, 1])
@@ -172,7 +182,7 @@ struct RuntimeChannelTests {
         if capacity == 1 {
             #expect(__kk_select_receive_value(__kk_select_try_receive(channel)) == 20)
         }
-        #expect(__kk_select_try_receive(channel) == kChannelResultFailed)
+        #expect(__kk_channel_result_status(__kk_select_try_receive(channel)) == kChannelResultFailed)
         _ = kk_channel_close(channel)
     }
 
@@ -184,6 +194,152 @@ struct RuntimeChannelTests {
         #expect(__kk_select_builder_exchange(10) == 20)
         #expect(__kk_select_builder_exchange(runtimeNullSentinelInt) == 10)
         #expect(__kk_select_builder_current() == runtimeNullSentinelInt)
+    }
+
+    @Test func blockingSendReturnsBoxedResult() {
+        let channel = kk_channel_create(1)
+        let sent = __kk_channel_send_blocking(channel, 42)
+        #expect(__kk_channel_result_status(sent) == kChannelResultSuccess)
+        // Success carries upstream's `success(Unit)` holder, a real object.
+        #expect(__kk_channel_result_value_or_null(sent) != 0)
+        #expect(__kk_channel_result_value_or_null(sent) != runtimeNullSentinelInt)
+        var thrown = 0
+        #expect(__kk_channel_result_get_or_throw(sent, &thrown) != 0)
+        #expect(thrown == 0)
+        #expect(channelReceiveValue(channel) == 42)
+        _ = kk_channel_close(channel)
+        let rejected = __kk_channel_send_blocking(channel, 43)
+        #expect(__kk_channel_result_status(rejected) == kChannelResultClosed)
+        #expect(__kk_channel_result_value_or_null(rejected) == runtimeNullSentinelInt)
+        _ = __kk_channel_result_get_or_throw(rejected, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test func blockingSendWaitsForBufferSpace() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_send(channel, 41, 0) == kChannelResultSuccess)
+        let result = ThreadSafeInt()
+        let done = ChannelTestSignal("blocking send returns")
+        DispatchQueue.global().async {
+            result.set(__kk_channel_send_blocking(channel, 42))
+            done.fulfill()
+        }
+        #expect(waitForSuspendedWaiters(in: channel, senders: 1))
+        #expect(result.get() == 0)
+        #expect(channelReceiveValue(channel) == 41)
+        done.wait(timeout: 2)
+        #expect(__kk_channel_result_status(result.get()) == kChannelResultSuccess)
+        #expect(channelReceiveValue(channel) == 42)
+        _ = kk_channel_close(channel)
+    }
+
+    @Test(arguments: [false, true])
+    func awaitClosePreservesNestedProducerContext(scopeOverride: Bool) {
+        let channel = kk_channel_create(0)
+        _ = kk_channel_close(channel)
+        let job = RuntimeJobHandle()
+        job.producerChannel = channel
+        let scope = RuntimeCoroutineScope()
+        let activeScope = scopeOverride ? RuntimeCoroutineScope(isSupervisor: true) : scope
+        let state = RuntimeContinuationState(functionID: 9401)
+        state.scope = scope
+        state.jobHandle = job
+        let previousKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let previousJob = RuntimeJobHandle.current
+        let key = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        RuntimeContinuationState.installState(state, forTask: key)
+        RuntimeCoroutineScope.installScope(activeScope, forTask: key)
+        RuntimeJobHandle.current = job
+        defer {
+            RuntimeContinuationState.removeCurrent(forTask: key)
+            RuntimeCoroutineScope.removeScope(forTask: key)
+            RuntimeCoroutineScopeTaskKey.installKey(previousKey)
+            RuntimeJobHandle.current = previousJob
+        }
+        let continuation = kk_coroutine_continuation_new(9402)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(channel))
+        var thrown = 0
+        _ = kk_kxmini_run_blocking_with_cont(
+            unsafeBitCast(runtime_test_channel_nested_await_close as ChannelPendingLaunchEntry, to: Int.self),
+            continuation,
+            &thrown
+        )
+        #expect((thrown != 0) == scopeOverride)
+        #expect(RuntimeContinuationState.current === state)
+        #expect(RuntimeCoroutineScope.current === activeScope)
+        #expect(RuntimeJobHandle.current === job)
+    }
+
+    @Test func awaitCloseWaitsWithoutConsumingBufferedValues() {
+        let handle = kk_channel_create(1)
+        let channel = runtimeChannelHandle(handle)
+        #expect(kk_channel_send(handle, 42, 0) == kChannelResultSuccess)
+        let job = RuntimeJobHandle()
+        job.producerChannel = handle
+        let done = ChannelTestSignal("awaitClose returns")
+        let thrown = ThreadSafeInt()
+        DispatchQueue.global().async {
+            RuntimeJobHandle.current = job
+            defer { RuntimeJobHandle.current = nil }
+            var exception = 0
+            _ = __kk_channel_await_close(handle, &exception)
+            thrown.set(exception)
+            done.fulfill()
+        }
+        let deadline = DispatchTime.now() + .seconds(2)
+        while !channel.hasAwaitCloseWaiter, DispatchTime.now() < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        #expect(channel.hasAwaitCloseWaiter)
+        #expect(kk_channel_close(handle) == 1)
+        done.wait(timeout: 2)
+        #expect(thrown.get() == 0)
+        #expect(channelReceivePair(handle).value == 42)
+        #expect(!channel.hasAwaitCloseWaiter)
+    }
+
+    @Test func awaitCloseCancellationWakesWaiter() {
+        let handle = kk_channel_create(0)
+        let channel = runtimeChannelHandle(handle)
+        let job = RuntimeJobHandle()
+        job.producerChannel = handle
+        let done = ChannelTestSignal("cancelled awaitClose returns")
+        let thrown = ThreadSafeInt()
+        DispatchQueue.global().async {
+            RuntimeJobHandle.current = job
+            defer { RuntimeJobHandle.current = nil }
+            var exception = 0
+            _ = __kk_channel_await_close(handle, &exception)
+            thrown.set(exception)
+            done.fulfill()
+        }
+        let deadline = DispatchTime.now() + .seconds(2)
+        while !channel.hasAwaitCloseWaiter, DispatchTime.now() < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+        }
+        #expect(channel.hasAwaitCloseWaiter)
+        _ = job.cancel()
+        done.wait(timeout: 2)
+        #expect(kk_is_cancellation_exception(thrown.get()) == 1)
+        #expect(!channel.hasAwaitCloseWaiter)
+        _ = kk_channel_close(handle)
+    }
+
+    @Test func awaitCloseRejectsWrongContextAndRepeatedRegistration() {
+        let handle = kk_channel_create(0)
+        let job = RuntimeJobHandle()
+        let previous = RuntimeJobHandle.current
+        RuntimeJobHandle.current = job
+        defer { RuntimeJobHandle.current = previous }
+        var thrown = 0
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown != 0)
+        job.producerChannel = handle
+        _ = kk_channel_close(handle)
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown == 0)
+        _ = __kk_channel_await_close(handle, &thrown)
+        #expect(thrown != 0)
     }
 
     // MARK: - Rendezvous Channel (capacity == 0)
@@ -975,5 +1131,208 @@ struct RuntimeChannelTests {
         #expect(status == kChannelResultSuccess, "receive should complete after flushing the pending sender")
         #expect(value == 42)
         #expect(kk_job_join(job, 0) == kChannelResultSuccess)
+    }
+
+    // MARK: - Close cause / isEmpty / cancel (KSP-1571)
+
+    /// `__kk_channel_close_cause` retains the `Throwable` handle of the first
+    /// successful close so Kotlin-side `ChannelResult.exceptionOrNull()` can
+    /// surface it; a second close is a no-op and cannot overwrite the cause.
+    @Test func closeWithCauseRetainsFirstCause() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_close_cause(channel) == 0)
+
+        let firstCause = 0x7ABC
+        #expect(kk_channel_close_cause(channel, firstCause) == 1)
+        #expect(kk_channel_close_cause(channel) == firstCause)
+
+        // Already closed: the second close fails and the cause is preserved.
+        let secondCause = 0x1234
+        #expect(kk_channel_close_cause(channel, secondCause) == 0)
+        #expect(kk_channel_close_cause(channel) == firstCause)
+    }
+
+    /// A plain `kk_channel_close` leaves the retained cause at 0 (normal close).
+    @Test func closeWithoutCauseLeavesCauseEmpty() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_close(channel) == 1)
+        #expect(kk_channel_close_cause(channel) == 0)
+    }
+
+    /// `kk_channel_is_empty` tracks receivable elements: true on an empty
+    /// channel, false while the buffer holds a value, true after the receive.
+    @Test func isEmptyTracksBufferOccupancy() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_is_empty(channel) == 1)
+
+        #expect(kk_channel_try_send(channel, 42) == kChannelResultSuccess)
+        #expect(kk_channel_is_empty(channel) == 0)
+
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultSuccess)
+        #expect(value == 42)
+        #expect(kk_channel_is_empty(channel) == 1)
+    }
+
+    /// `close(cause)` retains the cause and keeps buffered elements
+    /// receivable: receivers drain the buffer before observing the sentinel,
+    /// matching upstream `SendChannel.close` semantics.
+    @Test func closeWithCauseRetainsCauseAndKeepsBuffer() {
+        let channel = kk_channel_create(3)
+        #expect(kk_channel_try_send(channel, 10) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 20) == kChannelResultSuccess)
+        #expect(kk_channel_is_empty(channel) == 0)
+
+        let cause = 0x5EED
+        #expect(kk_channel_close_cause(channel, cause) == 1)
+
+        #expect(kk_channel_is_closed_for_send(channel) == 1)
+        #expect(kk_channel_close_cause(channel) == cause)
+
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultSuccess)
+        #expect(value == 10)
+    }
+
+    /// `cancel` (upstream `ReceiveChannel.cancel` → `cancelInternal`) closes
+    /// the channel, retains the cancellation cause, and DISCARDS the buffered
+    /// elements: the next receive observes a closed result immediately.
+    @Test func cancelDiscardsBufferAndRetainsCause() {
+        let channel = kk_channel_create(3)
+        #expect(kk_channel_try_send(channel, 10) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 20) == kChannelResultSuccess)
+
+        let cause = 0x5EED
+        #expect(__kk_channel_cancel(channel, cause) == 1)
+
+        #expect(kk_channel_is_closed_for_send(channel) == 1)
+        #expect(kk_channel_close_cause(channel) == cause)
+        // A closed channel is never `isEmpty` upstream (receive side is done).
+        #expect(kk_channel_is_empty(channel) == 0)
+
+        // Buffered elements are gone: the receive reports closed at once.
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultClosed)
+
+        // tryReceive boxes the retained cancellation cause.
+        let box = __kk_channel_try_receive(channel)
+        #expect(__kk_channel_result_status(box) == kChannelResultClosed)
+        #expect(__kk_channel_result_cause(box) == cause)
+
+        // Cancel is idempotent like close.
+        #expect(__kk_channel_cancel(channel, 0xBEEF) == 0)
+        #expect(kk_channel_close_cause(channel) == cause)
+    }
+
+    /// `invokeOnClose` handlers observe the close cause (null when none):
+    /// both the queued-handler path on `close(cause)`/`cancel` and the
+    /// already-closed inline path receive the retained cause handle.
+    /// The handler ABI is `(closureRaw, cause, outThrown) -> Int`.
+    @Test func invokeOnCloseReceivesCloseCause() {
+        let observed = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+        observed.initialize(to: 0)
+        defer { observed.deallocate() }
+        let probe: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, causeArg, _ in
+            UnsafeMutablePointer<Int>(bitPattern: closureRaw)!.pointee = causeArg
+            return 0
+        }
+        let fnPtr = unsafeBitCast(probe, to: Int.self)
+        let closureRaw = Int(bitPattern: observed)
+
+        // Queued path: close(cause) delivers the retained cause.
+        let ch1 = kk_channel_create(1)
+        #expect(__kk_channel_invoke_on_close(ch1, fnPtr, closureRaw) == 1)
+        let cause = kk_box_unit(0)
+        #expect(kk_channel_close_cause(ch1, cause) == 1)
+        #expect(observed.pointee == cause)
+
+        // Already-closed path: registering after close invokes inline with
+        // the same retained cause and reports "not queued".
+        let ch2 = kk_channel_create(1)
+        _ = kk_channel_close_cause(ch2, cause)
+        #expect(__kk_channel_invoke_on_close(ch2, fnPtr, closureRaw) == 0)
+        #expect(observed.pointee == cause)
+
+        // Normal close delivers the Kotlin-null sentinel for the cause.
+        observed.pointee = 0
+        let ch3 = kk_channel_create(1)
+        _ = kk_channel_close(ch3)
+        #expect(__kk_channel_invoke_on_close(ch3, fnPtr, closureRaw) == 0)
+        #expect(observed.pointee == runtimeNullSentinelInt)
+    }
+
+    /// `trySend` on a closed channel reports a closed token so the Kotlin
+    /// `ChannelResult` wrapper can mark the result `isClosed`.
+    @Test func trySendOnClosedChannelReturnsClosedToken() {
+        let channel = kk_channel_create(1)
+        _ = kk_channel_close(channel)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultClosed)
+    }
+
+    /// `trySend` on a full buffered channel fails without closing.
+    @Test func trySendOnFullChannelFailsWithoutClosing() {
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 2) == kChannelResultFailed)
+        #expect(kk_channel_is_closed_for_send(channel) == 0)
+    }
+
+    /// `__kk_channel_try_send` returns a `ChannelResult` box: success carries
+    /// the `success` status, a full buffer reports `failed`, and a closed
+    /// channel reports `closed` with the retained cause (or the materialised
+    /// `ClosedSendChannelException` when closed without one).
+    @Test func boxedTrySendEncodesChannelResultBox() {
+        let channel = kk_channel_create(1)
+
+        let successBox = __kk_channel_try_send(channel, 7)
+        #expect(__kk_channel_result_status(successBox) == kChannelResultSuccess)
+        #expect(__kk_channel_result_cause(successBox) == runtimeNullSentinelInt)
+
+        let failedBox = __kk_channel_try_send(channel, 9)
+        #expect(__kk_channel_result_status(failedBox) == kChannelResultFailed,
+                "full buffer reports the failed status")
+        #expect(__kk_channel_result_cause(failedBox) == runtimeNullSentinelInt)
+
+        let cause = kk_box_unit(0) // reuse a registered object pointer as a fake Throwable handle
+        _ = kk_channel_close_cause(channel, cause)
+        let closedBox = __kk_channel_try_send(channel, 11)
+        #expect(__kk_channel_result_status(closedBox) == kChannelResultClosed)
+        #expect(__kk_channel_result_cause(closedBox) == cause)
+        #expect(__kk_channel_result_value_or_null(closedBox) == runtimeNullSentinelInt)
+    }
+
+    /// A channel closed without a cause materialises upstream's
+    /// `ClosedSendChannelException` into the trySend result box so
+    /// `exceptionOrNull()`/`getOrThrow()` see `sendException` semantics.
+    @Test func boxedTrySendOnNormallyClosedChannelSubstitutesSendException() {
+        let channel = kk_channel_create(1)
+        _ = kk_channel_close(channel)
+        let box = __kk_channel_try_send(channel, 5)
+        #expect(__kk_channel_result_status(box) == kChannelResultClosed)
+        let cause = __kk_channel_result_cause(box)
+        #expect(cause != 0 && cause != runtimeNullSentinelInt)
+        let causePtr = UnsafeMutableRawPointer(bitPattern: cause)!
+        let throwable = tryCast(causePtr, to: RuntimeThrowableBox.self)
+        #expect(throwable?.exceptionFQName == "kotlinx.coroutines.channels.ClosedSendChannelException")
+        #expect(throwable?.message == "Channel was closed")
+    }
+
+    /// The `__kk_channel_result_create` companion maker round-trips status,
+    /// value, and cause through the box accessors.
+    @Test func channelResultCreateRoundTripsBox() {
+        let element = kk_box_unit(0)
+        let successBox = __kk_channel_result_create(kChannelResultSuccess, element, 0)
+        #expect(__kk_channel_result_status(successBox) == kChannelResultSuccess)
+        #expect(__kk_channel_result_value_or_null(successBox) == element)
+
+        let cause = kk_box_unit(0)
+        let closedBox = __kk_channel_result_create(kChannelResultClosed, 0, cause)
+        #expect(__kk_channel_result_status(closedBox) == kChannelResultClosed)
+        #expect(__kk_channel_result_cause(closedBox) == cause)
+
+        // A null cause (Kotlin `closed(null)`) arrives as the null sentinel and
+        // is normalised back to "no cause".
+        let nullClosedBox = __kk_channel_result_create(kChannelResultClosed, 0, runtimeNullSentinelInt)
+        #expect(__kk_channel_result_cause(nullClosedBox) == runtimeNullSentinelInt)
     }
 }

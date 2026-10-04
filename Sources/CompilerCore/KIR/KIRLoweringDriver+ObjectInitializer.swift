@@ -336,6 +336,7 @@ extension KIRLoweringDriver {
         // sees "already initialized" and does not recurse.
         body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
+        emitSingletonLateinitSentinels(objectDecl.memberProperties, shared: shared, body: &body)
         emitNamedObjectSuperConstructorCall(
             objectDecl,
             objectSymbol: objectSymbol,
@@ -396,15 +397,30 @@ extension KIRLoweringDriver {
         else {
             return
         }
+        let callBinding = sema.bindings.constructorDelegationCallBinding(for: objectSymbol)
         let candidates = sema.symbols.lookupAll(
             fqName: superclassInfo.fqName + [interner.intern("<init>")]
         )
-        guard let superCtorSymbol = resolveObjectSuperConstructor(
+        guard let superCtorSymbol = callBinding?.chosenCallee ?? resolveObjectSuperConstructor(
             candidates: candidates,
             argExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             sema: sema
         )
         else {
+            return
+        }
+        let superArgs = objectDecl.superTypeConstructorArgs
+        if isRuntimeThrowableSuperConstructor(superCtorSymbol, sema: sema) {
+            emitRuntimeThrowableSuperInitialization(
+                superCtorSymbol: superCtorSymbol,
+                superclassSymbol: superclassSymbol,
+                receiver: objectValue,
+                loweredArgs: superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) },
+                spreadFlags: superArgs.map(\.isSpread),
+                callBinding: callBinding,
+                shared: shared,
+                body: &body
+            )
             return
         }
         // Source-backed constructors — bundled stdlib or imported .kklib
@@ -413,7 +429,7 @@ extension KIRLoweringDriver {
         // emitSuperConstructorDelegation applies for named classes). Only
         // synthetic shells with no real body and runtime factory constructors
         // (whose ABI returns a fresh box instead of initializing `this`) are
-        // skipped.
+        // skipped (Throwable factories are handled above).
         guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
             || sema.symbols.isSourceBackedSymbol(superCtorSymbol),
             !callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema)
@@ -427,21 +443,18 @@ extension KIRLoweringDriver {
             return
         }
 
-        var argIDs: [KIRExprID] = [objectValue]
-        for arg in objectDecl.superTypeConstructorArgs {
-            argIDs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
-        }
-
+        let loweredArgs = superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) }
         let resultID = arena.appendTemporary(type: sema.types.unitType)
-        body.append(.call(
-            symbol: superCtorSymbol,
-            callee: interner.intern("<init>"),
-            arguments: argIDs,
+        emitDelegatedConstructorCall(
+            target: superCtorSymbol,
+            receiver: objectValue,
+            loweredArgs: loweredArgs,
+            spreadFlags: superArgs.map(\.isSpread),
+            callBinding: callBinding,
             result: resultID,
-            canThrow: false,
-            thrownResult: nil,
-            isSuperCall: false
-        ))
+            shared: shared,
+            body: &body
+        )
     }
 
     /// Picks which of the superclass's `<init>` overloads `argExprs` (the
@@ -452,9 +465,10 @@ extension KIRLoweringDriver {
     /// position treated as a wildcard, mirroring `resolveOverriddenVtableSlot`
     /// in `VtableOverrideMatching.swift`). Falls back to the first candidate
     /// when nothing narrows cleanly (e.g. a defaulted trailing parameter
-    /// omitted at the call site) rather than emitting no super call at all —
-    /// the same residual gap `emitSuperConstructorDelegation` has for named
-    /// classes, since neither path expands omitted default arguments.
+    /// omitted at the call site) rather than emitting no super call at all.
+    /// Named objects prefer the Sema call binding and only reach this
+    /// heuristic when none was recorded; object literals still rely on it
+    /// and do not expand omitted default arguments.
     func resolveObjectSuperConstructor(
         candidates: [SymbolID],
         argExprs: [ExprID],

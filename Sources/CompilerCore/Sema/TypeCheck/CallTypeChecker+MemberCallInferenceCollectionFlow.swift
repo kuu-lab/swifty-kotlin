@@ -248,6 +248,14 @@ extension CallTypeChecker {
             activeCollectionHOFNames.remove("flatMapTo")
         }
         let calleeStr = interner.resolve(calleeName)
+        if ["indexOf", "lastIndexOf", "subList"].contains(calleeStr),
+           let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
+           driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
+               sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+           })
+        {
+            return nil
+        }
         let isIterableIndexFamilyHOF = ["indexOf", "indexOfFirst", "indexOfLast"].contains(calleeStr)
         // KSP-983: a nominal Iterable receiver must use the exact bundled
         // Iterable max-family declarations. Let regular overload resolution
@@ -1548,37 +1556,6 @@ extension CallTypeChecker {
             let bound: Bool
             let resultType: TypeID
 
-            func bindMutableCollectionElementRemove() -> Bool {
-                guard args.count == 1, args[0].label == nil else { return false }
-                let argumentType = driver.inferExpr(
-                    args[0].expr,
-                    ctx: ctx,
-                    locals: &locals
-                )
-                guard sema.types.isSubtype(argumentType, elementType) else { return false }
-                let mutableCollectionRemoveFQName = [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("MutableCollection"),
-                    interner.intern("remove"),
-                ]
-                guard let chosenCallee = sema.symbols.lookupAll(fqName: mutableCollectionRemoveFQName)
-                    .first(where: { candidate in
-                        sema.symbols.symbol(candidate)?.kind == .function
-                            && sema.symbols.externalLinkName(for: candidate) == "__kk_mutable_collection_remove"
-                    })
-                else {
-                    return false
-                }
-                sema.bindings.bindCall(id, binding: CallBinding(
-                    chosenCallee: chosenCallee,
-                    substitutedTypeArguments: mutableSourceArguments,
-                    parameterMapping: [0: 0]
-                ))
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-                return true
-            }
-
             switch calleeStr {
             case "asReversed" where args.isEmpty:
                 bound = bindBundledListSourceFunction(
@@ -1598,9 +1575,6 @@ extension CallTypeChecker {
                     requireMutableListReceiver: true
                 )
                 resultType = elementType
-            case "remove" where args.count == 1 && args[0].label == nil:
-                bound = bindMutableCollectionElementRemove()
-                resultType = sema.types.booleanType
             case "removeFirst" where args.isEmpty,
                  "removeLast" where args.isEmpty:
                 bound = bindBundledListSourceFunction(
@@ -1755,7 +1729,7 @@ extension CallTypeChecker {
             if args.count >= 2 {
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType, otherElementType],
-                    returnType: sema.types.anyType,
+                    returnType: sema.types.nullableAnyType,
                     isSuspend: false,
                     nullability: .nonNull
                 )))
@@ -2995,7 +2969,7 @@ extension CallTypeChecker {
                 if args.count >= 2 {
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [collectionElementType, otherElementType],
-                        returnType: sema.types.anyType,
+                        returnType: sema.types.nullableAnyType,
                         isSuspend: false,
                         nullability: .nonNull
                     )))
@@ -3411,7 +3385,8 @@ extension CallTypeChecker {
                     case "filter", "filterNot", "filterKeys", "filterValues", "any", "none", "all", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "find", "first", "last", "single", "singleOrNull": sema.types.booleanType
                     case "forEach", "onEach": sema.types.unitType
                     case "count": sema.types.booleanType
-                    case "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull": sema.types.nullableAnyType
+                    case "map", "mapKeys", "mapValues", "associateBy", "associateWith",
+                         "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull": sema.types.nullableAnyType
                     default: sema.types.anyType
                     }
                     let lambdaParameterTypes: [TypeID] = switch calleeStr {
@@ -3677,7 +3652,7 @@ extension CallTypeChecker {
                             if args.count >= 2 {
                                 let valueLambdaExpectedType = sema.types.make(.functionType(FunctionType(
                                     params: [collectionElementType],
-                                    returnType: sema.types.anyType
+                                    returnType: sema.types.nullableAnyType
                                 )))
                                 if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                                     sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
@@ -4358,7 +4333,7 @@ extension CallTypeChecker {
             case "groupBy":
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: sema.types.anyType
+                    returnType: sema.types.nullableAnyType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -4372,7 +4347,7 @@ extension CallTypeChecker {
                 if args.count >= 2 {
                     let valueLambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [collectionElementType],
-                        returnType: sema.types.anyType
+                        returnType: sema.types.nullableAnyType
                     )))
                     if let lambdaExpr = ast.arena.expr(args[1].expr), case .lambdaLiteral = lambdaExpr {
                         sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
@@ -4435,15 +4410,15 @@ extension CallTypeChecker {
                 {
                     destKeyType = switch destClassType.args[0] {
                     case let .invariant(id), let .out(id), let .in(id): id
-                    case .star: sema.types.anyType
+                    case .star: sema.types.nullableAnyType
                     }
                     destValueType = switch destClassType.args[1] {
                     case let .invariant(id), let .out(id), let .in(id): id
-                    case .star: sema.types.anyType
+                    case .star: sema.types.nullableAnyType
                     }
                 } else {
-                    destKeyType = sema.types.anyType
-                    destValueType = sema.types.anyType
+                    destKeyType = sema.types.nullableAnyType
+                    destValueType = sema.types.nullableAnyType
                 }
 
                 // First lambda return type: value for associateWithTo, key otherwise.
@@ -4518,9 +4493,7 @@ extension CallTypeChecker {
                 }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: calleeStr == "sortedByDescending"
-                        ? sema.types.nullableAnyType
-                        : sema.types.anyType
+                    returnType: sema.types.nullableAnyType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -4774,7 +4747,7 @@ extension CallTypeChecker {
                 }
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: sema.types.anyType
+                    returnType: sema.types.nullableAnyType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
@@ -5101,7 +5074,7 @@ extension CallTypeChecker {
                 case "mapIndexedNotNull":
                     sema.types.nullableAnyType
                 default:
-                    sema.types.anyType
+                    sema.types.nullableAnyType
                 }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [sema.types.intType, collectionElementType],
