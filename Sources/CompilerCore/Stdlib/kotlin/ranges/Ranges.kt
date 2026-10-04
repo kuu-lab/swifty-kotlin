@@ -18,7 +18,8 @@ package kotlin.ranges
 // `__kk_range_*` links retained — the range boxes have no interface itables).
 // ClosedFloatingPointRange members remain compiler residuals.
 // Typed range class shells are source-backed by IntRange.kt, LongRange.kt, and
-// CharRange.kt; unsigned range shells remain residual until KSP-709.
+// CharRange.kt; unsigned range shells are source-backed by
+// UIntRange/Stdlib.kt and ULongRange/Stdlib.kt (KSP-709).
 
 /**
  * Represents a range of floating point numbers, where `lessThanOrEquals` keeps the

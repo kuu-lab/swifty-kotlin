@@ -203,14 +203,9 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticUIntRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-709: no UIntRange registration — the bundled
+        // `ranges/UIntRange/Stdlib.kt` declaration owns the class shell,
+        // its Companion, and the residual member surface in Kotlin source.
         registerSyntheticProgressionStub(
             named: "ULongProgression",
             elementType: types.ulongType,
@@ -222,14 +217,9 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticULongRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-709: no ULongRange registration — the bundled
+        // `ranges/ULongRange/Stdlib.kt` declaration owns the class shell
+        // and its Companion in Kotlin source.
         registerSyntheticClosedRangeStub(
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -555,8 +545,8 @@ extension DataFlowSemaPhase {
         // externalLinkNames registered below — resolution always lands on the
         // shared `__kk_range_*` bridge or the bundled `isEmpty`/`toList`
         // before this registration's link name is read (`step` is the one
-        // exception: it stays on the live, kept `kk_uint_range_step` /
-        // `kk_ulong_range_step` bridge, same as UIntRange's/ULongRange's own
+        // exception: it stays on the live, kept `__kk_uint_range_step` /
+        // `__kk_ulong_range_step` bridge, same as UIntRange's/ULongRange's own
         // `.step` — the progression box stores the step at runtime and there
         // is no Kotlin-side field to read it from). Aligning the dead names
         // to the safe generic bridge so they don't dangle on symbols this
@@ -575,8 +565,8 @@ extension DataFlowSemaPhase {
         }
         let stepRuntime: String
         switch name {
-        case "UIntProgression": stepRuntime = "kk_uint_range_step"
-        case "ULongProgression": stepRuntime = "kk_ulong_range_step"
+        case "UIntProgression": stepRuntime = "__kk_uint_range_step"
+        case "ULongProgression": stepRuntime = "__kk_ulong_range_step"
         case "LongProgression": stepRuntime = "__kk_long_range_step"
         default: stepRuntime = "kk_range_step"
         }
@@ -920,22 +910,6 @@ extension DataFlowSemaPhase {
             classSymbol: classSymbol,
             supertype: iterableInterfaceSymbol,
             typeArgs: [.out(elementType)],
-            symbols: symbols,
-            types: types
-        )
-    }
-
-    func registerOpenEndRangeConformance(
-        classSymbol: SymbolID,
-        elementType: TypeID,
-        openEndRangeSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem
-    ) {
-        appendNominalSupertype(
-            classSymbol: classSymbol,
-            supertype: openEndRangeSymbol,
-            typeArgs: [.invariant(elementType)],
             symbols: symbols,
             types: types
         )

@@ -15,7 +15,10 @@ public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
     start: ULong,
     endInclusive: ULong,
 ) : ULongProgression(start, endInclusive, 1L), ClosedRange<ULong>, OpenEndRange<ULong> {
+    // KSP-709: `start` becomes a real member now that the synthetic unsigned
+    // range stub is gone (it was the only provider of `ULongRange.start`).
     public override val start: ULong get() = first
+
     public override val endInclusive: ULong get() = last
 
     public override val endExclusive: ULong
@@ -38,7 +41,10 @@ public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
     public override fun toString(): String = "$first..$last"
 
     public companion object {
+        // Matches Kotlin's `ULongRange(ULong.MAX_VALUE, ULong.MIN_VALUE)` — any
+        // first > last is empty, but the payload must match because
+        // `first`/`last`/`toString` observe it.
         public val EMPTY: ULongRange
-            get() = ULongRange(1uL, 0uL)
+            get() = ULongRange(ULong.MAX_VALUE, ULong.MIN_VALUE)
     }
 }
