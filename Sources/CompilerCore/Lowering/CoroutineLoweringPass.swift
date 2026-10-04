@@ -60,6 +60,9 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
+            ctx.interner.intern("kk_suspend_function_invoke_3"),
+            ctx.interner.intern("kk_suspend_function_invoke_4"),
+            ctx.interner.intern("kk_suspend_function_invoke_5"),
             ctx.interner.intern("kk_flow_create"),
             ctx.interner.intern("kk_channel_flow_create"),
             ctx.interner.intern("kk_callback_flow_create"),
@@ -112,6 +115,8 @@ final class CoroutineLoweringPass: LoweringPass {
         let flowCollectCallee = ctx.interner.intern("kk_flow_collect")
         let flowCollectLatestCallee = ctx.interner.intern("__kk_flow_collectLatest")
         let runtimeSuspendCallNames: Set<InternedString> = [
+            flowCollectCallee,
+            flowCollectLatestCallee,
             kxMiniDelayCallee,
             runtimeDelayCallee,
             kxMiniYieldCallee,
@@ -123,6 +128,9 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
+            ctx.interner.intern("kk_suspend_function_invoke_3"),
+            ctx.interner.intern("kk_suspend_function_invoke_4"),
+            ctx.interner.intern("kk_suspend_function_invoke_5"),
             ctx.interner.intern("kk_suspend_coroutine"),
             // CORO-004: await / join are real suspend points that consume the
             // caller continuation so the runtime can resume them without blocking.

@@ -76,6 +76,45 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_suspend_function_invoke_3",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_suspend_function_invoke_4",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "arg4", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_suspend_function_invoke_5",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "arg4", type: .intptr),
+                RuntimeABIParameter(name: "arg5", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_function_invoke_2",
             parameters: [
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),
