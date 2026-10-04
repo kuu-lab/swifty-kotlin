@@ -1922,6 +1922,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let rendered = runtimeRenderIndexedValueObject(elem, render: runtimeElementToString) {
         return rendered
     }
+    if let resultBox = tryCast(ptr, to: RuntimeResultBox.self) {
+        return runtimeResultToString(resultBox, render: runtimeElementToString)
+    }
     // Registered object of a type this renderer does not know: keep it
     // recognisable as an object instead of leaking its address as a number,
     // matching `runtimeRenderAnyForPrint`.  Non-object handles already
