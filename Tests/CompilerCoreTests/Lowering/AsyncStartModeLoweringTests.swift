@@ -47,7 +47,7 @@ struct AsyncStartModeLoweringTests {
             !ctx.diagnostics.hasError,
             """
             Expected no errors for CoroutineStart.\(startMode), \
-            got: \(ctx.diagnostics.diagnostics.map(\.code))
+            got: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })
             """
         )
 
@@ -124,7 +124,7 @@ struct AsyncStartModeLoweringTests {
             !ctx.diagnostics.hasError,
             """
             Expected no errors for capturing CoroutineStart.\(startMode), \
-            got: \(ctx.diagnostics.diagnostics.map(\.code))
+            got: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })
             """
         )
 

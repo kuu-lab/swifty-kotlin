@@ -155,7 +155,7 @@ private let runtimeListGetInterfaceTypeID = runtimeStableNominalTypeID(
 let runtimeMutableListInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.MutableList"
 )
-private let runtimeMutableCollectionInterfaceTypeID = runtimeStableNominalTypeID(
+let runtimeMutableCollectionInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.MutableCollection"
 )
 private let runtimeMutableSetInterfaceTypeID = runtimeStableNominalTypeID(
