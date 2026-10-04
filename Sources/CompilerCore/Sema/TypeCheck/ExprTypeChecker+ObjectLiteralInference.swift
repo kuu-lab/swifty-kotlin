@@ -316,6 +316,14 @@ extension ExprTypeChecker {
             accessorBaseLocals: outerLocalsSnapshot,
             ctx: ctx
         )
+        // `init {}` blocks are lowered inline in the enclosing function,
+        // like property initializers, so they see the outer locals directly
+        // and need no capture fields.
+        driver.declChecker.typeCheckInitBlocks(
+            objectDecl.initBlocks,
+            ctx: objectCtx,
+            baseLocals: locals
+        )
 
         // KSP-CAP-001: member function bodies resolve outer locals the same
         // way lambda bodies do — seeded via `locals`, which `inferNameRefExpr`
@@ -445,6 +453,11 @@ extension ExprTypeChecker {
             var propertyFlags: SymbolFlags = [.synthetic]
             if propertyDecl.isVar {
                 propertyFlags.insert(.mutable)
+            }
+            // Read wrapping (`kk_lateinit_get_or_throw`) and `::p.isInitialized`
+            // both key off this flag, exactly as for named-class members.
+            if propertyDecl.modifiers.contains(.lateinit) {
+                propertyFlags.insert(.lateinitProperty)
             }
             let propertySymbol = sema.symbols.define(
                 kind: .property,

@@ -2762,12 +2762,14 @@ final class CallTypeChecker {
             let coroutineBuilderNames: Set<String> = [
                 "runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull",
             ]
-            let isCoroutineBuilderWithHardcodedAnyReturn = !candidates.isEmpty && candidates.allSatisfy { candidate in
+            let isCoroutineBuilderCandidate: (SymbolID) -> Bool = { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-                return symbol.flags.contains(.synthetic)
+                return sema.symbols.externalLinkName(for: candidate) == "kk_coroutine_scope_async"
+                    || symbol.flags.contains(.synthetic)
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     && coroutineBuilderNames.contains(interner.resolve(symbol.name))
             }
+            let isCoroutineBuilderWithHardcodedAnyReturn = candidates.contains(where: isCoroutineBuilderCandidate)
             // Nested class member scopes are chained lexically, so a bare
             // member call can arrive here with a candidate owned by an outer
             // class. Resolve it against that enclosing receiver's type rather
@@ -2883,7 +2885,9 @@ final class CallTypeChecker {
             }
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
-            // Mark the lambda only after overload resolution selects the bundled
+            // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern uses
+            // the same convention for its suspend TestScope receiver. Mark the
+            // lambda only after overload resolution selects the bundled
             // declaration, so a same-named user function keeps the regular ABI.
             if isSourceBackedProducerFlowBuilder(chosen, ctx: ctx)
             {
@@ -2917,7 +2921,7 @@ final class CallTypeChecker {
             }
             let adjustedReturnType: TypeID = if let calleeName,
                 let blockArgument = args.first(where: { $0.label == interner.intern("block") }) ?? args.last,
-                isCoroutineBuilderWithHardcodedAnyReturn
+                isCoroutineBuilderCandidate(chosen)
                     || calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
             {
                 coroutineBuilderNarrowedReturnType(
