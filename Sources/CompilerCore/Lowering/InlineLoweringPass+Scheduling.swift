@@ -1,28 +1,13 @@
-/// Dependency scheduling for the inline pass: the bounded loops that decide
-/// when snapshots are re-expanded and when a caller is re-scanned.
-///
-/// `expandNestedBodylessInlineCalls` drives the bodyless-snapshot rounds;
-/// `inlineTransform` re-scans one caller body until no inline call remains.
-/// Both consume `InlineExpansionIndex` for all snapshot tables, dependency
-/// queries, and deterministic ordering -- this file owns only the round
-/// bounds and the re-expansion / re-scan control.
+/// Dependency scheduling for snapshots and bounded re-scanning of callers.
 extension InlineLoweringPass {
-    /// Bound on the bodyless-snapshot rounds. Each round re-expands the
-    /// *original* body against the improved callee snapshots, so a body is
-    /// never spliced twice; the cap keeps delegation chains from expanding
-    /// without limit.
-    private static let maxBodylessExpansionRounds = 4
-
     /// Upper bound on how many times a function body is re-scanned for inline
     /// calls. Nested expansions terminate well below this; the cap only keeps
     /// mutually recursive inline functions from looping forever.
     private static let maxInlineExpansionRounds = 8
 
-    /// Rewrite the bodies that later get spliced into callers so they no longer
-    /// call functions whose body never reaches codegen. The index's pending
-    /// set is computed from the *current* snapshot bodies, while each round
-    /// still re-expands the frozen originals, so a body is never spliced
-    /// twice.
+    /// Visit frozen snapshots in callee-before-caller order, including bodies
+    /// reached through lambda arguments. Each original is transformed at most
+    /// once; a back edge is not revisited, leaving cycles to the residue check.
     func expandNestedBodylessInlineCalls(
         index: InlineExpansionIndex,
         module: KIRModule,
@@ -30,26 +15,78 @@ extension InlineLoweringPass {
         unitType: TypeID?
     ) {
         guard !index.bodylessInlineSymbols.isEmpty else { return }
-        for _ in 0 ..< Self.maxBodylessExpansionRounds {
-            let pending = index.pendingBodylessCallers(interner: ctx.interner)
-            guard !pending.isEmpty else { return }
-            // The by-name fallback table is fixed for the whole round: within
-            // a round each expansion still sees the newest snapshots in the
-            // by-symbol tables, but name candidates come from the table as it
-            // stood when the round began.
-            let byName = index.inlineFunctionsByName
-            for symbol in pending {
-                guard let original = index.originalBodies[symbol] else { continue }
-                let expanded = inlineTransform(
-                    function: original,
-                    index: index,
-                    inlineFunctionsByName: byName,
-                    module: module,
-                    ctx: ctx,
-                    unitType: unitType
+        func ordered(_ symbols: Set<SymbolID>) -> [SymbolID] {
+            symbols.compactMap { index.originalBodies[$0] }.sorted {
+                InlineExpansionIndex.snapshotExpansionOrder(
+                    $0, $1, interner: ctx.interner
                 )
-                index.recordExpansion(of: symbol, to: expanded)
+            }.map(\.symbol)
+        }
+
+        var visited: Set<SymbolID> = []
+        var postorder: [SymbolID] = []
+        var callers: [SymbolID: Set<SymbolID>] = [:]
+        var affected: Set<SymbolID> = []
+        var worklist = ordered(Set(index.originalBodies.keys)).reversed().map { ($0, false) }
+        while let (symbol, finishing) = worklist.popLast() {
+            if finishing {
+                postorder.append(symbol)
+                continue
             }
+            guard visited.insert(symbol).inserted,
+                  let original = index.originalBodies[symbol] else { continue }
+            var dependencies: Set<SymbolID> = []
+            let byName = index.inlineFunctionsByName
+            for instruction in original.body {
+                guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = instruction else {
+                    continue
+                }
+                // Resolving reachable descriptors here discovers their own
+                // dependencies before expansion, without parsing unused imports.
+                if let target = index.inlineTarget(
+                    callSymbol: callSymbol, callee: callee, inlineFunctionsByName: byName
+                ) {
+                    dependencies.insert(target.symbol)
+                    if index.isBodyless(target.symbol) {
+                        affected.insert(symbol)
+                    }
+                }
+                for argument in arguments {
+                    if let lambda = resolveLambdaFunction(
+                        argExpr: argument, arena: module.arena,
+                        allFunctionsBySymbol: index.allFunctionsBySymbol,
+                        callerBody: original.body
+                    ) {
+                        dependencies.insert(lambda.symbol)
+                    }
+                }
+            }
+            for dependency in dependencies {
+                callers[dependency, default: []].insert(symbol)
+            }
+            worklist.append((symbol, true))
+            worklist.append(contentsOf: ordered(dependencies).reversed().map { ($0, false) })
+        }
+
+        // Do not pre-expand ordinary inline chains with no bodyless dependency:
+        // their caller-side eight-round contract is unchanged.
+        var pending = ordered(affected)
+        while let symbol = pending.popLast() {
+            for caller in ordered(callers[symbol] ?? []) where affected.insert(caller).inserted {
+                pending.append(caller)
+            }
+        }
+        for symbol in postorder where affected.contains(symbol) {
+            guard let original = index.originalBodies[symbol] else { continue }
+            let expanded = inlineTransform(
+                function: original,
+                index: index,
+                inlineFunctionsByName: index.inlineFunctionsByName,
+                module: module,
+                ctx: ctx,
+                unitType: unitType
+            )
+            index.recordExpansion(of: symbol, to: expanded)
         }
     }
 
@@ -65,7 +102,7 @@ extension InlineLoweringPass {
     /// This runs after both expansion phases and scans the module's
     /// post-expansion bodies in declaration order. The residue verdict is
     /// the contract `expandNestedBodylessInlineCalls` and `inlineTransform`
-    /// are held to before their fixed rounds can be removed.
+    /// are held to regardless of their scheduling strategy.
     func diagnoseMandatoryInlineResidue(
         module: KIRModule,
         index: InlineExpansionIndex,
