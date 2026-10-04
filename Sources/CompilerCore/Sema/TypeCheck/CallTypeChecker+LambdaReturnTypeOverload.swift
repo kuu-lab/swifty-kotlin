@@ -251,9 +251,19 @@ extension CallTypeChecker {
         // parameter (IntRange) by subtyping alone. When a candidate expects a
         // range-like parameter at this position, report the argument as the
         // corresponding range class type so source-backed overloads such as
-        // String.slice(IntRange) resolve.
+        // String.slice(IntRange) resolve. The same holds for a plain
+        // `Iterable<T>` parameter, which every range class implements
+        // (`fun f(x: Iterable<Int>)` called as `f(1..3)`).
         let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
             let type = argTypes[index]
+            // A bare `ClassName` argument denotes the class's companion object.
+            if !lambdaLiteralIndices.contains(index),
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   argument.expr, currentType: type, ast: ast, sema: sema
+               )
+            {
+                return companionType
+            }
             guard !lambdaLiteralIndices.contains(index),
                   let rangeClassType = sourceLevelRangeMemberLookupType(
                       receiverExpr: argument.expr,
@@ -267,8 +277,13 @@ extension CallTypeChecker {
                       else {
                           return false
                       }
+                      let nonNullParameterType = sema.types.makeNonNullable(parameterType)
                       return driver.helpers.isRangeLikeType(
-                          sema.types.makeNonNullable(parameterType),
+                          nonNullParameterType,
+                          sema: sema,
+                          interner: ctx.interner
+                      ) || driver.helpers.isPlainIterableType(
+                          nonNullParameterType,
                           sema: sema,
                           interner: ctx.interner
                       )
@@ -304,7 +319,14 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> ResolvedCall {
         let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            return CallArg(
+                label: argument.label,
+                isSpread: argument.isSpread,
+                type: type,
+                signedIntegerLiteral: literal.signed,
+                unsignedIntegerLiteral: literal.unsigned
+            )
         }
         let call = CallExpr(
             range: range,
@@ -463,6 +485,29 @@ extension CallTypeChecker {
         return ambiguousCallResult(range: range, candidateSymbols: refinedCandidates, sema: ctx.sema)
     }
 
+    func integerLiteralValues(
+        _ exprID: ExprID,
+        ast: ASTModule
+    ) -> (signed: Int64?, unsigned: UInt64?) {
+        switch ast.arena.expr(exprID) {
+        case let .intLiteral(value, _):
+            return (value, nil)
+        case let .uintLiteral(value, _):
+            return (nil, value)
+        case let .unaryExpr(op, operand, _) where op == .unaryMinus || op == .unaryPlus:
+            guard case let .intLiteral(value, _) = ast.arena.expr(operand) else {
+                return (nil, nil)
+            }
+            if op == .unaryMinus {
+                let (negated, overflow) = value.multipliedReportingOverflow(by: -1)
+                return (overflow ? nil : negated, nil)
+            }
+            return (value, nil)
+        default:
+            return (nil, nil)
+        }
+    }
+
     func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
         // Unit contexts accept and discard any expression result, so Unit must
         // not act as a return-type constraint while choosing an overload.
@@ -571,6 +616,13 @@ extension CallTypeChecker {
                     return false
                 }
                 if sema.types.isSubtype(inferredType, parameterType) {
+                    continue
+                }
+                if !args[otherIndex].isSpread,
+                   let varargIndex = signature.valueParameterIsVararg.firstIndex(of: true),
+                   otherIndex >= varargIndex,
+                   integerLiteralFitsVararg(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
+                {
                     continue
                 }
                 // A parameter whose type is still an unsubstituted type
@@ -741,6 +793,35 @@ extension CallTypeChecker {
         return narrowed.isEmpty ? candidates : narrowed
     }
 
+    private func integerLiteralFitsVararg(
+        _ exprID: ExprID,
+        parameterType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let values = integerLiteralValues(exprID, ast: ctx.ast)
+        let types = ctx.sema.types
+        guard case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(parameterType)) else {
+            return false
+        }
+        if let value = values.signed {
+            switch primitive {
+            case .byte: return (-128...127).contains(value)
+            case .short: return (-32768...32767).contains(value)
+            case .long: return true
+            default: return false
+            }
+        }
+        if let value = values.unsigned {
+            switch primitive {
+            case .ubyte: return value <= UInt64(UInt8.max)
+            case .ushort: return value <= UInt64(UInt16.max)
+            case .ulong: return true
+            default: return false
+            }
+        }
+        return false
+    }
+
     /// Whether the call-site receiver can ever satisfy the candidate's declared
     /// receiver. Used only to keep the lambda expected-type candidate set free
     /// of same-named overloads that final resolution could never select.
@@ -904,7 +985,7 @@ extension CallTypeChecker {
     /// signature, the leading `classTypeParameterCount` type parameters are taken
     /// to be the class type parameters and are substituted from the call-site
     /// receiver's concrete class arguments.
-    private func applyReceiverClassTypeArgs(
+    func applyReceiverClassTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
         candidate: SymbolID,
@@ -1359,7 +1440,7 @@ extension CallTypeChecker {
     /// implicit-`it` ambiguity detection scoped to genuinely concrete, conflicting
     /// parameter types rather than misreading distinct type-parameter symbols that
     /// happen to represent the same generic slot as a real conflict.
-    private func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
+    func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
         case .typeParam:
             return true

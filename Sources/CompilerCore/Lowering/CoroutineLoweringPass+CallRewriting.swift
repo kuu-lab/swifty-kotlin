@@ -20,6 +20,10 @@ extension CoroutineLoweringPass {
         let createCoroutineCallee: InternedString
         let createCoroutineUninterceptedCallee: InternedString
         let startCoroutineUninterceptedOrReturnCallee: InternedString
+        /// Link-time marker callees left behind when the source-backed
+        /// receiver-less intrinsics (SuspendFunction0.kt) are inlined.
+        let createCoroutineUninterceptedNoReceiverCallee: InternedString
+        let startCoroutineUninterceptedOrReturnNoReceiverCallee: InternedString
         let runtimeCreateCoroutineUninterceptedCallee: InternedString
         let runtimeStartCoroutineUninterceptedOrReturnCallee: InternedString
         let runtimeContinuationResumeCallee: InternedString
@@ -1492,7 +1496,8 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee,
+        guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee
+                || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil
@@ -1567,7 +1572,8 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.callee == rewrite.startCoroutineUninterceptedOrReturnCallee,
+        guard call.callee == rewrite.startCoroutineUninterceptedOrReturnCallee
+                || call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil

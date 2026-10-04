@@ -62,7 +62,7 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases            # 全ケース
 
 CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifacts**（TSV・失敗ケースディレクトリ）を優先。`gh run view RUN_ID --log-failed` だけだと、kotlinc diff ステップは `continue-on-error` のため **本体ログが含まれない**ことがある。全文ログでは `FAIL ` を grep。
 
-CI の O2 差分レーン（`kotlinc Diff O2`）は PR ではバックエンド関連パス（`Sources/CompilerBackend`・`CompilerCore/{KIR,Lowering,Driver,Stdlib}`・`Runtime`・`RuntimeABI`・`KSwiftKCLI`・`Scripts/diff_cases`・diff スクリプト等）の変更時のみ走る。merge_group / workflow_dispatch では常時実行。全件の O2 スイープは `.github/workflows/nightly-o2-diff.yml` が毎晩実行する（失敗 artifact 名は `kotlinc-diff-o2-nightly-*`、PR 側は `kotlinc-diff-regression-*-O2-*`）。
+CI は 2 段構成。PR と merge_group では最小ゲート（`.github/workflows/ci.yml`: リポジトリチェック + 全ターゲットのデバッグビルド + `SmokeTests`、必須チェックは `CI gate` 1 つ）だけが走る。CompilerCore/Backend/Runtime/CLI/LSP の全テストと kotlinc diff（O0 / O2 全件）は `.github/workflows/nightly-full.yml` が毎朝 04:00 JST に master で 1 回実行する。マージ前に全件を確認したい PR は `gh workflow run nightly-full.yml --ref <branch>` で手動実行する（失敗 artifact 名は `kotlinc-diff-regression-<run id>-{O0,O2}-shard-<n>`）。
 
 ### リファクタ PR のゲート
 

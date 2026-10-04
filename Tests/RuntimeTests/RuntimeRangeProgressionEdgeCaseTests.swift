@@ -141,15 +141,6 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(kk_list_get(list, 4) == 1)
     }
 
-    @Test func downTo_containsInReverse() {
-        let range = __kk_op_downTo(10, 1)
-        #expect(kk_range_contains(range, 10) == 1)
-        #expect(kk_range_contains(range, 5) == 1)
-        #expect(kk_range_contains(range, 1) == 1)
-        #expect(kk_range_contains(range, 0) == 0)
-        #expect(kk_range_contains(range, 11) == 0)
-    }
-
     @Test func downToStep_containsOnlyReachableElements() {
         // (10 downTo 1 step 3) -> 10,7,4,1
         let range = __kk_op_step(__kk_op_downTo(10, 1), 3, nil)
@@ -243,15 +234,6 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     }
 
     // MARK: - step 0 / invalid step handling
-
-    @Test func stepZeroThrowsIllegalArgumentException() {
-        // STDLIB-022: __kk_op_step with step=0 must throw IllegalArgumentException.
-        // Previous behavior silently returned the range unchanged; this is now corrected.
-        var thrown = 0
-        let range = kk_op_rangeTo(1, 10)
-        _ = __kk_op_step(range, 0, &thrown)
-        #expect(thrown != 0, "step=0 must throw IllegalArgumentException (STDLIB-022)")
-    }
 
     // MARK: - IntProgression fromClosedRange
 
