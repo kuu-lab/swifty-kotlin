@@ -1,0 +1,79 @@
+symbol fq=__local_0.range[kind=local] kind=local vis=private flags=_ type=kotlin.ranges.ClosedRange<String>
+symbol fq=golden.sema.StringBounds.<init>.$0.endInclusive[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.StringBounds.<init>.$0.start[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.StringBounds.<init>[kind=ctor;recv=golden.sema.StringBounds;params=String,String] kind=constructor vis=public flags=_ sig=recv=golden.sema.StringBounds params=[String,String] ret=golden.sema.StringBounds
+symbol fq=golden.sema.StringBounds[kind=class] kind=class vis=public flags=_
+symbol fq=golden.sema.closedRangeContains.$1.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.closedRangeContains.$1.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.closedRangeContains[kind=fun;params=kotlin.ranges.ClosedRange<String>,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<String>,String] ret=Boolean
+symbol fq=golden.sema.closedRangeEndInclusive.$2.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.closedRangeEndInclusive[kind=fun;params=kotlin.ranges.ClosedRange<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<String>] ret=String
+symbol fq=golden.sema.closedRangeInOperator.$3.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.closedRangeInOperator.$3.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.closedRangeInOperator[kind=fun;params=kotlin.ranges.ClosedRange<String>,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<String>,String] ret=Boolean
+symbol fq=golden.sema.closedRangeIsEmpty.$4.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.closedRangeIsEmpty[kind=fun;params=kotlin.ranges.ClosedRange<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<String>] ret=Boolean
+symbol fq=golden.sema.closedRangeStart.$5.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.closedRangeStart[kind=fun;params=kotlin.ranges.ClosedRange<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<String>] ret=String
+symbol fq=golden.sema.inspectInt.$6.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.inspectInt[kind=fun;params=kotlin.ranges.ClosedRange<Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<Int>] ret=Unit
+symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_ranges_ClosedRange_ClosedRange_n package=golden.sema
+  decl golden.sema.StringBounds[kind=class] class StringBounds sym=golden.sema.StringBounds[kind=class]
+  decl golden.sema.closedRangeStart[kind=fun;params=kotlin.ranges.ClosedRange<String>] fun closedRangeStart sym=golden.sema.closedRangeStart[kind=fun;params=kotlin.ranges.ClosedRange<String>]
+  decl golden.sema.closedRangeEndInclusive[kind=fun;params=kotlin.ranges.ClosedRange<String>] fun closedRangeEndInclusive sym=golden.sema.closedRangeEndInclusive[kind=fun;params=kotlin.ranges.ClosedRange<String>]
+  decl golden.sema.closedRangeContains[kind=fun;params=kotlin.ranges.ClosedRange<String>,String] fun closedRangeContains sym=golden.sema.closedRangeContains[kind=fun;params=kotlin.ranges.ClosedRange<String>,String]
+  decl golden.sema.closedRangeIsEmpty[kind=fun;params=kotlin.ranges.ClosedRange<String>] fun closedRangeIsEmpty sym=golden.sema.closedRangeIsEmpty[kind=fun;params=kotlin.ranges.ClosedRange<String>]
+  decl golden.sema.closedRangeInOperator[kind=fun;params=kotlin.ranges.ClosedRange<String>,String] fun closedRangeInOperator sym=golden.sema.closedRangeInOperator[kind=fun;params=kotlin.ranges.ClosedRange<String>,String]
+  decl golden.sema.inspectInt[kind=fun;params=kotlin.ranges.ClosedRange<Int>] fun inspectInt sym=golden.sema.inspectInt[kind=fun;params=kotlin.ranges.ClosedRange<Int>]
+  decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
+expr e@8:60 name(range) type=kotlin.ranges.ClosedRange<String> ref=golden.sema.closedRangeStart.$5.range[kind=vparam]
+expr e@8:60#1 memberCall recv=e@8:60 callee=start args=[] type=String ref=kotlin.ranges.ClosedRange.start[kind=prop]
+expr e@10:67 name(range) type=kotlin.ranges.ClosedRange<String> ref=golden.sema.closedRangeEndInclusive.$2.range[kind=vparam]
+expr e@10:67#1 memberCall recv=e@10:67 callee=endInclusive args=[] type=String ref=kotlin.ranges.ClosedRange.endInclusive[kind=prop]
+expr e@13:5 name(range) type=kotlin.ranges.ClosedRange<String> ref=golden.sema.closedRangeContains.$1.range[kind=vparam]
+expr e@13:20 name(value) type=String ref=golden.sema.closedRangeContains.$1.value[kind=vparam]
+expr e@13:5#1 memberCall recv=e@13:5 callee=contains args=[_:e@13:20] type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;gen=1] targs=[String]
+expr e@15:63 name(range) type=kotlin.ranges.ClosedRange<String> ref=golden.sema.closedRangeIsEmpty.$4.range[kind=vparam]
+expr e@15:63#1 memberCall recv=e@15:63 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.ClosedRange.isEmpty[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=;gen=1] targs=[String]
+expr e@18:5 name(value) type=String ref=golden.sema.closedRangeInOperator.$3.value[kind=vparam]
+expr e@18:14 name(range) type=kotlin.ranges.ClosedRange<String> ref=golden.sema.closedRangeInOperator.$3.range[kind=vparam]
+expr e@18:5#1 inExpr lhs=e@18:5 rhs=e@18:14 type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;gen=1] targs=[String]
+expr e@21:13 name(range) type=kotlin.ranges.ClosedRange<Int> ref=golden.sema.inspectInt.$6.range[kind=vparam]
+expr e@21:13#1 memberCall recv=e@21:13 callee=start args=[] type=Int ref=kotlin.ranges.ClosedRange.start[kind=prop]
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@22:13 name(range) type=kotlin.ranges.ClosedRange<Int> ref=golden.sema.inspectInt.$6.range[kind=vparam]
+expr e@22:13#1 memberCall recv=e@22:13 callee=endInclusive args=[] type=Int ref=kotlin.ranges.ClosedRange.endInclusive[kind=prop]
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@23:13 name(range) type=kotlin.ranges.ClosedRange<Int> ref=golden.sema.inspectInt.$6.range[kind=vparam]
+expr e@23:28 int(3) type=Int
+expr e@23:13#1 memberCall recv=e@23:13 callee=contains args=[_:e@23:28] type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;gen=1] targs=[Int]
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@24:13 name(range) type=kotlin.ranges.ClosedRange<Int> ref=golden.sema.inspectInt.$6.range[kind=vparam]
+expr e@24:13#1 memberCall recv=e@24:13 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.ClosedRange.isEmpty[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=;gen=1] targs=[Int]
+expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@28:51 string(b) type=String
+expr e@28:56 string(d) type=String
+expr e@28:38 call callee=e@28:38#1 args=[_:e@28:51,_:e@28:56] type=golden.sema.StringBounds call=golden.sema.StringBounds.<init>[kind=ctor;recv=golden.sema.StringBounds;params=String,String]
+expr e@28:5 localDecl range mutable=0 type=ClosedRange<String> init=e@28:38 type=Unit ref=__local_0.range[kind=local]
+expr e@29:30 name(range) type=kotlin.ranges.ClosedRange<String> ref=__local_0.range[kind=local]
+expr e@29:13 call callee=e@29:13#1 args=[_:e@29:30] type=String call=golden.sema.closedRangeStart[kind=fun;params=kotlin.ranges.ClosedRange<String>]
+expr e@29:5 call callee=e@29:5#1 args=[_:e@29:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@30:37 name(range) type=kotlin.ranges.ClosedRange<String> ref=__local_0.range[kind=local]
+expr e@30:13 call callee=e@30:13#1 args=[_:e@30:37] type=String call=golden.sema.closedRangeEndInclusive[kind=fun;params=kotlin.ranges.ClosedRange<String>]
+expr e@30:5 call callee=e@30:5#1 args=[_:e@30:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@31:33 name(range) type=kotlin.ranges.ClosedRange<String> ref=__local_0.range[kind=local]
+expr e@31:40 string(c) type=String
+expr e@31:13 call callee=e@31:13#1 args=[_:e@31:33,_:e@31:40] type=Boolean call=golden.sema.closedRangeContains[kind=fun;params=kotlin.ranges.ClosedRange<String>,String]
+expr e@31:5 call callee=e@31:5#1 args=[_:e@31:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@32:32 name(range) type=kotlin.ranges.ClosedRange<String> ref=__local_0.range[kind=local]
+expr e@32:13 call callee=e@32:13#1 args=[_:e@32:32] type=Boolean call=golden.sema.closedRangeIsEmpty[kind=fun;params=kotlin.ranges.ClosedRange<String>]
+expr e@32:5 call callee=e@32:5#1 args=[_:e@32:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@33:35 name(range) type=kotlin.ranges.ClosedRange<String> ref=__local_0.range[kind=local]
+expr e@33:42 string(a) type=String
+expr e@33:13 call callee=e@33:13#1 args=[_:e@33:35,_:e@33:42] type=Boolean call=golden.sema.closedRangeInOperator[kind=fun;params=kotlin.ranges.ClosedRange<String>,String]
+expr e@33:5 call callee=e@33:5#1 args=[_:e@33:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@34:16 int(1) type=Int
+expr e@34:19 int(5) type=Int
+expr e@34:16#1 binary(rangeTo) lhs=e@34:16 rhs=e@34:19 type=Int
+expr e@34:5 call callee=e@34:5#1 args=[_:e@34:16#1] type=Unit call=golden.sema.inspectInt[kind=fun;params=kotlin.ranges.ClosedRange<Int>]

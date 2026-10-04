@@ -24,6 +24,7 @@ public class CharRange @KsSymbolName("__kk_char_rangeTo") constructor(
             return last + 1
         }
     public override fun isEmpty(): Boolean = first > last
+    public override operator fun contains(value: Char): Boolean = value >= first && value <= last
 
     public override fun equals(other: Any?): Boolean {
         if (this === other) return true

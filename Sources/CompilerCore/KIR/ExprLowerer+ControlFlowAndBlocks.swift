@@ -3296,6 +3296,7 @@ extension ExprLowerer {
                     containerExpr: rhsExpr,
                     resultID: result,
                     sema: sema,
+                    arena: arena,
                     interner: interner,
                     instructions: &instructions
                 )
@@ -3334,6 +3335,7 @@ extension ExprLowerer {
                 containerExpr: rhsExpr,
                 resultID: containsResult,
                 sema: sema,
+                arena: arena,
                 interner: interner,
                 instructions: &instructions
             )
@@ -3354,6 +3356,7 @@ extension ExprLowerer {
         containerExpr: ExprID,
         resultID: KIRExprID,
         sema: SemaModule,
+        arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
@@ -3388,6 +3391,21 @@ extension ExprLowerer {
                 calleeName = sym.name
             } else {
                 calleeName = interner.intern("contains")
+            }
+            if let virtualCall = driver.callLowerer.tryEmitVirtualDispatch(
+                chosenCallee: callBinding.chosenCallee,
+                calleeName: calleeName,
+                receiverExpr: containerExpr,
+                loweredReceiverID: containerID,
+                isSuperCall: false,
+                finalArguments: [containerID, elementID],
+                result: resultID,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            ) {
+                instructions.append(virtualCall)
+                return
             }
             instructions.append(.call(
                 symbol: callBinding.chosenCallee,

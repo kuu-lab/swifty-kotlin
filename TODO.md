@@ -2633,7 +2633,7 @@
     - `kotlin.ranges.ClosedFloatingPointRange.isEmpty` — fun ClosedFloatingPointRange.isEmpty(): Boolean  -- `open fun isEmpty(): kotlin/Boolean`
     - `kotlin.ranges.ClosedFloatingPointRange.lessThanOrEquals` — fun ClosedFloatingPointRange.lessThanOrEquals(, ): Boolean  -- `abstract fun lessThanOrEquals(#A, #A): kotlin/Boolean`
 
-- [ ] KSP-1299: kotlin.ranges.ClosedRange.ClosedRange の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1299: kotlin.ranges.ClosedRange.ClosedRange の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ranges.ClosedRange` / receiver `ClosedRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ClosedRange/ClosedRange.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
