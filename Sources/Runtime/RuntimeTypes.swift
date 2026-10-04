@@ -550,6 +550,13 @@ final class RuntimeListBox {
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
         case subList(RuntimeListSlice)
+        /// Live view for `MutableMap.values`: reads the backing map's
+        /// values on every access instead of a disconnected snapshot.
+        /// Only single-index removal (via `removeMapBackedValue(at:)`) is
+        /// supported as a write path, matching the real Kotlin
+        /// `MutableCollection<V>` surface exposed for `.values` (no
+        /// positional insert/set).
+        case mapValuesViewOf(Int)
     }
 
     private var storage: Storage
@@ -581,6 +588,10 @@ final class RuntimeListBox {
         storage = .subList(RuntimeListSlice(base: base, fromIndex: fromIndex, toIndex: toIndex))
     }
 
+    init(mapValuesOf mapRaw: Int) {
+        storage = .mapValuesViewOf(mapRaw)
+    }
+
     var values: [RuntimeValue] {
         get {
             switch storage {
@@ -592,6 +603,8 @@ final class RuntimeListBox {
                 return base.values
             case .subList(let slice):
                 return Array(slice.base.values[slice.fromIndex..<slice.toIndex])
+            case .mapValuesViewOf(let mapRaw):
+                return runtimeMapBox(from: mapRaw)?.entryValues ?? []
             }
         }
         set {
@@ -611,6 +624,15 @@ final class RuntimeListBox {
                 baseValues.replaceSubrange(slice.fromIndex..<slice.toIndex, with: newValue)
                 slice.toIndex = slice.fromIndex + newValue.count
                 slice.base.values = baseValues
+            case .mapValuesViewOf(let mapRaw):
+                // `MutableCollection<V>` exposes no positional replace for
+                // `.values`; only a full clear (matching `.clear()`) is a
+                // meaningful whole-array assignment here.
+                guard newValue.isEmpty,
+                      let map = runtimeMapBox(from: mapRaw),
+                      !map.isEffectivelyReadOnly
+                else { return }
+                map.removeAll()
             }
         }
     }
@@ -629,6 +651,8 @@ final class RuntimeListBox {
             return 0
         case .subList(let slice):
             return slice.base.modCount
+        case .mapValuesViewOf(let mapRaw):
+            return runtimeMapBox(from: mapRaw)?.modCount ?? 0
         }
     }
 
@@ -646,6 +670,8 @@ final class RuntimeListBox {
             return base.count
         case .subList(let slice):
             return slice.toIndex - slice.fromIndex
+        case .mapValuesViewOf(let mapRaw):
+            return runtimeMapBox(from: mapRaw)?.count ?? 0
         }
     }
 
@@ -666,6 +692,9 @@ final class RuntimeListBox {
                 return runtimeCollectionABIValue(base.values[index])
             case .subList(let slice):
                 return slice.base[slice.fromIndex + index]
+            case .mapValuesViewOf(let mapRaw):
+                let value = runtimeMapBox(from: mapRaw)?.entryValues[index] ?? RuntimeValue(raw: 0)
+                return runtimeCollectionABIValue(value)
             }
         }
         set {
@@ -682,6 +711,10 @@ final class RuntimeListBox {
                 base[index] = newValue
             case .subList(let slice):
                 slice.base[slice.fromIndex + index] = newValue
+            case .mapValuesViewOf:
+                // `MutableCollection<V>` has no indexed `set` for `.values`;
+                // unreachable through valid Kotlin code.
+                break
             }
         }
     }
@@ -701,6 +734,9 @@ final class RuntimeListBox {
             base.setValue(value, at: index)
         case .subList(let slice):
             slice.base.setValue(value, at: slice.fromIndex + index)
+        case .mapValuesViewOf:
+            // Unreachable: see the subscript setter above.
+            break
         }
     }
 
@@ -731,7 +767,41 @@ final class RuntimeListBox {
             let result = body(&values)
             self.values = values
             return result
+        case .mapValuesViewOf:
+            // Structural edits aren't reachable through the real Kotlin
+            // `MutableCollection<V>` surface exposed for `.values` (no
+            // positional insert, and removal goes through
+            // `removeMapBackedValue(at:)` so the backing map's key stays
+            // aligned by index). Materialize-and-discard here so an
+            // unexpected caller can't desync the key/value arrays.
+            var values = self.values
+            return body(&values)
         }
+    }
+
+    /// True when this list is the live view returned by `MutableMap.values`.
+    var isMapValuesView: Bool {
+        if case .mapValuesViewOf = storage { return true }
+        return false
+    }
+
+    /// Removes the backing map's key/value pair at `index` (as seen through
+    /// this values view). Only valid when `isMapValuesView` is true.
+    @discardableResult
+    func removeMapBackedValue(at index: Int) -> Bool {
+        guard case let .mapValuesViewOf(mapRaw) = storage,
+              let map = runtimeMapBox(from: mapRaw),
+              !map.isEffectivelyReadOnly,
+              map.keys.indices.contains(index)
+        else {
+            return false
+        }
+        let key = map.keys[index]
+        guard map.index(ofRawKey: key) != nil else {
+            return false
+        }
+        _ = map.remove(key: key)
+        return true
     }
 
     var elements: [Int] {
@@ -759,12 +829,22 @@ private final class RuntimeListSlice {
 /// Runtime box for `setOf(...)` / `mutableSetOf(...)`.
 /// Stores unique elements in insertion order as runtime values.
 final class RuntimeSetBox {
+    /// Distinguishes the two live map-backed views this box can present.
+    /// `.entries` materializes `MutableMap.MutableEntry` pair boxes on
+    /// demand; `.keys` exposes the map's raw key values directly.
+    enum MapViewKind {
+        case entries
+        case keys
+    }
+
     private var storage: [RuntimeValue]
     private var index: [RuntimeElementKey: Int]
-    /// Non-nil for the mutable entry view returned by `MutableMap.entries`.
-    /// The view materializes entry values on demand while iterator removal
-    /// routes back to the destination map.
+    /// Non-nil for the mutable `entries`/`keys` views returned by
+    /// `MutableMap`. The view reads/writes through to the destination map
+    /// on every access (including iterator removal) instead of
+    /// materializing a disconnected snapshot.
     private let backingMapRaw: Int?
+    private let backingMapViewKind: MapViewKind
     private(set) var isReadOnly = false
     private var directModCount: Int = 0
 
@@ -781,12 +861,17 @@ final class RuntimeSetBox {
         get {
             if let backingMapRaw,
                let map = runtimeMapBox(from: backingMapRaw) {
-                return zip(map.keyValues, map.entryValues).map { key, value in
-                    RuntimeValue(raw: runtimeMutableMapEntryNew(
-                        mapRaw: backingMapRaw,
-                        key: key,
-                        value: value
-                    ))
+                switch backingMapViewKind {
+                case .entries:
+                    return zip(map.keyValues, map.entryValues).map { key, value in
+                        RuntimeValue(raw: runtimeMutableMapEntryNew(
+                            mapRaw: backingMapRaw,
+                            key: key,
+                            value: value
+                        ))
+                    }
+                case .keys:
+                    return map.keyValues
                 }
             }
             return storage
@@ -813,6 +898,7 @@ final class RuntimeSetBox {
         self.storage = elements.map { RuntimeValue(raw: $0) }
         self.index = [:]
         self.backingMapRaw = nil
+        self.backingMapViewKind = .entries
         rebuildIndex()
     }
 
@@ -820,6 +906,7 @@ final class RuntimeSetBox {
         self.storage = values
         self.index = [:]
         self.backingMapRaw = nil
+        self.backingMapViewKind = .entries
         rebuildIndex()
     }
 
@@ -827,6 +914,14 @@ final class RuntimeSetBox {
         self.storage = []
         self.index = [:]
         self.backingMapRaw = mapRaw
+        self.backingMapViewKind = .entries
+    }
+
+    init(mapKeysOf mapRaw: Int) {
+        self.storage = []
+        self.index = [:]
+        self.backingMapRaw = mapRaw
+        self.backingMapViewKind = .keys
     }
 
     var count: Int {
@@ -862,14 +957,22 @@ final class RuntimeSetBox {
     func rawValue(at index: Int) -> Int? {
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
-            guard map.keys.indices.contains(index), map.values.indices.contains(index) else {
-                return nil
+            switch backingMapViewKind {
+            case .entries:
+                guard map.keys.indices.contains(index), map.values.indices.contains(index) else {
+                    return nil
+                }
+                return runtimeMutableMapEntryNew(
+                    mapRaw: backingMapRaw,
+                    key: map.keys[index],
+                    value: map.values[index]
+                )
+            case .keys:
+                guard map.keys.indices.contains(index) else {
+                    return nil
+                }
+                return map.keys[index]
             }
-            return runtimeMutableMapEntryNew(
-                mapRaw: backingMapRaw,
-                key: map.keys[index],
-                value: map.values[index]
-            )
         }
         guard storage.indices.contains(index) else {
             return nil
@@ -878,17 +981,22 @@ final class RuntimeSetBox {
     }
 
     func contains(rawValue: Int) -> Bool {
-        if let backingMapRaw {
-            guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
-                  let entry = tryCast(pointer, to: RuntimePairBox.self),
-                  entry.mutableMapRaw == backingMapRaw,
-                  let map = runtimeMapBox(from: backingMapRaw),
-                  let index = map.index(ofRawKey: entry.mutableMapKey),
-                  let currentValue = map.rawValue(at: index)
-            else {
-                return false
+        if let backingMapRaw,
+           let map = runtimeMapBox(from: backingMapRaw) {
+            switch backingMapViewKind {
+            case .entries:
+                guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+                      let entry = tryCast(pointer, to: RuntimePairBox.self),
+                      entry.mutableMapRaw == backingMapRaw,
+                      let index = map.index(ofRawKey: entry.mutableMapKey),
+                      let currentValue = map.rawValue(at: index)
+                else {
+                    return false
+                }
+                return runtimeValuesEqual(entry.secondValue, RuntimeValue(raw: currentValue))
+            case .keys:
+                return map.index(ofRawKey: rawValue) != nil
             }
-            return runtimeValuesEqual(entry.secondValue, RuntimeValue(raw: currentValue))
         }
         return index[RuntimeElementKey(value: rawValue)] != nil
     }
@@ -923,17 +1031,27 @@ final class RuntimeSetBox {
     @discardableResult
     func remove(rawValue: Int) -> Bool {
         if let backingMapRaw {
-            guard !isEffectivelyReadOnly,
-                  let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
-                  let entry = tryCast(pointer, to: RuntimePairBox.self),
-                  entry.mutableMapRaw == backingMapRaw,
-                  let map = runtimeMapBox(from: backingMapRaw),
-                  map.index(ofRawKey: entry.mutableMapKey) != nil
-            else {
+            guard !isEffectivelyReadOnly, let map = runtimeMapBox(from: backingMapRaw) else {
                 return false
             }
-            _ = map.remove(key: entry.mutableMapKey)
-            return true
+            switch backingMapViewKind {
+            case .entries:
+                guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+                      let entry = tryCast(pointer, to: RuntimePairBox.self),
+                      entry.mutableMapRaw == backingMapRaw,
+                      map.index(ofRawKey: entry.mutableMapKey) != nil
+                else {
+                    return false
+                }
+                _ = map.remove(key: entry.mutableMapKey)
+                return true
+            case .keys:
+                guard map.index(ofRawKey: rawValue) != nil else {
+                    return false
+                }
+                _ = map.remove(key: rawValue)
+                return true
+            }
         }
         guard !isReadOnly, let index = index[RuntimeElementKey(value: rawValue)] else {
             return false
@@ -1003,6 +1121,7 @@ final class RuntimeSetBox {
         self.storage = []
         self.index = [:]
         self.backingMapRaw = nil
+        self.backingMapViewKind = .entries
         self.storage.reserveCapacity(max(0, capacity))
         self.index.reserveCapacity(max(0, capacity))
     }

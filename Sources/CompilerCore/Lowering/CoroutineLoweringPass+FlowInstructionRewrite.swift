@@ -8,7 +8,8 @@ extension CoroutineLoweringPass {
         flowExprIDs: inout Set<Int32>,
         remainingConsumes: inout [Int32: Int],
         symbolByExprRaw: [Int32: SymbolID],
-        names: FlowLoweringNames
+        names: FlowLoweringNames,
+        isFlowScopeFunction: Bool
     ) -> KIRLoweringEmitContext {
         var loweredBody = KIRLoweringEmitContext()
         loweredBody.instructions.reserveCapacity(originalBody.count)
@@ -200,7 +201,13 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.emit, arguments.count == 1, !hasRealDeclaration(symbol, in: ctx) {
+                // KUU-963: the bare `emit` intrinsic exists only inside a
+                // `flow { }` builder's scope. A name-only `emit` anywhere
+                // else (e.g. a `Sink.emit` member that stayed unbound) must
+                // keep its own dispatch instead of being swallowed by the
+                // Flow runtime bridge.
+                if callee == names.emit, arguments.count == 1, isFlowScopeFunction,
+                   !hasRealDeclaration(symbol, in: ctx) {
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: names.kkFlowEmit,
