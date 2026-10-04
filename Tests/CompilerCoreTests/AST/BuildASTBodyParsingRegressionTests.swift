@@ -388,8 +388,9 @@ struct BuildASTBodyParsingRegressionTests {
 
     /// A newline-leading `::` starts a new statement: `x\n::prop` parses as
     /// `x; ::prop` (unbound callable reference), never `x::prop`. Kotlin only
-    /// continues `.`/`?.` across a newline, so the statement splitter must not
-    /// glue a `::`-led line onto the previous expression (KUU-1083).
+    /// continues `.`/`?.`/`?:`/`&&`/`||`/`as`/`as?` across a newline, so the
+    /// statement splitter must not glue a `::`-led line onto the previous
+    /// expression (KUU-1083).
     @Test
     func testLeadingCallableReferenceStartsNewStatement() throws {
         let sources = [
