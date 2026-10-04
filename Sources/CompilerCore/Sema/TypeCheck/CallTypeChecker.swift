@@ -84,6 +84,13 @@ final class CallTypeChecker {
                 return inferredType
             }
         }
+        if let builderType = inferReceiverBuilderCall(
+            id, calleeName: calleeName, args: args, range: range,
+            ctx: ctx, locals: &locals, expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return builderType
+        }
         if let customBuilderType = inferExperimentalBuilderCallExpr(
             id,
             calleeName: calleeName,
@@ -1755,6 +1762,20 @@ final class CallTypeChecker {
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
             callInvisible = invis
+            if locals[calleeName] == nil,
+               let receiverType = ctx.implicitReceiverType
+            {
+                let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName, receiverType: receiverType, sema: sema, interner: interner
+                )
+                let sourceMembers = memberCandidates.filter {
+                    sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
+                }
+                let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
+                if !visibleMembers.isEmpty {
+                    candidates = visibleMembers
+                }
+            }
             if candidates.isEmpty,
                locals[calleeName] == nil,
                let activeReceiverType = ctx.implicitReceiverType,
@@ -2781,7 +2802,7 @@ final class CallTypeChecker {
                 return candidates.contains { candidate in
                     sema.symbols.parentSymbol(for: candidate) == outerClass
                 }
-            }?.type ?? ctx.implicitReceiverType
+            }?.type ?? callImplicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2905,6 +2926,13 @@ final class CallTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+            if let calleeName, let receiverType = callImplicitReceiverType,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let receiverClass = resolveClassType(receiverType, sema: sema),
+               sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
+            {
+                sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+            }
             var adjustedReturnType: TypeID = if let calleeName,
                 let launcherIndex = coroutineLauncherLambdaArgIndex,
                 calleeName == knownNames.async || calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope,

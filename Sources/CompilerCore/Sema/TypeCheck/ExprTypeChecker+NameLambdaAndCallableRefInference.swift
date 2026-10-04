@@ -1417,6 +1417,20 @@ extension ExprTypeChecker {
         }
 
         if let expectedType, let expectedFunctionType {
+            if let session = ctx.builderInference,
+               expectedFunctionType.returnType != sema.types.unitType,
+               session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
+            {
+                session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                    subtype: inferredBodyType,
+                    supertype: expectedFunctionType.returnType,
+                    typeVarBySymbol: session.typeVarBySymbol,
+                    typeSystem: sema.types,
+                    blameRange: ast.arena.exprRange(body)
+                ))
+                sema.bindings.bindExprType(id, type: expectedType)
+                return expectedType
+            }
             // Enhanced return type inference with Unit optimization
             let optimizedReturnType = inferOptimizedReturnType(
                 inferredBodyType: inferredBodyType,

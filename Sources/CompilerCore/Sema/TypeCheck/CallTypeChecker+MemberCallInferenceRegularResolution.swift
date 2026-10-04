@@ -1317,6 +1317,21 @@ extension CallTypeChecker {
                         }
                         return true
                     }
+                    if let dispatchReceiver = ctx.implicitReceiverType {
+                        let dispatchMembers = driver.helpers.collectMemberFunctionCandidates(
+                            named: calleeName, receiverType: dispatchReceiver, sema: sema, interner: interner
+                        ).filter { candidate in
+                            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                                return false
+                            }
+                            return extensionSyntheticFallbackReceiverMatches(
+                                callSiteReceiver: nonNullReceiverForScope, declaredReceiver: receiver, sema: sema
+                            )
+                        }
+                        if !dispatchMembers.isEmpty {
+                            scopeCandidates = dispatchMembers
+                        }
+                    }
                     // Primitive-array source members are top-level extensions in
                     // kotlin.collections. Default-import lookup may stop at a
                     // same-named Sequence extension first (notably for
