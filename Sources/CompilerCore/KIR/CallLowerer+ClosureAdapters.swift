@@ -453,10 +453,6 @@ extension CallLowerer {
             return loweredArgID
         }
 
-        if functionType.isSuspend, sema.bindings.isCoroutineLauncherLambdaExpr(argExprID) {
-            return loweredArgID
-        }
-
         let concreteCallableType = arena.exprType(loweredCallableID) ?? sema.bindings.exprTypes[argExprID]
         let hasStringSignature: Bool
         if let concreteCallableType,
@@ -466,6 +462,12 @@ extension CallLowerer {
                 || sema.types.isString(concreteType.returnType)
         } else {
             hasStringSignature = false
+        }
+        if functionType.isSuspend,
+           !resolvedCallableInfo.hasClosureParam,
+           sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
+        {
+            return loweredArgID
         }
         if (!resolvedCallableInfo.hasClosureParam
             || functionType.isSuspend && (hasStringSignature || functionType.receiver != nil)),
