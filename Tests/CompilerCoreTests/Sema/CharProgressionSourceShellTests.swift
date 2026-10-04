@@ -31,6 +31,9 @@ struct CharProgressionSourceShellTests {
         #expect(sema.symbols.lookupAll(fqName: companionFQName).count == 1)
         let companion = try #require(sema.symbols.companionObjectSymbol(for: progression))
         let companionInfo = try #require(sema.symbols.symbol(companion))
+        #expect(companionInfo.kind == .object)
+        #expect(companionInfo.visibility == .public)
+        #expect(companionInfo.declSite != nil)
         #expect(!companionInfo.flags.contains(.synthetic))
         #expect(sema.symbols.isSourceBackedSymbol(companion))
 

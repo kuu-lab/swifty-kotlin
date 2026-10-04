@@ -2586,7 +2586,7 @@
   - focused根拠: Kotlin 2.3.10 `_URanges.kt` と同じ `@SinceKotlin("1.5")` source extension を `RangeHOF.kt` に追加し、各 unsigned 値を `toULong()` で既存の `ULongRange.contains(ULong)` へ widening する。専用 Sema/Golden fixture は named argument、`in`、直接 `contains`、通常の `ULong` overload、full/narrow/empty range と unsigned 境界を固定する。全 Swift/Golden/diff の変更 head G は未実行のため完了は保留する。
   - 完了（2026-09-15、マージ確認）: PR #6692（commit `8b187a3cd`、タイトルは "KSP-1285: Add IntRange cross-type contains overloads" だが同PRで ULongRange の cross-type contains も追加）が `origin/master` にマージ済み（`RangeHOF.kt:1748`/`:1753`/`:1758`、golden `stdlib_kotlin_ranges_ULongRange_n.kt`/`.golden`、diff 同名 `.kt` の実在で確認）。共通ゲート G は KUU-453 側の方針転換により CI 確認へ一本化されたため、上記の focused 検証を完了根拠として採用する。
 
-- [ ] KSP-1293: kotlin.ranges.CharProgression top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1293: kotlin.ranges.CharProgression top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.CharProgression` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/CharProgression/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2595,6 +2595,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ranges.CharProgression.Companion` — object kotlin.ranges.CharProgression.Companion  -- `final object Companion {`
+  - 完了根拠: [PR #7380](https://github.com/kuu-lab/swifty-kotlin/pull/7380) で `CharProgression/Stdlib.kt` の `public companion object {}` は source 化済み。専用 Golden / diff ケース `stdlib_kotlin_ranges_CharProgression_n_n.kt` で Companion 型、暗黙・明示・import alias の値参照、factory 呼び出しを固定。source shell テストで public object・宣言位置・単一の source-backed symbol を確認し、既存 member / factory bridge は別 API の移行まで維持する。
+  - focused 検証: `swift build`、`CharProgressionSourceShellTests`、当該 Sema Golden バッチ（8 件）、当該 kotlinc diff（1 件）、TODO ID、Runtime ABI link 検証が pass。全 Swift / Golden / diff はローカル未実行。
 
 - [x] KSP-1294: kotlin.ranges.CharProgression.CharProgression の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.ranges.CharProgression` / receiver `CharProgression`
