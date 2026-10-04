@@ -381,6 +381,10 @@ final class CallLowerer {
             canThrow: canThrow,
             thrownResult: nil
         ))
+        appendRuntimeRangeItableRegistrations(
+            objectValue: result, factoryName: callee,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
         return result
     }
 
@@ -1125,7 +1129,7 @@ final class CallLowerer {
             // remapped ABI entry points must remain direct calls.
             if let implicitReceiver,
                implicitReceiverRuntimeCallee == nil,
-               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true,
+               !kirIsRuntimeBridgedCallee(chosen, sema: sema),
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
                    calleeName: sourceCalleeName,
@@ -1402,6 +1406,10 @@ final class CallLowerer {
                     thrownResult: thrownResult
                 ))
             }
+            appendRuntimeRangeItableRegistrations(
+                objectValue: callResult, factoryName: loweredCalleeName,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             if let arrayResultTypeID {
                 let typeIDExpr = arena.appendExpr(
                     .intLiteral(arrayResultTypeID),
@@ -1460,6 +1468,12 @@ final class CallLowerer {
                 return interner.intern("kk_suspend_function_invoke")
             case 2:
                 return interner.intern("kk_suspend_function_invoke_2")
+            case 3:
+                return interner.intern("kk_suspend_function_invoke_3")
+            case 4:
+                return interner.intern("kk_suspend_function_invoke_4")
+            case 5:
+                return interner.intern("kk_suspend_function_invoke_5")
             default:
                 return nil
             }

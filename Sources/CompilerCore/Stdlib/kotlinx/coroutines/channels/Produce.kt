@@ -21,11 +21,11 @@ public suspend fun ProducerScope<*>.awaitClose(block: () -> Unit = {}) {
     }
 }
 
-@KsSymbolName("kk_channel_is_closed_for_send")
-internal external fun __kkSendChannelIsClosedForSend(channel: SendChannel<*>): Int
-
-public val SendChannel<*>.isClosedForSend: Boolean
-    get() = __kkSendChannelIsClosedForSend(this) != 0
+// `SendChannel.isClosedForSend` lives in Channel.kt with the rest of the
+// channel closed-state surface (KSP-1571). A second same-name extension here
+// shadows the Channel.kt one for `this.isClosedForSend` inside ProducerScope
+// blocks (bundled-extension registration dedupe), so only one declaration may
+// exist.
 
 // KSP-1573: `CoroutineScope.produce` is composed from a channel plus a
 // scope-launch of the producer block. Kotlin source cannot invoke a suspend

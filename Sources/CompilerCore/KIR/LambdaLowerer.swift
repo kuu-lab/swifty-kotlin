@@ -97,6 +97,9 @@ final class LambdaLowerer {
             "kk_suspend_function_invoke_0",
             "kk_suspend_function_invoke",
             "kk_suspend_function_invoke_2",
+            "kk_suspend_function_invoke_3",
+            "kk_suspend_function_invoke_4",
+            "kk_suspend_function_invoke_5",
             "kk_suspend_coroutine",
             "kk_with_timeout",
             "kk_with_timeout_or_null",
@@ -315,6 +318,9 @@ final class LambdaLowerer {
 
         let scopeSnapshot = driver.ctx.saveScope()
         let savedReceiverSymbol = scopeSnapshot.currentImplicitReceiverSymbol
+        let capturesRuntimeScopeReceiver = scopeSnapshot.currentImplicitReceiverExprID.map {
+            driver.ctx.runtimeCoroutineScopeReceiverExprIDs.contains($0)
+        } ?? false
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
@@ -326,6 +332,9 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema)
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
+                if capturesRuntimeScopeReceiver {
+                    driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(captureExpr)
+                }
             }
         }
         for (paramIndex, lambdaParam) in lambdaParameters.enumerated() {
@@ -363,6 +372,9 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
+                if capturesRuntimeScopeReceiver {
+                    driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(closureExpr)
+                }
             }
         }
         // Multi-capture HOF lambda: closureRaw is a packed closure object.
@@ -388,6 +400,9 @@ final class LambdaLowerer {
                 bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
+                    if capturesRuntimeScopeReceiver {
+                        driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(loadedExpr)
+                    }
                 }
             }
         }

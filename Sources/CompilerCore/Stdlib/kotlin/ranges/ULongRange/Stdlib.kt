@@ -15,6 +15,7 @@ public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
     start: ULong,
     endInclusive: ULong,
 ) : ULongProgression(start, endInclusive, 1L), ClosedRange<ULong>, OpenEndRange<ULong> {
+    public override val start: ULong get() = first
     public override val endInclusive: ULong get() = last
 
     public override val endExclusive: ULong
@@ -26,6 +27,7 @@ public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
         }
 
     public override fun isEmpty(): Boolean = first > last
+    public override operator fun contains(value: ULong): Boolean = value >= first && value <= last
 
     public override fun equals(other: Any?): Boolean =
         other is ULongRange && (isEmpty() && other.isEmpty() || first == other.first && last == other.last)

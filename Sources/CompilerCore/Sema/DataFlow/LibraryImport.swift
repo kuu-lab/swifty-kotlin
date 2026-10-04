@@ -22,9 +22,9 @@ extension DataFlowSemaPhase {
         /// redundant with the validation already performed here.
         let stdlibModuleName: InternedString?
         /// Kotlin `.klib` modules discovered on the search path: manifest
-        /// parsed and version-gated, container kept open for the IR import
-        /// stages that follow.
-        let klibModules: [KlibModule]
+        /// parsed and version-gated, container and decoded IR kept open for
+        /// the body materialization that runs during KIR lowering.
+        let klibModules: [LoadedKlibModule]
     }
 
     /// Shared state for indexed metadata materialization. The inline-function
@@ -78,7 +78,7 @@ extension DataFlowSemaPhase {
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
         let lazyLoaderState = ImportedLibraryLazyLoaderState(importedInlineFunctions: importedInlineFunctions)
-        var klibModules: [KlibModule] = []
+        var klibModules: [LoadedKlibModule] = []
         var stdlibArtifactLoaded = false
         var stdlibModuleName: InternedString?
 
@@ -88,6 +88,7 @@ extension DataFlowSemaPhase {
                 == URL(fileURLWithPath: stdlibLibraryPath).standardizedFileURL.path
         }
 
+        @discardableResult
         func appendImportedBinding(
             _ record: ImportedLibrarySymbolRecord,
             metadataPath: String,
@@ -95,8 +96,8 @@ extension DataFlowSemaPhase {
             isStdlibArtifact: Bool,
             materializeBody: (() -> ImportedLibrarySymbolRecord?)? = nil,
             moduleFQN: InternedString?
-        ) {
-            guard !record.fqName.isEmpty else { return }
+        ) -> SymbolID? {
+            guard !record.fqName.isEmpty else { return nil }
             let name = record.fqName.last ?? interner.intern("_")
             var flags: SymbolFlags = [.synthetic, .importedLibrary]
             if record.isSuspend, record.kind == .function {
@@ -174,30 +175,43 @@ extension DataFlowSemaPhase {
                 }
             }
             importedBindings.append(binding)
+            return symbol
         }
 
         for libraryDir in libraryDirs {
             if libraryDir.hasSuffix(".klib") {
                 if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
-                    klibModules.append(module)
                     let stdlibArtifact = isStdlibArtifact(libraryDir)
                     if stdlibArtifact {
                         stdlibArtifactLoaded = true
                         stdlibModuleName = interner.intern(module.uniqueName)
                     }
                     let klibModuleFQN = interner.intern(module.uniqueName)
-                    for record in materializeKlibRecords(
+                    let (records, ir) = materializeKlibRecords(
                         module: module,
                         interner: interner,
                         diagnostics: diagnostics
-                    ) {
-                        appendImportedBinding(
+                    )
+                    var registered: [(record: ImportedLibrarySymbolRecord, symbol: SymbolID)] = []
+                    registered.reserveCapacity(records.count)
+                    for record in records {
+                        if let symbol = appendImportedBinding(
                             record,
                             metadataPath: "\(libraryDir)/ir",
                             inlineKIRDir: nil,
                             isStdlibArtifact: stdlibArtifact,
                             moduleFQN: klibModuleFQN
-                        )
+                        ) {
+                            registered.append((record: record, symbol: symbol))
+                        }
+                    }
+                    if let ir {
+                        klibModules.append(finalizeKlibModule(
+                            module: module,
+                            ir: ir,
+                            registered: registered,
+                            symbols: symbols
+                        ))
                     }
                 }
                 continue
@@ -1861,7 +1875,8 @@ extension DataFlowSemaPhase {
         symbol: SymbolID,
         symbols: SymbolTable
     ) {
-        guard record.kind == .function || record.kind == .property || record.kind == .field || record.kind == .constructor,
+        guard record.kind == .function || record.kind == .property || record.kind == .field
+              || record.kind == .backingField || record.kind == .constructor,
               record.fqName.count >= 2
         else {
             return

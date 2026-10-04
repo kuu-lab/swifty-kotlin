@@ -42,6 +42,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
         let (importedInlineFunctions, importDeferredWork) = loadImports(ctx: ctx, symbols: symbols, types: types)
         sema.importedInlineFunctions = importedInlineFunctions
+        sema.klibModules = importDeferredWork.klibModules
         importDeferredWork.lazyLoaderState?.descriptorSink = { [weak sema] symbol, descriptor in
             sema?.importedInlineFunctions.register(descriptor, for: symbol)
         }
