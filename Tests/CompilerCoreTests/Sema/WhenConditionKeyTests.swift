@@ -59,7 +59,9 @@ struct WhenConditionKeyTests {
             let first = try #require(conditions.first)
             let last = try #require(conditions.last)
             #expect(sema.bindings.identifierSymbols[first] == sema.bindings.identifierSymbols[last])
-            #expect(try #require(key(for: first, in: ctx)) != #require(key(for: last, in: ctx)))
+            let firstKey = try #require(try key(for: first, in: ctx))
+            let lastKey = try #require(try key(for: last, in: ctx))
+            #expect(firstKey != lastKey)
             #expect(try deduplicated(conditions, in: ctx) == conditions)
         }
     }
@@ -87,7 +89,7 @@ struct WhenConditionKeyTests {
         #expect(lists.count == 2)
         for conditions in lists {
             #expect(conditions.count == 2)
-            let keys = try conditions.map { try #require(key(for: $0, in: ctx)) }
+            let keys = try conditions.map { try #require(try key(for: $0, in: ctx)) }
             #expect(Set(keys).count == 2)
             #expect(try deduplicated(conditions, in: ctx) == conditions)
         }
