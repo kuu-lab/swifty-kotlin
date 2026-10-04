@@ -31,6 +31,7 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("withTimeoutOrNull"),
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
             ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
+            ctx.interner.intern("kk_await_cancellation"),
             ctx.interner.intern("flow"),
             ctx.interner.intern("channelFlow"),
             ctx.interner.intern("callbackFlow"),
@@ -130,6 +131,9 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
+            // KSP-1568: awaitCancellation() parks on the never-completing
+            // runtimeNonCancellableJob via kk_await_cancellation.
+            ctx.interner.intern("kk_await_cancellation"),
             // KUU-642: DeepRecursive callRecursive parks the caller continuation
             // and returns COROUTINE_SUSPENDED so invoke's trampoline loop can
             // start the next recursive step without growing the native stack.

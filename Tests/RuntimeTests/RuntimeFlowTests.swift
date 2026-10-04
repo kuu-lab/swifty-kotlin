@@ -181,6 +181,16 @@ func runtime_test_flow_fixed_values_emitter(_ continuation: Int, _ outThrown: Un
     return 0
 }
 
+@_cdecl("runtime_test_flow_capturing_cold_emitter")
+func runtime_test_flow_capturing_cold_emitter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let label = kk_coroutine_state_enter(continuation, 101)
+    let value = kk_coroutine_launcher_arg_get(continuation, 0)
+    _ = kk_flow_emit(0, label == 0 ? Int(value) : -1, RuntimeFlowTag.emit.rawValue)
+    _ = kk_coroutine_state_set_label(continuation, 1)
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
 @_cdecl("runtime_test_flow_map_throw_on_two")
 func runtime_test_flow_map_throw_on_two(_: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeFlowTestState.recordMapCall()
@@ -519,6 +529,26 @@ struct RuntimeFlowTests {
             #expect(runtimeFlowTestState.snapshot().values == [7])
         }
         _ = __kk_flow_release(flow)
+    }
+
+    @Test func testColdCapturingEmitterGetsFreshContinuationOnEachCollect() {
+        let emitterPtr = unsafeBitCast(
+            runtime_test_flow_capturing_cold_emitter as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let template = kk_coroutine_continuation_new(101)
+        _ = kk_coroutine_launcher_arg_set(template, 0, 42)
+        let flow = kk_flow_create(emitterPtr, template)
+        let mapped = kk_flow_emit(flow, unsafeBitCast(runtime_test_flow_map_double as RuntimeFlowUnaryEntry, to: Int.self), RuntimeFlowTag.map.rawValue)
+        for _ in 0 ..< 2 {
+            runtimeFlowTestState.reset()
+            _ = kk_flow_collect(flow, collectorPtr, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == [42])
+            runtimeFlowTestState.reset()
+            _ = kk_flow_collect(mapped, collectorPtr, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == [84])
+        }
     }
 
     @Test func testLazyMapOnlyProcessesNeededElements() {

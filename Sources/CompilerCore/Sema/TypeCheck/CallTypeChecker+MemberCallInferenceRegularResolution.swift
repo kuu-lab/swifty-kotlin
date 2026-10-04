@@ -3,6 +3,15 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    func usesOnlyInputTypes(_ candidate: SymbolID, sema: SemaModule) -> Bool {
+        let annotatedSymbols = [candidate] + (sema.symbols.functionSignature(for: candidate)?.typeParameterSymbols ?? [])
+        return annotatedSymbols.contains { symbol in
+            sema.symbols.annotations(for: symbol).contains {
+                $0.annotationFQName.split(separator: ".").last == "OnlyInputTypes"
+            }
+        }
+    }
+
     /// Names of stdlib collection members backed by bundled Kotlin sources.
     /// Shared by member-call resolution paths that compare the resolved callee
     /// text; interned-String comparisons live on `KnownCompilerNames`.
@@ -27,6 +36,15 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        if calleeName == knownNames.async,
+           isCoroutineScopeType(receiverType, sema: sema, interner: interner)
+        {
+            for argument in args {
+                if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                    sema.bindings.markCoroutineLauncherLambdaExpr(argument.expr)
+                }
+            }
+        }
         let isFlowReceiver = if sema.bindings.isFlowExpr(receiverID) {
             true
         } else if case .nameRef = ast.arena.expr(receiverID),
@@ -2044,6 +2062,14 @@ extension CallTypeChecker {
         // candidates. Keep the mutable-aware collection fallback when lookup is
         // ambiguous, while a unique source member retains normal dispatch.
         let isUniqueIteratorSource = memberNameText == "iterator" && candidates.count == 1
+        let isListSearchOrSubListMember: Bool = {
+            guard ["indexOf", "lastIndexOf", "subList"].contains(memberNameText),
+                  let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName)
+            else { return false }
+            return driver.helpers.allNominalSymbols(of: memberLookupType, types: sema.types, symbols: sema.symbols).contains {
+                sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+            }
+        }()
         // KSP-687 resolves Array.joinToString through the dedicated primitive
         // and generic-array source candidates. KSP-429's broad trailing-lambda
         // gate is for List/Iterable source calls; applying it to Array receivers
@@ -2063,6 +2089,7 @@ extension CallTypeChecker {
             || isArraySourceBackedMember
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
+            || isListSearchOrSubListMember
         let hasSourceBackedCandidate = isSourceBackedMemberName
             && (!Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
@@ -2158,6 +2185,10 @@ extension CallTypeChecker {
                 candidates = regexStringBridgeCandidates
             }
         }
+        let isDeferredAwait = candidates.contains {
+            sema.symbols.externalLinkName(for: $0) == "kk_kxmini_async_await"
+        }
+        let resolutionExpectedType = isDeferredAwait ? nil : expectedType
         var resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
@@ -2165,7 +2196,7 @@ extension CallTypeChecker {
             range: range,
             calleeName: calleeName,
             explicitTypeArgs: explicitTypeArgs,
-            expectedType: expectedType,
+            expectedType: resolutionExpectedType,
             implicitReceiverType: effectiveReceiverType,
             lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
             inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
@@ -2182,19 +2213,22 @@ extension CallTypeChecker {
            !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
            !candidates.isEmpty
         {
-            let receiverForExtensionLookup = sema.types.makeNonNullable(lookupReceiverType)
-            // Only user-declared extensions: bundled stdlib extensions carry
-            // constraints (`@OnlyInputTypes`) the resolver does not model, so
-            // retrying them would accept calls Kotlin rejects.
-            func receiverMatchingUserExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
+            let receiverForExtensionLookup = sema.types.makeNonNullable(effectiveReceiverType)
+            func receiverMatchingExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
                 scopeCandidates.filter { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate),
                           symbol.kind == .function,
-                          let declFile = symbol.declSite?.start.file,
-                          driver.sourceManager?.origin(of: declFile) == .user,
                           let signature = sema.symbols.functionSignature(for: candidate),
-                          let declaredReceiver = signature.receiverType
+                          let declaredReceiver = signature.receiverType,
+                          !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
                     else { return false }
+                    // OnlyInputTypes needs argument-only inference; do not widen
+                    // collection element types just to make a failed member viable.
+                    guard !usesOnlyInputTypes(candidate, sema: sema) else { return false }
+                    let isUser = symbol.declSite.map {
+                        driver.sourceManager?.origin(of: $0.start.file) == .user
+                    } ?? false
+                    guard isUser || sema.symbols.isSourceBackedSymbol(candidate) else { return false }
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
@@ -2204,9 +2238,9 @@ extension CallTypeChecker {
             }
             // Innermost binding first so a user extension keeps shadowing a
             // same-named one; merge the whole chain only if that finds nothing.
-            var extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookup(calleeName))
+            var extensionCandidates = receiverMatchingExtensions(ctx.scope.lookup(calleeName))
             if extensionCandidates.isEmpty {
-                extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookupMergingChain(calleeName))
+                extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
                 let retried = resolveCallRespectingLambdaReturnType(
@@ -2658,13 +2692,17 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        // `Deferred.await()` resolves here as a normal candidate (the synthetic
-        // member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift), whose
-        // signature hardcodes `Any` since `Deferred` has no class-level type
-        // parameter. Narrow it using the element type tracked by
+        // Narrow the async builder's Any contract using the element type tracked by
         // `coroutineBuilderNarrowedReturnType` for the `async {}` call that
         // produced this receiver.
-        let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_kxmini_async_await" {
+        let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_coroutine_scope_async",
+                                          let block = args.first(where: { $0.label == interner.intern("block") }) ?? args.last
+        {
+            coroutineBuilderNarrowedReturnType(
+                id: id, launcherName: "async", lambdaArgExpr: block.expr,
+                fallback: returnType, ast: ast, sema: sema
+            )
+        } else if sema.symbols.externalLinkName(for: chosen) == "kk_kxmini_async_await" {
             deferredAwaitResultType(receiverID: receiverID, fallback: returnType, ast: ast, sema: sema)
         } else {
             returnType

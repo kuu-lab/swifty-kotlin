@@ -16,10 +16,10 @@ public interface Iterable<out E> {
     public operator fun iterator(): Iterator<E>
 }
 
-// KSP-937: Create a fresh iterator for every traversal. Keep the parameter
-// name distinct from the overridden iterator() member.
 @kotlin.internal.InlineOnly
-public inline fun <T> Iterable(crossinline iteratorProducer: () -> Iterator<T>): Iterable<T> =
-    object : Iterable<T> {
+public inline fun <T> Iterable(crossinline iterator: () -> Iterator<T>): Iterable<T> {
+    val iteratorProducer = { iterator() }
+    return object : Iterable<T> {
         override fun iterator(): Iterator<T> = iteratorProducer()
     }
+}

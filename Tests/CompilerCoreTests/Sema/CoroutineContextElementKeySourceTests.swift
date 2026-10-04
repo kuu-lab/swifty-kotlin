@@ -3,6 +3,26 @@ import Testing
 
 @Suite
 struct CoroutineContextElementKeySourceTests {
+    @Test(arguments: ["key", "get", "fold", "minusKey"])
+    func elementMembersHaveOneSourceOwner(name: String) throws {
+        let ctx = makeContextFromSource("import kotlin.coroutines.CoroutineContext")
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let fqName = ["kotlin", "coroutines", "CoroutineContext", "Element", name].map(ctx.interner.intern)
+        let members = sema.symbols.lookupAll(fqName: fqName)
+        #expect(members.count == 1)
+        let member = try #require(members.first)
+        let info = try #require(sema.symbols.symbol(member))
+        #expect(info.kind == (name == "key" ? .property : .function))
+        #expect(!info.flags.contains(.synthetic))
+        #expect(info.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(member))
+        #expect(sema.symbols.externalLinkName(for: member) == nil)
+        let file = try #require(sema.symbols.sourceFileID(for: member))
+        #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/coroutines/CoroutineContext.kt")
+    }
+
     @Test
     func keyIsAnOverridableSourceProperty() throws {
         let source = """

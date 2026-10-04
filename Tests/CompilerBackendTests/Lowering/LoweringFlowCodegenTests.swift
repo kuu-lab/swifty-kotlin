@@ -246,17 +246,20 @@ struct LoweringFlowCodegenTests {
     @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
         fun main() {
             runBlocking {
-                flow {
+                flow<Int> {
                     emit(1)
                     emit(2)
-                }.transform {
+                }.transform<Int, Int> {
                     emit(it * 2)
                     emit(it * 2 + 1)
                 }
                     .collect { println(it) }
-                val only = flow {
+                val only = flow<Int> {
                     emit(7)
                 }.single()
                 println(only)
@@ -269,17 +272,38 @@ struct LoweringFlowCodegenTests {
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
-            let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
+            let allCallees = findAllKIRFunctions(in: module).filter { !$0.isInlineOnly }
+                .flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
+            let sema = try #require(ctx.sema)
 
             #expect(allCallees.contains("kk_flow_create"))
             #expect(allCallees.contains("kk_flow_emit"))
             #expect(allCallees.contains("kk_flow_collect"))
             #expect(allCallees.contains("single"))
+            #expect(allCallees.contains("transform"))
             #expect(!allCallees.contains("flow"))
-            #expect(!allCallees.contains("transform"))
             #expect(!allCallees.contains("collect"))
-            #expect(!allCallees.contains("emit"))
             #expect(!allCallees.contains("__kk_flow_single"))
+
+            // Operators stay source-backed; only cold-flow primitives use runtime links.
+            for function in findAllKIRFunctions(in: module) where !function.isInlineOnly {
+                for instruction in function.body {
+                    guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                          ["transform", "emit"].contains(ctx.interner.resolve(callee))
+                    else { continue }
+                    let chosenSymbol = try #require(symbol, "Unresolved Flow call remains after lowering")
+                    #expect(sema.symbols.isSourceBackedSymbol(chosenSymbol))
+                    let declaration = try #require(sema.symbols.symbol(chosenSymbol))
+                    let fqName = declaration.fqName.map(ctx.interner.resolve).joined(separator: ".")
+                    #expect(fqName.hasPrefix("kotlinx.coroutines.flow."))
+                }
+            }
+
+            try assertFlowExecutableOutput(
+                source: source,
+                moduleName: "FlowLoweringRewriteExecutable",
+                expectedStdout: "2\n3\n4\n5\n7\n"
+            )
         }
     }
 

@@ -249,8 +249,40 @@ enum InlineErasedLambdaABI {
             arena: module.arena,
             resultType: resultType ?? sema.types.anyType,
             requireNonNull: true,
+            sema: sema,
+            cache: ctx.nominalDispatchCache,
             into: &body.instructions
         )
+    }
+
+    /// Binds a non-null enum argument to an interface-typed parameter of a
+    /// spliced body through a parameter-typed `copy`, so ABILoweringPass boxes
+    /// it (`kk_enum_box_ordinal` + itable registration) the way it boxes the
+    /// argument of the equivalent non-inline call. Substituting the raw ordinal
+    /// directly would leave an interface member call in the body dispatching
+    /// on a bare Int, since nothing downstream sees the enum-to-interface edge.
+    static func bindEnumArgumentToInterfaceParameter(
+        _ argument: KIRExprID,
+        parameterType: TypeID,
+        module: KIRModule,
+        ctx: KIRContext,
+        into body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        guard let sema = ctx.sema,
+              let argumentType = module.arena.exprType(argument),
+              case let .classType(argumentClass) = sema.types.kind(of: argumentType),
+              argumentClass.nullability == .nonNull,
+              let argumentInfo = sema.symbols.symbol(argumentClass.classSymbol),
+              argumentInfo.kind == .enumClass,
+              !argumentInfo.flags.contains(.synthetic),
+              case let .classType(parameterClass) = sema.types.kind(of: parameterType),
+              sema.symbols.symbol(parameterClass.classSymbol)?.kind == .interface
+        else {
+            return argument
+        }
+        let bound = module.arena.appendTemporary(type: parameterType)
+        body.append(.copy(from: argument, to: bound))
+        return bound
     }
 
     static func boxPrimitiveArgumentsForErasedParameters(
