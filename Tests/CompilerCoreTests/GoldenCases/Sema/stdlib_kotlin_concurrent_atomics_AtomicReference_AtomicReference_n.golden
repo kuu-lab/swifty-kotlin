@@ -22,8 +22,8 @@ expr e@11:37 string(exchanged) type=String
 expr e@11:21#1 memberCall recv=e@11:21 callee=exchange args=[_:e@11:37] type=String call=kotlin.concurrent.atomics.AtomicReference.exchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicReference<T0>;params=T0;gen=1] targs=[String]
 expr e@11:5 localDecl exchanged mutable=0 type=_ init=e@11:21#1 type=Unit ref=__local_2.exchanged[kind=local]
 expr e@12:18 name(atomic) type=kotlin.concurrent.atomics.AtomicReference<String> ref=__local_0.atomic[kind=local]
-expr e@12:35 string(getAndSet) type=String
-expr e@12:18#1 memberCall recv=e@12:18 callee=getAndSet args=[_:e@12:35] type=String call=kotlin.concurrent.atomics.AtomicReference.getAndSet[kind=fun;recv=kotlin.concurrent.atomics.AtomicReference<T0>;params=T0;gen=1] targs=[String]
+expr e@12:34 string(next) type=String
+expr e@12:18#1 memberCall recv=e@12:18 callee=exchange args=[_:e@12:34] type=String call=kotlin.concurrent.atomics.AtomicReference.exchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicReference<T0>;params=T0;gen=1] targs=[String]
 expr e@12:5 localDecl oldSet mutable=0 type=_ init=e@12:18#1 type=Unit ref=__local_3.oldSet[kind=local]
 expr e@13:20 name(atomic) type=kotlin.concurrent.atomics.AtomicReference<String> ref=__local_0.atomic[kind=local]
 expr e@13:20#1 memberCall recv=e@13:20 callee=load args=[] type=String call=kotlin.concurrent.atomics.AtomicReference.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicReference<T0>;params=;gen=1] targs=[String]
