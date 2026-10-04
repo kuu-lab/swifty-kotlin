@@ -2646,8 +2646,9 @@
     - `kotlin.ranges.ClosedRange.isEmpty` — fun ClosedRange.isEmpty(): Boolean  -- `open fun isEmpty(): kotlin/Boolean`
     - `kotlin.ranges.ClosedRange.start` — val ClosedRange.start: #A  -- `abstract val start`
 
-- [ ] KSP-1301: kotlin.ranges.IntProgression.IntProgression の未実装 stdlib API を実装する（7 件）
+- [x] KSP-1301: kotlin.ranges.IntProgression.IntProgression の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.ranges.IntProgression` / receiver `IntProgression`
+  - 完了根拠（2026-10-04）: `IntProgression/Stdlib.kt` を `IntProgression/IntProgression.kt` に改名・拡充し、7 メンバーを source-backed に実装。`first`/`last`/`step` の synthetic 登録と旧 `iterator` 拡張を除去し、`IntProgressionIterator` を `IntIterator` に特殊化。range box 用の共有 storage bridge・ABI と既存の dispatch/type-check 処理は維持。Sema Golden 全体、`RangeSyntheticMemberLinkTests`、ABI・Golden metadata 契約テスト、新規ケースを含む range 関連 kotlinc diff 8 件が green。全 Golden・全 diff corpus はローカル未実行。
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/IntProgression/IntProgression.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_IntProgression_IntProgression_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。

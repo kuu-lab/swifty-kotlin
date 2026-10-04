@@ -29,14 +29,14 @@ package kotlin.ranges
 // `a until b` (b <= a) with step 0 rather than with first/last bounds that
 // exclude each other (__kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
 
-internal class IntProgressionIterator(first: Int, last: Int, private val step: Int) : Iterator<Int> {
+internal class IntProgressionIterator(first: Int, last: Int, private val step: Int) : IntIterator() {
     private val finalElement: Int = last
     private var nextValue: Int = first
     private var hasNextValue: Boolean = if (step > 0) first <= last else if (step < 0) first >= last else false
 
     override fun hasNext(): Boolean = hasNextValue
 
-    override fun next(): Int {
+    override fun nextInt(): Int {
         if (!hasNextValue) throw NoSuchElementException()
         val value = nextValue
         val candidate = value + step
@@ -81,7 +81,6 @@ internal class CharProgressionIterator(first: Char, last: Char, private val step
 }
 
 public operator fun IntRange.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
-public operator fun IntProgression.iterator(): Iterator<Int> = IntProgressionIterator(this.first, this.last, this.step)
 public operator fun LongRange.iterator(): Iterator<Long> = LongProgressionIterator(this.first, this.last, this.step)
 public operator fun CharRange.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
 public operator fun CharProgression.iterator(): Iterator<Char> = CharProgressionIterator(this.first, this.last, this.step)
