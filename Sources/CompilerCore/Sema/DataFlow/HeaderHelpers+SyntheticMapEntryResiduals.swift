@@ -1,6 +1,6 @@
-// Map.Entry is owned by bundled Map.kt. Bootstrap shells remain available
-// before source headers are collected and for no-stdlib compilation.
-// MutableMap.MutableEntry still uses its residual shell.
+// Map.Entry and MutableMap.MutableEntry are owned by bundled Kotlin source.
+// Bootstrap shells remain available before source headers are collected and
+// for no-stdlib compilation.
 
 extension DataFlowSemaPhase {
     func registerSyntheticMapEntryResiduals(
@@ -112,7 +112,7 @@ extension DataFlowSemaPhase {
             name: "V"
         )
         types.setNominalTypeParameterSymbols([mutableKeySymbol, mutableValueSymbol], for: mutableEntrySymbol)
-        types.setNominalTypeParameterVariances([.out, .out], for: mutableEntrySymbol)
+        types.setNominalTypeParameterVariances([.invariant, .invariant], for: mutableEntrySymbol)
 
         let mutableKeyType = types.make(.typeParam(TypeParamType(symbol: mutableKeySymbol, nullability: .nonNull)))
         let mutableValueType = types.make(.typeParam(TypeParamType(symbol: mutableValueSymbol, nullability: .nonNull)))

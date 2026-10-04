@@ -133,13 +133,15 @@ func emitThrowingCall<C: RangeReplaceableCollection>(
 /// External members lower to their runtime link name; the resolved symbol is
 /// carried along so that source-defined members (e.g. bundled `kotlin.Pair`)
 /// dispatch to the compiled function instead of a same-named runtime export,
-/// and so that ABI lowering can unbox generic component results.
+/// and so that ABI lowering can unbox generic component results. `candidate`
+/// is the resolved member itself, which `emitDestructuringComponentCall`
+/// needs for virtual dispatch even when `symbol` is withheld from a direct call.
 func resolveDestructuringComponentCallee(
     componentName: InternedString,
     receiverType: TypeID,
     sema: SemaModule,
     interner: StringInterner
-) -> (symbol: SymbolID?, callee: InternedString) {
+) -> (symbol: SymbolID?, callee: InternedString, candidate: SymbolID?) {
     let chosen = TypeCheckHelpers().collectMemberFunctionCandidates(
         named: componentName,
         receiverType: receiverType,
@@ -147,13 +149,57 @@ func resolveDestructuringComponentCallee(
         interner: interner
     ).first
     guard let chosen else {
-        return (nil, componentName)
+        return (nil, componentName, nil)
     }
     let symbol = sema.symbols.isSourceBackedSymbol(chosen) ? chosen : nil
     if let linkName = sema.symbols.externalLinkName(for: chosen), !linkName.isEmpty {
-        return (symbol, interner.intern(linkName))
+        return (symbol, interner.intern(linkName), chosen)
     }
-    return (symbol, componentName)
+    return (symbol, componentName, chosen)
+}
+
+extension CallLowerer {
+    /// Emits `receiver.componentN()` for a destructuring declaration. An open
+    /// `componentN` overridden in a subclass must dispatch on the receiver's
+    /// runtime type (`val (x, y): P = Q(...)` calls `Q.component1`), so the
+    /// resolved member goes through `tryEmitVirtualDispatch` first; only a
+    /// non-virtual member falls back to the direct `symbol`/`callee` call.
+    func emitDestructuringComponentCall(
+        candidate: SymbolID?,
+        symbol: SymbolID?,
+        callee: InternedString,
+        receiverExpr: ExprID?,
+        receiverID: KIRExprID,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        if let virtualInstruction = tryEmitVirtualDispatch(
+            chosenCallee: candidate,
+            calleeName: callee,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: receiverID,
+            isSuperCall: false,
+            finalArguments: [receiverID],
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner
+        ) {
+            instructions.append(virtualInstruction)
+            return
+        }
+        instructions.append(.call(
+            symbol: symbol,
+            callee: callee,
+            arguments: [receiverID],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
 }
 
 /// Unboxes `exprID` via `kk_unbox_int` when `staticType` is a concrete
@@ -426,16 +472,26 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
         ))
     }
 
-    // The interface->slot mapping above is enough for a method-shaped
-    // interface member (registered per-object like any other class via
-    // `appendObjectItableMethodRegistrations`, which this box never runs).
-    // A *property* member (`Named.label`) additionally needs its getter
-    // registered as the itable method pointer at the property's slot --
-    // `appendObjectItablePropertyGetterRegistrations` needs the full
-    // `SemaModule` (nominal layouts, member lookup), which not every caller
-    // of this boxing helper has threaded through yet; skip it there rather
-    // than widen every call site's signature.
+    // The interface->slot mapping above only tells the runtime where an
+    // interface's slots live; each member still needs a function pointer
+    // registered at its slot -- what `appendObjectItableMethodRegistrations`
+    // does from every other class's `<init>`, which this box never runs.
+    // Both methods and property getters need the full `SemaModule` (nominal
+    // layouts, member lookup), which not every caller of this boxing helper
+    // has threaded through yet; skip them there rather than widen every call
+    // site's signature.
     if let sema {
+        appendEnumBoxItableMethodRegistrations(
+            boxedValue: boxedValue,
+            classSymbol: classSymbol,
+            interfaceSymbols: interfaceSupertypes.sorted(by: { $0.rawValue < $1.rawValue }),
+            objectLayout: objectLayout,
+            sema: sema,
+            cache: cache ?? KIRNominalDispatchCache(),
+            interner: interner,
+            arena: arena,
+            into: &instructions
+        )
         appendObjectItablePropertyGetterRegistrations(
             objectValue: boxedValue,
             nominalSymbol: classSymbol,
@@ -445,5 +501,106 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
             interner: interner,
             instructions: &instructions
         )
+    }
+}
+
+/// Registers the itable method pointers of an enum box (see
+/// `appendEnumBoxItableRegistrations`). An enum-owned implementation -- the
+/// enum class's own override, or the `$enumEntryDispatch$` helper that
+/// switches on the ordinal to reach entry-body overrides -- takes the raw
+/// ordinal as its receiver, so it is registered through an
+/// `itableBridgeSymbolForMethod` bridge that unboxes the dispatched box. An
+/// interface default body keeps the box as its receiver and is registered
+/// as-is; anything else (an abstract member with no enum-owned override, or
+/// an implementation inherited from `kotlin.Enum`) stays unregistered as
+/// before.
+private func appendEnumBoxItableMethodRegistrations<C: RangeReplaceableCollection>(
+    boxedValue: KIRExprID,
+    classSymbol: SymbolID,
+    interfaceSymbols: [SymbolID],
+    objectLayout: NominalLayout,
+    sema: SemaModule,
+    cache: KIRNominalDispatchCache,
+    interner: StringInterner,
+    arena: KIRArena,
+    into instructions: inout C
+) where C.Element == KIRInstruction {
+    guard let classInfo = sema.symbols.symbol(classSymbol) else { return }
+
+    func entryDispatchHelper(for baseSymbol: SymbolID) -> SymbolID? {
+        guard let baseInfo = sema.symbols.symbol(baseSymbol) else { return nil }
+        let helperName = NameMangler.enumEntryDispatchHelperName(for: baseInfo, interner: interner)
+        return sema.symbols.lookupAll(fqName: classInfo.fqName + [helperName]).first { candidate in
+            sema.symbols.symbol(candidate)?.kind == .function
+                && sema.symbols.parentSymbol(for: candidate) == classSymbol
+                && sema.symbols.enumEntryDispatchBaseSymbol(for: candidate) == baseSymbol
+        }
+    }
+
+    let intType = sema.types.intType
+    let registerCallee = interner.intern("kk_object_register_itable_method")
+    for interfaceSymbol in interfaceSymbols {
+        guard let ifaceSlot = objectLayout.itableSlots[interfaceSymbol],
+              let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol)
+        else {
+            continue
+        }
+        let entries = kirItableMethodEntries(
+            for: interfaceSymbol, interfaceLayout: interfaceLayout, sema: sema, interner: interner
+        )
+        guard !entries.isEmpty else { continue }
+        let ifaceSlotExpr = arena.appendExpr(.intLiteral(Int64(ifaceSlot)), type: intType)
+        instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(Int64(ifaceSlot))))
+
+        for (methodSymbol, methodSlot) in entries {
+            let implementation = cache.itableImplementation(
+                for: methodSymbol, in: classSymbol, sema: sema, interner: interner
+            )
+            // `registerEnumEntryDispatchFunctions` keys a helper on every
+            // base an entry body overrides: the interface method itself, or
+            // the enum's own override of it when the enum declares one.
+            let target = entryDispatchHelper(for: methodSymbol)
+                ?? entryDispatchHelper(for: implementation)
+                ?? implementation
+            let registered: SymbolID
+            if sema.symbols.parentSymbol(for: target) == classSymbol {
+                guard let implementationSignature = sema.symbols.functionSignature(for: target) else {
+                    continue
+                }
+                registered = itableBridgeSymbolForMethod(
+                    interfaceMethod: methodSymbol,
+                    implementation: target,
+                    nominalSymbol: classSymbol,
+                    implementationSignature: implementationSignature,
+                    arena: arena,
+                    sema: sema,
+                    interner: interner
+                )
+            } else if target == methodSymbol,
+                      sema.symbols.parentSymbol(for: target) == interfaceSymbol,
+                      let targetInfo = sema.symbols.symbol(target),
+                      !targetInfo.flags.contains(.abstractType),
+                      !targetInfo.flags.contains(.synthetic),
+                      sema.symbols.externalLinkName(for: target) == nil
+            {
+                registered = target
+            } else {
+                continue
+            }
+
+            let methodSlotExpr = arena.appendExpr(.intLiteral(Int64(methodSlot)), type: intType)
+            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(Int64(methodSlot))))
+            let methodFnExpr = arena.appendExpr(.symbolRef(registered), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registered)))
+            let registerResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: registerCallee,
+                arguments: [boxedValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
+                result: registerResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
     }
 }

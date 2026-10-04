@@ -1,8 +1,8 @@
 symbol fq=__local_0.readonly[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map<String, Int>
 symbol fq=__local_1.mutable[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String, Int>
 symbol fq=__local_2.missingValue[kind=local] kind=local vis=private flags=_ type=Int?
-symbol fq=__local_3.keyView[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Set<String>
-symbol fq=__local_4.valueView[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Collection<Int>
+symbol fq=__local_3.keyView[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableSet<String>
+symbol fq=__local_4.valueView[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableCollection<Int>
 symbol fq=__local_5.entryView[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int>>
 symbol fq=golden.sema.ProbeMutableMap[kind=class] kind=class vis=public flags=abstractType|openType
 symbol fq=golden.sema.acceptMutable.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
@@ -32,10 +32,10 @@ expr e@18:5 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__
 expr e@18:20 name(missing) type=String ref=golden.sema.inheritedMapSurface.$2.missing[kind=vparam]
 expr e@18:5#1 memberCall recv=e@18:5 callee=remove args=[_:e@18:20] type=Int? call=kotlin.collections.MutableMap.remove[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0;gen=2] targs=[String,Int]
 expr e@19:19 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.mutable[kind=local]
-expr e@19:19#1 memberCall recv=e@19:19 callee=keys args=[] type=kotlin.collections.Set<String> ref=kotlin.collections.Map.keys[kind=prop]
+expr e@19:19#1 memberCall recv=e@19:19 callee=keys args=[] type=kotlin.collections.MutableSet<String> ref=kotlin.collections.MutableMap.keys[kind=prop]
 expr e@19:5 localDecl keyView mutable=0 type=_ init=e@19:19#1 type=Unit ref=__local_3.keyView[kind=local]
 expr e@20:21 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.mutable[kind=local]
-expr e@20:21#1 memberCall recv=e@20:21 callee=values args=[] type=kotlin.collections.Collection<Int> ref=kotlin.collections.Map.values[kind=prop]
+expr e@20:21#1 memberCall recv=e@20:21 callee=values args=[] type=kotlin.collections.MutableCollection<Int> ref=kotlin.collections.MutableMap.values[kind=prop]
 expr e@20:5 localDecl valueView mutable=0 type=_ init=e@20:21#1 type=Unit ref=__local_4.valueView[kind=local]
 expr e@21:21 name(readonly) type=kotlin.collections.Map<String, Int> ref=__local_0.readonly[kind=local]
 expr e@21:21#1 memberCall recv=e@21:21 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int>> ref=kotlin.collections.Map.entries[kind=prop]
@@ -47,9 +47,9 @@ expr e@23:5 name(values) type=golden.sema.ProbeMutableMap ref=golden.sema.inheri
 expr e@23:5#1 memberCall recv=e@23:5 callee=hashCode args=[] type=Int call=kotlin.collections.AbstractMap.hashCode[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=;gen=2] targs=[String,Int]
 expr e@24:5 name(values) type=golden.sema.ProbeMutableMap ref=golden.sema.inheritedMapSurface.$2.values[kind=vparam]
 expr e@24:5#1 memberCall recv=e@24:5 callee=toString args=[] type=String call=kotlin.collections.AbstractMap.toString[kind=fun;recv=kotlin.collections.AbstractMap<T0,T1>;params=;gen=2] targs=[String,Int]
-expr e@25:5 name(keyView) type=kotlin.collections.Set<String> ref=__local_3.keyView[kind=local]
+expr e@25:5 name(keyView) type=kotlin.collections.MutableSet<String> ref=__local_3.keyView[kind=local]
 expr e@25:5#1 memberCall recv=e@25:5 callee=size args=[] type=Int ref=kotlin.collections.Set.size[kind=prop]
-expr e@26:5 name(valueView) type=kotlin.collections.Collection<Int> ref=__local_4.valueView[kind=local]
+expr e@26:5 name(valueView) type=kotlin.collections.MutableCollection<Int> ref=__local_4.valueView[kind=local]
 expr e@26:5#1 memberCall recv=e@26:5 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
 expr e@27:5 name(entryView) type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int>> ref=__local_5.entryView[kind=local]
 expr e@27:5#1 memberCall recv=e@27:5 callee=size args=[] type=Int ref=kotlin.collections.Set.size[kind=prop]

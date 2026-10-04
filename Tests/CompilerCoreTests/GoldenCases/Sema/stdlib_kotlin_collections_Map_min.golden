@@ -75,13 +75,13 @@ expr e@18:5 name(map) type=kotlin.collections.Map<String, Int> ref=golden.sema.m
 expr e@18:19 call callee=e@18:19#1 args=[] type=kotlin.Comparator<Int> call=kotlin.comparisons.naturalOrder[kind=fun;params=;gen=1] targs=[Int]
 expr e@18:42 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-7
 expr e@18:42#1 memberCall recv=e@18:42 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@18:40 lambda params=[] body=e@18:42#1 label=minOfWith type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any
+expr e@18:40 lambda params=[] body=e@18:42#1 label=minOfWith type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
 expr e@18:5#1 memberCall recv=e@18:5 callee=minOfWith args=[_:e@18:19,_:e@18:40] type=Int call=kotlin.collections.minOfWith[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=kotlin.Comparator<in T2>,fn{p=kotlin.collections.Map.Entry<T0,T1>;ret=T2};gen=3] targs=[String,Int,Int]
 expr e@21:5 name(map) type=kotlin.collections.Map<String, Int> ref=golden.sema.mapMinOfWithOrNull.$8.map[kind=vparam]
 expr e@21:25 call callee=e@21:25#1 args=[] type=kotlin.Comparator<Int> call=kotlin.comparisons.naturalOrder[kind=fun;params=;gen=1] targs=[Int]
 expr e@21:48 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-8
 expr e@21:48#1 memberCall recv=e@21:48 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@21:46 lambda params=[] body=e@21:48#1 label=minOfWithOrNull type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any
+expr e@21:46 lambda params=[] body=e@21:48#1 label=minOfWithOrNull type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
 expr e@21:5#1 memberCall recv=e@21:5 callee=minOfWithOrNull args=[_:e@21:25,_:e@21:46] type=Int? call=kotlin.collections.minOfWithOrNull[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=kotlin.Comparator<in T2>,fn{p=kotlin.collections.Map.Entry<T0,T1>;ret=T2};gen=3] targs=[String,Int,Int]
 expr e@24:5 name(map) type=kotlin.collections.Map<String, Int> ref=golden.sema.mapMinWith.$9.map[kind=vparam]
 expr e@24:29 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-9

@@ -309,6 +309,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// so that any subsequent resume call is rejected with an `IllegalStateException`.
     /// Reset by `resetResumeState()` when the coroutine advances to the next suspend point.
     private var hasResumed: Bool = false
+    private var cancellableDelivery: RuntimeCancellableContinuation?
     private var delayTimers: [ObjectIdentifier: DispatchSourceTimer]
     private static let taskStateLock = NSLock()
     nonisolated(unsafe) private static var taskStateMap: [RuntimeTaskKey: RuntimeContinuationState] = [:]
@@ -490,6 +491,25 @@ final class RuntimeContinuationState: @unchecked Sendable {
             return
         }
         resumeContinuation = boxedContinuation
+        stateLock.unlock()
+    }
+
+    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
+        stateLock.lock()
+        cancellableDelivery = continuation
+        stateLock.unlock()
+    }
+
+    func consumeCancellableDelivery() {
+        stateLock.lock()
+        let delivery = cancellableDelivery
+        cancellableDelivery = nil
+        stateLock.unlock()
+        guard let delivery else { return }
+        let result = delivery.takeResultForDelivery()
+        stateLock.lock()
+        completion = Int64(runtimeResultValueOrNull(result))
+        thrownException = runtimeResultIsSuccess(result) ? 0 : runtimeResultExceptionOrNull(result)
         stateLock.unlock()
     }
 
@@ -806,6 +826,12 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return isCompleted && thrownException != 0
     }
 
+    func completionSnapshot() -> (completed: Bool, value: Int, exception: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (isCompleted, result, thrownException)
+    }
+
     func complete(with result: Int) {
         lock.lock()
         guard !isCompleted else {
@@ -841,22 +867,20 @@ final class RuntimeAsyncTask: @unchecked Sendable {
 
     func cancel() {
         lock.lock()
+        guard !isCompleted else {
+            lock.unlock()
+            return
+        }
         isCancelled = true
-        let wasCompleted = isCompleted
-        if !wasCompleted {
-            isCompleted = true
-        }
-        let resumers = wasCompleted ? [] : completionResumers
-        if !wasCompleted {
-            completionResumers = []
-        }
+        thrownException = runtimeAllocateCancellationException()
+        isCompleted = true
+        let resumers = completionResumers
+        completionResumers = []
         let snapshotResult = result
         let snapshotThrown = thrownException
         lock.unlock()
-        if !wasCompleted {
-            for resumer in resumers {
-                resumer(snapshotResult, snapshotThrown)
-            }
+        for resumer in resumers {
+            resumer(snapshotResult, snapshotThrown)
         }
     }
 
@@ -1206,6 +1230,12 @@ final class RuntimeJobHandle: @unchecked Sendable {
         body()
     }
 
+    func markBodyless() {
+        lock.lock()
+        hasStartedExecuting = false
+        lock.unlock()
+    }
+
     func registerChild(_ childHandle: Int) {
         lock.lock()
         childJobHandles.append(childHandle)
@@ -1281,6 +1311,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
         case .new, .active, .completing, .cancelling:
             return 0
         }
+    }
+
+    func completionSnapshot() -> (completed: Bool, value: Int, exception: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        let cause = completionCauseLocked()
+        return (state.isCompleted, result, cause == runtimeNullSentinelInt ? 0 : cause)
     }
 
     /// KUU-CORO-101: the value `invokeOnCompletion` handlers receive as
@@ -1550,7 +1587,11 @@ private enum RuntimeJobOrTask {
     case other
 
     init(_ object: AnyObject) {
-        if let job = object as? RuntimeJobHandle {
+        if let wrapper = object as? RuntimeObjectBox,
+           let job = runtimeJobHandle(from: wrapper.coroutineJobHandle)
+        {
+            self = .job(job)
+        } else if let job = object as? RuntimeJobHandle {
             self = .job(job)
         } else if let task = object as? RuntimeAsyncTask {
             self = .task(task)
@@ -1576,6 +1617,12 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// Cancellation cause stored when cancel(message:cause:) is called on this scope.
     private(set) var cancellationCause: Int = 0
     let isSupervisor: Bool
+    /// The Job this scope installs into its block's coroutine context
+    /// (KUU-964). `coroutineScope { }`/`supervisorScope { }` create a fresh
+    /// child job at scope entry so `currentCoroutineContext().job` resolves
+    /// inside the block; scopes built around an explicit context adopt the
+    /// context's Job element instead.
+    private(set) var job: RuntimeJobHandle?
     fileprivate var parent: RuntimeCoroutineScope?
     /// Optional debug name assigned via CoroutineName context element (STDLIB-CORO-077).
     var name: String?
@@ -1643,6 +1690,50 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         RuntimeLiveHandles.unregister(self)
     }
 
+    /// KUU-964: create this scope's own Job — the element `coroutineContext.job`
+    /// resolves to inside the scope's block — mark it started, and parent it to
+    /// the job currently in force so a parent cancellation reaches this scope's
+    /// children. The job is kept alive for the process lifetime (same bounded
+    /// leak `kk_job_new` accepts) so a `CoroutineContext` handle that outlives
+    /// the scope still resolves to a valid job object.
+    @discardableResult
+    func installJob() -> RuntimeJobHandle {
+        let scopeJob = RuntimeJobHandle()
+        scopeJob.isSupervisorMarker = isSupervisor
+        scopeJob.markStarted()
+        job = scopeJob
+        installJobCancellationLink(scopeJob)
+        let scopeJobRaw = runtimeRegisterObject(scopeJob)
+        RuntimeJobHandle.current?.registerChild(scopeJobRaw)
+        return scopeJob
+    }
+
+    /// Adopt `existing` (e.g. the Job element a `CoroutineScope(context)` was
+    /// built around) as this scope's job so scope cancellation and a cancel
+    /// reaching the job propagate both ways.
+    func adoptJob(_ existing: RuntimeJobHandle) {
+        job = existing
+        installJobCancellationLink(existing)
+    }
+
+    /// When the scope's job starts cancelling (e.g. via its parent), tear down
+    /// the scope — `cancel()` then cancels every registered child and re-enters
+    /// `job.cancel()`, which is a no-op by then. The job side references the
+    /// scope weakly: the job is registered for the process lifetime while the
+    /// scope can be released at `kk_coroutine_scope_wait`.
+    ///
+    /// Completion handlers run on EVERY terminal transition — including the
+    /// normal `complete()` `kk_coroutine_scope_wait` performs when the scope
+    /// finishes — so only a job that is actually cancelling (or was cancelled
+    /// before it started) may tear the scope down; a normal completion must
+    /// not cancel the scope's children.
+    private func installJobCancellationLink(_ scopeJob: RuntimeJobHandle) {
+        _ = scopeJob.addCompletionHandler(onCancelling: true) { [weak self, weak scopeJob] _ in
+            guard scopeJob?.cancellationSnapshot() == true else { return }
+            self?.cancel()
+        }
+    }
+
     func registerChild(_ handle: Int) {
         // Take an additional retain so the scope keeps the child alive
         // even if user code calls takeRetainedValue (e.g. kk_kxmini_async_await)
@@ -1660,9 +1751,17 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
 
     func cancel() {
         lock.lock()
+        if isCancelled {
+            lock.unlock()
+            return
+        }
         isCancelled = true
         let currentChildren = children
+        let scopeJob = job
+        let message = cancellationMessage
+        let cause = cancellationCause
         lock.unlock()
+        scopeJob?.cancel(message: message, cause: cause)
         for child in currentChildren {
             runtimeCancelChild(child)
         }
@@ -1672,13 +1771,17 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// CancellationException carries the correct values.
     func cancel(message: String, cause: Int) {
         lock.lock()
-        if !isCancelled {
-            cancellationMessage = message
-            cancellationCause = cause
+        if isCancelled {
+            lock.unlock()
+            return
         }
+        cancellationMessage = message
+        cancellationCause = cause
         isCancelled = true
         let currentChildren = children
+        let scopeJob = job
         lock.unlock()
+        scopeJob?.cancel(message: message, cause: cause)
         for child in currentChildren {
             runtimeCancelChild(child)
         }
@@ -1819,9 +1922,32 @@ enum RuntimeCoroutineScopeTaskKey {
         return box.key
     }
 
+    /// The task key currently installed on this thread, or nil. Unlike
+    /// `currentTaskKey`, this never mints a key — it reports what a nested
+    /// suspend-entry loop found installed when it started, so the loop can
+    /// hand the same key back on exit (KUU-964: a `coroutineScope`/`supervisorScope`
+    /// block runs on its own entry loop; without restoring the caller's key,
+    /// `RuntimeContinuationState.current`/`RuntimeCoroutineScope.current` stop
+    /// resolving for the rest of the caller's burst, and `coroutineContext.job`
+    /// throws in the enclosing scope).
+    static var installedKey: RuntimeTaskKey? {
+        let box: RuntimeTaskKeyBox? = pthreadGetValue(pthreadKey)
+        return box?.key
+    }
+
     /// Remove the task key for this thread.
     static func removeKey() {
         pthreadSetValue(pthreadKey, nil as RuntimeTaskKeyBox?)
+    }
+
+    /// Restore `key` — captured via `installedKey` before a nested suspend-entry
+    /// loop minted its own — or remove the key entirely when there was none.
+    static func restoreKey(_ key: RuntimeTaskKey?) {
+        if let key {
+            pthreadSetValue(pthreadKey, RuntimeTaskKeyBox(key: key))
+        } else {
+            removeKey()
+        }
     }
 }
 
@@ -1956,6 +2082,33 @@ public func kk_start_coroutine_unintercepted_or_return_no_receiver(
     fatalError("kk_start_coroutine_unintercepted_or_return_no_receiver is rewritten by CoroutineLoweringPass")
 }
 
+/// Link-time marker for the source-backed receiver-bearing
+/// `createCoroutineUnintercepted`. `CoroutineLoweringPass` rewrites every call
+/// into `kk_create_coroutine_unintercepted`; this stub only exists so the
+/// standalone copy of the inline caller in the stdlib library links.
+@_cdecl("kk_create_coroutine_unintercepted_with_receiver")
+public func kk_create_coroutine_unintercepted_with_receiver(
+    _ functionRaw: Int,
+    _ functionContextRaw: Int,
+    _ receiverRaw: Int,
+    _ completionContinuation: Int
+) -> Int {
+    fatalError("kk_create_coroutine_unintercepted_with_receiver is rewritten by CoroutineLoweringPass")
+}
+
+/// Link-time marker for the source-backed receiver-bearing
+/// `startCoroutineUninterceptedOrReturn`; see the create marker above.
+@_cdecl("kk_start_coroutine_unintercepted_or_return_with_receiver")
+public func kk_start_coroutine_unintercepted_or_return_with_receiver(
+    _ functionRaw: Int,
+    _ functionContextRaw: Int,
+    _ receiverRaw: Int,
+    _ completionContinuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    fatalError("kk_start_coroutine_unintercepted_or_return_with_receiver is rewritten by CoroutineLoweringPass")
+}
+
 @_cdecl("kk_start_coroutine_unintercepted_or_return")
 public func kk_start_coroutine_unintercepted_or_return(
     _ entryPointRaw: Int,
@@ -2036,6 +2189,8 @@ private func startCoroutineUninterceptedOrReturn(
         return 0
     }
 
+    let outerTaskKey = RuntimeCoroutineScopeTaskKey.installedKey
+    let outerJob = RuntimeJobHandle.current
     let taskKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
     RuntimeCoroutineScope.installScope(state.scope, forTask: taskKey)
     RuntimeContinuationState.installState(state, forTask: taskKey)
@@ -2043,8 +2198,8 @@ private func startCoroutineUninterceptedOrReturn(
     defer {
         RuntimeCoroutineScope.removeScope(forTask: taskKey)
         RuntimeContinuationState.removeCurrent(forTask: taskKey)
-        RuntimeCoroutineScopeTaskKey.removeKey()
-        RuntimeJobHandle.current = nil
+        RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
+        RuntimeJobHandle.current = outerJob
     }
 
     var thrownValue = 0
@@ -2678,6 +2833,16 @@ public func kk_kxmini_run_blocking_with_cont(
     if let contState, contState.scope == nil {
         contState.scope = RuntimeCoroutineScope.current
     }
+    if let contState, contState.jobHandle == nil {
+        // KUU-964: a scoped block runs inside its scope's own Job — the
+        // SupervisorJob a `supervisorScope { }` installed, or the child Job a
+        // `coroutineScope { }` installed — so `currentCoroutineContext().job`
+        // resolves inside the block (kotlinx's contract) and children launched
+        // here parent to the scope's job, preserving failure isolation. Only
+        // when the scope carries no Job (e.g. a Job-less `CoroutineScope(context)`)
+        // does the invoked value keep the caller's job.
+        contState.jobHandle = contState.scope?.job ?? RuntimeContinuationState.current?.jobHandle
+    }
     if let contState {
         // A non-capturing flow emitter enters through the direct C callback and
         // creates this continuation before the nested suspend loop installs its
@@ -3266,6 +3431,31 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
 
 @_cdecl("kk_kxmini_async_await")
 public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
+    if let job = runtimeJobHandle(from: handle) {
+        job.markConsumedByUserCode()
+        job.startIfNeeded()
+        if let callerState = runtimeContinuationState(from: continuation) {
+            let snapshot = job.completionSnapshot()
+            if snapshot.completed {
+                if snapshot.exception != 0 {
+                    callerState.thrownException = snapshot.exception
+                    callerState.signalResume()
+                    return Int(bitPattern: kk_coroutine_suspended())
+                }
+                return snapshot.value
+            }
+            job.addJoinResumer { _ in
+                let completed = job.completionSnapshot()
+                if completed.exception != 0 {
+                    callerState.resume(withException: completed.exception)
+                } else {
+                    callerState.resume(with: completed.value)
+                }
+            }
+            return Int(bitPattern: kk_coroutine_suspended())
+        }
+        return kk_job_join(handle, 0)
+    }
     guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle),
           let task = runtimeAsyncTask(from: handle) else {
         return 0
@@ -3339,6 +3529,10 @@ public func kk_coroutine_scope_new() -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
 
+    // KUU-964: the scope's own Job — installed into the block's context so
+    // `currentCoroutineContext().job` resolves there.
+    scope.installJob()
+
     // Push: save parent scope and set this as current via the task-scope map
     scope.parent = RuntimeCoroutineScope.current
     enterScopeOnCurrentContinuation(scope)
@@ -3354,9 +3548,16 @@ public func kk_supervisor_scope_new() -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
 
-    // Push: save parent scope and set this as current via the task-scope map
+    // KUU-964: the scope's own SupervisorJob — installed into the block's
+    // context so `currentCoroutineContext().job` resolves there. Children's
+    // failures never complete this job (supervisor failure isolation).
+    scope.installJob()
+
+    // Push: save parent scope and set this as current via the task-scope map,
+    // mirroring kk_coroutine_scope_new so the running continuation observes
+    // the same ambient scope the task-scope map reports.
     scope.parent = RuntimeCoroutineScope.current
-    RuntimeCoroutineScope.current = scope
+    enterScopeOnCurrentContinuation(scope)
 
     return Int(bitPattern: ptr)
 }
@@ -3379,6 +3580,18 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
     }
     let firstFailure = scope.waitForChildren()
 
+    // KUU-964: settle the scope's own Job as the scope tears down. A cancelled
+    // scope leaves the job cancelled (the complete() below settles the
+    // intermediate .cancelling state into .cancelled); every other outcome —
+    // a supervisor observing a child failure included — completes the job
+    // normally, matching kotlinx's scope-coroutine lifecycle.
+    if let scopeJob = scope.job {
+        if scope.isCancelled {
+            _ = scopeJob.cancel(message: scope.cancellationMessage, cause: scope.cancellationCause)
+        }
+        _ = scopeJob.complete(with: 0)
+    }
+
     // Pop: restore parent scope in the task-scope map (CORO-003) and on the
     // running continuation, mirroring enterScopeOnCurrentContinuation.
     enterScopeOnCurrentContinuation(scope.parent)
@@ -3388,7 +3601,20 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
     // The Kotlin ABI models this as `Throwable?`; absence of a failure must use
     // the shared null sentinel (see runtimeResultExceptionOrNull) rather than raw
     // 0, so a `!= null` check in bundled Kotlin resolves correctly.
-    return firstFailure == 0 ? runtimeNullSentinelInt : firstFailure
+    if firstFailure != 0 {
+        return firstFailure
+    }
+    if scope.isCancelled {
+        // KUU-964: the scope's job was cancelled while its body finished
+        // normally — kotlinx surfaces the scope coroutine's own
+        // JobCancellationException here ("<ClassName> was cancelled"), not a
+        // silent normal return. Childrens' cancellation results are already
+        // excluded from firstFailure, so a cancellation reaching this point
+        // is the scope's own.
+        let name = scope.isSupervisor ? "SupervisorCoroutine" : "ScopeCoroutine"
+        return runtimeAllocateCancellationException(message: "\(name) was cancelled")
+    }
+    return runtimeNullSentinelInt
 }
 
 /// Returns 1 if the scope is active (not cancelled), 0 if cancelled.
@@ -3448,6 +3674,12 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
         isSupervisor = job.isSupervisorMarker
     }
     let scope = RuntimeCoroutineScope(isSupervisor: isSupervisor)
+    if let job = runtimeJobHandle(from: ctx.jobHandleRaw) {
+        // The scope's job is the context's Job element: scope.cancel() cancels
+        // it (kotlinx's CoroutineScope.cancel contract), and a cancel reaching
+        // it takes this scope's children down with it.
+        scope.adoptJob(job)
+    }
     return runtimeRegisterObject(scope)
 }
 
@@ -3559,10 +3791,11 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
 ///    synthetic `kk_kxmini_produce_with_cont` launcher used.
 ///  - A suspend function *value* (a block stored in a variable or received
 ///    from another call) crosses as the (fnPtr, env) pair suspend function
-///    values use at the ABI boundary. A suspend value's invoke thunk is
-///    `(receiver, cap0..capN, outThrown)`, so the channel handle passes as
-///    arg0 and env supplies the captures. The thunk binds arg0 to
-///    launcherArgs[0] itself (nested runBlocking on the worker).
+///    values use at the ABI boundary. A value's invoke thunk keeps the
+///    ordinary captured-lambda layout `(cap0..capN, receiver, outThrown)` —
+///    only literals marked via coroutineLauncherLambdaExprIDs lower
+///    receiver-first — so env expands to the leading slots and the channel
+///    handle passes as the trailing receiver (the scope `this`).
 ///
 /// Both shapes register the child job on the ambient scope
 /// (`RuntimeCoroutineScope.current` — the same scope the synthetic
@@ -3622,8 +3855,10 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     return channelHandle
 }
 
-/// Invokes a suspend launcher thunk `(receiver, cap0..capN, outThrown)`
-/// whose captures arrive at the ABI boundary packed in env.
+/// Invokes a suspend launcher thunk `(cap0..capN, receiver, outThrown)` —
+/// the ordinary captured-lambda layout, captures first and the receiver
+/// (the block's `this`) trailing — whose captures arrive at the ABI
+/// boundary packed in env.
 private func runtimeInvokeSuspendLauncherThunk(
     entryPointRaw: Int,
     receiver: Int,
@@ -3636,16 +3871,16 @@ private func runtimeInvokeSuspendLauncherThunk(
         return invoke(receiver, outThrown)
     case 1:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
-        return invoke(receiver, captures[0], outThrown)
+        return invoke(captures[0], receiver, outThrown)
     case 2:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint3.self)
-        return invoke(receiver, captures[0], captures[1], outThrown)
+        return invoke(captures[0], captures[1], receiver, outThrown)
     case 3:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint4.self)
-        return invoke(receiver, captures[0], captures[1], captures[2], outThrown)
+        return invoke(captures[0], captures[1], captures[2], receiver, outThrown)
     case 4:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint5.self)
-        return invoke(receiver, captures[0], captures[1], captures[2], captures[3], outThrown)
+        return invoke(captures[0], captures[1], captures[2], captures[3], receiver, outThrown)
     default:
         runtimeStructuredPanic("__kk_produce_launch: suspend block captures exceed launcher thunk arity")
         return 0
@@ -3707,6 +3942,58 @@ public func kk_job_new() -> Int {
     let job = RuntimeJobHandle()
     job.markStarted()
     return runtimeRegisterObject(job)
+}
+
+@_cdecl("__kk_job_bind_wrapper")
+public func __kk_job_bind_wrapper(_ wrapperRaw: Int, _ jobRaw: Int, _ parentRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: wrapperRaw),
+          let wrapper = tryCast(ptr, to: RuntimeObjectBox.self),
+          let job = runtimeJobHandle(from: jobRaw)
+    else { return jobRaw }
+    job.markBodyless()
+    wrapper.coroutineJobHandle = jobRaw
+    if let parent = runtimeJobHandle(from: parentRaw) {
+        parent.registerChild(jobRaw)
+        if !parent.isSupervisorMarker {
+            _ = job.addCompletionHandler(onCancelling: false) { cause in
+                if cause != runtimeNullSentinelInt, job.isFailedSnapshot(),
+                   !runtimeCoroutineIsCancellationResult(cause)
+                {
+                    _ = parent.cancel(cause: cause)
+                }
+            }
+        }
+    }
+    return jobRaw
+}
+
+private func deferredCompletionSnapshot(_ handle: Int) -> (completed: Bool, value: Int, exception: Int) {
+    if let job = runtimeJobHandle(from: handle) { return job.completionSnapshot() }
+    if let task = runtimeAsyncTask(from: handle) { return task.completionSnapshot() }
+    return (false, 0, 0)
+}
+
+@_cdecl("__kk_deferred_get_completed")
+public func __kk_deferred_get_completed(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let snapshot = deferredCompletionSnapshot(handle)
+    guard snapshot.completed else {
+        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
+        return 0
+    }
+    outThrown?.pointee = snapshot.exception
+    return snapshot.exception == 0 ? snapshot.value : 0
+}
+
+@_cdecl("__kk_deferred_completion_exception")
+public func __kk_deferred_completion_exception(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let snapshot = deferredCompletionSnapshot(handle)
+    guard snapshot.completed else {
+        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
+        return runtimeNullSentinelInt
+    }
+    return snapshot.exception == 0 ? runtimeNullSentinelInt : snapshot.exception
 }
 
 /// Backing for `kotlinx.coroutines.SupervisorJob(): Job`. Identical to `kk_job_new` except
@@ -4134,8 +4421,12 @@ public func kk_coroutine_current_scope() -> Int {
         // A top-level runBlocking body has a continuation but no inherited scope.
         // Materialize its CoroutineScope lazily when a builder lambda needs the
         // implicit receiver, then attach it to the continuation for suspensions
-        // and child launchers that follow.
+        // and child launchers that follow. The scope's job is the running job —
+        // the same element `coroutineContext.job` resolves to here.
         let scope = RuntimeCoroutineScope()
+        if let job = state.jobHandle {
+            scope.adoptJob(job)
+        }
         state.scope = scope
         RuntimeCoroutineScope.current = scope
         return Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(scope).toOpaque()))
@@ -4174,9 +4465,9 @@ public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
     case .job(let job):
-        return job.cancellationSnapshot() ? 1 : 0
+        return job.cancellationSnapshot() || job.isFailedSnapshot() ? 1 : 0
     case .task(let task):
-        return task.isCancelledSnapshot() ? 1 : 0
+        return task.isCancelledSnapshot() || task.isFailedSnapshot() ? 1 : 0
     case .other:
         return 0
     }
@@ -4209,8 +4500,7 @@ public func kk_job_is_failed(_ jobHandle: Int) -> Int {
 /// active" fallback below.
 @_cdecl("kk_job_get_cancellation_exception")
 public func kk_job_get_cancellation_exception(_ jobHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
-          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    guard let job = runtimeJobHandle(from: jobHandle)
     else {
         return runtimeAllocateCancellationException(message: "Job is still active")
     }
@@ -4237,8 +4527,7 @@ public func kk_job_invoke_on_completion(
     _ handlerFnPtr: Int,
     _ handlerClosureRaw: Int
 ) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
-          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    guard let job = runtimeJobHandle(from: jobHandle)
     else {
         return 0
     }
@@ -4259,8 +4548,7 @@ public func kk_job_invoke_on_completion(
 /// `Job.invokeOnCompletion` (via `__kk_job_dispose_completion_handler`).
 @_cdecl("kk_job_dispose_completion_handler")
 public func kk_job_dispose_completion_handler(_ jobHandle: Int, _ handlerID: Int) {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle),
-          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    guard let job = runtimeJobHandle(from: jobHandle)
     else {
         return
     }
@@ -4443,6 +4731,12 @@ func runtimeRunBlockingOnEventLoop(
     let ownedScope = state != nil && state?.scope == nil ? RuntimeCoroutineScope() : nil
     if let ownedScope {
         state?.scope = ownedScope
+        // The owned scope's job is this blocking coroutine's job, so suspend
+        // values invoked inside it keep observing `coroutineContext.job`
+        // (KUU-964) and a scope cancel reaches the job itself.
+        if let job = state?.jobHandle {
+            ownedScope.adoptJob(job)
+        }
     }
 
     final class Outcome: @unchecked Sendable {
@@ -4563,6 +4857,11 @@ func runSuspendEntryLoopWithContinuation(
         contState.eventLoop = callerEventLoop
     }
     let boundEventLoop = contState?.eventLoop
+    // Capture this thread's ambient bindings before minting a fresh key so a
+    // nested loop (e.g. a `coroutineScope { }` block's entry loop) hands them
+    // back on exit (KUU-964).
+    let outerTaskKey = RuntimeCoroutineScopeTaskKey.installedKey
+    let outerJob = RuntimeJobHandle.current
     let currentTaskKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
     RuntimeCoroutineScope.installScope(contState?.scope, forTask: currentTaskKey)
     RuntimeContinuationState.installState(contState, forTask: currentTaskKey)
@@ -4581,11 +4880,19 @@ func runSuspendEntryLoopWithContinuation(
 
     // Shared mutable state for the task key, protected by the single-shot
     // continuation model (only one invocation of the loop body runs at a time).
+    // `outerKey`/`outerJob` hold the ambient bindings this loop displaced —
+    // captured per burst so that, whichever thread a burst ends on, exiting
+    // the loop hands back that thread's previous ambient state instead of
+    // leaving the thread keyless (KUU-964).
     final class TaskKeyBox: @unchecked Sendable {
         var key: RuntimeTaskKey
+        var outerKey: RuntimeTaskKey?
+        var outerJob: RuntimeJobHandle?
         init(key: RuntimeTaskKey) { self.key = key }
     }
     let taskKeyBox = TaskKeyBox(key: currentTaskKey)
+    taskKeyBox.outerKey = outerTaskKey
+    taskKeyBox.outerJob = outerJob
 
     loopBodyBox.body = {
         // Run every burst -- the initial one kicked off below and each resumed
@@ -4599,6 +4906,7 @@ func runSuspendEntryLoopWithContinuation(
         // for the duration of `entryPoint`'s call below, so RuntimePendingLaunchQueue
         // knows any `launch{}` it makes has a real burst to be flushed at.
         RuntimeCoroutineBurstDepth.enter()
+        contState?.consumeCancellableDelivery()
         var thrownValue = 0
         let result = entryPoint(continuation, &thrownValue)
         if thrownValue != 0 {
@@ -4609,8 +4917,8 @@ func runSuspendEntryLoopWithContinuation(
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
-            RuntimeCoroutineScopeTaskKey.removeKey()
-            RuntimeJobHandle.current = nil
+            RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
+            RuntimeJobHandle.current = taskKeyBox.outerJob
             _ = kk_coroutine_state_exit(continuation, 0)
             // Record the thrown exception in the continuation state so callers
             // such as kk_kxmini_launch_with_exception_handler can reliably
@@ -4636,8 +4944,8 @@ func runSuspendEntryLoopWithContinuation(
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
-            RuntimeCoroutineScopeTaskKey.removeKey()
-            RuntimeJobHandle.current = nil
+            RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
+            RuntimeJobHandle.current = taskKeyBox.outerJob
             if let onCompletion {
                 loopBodyBox.body = nil
                 onCompletion(result, 0)
@@ -4657,8 +4965,8 @@ func runSuspendEntryLoopWithContinuation(
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
-            RuntimeCoroutineScopeTaskKey.removeKey()
-            RuntimeJobHandle.current = nil
+            RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
+            RuntimeJobHandle.current = taskKeyBox.outerJob
             if let onCompletion {
                 loopBodyBox.body = nil
                 onCompletion(0, 0)
@@ -4694,6 +5002,10 @@ func runSuspendEntryLoopWithContinuation(
             // still works.
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            // Resumed on a (possibly different) thread — capture that thread's
+            // displaced ambient bindings so a burst ending here restores them.
+            taskKeyBox.outerKey = RuntimeCoroutineScopeTaskKey.installedKey
+            taskKeyBox.outerJob = RuntimeJobHandle.current
             let freshKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
             taskKeyBox.key = freshKey
             RuntimeCoroutineScope.installScope(state.scope, forTask: freshKey)
@@ -4727,8 +5039,8 @@ func runSuspendEntryLoopWithContinuation(
         loopBodyBox.body = nil
         RuntimeCoroutineScope.removeScope(forTask: currentTaskKey)
         RuntimeContinuationState.removeState(forTask: currentTaskKey)
-        RuntimeCoroutineScopeTaskKey.removeKey()
-        RuntimeJobHandle.current = nil
+        RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
+        RuntimeJobHandle.current = outerJob
 
         return resultBox.value
     }
@@ -4736,8 +5048,8 @@ func runSuspendEntryLoopWithContinuation(
     // Async path: return immediately.  The resume continuation chain handles
     // global-map cleanup (currentTaskKey entries) when the loop eventually
     // completes.  Clean up only the initial thread's locals here.
-    RuntimeCoroutineScopeTaskKey.removeKey()
-    RuntimeJobHandle.current = nil
+    RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
+    RuntimeJobHandle.current = outerJob
     return 0
 }
 

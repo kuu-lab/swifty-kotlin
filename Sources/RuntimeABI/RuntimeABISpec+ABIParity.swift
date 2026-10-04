@@ -100,24 +100,16 @@ public extension RuntimeABISpec {
             p("handle", .intptr),
             p("cause", .intptr),
         ], isThrowing: false),
-        // KSP-1571: tagged-token ChannelResult bridges. `__kk_channel_try_send`
-        // packs the operation result into (payload << 2) | tag consumed by the
-        // bundled value-class ChannelResult; the `__kk_channel_result_*`
-        // helpers encode/decode token payloads on behalf of its members.
-        abiParitySpec("__kk_channel_try_send", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-        ], isThrowing: false),
-        abiParitySpec("__kk_channel_result_value", parameters: [
-            p("token", .intptr),
-        ], isThrowing: false),
+        // KSP-1571: ChannelResult box accessors added on top of KSP-1572's
+        // box-returning `__kk_channel_*` bridges (registered in the Coroutine
+        // section): `cause` reads the retained close cause and `create` backs
+        // the companion `success`/`failure`/`closed` factories.
         abiParitySpec("__kk_channel_result_cause", parameters: [
-            p("token", .intptr),
+            p("boxRaw", .intptr),
         ], isThrowing: false),
-        abiParitySpec("__kk_channel_result_success", parameters: [
+        abiParitySpec("__kk_channel_result_create", parameters: [
+            p("status", .intptr),
             p("value", .intptr),
-        ], isThrowing: false),
-        abiParitySpec("__kk_channel_result_closed", parameters: [
             p("cause", .intptr),
         ], isThrowing: false),
         abiParitySpec("kk_channel_send_suspending", parameters: [
@@ -144,6 +136,25 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_copaque_pointer_new", parameters: [
             p("address", .intptr),
+        ]),
+        abiParitySpec("__kk_cancellable_continuation_new", parameters: [p("delegate", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_state", parameters: [p("handle", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_resume", parameters: [
+            p("handle", .intptr), p("result", .intptr), p("callback", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_cancel", parameters: [p("handle", .intptr), p("cause", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_invoke_on_cancellation", parameters: [
+            p("handle", .intptr), p("handler", .intptr), p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_try_resume", parameters: [
+            p("handle", .intptr), p("result", .intptr), p("idempotent", .intptr),
+        ]),
+        abiParitySpec("__kk_cancellable_continuation_complete_resume", parameters: [
+            p("handle", .intptr), p("token", .intptr), p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_get_result", parameters: [
+            p("handle", .intptr), p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("__kk_coroutine_continuation_context", parameters: [
             p("continuation", .intptr),

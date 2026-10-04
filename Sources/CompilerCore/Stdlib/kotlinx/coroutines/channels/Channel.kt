@@ -16,9 +16,9 @@ import kotlin.coroutines.cancellation.CancellationException
 // operations stay external — the runtime channel handle is the receiver
 // itself, so each member bridges straight to a `kk_channel_*` entry point.
 //
-// `trySend` returns the bundled `ChannelResult` value class, which wraps the
-// tagged Int token produced by `__kk_channel_try_send`; `close(cause)` bridges
-// to `__kk_channel_close_cause`, which retains the first close cause in the
+// `trySend` returns the bundled `ChannelResult`, an opaque runtime box
+// produced by `__kk_channel_try_send`; `close(cause)` bridges to
+// `__kk_channel_close_cause`, which retains the first close cause in the
 // runtime handle.
 
 public interface SendChannel<in E> {
@@ -40,7 +40,7 @@ public interface SendChannel<in E> {
 // `Channel`-receiver surface is provided through extensions below).
 
 @KsSymbolName("__kk_channel_try_send")
-private external fun Channel<*>.__kkChannelTrySend(element: Any?): Int
+private external fun Channel<*>.__kkChannelTrySend(element: Any?): ChannelResult<Unit>
 
 @KsSymbolName("__kk_channel_close_cause")
 private external fun Channel<*>.__kkChannelCloseCause(cause: Throwable?): Int
@@ -60,7 +60,7 @@ private external fun Channel<*>.__kkChannelIsEmpty(): Int
  * a [ChannelResult] that indicates whether the operation succeeded.
  */
 public fun <E> Channel<E>.trySend(element: E): ChannelResult<Unit> =
-    ChannelResult<Unit>(this.__kkChannelTrySend(element))
+    this.__kkChannelTrySend(element)
 
 // ---- close(cause) on Channel receivers (SendChannel variant is a member).
 
@@ -199,3 +199,23 @@ public fun SendChannel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
 public fun Channel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
     __kkChannelInvokeOnClose(this, handler)
 }
+
+// KSP-1572: non-blocking and catching receive surface. Both bridges return a
+// `ChannelResult` box; `__kk_channel_receive_catching` performs the same
+// blocking receive as `receive()` so `receiveCatching`/`receiveOrNull` keep
+// proper suspend semantics instead of polling `tryReceive`.
+
+@KsSymbolName("__kk_channel_try_receive")
+private external fun <E> __kkChannelTryReceive(channel: Channel<E>): ChannelResult<E>
+
+@KsSymbolName("__kk_channel_receive_catching")
+private external fun <E> __kkChannelReceiveCatching(channel: Channel<E>): ChannelResult<E>
+
+public fun <E> ReceiveChannel<E>.tryReceive(): ChannelResult<E> =
+    __kkChannelTryReceive(this)
+
+public suspend fun <E> ReceiveChannel<E>.receiveCatching(): ChannelResult<E> =
+    __kkChannelReceiveCatching(this)
+
+public suspend fun <E> ReceiveChannel<E>.receiveOrNull(): E? =
+    receiveCatching().getOrNull()

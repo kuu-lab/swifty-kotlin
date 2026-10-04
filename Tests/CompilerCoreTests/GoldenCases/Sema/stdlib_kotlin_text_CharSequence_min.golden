@@ -67,35 +67,35 @@ expr e@11:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMi
 expr e@11:20 name(it) type=Char ref=s-2
 expr e@11:20#1 memberCall recv=e@11:20 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
 expr e@11:20#2 memberCall recv=e@11:20#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=]
-expr e@11:18 lambda params=[] body=e@11:20#2 label=minOf type=(Char) -> Any
+expr e@11:18 lambda params=[] body=e@11:20#2 label=minOf type=(Char) -> Any?
 expr e@11:5#1 memberCall recv=e@11:5 callee=minOf args=[_:e@11:18] type=Double call=kotlin.text.minOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Double}]
 expr e@14:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfFloat.$5.source[kind=vparam]
 expr e@14:20 name(it) type=Char ref=s-3
 expr e@14:20#1 memberCall recv=e@14:20 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
 expr e@14:20#2 memberCall recv=e@14:20#1 callee=toFloat args=[] type=Float
-expr e@14:18 lambda params=[] body=e@14:20#2 label=minOf type=(Char) -> Any
+expr e@14:18 lambda params=[] body=e@14:20#2 label=minOf type=(Char) -> Any?
 expr e@14:5#1 memberCall recv=e@14:5 callee=minOf args=[_:e@14:18] type=Float call=kotlin.text.minOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Float}]
 expr e@17:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfComparable.$3.source[kind=vparam]
 expr e@17:20 name(it) type=Char ref=s-4
 expr e@17:20#1 memberCall recv=e@17:20 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
-expr e@17:18 lambda params=[] body=e@17:20#1 label=minOf type=(Char) -> Any
+expr e@17:18 lambda params=[] body=e@17:20#1 label=minOf type=(Char) -> Any?
 expr e@17:5#1 memberCall recv=e@17:5 callee=minOf args=[_:e@17:18] type=Int call=kotlin.text.minOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};gen=1] targs=[Int]
 expr e@20:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfOrNullDouble.$7.source[kind=vparam]
 expr e@20:26 name(it) type=Char ref=s-5
 expr e@20:26#1 memberCall recv=e@20:26 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
 expr e@20:26#2 memberCall recv=e@20:26#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=]
-expr e@20:24 lambda params=[] body=e@20:26#2 label=minOfOrNull type=(Char) -> Any
+expr e@20:24 lambda params=[] body=e@20:26#2 label=minOfOrNull type=(Char) -> Any?
 expr e@20:5#1 memberCall recv=e@20:5 callee=minOfOrNull args=[_:e@20:24] type=Double? call=kotlin.text.minOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Double}]
 expr e@23:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfOrNullFloat.$8.source[kind=vparam]
 expr e@23:26 name(it) type=Char ref=s-6
 expr e@23:26#1 memberCall recv=e@23:26 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
 expr e@23:26#2 memberCall recv=e@23:26#1 callee=toFloat args=[] type=Float
-expr e@23:24 lambda params=[] body=e@23:26#2 label=minOfOrNull type=(Char) -> Any
+expr e@23:24 lambda params=[] body=e@23:26#2 label=minOfOrNull type=(Char) -> Any?
 expr e@23:5#1 memberCall recv=e@23:5 callee=minOfOrNull args=[_:e@23:24] type=Float? call=kotlin.text.minOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Float}]
 expr e@26:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfOrNullComparable.$6.source[kind=vparam]
 expr e@26:26 name(it) type=Char ref=s-7
 expr e@26:26#1 memberCall recv=e@26:26 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
-expr e@26:24 lambda params=[] body=e@26:26#1 label=minOfOrNull type=(Char) -> Any
+expr e@26:24 lambda params=[] body=e@26:26#1 label=minOfOrNull type=(Char) -> Any?
 expr e@26:5#1 memberCall recv=e@26:5 callee=minOfOrNull args=[_:e@26:24] type=Int? call=kotlin.text.minOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};gen=1] targs=[Int]
 expr e@29:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfWith.$9.source[kind=vparam]
 expr e@29:22 name(comparator) type=kotlin.Comparator<Int> ref=golden.sema.charSequenceMinOfWith.$9.comparator[kind=vparam]

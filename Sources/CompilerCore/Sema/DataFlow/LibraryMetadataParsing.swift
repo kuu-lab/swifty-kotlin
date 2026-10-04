@@ -46,8 +46,7 @@ extension DataFlowSemaPhase {
             nominalTypeParametersByFQName[record.fqName] = signature
         }
 
-        var records: [ImportedLibrarySymbolRecord] = []
-        for metadataRecord in metadataRecords {
+        return metadataRecords.compactMap { metadataRecord in
             if metadataRecord.kind == .function || metadataRecord.kind == .constructor {
                 guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(metadataRecord.arity) else {
                     diagnostics.error(
@@ -55,76 +54,97 @@ extension DataFlowSemaPhase {
                         "Callable arity \(metadataRecord.arity) in '\(path)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
                         range: nil
                     )
-                    continue
+                    return nil
                 }
             }
-            let fqName = metadataRecord.fqName
-                .split(separator: ".")
-                .map { interner.intern(String($0)) }
-            guard !fqName.isEmpty else {
-                continue
-            }
-            let ownerNominalTypeParametersSignature: String? = if fqName.count >= 2 {
-                nominalTypeParametersByFQName[
-                    fqName.dropLast().map { interner.resolve($0) }.joined(separator: ".")
-                ]
-            } else {
-                nil
-            }
-            let superFQNames: [[InternedString]]? = metadataRecord.superFQName.flatMap { value in
-                // Multiple direct supertypes are encoded as comma-separated FQ names,
-                // e.g. "kotlin.collections.Collection,kotlin.collections.Iterable".
-                let names = value.split(separator: ",")
-                guard !names.isEmpty else { return nil }
-                let parsed = names.map { name in
-                    name.split(separator: ".").map { interner.intern(String($0)) }
-                }
-                return parsed.isEmpty || parsed.contains(where: { $0.isEmpty }) ? nil : parsed
-            }
-            let companionObjectFQName: [InternedString]? = metadataRecord.companionObjectFQName.flatMap { value in
-                let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
-                return parsed.isEmpty ? nil : parsed
-            }
-            let fieldOffsets: [ImportedFieldOffsetEntry] = if let fieldOffsetsStr = metadataRecord.fieldOffsets {
-                parseImportedFieldOffsets(
-                    token: fieldOffsetsStr,
-                    diagnostics: diagnostics,
-                    metadataPath: path,
-                    ownerFQName: fqName,
-                    interner: interner
-                )
-            } else {
-                []
-            }
-            let vtableSlots: [ImportedVTableSlotEntry] = if let vtableSlotsStr = metadataRecord.vtableSlots {
-                parseImportedVTableSlots(
-                    token: vtableSlotsStr,
-                    diagnostics: diagnostics,
-                    metadataPath: path,
-                    ownerFQName: fqName,
-                    interner: interner
-                )
-            } else {
-                []
-            }
-            let itableSlots: [ImportedITableSlotEntry] = if let itableSlotsStr = metadataRecord.itableSlots {
-                parseImportedITableSlots(
-                    token: itableSlotsStr,
-                    diagnostics: diagnostics,
-                    metadataPath: path,
-                    ownerFQName: fqName,
-                    interner: interner
-                )
-            } else {
-                []
-            }
-            // P5-78: parse sealed subclass FQ names for cross-module exhaustiveness
-            let sealedSubclassFQNames: [[InternedString]] = metadataRecord.sealedSubclassFQNames.compactMap { fqStr in
-                let parsed = fqStr.split(separator: ".").map { interner.intern(String($0)) }
-                return parsed.isEmpty ? nil : parsed
-            }
+            return makeImportedLibraryRecord(
+                metadataRecord,
+                path: path,
+                diagnostics: diagnostics,
+                interner: interner,
+                nominalTypeParametersByFQName: nominalTypeParametersByFQName
+            )
+        }
+    }
 
-            records.append(ImportedLibrarySymbolRecord(
+    func makeImportedLibraryRecord(
+        _ metadataRecord: MetadataRecord,
+        path: String,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        nominalTypeParametersByFQName: [String: String]
+    ) -> ImportedLibrarySymbolRecord? {
+        let fqName = metadataRecord.fqName
+            .split(separator: ".")
+            .map { interner.intern(String($0)) }
+        guard !fqName.isEmpty else {
+            return nil
+        }
+        let ownerNominalTypeParametersSignature: String? = if fqName.count >= 2 {
+            nominalTypeParametersByFQName[
+                fqName.dropLast().map { interner.resolve($0) }.joined(separator: ".")
+            ]
+        } else {
+            nil
+        }
+        let superFQNames: [[InternedString]]? = metadataRecord.superFQName.flatMap { value in
+            // Multiple direct supertypes are encoded as comma-separated FQ names,
+            // e.g. "kotlin.collections.Collection,kotlin.collections.Iterable".
+            let names = value.split(separator: ",")
+            guard !names.isEmpty else { return nil }
+            let parsed = names.map { name in
+                name.split(separator: ".").map { interner.intern(String($0)) }
+            }
+            return parsed.isEmpty || parsed.contains(where: { $0.isEmpty }) ? nil : parsed
+        }
+        let companionObjectFQName: [InternedString]? = metadataRecord.companionObjectFQName.flatMap { value in
+            let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
+            return parsed.isEmpty ? nil : parsed
+        }
+        let receiverOwnerFQName: [InternedString]? = metadataRecord.receiverOwnerFQName.flatMap { value in
+            let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
+            return parsed.isEmpty ? nil : parsed
+        }
+        let fieldOffsets: [ImportedFieldOffsetEntry] = if let fieldOffsetsStr = metadataRecord.fieldOffsets {
+            parseImportedFieldOffsets(
+                token: fieldOffsetsStr,
+                diagnostics: diagnostics,
+                metadataPath: path,
+                ownerFQName: fqName,
+                interner: interner
+            )
+        } else {
+            []
+        }
+        let vtableSlots: [ImportedVTableSlotEntry] = if let vtableSlotsStr = metadataRecord.vtableSlots {
+            parseImportedVTableSlots(
+                token: vtableSlotsStr,
+                diagnostics: diagnostics,
+                metadataPath: path,
+                ownerFQName: fqName,
+                interner: interner
+            )
+        } else {
+            []
+        }
+        let itableSlots: [ImportedITableSlotEntry] = if let itableSlotsStr = metadataRecord.itableSlots {
+            parseImportedITableSlots(
+                token: itableSlotsStr,
+                diagnostics: diagnostics,
+                metadataPath: path,
+                ownerFQName: fqName,
+                interner: interner
+            )
+        } else {
+            []
+        }
+        // P5-78: parse sealed subclass FQ names for cross-module exhaustiveness
+        let sealedSubclassFQNames: [[InternedString]] = metadataRecord.sealedSubclassFQNames.compactMap { fqStr in
+            let parsed = fqStr.split(separator: ".").map { interner.intern(String($0)) }
+            return parsed.isEmpty ? nil : parsed
+        }
+
+        return ImportedLibrarySymbolRecord(
                 kind: metadataRecord.kind,
                 visibility: metadataRecord.visibility,
                 mangledName: metadataRecord.mangledName,
@@ -134,6 +154,7 @@ extension DataFlowSemaPhase {
                 isInline: metadataRecord.isInline,
                 isOperator: metadataRecord.isOperator,
                 isOverride: metadataRecord.isOverride,
+                receiverOwnerFQName: receiverOwnerFQName,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
@@ -182,10 +203,7 @@ extension DataFlowSemaPhase {
                 nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures,
                 constValueLiteral: metadataRecord.constValueLiteral,
                 nominalTypeParameters: metadataRecord.nominalTypeParameters
-            ))
-        }
-
-        return records
+            )
     }
 
     private func validateImportedNominalLayoutValues(
@@ -319,6 +337,7 @@ extension DataFlowSemaPhase {
             )
             return fallback
         }
+
         if record.arity != functionType.params.count || record.isSuspend != functionType.isSuspend {
             diagnostics.warning(
                 "KSWIFTK-LIB-0005",
@@ -652,6 +671,9 @@ extension DataFlowSemaPhase {
             .first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id
         else {
             return type
+        }
+        if types.nominalTypeParameterSymbols(for: ownerSymbol).isEmpty {
+            symbols.ensureLazyImportedMetadataLoaded(for: ownerSymbol)
         }
         let actualSymbols = types.nominalTypeParameterSymbols(for: ownerSymbol)
         guard !actualSymbols.isEmpty,
