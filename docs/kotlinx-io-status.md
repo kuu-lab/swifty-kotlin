@@ -19,13 +19,20 @@
 - `RealSource` / `RealSink`（`RawSource.buffered()` / `RawSink.buffered()` の内部実装）
 - `PeekSource`（`Source.peek()` の内部実装）
 - `Core.kt`（`buffered()` 拡張関数2つ、`discardingSink()`、`SystemLineSeparator`）
+- `Segment.kt` / `SegmentPool.kt`（upstream `core/common/src` を移植。`expect object SegmentPool`
+  は単一ターゲット前提で upstream の native actual と同じ no-op プール（`MAX_SIZE = 0`、
+  `take()` は常に新規割当、`recycle()` は no-op）に置き換え、`@JvmField`/`@JvmSynthetic` は除去。
+  `SegmentCopyTracker`/`AlwaysSharedCopyTracker` と `indexOf`/`indexOfBytesInbound`/
+  `indexOfBytesOutbound`/`isEmpty` の `Segment` 拡張も同ファイルに同梱。`Segment` 自体は
+  upstream 同様 `public` だが全メンバが `internal` なので public surface は変わらない）
 
 ### 内部実装の簡略化：セグメント連結リストではなく単一 ByteArray
 
 upstream の `Buffer` は、コピーを避けるためプールされた `Segment`（固定長 `ByteArray` チャンク）の
-双方向連結リストとしてバイト列を持つ。今回のポートでは `Segment` / `SegmentPool` /
+双方向連結リストとしてバイト列を持つ。当初のポートでは `Segment` / `SegmentPool` /
 `unsafe.UnsafeBufferOperations` は実装せず、`Buffer` を単一の可変長 `ByteArray` ＋ `start`/`end`
-カーソルで実装した。外部から観測できる挙動（読み書きした値・例外・`size`）は upstream と一致する
+カーソルで実装した。`Segment`/`SegmentPool` はその後追加済みだが、現行 `Buffer` はまだ
+セグメント連結リストへ移行していない（セグメント化と `UnsafeBufferOperations` は後続 PR）。外部から観測できる挙動（読み書きした値・例外・`size`）は upstream と一致する
 （後述の diff_cases で確認済み）。バッファ間のセグメント所有権移動によるゼロコピーのような内部最適化は
 無くなるが、正当性には影響しない。
 
@@ -96,8 +103,9 @@ RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を�
 
 ## 未対応（次PR以降）
 
-- `Segment` / `SegmentPool` / `kotlinx.io.unsafe.UnsafeBufferOperations`（低レベルなセグメント直接
-  操作。Ktor の `ktor-io` が一部使用しているため、`ktor_io` モジュールの残存エラーの一因）
+- `kotlinx.io.unsafe.UnsafeBufferOperations`（低レベルなセグメント直接
+  操作。Ktor の `ktor-io` が一部使用しているため、`ktor_io` モジュールの残存エラーの一因。
+  基盤の `Segment`/`SegmentPool` は追加済み）
 - `JvmCore.kt` の残り: `SystemLineSeparator` actual は `Core.kt` 側で実装済み。`SourcesJvm.kt` /
   `SinksJvm.kt` の残り（`readString`, `writeString`, `readAtMostTo`/`write` ByteBuffer,
   `asByteChannel`）は ByteBuffer/NIO 依存のため未対応
