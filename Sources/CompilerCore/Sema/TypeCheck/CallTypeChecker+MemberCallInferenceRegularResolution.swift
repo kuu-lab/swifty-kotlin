@@ -2090,10 +2090,20 @@ extension CallTypeChecker {
                 extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
+                let extensionArgs = prepareCallArguments(
+                    args: args,
+                    candidates: extensionCandidates,
+                    preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
+                    contextualCallResultType: expectedType,
+                    explicitTypeArgs: explicitTypeArgs,
+                    receiverType: effectiveReceiverType,
+                    ctx: ctx,
+                    locals: &locals
+                )
                 let retried = resolveCallRespectingLambdaReturnType(
                     candidates: extensionCandidates,
                     args: args,
-                    argTypes: preparedArgs.argTypes,
+                    argTypes: extensionArgs.argTypes,
                     range: range,
                     calleeName: calleeName,
                     explicitTypeArgs: explicitTypeArgs,
