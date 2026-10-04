@@ -913,6 +913,7 @@ extension CallLowerer {
                         arena: arena,
                         resultType: sema.types.anyType,
                         requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
+                        sema: sema,
                         into: &instructions
                     )
                 } else {
@@ -2329,6 +2330,7 @@ extension CallLowerer {
                         interner: interner,
                         arena: arena,
                         resultType: sema.types.nullableAnyType,
+                        sema: sema,
                         into: &instructions
                     )
                 }

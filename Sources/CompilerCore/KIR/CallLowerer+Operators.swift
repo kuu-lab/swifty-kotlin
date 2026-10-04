@@ -1538,6 +1538,7 @@ extension CallLowerer {
                 symbols: sema.symbols,
                 interner: interner,
                 arena: arena,
+                sema: sema,
                 into: &instructions
             )
         } else {
