@@ -22,6 +22,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
         "Sema/stdlib_kotlin_collections_AbstractList_AbstractList_n.kt",
+        "Sema/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt",
         "Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt",
         "Sema/kotlinx_coroutines_completable.kt",
     ]
@@ -36,6 +37,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_MutableList_n.kt",
         "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
+        "Sema/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt",
         "Sema/kotlinx_coroutines_completable.kt",
     ]
 
@@ -59,6 +61,10 @@ struct GoldenHarnessInventoryTests {
         "artifact|kotlinx.coroutines.CompletableDeferred[kind=iface;gen=1]",
         "artifact|kotlinx.coroutines.CompletableJob[kind=iface]",
         "artifact|kotlinx.coroutines.Deferred[kind=iface;gen=1]",
+        "artifact|kotlin.coroutines.ContinuationInterceptor.get[kind=fun;recv=kotlin.coroutines.ContinuationInterceptor;params=kotlin.coroutines.CoroutineContext.Key<T0>;gen=1]",
+        "artifact|kotlin.coroutines.ContinuationInterceptor.interceptContinuation[kind=fun;recv=kotlin.coroutines.ContinuationInterceptor;params=kotlin.coroutines.Continuation<T0>;gen=1]",
+        "artifact|kotlin.coroutines.ContinuationInterceptor.minusKey[kind=fun;recv=kotlin.coroutines.ContinuationInterceptor;params=kotlin.coroutines.CoroutineContext.Key<*>]",
+        "artifact|kotlin.coroutines.ContinuationInterceptor.releaseInterceptedContinuation[kind=fun;recv=kotlin.coroutines.ContinuationInterceptor;params=kotlin.coroutines.Continuation<*>]",
         "source|kotlin.collections.AbstractList.indexOf[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=T0;gen=1]",
         "source|kotlin.collections.AbstractList.lastIndexOf[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=T0;gen=1]",
         "source|kotlin.collections.AbstractList.subList[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=Int,Int;gen=1]",

@@ -1,24 +1,24 @@
-symbol fq=golden.sema.combine.$0.other[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.combineChain[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=golden.sema.combine[kind=fun;recv=Int;params=Int] kind=function vis=public flags=_ sig=recv=Int params=[Int] ret=Int
-symbol fq=golden.sema.orChain.$1.a[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.orChain.$1.b[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.orChain.$1.c[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.orChain[kind=fun;params=Int,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int
+symbol fq=golden.sema.combine.$0.other[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.combineChain[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.combine[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture] kind=function vis=public flags=_ sig=recv=Int params=[Int] ret=Int
+symbol fq=golden.sema.orChain.$1.a[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.orChain.$1.b[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.orChain.$1.c[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.orChain[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int
 file finfix_line_start_paren_continuation package=golden.sema
-  decl golden.sema.combine[kind=fun;recv=Int;params=Int] fun combine sym=golden.sema.combine[kind=fun;recv=Int;params=Int]
-  decl golden.sema.orChain[kind=fun;params=Int,Int,Int] fun orChain sym=golden.sema.orChain[kind=fun;params=Int,Int,Int]
-  decl golden.sema.combineChain[kind=fun;params=] fun combineChain sym=golden.sema.combineChain[kind=fun;params=]
-expr e@3:42 this type=Int
-expr e@3:49 name(other) type=Int ref=golden.sema.combine.$0.other[kind=vparam]
+  decl golden.sema.combine[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture] fun combine sym=golden.sema.combine[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture]
+  decl golden.sema.orChain[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture] fun orChain sym=golden.sema.orChain[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture]
+  decl golden.sema.combineChain[kind=fun;params=;ret=Int;origin=fixture] fun combineChain sym=golden.sema.combineChain[kind=fun;params=;ret=Int;origin=fixture]
+expr e@3:42 this type=Int ref=s-0
+expr e@3:49 name(other) type=Int ref=golden.sema.combine.$0.other[kind=vparam;origin=fixture]
 expr e@3:42#1 binary(add) lhs=e@3:42 rhs=e@3:49 type=Int
-expr e@8:9 name(a) type=Int ref=golden.sema.orChain.$1.a[kind=vparam]
-expr e@9:20 name(b) type=Int ref=golden.sema.orChain.$1.b[kind=vparam]
+expr e@8:9 name(a) type=Int ref=golden.sema.orChain.$1.a[kind=vparam;origin=fixture]
+expr e@9:20 name(b) type=Int ref=golden.sema.orChain.$1.b[kind=vparam;origin=fixture]
 expr e@8:9#1 memberCall recv=e@8:9 callee=or args=[_:e@9:20] type=Int
-expr e@10:20 name(c) type=Int ref=golden.sema.orChain.$1.c[kind=vparam]
+expr e@10:20 name(c) type=Int ref=golden.sema.orChain.$1.c[kind=vparam;origin=fixture]
 expr e@8:9#2 memberCall recv=e@8:9#1 callee=or args=[_:e@10:20] type=Int
 expr e@14:9 int(1) type=Int
 expr e@15:25 int(2) type=Int
-expr e@14:9#1 memberCall recv=e@14:9 callee=combine args=[_:e@15:25] type=Int call=golden.sema.combine[kind=fun;recv=Int;params=Int]
+expr e@14:9#1 memberCall recv=e@14:9 callee=combine args=[_:e@15:25] type=Int call=golden.sema.combine[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture]
 expr e@16:25 int(3) type=Int
-expr e@14:9#2 memberCall recv=e@14:9#1 callee=combine args=[_:e@16:25] type=Int call=golden.sema.combine[kind=fun;recv=Int;params=Int]
+expr e@14:9#2 memberCall recv=e@14:9#1 callee=combine args=[_:e@16:25] type=Int call=golden.sema.combine[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture]

@@ -3958,33 +3958,33 @@ public func kk_test_scope_scheduler(_ scopeHandle: Int) -> Int {
 /// `TestScope.currentTime`: the scope's scheduler's virtual clock, lazily
 /// minting the scheduler on first read.
 @_cdecl("kk_test_scope_current_time")
-public func kk_test_scope_current_time(_ scopeHandle: Int) -> Int64 {
+public func kk_test_scope_current_time(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
         return 0
     }
     guard let scheduler = resolveLiveRuntimeHandle(scope.schedulerForTest(), as: RuntimeTestScheduler.self) else {
         return 0
     }
-    return scheduler.currentTimeMillis
+    return Int(scheduler.currentTimeMillis)
 }
 
 @_cdecl("kk_test_scheduler_current_time")
-public func kk_test_scheduler_current_time(_ schedulerHandle: Int) -> Int64 {
+public func kk_test_scheduler_current_time(_ schedulerHandle: Int) -> Int {
     guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
         return 0
     }
-    return scheduler.currentTimeMillis
+    return Int(scheduler.currentTimeMillis)
 }
 
 /// `advanceTimeBy(delayTimeMillis)`: bumps the virtual clock. With no
 /// virtual-time task queue there is nothing to schedule, so the call is a
 /// pure counter advance.
 @_cdecl("kk_test_scheduler_advance_time_by")
-public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTimeMillis: Int64) -> Int {
+public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTimeMillis: Int) -> Int {
     guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
         return 0
     }
-    scheduler.advanceTimeBy(delayTimeMillis)
+    scheduler.advanceTimeBy(Int64(delayTimeMillis))
     return 0
 }
 

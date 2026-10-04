@@ -586,14 +586,23 @@ public func kk_list_subList(
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
-    guard fromIndex >= 0,
-          toIndex <= list.count,
-          fromIndex <= toIndex
-    else {
+    guard fromIndex >= 0, toIndex <= list.count else {
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIndexOutOfBoundsException(
                 message: "fromIndex: \(fromIndex), toIndex: \(toIndex), size: \(list.count)"
+            )
+        )
+        return 0
+    }
+    // checkRangeIndexes ordering: the bounds check above reports
+    // IndexOutOfBoundsException; a reversed-but-in-bounds range is an
+    // IllegalArgumentException (KUU-633 parity with AbstractList.SubList).
+    guard fromIndex <= toIndex else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalArgumentException(
+                message: "fromIndex: \(fromIndex) > toIndex: \(toIndex)"
             )
         )
         return 0

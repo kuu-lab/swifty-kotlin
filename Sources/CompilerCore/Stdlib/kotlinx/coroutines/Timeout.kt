@@ -44,3 +44,14 @@ public external suspend fun <T> withTimeout(duration: Duration, block: suspend (
 
 @KsSymbolName("kk_with_timeout_or_null")
 public external suspend fun <T> withTimeoutOrNull(duration: Duration, block: suspend () -> T): T?
+
+// Rewritten call sites address the raw cdecl signatures directly (the
+// block's suspend entry point and the caller continuation, plus the
+// outThrown channel for the throwing variant), so the public overloads
+// alone do not pin the RuntimeABI contract. These private declarations
+// describe the emitted shape for the RuntimeABISpec validation gates.
+@KsSymbolName("kk_with_timeout")
+private external suspend fun __kkWithTimeoutBridge(timeoutMillis: Long, entryPointRaw: Long): Long
+
+@KsSymbolName("kk_with_timeout_or_null")
+private external suspend fun __kkWithTimeoutOrNullBridge(timeoutMillis: Long, entryPointRaw: Long): Long

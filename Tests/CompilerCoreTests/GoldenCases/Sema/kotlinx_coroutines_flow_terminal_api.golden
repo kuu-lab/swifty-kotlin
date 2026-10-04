@@ -1,138 +1,138 @@
-symbol fq=__local_0.first[kind=local] kind=local vis=private flags=_ type=Int?
-symbol fq=__local_1.matched[kind=local] kind=local vis=private flags=_ type=Int?
-symbol fq=__local_2.last[kind=local] kind=local vis=private flags=_ type=Int
-symbol fq=__local_3.lastNullable[kind=local] kind=local vis=private flags=_ type=Int?
-symbol fq=__local_4.single[kind=local] kind=local vis=private flags=_ type=Int?
-symbol fq=__local_5.count[kind=local] kind=local vis=private flags=_ type=Int
-symbol fq=__local_6.any[kind=local] kind=local vis=private flags=_ type=Boolean
-symbol fq=__local_7.all[kind=local] kind=local vis=private flags=_ type=Boolean
-symbol fq=__local_8.none[kind=local] kind=local vis=private flags=_ type=Boolean
-symbol fq=__local_9.destination[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableList<Any?>
-symbol fq=__local_10.collection[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableList<Any?>
-symbol fq=__local_11.set[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Set<Int>
-symbol fq=__local_12.suppliedSet[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Set<Int>
-symbol fq=__local_13.scanned[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
-symbol fq=__local_14.folded[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<String>
-symbol fq=__local_15.reduced[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
-symbol fq=__local_16.fallback[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
-symbol fq=__local_17.forwarded[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
-symbol fq=accumulating.$0.source[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=accumulating[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.flow.Flow<Int>] ret=Unit
-symbol fq=collectors.$1.collector[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=collectors.$1.source[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=collectors[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.flow.FlowCollector<Int>;susp] kind=function vis=public flags=suspendFunction sig=recv=_ params=[kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.flow.FlowCollector<Int>] ret=Unit suspend=1
-symbol fq=terminalValues.$2.source[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=terminalValues[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;susp] kind=function vis=public flags=suspendFunction sig=recv=_ params=[kotlinx.coroutines.flow.Flow<Int>] ret=Unit suspend=1
+symbol fq=__local_0.first[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_1.matched[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_2.last[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_3.lastNullable[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_4.single[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_5.count[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_6.any[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_7.all[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_8.none[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_9.destination[kind=local;type=kotlin.collections.MutableList<Any?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableList<Any?>
+symbol fq=__local_10.collection[kind=local;type=kotlin.collections.MutableList<Any?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableList<Any?>
+symbol fq=__local_11.set[kind=local;type=kotlin.collections.Set<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Set<Int>
+symbol fq=__local_12.suppliedSet[kind=local;type=kotlin.collections.Set<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Set<Int>
+symbol fq=__local_13.scanned[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
+symbol fq=__local_14.folded[kind=local;type=kotlinx.coroutines.flow.Flow<String>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<String>
+symbol fq=__local_15.reduced[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
+symbol fq=__local_16.fallback[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
+symbol fq=__local_17.forwarded[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
+symbol fq=accumulating.$0.source[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=accumulating[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;ret=Unit;names=[source];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.flow.Flow<Int>] ret=Unit
+symbol fq=collectors.$1.collector[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=collectors.$1.source[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=collectors[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.flow.FlowCollector<Int>;ret=Unit;susp;names=[source,collector];origin=fixture] kind=function vis=public flags=suspendFunction sig=recv=_ params=[kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.flow.FlowCollector<Int>] ret=Unit suspend=1
+symbol fq=terminalValues.$2.source[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=terminalValues[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;ret=Unit;susp;names=[source];origin=fixture] kind=function vis=public flags=suspendFunction sig=recv=_ params=[kotlinx.coroutines.flow.Flow<Int>] ret=Unit suspend=1
 file fkotlinx_coroutines_flow_terminal_api package=_
-  decl terminalValues[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;susp] fun terminalValues suspend=1 sym=terminalValues[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;susp]
-  decl accumulating[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>] fun accumulating sym=accumulating[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>]
-  decl collectors[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.flow.FlowCollector<Int>;susp] fun collectors suspend=1 sym=collectors[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.flow.FlowCollector<Int>;susp]
-expr e@4:23 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
-expr e@4:23#1 memberCall recv=e@4:23 callee=firstOrNull args=[] type=Int? call=kotlinx.coroutines.flow.firstOrNull[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=;susp;gen=1] targs=[Int]
-expr e@4:5 localDecl first mutable=0 type=Int? init=e@4:23#1 type=Unit ref=__local_0.first[kind=local]
-expr e@5:25 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
+  decl terminalValues[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;ret=Unit;susp;names=[source];origin=fixture] fun terminalValues suspend=1 sym=terminalValues[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;ret=Unit;susp;names=[source];origin=fixture]
+  decl accumulating[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;ret=Unit;names=[source];origin=fixture] fun accumulating sym=accumulating[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>;ret=Unit;names=[source];origin=fixture]
+  decl collectors[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.flow.FlowCollector<Int>;ret=Unit;susp;names=[source,collector];origin=fixture] fun collectors suspend=1 sym=collectors[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.flow.FlowCollector<Int>;ret=Unit;susp;names=[source,collector];origin=fixture]
+expr e@4:23 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
+expr e@4:23#1 memberCall recv=e@4:23 callee=firstOrNull args=[] type=Int? call=kotlinx.coroutines.flow.firstOrNull[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=;ret=T0?;susp;gen=1] targs=[Int]
+expr e@4:5 localDecl first mutable=0 type=Int? init=e@4:23#1 type=Unit ref=__local_0.first[kind=local;type=Int?;origin=fixture]
+expr e@5:25 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
 expr e@5:46 name(it) type=Int ref=s-0
 expr e@5:51 int(1) type=Int
 expr e@5:46#1 binary(greaterThan) lhs=e@5:46 rhs=e@5:51 type=Boolean
 expr e@5:44 lambda params=[] body=e@5:46#1 label=firstOrNull type=suspend (Int) -> Boolean
-expr e@5:25#1 memberCall recv=e@5:25 callee=firstOrNull args=[_:e@5:44] type=Int? call=kotlinx.coroutines.flow.firstOrNull[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};susp;gen=1] targs=[Int]
-expr e@5:5 localDecl matched mutable=0 type=Int? init=e@5:25#1 type=Unit ref=__local_1.matched[kind=local]
-expr e@6:21 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
-expr e@6:21#1 memberCall recv=e@6:21 callee=last args=[] type=Int call=kotlinx.coroutines.flow.last[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=;susp;gen=1] targs=[Int]
-expr e@6:5 localDecl last mutable=0 type=Int init=e@6:21#1 type=Unit ref=__local_2.last[kind=local]
-expr e@7:30 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
-expr e@7:30#1 memberCall recv=e@7:30 callee=lastOrNull args=[] type=Int? call=kotlinx.coroutines.flow.lastOrNull[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=;susp;gen=1] targs=[Int]
-expr e@7:5 localDecl lastNullable mutable=0 type=Int? init=e@7:30#1 type=Unit ref=__local_3.lastNullable[kind=local]
-expr e@8:24 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
-expr e@8:24#1 memberCall recv=e@8:24 callee=singleOrNull args=[] type=Int? call=kotlinx.coroutines.flow.singleOrNull[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=;susp;gen=1] targs=[Int]
-expr e@8:5 localDecl single mutable=0 type=Int? init=e@8:24#1 type=Unit ref=__local_4.single[kind=local]
-expr e@9:22 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
+expr e@5:25#1 memberCall recv=e@5:25 callee=firstOrNull args=[_:e@5:44] type=Int? call=kotlinx.coroutines.flow.firstOrNull[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};ret=T0?;susp;gen=1;names=[predicate]] targs=[Int]
+expr e@5:5 localDecl matched mutable=0 type=Int? init=e@5:25#1 type=Unit ref=__local_1.matched[kind=local;type=Int?;origin=fixture]
+expr e@6:21 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
+expr e@6:21#1 memberCall recv=e@6:21 callee=last args=[] type=Int call=kotlinx.coroutines.flow.last[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=;ret=T0;susp;gen=1] targs=[Int]
+expr e@6:5 localDecl last mutable=0 type=Int init=e@6:21#1 type=Unit ref=__local_2.last[kind=local;type=Int;origin=fixture]
+expr e@7:30 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
+expr e@7:30#1 memberCall recv=e@7:30 callee=lastOrNull args=[] type=Int? call=kotlinx.coroutines.flow.lastOrNull[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=;ret=T0?;susp;gen=1] targs=[Int]
+expr e@7:5 localDecl lastNullable mutable=0 type=Int? init=e@7:30#1 type=Unit ref=__local_3.lastNullable[kind=local;type=Int?;origin=fixture]
+expr e@8:24 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
+expr e@8:24#1 memberCall recv=e@8:24 callee=singleOrNull args=[] type=Int? call=kotlinx.coroutines.flow.singleOrNull[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=;ret=T0?;susp;gen=1] targs=[Int]
+expr e@8:5 localDecl single mutable=0 type=Int? init=e@8:24#1 type=Unit ref=__local_4.single[kind=local;type=Int?;origin=fixture]
+expr e@9:22 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
 expr e@9:37 name(it) type=Int ref=s-1
 expr e@9:42 int(1) type=Int
 expr e@9:37#1 binary(greaterThan) lhs=e@9:37 rhs=e@9:42 type=Boolean
 expr e@9:35 lambda params=[] body=e@9:37#1 label=count type=suspend (Int) -> Boolean
-expr e@9:22#1 memberCall recv=e@9:22 callee=count args=[_:e@9:35] type=Int call=kotlinx.coroutines.flow.count[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};susp;gen=1] targs=[Int]
-expr e@9:5 localDecl count mutable=0 type=Int init=e@9:22#1 type=Unit ref=__local_5.count[kind=local]
-expr e@10:24 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
+expr e@9:22#1 memberCall recv=e@9:22 callee=count args=[_:e@9:35] type=Int call=kotlinx.coroutines.flow.count[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};ret=Int;susp;gen=1;names=[predicate]] targs=[Int]
+expr e@9:5 localDecl count mutable=0 type=Int init=e@9:22#1 type=Unit ref=__local_5.count[kind=local;type=Int;origin=fixture]
+expr e@10:24 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
 expr e@10:37 name(it) type=Int ref=s-2
 expr e@10:42 int(1) type=Int
 expr e@10:37#1 binary(greaterThan) lhs=e@10:37 rhs=e@10:42 type=Boolean
 expr e@10:35 lambda params=[] body=e@10:37#1 label=any type=suspend (Int) -> Boolean
-expr e@10:24#1 memberCall recv=e@10:24 callee=any args=[_:e@10:35] type=Boolean call=kotlinx.coroutines.flow.any[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};susp;gen=1] targs=[Int]
-expr e@10:5 localDecl any mutable=0 type=Boolean init=e@10:24#1 type=Unit ref=__local_6.any[kind=local]
-expr e@11:24 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
+expr e@10:24#1 memberCall recv=e@10:24 callee=any args=[_:e@10:35] type=Boolean call=kotlinx.coroutines.flow.any[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};ret=Boolean;susp;gen=1;names=[predicate]] targs=[Int]
+expr e@10:5 localDecl any mutable=0 type=Boolean init=e@10:24#1 type=Unit ref=__local_6.any[kind=local;type=Boolean;origin=fixture]
+expr e@11:24 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
 expr e@11:37 name(it) type=Int ref=s-3
 expr e@11:42 int(1) type=Int
 expr e@11:37#1 binary(greaterThan) lhs=e@11:37 rhs=e@11:42 type=Boolean
 expr e@11:35 lambda params=[] body=e@11:37#1 label=all type=suspend (Int) -> Boolean
-expr e@11:24#1 memberCall recv=e@11:24 callee=all args=[_:e@11:35] type=Boolean call=kotlinx.coroutines.flow.all[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};susp;gen=1] targs=[Int]
-expr e@11:5 localDecl all mutable=0 type=Boolean init=e@11:24#1 type=Unit ref=__local_7.all[kind=local]
-expr e@12:25 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
+expr e@11:24#1 memberCall recv=e@11:24 callee=all args=[_:e@11:35] type=Boolean call=kotlinx.coroutines.flow.all[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};ret=Boolean;susp;gen=1;names=[predicate]] targs=[Int]
+expr e@11:5 localDecl all mutable=0 type=Boolean init=e@11:24#1 type=Unit ref=__local_7.all[kind=local;type=Boolean;origin=fixture]
+expr e@12:25 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
 expr e@12:39 name(it) type=Int ref=s-4
 expr e@12:44 int(1) type=Int
 expr e@12:39#1 binary(greaterThan) lhs=e@12:39 rhs=e@12:44 type=Boolean
 expr e@12:37 lambda params=[] body=e@12:39#1 label=none type=suspend (Int) -> Boolean
-expr e@12:25#1 memberCall recv=e@12:25 callee=none args=[_:e@12:37] type=Boolean call=kotlinx.coroutines.flow.none[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};susp;gen=1] targs=[Int]
-expr e@12:5 localDecl none mutable=0 type=Boolean init=e@12:25#1 type=Unit ref=__local_8.none[kind=local]
-expr e@13:23 call callee=e@13:23#1 args=[] type=kotlin.collections.MutableList<Any?> call=kotlin.collections.mutableListOf[kind=fun;params=;gen=1] targs=[Any?]
-expr e@13:5 localDecl destination mutable=0 type=_ init=e@13:23 type=Unit ref=__local_9.destination[kind=local]
-expr e@14:41 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
-expr e@14:61 name(destination) type=kotlin.collections.MutableList<Any?> ref=__local_9.destination[kind=local]
-expr e@14:41#1 memberCall recv=e@14:41 callee=toCollection args=[_:e@14:61] type=kotlin.collections.MutableList<Any?> call=kotlinx.coroutines.flow.toCollection[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1;susp;gen=2] targs=[Int,kotlin.collections.MutableList<Any?>]
-expr e@14:5 localDecl collection mutable=0 type=MutableList<Any?> init=e@14:41#1 type=Unit ref=__local_10.collection[kind=local]
-expr e@15:25 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
-expr e@15:25#1 memberCall recv=e@15:25 callee=toSet args=[] type=kotlin.collections.Set<Int> call=kotlinx.coroutines.flow.toSet[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=kotlin.collections.MutableSet<T0>;susp;gen=1] targs=[Int]
-expr e@15:5 localDecl set mutable=0 type=Set<Int> init=e@15:25#1 type=Unit ref=__local_11.set[kind=local]
-expr e@16:33 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam]
-expr e@16:46 call callee=e@16:46#1 args=[] type=kotlin.collections.MutableSet<Int> call=kotlin.collections.mutableSetOf[kind=fun;params=;gen=1] targs=[Int]
-expr e@16:33#1 memberCall recv=e@16:33 callee=toSet args=[_:e@16:46] type=kotlin.collections.Set<Int> call=kotlinx.coroutines.flow.toSet[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=kotlin.collections.MutableSet<T0>;susp;gen=1] targs=[Int]
-expr e@16:5 localDecl suppliedSet mutable=0 type=Set<Int> init=e@16:33#1 type=Unit ref=__local_12.suppliedSet[kind=local]
-expr e@20:30 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam]
+expr e@12:25#1 memberCall recv=e@12:25 callee=none args=[_:e@12:37] type=Boolean call=kotlinx.coroutines.flow.none[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Boolean};ret=Boolean;susp;gen=1;names=[predicate]] targs=[Int]
+expr e@12:5 localDecl none mutable=0 type=Boolean init=e@12:25#1 type=Unit ref=__local_8.none[kind=local;type=Boolean;origin=fixture]
+expr e@13:23 call callee=e@13:23#1 args=[] type=kotlin.collections.MutableList<Any?> call=kotlin.collections.mutableListOf[kind=fun;params=;ret=kotlin.collections.MutableList<T0>;gen=1] targs=[Any?]
+expr e@13:5 localDecl destination mutable=0 type=_ init=e@13:23 type=Unit ref=__local_9.destination[kind=local;type=kotlin.collections.MutableList<Any?>;origin=fixture]
+expr e@14:41 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
+expr e@14:61 name(destination) type=kotlin.collections.MutableList<Any?> ref=__local_9.destination[kind=local;type=kotlin.collections.MutableList<Any?>;origin=fixture]
+expr e@14:41#1 memberCall recv=e@14:41 callee=toCollection args=[_:e@14:61] type=kotlin.collections.MutableList<Any?> call=kotlinx.coroutines.flow.toCollection[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1;ret=T1;susp;gen=2;bounds=[_,kotlin.collections.MutableCollection<in T0>];names=[destination]] targs=[Int,kotlin.collections.MutableList<Any?>]
+expr e@14:5 localDecl collection mutable=0 type=MutableList<Any?> init=e@14:41#1 type=Unit ref=__local_10.collection[kind=local;type=kotlin.collections.MutableList<Any?>;origin=fixture]
+expr e@15:25 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
+expr e@15:25#1 memberCall recv=e@15:25 callee=toSet args=[] type=kotlin.collections.Set<Int> call=kotlinx.coroutines.flow.toSet[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=kotlin.collections.MutableSet<T0>;ret=kotlin.collections.Set<T0>;susp;gen=1;defaults=[1];names=[destination]] targs=[Int]
+expr e@15:5 localDecl set mutable=0 type=Set<Int> init=e@15:25#1 type=Unit ref=__local_11.set[kind=local;type=kotlin.collections.Set<Int>;origin=fixture]
+expr e@16:33 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=terminalValues.$2.source[kind=vparam;origin=fixture]
+expr e@16:46 call callee=e@16:46#1 args=[] type=kotlin.collections.MutableSet<Int> call=kotlin.collections.mutableSetOf[kind=fun;params=;ret=kotlin.collections.MutableSet<T0>;gen=1] targs=[Int]
+expr e@16:33#1 memberCall recv=e@16:33 callee=toSet args=[_:e@16:46] type=kotlin.collections.Set<Int> call=kotlinx.coroutines.flow.toSet[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=kotlin.collections.MutableSet<T0>;ret=kotlin.collections.Set<T0>;susp;gen=1;defaults=[1];names=[destination]] targs=[Int]
+expr e@16:5 localDecl suppliedSet mutable=0 type=Set<Int> init=e@16:33#1 type=Unit ref=__local_12.suppliedSet[kind=local;type=kotlin.collections.Set<Int>;origin=fixture]
+expr e@20:30 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam;origin=fixture]
 expr e@20:42 int(0) type=Int
 expr e@20:61 name(acc) type=Int ref=s-5
 expr e@20:67 name(value) type=Int ref=s-6
 expr e@20:61#1 binary(add) lhs=e@20:61 rhs=e@20:67 type=Int
 expr e@20:45 lambda params=[acc,value] body=e@20:61#1 label=scan type=suspend (Int, Int) -> Int
-expr e@20:30#1 memberCall recv=e@20:30 callee=scan args=[_:e@20:42,_:e@20:45] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.scan[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1,fn{su;p=T1,T0;ret=T1};gen=2] targs=[Int,Int]
-expr e@20:5 localDecl scanned mutable=0 type=Flow<Int> init=e@20:30#1 type=Unit ref=__local_13.scanned[kind=local]
-expr e@21:32 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam]
+expr e@20:30#1 memberCall recv=e@20:30 callee=scan args=[_:e@20:42,_:e@20:45] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.scan[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1,fn{su;p=T1,T0;ret=T1};ret=kotlinx.coroutines.flow.Flow<T1>;gen=2;names=[initial,operation]] targs=[Int,Int]
+expr e@20:5 localDecl scanned mutable=0 type=Flow<Int> init=e@20:30#1 type=Unit ref=__local_13.scanned[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
+expr e@21:32 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam;origin=fixture]
 expr e@21:51 string() type=String
 expr e@21:71 name(acc) type=String ref=s-7
 expr e@21:77 name(value) type=Int ref=s-8
 expr e@21:71#1 binary(add) lhs=e@21:71 rhs=e@21:77 type=String
 expr e@21:55 lambda params=[acc,value] body=e@21:71#1 label=runningFold type=suspend (String, Int) -> String
-expr e@21:32#1 memberCall recv=e@21:32 callee=runningFold args=[_:e@21:51,_:e@21:55] type=kotlinx.coroutines.flow.Flow<String> call=kotlinx.coroutines.flow.runningFold[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1,fn{su;p=T1,T0;ret=T1};gen=2] targs=[Int,String]
-expr e@21:5 localDecl folded mutable=0 type=Flow<String> init=e@21:32#1 type=Unit ref=__local_14.folded[kind=local]
-expr e@22:30 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam]
+expr e@21:32#1 memberCall recv=e@21:32 callee=runningFold args=[_:e@21:51,_:e@21:55] type=kotlinx.coroutines.flow.Flow<String> call=kotlinx.coroutines.flow.runningFold[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1,fn{su;p=T1,T0;ret=T1};ret=kotlinx.coroutines.flow.Flow<T1>;gen=2;names=[initial,operation]] targs=[Int,String]
+expr e@21:5 localDecl folded mutable=0 type=Flow<String> init=e@21:32#1 type=Unit ref=__local_14.folded[kind=local;type=kotlinx.coroutines.flow.Flow<String>;origin=fixture]
+expr e@22:30 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam;origin=fixture]
 expr e@22:67 name(acc) type=Int ref=s-9
 expr e@22:73 name(value) type=Int ref=s-10
 expr e@22:67#1 binary(add) lhs=e@22:67 rhs=e@22:73 type=Int
 expr e@22:51 lambda params=[acc,value] body=e@22:67#1 label=runningReduce type=suspend (Int, Int) -> Int
-expr e@22:30#1 memberCall recv=e@22:30 callee=runningReduce args=[_:e@22:51] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.runningReduce[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0,T0;ret=T0};gen=1] targs=[Int]
-expr e@22:5 localDecl reduced mutable=0 type=Flow<Int> init=e@22:30#1 type=Unit ref=__local_15.reduced[kind=local]
-expr e@23:31 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam]
+expr e@22:30#1 memberCall recv=e@22:30 callee=runningReduce args=[_:e@22:51] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.runningReduce[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0,T0;ret=T0};ret=kotlinx.coroutines.flow.Flow<T0>;gen=1;names=[operation]] targs=[Int]
+expr e@22:5 localDecl reduced mutable=0 type=Flow<Int> init=e@22:30#1 type=Unit ref=__local_15.reduced[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
+expr e@23:31 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam;origin=fixture]
 expr e@23:53 int(1) type=Int
-expr e@23:48 call callee=e@23:48#1 args=[_:e@23:53] type=Unit
+expr e@23:48 call callee=e@23:48#1 args=[_:e@23:53] type=Unit call=kotlinx.coroutines.flow.FlowCollector.emit[kind=fun;recv=kotlinx.coroutines.flow.FlowCollector<T0>;params=T0;ret=Unit;susp;gen=1;classGen=1;names=[value]] targs=[Int]
 expr e@23:46 lambda params=[] body=e@23:48 label=onEmpty type=suspend kotlinx.coroutines.flow.FlowCollector<Int>.() -> Unit
-expr e@23:31#1 memberCall recv=e@23:31 callee=onEmpty args=[_:e@23:46] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.onEmpty[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T0>;p=;ret=Unit};gen=1] targs=[Int]
-expr e@23:5 localDecl fallback mutable=0 type=Flow<Int> init=e@23:31#1 type=Unit ref=__local_16.fallback[kind=local]
-expr e@27:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam]
+expr e@23:31#1 memberCall recv=e@23:31 callee=onEmpty args=[_:e@23:46] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.onEmpty[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T0>;p=;ret=Unit};ret=kotlinx.coroutines.flow.Flow<T0>;gen=1;names=[action]] targs=[Int]
+expr e@23:5 localDecl fallback mutable=0 type=Flow<Int> init=e@23:31#1 type=Unit ref=__local_16.fallback[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
+expr e@27:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam;origin=fixture]
 expr e@27:45 name(value) type=Int ref=s-11
-expr e@27:37 call callee=e@27:37#1 args=[_:e@27:45] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@27:37 call callee=e@27:37#1 args=[_:e@27:45] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@27:26 lambda params=[value] body=e@27:37 label=collectLatest type=suspend (Int) -> Unit
-expr e@27:5#1 memberCall recv=e@27:5 callee=collectLatest args=[_:e@27:26] type=Unit call=kotlinx.coroutines.flow.collectLatest[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Unit};susp;gen=1] targs=[Int]
-expr e@28:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam]
+expr e@27:5#1 memberCall recv=e@27:5 callee=collectLatest args=[_:e@27:26] type=Unit call=kotlinx.coroutines.flow.collectLatest[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Unit};ret=Unit;susp;gen=1;names=[action]] targs=[Int]
+expr e@28:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam;origin=fixture]
 expr e@28:53 name(index) type=Int ref=s-12
 expr e@28:61 name(value) type=Int ref=s-13
 expr e@28:53#1 binary(add) lhs=e@28:53 rhs=e@28:61 type=Int
-expr e@28:45 call callee=e@28:45#1 args=[_:e@28:53#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@28:45 call callee=e@28:45#1 args=[_:e@28:53#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@28:27 lambda params=[index,value] body=e@28:45 label=collectIndexed type=suspend (Int, Int) -> Unit
-expr e@28:5#1 memberCall recv=e@28:5 callee=collectIndexed args=[_:e@28:27] type=Unit call=kotlinx.coroutines.flow.collectIndexed[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=Int,T0;ret=Unit};susp;gen=1] targs=[Int]
-expr e@29:5 name(collector) type=kotlinx.coroutines.flow.FlowCollector<Int> ref=collectors.$1.collector[kind=vparam]
-expr e@29:23 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam]
-expr e@29:5#1 memberCall recv=e@29:5 callee=emitAll args=[_:e@29:23] type=Unit call=kotlinx.coroutines.flow.emitAll[kind=fun;recv=kotlinx.coroutines.flow.FlowCollector<T0>;params=kotlinx.coroutines.flow.Flow<T0>;susp;gen=1] targs=[Int]
-expr e@30:47 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam]
-expr e@30:39 call callee=e@30:39#1 args=[_:e@30:47] type=Unit call=kotlinx.coroutines.flow.emitAll[kind=fun;params=kotlinx.coroutines.flow.Flow<T0>;susp;gen=1] targs=[Int]
+expr e@28:5#1 memberCall recv=e@28:5 callee=collectIndexed args=[_:e@28:27] type=Unit call=kotlinx.coroutines.flow.collectIndexed[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=Int,T0;ret=Unit};ret=Unit;susp;gen=1;names=[action]] targs=[Int]
+expr e@29:5 name(collector) type=kotlinx.coroutines.flow.FlowCollector<Int> ref=collectors.$1.collector[kind=vparam;origin=fixture]
+expr e@29:23 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam;origin=fixture]
+expr e@29:5#1 memberCall recv=e@29:5 callee=emitAll args=[_:e@29:23] type=Unit call=kotlinx.coroutines.flow.emitAll[kind=fun;recv=kotlinx.coroutines.flow.FlowCollector<T0>;params=kotlinx.coroutines.flow.Flow<T0>;ret=Unit;susp;gen=1;names=[flow]] targs=[Int]
+expr e@30:47 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam;origin=fixture]
+expr e@30:39 call callee=e@30:39#1 args=[_:e@30:47] type=Unit call=kotlinx.coroutines.flow.emitAll[kind=fun;params=kotlinx.coroutines.flow.Flow<T0>;ret=Unit;susp;gen=1;names=[flow]] targs=[Int]
 expr e@30:37 lambda params=[] body=e@30:39 label=flow type=suspend () -> Unit
 expr e@30:32 call callee=e@30:32#1 args=[_:e@30:37] type=kotlinx.coroutines.flow.Flow<Int>
-expr e@30:5 localDecl forwarded mutable=0 type=Flow<Int> init=e@30:32 type=Unit ref=__local_17.forwarded[kind=local]
+expr e@30:5 localDecl forwarded mutable=0 type=Flow<Int> init=e@30:32 type=Unit ref=__local_17.forwarded[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]

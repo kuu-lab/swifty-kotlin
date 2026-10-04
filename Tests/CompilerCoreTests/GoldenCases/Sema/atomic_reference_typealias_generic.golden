@@ -1,15 +1,15 @@
-symbol fq=golden.sema.appendAtomically.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.appendAtomically[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicReference<String>] ret=String
-symbol fq=golden.sema.readNullable.$1.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.readNullable[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String?>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicReference<String?>] ret=String?
+symbol fq=golden.sema.appendAtomically.$0.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.appendAtomically[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>;ret=String;names=[atomic];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicReference<String>] ret=String
+symbol fq=golden.sema.readNullable.$1.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readNullable[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String?>;ret=String?;names=[atomic];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicReference<String?>] ret=String?
 file fatomic_reference_typealias_generic package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
-  decl golden.sema.appendAtomically[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>] fun appendAtomically sym=golden.sema.appendAtomically[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>]
-  decl golden.sema.readNullable[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String?>] fun readNullable sym=golden.sema.readNullable[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String?>]
-expr e@8:5 name(atomic) type=kotlin.concurrent.atomics.AtomicReference<String> ref=golden.sema.appendAtomically.$0.atomic[kind=vparam]
+  decl golden.sema.appendAtomically[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>;ret=String;names=[atomic];origin=fixture] fun appendAtomically sym=golden.sema.appendAtomically[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>;ret=String;names=[atomic];origin=fixture]
+  decl golden.sema.readNullable[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String?>;ret=String?;names=[atomic];origin=fixture] fun readNullable sym=golden.sema.readNullable[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String?>;ret=String?;names=[atomic];origin=fixture]
+expr e@8:5 name(atomic) type=kotlin.concurrent.atomics.AtomicReference<String> ref=golden.sema.appendAtomically.$0.atomic[kind=vparam;origin=fixture]
 expr e@8:29 name(it) type=String ref=s-0
 expr e@8:34 string(x) type=String
 expr e@8:29#1 binary(add) lhs=e@8:29 rhs=e@8:34 type=String
 expr e@8:27 lambda params=[] body=e@8:29#1 label=fetchAndUpdate type=(String) -> String
-expr e@8:5#1 memberCall recv=e@8:5 callee=fetchAndUpdate args=[_:e@8:27] type=String call=kotlin.concurrent.atomics.fetchAndUpdate[kind=fun;recv=kotlin.concurrent.atomics.AtomicReference<T0>;params=fn{p=T0;ret=T0};gen=1] targs=[String]
-expr e@10:63 name(atomic) type=kotlin.concurrent.atomics.AtomicReference<String?> ref=golden.sema.readNullable.$1.atomic[kind=vparam]
-expr e@10:63#1 memberCall recv=e@10:63 callee=load args=[] type=String? call=kotlin.concurrent.atomics.AtomicReference.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicReference<T0>;params=;gen=1] targs=[String?]
+expr e@8:5#1 memberCall recv=e@8:5 callee=fetchAndUpdate args=[_:e@8:27] type=String call=kotlin.concurrent.atomics.fetchAndUpdate[kind=fun;recv=kotlin.concurrent.atomics.AtomicReference<T0>;params=fn{p=T0;ret=T0};ret=T0;gen=1;names=[transform]] targs=[String]
+expr e@10:63 name(atomic) type=kotlin.concurrent.atomics.AtomicReference<String?> ref=golden.sema.readNullable.$1.atomic[kind=vparam;origin=fixture]
+expr e@10:63#1 memberCall recv=e@10:63 callee=load args=[] type=String? call=kotlin.concurrent.atomics.AtomicReference.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicReference<T0>;params=;ret=T0;gen=1;classGen=1] targs=[String?]

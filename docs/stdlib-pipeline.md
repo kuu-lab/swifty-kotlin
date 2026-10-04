@@ -223,25 +223,41 @@ case あたりの stdlib 再コンパイルを回避する。
 > 補足: 並行メモが提案していた別基準（Smoke 相当の入力で wall-clock 15%未満 or 200ms未満）との
 > すり合わせは決着済み。実測に基づき上記 +100ms トリガーを採用した（`docs/refactoring-metrics.md`）。
 
-## 8. golden / diff_kotlinc への影響 (RF-STDLIB-007)
+## 8. golden / diff_kotlinc への影響 (RF-STDLIB-007 → RF-GOLDEN-008 で改訂)
 
 - golden（Lexer/Parser/Sema/Diagnostics）は **ユーザー入力ファイルのみ**を対象とし、
   `__bundled_*` 由来のトークン・AST・診断はダンプに含めない（既にパス名で判別可能）
-- ただし Sema golden のシンボル ID は bundled ソースの宣言数に影響される。
-  §4 の決定的順序（辞書順・ユーザーより先）を不変条件とし、stdlib 変更時は
-  `UPDATE_GOLDEN=1` での一括更新を許容する（更新 diff が機械的であることを PR でレビュー）
+- Sema golden の通常 body は RF-GOLDEN-007/008 の fixture-owned 契約
+  （`GoldenSemaRenderingContract.fixtureOwned`、既定）で描画する:
+  - `symbol` 行は fixture 所有の宣言（RF-GOLDEN-002 の `.fixture` / `.unknown` origin）に限定する。
+    bundled / stub / member-alias / imported の外部宣言は `flags=` / `sig=` / `type=` の
+    メタデータ行を出さない
+  - `call=` / `ref=` / `type=` / `targs=` / `sig=` の参照キーは RF-GOLDEN-006 の公開宣言キーで表記する。
+    戻り型・境界・引数名・default/vararg/nonlocal・throws・variance・underlying を含み、
+    stdlib の実装方式（synthetic stub / source-backed / member alias / imported）の差は
+    公開キーへ投影されない
+- stdlib 宣言のメタデータ契約は `.golden-spec` の `target=` を持つ対象指定ケースの
+  `section stdlib-targets` が担当する。spec・期待値・profile・担当重複は
+  `GoldenHarnessCaseDiscovery.preflightAllSuites` の全量ゲートが検査する（RF-GOLDEN-013）
+- **更新方針**: 実装詳細だけの変化（synthetic↔source-backed 切替・内部 flag・
+  未参照宣言の追加・alias/declSite/シンボル ID の揺れ）では通常 Golden を更新しない。
+  公開 API / 解決先の意味変更・出力仕様移行（契約フォーマット改版）時の
+  `UPDATE_GOLDEN=1` 一括更新は許容する（更新 diff が機械的であることを PR でレビュー）。
+  §4 の決定的順序（辞書順・ユーザーより先）は不変条件
 - stdlib ソース自身に diagnostics が出る状態はコンパイラのバグとして扱う
   （warning 含めゼロを CI で enforcing にする）
 - `diff_kotlinc.sh`: 移行した各 API に対応する diff ケースを `Scripts/diff_cases/` に**必ず追加**する。
   kotlinc と意図的に挙動を変えない限り `// SKIP-DIFF` は使わない
 
-実装ステータス（2026-07-06）:
+実装ステータス（2026-10-04、RF-GOLDEN-008 時点）:
 
 - `LoadSourcesPhase` は bundled / residual stdlib sources を `__bundled_*` path の辞書順に登録し、
   `Tests/CompilerCoreTests/Driver/BundledStdlibOrderingTests.swift` が「bundled がユーザー入力より先」
   と「bundled 同士が辞書順」を固定している
-- Sema golden は `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` で bundled declSite symbols を
-  除外し、`rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が 0 件になる状態を維持する
+- Sema golden は `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` の fixture-owned 契約で
+  fixture 所有 symbol のみを描画し、`rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が
+  0 件になる状態を維持する。参照キーは公開宣言キー表記で、外部 symbol のメタデータは
+  対象指定ケースの `section stdlib-targets` と `GoldenHarnessInventoryTests` の全量ゲートが担保する
 - Diagnostics golden / CLI diagnostics は `DiagnosticEngine.render` / `renderJSON` が source location、
   severity、code、message で render 時ソートする
 - `Scripts/diff_kotlinc.sh` は `find | sort` の case discovery、interleaved sharding、parallel worker logs の

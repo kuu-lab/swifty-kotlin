@@ -1,9 +1,9 @@
-symbol fq=golden.sema.ExperimentalSemaApi[kind=anno] kind=annotationClass vis=public flags=_
-symbol fq=golden.sema.callerSema[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=golden.sema.unstableSema[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.ExperimentalSemaApi[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.callerSema[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.unstableSema[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 file fopt_in_annotations package=golden.sema
-  decl golden.sema.ExperimentalSemaApi[kind=anno] class ExperimentalSemaApi sym=golden.sema.ExperimentalSemaApi[kind=anno]
-  decl golden.sema.unstableSema[kind=fun;params=] fun unstableSema sym=golden.sema.unstableSema[kind=fun;params=]
-  decl golden.sema.callerSema[kind=fun;params=] fun callerSema sym=golden.sema.callerSema[kind=fun;params=]
+  decl golden.sema.ExperimentalSemaApi[kind=anno;origin=fixture] class ExperimentalSemaApi sym=golden.sema.ExperimentalSemaApi[kind=anno;origin=fixture]
+  decl golden.sema.unstableSema[kind=fun;params=;ret=Int;origin=fixture] fun unstableSema sym=golden.sema.unstableSema[kind=fun;params=;ret=Int;origin=fixture]
+  decl golden.sema.callerSema[kind=fun;params=;ret=Int;origin=fixture] fun callerSema sym=golden.sema.callerSema[kind=fun;params=;ret=Int;origin=fixture]
 expr e@7:27 int(1) type=Int
-expr e@10:25 call callee=e@10:25#1 args=[] type=Int call=golden.sema.unstableSema[kind=fun;params=]
+expr e@10:25 call callee=e@10:25#1 args=[] type=Int call=golden.sema.unstableSema[kind=fun;params=;ret=Int;origin=fixture]

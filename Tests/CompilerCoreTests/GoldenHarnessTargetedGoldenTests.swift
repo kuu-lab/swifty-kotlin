@@ -183,7 +183,10 @@ struct GoldenHarnessTargetedGoldenTests {
             "package sample\n\nfun f(): Int = 1\n",
             spec: GoldenHarnessCaseSpec(stdlibProfile: .noStdlib, targets: [])
         )
-        #expect(dump.contains("symbol fq=sample.f[kind=fun;params=]"))
+        // RF-GOLDEN-008: the fixture-owned contract spells this key
+        // `sample.f[kind=fun;params=;ret=Int;origin=fixture]` — assert the
+        // prefix so the suffix atoms stay free to grow with the public key.
+        #expect(dump.contains("symbol fq=sample.f[kind=fun;params=;"))
         #expect(!dump.contains("section stdlib-targets"))
     }
 
