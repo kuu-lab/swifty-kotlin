@@ -311,6 +311,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// so that any subsequent resume call is rejected with an `IllegalStateException`.
     /// Reset by `resetResumeState()` when the coroutine advances to the next suspend point.
     private var hasResumed: Bool = false
+    private var cancellableDelivery: RuntimeCancellableContinuation?
     private var delayTimers: [ObjectIdentifier: DispatchSourceTimer]
     private static let taskStateLock = NSLock()
     nonisolated(unsafe) private static var taskStateMap: [RuntimeTaskKey: RuntimeContinuationState] = [:]
@@ -492,6 +493,25 @@ final class RuntimeContinuationState: @unchecked Sendable {
             return
         }
         resumeContinuation = boxedContinuation
+        stateLock.unlock()
+    }
+
+    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
+        stateLock.lock()
+        cancellableDelivery = continuation
+        stateLock.unlock()
+    }
+
+    func consumeCancellableDelivery() {
+        stateLock.lock()
+        let delivery = cancellableDelivery
+        cancellableDelivery = nil
+        stateLock.unlock()
+        guard let delivery else { return }
+        let result = delivery.takeResultForDelivery()
+        stateLock.lock()
+        completion = Int64(runtimeResultValueOrNull(result))
+        thrownException = runtimeResultIsSuccess(result) ? 0 : runtimeResultExceptionOrNull(result)
         stateLock.unlock()
     }
 
@@ -2482,6 +2502,12 @@ func runtimeStartLaunchedBody(
     job: RuntimeJobHandle?,
     onFinished: @escaping @Sendable (_ result: Int, _ thrown: Int) -> Void
 ) {
+    let previousScope = RuntimeCoroutineScope.current
+    let previousJob = RuntimeJobHandle.current
+    defer {
+        RuntimeCoroutineScope.current = previousScope
+        RuntimeJobHandle.current = previousJob
+    }
     RuntimeCoroutineScope.current = scope
     RuntimeJobHandle.current = job
     _ = runSuspendEntryLoopWithContinuation(
@@ -4910,6 +4936,7 @@ func runSuspendEntryLoopWithContinuation(
         // for the duration of `entryPoint`'s call below, so RuntimePendingLaunchQueue
         // knows any `launch{}` it makes has a real burst to be flushed at.
         RuntimeCoroutineBurstDepth.enter()
+        contState?.consumeCancellableDelivery()
         var thrownValue = 0
         let result = entryPoint(continuation, &thrownValue)
         if thrownValue != 0 {

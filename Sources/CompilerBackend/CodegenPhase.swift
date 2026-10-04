@@ -277,7 +277,8 @@ public final class CodegenPhase: CompilerPhase {
             let fileName = MetadataEncoder.inlineKIRFileName(for: mangled)
             let filePath = outputDir + "/\(fileName)"
             let parameterSymbols = Set(function.params.map(\.symbol))
-            let bodyLines = function.body.map { instruction in
+            let inlineBody = module.inlineBodiesBeforeCoroutineLowering[function.symbol] ?? function.body
+            let bodyLines = inlineBody.map { instruction in
                 serializeInlineInstruction(
                     instruction,
                     interner: ctx.interner,

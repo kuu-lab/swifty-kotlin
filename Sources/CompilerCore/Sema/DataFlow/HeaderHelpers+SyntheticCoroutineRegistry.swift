@@ -421,7 +421,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let cancellationIsSourceBacked = !(symbols.symbol(cancellationSymbol)?.flags.contains(.synthetic) ?? true)
+        let cancellationIsSourceBacked = symbols.isSourceBackedSymbol(cancellationSymbol)
         let illegalStateExceptionSymbol: SymbolID?
         if cancellationIsSourceBacked {
             illegalStateExceptionSymbol = nil
@@ -433,7 +433,9 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        let rootCancellationSymbol: SymbolID = if let existing = symbols.lookup(fqName: [interner.intern("CancellationException")]) {
+        let rootCancellationSymbol: SymbolID = if cancellationIsSourceBacked {
+            cancellationSymbol
+        } else if let existing = symbols.lookup(fqName: [interner.intern("CancellationException")]) {
             existing
         } else {
             symbols.define(
@@ -712,7 +714,9 @@ extension DataFlowSemaPhase {
             symbols.setDirectSupertypes([illegalStateExceptionSymbol], for: cancellationSymbol)
             types.setNominalDirectSupertypes([illegalStateExceptionSymbol], for: cancellationSymbol)
         }
-        symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
+        if !cancellationIsSourceBacked {
+            symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
+        }
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
         // Preserve the declaration-site `in` variance once Continuation has

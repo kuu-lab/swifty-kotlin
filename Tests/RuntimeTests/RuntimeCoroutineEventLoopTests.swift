@@ -318,6 +318,31 @@ struct RuntimeCoroutineEventLoopTests {
 
     // MARK: - CoroutineStart.UNDISPATCHED
 
+    @Test func testLaunchedBodyRestoresAmbientScopeAndJob() {
+        let previousScope = RuntimeCoroutineScope.current
+        let previousJob = RuntimeJobHandle.current
+        let continuation = kk_coroutine_continuation_new(undispatchedBodyFunctionID)
+        let scope = RuntimeCoroutineScope()
+        let job = RuntimeJobHandle()
+        _ = job.cancel()
+        let completed = RuntimeCompletionFlag()
+
+        runtimeStartLaunchedBody(
+            entryPointRaw: unsafeBitCast(runtime_test_undispatched_body as EventLoopTestSuspendEntry, to: Int.self),
+            continuation: continuation,
+            scope: scope,
+            job: job
+        ) { result, thrown in
+            #expect(result == 7)
+            #expect(thrown == 0)
+            completed.set()
+        }
+
+        #expect(completed.isSet)
+        #expect(RuntimeCoroutineScope.current === previousScope)
+        #expect(RuntimeJobHandle.current === previousJob)
+    }
+
     @Test func testUndispatchedLaunchRunsBodyBeforeReturning() {
         let entryRaw = unsafeBitCast(
             runtime_test_undispatched_body as EventLoopTestSuspendEntry,

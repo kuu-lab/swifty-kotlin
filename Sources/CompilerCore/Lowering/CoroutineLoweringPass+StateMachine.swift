@@ -282,7 +282,8 @@ extension CoroutineLoweringPass {
                     )
                     let loweredSuspendCallee: InternedString
                     var loweredSuspendArguments: [KIRExprID]
-                    if suspendCallInfo.callee == suspendCoroutineUninterceptedOrReturnCallee {
+                    if suspendCallInfo.callee == suspendCoroutineUninterceptedOrReturnCallee ||
+                        suspendCallInfo.callee == interner.intern("<suspendCoroutineUninterceptedOrReturn>") {
                         guard let blockExpr = suspendCallInfo.arguments.first else {
                             lowered.append(instruction)
                             continue
@@ -364,6 +365,19 @@ extension CoroutineLoweringPass {
                     if let userResultExpr {
                         lowered.append(.copy(from: suspendTokenResult, to: userResultExpr))
                     }
+                    let synchronousContinueLabel = Int32(4000 + nextResumeLabel * 2 + 1)
+                    if let thrownResult = suspendCallInfo.thrownResult {
+                        lowered.append(.jumpIfNotNull(value: thrownResult, target: synchronousContinueLabel))
+                    }
+                    lowered.append(.call(
+                        symbol: nil,
+                        callee: checkCancellationCallee,
+                        arguments: [continuationExpr],
+                        result: nil,
+                        canThrow: true,
+                        thrownResult: suspendCallInfo.thrownResult
+                    ))
+                    lowered.append(.jump(synchronousContinueLabel))
                     continue
                 }
 

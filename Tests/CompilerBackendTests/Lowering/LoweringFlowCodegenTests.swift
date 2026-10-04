@@ -429,6 +429,37 @@ struct LoweringFlowCodegenTests {
     }
 
     @Test
+    func testFailedBlockingCoroutineDoesNotCancelLaterLaunches() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() {
+            try {
+                runBlocking {
+                    launch(start = CoroutineStart.UNDISPATCHED) {
+                        delay(1)
+                        throw IllegalStateException("child")
+                    }
+                }
+            } catch (error: IllegalStateException) {
+                println(error.message)
+            }
+            runBlocking {
+                val child = launch(start = CoroutineStart.UNDISPATCHED) {
+                    println("next")
+                }
+                child.join()
+            }
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "FailedBlockingCoroutineCallableExecutable",
+            expectedStdout: "child\nnext\n"
+        )
+    }
+
+    @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
         fun main() {

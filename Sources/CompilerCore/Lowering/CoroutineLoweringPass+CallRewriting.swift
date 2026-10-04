@@ -68,6 +68,9 @@ extension CoroutineLoweringPass {
             if function.isSuspend,
                let wrapperBody = buildSuspendWrapperBody(for: function, using: rewrite)
             {
+                if function.isInline {
+                    rewrite.module.inlineBodiesBeforeCoroutineLowering[function.symbol] = function.body
+                }
                 updated.replaceBody(
                     wrapperBody,
                     locations: Array(repeating: nil, count: wrapperBody.count)
