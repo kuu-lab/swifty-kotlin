@@ -279,7 +279,8 @@ extension CoroutineLoweringPass {
                     )
                     let loweredSuspendCallee: InternedString
                     var loweredSuspendArguments: [KIRExprID]
-                    if suspendCallInfo.callee == suspendCoroutineUninterceptedOrReturnCallee {
+                    if suspendCallInfo.callee == suspendCoroutineUninterceptedOrReturnCallee ||
+                        suspendCallInfo.callee == interner.intern("<suspendCoroutineUninterceptedOrReturn>") {
                         guard let blockExpr = suspendCallInfo.arguments.first else {
                             lowered.append(instruction)
                             continue
@@ -304,18 +305,8 @@ extension CoroutineLoweringPass {
                     if suspendCallInfo.callee == suspendCoroutineRuntimeCallee {
                         loweredSuspendArguments.append(continuationExpr)
                     }
-                    // The direct-call rewrite appends the continuation to
-                    // source-backed suspend calls before they reach this
-                    // state machine. Virtual calls bypass that rewrite, so
-                    // forward the current continuation here as their final
-                    // argument to the dispatched method body.
-                    if suspendCallInfo.isVirtual,
-                       !runtimeSuspendCallNames.contains(suspendCallInfo.callee),
-                       (suspendCallInfo.symbol.map { suspendFunctionSymbols.contains($0) } == true
-                           || suspendFunctionNames.contains(suspendCallInfo.callee))
-                    {
-                        loweredSuspendArguments.append(continuationExpr)
-                    }
+                    // Vtables and itables point to the original blocking wrappers,
+                    // not the lowered continuation-taking entries.
                     if suspendCallInfo.isVirtual,
                        case let .virtualCall(_, _, receiver, _, _, _, _, dispatch) = suspendCallInfo.originalInstruction
                     {
@@ -371,6 +362,19 @@ extension CoroutineLoweringPass {
                     if let userResultExpr {
                         lowered.append(.copy(from: suspendTokenResult, to: userResultExpr))
                     }
+                    let synchronousContinueLabel = Int32(4000 + nextResumeLabel * 2 + 1)
+                    if let thrownResult = suspendCallInfo.thrownResult {
+                        lowered.append(.jumpIfNotNull(value: thrownResult, target: synchronousContinueLabel))
+                    }
+                    lowered.append(.call(
+                        symbol: nil,
+                        callee: checkCancellationCallee,
+                        arguments: [continuationExpr],
+                        result: nil,
+                        canThrow: true,
+                        thrownResult: suspendCallInfo.thrownResult
+                    ))
+                    lowered.append(.jump(synchronousContinueLabel))
                     continue
                 }
 

@@ -14,6 +14,32 @@ import Testing
 @Suite
 struct CodegenBackendCoroutineSchedulingTests {
 
+    @Test func testCodegenActorReceiverKeepsLauncherABI() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.channels.*
+
+        fun main() {
+            runBlocking {
+                val worker = actor<Int> {
+                    val value = channel.receive()
+                    delay(10)
+                    println("processed: $value")
+                }
+                worker.send(7)
+                worker.close()
+            }
+            println("done")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ActorReceiverLauncherABI",
+            expected: "processed: 7\ndone\n"
+        )
+    }
+
     /// `yield()` re-dispatches to the tail of runBlocking's queue, so the
     /// interleaving is FIFO and identical on every run. Before the fix there
     /// was no ready queue: resumptions went to the concurrent global dispatch

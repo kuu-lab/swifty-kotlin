@@ -24,6 +24,11 @@ extension CoroutineLoweringPass {
         /// receiver-less intrinsics (SuspendFunction0.kt) are inlined.
         let createCoroutineUninterceptedNoReceiverCallee: InternedString
         let startCoroutineUninterceptedOrReturnNoReceiverCallee: InternedString
+        /// Marker callees left behind when the source-backed receiver-bearing
+        /// intrinsics (SuspendFunction1.kt) are inlined; rewritten like the
+        /// receiver-less synthetic forms.
+        let createCoroutineUninterceptedWithReceiverCallee: InternedString
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee: InternedString
         let runtimeCreateCoroutineUninterceptedCallee: InternedString
         let runtimeStartCoroutineUninterceptedOrReturnCallee: InternedString
         let runtimeContinuationResumeCallee: InternedString
@@ -68,6 +73,9 @@ extension CoroutineLoweringPass {
             if function.isSuspend,
                let wrapperBody = buildSuspendWrapperBody(for: function, using: rewrite)
             {
+                if function.isInline {
+                    rewrite.module.inlineBodiesBeforeCoroutineLowering[function.symbol] = function.body
+                }
                 updated.replaceBody(
                     wrapperBody,
                     locations: Array(repeating: nil, count: wrapperBody.count)
@@ -1497,7 +1505,8 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee
-                || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee,
+                || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
+                || call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil
@@ -1573,7 +1582,8 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.startCoroutineUninterceptedOrReturnCallee
-                || call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee,
+                || call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
+                || call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil

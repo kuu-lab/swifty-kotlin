@@ -648,12 +648,30 @@ extension LambdaLowerer {
         // receiver symbol. Match by nominal type in that case so the captured
         // field is initialized instead of left zeroed.
         if sema.symbols.symbol(symbol)?.kind == .class,
-           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
-           let receiverType = arena.exprType(receiverExprID),
-           case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-           sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: symbol)
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
-            return receiverExprID
+            if let receiverType = arena.exprType(receiverExprID),
+               case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+               sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: symbol)
+            {
+                return receiverExprID
+            }
+            // BUG-inner-outer: `symbol` may name an ancestor class reachable
+            // only through further `$outer` hops (e.g. captured two lexical
+            // levels out, from inside an `inner class` nested inside another
+            // `inner class`) -- the active receiver's own class is then
+            // neither `symbol` nor a subtype of it, so walk the chain instead
+            // of leaving the captured field zeroed.
+            if let outerValue = resolveOuterChainValue(
+                from: receiverExprID,
+                to: symbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return outerValue
+            }
         }
         // KSP-CAP-001: object-literal member functions may capture an
         // immutable stored property of their enclosing class. The enclosing
@@ -671,6 +689,20 @@ extension LambdaLowerer {
                sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
            ]
         {
+            // BUG-inner-outer: an inner class's implicit receiver is its
+            // own instance, but a captured property declared on an
+            // *enclosing* class must be read through the `$outer` chain
+            // instead of applying `ownerSymbol`'s field offset to the
+            // wrong object. A no-op for every other case, where the
+            // receiver already is (or subclasses) `ownerSymbol`.
+            let fieldReceiverExprID = resolveOuterChainValue(
+                from: receiverExprID,
+                to: ownerSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) ?? receiverExprID
             let symbolType = typeForSymbolReference(symbol, sema: sema)
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -678,7 +710,7 @@ extension LambdaLowerer {
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
-                arguments: [receiverExprID, offsetExpr],
+                arguments: [fieldReceiverExprID, offsetExpr],
                 result: valueExpr,
                 canThrow: false,
                 thrownResult: nil

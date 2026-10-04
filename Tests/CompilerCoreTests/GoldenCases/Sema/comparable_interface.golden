@@ -1,5 +1,5 @@
 symbol fq=Temperature.compareTo.$0.other[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=Temperature.compareTo[kind=fun;recv=Temperature;params=Temperature] kind=function vis=public flags=overrideMember sig=recv=Temperature params=[Temperature] ret=Int
+symbol fq=Temperature.compareTo[kind=fun;recv=Temperature;params=Temperature] kind=function vis=public flags=operatorFunction|overrideMember sig=recv=Temperature params=[Temperature] ret=Int
 symbol fq=Temperature.degrees[kind=prop] kind=property vis=public flags=_ type=Int
 symbol fq=Temperature[kind=class] kind=class vis=public flags=_
 symbol fq=compareGe.$1.a[kind=vparam] kind=valueParameter vis=private flags=_

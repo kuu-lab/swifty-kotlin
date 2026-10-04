@@ -376,7 +376,7 @@ public func kk_list_get(
     guard list.indices.contains(index) else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "Index: \(index), Size: \(list.count)")
+            runtimeAllocateIndexOutOfBoundsException(message: "Index \(index) out of bounds for length \(list.count)")
         )
         return 0
     }
@@ -961,7 +961,7 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
     }
     guard (0...list.count).contains(index) else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "Index \(index) out of bounds for length \(list.count)"
+            message: "Index: \(index), Size: \(list.count)"
         )
         return 0
     }

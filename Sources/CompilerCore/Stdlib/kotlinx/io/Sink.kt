@@ -3,7 +3,6 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
  *
  * Derived from kotlinx-io core/common/src/Sink.kt (tag 0.9.1).
- * See the note in Source.kt about dropping `sealed` and interface-level default parameter values.
  */
 package kotlinx.io
 
@@ -11,7 +10,7 @@ package kotlinx.io
  * A sink that facilitates typed data writes and keeps a buffer internally so that callers can write
  * some data without sending it directly to an upstream.
  */
-public interface Sink : RawSink {
+public sealed interface Sink : RawSink {
     public val buffer: Buffer
 
     /**
@@ -33,7 +32,7 @@ public interface Sink : RawSink {
      * Writes bytes from [source]'s subrange starting at [startIndex] and ending at [endIndex] to
      * this sink.
      */
-    public fun write(source: ByteArray, startIndex: Int, endIndex: Int)
+    public fun write(source: ByteArray, startIndex: Int = 0, endIndex: Int = source.size)
 
     /**
      * Removes all bytes from [source] and writes them to this sink. Returns the number of bytes

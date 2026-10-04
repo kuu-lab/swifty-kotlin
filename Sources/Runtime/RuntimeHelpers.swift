@@ -68,7 +68,14 @@ func runtimeAsyncTask(from handle: Int) -> RuntimeAsyncTask? {
 }
 
 func runtimeJobHandle(from handle: Int) -> RuntimeJobHandle? {
-    resolveLiveRuntimeHandle(handle, as: RuntimeJobHandle.self)
+    if let ptr = UnsafeMutableRawPointer(bitPattern: handle),
+       runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+       let wrapper = tryCast(ptr, to: RuntimeObjectBox.self),
+       wrapper.coroutineJobHandle != 0
+    {
+        return resolveLiveRuntimeHandle(wrapper.coroutineJobHandle, as: RuntimeJobHandle.self)
+    }
+    return resolveLiveRuntimeHandle(handle, as: RuntimeJobHandle.self)
 }
 
 func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {
