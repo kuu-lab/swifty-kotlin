@@ -89,7 +89,21 @@ final class ExprTypeChecker {
             return stringType
 
         case let .nameRef(name, nameRange):
-            return inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
+            let nameType = inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
+            // `val f: Factory<Widget> = Widget`: a bare class name whose own type does not
+            // satisfy the expected type may still denote its companion object, which does.
+            if let expectedType,
+               !sema.types.isSubtype(nameType, expectedType),
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   id, currentType: nameType, ast: ast, sema: sema
+               )
+            {
+                if sema.types.isSubtype(companionType, expectedType) {
+                    return companionType
+                }
+                sema.bindings.bindExprType(id, type: nameType)
+            }
+            return nameType
 
         case let .forExpr(loopVariable, iterableExpr, bodyExpr, label, range):
             return driver.controlFlowChecker.inferForExpr(id, loopVariable: loopVariable, iterableExpr: iterableExpr, bodyExpr: bodyExpr, label: label, range: range, ctx: ctx, locals: &locals)
@@ -196,12 +210,17 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
-            // An unlabeled return in a lambda targets the surrounding named
-            // function. Its value must therefore be inferred against that
-            // function's return type, not the lambda's expected Boolean/result
-            // type (e.g. a predicate passed to an inline HOF).
+            // An unlabeled `return` always targets the enclosing named
+            // function, whether or not it sits inside a lambda -- so its
+            // value must be inferred against *that* function's declared
+            // return type, never the ambient `expectedType` threaded down
+            // through whatever expression happens to syntactically contain
+            // it (a lambda's own expected Boolean/result type, but equally
+            // an elvis/if/when/try branch's expected type propagated in from
+            // an outer assignment: `x = if (c) 1 else return null` inside a
+            // function returning `Int?` must check `return null` against
+            // `Int?`, not `x`'s declared `Int`).
             let returnExpectedType: TypeID? = if label == nil,
-                                                    ctx.lambdaDepth > 0,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
             {
                 enclosingFunctionReturnType
@@ -618,6 +637,47 @@ final class ExprTypeChecker {
             sema: sema,
             interner: interner
         ) == .intRange {
+            // A same-element contains member shadows a user extension for the
+            // in operator, just as it does for an explicit member call. Keep
+            // cross-type arguments on the extension overload path below.
+            if sema.types.makeNonNullable(elementType) == sema.types.intType {
+                let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: containsName,
+                    receiverType: rangeSourceReceiverType,
+                    sema: sema,
+                    interner: interner
+                ).filter { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.flags.contains(.operatorFunction),
+                          let signature = sema.symbols.functionSignature(for: candidate)
+                    else { return false }
+                    return signature.parameterTypes.count == 1
+                }
+                let memberCall = ctx.resolver.resolveCall(
+                    candidates: memberCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: containsName,
+                        args: [CallArg(type: elementType)]
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: rangeSourceReceiverType,
+                    ctx: ctx.semaCtx
+                )
+                if let chosen = memberCall.chosenCallee {
+                    sema.bindings.bindCall(
+                        exprID,
+                        binding: CallBinding(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: memberCall.substitutedTypeArguments
+                                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                .map { _, value in value },
+                            parameterMapping: memberCall.parameterMapping
+                        )
+                    )
+                    return
+                }
+            }
             let scopedRangeUserCandidates = driver.callChecker
                 .collectScopedRangeUserExtensionCandidates(
                     named: containsName,
@@ -685,7 +745,13 @@ final class ExprTypeChecker {
                         }
                         return signature.parameterTypes.count == 1
                     }
-                let hasApplicableRangeMember = ctx.resolver.resolveCall(
+                // Viability, not a unique winner: a receiver that conforms to
+                // both ClosedRange and OpenEndRange offers the same `contains`
+                // member through two supertype paths, which resolveCall reports
+                // as ambiguous. This check only decides whether the bundled
+                // member surface can handle the call, so probe for at least one
+                // applicable member instead.
+                let hasApplicableRangeMember = !ctx.resolver.probeCall(
                     candidates: rangeMemberCandidates,
                     call: CallExpr(
                         range: range,
@@ -695,7 +761,7 @@ final class ExprTypeChecker {
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
                     ctx: ctx.semaCtx
-                ).chosenCallee != nil
+                ).viableCandidates.isEmpty
                 if !hasBundledRangeCandidate,
                    !hasApplicableRangeMember,
                    let diagnostic = resolved.diagnostic
@@ -721,6 +787,47 @@ final class ExprTypeChecker {
             sema: sema,
             interner: interner
         ) == .uintRange {
+            // A same-element contains member shadows a user extension for the
+            // in operator, just as it does for an explicit member call. Keep
+            // cross-type arguments on the extension overload path below.
+            if sema.types.makeNonNullable(elementType) == sema.types.uintType {
+                let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: containsName,
+                    receiverType: rangeSourceReceiverType,
+                    sema: sema,
+                    interner: interner
+                ).filter { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.flags.contains(.operatorFunction),
+                          let signature = sema.symbols.functionSignature(for: candidate)
+                    else { return false }
+                    return signature.parameterTypes.count == 1
+                }
+                let memberCall = ctx.resolver.resolveCall(
+                    candidates: memberCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: containsName,
+                        args: [CallArg(type: elementType)]
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: rangeSourceReceiverType,
+                    ctx: ctx.semaCtx
+                )
+                if let chosen = memberCall.chosenCallee {
+                    sema.bindings.bindCall(
+                        exprID,
+                        binding: CallBinding(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: memberCall.substitutedTypeArguments
+                                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                .map { _, value in value },
+                            parameterMapping: memberCall.parameterMapping
+                        )
+                    )
+                    return
+                }
+            }
             let scopedRangeUserCandidates = driver.callChecker
                 .collectScopedRangeUserExtensionCandidates(
                     named: containsName,
@@ -788,7 +895,13 @@ final class ExprTypeChecker {
                         }
                         return signature.parameterTypes.count == 1
                     }
-                let hasApplicableRangeMember = ctx.resolver.resolveCall(
+                // Viability, not a unique winner: a receiver that conforms to
+                // both ClosedRange and OpenEndRange offers the same `contains`
+                // member through two supertype paths, which resolveCall reports
+                // as ambiguous. This check only decides whether the bundled
+                // member surface can handle the call, so probe for at least one
+                // applicable member instead.
+                let hasApplicableRangeMember = !ctx.resolver.probeCall(
                     candidates: rangeMemberCandidates,
                     call: CallExpr(
                         range: range,
@@ -798,7 +911,7 @@ final class ExprTypeChecker {
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
                     ctx: ctx.semaCtx
-                ).chosenCallee != nil
+                ).viableCandidates.isEmpty
                 if !hasBundledRangeCandidate,
                    !hasApplicableRangeMember,
                    let diagnostic = resolved.diagnostic

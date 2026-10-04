@@ -121,6 +121,7 @@ func isCompatibleExpectActualPair(
 
 public struct FunctionSignature: Hashable, Sendable {
     public let receiverType: TypeID?
+    public let contextReceiverTypes: [TypeID]
     public let parameterTypes: [TypeID]
     public let returnType: TypeID
     public let isSuspend: Bool
@@ -143,6 +144,7 @@ public struct FunctionSignature: Hashable, Sendable {
 
     public init(
         receiverType: TypeID? = nil,
+        contextReceiverTypes: [TypeID] = [],
         parameterTypes: [TypeID],
         returnType: TypeID,
         isSuspend: Bool = false,
@@ -158,6 +160,7 @@ public struct FunctionSignature: Hashable, Sendable {
         classTypeParameterCount: Int = 0
     ) {
         self.receiverType = receiverType
+        self.contextReceiverTypes = contextReceiverTypes
         self.parameterTypes = parameterTypes
         self.returnType = returnType
         self.isSuspend = isSuspend
@@ -1432,6 +1435,10 @@ public final class BindingTable {
     /// this rather than re-deriving the target via FQ-name lookup, which cannot
     /// distinguish sibling overloads or exclude the constructor being lowered.
     public private(set) var constructorDelegationTargets: [SymbolID: SymbolID] = [:]
+    /// Full call binding (argument -> parameter mapping) of the same delegation
+    /// call, so KIR lowering can apply named-argument / default / vararg
+    /// normalization exactly like an ordinary constructor call.
+    public private(set) var constructorDelegationCallBindings: [SymbolID: CallBinding] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var castTargetTypes: [ExprID: TypeID] = [:]
@@ -1621,6 +1628,11 @@ public final class BindingTable {
 
     public func bindConstructorDelegationTarget(_ ctorSymbol: SymbolID, target: SymbolID) {
         constructorDelegationTargets[ctorSymbol] = target
+    }
+
+    public func bindConstructorDelegationCall(_ ctorSymbol: SymbolID, binding: CallBinding) {
+        constructorDelegationTargets[ctorSymbol] = binding.chosenCallee
+        constructorDelegationCallBindings[ctorSymbol] = binding
     }
 
     public func bindCallableValueCall(_ expr: ExprID, binding: CallableValueCallBinding) {
@@ -1925,6 +1937,10 @@ public final class BindingTable {
 
     public func constructorDelegationTarget(for ctorSymbol: SymbolID) -> SymbolID? {
         constructorDelegationTargets[ctorSymbol]
+    }
+
+    public func constructorDelegationCallBinding(for ctorSymbol: SymbolID) -> CallBinding? {
+        constructorDelegationCallBindings[ctorSymbol]
     }
 
     public func callableValueCallBinding(for expr: ExprID) -> CallableValueCallBinding? {

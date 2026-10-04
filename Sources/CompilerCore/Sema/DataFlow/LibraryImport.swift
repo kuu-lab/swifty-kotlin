@@ -6,6 +6,7 @@ extension DataFlowSemaPhase {
         let inlineKIRDir: String?
         let moduleName: String?
         let isValid: Bool
+        var topLevelInitializerLinkName: String? = nil
     }
 
     struct LibraryImportDeferredWork {
@@ -53,10 +54,128 @@ extension DataFlowSemaPhase {
                 == URL(fileURLWithPath: stdlibLibraryPath).standardizedFileURL.path
         }
 
+        func registerRecords(
+            _ records: [ImportedLibrarySymbolRecord],
+            metadataPath: String,
+            libraryModuleFQN: InternedString?,
+            inlineKIRDir: String?,
+            stdlibArtifact: Bool
+        ) {
+            for record in records {
+                registerRecord(
+                    record,
+                    metadataPath: metadataPath,
+                    libraryModuleFQN: libraryModuleFQN,
+                    inlineKIRDir: inlineKIRDir,
+                    stdlibArtifact: stdlibArtifact
+                )
+            }
+        }
+
+        func registerRecord(
+            _ record: ImportedLibrarySymbolRecord,
+            metadataPath: String,
+            libraryModuleFQN: InternedString?,
+            inlineKIRDir: String?,
+            stdlibArtifact: Bool
+        ) {
+            guard !record.fqName.isEmpty else {
+                return
+            }
+            let name = record.fqName.last ?? interner.intern("_")
+            var flags: SymbolFlags = [.synthetic, .importedLibrary]
+            if record.isSuspend, record.kind == .function {
+                flags.insert(.suspendFunction)
+            }
+            if record.isInline, record.kind == .function {
+                flags.insert(.inlineFunction)
+            }
+            if record.isOperator, record.kind == .function {
+                flags.insert(.operatorFunction)
+            }
+            // Overrides must stay marked so member lookup can shadow the
+            // supertype declaration instead of reporting an ambiguity.
+            // Properties/fields override too (for example
+            // `AbstractMap.size`), so the flag is not function-only.
+            if record.isOverride,
+               record.kind == .function || record.kind == .property || record.kind == .field {
+                flags.insert(.overrideMember)
+            }
+            if record.isDataClass {
+                flags.insert(.dataType)
+            }
+            if record.isOpenClass {
+                flags.insert(.openType)
+            }
+            switch record.modality {
+            case .abstract:
+                flags.insert(.abstractType)
+            case .open:
+                flags.insert(.openType)
+            case .final:
+                break
+            }
+            if record.isSealedClass {
+                flags.insert(.sealedType)
+            }
+            if record.isFunInterface, record.kind == .interface {
+                flags.insert(.funInterface)
+            }
+            if record.isValueClass {
+                flags.insert(.valueType)
+            }
+            if record.isFunInterface {
+                flags.insert(.funInterface)
+            }
+            if record.isExpect {
+                flags.insert(.expectDeclaration)
+            }
+            if record.isActual {
+                flags.insert(.actualDeclaration)
+            }
+            if record.isMutable, record.kind == .property || record.kind == .field {
+                flags.insert(.mutable)
+            }
+            let symbol = symbols.define(
+                kind: record.kind,
+                name: name,
+                fqName: record.fqName,
+                declSite: nil,
+                visibility: record.visibility,
+                flags: flags
+            )
+            if let libraryModuleFQN {
+                symbols.setModuleFQN(libraryModuleFQN, for: symbol)
+            }
+            importedBindings.append(ImportedLibraryBinding(
+                record: record,
+                symbol: symbol,
+                metadataPath: metadataPath,
+                inlineKIRDir: inlineKIRDir,
+                isStdlibArtifact: stdlibArtifact
+            ))
+        }
+
         for libraryDir in libraryDirs {
             if libraryDir.hasSuffix(".klib") {
                 if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
                     klibModules.append(module)
+                    let stdlibArtifact = isStdlibArtifact(libraryDir)
+                    if stdlibArtifact {
+                        stdlibArtifactLoaded = true
+                        stdlibModuleName = interner.intern(module.uniqueName)
+                    }
+                    registerRecords(
+                        materializeKlibRecords(
+                            module: module,
+                            interner: interner,
+                            diagnostics: diagnostics
+                        ),
+                        metadataPath: "\(libraryDir)/ir",
+                        libraryModuleFQN: interner.intern(module.uniqueName),
+                        inlineKIRDir: nil,
+                        stdlibArtifact: stdlibArtifact
+                    )
                 }
                 continue
             }
@@ -79,6 +198,24 @@ extension DataFlowSemaPhase {
             guard manifestInfo.isValid else {
                 continue
             }
+            if let linkName = manifestInfo.topLevelInitializerLinkName,
+               !linkName.isEmpty,
+               let moduleName = manifestInfo.moduleName {
+                let name = interner.intern("__kk_library_top_level_init_\(moduleName)")
+                let symbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: [interner.intern(moduleName), name],
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setFunctionSignature(
+                    FunctionSignature(parameterTypes: [], returnType: types.unitType),
+                    for: symbol
+                )
+                symbols.setExternalLinkName(linkName, for: symbol)
+            }
             let metadataPath = manifestInfo.metadataPath
             let libraryModuleFQN: InternedString? = manifestInfo.moduleName.map { interner.intern($0) }
             if stdlibArtifact {
@@ -99,83 +236,13 @@ extension DataFlowSemaPhase {
                 cache?.cacheMetadataRecords(records, metadataPath: metadataPath, interner: interner)
             }
 
-            for record in records {
-                guard !record.fqName.isEmpty else {
-                    continue
-                }
-                let name = record.fqName.last ?? interner.intern("_")
-                var flags: SymbolFlags = [.synthetic, .importedLibrary]
-                if record.isSuspend, record.kind == .function {
-                    flags.insert(.suspendFunction)
-                }
-                if record.isInline, record.kind == .function {
-                    flags.insert(.inlineFunction)
-                }
-                if record.isOperator, record.kind == .function {
-                    flags.insert(.operatorFunction)
-                }
-                // Overrides must stay marked so member lookup can shadow the
-                // supertype declaration instead of reporting an ambiguity.
-                // Properties/fields override too (for example
-                // `AbstractMap.size`), so the flag is not function-only.
-                if record.isOverride,
-                   record.kind == .function || record.kind == .property || record.kind == .field {
-                    flags.insert(.overrideMember)
-                }
-                if record.isDataClass {
-                    flags.insert(.dataType)
-                }
-                if record.isOpenClass {
-                    flags.insert(.openType)
-                }
-                switch record.modality {
-                case .abstract:
-                    flags.insert(.abstractType)
-                case .open:
-                    flags.insert(.openType)
-                case .final:
-                    break
-                }
-                if record.isSealedClass {
-                    flags.insert(.sealedType)
-                }
-                if record.isFunInterface, record.kind == .interface {
-                    flags.insert(.funInterface)
-                }
-                if record.isValueClass {
-                    flags.insert(.valueType)
-                }
-                if record.isFunInterface {
-                    flags.insert(.funInterface)
-                }
-                if record.isExpect {
-                    flags.insert(.expectDeclaration)
-                }
-                if record.isActual {
-                    flags.insert(.actualDeclaration)
-                }
-                if record.isMutable, record.kind == .property || record.kind == .field {
-                    flags.insert(.mutable)
-                }
-                let symbol = symbols.define(
-                    kind: record.kind,
-                    name: name,
-                    fqName: record.fqName,
-                    declSite: nil,
-                    visibility: record.visibility,
-                    flags: flags
-                )
-                if let libraryModuleFQN {
-                    symbols.setModuleFQN(libraryModuleFQN, for: symbol)
-                }
-                importedBindings.append(ImportedLibraryBinding(
-                    record: record,
-                    symbol: symbol,
-                    metadataPath: metadataPath,
-                    inlineKIRDir: manifestInfo.inlineKIRDir,
-                    isStdlibArtifact: stdlibArtifact
-                ))
-            }
+            registerRecords(
+                records,
+                metadataPath: metadataPath,
+                libraryModuleFQN: libraryModuleFQN,
+                inlineKIRDir: manifestInfo.inlineKIRDir,
+                stdlibArtifact: stdlibArtifact
+            )
         }
 
         if options.stdlibLibraryPath != nil && !stdlibArtifactLoaded {
@@ -802,6 +869,19 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // The nominal's own type parameters may already be bound to real
+        // declaration symbols (e.g. `kotlin.Enum<T>` declared by the bundled
+        // source shell) while the metadata signatures spell them as synthetic
+        // `T<n>` symbols. `liftedNominalSupertypeArgs` substitutes by the
+        // registered symbols, so rewrite the synthetic ones to the registered
+        // ones or `Enum<Color>` would lift to `Comparable<T<n>>` instead of
+        // `Comparable<Color>`.
+        let syntheticToRegisteredParameters = importedSyntheticToRegisteredTypeParameters(
+            record: record,
+            registeredSymbols: types.nominalTypeParameterSymbols(for: binding.symbol),
+            decode: decode,
+            types: types
+        )
         for supertypeSignature in record.nominalSupertypeSignatures {
             guard let supertype = decode(supertypeSignature),
                   !supertype.args.isEmpty,
@@ -809,7 +889,10 @@ extension DataFlowSemaPhase {
             else {
                 continue
             }
-            types.setNominalSupertypeTypeArgs(supertype.args, for: binding.symbol, supertype: supertype.classSymbol)
+            let args = syntheticToRegisteredParameters.map { mapping in
+                supertype.args.map { types.substitutingTypeParameterSymbols($0, mapping: mapping) }
+            } ?? supertype.args
+            types.setNominalSupertypeTypeArgs(args, for: binding.symbol, supertype: supertype.classSymbol)
         }
 
         if binding.record.kind == .enumClass,
@@ -829,6 +912,38 @@ extension DataFlowSemaPhase {
             symbols.setSupertypeTypeArgs(enumTypeArg, for: binding.symbol, supertype: enumBaseSymbol)
             types.setNominalSupertypeTypeArgs(enumTypeArg, for: binding.symbol, supertype: enumBaseSymbol)
         }
+    }
+
+    /// Maps the synthetic type-parameter symbols spelled by an imported
+    /// nominal's `typeParamsSig` to the symbols already registered for it, by
+    /// position. Returns `nil` when there is nothing to rewrite (no registered
+    /// parameters, no self signature, or both spellings already agree).
+    private func importedSyntheticToRegisteredTypeParameters(
+        record: ImportedLibrarySymbolRecord,
+        registeredSymbols: [SymbolID],
+        decode: (String) -> ClassType?,
+        types: TypeSystem
+    ) -> [SymbolID: SymbolID]? {
+        guard !registeredSymbols.isEmpty,
+              let selfSignature = record.nominalTypeParametersSignature,
+              let selfType = decode(selfSignature),
+              selfType.args.count == registeredSymbols.count
+        else {
+            return nil
+        }
+        var mapping: [SymbolID: SymbolID] = [:]
+        for (arg, registered) in zip(selfType.args, registeredSymbols) {
+            switch arg {
+            case let .invariant(type), let .out(type), let .in(type):
+                guard case let .typeParam(typeParam) = types.kind(of: type) else { return nil }
+                if typeParam.symbol != registered {
+                    mapping[typeParam.symbol] = registered
+                }
+            case .star:
+                return nil
+            }
+        }
+        return mapping.isEmpty ? nil : mapping
     }
 
     /// Synthesizes function symbols for precompiled object/companion initializers

@@ -5,6 +5,66 @@ import Testing
 /// BUG-186: Byte/Short overloads must be distinct and resolve to the correct overload.
 @Suite
 struct ByteShortOverloadResolutionTests {
+    @Test func testIntegerLiteralsResolveAndBindToVarargElementType() throws {
+        let source = """
+            package sample
+            fun f(vararg bytes: Byte): Int = bytes.size
+            fun f(vararg bytes: UByte): Int = bytes.size
+            fun unsigned(vararg bytes: UByte): Int = bytes.size
+            fun wider(vararg values: Byte): Int = 1
+            fun wider(vararg values: Int): Int = 2
+            fun narrower(vararg values: Byte): Int = 1
+            fun narrower(vararg values: Short): Int = 2
+            fun main() {
+                f(65, 66)
+                f(-1, 127)
+                unsigned(255u)
+                wider(42)
+                narrower(43)
+            }
+            """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Integer literals should resolve as vararg elements: \(ctx.diagnostics.diagnostics.map { $0.message })")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let literal = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
+                if case let .intLiteral(value, _) = expr { return value == 65 }
+                return false
+            })
+            #expect(sema.bindings.exprType(for: literal) == sema.types.byteType)
+            let unsignedLiteral = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
+                if case let .uintLiteral(value, _) = expr { return value == 255 }
+                return false
+            })
+            #expect(sema.bindings.exprType(for: unsignedLiteral) == sema.types.ubyteType)
+            let intLiteral = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
+                if case let .intLiteral(value, _) = expr { return value == 42 }
+                return false
+            })
+            #expect(sema.bindings.exprType(for: intLiteral) == sema.types.intType)
+            let shortLiteral = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
+                if case let .intLiteral(value, _) = expr { return value == 43 }
+                return false
+            })
+            #expect(sema.bindings.exprType(for: shortLiteral) == sema.types.shortType)
+        }
+    }
+
+    @Test func testOutOfRangeVarargLiteralDoesNotNarrowToByte() throws {
+        let source = """
+            package sample
+            fun onlyByte(vararg bytes: Byte): Int = bytes.size
+            fun main() { onlyByte(128) }
+            """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
+
     @Test func testByteAndShortOverloadsAndArrayLiteralNarrowing() throws {
         let sources: [String] = [
             """

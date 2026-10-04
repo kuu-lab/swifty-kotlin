@@ -139,4 +139,5 @@ private external fun <T : CPointed> __interpretCPointer(rawValue: NativePtr): CP
 @Suppress("DEPRECATION_ERROR")
 @Deprecated("ImmutableBlob is deprecated. Use ByteArray instead.")
 @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
+@KsSymbolName("__kk_immutable_blob_of")
 public external fun immutableBlobOf(vararg elements: Short): ImmutableBlob

@@ -7,6 +7,8 @@
 
 package kotlinx.coroutines.flow
 
+import kotlinx.coroutines.ensureActive
+
 // MIGRATION-FLOW-004 (KSP-499)
 // Flow operators are bundled Kotlin source. The compiler/runtime keep only the
 // cold-flow core (`flow`, `emit`, and `collect`) as coroutine bridges; the
@@ -200,6 +202,20 @@ public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow
 
 public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> = this
 
+// `cancellable` is the exception to the pass-throughs above: it composes the
+// retained collect/emit core with `ensureActive`, so a collector running in a
+// cancelled coroutine stops between elements instead of draining the upstream
+// sequence (KSP-1577).
+public fun <T> Flow<T>.cancellable(): Flow<T> {
+    val source = this
+    return flow {
+        source.collect { value ->
+            ensureActive()
+            emit(value)
+        }
+    }
+}
+
 // Stateful and error-handling operators are eager: they collect upstream at
 // suspend-function top level, where suspend-function-value calls are
 // well-formed, rather than inside a `flow { }` builder's collect callback
@@ -281,4 +297,18 @@ public suspend fun <T> Flow<T>.retryWhen(
             attempt += 1
         }
     }
+}
+
+// `onEmpty` signature adaptation (KSP-1577): upstream's action runs with a
+// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). There is no
+// FlowCollector type on this surface, so — like `catch`/`onCompletion` above —
+// the receiver is dropped and the action cannot emit fallback elements. The
+// action's result is typed `Any` (as `coroutineScope`'s block is): a strict
+// `() -> Unit` parameter does not accept a plain zero-parameter lambda.
+public suspend fun <T> Flow<T>.onEmpty(action: suspend () -> Any): Flow<T> {
+    val items = this.toList()
+    if (items.isEmpty()) {
+        action()
+    }
+    return items.asFlow()
 }
