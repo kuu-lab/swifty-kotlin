@@ -21,6 +21,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_MutableList_n.kt",
         "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
+        "Sema/stdlib_kotlin_collections_AbstractList_AbstractList_n.kt",
         "Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt",
         "Sema/kotlinx_coroutines_completable.kt",
     ]
@@ -53,11 +54,14 @@ struct GoldenHarnessInventoryTests {
         "artifact|kotlin.collections.Map.Entry.key[kind=prop]",
         "artifact|kotlin.collections.Map.Entry.value[kind=prop]",
         "artifact|kotlin.collections.List[kind=iface;gen=1]",
-        "artifact|kotlin.collections.MutableCollection[kind=iface;gen=1]",
+        "artifact|kotlin.collections.MutableList[kind=iface;gen=1]",
         "artifact|kotlin.collections.MutableMap.MutableEntry[kind=iface;gen=2]",
         "artifact|kotlinx.coroutines.CompletableDeferred[kind=iface;gen=1]",
         "artifact|kotlinx.coroutines.CompletableJob[kind=iface]",
         "artifact|kotlinx.coroutines.Deferred[kind=iface;gen=1]",
+        "source|kotlin.collections.AbstractList.indexOf[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=T0;gen=1]",
+        "source|kotlin.collections.AbstractList.lastIndexOf[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=T0;gen=1]",
+        "source|kotlin.collections.AbstractList.subList[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=Int,Int;gen=1]",
         "source|kotlin.sequences.Sequence.shuffled[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1]",
     ]
 
@@ -69,7 +73,7 @@ struct GoldenHarnessInventoryTests {
         #expect(inventory.caseCount > 0)
         #expect(inventory.caseCountByProfile["implicit"] ?? 0 > 0)
         #expect((inventory.caseCountByProfile["artifact"] ?? 0) == Self.requiredArtifactTargetedCases.count)
-        #expect((inventory.caseCountByProfile["source"] ?? 0) == 1)
+        #expect((inventory.caseCountByProfile["source"] ?? 0) == 2)
         #expect(inventory.targetedCaseKeys == Self.requiredTargetedCases)
         #expect(inventory.targetContracts == Self.requiredTargetContracts)
 
