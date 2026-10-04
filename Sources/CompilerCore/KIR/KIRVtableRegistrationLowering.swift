@@ -1217,6 +1217,14 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
                 sema: sema,
                 interner: interner
             )
+            if implementationSymbol == methodSymbol,
+               sema.symbols.symbol(interfaceSymbol)?.fqName == ["kotlin", "collections", "MutableSet"].map(interner.intern),
+               let method = sema.symbols.symbol(methodSymbol),
+               ["removeAll", "retainAll"].contains(interner.resolve(method.name))
+            {
+                // Default bulk bodies re-enter their runtime bridge, not an override.
+                continue
+            }
             let bridgeSymbol = itableBridgeSymbolForMethod(
                 interfaceMethod: methodSymbol,
                 implementation: implementationSymbol,

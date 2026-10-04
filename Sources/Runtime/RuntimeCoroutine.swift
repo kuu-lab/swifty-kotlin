@@ -4286,7 +4286,14 @@ public func kk_job_cancel(_ jobHandle: Int) -> Int {
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
     case .job(let job):
-        _ = job.cancel()
+        // KSP-1568: `NonCancellable.cancel()` is a no-op upstream. Now that
+        // `NonCancellable` conforms to `Job`, a Job-typed reference can reach
+        // this entry point with the shared never-cancelled singleton —
+        // cancelling it here would permanently corrupt every later
+        // `withContext(NonCancellable)` / `isActive` check.
+        if job !== runtimeNonCancellableJob {
+            _ = job.cancel()
+        }
     case .task(let task):
         task.cancel()
     case .other:
@@ -4304,7 +4311,9 @@ public func kk_job_cancel_with_cause(_ jobHandle: Int, _ cause: Int) -> Int {
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
     case .job(let job):
-        _ = job.cancel(cause: cause)
+        if job !== runtimeNonCancellableJob {
+            _ = job.cancel(cause: cause)
+        }
     case .task(let task):
         task.cancel()
     case .other:
@@ -4673,6 +4682,15 @@ public func kk_non_cancellable_instance() -> Int {
         state.borrowedObjectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
+}
+
+// KSP-1568: `awaitCancellation()` parks on the never-completing
+// `runtimeNonCancellableJob`: `kk_job_join` registers a resumer that can
+// never fire, so the suspend point only unwinds when the awaiting coroutine
+// itself is cancelled.
+@_cdecl("kk_await_cancellation")
+public func kk_await_cancellation(_ continuation: Int) -> Int {
+    return kk_job_join(kk_non_cancellable_instance(), continuation)
 }
 
 // MARK: - Suspend Entry Loop

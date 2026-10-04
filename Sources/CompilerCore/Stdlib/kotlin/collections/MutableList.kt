@@ -109,7 +109,7 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
         __kkMutableListRemoveAll(this, elements)
     }
 
-    @KsSymbolName("kk_list_iterator")
+    @KsSymbolName("__kk_mutable_list_listIterator")
     public override fun listIterator(): MutableListIterator<E>
 
     @KsSymbolName("kk_list_iterator_at")

@@ -151,7 +151,7 @@ private let runtimeMapGetMethodSlot = 1
 private let runtimeListGetInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.List"
 )
-private let runtimeMutableListInterfaceTypeID = runtimeStableNominalTypeID(
+let runtimeMutableListInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.MutableList"
 )
 private let runtimeMutableCollectionInterfaceTypeID = runtimeStableNominalTypeID(
