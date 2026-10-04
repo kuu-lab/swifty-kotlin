@@ -2747,7 +2747,7 @@ final class CallTypeChecker {
                 let externalLinkName = sema.symbols.externalLinkName(for: candidate)
                 return externalLinkName == "kk_coroutine_scope_async"
                     || externalLinkName == "kk_with_timeout"
-                    || externalLinkName == "kk_with_timeout_or_null"
+                    || externalLinkName == "kk_with_timeout_or_null_throwing"
                     || symbol.flags.contains(.synthetic)
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     && coroutineBuilderNames.contains(interner.resolve(symbol.name))
@@ -2755,7 +2755,7 @@ final class CallTypeChecker {
             let isCoroutineBuilderWithHardcodedAnyReturn = candidates.contains { candidate in
                 isCoroutineBuilderCandidate(candidate)
                     && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout"
-                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null"
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null_throwing"
             }
             // Nested class member scopes are chained lexically, so a bare
             // member call can arrive here with a candidate owned by an outer
@@ -2856,7 +2856,7 @@ final class CallTypeChecker {
                 return sema.types.errorType
             }
             if let externalLinkName = sema.symbols.externalLinkName(for: chosen),
-               externalLinkName == "kk_with_timeout" || externalLinkName == "kk_with_timeout_or_null",
+               externalLinkName == "kk_with_timeout" || externalLinkName == "kk_with_timeout_or_null_throwing",
                let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner)
             {
                 for argument in args {

@@ -654,13 +654,13 @@ struct RuntimeABIExternalLinkValidationTests {
 
     /// Link names whose calls CoroutineLoweringPass rewrites to an emitted ABI
     /// that does not linearize from the declared source parameters: the suspend
-    /// block lowers to a single entry-point slot and `kk_with_timeout`'s thrown
+    /// block lowers to a single entry-point slot and the timeout bridges' thrown
     /// channel arrives through the call's own thrownResult. The spec records the
     /// emitted shape; the pinned parameter types below cover only the emitted
     /// value arguments, the part the signature check compares a throwing spec on.
     private let rewrittenSuspendBridgeParameterCounts: [String: Int] = [
         "kk_with_timeout": 4,
-        "kk_with_timeout_or_null": 3,
+        "kk_with_timeout_or_null_throwing": 4,
     ]
     private let rewrittenSuspendBridgeParameterTypes: [String: [String]] = [
         "kk_with_timeout": [
@@ -668,7 +668,7 @@ struct RuntimeABIExternalLinkValidationTests {
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
         ],
-        "kk_with_timeout_or_null": [
+        "kk_with_timeout_or_null_throwing": [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
@@ -743,7 +743,7 @@ struct RuntimeABIExternalLinkValidationTests {
 
     private func usesCoroutineBlockEntryPoint(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
         declaration.isSuspend
-            && ["kk_with_timeout", "kk_with_timeout_or_null"].contains(declaration.linkName)
+            && ["kk_with_timeout", "kk_with_timeout_or_null_throwing"].contains(declaration.linkName)
             && declaration.valueParameterTypes.count == 2
             && isFunctionType(declaration.valueParameterTypes[1])
     }

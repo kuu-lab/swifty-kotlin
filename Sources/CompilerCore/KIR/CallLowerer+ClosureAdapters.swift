@@ -20,7 +20,7 @@ extension CallLowerer {
                 .contains(interner.resolve(callee.name)),
               (callee.flags.contains(.synthetic)
                   && !callee.flags.contains(.importedLibrary))
-                || ["kk_with_timeout", "kk_with_timeout_or_null"].contains(
+                || ["kk_with_timeout", "kk_with_timeout_or_null_throwing"].contains(
                     sema.symbols.externalLinkName(for: chosenCallee)
                 ),
               let blockIndex = arguments.indices.first(where: { index in

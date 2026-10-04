@@ -102,7 +102,7 @@ final class LambdaLowerer {
             "kk_suspend_function_invoke_5",
             "kk_suspend_coroutine",
             "kk_with_timeout",
-            "kk_with_timeout_or_null",
+            "kk_with_timeout_or_null_throwing",
             "kk_flow_collect",
             "__kk_flow_collectLatest",
             "kk_flow_emit",
