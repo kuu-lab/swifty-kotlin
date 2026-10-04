@@ -35,7 +35,7 @@ fun main() {
         println(source.indexOf(pattern))
         println(source.indexOf(pattern, 2L))
         println(source.indexOf(pattern, -10L))
-        println(source.indexOf(pattern, Long.MAX_VALUE))
+        try { source.indexOf(pattern, Long.MAX_VALUE) } catch (e: IllegalArgumentException) { println(e.message) }
         println(source.indexOf(ByteString(byteArrayOf(2, 4, 5))))
         println(source.indexOf(empty, -1L))
         println(source.indexOf(empty, 3L))

@@ -128,6 +128,22 @@ extension CallTypeChecker {
                 let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
 
                 switch argumentExpr {
+                case .intLiteral:
+                    contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
+                        at: index, candidates: expectedTypeCandidates, sema: sema
+                    )
+                case .uintLiteral:
+                    contextualArgExpectedTypes[index] = uniformUnsignedLiteralParameterType(
+                        at: index, candidates: expectedTypeCandidates, sema: sema
+                    )
+                case .unaryExpr(let op, let operandID, _):
+                    if (op == .unaryPlus || op == .unaryMinus),
+                       case .intLiteral = ast.arena.expr(operandID)
+                    {
+                        contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
+                            at: index, candidates: expectedTypeCandidates, sema: sema
+                        )
+                    }
                 case .callableRef:
                     contextualArgExpectedTypes[index] = callableReferenceExpectedType(
                         at: index,
@@ -611,9 +627,7 @@ extension CallTypeChecker {
                     continue
                 }
                 if !args[otherIndex].isSpread,
-                   let varargIndex = signature.valueParameterIsVararg.firstIndex(of: true),
-                   otherIndex >= varargIndex,
-                   integerLiteralFitsVararg(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
+                   integerLiteralFitsParameter(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
                 {
                     continue
                 }
@@ -785,7 +799,7 @@ extension CallTypeChecker {
         return narrowed.isEmpty ? candidates : narrowed
     }
 
-    private func integerLiteralFitsVararg(
+    private func integerLiteralFitsParameter(
         _ exprID: ExprID,
         parameterType: TypeID,
         ctx: TypeInferenceContext
@@ -1747,4 +1761,3 @@ extension CallTypeChecker {
         )
     }
 }
-

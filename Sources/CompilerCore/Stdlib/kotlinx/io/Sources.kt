@@ -14,8 +14,8 @@ public fun Source.readShortLe(): Short = this.readShort().reverseBytes()
 public fun Source.readIntLe(): Int = this.readInt().reverseBytes()
 public fun Source.readLongLe(): Long = this.readLong().reverseBytes()
 
-internal const val OVERFLOW_ZONE: Long = Long.MIN_VALUE / 10L
-internal const val OVERFLOW_DIGIT_START: Long = Long.MIN_VALUE % 10L + 1L
+internal const val OVERFLOW_ZONE: Long = -922337203685477580L
+internal const val OVERFLOW_DIGIT_START: Long = -7L
 
 public fun Source.readDecimalLong(): Long {
     this.require(1L)
@@ -145,10 +145,10 @@ public fun Source.readAtMostTo(sink: ByteArray, startIndex: Int): Int =
     this.readAtMostTo(sink, startIndex, sink.size)
 
 public fun Source.readUByte(): UByte = this.readByte().toUByte()
-public fun Source.readUShort(): UShort = this.readShort().toUShort()
+public fun Source.readUShort(): UShort = this.readShort().toInt().toUShort()
 public fun Source.readUInt(): UInt = this.readInt().toUInt()
 public fun Source.readULong(): ULong = this.readLong().toULong()
-public fun Source.readUShortLe(): UShort = this.readShortLe().toUShort()
+public fun Source.readUShortLe(): UShort = this.readShortLe().toInt().toUShort()
 public fun Source.readUIntLe(): UInt = this.readIntLe().toUInt()
 public fun Source.readULongLe(): ULong = this.readLongLe().toULong()
 public fun Source.readFloat(): Float = Float.fromBits(this.readInt())
@@ -167,7 +167,7 @@ public fun Source.indexOf(byteString: ByteString, startIndex: Long = 0L): Long {
         return if (start < this.buffer.size) start else this.buffer.size
     }
     var offset = start
-    while (offset <= Long.MAX_VALUE - byteString.size.toLong() && this.request(offset + byteString.size.toLong())) {
+    while (this.request(offset + byteString.size.toLong())) {
         val index = this.buffer.indexOf(byteString, offset)
         if (index >= 0L) return index
         offset = this.buffer.size - byteString.size.toLong() + 1L
