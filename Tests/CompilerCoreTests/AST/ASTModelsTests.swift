@@ -441,9 +441,11 @@ struct ASTModelsTests {
         let callArg = CallArgument(label: name, isSpread: true, expr: exprID)
         #expect(callArg.label == name)
         #expect(callArg.isSpread)
-        let catchClause = CatchClause(paramName: name, paramTypeName: name, body: exprID, range: range)
+        let arena = ASTArena()
+        let paramType = arena.appendTypeRef(.named(path: [name], args: [], nullable: false))
+        let catchClause = CatchClause(paramName: name, paramType: paramType, body: exprID, range: range)
         #expect(catchClause.paramName == name)
-        #expect(catchClause.paramTypeName == name)
+        #expect(catchClause.paramType == paramType)
     }
 }
 #endif
