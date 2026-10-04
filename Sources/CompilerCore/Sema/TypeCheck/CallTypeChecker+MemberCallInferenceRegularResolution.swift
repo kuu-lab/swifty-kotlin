@@ -1971,6 +1971,7 @@ extension CallTypeChecker {
         // types are unreliable before resolution) always keeps precedence.
         if resolved.diagnostic != nil,
            !isClassNameReceiver,
+           !isSuperCall,
            !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
            !candidates.isEmpty
         {
