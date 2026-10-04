@@ -1520,14 +1520,8 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_flow_emit received invalid flow handle")
     }
-    let source: RuntimeFlowSource = switch flow.source {
-    case let .channelProducer(producer):
-        .channelProducer(producer)
-    case .emitter, .fixed, .merge, .zip, .combine, .flatMapConcat, .flatMapMerge, .flatMapLatest:
-        .emitter(fnPtr: flow.emitterFnPtr, templateState: flow.emitterTemplateState)
-    }
     let derived = RuntimeFlowHandle(
-        source: source,
+        source: flow.source,
         opChain: flow.opChain + [RuntimeFlowOp(kind: opKind, argument: value)],
         fixedValues: flow.fixedValues
     )

@@ -51,6 +51,9 @@ final class CallSupportLowerer {
             for item in classDecl.memberFunctions + classDecl.nestedClasses + classDecl.nestedObjects {
                 collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
             }
+            if let companion = classDecl.companionObject {
+                collectFunctionDefaults(companion, ast: ast, sema: sema, mapping: &mapping)
+            }
         case let .objectDecl(objectDecl):
             for item in objectDecl.memberFunctions + objectDecl.nestedClasses + objectDecl.nestedObjects {
                 collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
@@ -64,6 +67,9 @@ final class CallSupportLowerer {
             // at link time with an undefined `_m$default` symbol.
             for item in interfaceDecl.memberFunctions + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects {
                 collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
+            }
+            if let companion = interfaceDecl.companionObject {
+                collectFunctionDefaults(companion, ast: ast, sema: sema, mapping: &mapping)
             }
         default:
             break

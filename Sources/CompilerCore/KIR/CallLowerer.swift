@@ -1125,7 +1125,8 @@ final class CallLowerer {
             // remapped ABI entry points must remain direct calls.
             if let implicitReceiver,
                implicitReceiverRuntimeCallee == nil,
-               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true,
+               (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true)
+                   || Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: chosen)),
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
                    calleeName: sourceCalleeName,
