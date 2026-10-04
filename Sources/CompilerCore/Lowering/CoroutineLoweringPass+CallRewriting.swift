@@ -1019,6 +1019,7 @@ extension CoroutineLoweringPass {
         let arityExpr = rewrite.module.arena.appendExpr(.intLiteral(Int64(arity)), type: rewrite.intType)
         return [
             .constValue(result: entry, value: .symbolRef(thunk.symbol)),
+            .constValue(result: arityExpr, value: .intLiteral(Int64(arity))),
             .call(
                 symbol: nil, callee: rewrite.ctx.interner.intern("kk_suspend_function_create"),
                 arguments: call.arguments + [arityExpr, entry], result: call.result,
