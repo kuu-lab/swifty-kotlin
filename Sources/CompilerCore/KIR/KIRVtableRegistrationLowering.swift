@@ -242,6 +242,7 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     appendObjectVtablePropertyAccessorRegistrations(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
+        driver: driver,
         sema: sema,
         cache: driver.ctx.nominalDispatchCache,
         arena: arena,
@@ -654,6 +655,7 @@ func kirVtablePropertyAccessorImplementations(
 func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver,
     sema: SemaModule,
     cache: KIRNominalDispatchCache,
     arena: KIRArena,
@@ -670,11 +672,27 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
 
     let intType = sema.types.intType
     let registerCallee = interner.intern("kk_object_register_vtable_method")
+    let throwableMessageSlot = sema.symbols.throwableMessageGetterSlot(for: nominalSymbol, interner: interner)
     for implementation in implementations {
+        // Runtime-allocated exceptions answer the Throwable `message` slot with
+        // a raw-pointer bridge, so the slot's dispatch ABI is the raw String?
+        // handle. Kotlin getters return the flat aggregate; adapt them through
+        // a raw-return bridge.
+        var accessorFn = implementation.implementation
+        if implementation.slot == throwableMessageSlot {
+            accessorFn = throwableMessageGetterBridgeSymbol(
+                getter: implementation.implementation,
+                nominalSymbol: nominalSymbol,
+                driver: driver,
+                arena: arena,
+                sema: sema,
+                interner: interner
+            )
+        }
         let slotExpr = arena.appendExpr(.intLiteral(Int64(implementation.slot)), type: intType)
         instructions.append(.constValue(result: slotExpr, value: .intLiteral(Int64(implementation.slot))))
-        let accessorFnExpr = arena.appendExpr(.symbolRef(implementation.implementation), type: intType)
-        instructions.append(.constValue(result: accessorFnExpr, value: .symbolRef(implementation.implementation)))
+        let accessorFnExpr = arena.appendExpr(.symbolRef(accessorFn), type: intType)
+        instructions.append(.constValue(result: accessorFnExpr, value: .symbolRef(accessorFn)))
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
@@ -684,6 +702,86 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
             canThrow: false,
             thrownResult: nil
         ))
+    }
+}
+
+/// Raw-returning bridge for a `Throwable.message` getter: calls the Kotlin
+/// getter (flat `String?` aggregate) and returns the raw handle, relying on the
+/// backend's String bridging at `returnValue`.
+private func throwableMessageGetterBridgeSymbol(
+    getter: SymbolID,
+    nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver,
+    arena: KIRArena,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID {
+    if let cached = driver.ctx.throwableMessageBridgeSymbolsByGetter[getter] {
+        return cached
+    }
+    let bridgeSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+    driver.ctx.throwableMessageBridgeSymbolsByGetter[getter] = bridgeSymbol
+
+    let receiverType = sema.types.make(.classType(ClassType(
+        classSymbol: nominalSymbol, args: [], nullability: .nonNull
+    )))
+    let receiverParam = KIRParameter(
+        symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+        type: receiverType
+    )
+    let receiverExpr = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverType)
+    let messageType = sema.types.make(.stringStruct(.nullable))
+    let callResult = arena.appendTemporary(type: messageType)
+    let body: [KIRInstruction] = [
+        .beginBlock,
+        .constValue(result: receiverExpr, value: .symbolRef(receiverParam.symbol)),
+        .call(
+            symbol: getter,
+            callee: interner.intern("get"),
+            arguments: [receiverExpr],
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ),
+        .returnValue(callResult),
+        .endBlock,
+    ]
+    let bridgeDecl = arena.appendDecl(.function(KIRFunction(
+        symbol: bridgeSymbol,
+        name: interner.intern("kk_throwable_message_bridge_\(getter.rawValue)_\(bridgeSymbol.rawValue)"),
+        params: [receiverParam],
+        returnType: sema.types.intType,
+        body: body,
+        isSuspend: false,
+        isInline: false
+    )))
+    driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    return bridgeSymbol
+}
+
+public extension SymbolTable {
+    /// Vtable slot of the `kotlin.Throwable.message` getter in `nominalSymbol`'s
+    /// layout, or nil when the nominal does not inherit from Throwable. Shared
+    /// by KIR vtable registration and the backend's virtual-call ABI choice,
+    /// which must agree that this slot uses the raw String? handle ABI.
+    func throwableMessageGetterSlot(for nominalSymbol: SymbolID, interner: StringInterner) -> Int? {
+        guard let layout = nominalLayout(for: nominalSymbol) else {
+            return nil
+        }
+        let throwableFQName = [interner.intern("kotlin"), interner.intern("Throwable")]
+        let messageName = interner.intern("message")
+        for (accessorSymbol, slot) in layout.vtableSlots {
+            guard let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(accessorSymbol),
+                  decoded.kind == .getter,
+                  symbol(decoded.property)?.name == messageName,
+                  let owner = parentSymbol(for: decoded.property),
+                  symbol(owner)?.fqName == throwableFQName
+            else {
+                continue
+            }
+            return slot
+        }
+        return nil
     }
 }
 
