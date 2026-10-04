@@ -6,6 +6,68 @@ import Testing
 /// declarations and must not replace the existing List association owner.
 @Suite
 struct IterableAssociateSourceMigrationTests {
+    @Test(arguments: [
+        ("Set<String>", "setOf(\"a\", \"bb\")", "kotlin.collections.Iterable"),
+        ("MutableSet<String>", "mutableSetOf(\"a\", \"bb\")", "kotlin.collections.Iterable"),
+        ("Iterable<String>", "listOf(\"a\", \"bb\").asIterable()", "kotlin.collections.Iterable"),
+        ("Collection<String>", "listOf(\"a\", \"bb\")", "kotlin.collections.Iterable"),
+        ("Set<String>", "mapOf(\"a\" to 1, \"bb\" to 2).keys", "kotlin.collections.Iterable"),
+        ("Array<out String>", "arrayOf(\"a\", \"bb\")", "kotlin.Array"),
+        ("List<String>", "listOf(\"a\", \"bb\")", "kotlin.collections.List"),
+    ])
+    func associationReceiversBindThroughKIR(receiverType: String, factory: String, owner: String) throws {
+        let source = """
+        fun probe(values: \(receiverType)) {
+            val a: Map<String, String> = values.associate { it to it }
+            val b: Map<String, String> = values.associateBy { it }
+            val c: Map<String, Int> = values.associateBy({ it }, { it.length })
+            val d: Map<String, Int> = values.associateWith { it.length }
+            val e: MutableMap<String, String> = values.associateTo(mutableMapOf()) { it to it }
+            val f: MutableMap<String, String> = values.associateByTo(mutableMapOf()) { it }
+            val g: MutableMap<String, Int> = values.associateByTo(mutableMapOf(), { it }, { it.length })
+            val h: MutableMap<String, Int> = values.associateWithTo(mutableMapOf()) { it.length }
+        }
+        fun main() {
+            \(factory).associate { it to it }
+            \(factory).associateBy { it }
+            \(factory).associateBy({ it }, { it.length })
+            \(factory).associateWith { it.length }
+            \(factory).associateTo(mutableMapOf()) { it to it }
+            \(factory).associateByTo(mutableMapOf()) { it }
+            \(factory).associateByTo(mutableMapOf(), { it }, { it.length })
+            \(factory).associateWithTo(mutableMapOf()) { it.length }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Association calls failed: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            var callCount = 0
+            for index in ast.arena.exprs.indices {
+                let id = ExprID(rawValue: Int32(index))
+                guard let range = ast.arena.exprRange(id),
+                      ctx.sourceManager.path(of: range.start.file) == path,
+                      case let .memberCall(_, name, _, _, _) = ast.arena.expr(id),
+                      ctx.interner.resolve(name).hasPrefix("associate") else { continue }
+                callCount += 1
+                let callee = try #require(sema.bindings.callBinding(for: id)?.chosenCallee)
+                #expect(sema.symbols.isSourceBackedSymbol(callee))
+                #expect(sema.symbols.externalLinkName(for: callee) == nil)
+                let signature = try #require(sema.symbols.functionSignature(for: callee))
+                let receiver = try #require(signature.receiverType)
+                guard case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiver)),
+                      let symbol = sema.symbols.symbol(receiverClass.classSymbol) else {
+                    Issue.record("Expected a nominal source extension receiver")
+                    continue
+                }
+                #expect(symbol.fqName.map(ctx.interner.resolve).joined(separator: ".") == owner)
+            }
+            #expect(callCount == 16)
+        }
+    }
+
     @Test
     func iterableAssociationFamilyUsesBundledSourceAndPreservesListOwner() throws {
         let source = """
