@@ -113,6 +113,27 @@ struct SuperTypeParsingTests {
         #expect(!nullable)
     }
 
+    /// `Base(y = 1, x = 2)` used to be split into bare expressions, dropping
+    /// the labels so the arguments were passed positionally.
+    @Test
+    func testSupertypeConstructorInvocationKeepsNamedAndSpreadArguments() throws {
+        let (ast, ctx) = try buildAST("""
+        open class Parent(val x: Int = 0, vararg val ys: Int)
+        class Named : Parent(ys = intArrayOf(1), x = 2)
+        class Spread(zs: IntArray) : Parent(2, *zs)
+        """)
+
+        #expect(!ctx.diagnostics.hasError)
+
+        let named = try userClassDecl(named: "Named", in: ast, ctx: ctx)
+        let namedArgs = try #require(named.superTypeEntries.first?.constructorArgs)
+        #expect(namedArgs.map { $0.label.map(ctx.interner.resolve) } == ["ys", "x"])
+
+        let spread = try userClassDecl(named: "Spread", in: ast, ctx: ctx)
+        let spreadArgs = try #require(spread.superTypeEntries.first?.constructorArgs)
+        #expect(spreadArgs.map(\.isSpread) == [false, true])
+    }
+
     @Test
     func testReceiverFunctionTypeSupertype() throws {
         let (ast, ctx) = try buildAST("""

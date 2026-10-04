@@ -171,3 +171,27 @@ test. `state_flow_kotlin.kt` calls both and is therefore `SKIP-DIFF` (DEBT-DIFF-
 `diff_kotlinc.sh` case — it carries no skip marker. Add a `shareIn` call to it and it
 starts failing against `kotlinc` (loudly, per the FAIL note above); the only way it leaves
 the diff gate quietly is if someone then marks it `SKIP-DIFF`.
+
+## Probing runtime is/as/cast semantics
+
+- **Exercise both the static and the `Any`-erased form of every `is` check.**
+  `val it = expr; println(it is T)` may be folded or answered by static typing;
+  only `val a: Any = expr; println(a is T)` is guaranteed to route through
+  `kk_op_is` at runtime. A box whose runtime metadata is wrong will disagree with
+  kotlinc on the erased form while the static form can hide the bug.
+- **Verify the exception TYPE on wrong `as` casts, not just that it crashes.**
+  An uncaught bad cast surfaces only as `KSwiftK panic [KSWIFTK-LINK-0003]:
+  Unhandled top-level exception` — the message does not name the exception.
+  Wrap the cast in `try/catch (e: ClassCastException)` to prove the thrown type
+  is the kotlinc-compatible one.
+- **kotlinc parity probes are cheap.** `~/tools/kotlinc/bin/kotlinc probe.kt
+  -include-runtime -d /tmp/p.jar && $HOME/tools/jdk21/bin/java -jar /tmp/p.jar`
+  (~30-60s) gives the JVM reference output for the exact same probe file — use
+  it to pin down whether a divergence is a deliberate deviation (document it)
+  or a regression. kotlinc also emits "check for instance is always 'true'"
+  warnings that reveal which checks it constant-folds.
+- **Pre-warm before recording.** A cold `-o exe` compile rebuilds the stdlib
+  `.kklib` (~1-2 min); compile any hello.kt once first so the recorded run is
+  snappy. Byte-diff program stdout against a checked-in-style `.expected` file
+  in the terminal so the recording itself proves every line, not just the ones
+  a viewer can eyeball.

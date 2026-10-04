@@ -3120,7 +3120,9 @@ extension CallTypeChecker {
                 ? sema.types.doubleType
                 : memberName == knownNames.firstNotNullOf || memberName == knownNames.firstNotNullOfOrNull
                 ? sema.types.nullableAnyType
-                : memberName == knownNames.sortedByDescending
+                : memberName == knownNames.sortedBy || memberName == knownNames.sortedByDescending
+                ? sema.types.nullableAnyType
+                : memberName == knownNames.sortBy || memberName == knownNames.sortByDescending
                 ? sema.types.nullableAnyType
                 : sema.types.anyType
             let expectedType = sema.types.make(.functionType(FunctionType(
@@ -3155,7 +3157,7 @@ extension CallTypeChecker {
         {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [receiverElementType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -3183,7 +3185,7 @@ extension CallTypeChecker {
             }
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [receiverElementType, otherElementType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -3206,7 +3208,7 @@ extension CallTypeChecker {
             }
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [listType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -3234,7 +3236,7 @@ extension CallTypeChecker {
                 }
                 let expectedType = sema.types.make(.functionType(FunctionType(
                     params: [listType],
-                    returnType: sema.types.anyType,
+                    returnType: sema.types.nullableAnyType,
                     isSuspend: false,
                     nullability: .nonNull
                 )))

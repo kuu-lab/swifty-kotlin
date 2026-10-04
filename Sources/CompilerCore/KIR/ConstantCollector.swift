@@ -39,7 +39,10 @@ struct ConstantCollector {
                 if let propertySymbol = sema.symbols.symbol(symbol) {
                     let related = sema.symbols.lookupAll(fqName: propertySymbol.fqName)
                     for relatedID in related {
-                        guard let relatedSymbol = sema.symbols.symbol(relatedID) else {
+                        guard let relatedSymbol = sema.symbols.symbol(relatedID),
+                              sema.symbols.extensionPropertyReceiverType(for: relatedID)
+                                  == sema.symbols.extensionPropertyReceiverType(for: symbol)
+                        else {
                             continue
                         }
                         if relatedSymbol.kind == .property || relatedSymbol.kind == .field {
@@ -61,7 +64,10 @@ struct ConstantCollector {
             if let propertySymbol = sema.symbols.symbol(symbol) {
                 let related = sema.symbols.lookupAll(fqName: propertySymbol.fqName)
                 for relatedID in related {
-                    guard let relatedSymbol = sema.symbols.symbol(relatedID) else {
+                    guard let relatedSymbol = sema.symbols.symbol(relatedID),
+                          sema.symbols.extensionPropertyReceiverType(for: relatedID)
+                              == sema.symbols.extensionPropertyReceiverType(for: symbol)
+                    else {
                         continue
                     }
                     if relatedSymbol.kind == .property || relatedSymbol.kind == .field {

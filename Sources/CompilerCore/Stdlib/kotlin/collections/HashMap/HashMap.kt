@@ -15,22 +15,6 @@ import kotlin.internal.__valuesEqual
 // diff oracle's kotlinc-jvm reference, where java.util.LinkedHashMap extends
 // java.util.HashMap) instead of a typealias onto an unrelated interface.
 
-private fun <K, V> __hashMapKeys(map: Map<K, V>): MutableSet<K> {
-    val result = mutableSetOf<K>()
-    for (entry in map.entries) {
-        result.add(entry.key)
-    }
-    return result
-}
-
-private fun <K, V> __hashMapValues(map: Map<K, V>): MutableCollection<V> {
-    val result = mutableListOf<V>()
-    for (entry in map.entries) {
-        result.add(entry.value)
-    }
-    return result
-}
-
 public open class HashMap<K, V> : MutableMap<K, V> {
     constructor()
     constructor(initialCapacity: Int)
@@ -57,6 +41,12 @@ public open class HashMap<K, V> : MutableMap<K, V> {
 
     @KsSymbolName("__kk_map_entries")
     private external fun __hashMapEntries(): MutableSet<MutableMap.MutableEntry<K, V>>
+
+    @KsSymbolName("__kk_map_keys")
+    private external fun __hashMapKeys(): MutableSet<K>
+
+    @KsSymbolName("__kk_map_values")
+    private external fun __hashMapValues(): MutableCollection<V>
 
     @KsSymbolName("__kk_builder_map_freeze")
     private external fun __hashMapFreeze(): Map<K, V>
@@ -121,7 +111,7 @@ public open class HashMap<K, V> : MutableMap<K, V> {
     override fun isEmpty(): Boolean = __hashMapIsEmpty()
 
     override val keys: MutableSet<K>
-        get() = __hashMapKeys(this)
+        get() = __hashMapKeys()
 
     @IgnorableReturnValue
     override fun put(key: K, value: V): V? = __hashMapPut(key, value)
@@ -162,5 +152,5 @@ public open class HashMap<K, V> : MutableMap<K, V> {
     }
 
     override val values: MutableCollection<V>
-        get() = __hashMapValues(this)
+        get() = __hashMapValues()
 }

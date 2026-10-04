@@ -153,6 +153,16 @@ public fun String.toShort(): Short {
     return __kk_string_toShort(this)
 }
 
+// java.lang.Short.parseShort(s, radix): unparsable input reports the Int
+// parse failure, out-of-range values report "Value out of range".
+public fun String.toShort(radix: Int): Short {
+    val value = toInt(radix)
+    if (value < -32768 || value > 32767) {
+        throw NumberFormatException("Value out of range. Value:\"$this\" Radix:$radix")
+    }
+    return value.toShort()
+}
+
 public fun String.toShortOrNull(): Short? {
     return __kk_string_toShortOrNull(this)
 }

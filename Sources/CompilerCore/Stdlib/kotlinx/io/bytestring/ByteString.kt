@@ -179,6 +179,10 @@ public fun ByteString.endsWith(byteString: ByteString): Boolean =
     endsWith(byteString.getBackingArrayReference())
 
 public fun ByteString.decodeToString(): String = getBackingArrayReference().decodeToString()
-public fun String.encodeToByteString(): ByteString = ByteString.wrap(encodeToByteArray())
+// `this.` is load-bearing: an unqualified call would resolve through
+// package-scope candidates, where the same-named (inapplicable)
+// `kotlinx.io.bytestring.Base64.encodeToByteArray` extension suppresses the
+// kotlin.text `String.encodeToByteArray` fallback.
+public fun String.encodeToByteString(): ByteString = ByteString.wrap(this.encodeToByteArray())
 public fun ByteString.contentEquals(array: ByteArray): Boolean =
     getBackingArrayReference().contentEquals(array)

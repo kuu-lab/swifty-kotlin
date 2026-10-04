@@ -56,6 +56,8 @@ extension CollectionLiteralConstructionLoweringPass {
                     symbols: ctx.sema?.symbols,
                     interner: ctx.interner,
                     arena: module.arena,
+                    sema: ctx.sema,
+                    cache: ctx.nominalDispatchCache,
                     into: &loweredBody
                 )
                 storedValue = boxedResult

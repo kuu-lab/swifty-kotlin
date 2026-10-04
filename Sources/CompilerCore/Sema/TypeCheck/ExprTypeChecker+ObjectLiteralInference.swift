@@ -88,8 +88,28 @@ extension ExprTypeChecker {
         // properties owned by that receiver (and its class supertypes) in the
         // capture set so the member function does not later read the same
         // field offset from the object literal's own receiver.
+        // BUG-inner-outer: a property or `this@Label` on an enclosing class
+        // reachable only through two or more `inner class` `$outer` hops
+        // (e.g. an object literal inside `inner class Deep` inside `inner
+        // class Inner` inside `class Outer`, referencing `Outer`'s own
+        // property) is otherwise never collected here -- only the
+        // *immediate* enclosing class is. Walk the chain of enclosing
+        // classes while each visited class is itself `inner` (that is what
+        // gives it an `$outer` field to hop through) so every ancestor
+        // reachable that way is treated the same as the immediate one below.
+        var outerClassChain: [SymbolID] = []
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            var current = enclosingClassSymbol
+            while sema.symbols.symbol(current)?.flags.contains(.innerClass) == true,
+                  let outerOwner = sema.symbols.parentSymbol(for: current),
+                  sema.symbols.symbol(outerOwner)?.kind == .class
+            {
+                outerClassChain.append(outerOwner)
+                current = outerOwner
+            }
+        }
         var outerReceiverOwners: Set<SymbolID> = []
-        var pendingOuterReceiverOwners: [SymbolID] = []
+        var pendingOuterReceiverOwners: [SymbolID] = outerClassChain
         if let enclosingClassSymbol = ctx.enclosingClassSymbol {
             pendingOuterReceiverOwners.append(enclosingClassSymbol)
         } else if let implicitReceiverType = ctx.implicitReceiverType,
@@ -135,6 +155,11 @@ extension ExprTypeChecker {
         if let enclosingClassSymbol = ctx.enclosingClassSymbol {
             captureOuterSymbols.insert(enclosingClassSymbol)
         }
+        // BUG-inner-outer: same reasoning as `outerClassChain` above -- an
+        // unqualified call or `this@Label` naming an ancestor class two or
+        // more `$outer` hops out needs that ancestor's own symbol in the
+        // capture set too, or `CaptureAnalyzer` never records it.
+        captureOuterSymbols.formUnion(outerClassChain)
 
         let objectSymbol = sema.symbols.define(
             kind: symbolKind,
@@ -260,6 +285,21 @@ extension ExprTypeChecker {
                 objectOuterReceiverTypes[index].symbol = thisBinding.symbol
             }
         }
+        // BUG-inner-outer: `this@Label` entries for ancestor classes beyond
+        // the immediate enclosing one have no plain local to bind to above
+        // (there is no flat `this` for them -- only `$outer.$outer...`), so
+        // bind them to the ancestor class's own symbol instead: the same key
+        // `outerClassChain`/`captureOuterSymbols` use, which
+        // `captureValueExpr`'s class-symbol branch knows how to materialize
+        // via `resolveOuterChainValue`.
+        for index in objectOuterReceiverTypes.indices where objectOuterReceiverTypes[index].symbol == nil {
+            guard let (_, classSymbol) = resolveClassTypeSymbol(objectOuterReceiverTypes[index].type, sema: sema),
+                  outerClassChain.contains(classSymbol.id)
+            else {
+                continue
+            }
+            objectOuterReceiverTypes[index].symbol = classSymbol.id
+        }
         let objectCtx = ctx.copying(
             scope: objectScope,
             implicitReceiverType: objectType,
@@ -275,6 +315,14 @@ extension ExprTypeChecker {
             initializerLocals: locals,
             accessorBaseLocals: outerLocalsSnapshot,
             ctx: ctx
+        )
+        // `init {}` blocks are lowered inline in the enclosing function,
+        // like property initializers, so they see the outer locals directly
+        // and need no capture fields.
+        driver.declChecker.typeCheckInitBlocks(
+            objectDecl.initBlocks,
+            ctx: objectCtx,
+            baseLocals: locals
         )
 
         // KSP-CAP-001: member function bodies resolve outer locals the same
@@ -405,6 +453,11 @@ extension ExprTypeChecker {
             var propertyFlags: SymbolFlags = [.synthetic]
             if propertyDecl.isVar {
                 propertyFlags.insert(.mutable)
+            }
+            // Read wrapping (`kk_lateinit_get_or_throw`) and `::p.isInitialized`
+            // both key off this flag, exactly as for named-class members.
+            if propertyDecl.modifiers.contains(.lateinit) {
+                propertyFlags.insert(.lateinitProperty)
             }
             let propertySymbol = sema.symbols.define(
                 kind: .property,

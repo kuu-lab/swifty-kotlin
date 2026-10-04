@@ -159,6 +159,7 @@ extension KIRLoweringDriver {
         )
         let module = KIRModule(files: files, arena: arena)
         module.arena.callableValueInfoByExprID = ctx.callableValueInfoByExprID
+        module.arena.receiverFirstLauncherLambdaSymbols = ctx.receiverFirstLauncherLambdaSymbols
         return module
     }
 
