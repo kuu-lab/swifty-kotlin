@@ -2113,6 +2113,63 @@ extension CallTypeChecker {
             hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
             ctx: ctx
         )
+        // A same-named member that cannot accept the call must not hide an
+        // applicable extension. Only retried after ordinary resolution failed, so
+        // a viable member (including range/lambda arguments whose provisional
+        // types are unreliable before resolution) always keeps precedence.
+        if resolved.diagnostic != nil,
+           !isClassNameReceiver,
+           !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
+           !candidates.isEmpty
+        {
+            let receiverForExtensionLookup = sema.types.makeNonNullable(lookupReceiverType)
+            // Only user-declared extensions: bundled stdlib extensions carry
+            // constraints (`@OnlyInputTypes`) the resolver does not model, so
+            // retrying them would accept calls Kotlin rejects.
+            func receiverMatchingUserExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
+                scopeCandidates.filter { candidate in
+                    guard let symbol = ctx.cachedSymbol(candidate),
+                          symbol.kind == .function,
+                          let declFile = symbol.declSite?.start.file,
+                          driver.sourceManager?.origin(of: declFile) == .user,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType
+                    else { return false }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: receiverForExtensionLookup,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+            }
+            // Innermost binding first so a user extension keeps shadowing a
+            // same-named one; merge the whole chain only if that finds nothing.
+            var extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookup(calleeName))
+            if extensionCandidates.isEmpty {
+                extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookupMergingChain(calleeName))
+            }
+            if !extensionCandidates.isEmpty {
+                let retried = resolveCallRespectingLambdaReturnType(
+                    candidates: extensionCandidates,
+                    args: args,
+                    argTypes: preparedArgs.argTypes,
+                    range: range,
+                    calleeName: calleeName,
+                    explicitTypeArgs: explicitTypeArgs,
+                    expectedType: expectedType,
+                    implicitReceiverType: effectiveReceiverType,
+                    lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                    inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                    blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                    hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                    ctx: ctx
+                )
+                if retried.diagnostic == nil {
+                    candidates = extensionCandidates
+                    resolved = retried
+                }
+            }
+        }
         if let diagnostic = resolved.diagnostic {
             if diagnostic.code == "KSWIFTK-SEMA-BOUND" {
                 let callee = interner.resolve(calleeName)

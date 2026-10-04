@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 VERIFY_SCRIPT="$SCRIPT_DIR/verify_kotlin_compiler_archive.sh"
-WORKFLOW="$SCRIPT_DIR/../.github/workflows/ci.yml"
+WORKFLOW="$SCRIPT_DIR/../.github/workflows/nightly-full.yml"
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kswiftk-kotlinc-archive-test.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 
