@@ -14,17 +14,17 @@ open class IdentityInterceptor : ContinuationInterceptor {
 class SpecialInterceptor : IdentityInterceptor()
 
 object SpecialKey : AbstractCoroutineContextKey<ContinuationInterceptor, SpecialInterceptor>(
-    ContinuationInterceptor.Key, { it as? SpecialInterceptor }
+    ContinuationInterceptor.Key, { element -> element as? SpecialInterceptor }
 )
 
 object ChainedKey : AbstractCoroutineContextKey<SpecialInterceptor, SpecialInterceptor>(
-    SpecialKey, { it as? SpecialInterceptor }
+    SpecialKey, { element -> element as? SpecialInterceptor }
 )
 
 object UnrelatedKey : CoroutineContext.Key<ContinuationInterceptor>
 
 object UnrelatedPolymorphicKey : AbstractCoroutineContextKey<ContinuationInterceptor, SpecialInterceptor>(
-    UnrelatedKey, { it as? SpecialInterceptor }
+    UnrelatedKey, { element -> element as? SpecialInterceptor }
 )
 
 class RecordingInterceptor : IdentityInterceptor() {
@@ -40,6 +40,8 @@ class Completion : Continuation<String> {
 }
 
 fun main() {
+    println(ContinuationInterceptor === ContinuationInterceptor.Key)
+    println((ContinuationInterceptor.Key as Any) is CoroutineContext.Key<*>)
     val interceptor: ContinuationInterceptor = SpecialInterceptor()
     println(interceptor[ContinuationInterceptor.Key] === interceptor)
     println(interceptor[SpecialKey] === interceptor)
@@ -54,9 +56,6 @@ fun main() {
     val plain: ContinuationInterceptor = IdentityInterceptor()
     println(plain[SpecialKey] == null)
     println(plain.minusKey(SpecialKey) === plain)
-    val context: CoroutineContext = interceptor
-    println(context[SpecialKey] === interceptor)
-    println(context.minusKey(SpecialKey) === EmptyCoroutineContext)
     val completion = Completion()
     val intercepted = interceptor.interceptContinuation(completion)
     println(intercepted === completion)

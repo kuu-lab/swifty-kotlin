@@ -174,7 +174,12 @@ struct ContinuationSyntheticStubTests {
         #expect(sema.symbols.externalLinkName(for: interceptContinuationSymbol) == nil)
         #expect(sema.symbols.sourceFileID(for: interceptContinuationSymbol) != nil)
         #expect(sema.symbols.symbol(interceptContinuationSymbol)?.flags.contains(.abstractType) == true)
-        #expect(interceptContinuationSignature.receiverType == nil)
+        let interceptorType = sema.types.make(.classType(ClassType(
+            classSymbol: interceptorSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        #expect(interceptContinuationSignature.receiverType == interceptorType)
         #expect(interceptContinuationSignature.typeParameterSymbols.count == 1)
         #expect(interceptContinuationSignature.parameterTypes == [interceptContinuationSignature.returnType])
 
@@ -190,6 +195,12 @@ struct ContinuationSyntheticStubTests {
         let ownerFQName = ["kotlin", "coroutines", "ContinuationInterceptor"].map(interner.intern)
         let owner = try #require(sema.symbols.lookup(fqName: ownerFQName))
         let sourceFile = try #require(sema.symbols.sourceFileID(for: owner))
+        let layout = try #require(sema.symbols.nominalLayout(for: owner))
+
+        for (slot, name) in ["interceptContinuation", "releaseInterceptedContinuation"].enumerated() {
+            let member = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern(name)]))
+            #expect(layout.vtableSlots[member] == slot)
+        }
         for name in ["get", "interceptContinuation", "minusKey", "releaseInterceptedContinuation"] {
             let members = sema.symbols.lookupAll(fqName: ownerFQName + [interner.intern(name)])
             #expect(members.count == 1)

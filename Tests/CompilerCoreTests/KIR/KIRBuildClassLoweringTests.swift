@@ -126,6 +126,43 @@ struct KIRBuildClassLoweringTests {
         )
     }
 
+    @Test(arguments: ["class", "interface"])
+    func testStatelessCompanionHasOneSingletonAllocation(ownerKind: String) throws {
+        let ctx = makeContextFromSource("""
+        interface TokenKey
+        \(ownerKind) Host {
+            companion object Key : TokenKey
+        }
+        fun main(): TokenKey = Host.Key
+        """)
+        try runToKIR(ctx)
+        try #require(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let host = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Host")]))
+        let companion = try #require(sema.symbols.companionObjectSymbol(for: host))
+        #expect(sema.symbols.nominalLayout(for: companion)?.vtableSize == 0)
+        let globals = module.arena.declarations.filter {
+            if case let .global(global) = $0 { return global.symbol == companion }
+            return false
+        }
+        #expect(globals.count == 1)
+        let initializers = findAllKIRFunctions(in: module).filter { function in
+            function.body.contains { instruction in
+                if case let .storeGlobal(_, symbol) = instruction { return symbol == companion }
+                return false
+            }
+        }
+        #expect(initializers.count == 1)
+        let initializer = try #require(initializers.first)
+        #expect(initializer.body.contains { instruction in
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                return ctx.interner.resolve(callee) == "kk_object_new"
+            }
+            return false
+        })
+    }
+
     @Test func testClassLoweringGeneratesConstructorDefaultStubForSecondaryConstructor() throws {
         let source = """
         class Box {
