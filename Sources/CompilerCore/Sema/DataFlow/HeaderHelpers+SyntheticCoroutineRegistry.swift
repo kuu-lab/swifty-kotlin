@@ -141,7 +141,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         types.setNominalTypeParameterSymbols([kotlinResultTypeParamSymbol], for: kotlinResultSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: kotlinResultSymbol)
+        types.setNominalTypeParameterVariances([.out], for: kotlinResultSymbol)
         symbols.setPropertyType(kotlinResultType, for: kotlinResultSymbol)
 
         let continuationSymbol = ensureInterfaceSymbol(
@@ -220,7 +220,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         types.setNominalTypeParameterSymbols([continuationTypeParamSymbol], for: continuationSymbol)
-        types.setNominalTypeParameterVariances([], for: continuationSymbol)
+        types.setNominalTypeParameterVariances([.in], for: continuationSymbol)
         symbols.setPropertyType(continuationType, for: continuationSymbol)
         let continuationTypeParameterSymbol = continuationTypeParamSymbol
         let continuationInterceptorType = types.make(.classType(ClassType(
@@ -715,11 +715,8 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
-        // Preserve the declaration-site `in` variance once Continuation has
-        // been reused from bundled Kotlin source. The synthetic fallback
-        // remains invariant when no source declaration is available.
         if !symbols.isSourceBackedSymbol(continuationSymbol) {
-            types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+            types.setNominalTypeParameterVariances([.in], for: continuationSymbol)
         }
 
         // KSP-499: Flow's cold core remains a compiler/runtime bridge. Keep
