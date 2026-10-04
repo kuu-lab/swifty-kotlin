@@ -4,8 +4,8 @@ import Testing
 
 @Suite
 struct CoroutineScopeAsyncLoweringTests {
-    @Test(arguments: ["DEFAULT", "LAZY", "ATOMIC", "UNDISPATCHED"])
-    func sourceBuilderUsesReceiverContinuationAndTypedAwait(start: String) throws {
+    @Test(arguments: ["DEFAULT", "LAZY", "ATOMIC", "UNDISPATCHED"], [false, true])
+    func sourceBuilderUsesReceiverContinuationAndTypedAwait(start: String, useArtifact: Bool) throws {
         let source = """
         import kotlinx.coroutines.*
         fun main() = runBlocking {
@@ -17,7 +17,7 @@ struct CoroutineScopeAsyncLoweringTests {
             scope.cancel()
         }
         """
-        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: useArtifact)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         try LoweringPhase().run(ctx)

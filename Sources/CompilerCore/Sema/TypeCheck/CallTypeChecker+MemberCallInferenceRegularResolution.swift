@@ -2611,10 +2611,7 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        // `Deferred.await()` resolves here as a normal candidate (the synthetic
-        // member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift), whose
-        // signature hardcodes `Any` since `Deferred` has no class-level type
-        // parameter. Narrow it using the element type tracked by
+        // Narrow the async builder's Any contract using the element type tracked by
         // `coroutineBuilderNarrowedReturnType` for the `async {}` call that
         // produced this receiver.
         let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_coroutine_scope_async",
