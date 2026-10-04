@@ -200,8 +200,6 @@ public fun <T> Flow<T>.conflate(): Flow<T> = this
 
 public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> = this
 
-public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> = this
-
 // `cancellable` is the exception to the pass-throughs above: it composes the
 // retained collect/emit core with `ensureActive`, so a collector running in a
 // cancelled coroutine stops between elements instead of draining the upstream
