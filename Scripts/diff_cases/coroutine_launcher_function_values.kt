@@ -40,5 +40,9 @@ fun main() {
         println(async(block = zero).await())
         val nullValue: suspend CoroutineScope.() -> Int? = { null }
         println(withContext(Dispatchers.Default, block = nullValue))
+        val task: Deferred<Int> = async(block = g)
+        println(task.await())
+        val nullableTask: Deferred<Int?> = async(block = nullValue)
+        println(nullableTask.await())
     }
 }

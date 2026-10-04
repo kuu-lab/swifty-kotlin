@@ -59,10 +59,15 @@ struct CoroutineSyntheticStubTests {
                 scope.launch(block = f).join()
                 val g: suspend CoroutineScope.() -> Int = { side + 7 }
                 val value: Int = async(block = g).await()
+                val task: Deferred<Int> = async(block = g)
+                val savedValue: Int = task.await()
                 val lazyValue: Int = async(start = CoroutineStart.LAZY, block = g).await()
                 val switched: Int = withContext(Dispatchers.Default, block = g)
                 val timed: Int = withTimeout(1000L, block = g)
                 val nullable: Int? = withTimeoutOrNull(1000L, block = g)
+                val nullableBlock: suspend CoroutineScope.() -> Int? = { null }
+                val nullableTask: Deferred<Int?> = async(block = nullableBlock)
+                val nullableValue: Int? = nullableTask.await()
             }
         }
         """

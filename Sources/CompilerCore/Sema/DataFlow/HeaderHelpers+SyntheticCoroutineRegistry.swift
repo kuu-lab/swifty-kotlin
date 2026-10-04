@@ -299,13 +299,13 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        let jobSymbol = ensureClassSymbol(
+        let jobSymbol = ensureInterfaceSymbol(
             named: "Job",
             in: coroutinesPkg,
             symbols: symbols,
             interner: interner
         )
-        let deferredSymbol = ensureClassSymbol(
+        let deferredSymbol = ensureInterfaceSymbol(
             named: "Deferred",
             in: coroutinesPkg,
             symbols: symbols,
@@ -451,7 +451,9 @@ extension DataFlowSemaPhase {
         )))
         let deferredType = types.make(.classType(ClassType(
             classSymbol: deferredSymbol,
-            args: [],
+            args: symbols.isSourceBackedSymbol(deferredSymbol)
+                || !types.nominalTypeParameterSymbols(for: deferredSymbol).isEmpty
+                ? [.out(types.nullableAnyType)] : [],
             nullability: .nonNull
         )))
         let dispatchersType = types.make(.classType(ClassType(
@@ -2378,15 +2380,17 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: deferredSymbol,
-            ownerType: deferredType,
-            name: "await",
-            externalLinkName: "kk_kxmini_async_await",
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
+        if !symbols.isSourceBackedSymbol(deferredSymbol) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: deferredSymbol,
+                ownerType: deferredType,
+                name: "await",
+                externalLinkName: "kk_kxmini_async_await",
+                returnType: types.anyType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         // KSP-676: StateFlow / MutableStateFlow and Flow.stateIn are bundled
         // Kotlin source (StateFlow.kt), so no synthetic constructor or member
         // stubs are registered here.

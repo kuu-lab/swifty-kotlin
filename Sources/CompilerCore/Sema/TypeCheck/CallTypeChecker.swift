@@ -1282,7 +1282,7 @@ final class CallTypeChecker {
             }
             let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [elementType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -1436,7 +1436,7 @@ final class CallTypeChecker {
             }
             let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [elementType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -2069,7 +2069,7 @@ final class CallTypeChecker {
                     ?? (elementCandidates.isEmpty ? sema.types.anyType : sema.types.lub(elementCandidates))
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [elementType],
-                    returnType: sema.types.anyType,
+                    returnType: sema.types.nullableAnyType,
                     isSuspend: false,
                     nullability: .nonNull
                 )))
