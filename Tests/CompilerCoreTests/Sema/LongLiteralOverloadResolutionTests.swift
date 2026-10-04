@@ -112,8 +112,8 @@ struct LongLiteralOverloadResolutionTests {
             """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], includeStdlib: false,
-                frontendFlags: useCache ? ["sema-cache"] : []
+                inputs: [path], frontendFlags: useCache ? ["sema-cache"] : [],
+                includeStdlib: false
             )
             try runSema(ctx)
             #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0002" }.count == 1)
