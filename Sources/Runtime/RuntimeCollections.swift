@@ -543,6 +543,14 @@ public func kk_list_subList(
         ) {
             return result
         }
+        if let result = runtimeSourceListSubList(
+            listRaw,
+            fromIndex: fromIndex,
+            toIndex: toIndex,
+            outThrown: outThrown
+        ) {
+            return result
+        }
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }

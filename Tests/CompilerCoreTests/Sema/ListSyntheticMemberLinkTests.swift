@@ -1475,7 +1475,9 @@ struct ListSyntheticMemberLinkTests {
                     .count
                 #expect(iterableCallCount > 0, "Expected Iterable.\(memberName) to bind to its source declaration")
 
-                let listSymbol = try #require(listBackedFunctionSymbol(
+                let listSymbol = try #require(memberName == "indexOf" ? sema.symbols.lookup(
+                    fqName: ["kotlin", "collections", "List", "indexOf"].map(ctx.interner.intern)
+                ) : listBackedFunctionSymbol(
                     memberName: memberName,
                     sema: sema,
                     interner: ctx.interner,

@@ -431,14 +431,16 @@ extension DataFlowSemaPhase {
         if isList {
             // Runtime List bridges dispatch source implementations through
             // the List itable. Keep get(index) and listIterator(index) at
-            // slots 0 and 1 independently of synthetic-symbol definition order.
+            // slots 0 and 1 independently of synthetic-symbol definition order;
+            // the read-only subList bridge uses slot 2.
             return methods.sorted { lhs, rhs in
                 func fixedSlot(_ symbol: SemanticSymbol) -> Int {
                     let name = interner.resolve(symbol.name)
                     let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
                     if name == "get" && arity == 1 { return 0 }
                     if name == "listIterator" && arity == 1 { return 1 }
-                    return 2
+                    if name == "subList" && arity == 2 { return 2 }
+                    return 3
                 }
                 let lhsSlot = fixedSlot(lhs)
                 let rhsSlot = fixedSlot(rhs)
