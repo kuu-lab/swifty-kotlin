@@ -34,6 +34,7 @@ package struct MetadataRecord {
     /// to other generic calls) and disambiguates parameters across overloads
     /// that share one FQ name.
     package let callableTypeParameterSignatures: [String]
+    package let inputOnlyTypeParameterIndices: Set<Int>
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter flags indicating whether a function-type argument may
@@ -154,6 +155,7 @@ package struct MetadataRecord {
         typeSignature: String? = nil,
         typeParameterUpperBoundsSignatures: [[String]] = [],
         callableTypeParameterSignatures: [String] = [],
+        inputOnlyTypeParameterIndices: Set<Int> = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
@@ -210,6 +212,7 @@ package struct MetadataRecord {
         self.typeSignature = typeSignature
         self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
         self.callableTypeParameterSignatures = callableTypeParameterSignatures
+        self.inputOnlyTypeParameterIndices = inputOnlyTypeParameterIndices
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -808,6 +811,7 @@ package final class MetadataEncoder {
         var typeSignature: String?
         var typeParameterUpperBoundsSignatures: [[String]] = []
         var callableTypeParameterSignatures: [String] = []
+        var inputOnlyTypeParameterIndices: Set<Int> = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -878,6 +882,11 @@ package final class MetadataEncoder {
                 }
             }
             callableTypeParameterSignatures = signature.typeParameterSymbols.map { "T\($0.rawValue)" }
+            inputOnlyTypeParameterIndices = Set(signature.typeParameterSymbols.indices.filter { index in
+                symbols.annotations(for: signature.typeParameterSymbols[index]).contains {
+                    $0.annotationFQName.split(separator: ".").last == "OnlyInputTypes"
+                }
+            })
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             // KUU-655: uses the (already override-corrected) local flag, not
             // `signature.valueParameterHasDefaultValues` directly, so an
@@ -1157,6 +1166,7 @@ package final class MetadataEncoder {
             typeSignature: typeSignature,
             typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
             callableTypeParameterSignatures: callableTypeParameterSignatures,
+            inputOnlyTypeParameterIndices: inputOnlyTypeParameterIndices,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
@@ -1405,6 +1415,9 @@ package final class MetadataEncoder {
                 }
                 if !record.callableTypeParameterSignatures.isEmpty {
                     fields.append("callTParams=\(record.callableTypeParameterSignatures.joined(separator: ","))")
+                }
+                if !record.inputOnlyTypeParameterIndices.isEmpty {
+                    fields.append("inputOnlyTParams=\(record.inputOnlyTypeParameterIndices.sorted().map(String.init).joined(separator: ","))")
                 }
                 if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                     fields.append("defaultLink=\(linkName)")
@@ -1797,6 +1810,7 @@ final class MetadataDecoder {
                 typeSignature: rec.typeSignature,
                 typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
                 callableTypeParameterSignatures: rec.callableTypeParameterSignatures,
+                inputOnlyTypeParameterIndices: rec.inputOnlyTypeParameterIndices,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
@@ -1858,6 +1872,7 @@ final class MetadataDecoder {
         var isOverride: Bool = false
         var typeSignature: String?
         var callableTypeParameterSignatures: [String] = []
+        var inputOnlyTypeParameterIndices: Set<Int> = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -1959,6 +1974,8 @@ final class MetadataDecoder {
             record.typeParameterUpperBoundsSignatures = decodeMetadataTypeParameterUpperBounds(value)
         case "callTParams":
             record.callableTypeParameterSignatures = value.split(separator: ",").map(String.init)
+        case "inputOnlyTParams":
+            record.inputOnlyTypeParameterIndices = Set(value.split(separator: ",").compactMap { Int($0) })
         case "link":
             record.externalLinkName = value.isEmpty ? nil : value
         case "fields":

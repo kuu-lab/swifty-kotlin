@@ -1084,6 +1084,7 @@ extension DataFlowSemaPhase {
         /// serialize `callTParams`; empty for older artifacts, where the
         /// structural scan plus the phantom-count fallback apply instead.
         let callableTypeParameterSignatures: [String]
+        let inputOnlyTypeParameterIndices: Set<Int>
         let defaultStubExternalLinkName: String?
         let externalLinkName: String?
         let declaredFieldCount: Int?
@@ -1148,6 +1149,7 @@ extension DataFlowSemaPhase {
             typeSignature: String? = nil,
             typeParameterUpperBoundsSignatures: [[String]] = [],
             callableTypeParameterSignatures: [String] = [],
+            inputOnlyTypeParameterIndices: Set<Int> = [],
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
             declaredFieldCount: Int? = nil,
@@ -1206,6 +1208,7 @@ extension DataFlowSemaPhase {
             self.typeSignature = typeSignature
             self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
             self.callableTypeParameterSignatures = callableTypeParameterSignatures
+            self.inputOnlyTypeParameterIndices = inputOnlyTypeParameterIndices
             self.defaultStubExternalLinkName = defaultStubExternalLinkName
             self.externalLinkName = externalLinkName
             self.declaredFieldCount = declaredFieldCount
