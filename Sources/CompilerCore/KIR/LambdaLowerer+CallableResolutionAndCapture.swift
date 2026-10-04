@@ -1,5 +1,29 @@
 
 extension LambdaLowerer {
+    func bindCoroutineScopeLambdaReceiver(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let receiverType = sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] else {
+            return
+        }
+        let receiver = arena.appendTemporary(type: receiverType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_coroutine_current_scope"),
+            arguments: [],
+            result: receiver,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        let symbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: exprID)
+        driver.ctx.setImplicitReceiver(symbol: symbol, exprID: receiver)
+        driver.ctx.setLocalValue(receiver, for: symbol)
+    }
+
     /// Binds the lambda's receiver value (the explicit receiver parameter, or the
     /// active implicit receiver it was satisfied by) to
     /// `SyntheticSymbolScheme.lambdaReceiverSymbol`, the symbol Sema gives the

@@ -346,6 +346,40 @@ struct FlowSemaTests {
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
+    @Test func testProduceNestedLambdaParameterTypesInsideRunBlocking() throws {
+        try withTemporaryFile(contents: """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.channels.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            val source = flowOf(4, 5, 6)
+            val v = "outer"
+            val ch = produce { source.collect { v -> send(v) } }
+            val implicit = produce { source.collect { send(it) } }
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let produceCalls = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+                guard case let .call(callee, _, _, range) = expr,
+                      ctx.sourceManager.path(of: range.start.file) == path,
+                      case let .nameRef(name, _) = ast.arena.expr(callee),
+                      ctx.interner.resolve(name) == "produce"
+                else { return nil }
+                return ExprID(rawValue: Int32(index))
+            }
+            #expect(produceCalls.count == 2)
+            for call in produceCalls {
+                let binding = try #require(sema.bindings.callBinding(for: call))
+                #expect(binding.substitutedTypeArguments == [sema.types.intType])
+            }
+        }
+    }
+
     @Test func testChannelFlowAndCallbackFlowTypeCheckWithProducerScope() throws {
         var result: CompilationContext?
         try withTemporaryFiles(contents: [

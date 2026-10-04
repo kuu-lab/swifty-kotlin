@@ -94,8 +94,32 @@ private final class RuntimeChannelProducer {
     }
 }
 
+private final class RuntimeFlowEmitter {
+    let fnPtr: Int
+    private let templateState: RuntimeContinuationState?
+
+    init(fnPtr: Int, templateContinuation: Int) {
+        self.fnPtr = fnPtr
+        templateState = runtimeContinuationState(from: templateContinuation)
+        if templateState != nil {
+            _ = kk_coroutine_state_exit(templateContinuation, 0)
+        }
+    }
+
+    func makeContinuation() -> Int {
+        guard let templateState else { return 0 }
+        let continuation = kk_coroutine_continuation_new(Int(templateState.functionID))
+        if let state = runtimeContinuationState(from: continuation) {
+            state.launcherArgs = templateState.launcherArgs
+            state.scope = RuntimeContinuationState.current?.scope ?? RuntimeCoroutineScope.current
+            state.jobHandle = RuntimeContinuationState.current?.jobHandle
+        }
+        return continuation
+    }
+}
+
 private enum RuntimeFlowSource {
-    case emitter(fnPtr: Int, continuation: Int)
+    case emitter(RuntimeFlowEmitter)
     case channelProducer(RuntimeChannelProducer)
     case fixed([RuntimeFlowEvent])
     case merge([Int])
@@ -153,17 +177,8 @@ private final class RuntimeFlowHandle {
     let fixedValues: [Int]?
 
     var emitterFnPtr: Int {
-        if case let .emitter(emitterFnPtr, _) = source {
-            return emitterFnPtr
-        }
-        return 0
-    }
-
-    /// Continuation carrying captured values for a capturing `flow { }` builder.
-    /// Zero for non-capturing builders, whose emitter is invoked directly.
-    var emitterContinuation: Int {
-        if case let .emitter(_, continuation) = source {
-            return continuation
+        if case let .emitter(emitter) = source {
+            return emitter.fnPtr
         }
         return 0
     }
@@ -187,7 +202,7 @@ private final class RuntimeFlowHandle {
             self.init(source: .fixed(fixedEvents), opChain: opChain, fixedValues: fixedValues)
         } else {
             self.init(
-                source: .emitter(fnPtr: emitterFnPtr, continuation: emitterContinuation),
+                source: .emitter(RuntimeFlowEmitter(fnPtr: emitterFnPtr, templateContinuation: emitterContinuation)),
                 opChain: opChain,
                 fixedValues: nil
             )
@@ -199,10 +214,11 @@ private final class RuntimeFlowHandle {
 ///
 /// A capturing `flow { }` builder is lowered to a launcher thunk plus a
 /// continuation whose launcher-arg slots hold the captured values; the runtime
-/// invokes the thunk with that continuation so the emitter receives its
+/// seeds a fresh continuation for each invocation so the emitter receives its
 /// captures. Non-capturing builders keep the direct `(outThrown)` ABI.
 private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inout Int) {
-    let continuation = flow.emitterContinuation
+    guard case let .emitter(emitter) = flow.source else { return }
+    let continuation = emitter.makeContinuation()
     if continuation != 0 {
         if let context = runtimeFlowCurrentCollectContext() {
             runtimeContinuationState(from: continuation)?.flowCollectContext = context
@@ -1514,8 +1530,10 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
     let source: RuntimeFlowSource = switch flow.source {
     case let .channelProducer(producer):
         .channelProducer(producer)
-    case .emitter, .fixed, .merge, .zip, .combine, .flatMapConcat, .flatMapMerge, .flatMapLatest:
-        .emitter(fnPtr: flow.emitterFnPtr, continuation: flow.emitterContinuation)
+    case let .emitter(emitter):
+        .emitter(emitter)
+    case .fixed, .merge, .zip, .combine, .flatMapConcat, .flatMapMerge, .flatMapLatest:
+        .emitter(RuntimeFlowEmitter(fnPtr: flow.emitterFnPtr, templateContinuation: 0))
     }
     let derived = RuntimeFlowHandle(
         source: source,
