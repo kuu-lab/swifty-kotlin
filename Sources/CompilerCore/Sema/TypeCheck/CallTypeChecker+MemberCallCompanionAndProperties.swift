@@ -52,12 +52,11 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         ctx: TypeInferenceContext,
         preferredSourcePackage: [InternedString]? = nil,
-        bindAccessorCall: Bool = true
+        bindCall: Bool = true
     ) -> TypeID? {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         var getterCandidates: [SymbolID] = []
-        var propertyForGetter: [SymbolID: SymbolID] = [:]
         func collectGetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
@@ -76,7 +75,6 @@ extension CallTypeChecker {
             }
             if !getterCandidates.contains(getterAccessor) {
                 getterCandidates.append(getterAccessor)
-                propertyForGetter[getterAccessor] = candidate
             }
         }
         func isUnavailableKotlinMathProperty(_ candidate: SymbolID) -> Bool {
@@ -119,7 +117,6 @@ extension CallTypeChecker {
             }
         }
         for candidate in visible {
-            guard getterCandidates.isEmpty else { break }
             collectGetterCandidate(from: candidate, requireSynthetic: false)
         }
         // STDLIB-JVM-PROP-003: Fallback to short-name lookup for JVM reflection
@@ -196,7 +193,7 @@ extension CallTypeChecker {
             return nil
         }
 
-        if bindAccessorCall {
+        if bindCall {
             sema.bindings.bindCall(
                 id,
                 binding: CallBinding(
@@ -210,9 +207,13 @@ extension CallTypeChecker {
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
         }
         let deprecationCheckTarget: SymbolID
-        if let ownerProperty = propertyForGetter[chosen]
-            ?? sema.symbols.accessorOwnerProperty(for: chosen)
-        {
+        // Compound assignment (`bindCall == false`) reads the selected property
+        // directly, so its l-value needs the parent-property identifier binding.
+        // Plain reads keep the accessor-owner-only behaviour so lowering still
+        // dispatches through the getter call binding.
+        let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
+            ?? (bindCall ? nil : sema.symbols.parentSymbol(for: chosen))
+        if let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
             deprecationCheckTarget = ownerProperty
         } else {

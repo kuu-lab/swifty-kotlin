@@ -69,6 +69,53 @@ struct StdlibArtifactRegressionTests {
     }
     """
 
+    /// A direct range expression can retain its primitive element type in
+    /// Sema. Its source-backed members still receive a runtime range box,
+    /// which has no Kotlin vtable.
+    @Test
+    func testLongRangeExpressionIteratorThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        fun main() {
+            val iterator = (Long.MAX_VALUE - 1L..Long.MAX_VALUE).iterator()
+            while (iterator.hasNext()) println(iterator.next())
+            println(iterator.hasNext())
+
+            val range: LongRange = Long.MIN_VALUE..Long.MIN_VALUE
+            val typedIterator: LongIterator = range.iterator()
+            println(typedIterator.nextLong())
+            println(typedIterator.hasNext())
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "LongRangeExpressionIteratorArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                9223372036854775806
+                9223372036854775807
+                false
+                -9223372036854775808
+                false
+
+                """)
+        }
+    }
+
     /// KSP-697: inferred mutable collection factories must preserve their
     /// MutableIterable supertype when the stdlib is consumed as an artifact.
     @Test
