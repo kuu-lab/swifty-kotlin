@@ -25,15 +25,17 @@ func wrapLateinitReadIfNeeded(
     instructions.append(.constValue(result: propertyNameExpr, value: .stringLiteral(symbolInfo.name)))
     let result = arena.appendTemporary(type: arena.exprType(valueExpr) ?? sema.types.anyType
     )
-    let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
-    )
+    // `thrownResult: nil` routes the exception through the ordinary
+    // propagation path (enclosing `try` or the caller). A dedicated thrown
+    // temporary would store the exception into a slot nothing inspects, so
+    // reads outside a `try` silently yielded the sentinel as `null`.
     instructions.append(.call(
         symbol: nil,
         callee: interner.intern("kk_lateinit_get_or_throw"),
         arguments: [valueExpr, propertyNameExpr],
         result: result,
         canThrow: true,
-        thrownResult: thrownResult
+        thrownResult: nil
     ))
     return result
 }

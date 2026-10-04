@@ -25,6 +25,7 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    var seededRandomPointers: Set<UInt> = []
     /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
     /// singleton or a dedicated runtime registry rather than passRetained.
     var borrowedObjectPointers: Set<UInt> = []
@@ -133,6 +134,18 @@ final class RuntimeStorageBox: @unchecked Sendable {
         flowLock.lock()
         defer { flowLock.unlock() }
         return body(&flowState)
+    }
+
+    @discardableResult
+    @inline(__always)
+    func withFlowAndGCLocks<R>(_ body: (inout FlowState, inout GCState) -> R) -> R {
+        flowLock.lock()
+        gcLock.lock()
+        defer {
+            gcLock.unlock()
+            flowLock.unlock()
+        }
+        return body(&flowState, &gcState)
     }
 
     @discardableResult
@@ -611,7 +624,9 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
     }
     runtimeStorage.withGCLock { state in
         for pointer in pointers {
-            state.objectPointers.remove(UInt(bitPattern: pointer))
+            let key = UInt(bitPattern: pointer)
+            state.objectPointers.remove(key)
+            state.seededRandomPointers.remove(key)
         }
     }
     for pointer in pointers {

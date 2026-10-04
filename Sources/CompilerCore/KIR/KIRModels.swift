@@ -211,6 +211,10 @@ public final class KIRArena {
     public private(set) var exprTypes: [KIRExprID: TypeID] = [:]
     public private(set) var lambdaCaptureArgsBySymbol: [SymbolID: [KIRExprID]] = [:]
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
+    /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI;
+    /// copied from the lowering context for post-build passes
+    /// (see `KIRLoweringContext.receiverFirstLauncherLambdaSymbols`).
+    var receiverFirstLauncherLambdaSymbols: Set<SymbolID> = []
 
     private let parallelLock = NSLock()
     var isParallelTransformActive = false
@@ -416,6 +420,7 @@ public final class KIRModule {
     public let arena: KIRArena
     public private(set) var executedLowerings: [String]
     public private(set) var stage: KIRStage
+    package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
 
     /// Callee names that are known non-throwing, registered by earlier passes
     /// (e.g. LambdaClosureConversionPass).  ABILoweringPass consults this set

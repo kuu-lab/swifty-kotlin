@@ -209,6 +209,14 @@ extension CallTypeChecker {
                         )))
                     }()
                     contextualArgExpectedTypes[index] = contextualLambdaType
+                    if let contextualLambdaType, expectedTypeCandidates.count == 1,
+                       let candidate = expectedTypeCandidates.first,
+                       let signature = sema.symbols.functionSignature(for: candidate)
+                    {
+                        contextualArgExpectedTypes[index] = applyDispatchReceiverClassTypeArgs(
+                            to: contextualLambdaType, signature: signature, candidate: candidate, ctx: ctx
+                        )
+                    }
                     if declaresConcreteLambdaParameterTypes(
                         at: index,
                         argumentCount: args.count,
@@ -987,6 +995,48 @@ extension CallTypeChecker {
         )
     }
 
+    private func applyDispatchReceiverClassTypeArgs(
+        to parameterType: TypeID,
+        signature: FunctionSignature,
+        candidate: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let sema = ctx.sema
+        guard signature.classTypeParameterCount > 0,
+              let owner = sema.symbols.parentSymbol(for: candidate)
+        else { return parameterType }
+        let receivers = [ctx.implicitReceiverType].compactMap { $0 }
+            + ctx.outerReceiverTypes.reversed().map(\.type)
+        for receiver in receivers {
+            guard let receiverClass = resolveClassType(receiver, sema: sema),
+                  let ownerArgs = sema.types.liftedNominalSupertypeArgs(
+                      from: receiverClass.classSymbol,
+                      childArgs: receiverClass.args,
+                      to: owner
+                  ),
+                  ownerArgs.count >= signature.classTypeParameterCount
+            else { continue }
+            let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            var substitution: [TypeVarID: TypeID] = [:]
+            for (index, symbol) in signature.typeParameterSymbols
+                .prefix(signature.classTypeParameterCount)
+                .enumerated()
+            {
+                guard let variable = variables[symbol] else { continue }
+                switch ownerArgs[index] {
+                case let .invariant(type), let .in(type), let .out(type):
+                    substitution[variable] = type
+                case .star:
+                    break
+                }
+            }
+            return sema.types.substituteTypeParameters(
+                in: parameterType, substitution: substitution, typeVarBySymbol: variables
+            )
+        }
+        return parameterType
+    }
+
     /// Substitutes the class type parameters used in `signature.receiverType`
     /// with the concrete generic arguments of the call-site `receiverType`. This
     /// lets trailing-lambda expected types be computed with the receiver's
@@ -1035,9 +1085,17 @@ extension CallTypeChecker {
             }
         } else if signature.classTypeParameterCount > 0,
                   callSiteClass.args.count >= signature.classTypeParameterCount {
-            let prefix = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
-            declaredClassArgs = prefix
-            concreteClassArgs = prefix
+            declaredClassArgs = signature.typeParameterSymbols.prefix(signature.classTypeParameterCount).map {
+                .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+            }
+            if let owner = sema.symbols.parentSymbol(for: candidate),
+               let lifted = sema.types.liftedNominalSupertypeArgs(
+                   from: callSiteClass.classSymbol, childArgs: callSiteClass.args, to: owner
+               ) {
+                concreteClassArgs = lifted
+            } else {
+                concreteClassArgs = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+            }
         } else {
             return parameterType
         }
@@ -1548,7 +1606,7 @@ extension CallTypeChecker {
         return types.make(.functionType(FunctionType(
             receiver: first.functionType.receiver,
             params: first.functionType.params,
-            returnType: types.anyType,
+            returnType: types.nullableAnyType,
             isSuspend: first.functionType.isSuspend,
             nullability: first.functionType.nullability
         )))

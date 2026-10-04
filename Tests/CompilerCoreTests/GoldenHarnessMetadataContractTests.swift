@@ -92,7 +92,6 @@ struct GoldenHarnessMetadataContractTests {
         // diagnostics for hidden-level and hiddenSince-reached deprecation.
         "deprecated_hidden_annotation.kt",
         "expect_actual.kt",
-        "generate_sequence_noarg.kt",
         "inner_class.kt",
         "list_distinctBy_nullable_key.kt",
         "local_decl.kt",

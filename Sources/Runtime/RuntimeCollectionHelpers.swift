@@ -138,6 +138,7 @@ private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
 private let runtimeCollectionSizeGetterSlot = 4
 private let runtimeCollectionIsEmptyMethodSlot = 0
 private let runtimeListIteratorAtMethodSlot = 1
+private let runtimeListSubListMethodSlot = 2
 private let runtimeMutableListSubListMethodSlot = 0
 private let runtimeMutableListSetMethodSlot = 1
 // Map properties are ordered alphabetically after Map's two methods:
@@ -151,7 +152,7 @@ private let runtimeMapGetMethodSlot = 1
 private let runtimeListGetInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.List"
 )
-private let runtimeMutableListInterfaceTypeID = runtimeStableNominalTypeID(
+let runtimeMutableListInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.MutableList"
 )
 private let runtimeMutableCollectionInterfaceTypeID = runtimeStableNominalTypeID(
@@ -265,6 +266,26 @@ func runtimeSourceMutableListSubList(
         rawValue,
         Int(runtimeMutableListInterfaceTypeID),
         runtimeMutableListSubListMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(rawValue, fromIndex, toIndex, outThrown)
+}
+
+@inline(__always)
+func runtimeSourceListSubList(
+    _ rawValue: Int,
+    fromIndex: Int,
+    toIndex: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeListGetInterfaceTypeID),
+        runtimeListSubListMethodSlot
     )
     guard fnPtr != 0 else { return nil }
     let fn = unsafeBitCast(
@@ -930,6 +951,7 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
     let raw = Int(bitPattern: opaque)
+    registerRuntimeCollectionBoxIdentity(raw: raw, box: box)
     maybeRegisterCollectionIterableItable(raw: raw, box: box)
     if box is RuntimeStringBox {
         runtimeRegisterCharSequenceItable(raw)
@@ -957,10 +979,6 @@ func registerTaggedRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
     }
     runtimeRegisterObjectType(rawValue: handle, classID: typeID)
     return handle
-}
-
-func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
-    registerRuntimeObject(box, typeID: mapRuntimeTypeID)
 }
 
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
@@ -1160,8 +1178,7 @@ private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePo
     return runtimeListIteratorRemove(iterRaw, outThrown)
 }
 
-func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
+private func registerRuntimeListIteratorItables(raw: Int, box: RuntimeListIteratorBox) {
     registerIteratorItable(raw: raw, hasNext: runtimeListIteratorHasNextThunk, next: runtimeListIteratorNextThunk)
     if box.removeAction != nil {
         // KSP-1064: `registerListIteratorItable` below always claims ifaceSlot 1
@@ -1173,7 +1190,6 @@ func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
         // on this object (0=Iterator, 1=ListIterator).
         registerMutableIteratorItable(raw: raw, remove: runtimeListIteratorRemoveThunk, ifaceSlot: 2)
     }
-    return raw
 }
 
 private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -1187,12 +1203,6 @@ private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePoi
         return runtimeThrowIteratorExhausted(outThrown)
     }
     return kk_range_next(iterRaw)
-}
-
-func registerRuntimeObject(_ box: RuntimeRangeIteratorBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
-    registerIteratorItable(raw: raw, hasNext: runtimeRangeIteratorHasNextThunk, next: runtimeRangeIteratorNextThunk)
-    return raw
 }
 
 private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -1217,22 +1227,70 @@ private let runtimeMutableMapIteratorRemoveThunk: @convention(c) (Int, UnsafeMut
     kk_mutable_map_iterator_remove(iterRaw, outThrown)
 }
 
-func registerRuntimeObject(_ box: RuntimeMapIteratorBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
-    registerIteratorItable(raw: raw, hasNext: runtimeMapIteratorHasNextThunk, next: runtimeMapIteratorNextThunk)
-    return raw
+private let runtimeIndexingIterableIteratorThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_indexing_iterable_iterator(raw)
 }
 
-func registerRuntimeObject(_ box: RuntimeMutableMapIteratorBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
-    registerIteratorItable(
-        raw: raw,
-        hasNext: runtimeMutableMapIteratorHasNextThunk,
-        next: runtimeMutableMapIteratorNextThunk,
-        remove: runtimeMutableMapIteratorRemoveThunk,
-        mutableIterator: true
-    )
-    return raw
+private let runtimeSequenceIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    kk_sequence_iterator_hasNext(raw, outThrown)
+}
+
+private let runtimeSequenceIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    kk_sequence_iterator_next(raw, outThrown)
+}
+
+private let runtimeGenericIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    kk_iterator_hasNext(raw, outThrown)
+}
+
+private let runtimeGenericIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    kk_iterator_next(raw, outThrown)
+}
+
+private func registerRuntimeCollectionBoxIdentity(raw: Int, box: AnyObject) {
+    let typeID: Int64
+    switch box {
+    case is RuntimeMapBox:
+        typeID = mapRuntimeTypeID
+    case let iterator as RuntimeListIteratorBox:
+        typeID = iterator.removeAction == nil ? runtimeIteratorInterfaceTypeID : runtimeMutableIteratorInterfaceTypeID
+        registerRuntimeListIteratorItables(raw: raw, box: iterator)
+    case is RuntimeRangeIteratorBox:
+        typeID = runtimeIteratorInterfaceTypeID
+        registerIteratorItable(raw: raw, hasNext: runtimeRangeIteratorHasNextThunk, next: runtimeRangeIteratorNextThunk)
+    case is RuntimeMapIteratorBox:
+        typeID = runtimeIteratorInterfaceTypeID
+        registerIteratorItable(raw: raw, hasNext: runtimeMapIteratorHasNextThunk, next: runtimeMapIteratorNextThunk)
+    case is RuntimeMutableMapIteratorBox:
+        typeID = runtimeMutableIteratorInterfaceTypeID
+        registerIteratorItable(
+            raw: raw,
+            hasNext: runtimeMutableMapIteratorHasNextThunk,
+            next: runtimeMutableMapIteratorNextThunk,
+            remove: runtimeMutableMapIteratorRemoveThunk,
+            mutableIterator: true
+        )
+    case is RuntimeSequenceIteratorBox:
+        typeID = runtimeIteratorInterfaceTypeID
+        registerIteratorItable(raw: raw, hasNext: runtimeSequenceIteratorHasNextThunk, next: runtimeSequenceIteratorNextThunk)
+    case is RuntimeIndexingIteratorBox, is RuntimeIteratorBuilderBox, is RuntimeBufferedLineIteratorBox:
+        typeID = runtimeIteratorInterfaceTypeID
+        registerIteratorItable(raw: raw, hasNext: runtimeGenericIteratorHasNextThunk, next: runtimeGenericIteratorNextThunk)
+    case is RuntimeSequenceBox:
+        typeID = runtimeSequenceInterfaceTypeID
+        registerRuntimeSequenceItable(raw: raw)
+    case is RuntimeIndexingIterableBox:
+        typeID = runtimeIterableInterfaceTypeID
+        _ = kk_object_register_itable_iface(raw, Int(runtimeIterableInterfaceTypeID), 0)
+        _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(runtimeIndexingIterableIteratorThunk, to: Int.self))
+    default:
+        return
+    }
+    runtimeRegisterObjectType(rawValue: raw, classID: typeID)
+    if typeID == runtimeMutableIteratorInterfaceTypeID {
+        runtimeRegisterTypeEdge(childTypeID: typeID, parentTypeID: runtimeIteratorInterfaceTypeID)
+    }
 }
 
 func maybeUnbox(_ value: Int) -> Int {
@@ -1921,6 +1979,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let rendered = runtimeRenderIndexedValueObject(elem, render: runtimeElementToString) {
         return rendered
+    }
+    if let resultBox = tryCast(ptr, to: RuntimeResultBox.self) {
+        return runtimeResultToString(resultBox, render: runtimeElementToString)
     }
     // Registered object of a type this renderer does not know: keep it
     // recognisable as an object instead of leaking its address as a number,

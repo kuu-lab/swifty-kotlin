@@ -18,11 +18,6 @@ extension CallLowerer {
         }
 
         let resultType = sema.bindings.exprType(for: exprID) ?? sema.types.anyType
-        let continuationType = makeContinuationType(
-            resultType: resultType,
-            sema: sema,
-            interner: interner
-        ) ?? sema.types.anyType
         let loweredBlockExpr = driver.lowerExpr(
             args[0].expr,
             ast: ast,
@@ -33,26 +28,38 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        let blockResultExpr: KIRExprID
-        if let callableInfo = driver.ctx.callableValueInfo(for: loweredBlockExpr) {
-            let continuationExpr = arena.appendTemporary(type: continuationType
+        var blockExpr = loweredBlockExpr
+        if let blockType = sema.bindings.exprType(for: args[0].expr),
+           case let .functionType(functionType) = sema.types.kind(of: blockType) {
+            blockExpr = materializeFunctionValueArgument(
+                loweredArgID: loweredBlockExpr,
+                argExprID: args[0].expr,
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
             )
-            let callResultExpr = arena.appendTemporary(type: resultType
-            )
-            instructions.append(.call(
-                symbol: callableInfo.symbol,
-                callee: callableInfo.callee,
-                arguments: callableInfo.captureArguments + [continuationExpr],
-                result: callResultExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            blockResultExpr = callResultExpr
-        } else {
-            blockResultExpr = loweredBlockExpr
         }
+        let blockResultExpr = arena.appendTemporary(type: sema.types.anyType)
+        let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
+            arguments: [blockExpr],
+            result: blockResultExpr,
+            canThrow: true,
+            thrownResult: thrownResult
+        ))
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+        instructions.append(.jump(continueLabel))
+        instructions.append(.label(rethrowLabel))
+        instructions.append(.rethrow(value: thrownResult))
+        instructions.append(.label(continueLabel))
 
-        let suspendedExpr = arena.appendTemporary(type: resultType
+        let suspendedExpr = arena.appendTemporary(type: sema.types.anyType
         )
         instructions.append(.call(
             symbol: nil,
@@ -75,26 +82,8 @@ extension CallLowerer {
         instructions.append(.returnValue(blockResultExpr))
         instructions.append(.label(resumeLabel))
 
-        return blockResultExpr
-    }
-
-    private func makeContinuationType(
-        resultType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        let fqName = [
-            interner.intern("kotlin"),
-            interner.intern("coroutines"),
-            interner.intern("Continuation")
-        ]
-        guard let symbol = sema.symbols.lookup(fqName: fqName) else {
-            return nil
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: symbol,
-            args: [.invariant(resultType)],
-            nullability: .nonNull
-        )))
+        let resultExpr = arena.appendTemporary(type: resultType)
+        instructions.append(.copy(from: blockResultExpr, to: resultExpr))
+        return resultExpr
     }
 }

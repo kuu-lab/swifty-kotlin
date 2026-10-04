@@ -329,6 +329,15 @@ public func kk_mutable_set_removeAll(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let result = runtimeSourceInterfaceCall1(
+            setRaw, collectionRaw,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+            methodSlot: 4,
+            context: "MutableSet.removeAll dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
@@ -353,6 +362,15 @@ public func kk_mutable_set_retainAll(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        if let result = runtimeSourceInterfaceCall1(
+            setRaw, collectionRaw,
+            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+            methodSlot: 5,
+            context: "MutableSet.retainAll dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
         return 0
     }
     if runtimeThrowIfReadOnlySet(set, outThrown) {
@@ -726,22 +744,26 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
 
 @_cdecl("__kk_map_keys")
 public func kk_map_keys(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
+    guard runtimeMapBox(from: mapRaw) != nil else {
         return runtimeSourceMapKeys(mapRaw)
             ?? registerRuntimeObject(RuntimeSetBox(elements: []))
     }
-    return registerRuntimeObject(
-        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(map.keyValues))
-    )
+    // MutableMap.keys is a mutable, write-through view (mirrors .entries
+    // above): removing through it removes the key from the map, and later
+    // map mutations are visible through this same set handle.
+    return registerRuntimeObject(RuntimeSetBox(mapKeysOf: mapRaw))
 }
 
 @_cdecl("__kk_map_values")
 public func kk_map_values(_ mapRaw: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
+    guard runtimeMapBox(from: mapRaw) != nil else {
         return runtimeSourceMapValues(mapRaw)
             ?? registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    return registerRuntimeObject(RuntimeListBox(values: map.entryValues))
+    // MutableMap.values is a mutable, write-through view (mirrors .entries
+    // / .keys above): removing through it removes the corresponding
+    // key/value pair from the map.
+    return registerRuntimeObject(RuntimeListBox(mapValuesOf: mapRaw))
 }
 
 @_cdecl("__kk_map_iterator")

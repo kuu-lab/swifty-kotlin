@@ -16,15 +16,15 @@ expr e@6:29#1 memberCall recv=e@6:29 callee=size args=[] type=Int call=kotlin.co
 expr e@6:5#1 memberCall recv=e@6:5 callee=readTo args=[_:e@6:19,_:e@6:26,_:e@6:29#1] type=Unit call=kotlinx.io.readTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
 expr e@7:5 name(source) type=kotlinx.io.Source ref=sourceSurface.$0.source[kind=vparam]
 expr e@7:25 name(bytes) type=kotlin.ByteArray ref=sourceSurface.$0.bytes[kind=vparam]
-expr e@7:5#1 memberCall recv=e@7:5 callee=readAtMostTo args=[_:e@7:25] type=Int call=kotlinx.io.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
+expr e@7:5#1 memberCall recv=e@7:5 callee=readAtMostTo args=[_:e@7:25] type=Int call=kotlinx.io.Source.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
 expr e@8:5 name(source) type=kotlinx.io.Source ref=sourceSurface.$0.source[kind=vparam]
 expr e@8:25 name(bytes) type=kotlin.ByteArray ref=sourceSurface.$0.bytes[kind=vparam]
 expr e@8:32 int(1) type=Int
-expr e@8:5#1 memberCall recv=e@8:5 callee=readAtMostTo args=[_:e@8:25,_:e@8:32] type=Int call=kotlinx.io.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
+expr e@8:5#1 memberCall recv=e@8:5 callee=readAtMostTo args=[_:e@8:25,_:e@8:32] type=Int call=kotlinx.io.Source.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
 expr e@9:5 name(source) type=kotlinx.io.Source ref=sourceSurface.$0.source[kind=vparam]
 expr e@9:25 name(bytes) type=kotlin.ByteArray ref=sourceSurface.$0.bytes[kind=vparam]
 expr e@9:43 int(2) type=Int
-expr e@9:5#1 memberCall recv=e@9:5 callee=readAtMostTo args=[_:e@9:25,endIndex:e@9:43] type=Int call=kotlinx.io.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
+expr e@9:5#1 memberCall recv=e@9:5 callee=readAtMostTo args=[_:e@9:25,endIndex:e@9:43] type=Int call=kotlinx.io.Source.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
 expr e@10:5 name(source) type=kotlinx.io.Source ref=sourceSurface.$0.source[kind=vparam]
 expr e@10:25 name(bytes) type=kotlin.ByteArray ref=sourceSurface.$0.bytes[kind=vparam]
 expr e@10:32 int(0) type=Int
@@ -96,7 +96,7 @@ expr e@36:19 name(bytes) type=kotlin.ByteArray ref=sourceSurface.$0.bytes[kind=v
 expr e@36:5#1 memberCall recv=e@36:5 callee=readTo args=[_:e@36:19] type=Unit call=kotlinx.io.readTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
 expr e@37:5 name(buffer) type=kotlinx.io.Buffer ref=sourceSurface.$0.buffer[kind=vparam]
 expr e@37:25 name(bytes) type=kotlin.ByteArray ref=sourceSurface.$0.bytes[kind=vparam]
-expr e@37:5#1 memberCall recv=e@37:5 callee=readAtMostTo args=[_:e@37:25] type=Int call=kotlinx.io.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int]
+expr e@37:5#1 memberCall recv=e@37:5 callee=readAtMostTo args=[_:e@37:25] type=Int call=kotlinx.io.Buffer.readAtMostTo[kind=fun;recv=kotlinx.io.Buffer;params=kotlin.ByteArray,Int,Int]
 expr e@38:5 name(buffer) type=kotlinx.io.Buffer ref=sourceSurface.$0.buffer[kind=vparam]
 expr e@38:20 name(pattern) type=kotlinx.io.bytestring.ByteString ref=sourceSurface.$0.pattern[kind=vparam]
 expr e@38:5#1 memberCall recv=e@38:5 callee=indexOf args=[_:e@38:20] type=Long call=kotlinx.io.indexOf[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.bytestring.ByteString,Long]
