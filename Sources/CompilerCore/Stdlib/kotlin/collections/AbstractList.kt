@@ -14,7 +14,7 @@ public abstract class AbstractList<out E> protected constructor() : AbstractColl
 
     override fun iterator(): Iterator<E> = IteratorImpl(this)
 
-    public fun indexOf(element: @UnsafeVariance E): Int {
+    public override fun indexOf(element: @UnsafeVariance E): Int {
         var index = 0
         val iterator = listIterator()
         while (iterator.hasNext()) {
@@ -24,7 +24,7 @@ public abstract class AbstractList<out E> protected constructor() : AbstractColl
         return -1
     }
 
-    public fun lastIndexOf(element: @UnsafeVariance E): Int {
+    public override fun lastIndexOf(element: @UnsafeVariance E): Int {
         val iterator = listIterator(size)
         while (iterator.hasPrevious()) {
             if (iterator.previous() == element) return iterator.nextIndex()
@@ -36,7 +36,7 @@ public abstract class AbstractList<out E> protected constructor() : AbstractColl
 
     override fun listIterator(index: Int): ListIterator<E> = ListIteratorImpl(this, index)
 
-    public fun subList(fromIndex: Int, toIndex: Int): List<E> = SubList(this, fromIndex, toIndex)
+    public override fun subList(fromIndex: Int, toIndex: Int): List<E> = SubList(this, fromIndex, toIndex)
 
     override fun equals(other: Any?): Boolean {
         if (other === this) return true

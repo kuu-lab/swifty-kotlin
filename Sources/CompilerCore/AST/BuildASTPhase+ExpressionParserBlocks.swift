@@ -159,7 +159,12 @@ extension BuildASTPhase.ExpressionParser {
                     astArena: astArena,
                     diagnostics: self.diagnostics
                 )
-                return parser.parseTypeReference(first.range)
+                // A local `val`/`var` type annotation is a declaration type:
+                // the tokens are already bounded by `=`/newline, so function
+                // types (`(T) -> U`, `R.() -> U`, `suspend R.() -> U`) parse
+                // unambiguously — unlike is/as operands, which share the
+                // arrow token with `when` branches and stay non-functional.
+                return parser.parseTypeReference(first.range, allowFunctionType: true)
             },
             resolveDeclarationName: { token, interner in
                 guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {

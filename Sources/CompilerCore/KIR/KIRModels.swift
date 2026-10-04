@@ -211,6 +211,10 @@ public final class KIRArena {
     public private(set) var exprTypes: [KIRExprID: TypeID] = [:]
     public private(set) var lambdaCaptureArgsBySymbol: [SymbolID: [KIRExprID]] = [:]
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
+    /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI;
+    /// copied from the lowering context for post-build passes
+    /// (see `KIRLoweringContext.receiverFirstLauncherLambdaSymbols`).
+    var receiverFirstLauncherLambdaSymbols: Set<SymbolID> = []
 
     private let parallelLock = NSLock()
     var isParallelTransformActive = false

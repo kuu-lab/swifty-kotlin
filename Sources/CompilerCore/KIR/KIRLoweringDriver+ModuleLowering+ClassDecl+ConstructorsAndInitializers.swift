@@ -107,6 +107,9 @@ extension KIRLoweringDriver {
             interner: shared.interner,
             instructions: &body.instructions
         )
+        // Seed `lateinit` storage before any delegation so a superclass
+        // `init` that assigns it through a virtual call is not wiped later.
+        emitLateinitFieldSentinels(classDecl: classDecl, shared: shared, body: &body)
         let constructorDeclSite = sema.symbols.symbol(ctorSymbol)?.declSite
         let isSecondary = classDecl.secondaryConstructors.contains { constructor in
             constructor.range == constructorDeclSite
@@ -635,20 +638,9 @@ extension KIRLoweringDriver {
             return
         }
 
-        guard let initExpr = prop.initializer else {
-            if prop.modifiers.contains(.lateinit) {
-                let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
-                let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
-                let nullExpr = arena.appendExpr(.null, type: propType)
-                body.append(.constValue(result: nullExpr, value: .null))
-                emitFieldStore(
-                    propSymbol: propSymbol, targetSymbol: targetSymbol,
-                    value: nullExpr, valueType: propType,
-                    shared: shared, body: &body
-                )
-            }
-            return
-        }
+        // A `lateinit` without an initializer emits nothing here: its null
+        // sentinel is seeded at constructor entry (`emitLateinitFieldSentinels`).
+        guard let initExpr = prop.initializer else { return }
         let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
         let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
         let initValue = lowerExpr(
@@ -660,6 +652,29 @@ extension KIRLoweringDriver {
             value: initValue, valueType: propType,
             shared: shared, body: &body
         )
+    }
+
+    /// Seeds each `lateinit` instance field of `classDecl` with the null
+    /// sentinel. Emitted at constructor entry, ahead of the superclass
+    /// constructor call (see `KIRLoweringDriver+LateinitSentinel.swift`).
+    private func emitLateinitFieldSentinels(
+        classDecl: ClassDecl,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        for propSymbol in lateinitSentinelPropertySymbols(classDecl.memberProperties, shared: shared) {
+            let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
+            let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
+            let nullExpr = arena.appendExpr(.null, type: propType)
+            body.append(.constValue(result: nullExpr, value: .null))
+            emitFieldStore(
+                propSymbol: propSymbol, targetSymbol: targetSymbol,
+                value: nullExpr, valueType: propType,
+                shared: shared, body: &body
+            )
+        }
     }
 
     /// Stores `value` into the storage backing `targetSymbol` on the instance

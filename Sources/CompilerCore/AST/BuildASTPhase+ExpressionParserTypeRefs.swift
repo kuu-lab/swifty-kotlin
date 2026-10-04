@@ -1,8 +1,9 @@
 
 extension BuildASTPhase.ExpressionParser {
-    func parseTypeReference(_ fallbackRange: SourceRange) -> TypeRefID? {
+    func parseTypeReference(_ fallbackRange: SourceRange, allowFunctionType: Bool = false) -> TypeRefID? {
         _ = fallbackRange
-        let options = TypeRefParserCore.Options.expressionInline
+        var options = TypeRefParserCore.Options.expressionInline
+        options.allowFunctionType = allowFunctionType
         guard let parsed = TypeRefParserCore.parseTypeRefPrefix(
             tokens[index...],
             interner: interner,

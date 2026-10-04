@@ -2,8 +2,8 @@
 extension KIRLoweringDriver {
     /// BUG-274: Kotlin runs a companion object's body lazily, on first
     /// access, not eagerly at program start. This keeps the eager half --
-    /// the companion's dispatch-object allocation (when it has virtual
-    /// methods) and its type-edge/vtable registrations -- running
+    /// the companion's singleton allocation and its type-edge/vtable
+    /// registrations -- running
     /// unconditionally during module initialization (registered via
     /// `registerCompanionInitializer`, unchanged from before). The implicit
     /// super-constructor call, property initializers, and `init` blocks move
@@ -41,7 +41,9 @@ extension KIRLoweringDriver {
         )))
 
         var body: KIRLoweringEmitContext = [.beginBlock]
-        let needsDispatchObject = sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0 > 0
+        // Source singletons need a shared handle even without virtual methods.
+        let needsDispatchObject = sema.symbols.isSourceBackedSymbol(companionSymbol)
+            || (sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0) > 0
         if needsDispatchObject {
             let layout = sema.symbols.nominalLayout(for: companionSymbol)
             let slotCount = Int64(max(layout?.instanceSizeWords ?? 1, 1))
@@ -121,7 +123,11 @@ extension KIRLoweringDriver {
         )
         ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
 
-        var declIDs: [KIRDeclID] = [initDeclID]
+        let globalDeclID = arena.appendDecl(.global(KIRGlobal(
+            symbol: companionSymbol,
+            type: companionType
+        )))
+        var declIDs: [KIRDeclID] = [globalDeclID, initDeclID]
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
         ctx.clearImplicitReceiver()
 
@@ -189,6 +195,7 @@ extension KIRLoweringDriver {
         body.append(.jumpIfEqual(lhs: flagLoadExpr, rhs: trueExpr, target: alreadyInitializedLabel))
         body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
+        emitSingletonLateinitSentinels(companionDecl.memberProperties, shared: shared, body: &body)
         emitNamedObjectSuperConstructorCall(
             companionDecl,
             objectSymbol: companionSymbol,
