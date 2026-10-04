@@ -54,7 +54,7 @@ struct RuntimeStringJVMEdgeCaseTests {
         #expect(__kk_string_toLong_radix(makeString("zz"), 36, &thrown) == 1295)
         #expect(thrown == 0)
         #expect(__kk_string_toLong_radix(makeString("-101"), 2, &thrown) == -5)
-        #expect(__kk_string_toLongOrNull_radix(makeString("ff"), 16, &thrown) == 255)
+        #expect(kk_unbox_long(__kk_string_toLongOrNull_radix(makeString("ff"), 16, &thrown)) == 255)
         #expect(__kk_string_toLongOrNull_radix(makeString("12"), 2, &thrown) == runtimeNullSentinelInt)
         thrown = 0
         _ = __kk_string_toLong_radix(makeString("12"), 2, &thrown)
@@ -68,7 +68,7 @@ struct RuntimeStringJVMEdgeCaseTests {
 
     private func doubleOrNull(_ text: String) -> Double? {
         let raw = __kk_string_toDoubleOrNull(makeString(text))
-        return raw == runtimeNullSentinelInt ? nil : Double(bitPattern: UInt64(UInt(bitPattern: raw)))
+        return raw == runtimeNullSentinelInt ? nil : Double(bitPattern: UInt64(UInt(bitPattern: kk_unbox_double(raw))))
     }
 
     @Test func floatingParsersAcceptSignedNaNAndTrimOnlyControlAndSpace() {

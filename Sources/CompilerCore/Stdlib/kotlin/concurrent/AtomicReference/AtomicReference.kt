@@ -21,7 +21,17 @@ private external fun <T> AtomicReference<T>.__kkAtomicRefCompareAndExchange(
 ): T
 
 @SinceKotlin("1.9")
-public class AtomicReference<T> private constructor() {
+public class AtomicReference<T> {
+    /**
+     * Creates a new [AtomicReference] holding the given initial [value].
+     *
+     * Allocation stays with the `kk_atomic_ref_create` ABI entry point; the
+     * residual synthetic constructor registration is suppressed by the bundled
+     * index's `<init>` arity tracking.
+     */
+    @KsSymbolName("kk_atomic_ref_create")
+    public constructor(value: T)
+
     public fun compareAndExchange(expectedValue: T, newValue: T): T =
         __kkAtomicRefCompareAndExchange(expectedValue, newValue)
 
