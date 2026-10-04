@@ -545,6 +545,26 @@ struct RuntimeFlowTests {
         _ = __kk_flow_release(flow)
     }
 
+    @Test func testCapturedColdStreamReExecutesAfterContinuationCompletes() {
+        let continuation = kk_coroutine_continuation_new(0)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 2)
+        _ = kk_coroutine_launcher_arg_set(continuation, 1, 7)
+        _ = kk_coroutine_launcher_arg_set(continuation, 2, 8)
+        let emitterPtr = unsafeBitCast(
+            runtime_test_flow_completing_captured_emitter as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let source = kk_flow_create(emitterPtr, continuation)
+        let derived = kk_flow_emit(source, 1, RuntimeFlowTag.take.rawValue)
+
+        for flow in [source, derived, source, derived] {
+            runtimeFlowTestState.reset()
+            _ = kk_flow_collect(flow, collectorPtr, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == (flow == source ? [7, 8] : [7]))
+        }
+    }
+
     @Test func testCapturedEmitterGetsFreshContinuationOnEachCollect() {
         typealias CapturedEmitter = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
         let emitter = unsafeBitCast(runtime_test_flow_completing_captured_emitter as CapturedEmitter, to: Int.self)

@@ -70,23 +70,6 @@ internal class ThrowingCollector<T>(private val failure: Throwable) : FlowCollec
     }
 }
 
-public fun <T> SharedFlow<T>.onSubscription(action: suspend FlowCollector<T>.() -> Unit): SharedFlow<T> =
-    SubscribedSharedFlow(this, action)
-
-internal class SubscribedSharedFlow<T>(
-    private val source: SharedFlow<T>,
-    private val action: suspend FlowCollector<T>.() -> Unit
-) : SharedFlow<T> {
-    override val replayCache: List<T>
-        get() = source.replayCache
-
-    override suspend fun collect(collector: suspend (T) -> Unit) {
-        val sending = SendingCollector<T>(collector)
-        action(sending)
-        source.collect { value -> sending.emit(value) }
-    }
-}
-
 // Skeleton for fusion on the sequential cold-flow core: context and buffering
 // do not introduce concurrent producers yet.
 internal fun <T> Flow<T>.fuse(

@@ -1,0 +1,61 @@
+symbol fq=IntCollector.<init>[kind=ctor;recv=IntCollector;params=] kind=constructor vis=public flags=_ sig=recv=IntCollector params=[] ret=IntCollector
+symbol fq=IntCollector[kind=class] kind=class vis=public flags=_
+symbol fq=__local_0.shared[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.SharedFlow<Int>
+symbol fq=__local_1.source[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.Flow<Int>
+symbol fq=collectBoth.$0.state[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=collectBoth[kind=fun;params=kotlinx.coroutines.flow.StateFlow<Int>;susp] kind=function vis=public flags=suspendFunction sig=recv=_ params=[kotlinx.coroutines.flow.StateFlow<Int>] ret=Unit suspend=1
+symbol fq=commands.$1.count[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=commands[kind=fun;params=kotlinx.coroutines.flow.StateFlow<Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.flow.StateFlow<Int>] ret=kotlinx.coroutines.flow.Flow<kotlinx.coroutines.flow.SharingCommand>
+symbol fq=shared.$2.scope[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=shared.$2.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=shared[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.CoroutineScope] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.CoroutineScope] ret=kotlinx.coroutines.flow.SharedFlow<Int>
+symbol fq=state.$3.scope[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=state.$3.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=state[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.CoroutineScope] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.CoroutineScope] ret=kotlinx.coroutines.flow.StateFlow<Int>
+file fkotlinx_coroutines_flow_share_surface package=_
+  decl IntCollector[kind=class] class IntCollector sym=IntCollector[kind=class]
+  decl shared[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.CoroutineScope] fun shared sym=shared[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.CoroutineScope]
+  decl state[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.CoroutineScope] fun state sym=state[kind=fun;params=kotlinx.coroutines.flow.Flow<Int>,kotlinx.coroutines.CoroutineScope]
+  decl commands[kind=fun;params=kotlinx.coroutines.flow.StateFlow<Int>] fun commands sym=commands[kind=fun;params=kotlinx.coroutines.flow.StateFlow<Int>]
+  decl collectBoth[kind=fun;params=kotlinx.coroutines.flow.StateFlow<Int>;susp] fun collectBoth suspend=1 sym=collectBoth[kind=fun;params=kotlinx.coroutines.flow.StateFlow<Int>;susp]
+expr e@9:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=shared.$2.source[kind=vparam]
+expr e@9:20 name(scope) type=kotlinx.coroutines.CoroutineScope ref=shared.$2.scope[kind=vparam]
+expr e@9:27 name(SharingStarted) type=kotlinx.coroutines.flow.SharingStarted.Companion ref=kotlinx.coroutines.flow.SharingStarted[kind=iface]
+expr e@9:27#1 memberCall recv=e@9:27 callee=Eagerly args=[] type=kotlinx.coroutines.flow.SharingStarted ref=kotlinx.coroutines.flow.SharingStarted.Companion.Eagerly[kind=prop]
+expr e@9:51 int(2) type=Int
+expr e@9:5#1 memberCall recv=e@9:5 callee=shareIn args=[_:e@9:20,_:e@9:27#1,_:e@9:51] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.shareIn[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=kotlinx.coroutines.CoroutineScope,kotlinx.coroutines.flow.SharingStarted,Int;gen=1] targs=[Int]
+expr e@9:76 int(0) type=Int
+expr e@9:71 call callee=e@9:71#1 args=[_:e@9:76] type=Unit call=kotlinx.coroutines.flow.FlowCollector.emit[kind=fun;recv=kotlinx.coroutines.flow.FlowCollector<T0>;params=T0;susp;gen=1] targs=[Int]
+expr e@9:69 lambda params=[] body=e@9:71 label=onSubscription type=suspend kotlinx.coroutines.flow.FlowCollector<Int>.() -> Unit
+expr e@9:5#2 memberCall recv=e@9:5#1 callee=onSubscription args=[_:e@9:69] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.onSubscription[kind=fun;recv=kotlinx.coroutines.flow.SharedFlow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T0>;p=;ret=Unit};gen=1] targs=[Int]
+expr e@12:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=state.$3.source[kind=vparam]
+expr e@12:20 name(scope) type=kotlinx.coroutines.CoroutineScope ref=state.$3.scope[kind=vparam]
+expr e@12:27 name(SharingStarted) type=kotlinx.coroutines.flow.SharingStarted.Companion ref=kotlinx.coroutines.flow.SharingStarted[kind=iface]
+expr e@12:27#1 memberCall recv=e@12:27 callee=Lazily args=[] type=kotlinx.coroutines.flow.SharingStarted ref=kotlinx.coroutines.flow.SharingStarted.Companion.Lazily[kind=prop]
+expr e@12:51 int(1) type=Int
+expr e@12:50 unary(unaryMinus) operand=e@12:51 type=Int
+expr e@12:5#1 memberCall recv=e@12:5 callee=stateIn args=[_:e@12:20,_:e@12:27#1,_:e@12:50] type=kotlinx.coroutines.flow.StateFlow<Int> call=kotlinx.coroutines.flow.stateIn[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=kotlinx.coroutines.CoroutineScope,kotlinx.coroutines.flow.SharingStarted,T0;gen=1] targs=[Int]
+expr e@15:5 name(SharingStarted) type=kotlinx.coroutines.flow.SharingStarted.Companion ref=kotlinx.coroutines.flow.SharingStarted[kind=iface]
+expr e@15:36 long(10) type=Long
+expr e@15:41 long(20) type=Long
+expr e@15:5#1 memberCall recv=e@15:5 callee=WhileSubscribed args=[_:e@15:36,_:e@15:41] type=kotlinx.coroutines.flow.SharingStarted call=kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed[kind=fun;recv=kotlinx.coroutines.flow.SharingStarted.Companion;params=Long,Long]
+expr e@15:54 name(count) type=kotlinx.coroutines.flow.StateFlow<Int> ref=commands.$1.count[kind=vparam]
+expr e@15:5#2 memberCall recv=e@15:5#1 callee=command args=[_:e@15:54] type=kotlinx.coroutines.flow.Flow<kotlinx.coroutines.flow.SharingCommand> call=kotlinx.coroutines.flow.SharingStarted.command[kind=fun;recv=kotlinx.coroutines.flow.SharingStarted;params=kotlinx.coroutines.flow.StateFlow<Int>]
+expr e@18:35 name(state) type=kotlinx.coroutines.flow.StateFlow<Int> ref=collectBoth.$0.state[kind=vparam]
+expr e@18:5 localDecl shared mutable=0 type=SharedFlow<Int> init=e@18:35 type=Unit ref=__local_0.shared[kind=local]
+expr e@19:29 name(shared) type=kotlinx.coroutines.flow.SharedFlow<Int> ref=__local_0.shared[kind=local]
+expr e@19:5 localDecl source mutable=0 type=Flow<Int> init=e@19:29 type=Unit ref=__local_1.source[kind=local]
+expr e@20:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_1.source[kind=local]
+expr e@20:20 call callee=e@20:20#1 args=[] type=IntCollector call=IntCollector.<init>[kind=ctor;recv=IntCollector;params=]
+expr e@20:5#1 memberCall recv=e@20:5 callee=collect args=[_:e@20:20] type=Unit call=kotlinx.coroutines.flow.collect[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=kotlinx.coroutines.flow.FlowCollector<T0>;susp;gen=1] targs=[Int]
+expr e@21:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_1.source[kind=local]
+expr e@21:30 name(it) type=Int ref=s-0
+expr e@21:22 call callee=e@21:22#1 args=[_:e@21:30] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@21:20 lambda params=[] body=e@21:22 label=collect type=suspend (Int) -> Unit
+expr e@21:5#1 memberCall recv=e@21:5 callee=collect args=[_:e@21:20] type=Unit call=kotlinx.coroutines.flow.collect[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Unit};susp;gen=1] targs=[Int]
+expr e@22:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_1.source[kind=local]
+expr e@22:20 int(2) type=Int
+expr e@22:5#1 memberCall recv=e@22:5 callee=shareIn args=[_:e@22:20] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.shareIn[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=Int;susp;gen=1] targs=[Int]
+expr e@23:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_1.source[kind=local]
+expr e@23:20 int(0) type=Int
+expr e@23:5#1 memberCall recv=e@23:5 callee=stateIn args=[_:e@23:20] type=kotlinx.coroutines.flow.StateFlow<Int> call=kotlinx.coroutines.flow.stateIn[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T0;susp;gen=1] targs=[Int]

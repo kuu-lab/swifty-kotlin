@@ -13,6 +13,8 @@ fun main() {
         println(flowOf<Int?>(null, 1, null, 2).filterNotNull().toList())
         println(flowOf(1, 2, 3).mapNotNull { if (it == 2) null else it * 10 }.toList())
         println(flowOf<Any>(1, "a", 2, "b").filterIsInstance<String>().toList())
+        val mixed: Flow<*> = flowOf<Any?>(null, 1, "a", 2, "b")
+        println(mixed.filterIsInstance<String>().toList())
         flowOf("a", "b").withIndex().collect { println("${it.index}:${it.value}") }
         flowOf(7, 8).collectIndexed { index, value -> println("$index:$value") }
         try {

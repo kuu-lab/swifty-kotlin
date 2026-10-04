@@ -126,6 +126,16 @@ extension CallTypeChecker {
         } else {
             false
         }
+        if isFlowReceiver, calleeName == interner.intern("collect") {
+            let flowPackage = [interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("flow")]
+            if sema.bundledIndex.contains(
+                ownerFQName: flowPackage + [interner.intern("Flow")], name: calleeName, arity: args.count
+            ) || sema.symbols.lookupAll(fqName: flowPackage + [calleeName]).contains(where: {
+                sema.symbols.isSourceBackedSymbol($0)
+            }) {
+                return nil
+            }
+        }
         let flowElementType: TypeID = if let elementType = sema.bindings.flowElementType(forExpr: receiverID) {
             elementType
         } else if case .nameRef = ast.arena.expr(receiverID),

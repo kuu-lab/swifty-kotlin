@@ -28,7 +28,7 @@ public fun <T : Any> Flow<T?>.filterNotNull(): Flow<T> {
 public inline fun <reified R> Flow<*>.filterIsInstance(): Flow<R> {
     val source = this
     return flow {
-        source.collect { value ->
+        source.collect<Any?> { value ->
             if (value is R) emit(value)
         }
     }
