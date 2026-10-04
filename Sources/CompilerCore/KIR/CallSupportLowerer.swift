@@ -526,6 +526,7 @@ final class CallSupportLowerer {
                 anyType: sema.types.anyType,
                 types: sema.types,
                 symbols: sema.symbols,
+                sema: sema,
                 instructions: &instructions
             )
             return NormalizedCallResult(arguments: [packed], defaultMask: 0)
@@ -612,6 +613,7 @@ final class CallSupportLowerer {
                     anyType: sema.types.anyType,
                     types: sema.types,
                     symbols: sema.symbols,
+                    sema: sema,
                     instructions: &instructions
                 )
             }
@@ -671,6 +673,7 @@ final class CallSupportLowerer {
                         anyType: sema.types.anyType,
                         types: sema.types,
                         symbols: sema.symbols,
+                        sema: sema,
                         instructions: &instructions
                     )
                     normalized.append(packed)
@@ -767,6 +770,8 @@ final class CallSupportLowerer {
                     interner: interner,
                     arena: arena,
                     resultType: signature.parameterTypes[paramIndex],
+                    sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     into: &instructions
                 )
             }
@@ -826,6 +831,8 @@ final class CallSupportLowerer {
             symbols: sema.symbols,
             interner: interner,
             arena: arena,
+            sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             into: &instructions
         )
     }
@@ -850,6 +857,7 @@ final class CallSupportLowerer {
         anyType: TypeID,
         types: TypeSystem,
         symbols: SymbolTable? = nil,
+        sema: SemaModule? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let hasAnySpread = argIndices.contains { idx in
@@ -915,6 +923,7 @@ final class CallSupportLowerer {
                         providedArguments[idx],
                         types: types,
                         symbols: symbols,
+                        sema: sema,
                         arena: arena,
                         interner: interner,
                         anyType: anyType,
@@ -972,6 +981,7 @@ final class CallSupportLowerer {
                     providedArguments[argIndex],
                     types: types,
                     symbols: symbols,
+                    sema: sema,
                     arena: arena,
                     interner: interner,
                     anyType: anyType,
@@ -1011,6 +1021,7 @@ final class CallSupportLowerer {
         _ argID: KIRExprID,
         types: TypeSystem,
         symbols: SymbolTable?,
+        sema: SemaModule?,
         arena: KIRArena,
         interner: StringInterner,
         anyType: TypeID,
@@ -1027,6 +1038,8 @@ final class CallSupportLowerer {
             interner: interner,
             arena: arena,
             resultType: anyType,
+            sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             into: &instructions
         )
     }
