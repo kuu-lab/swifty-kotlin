@@ -31,6 +31,8 @@ struct CoroutineNominalSourceTests {
         fun factory(): CompletableJob = Job()
         fun supervisor(): CompletableJob = SupervisorJob()
         fun deferredJob(deferred: Deferred): Job = deferred
+        fun producerScope(scope: kotlinx.coroutines.channels.ProducerScope<Int>): CoroutineContext = scope.coroutineContext
+        fun actorScope(scope: kotlinx.coroutines.channels.ActorScope<Int>): CoroutineContext = scope.coroutineContext
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
