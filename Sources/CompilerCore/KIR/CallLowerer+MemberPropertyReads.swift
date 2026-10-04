@@ -506,6 +506,27 @@ extension CallLowerer {
                 interner.intern("size"), interner.intern("keys"),
                 interner.intern("values"), interner.intern("entries"),
             ].contains(sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""))
+        // Dispatchers.Main is an opaque scheduler tag; source subclasses still
+        // need their own immediate getter. Pass the synthesized slot to a bridge
+        // that distinguishes the tag from a Kotlin object before dispatching.
+        if !isSuperQualifiedReceiver,
+           ownerInfo.fqName == ["kotlinx", "coroutines", "MainCoroutineDispatcher"].map(interner.intern),
+           sema.symbols.symbol(propertySymbol)?.name == interner.intern("immediate"),
+           let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
+               SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+           ]
+        {
+            let slot = arena.appendExpr(.intLiteral(Int64(getterSlot)), type: sema.types.intType)
+            instructions.append(.constValue(result: slot, value: .intLiteral(Int64(getterSlot))))
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("__kk_dispatcher_immediate"),
+                arguments: [loweredReceiverID, slot], result: result,
+                canThrow: true, thrownResult: nil
+            ))
+            return result
+        }
+
         if ownerInfo.kind == .class,
            !isSuperQualifiedReceiver,
            !isRuntimeRangeReceiver,
@@ -825,6 +846,15 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             return result
+        }
+
+        // Let the stored-property path distinguish opaque dispatcher tags from
+        // source implementations before attempting a normal virtual getter.
+        if sema.symbols.symbol(propertySymbol)?.name == interner.intern("immediate"),
+           let owner = sema.symbols.parentSymbol(for: propertySymbol),
+           sema.symbols.symbol(owner)?.fqName == ["kotlinx", "coroutines", "MainCoroutineDispatcher"].map(interner.intern)
+        {
+            return nil
         }
 
         if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(

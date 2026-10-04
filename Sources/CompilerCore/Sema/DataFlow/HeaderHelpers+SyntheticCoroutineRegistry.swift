@@ -730,7 +730,9 @@ extension DataFlowSemaPhase {
         if !cancellationIsSourceBacked {
             symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
         }
-        symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
+        if !symbols.isSourceBackedSymbol(dispatcherSymbol) {
+            symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
+        }
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
         // Preserve the declaration-site `in` variance once Continuation has
         // been reused from bundled Kotlin source. The synthetic fallback
@@ -1333,8 +1335,14 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(coroutineContextElementType, for: coroutineContextElementSymbol)
         symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
         types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
-        symbols.setDirectSupertypes([coroutineContextElementSymbol], for: jobSymbol)
-        types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: jobSymbol)
+        if !symbols.isSourceBackedSymbol(jobSymbol) {
+            symbols.setDirectSupertypes([coroutineContextElementSymbol], for: jobSymbol)
+            types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: jobSymbol)
+        }
+        if !symbols.isSourceBackedSymbol(deferredSymbol) {
+            symbols.setDirectSupertypes([jobSymbol], for: deferredSymbol)
+            types.setNominalDirectSupertypes([jobSymbol], for: deferredSymbol)
+        }
 
         // `kotlinx.coroutines.isActive`: an extension on CoroutineContext (not just
         // CoroutineScope/Job) so `currentCoroutineContext().isActive` resolves.
@@ -1760,8 +1768,10 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
 
         // Make CoroutineDispatcher a subtype of CoroutineContext and ContinuationInterceptor.
-        symbols.setDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
-        types.setNominalDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
+        if !symbols.isSourceBackedSymbol(dispatcherSymbol) {
+            symbols.setDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
+            types.setNominalDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
+        }
 
         let flowBuilderLambdaType = types.make(.functionType(FunctionType(
             params: [],
@@ -2166,11 +2176,17 @@ extension DataFlowSemaPhase {
         // `kotlinx.coroutines.Job()` / `SupervisorJob()`: bare factory functions sharing
         // their name with the `Job` interface (the same "nominal type + eponymous
         // factory-style function" pattern already used for e.g. `Channel(...)`).
+        let completableJobType = (bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("CompletableJob")])
+            || symbols.lookup(fqName: coroutinesPkg + [interner.intern("CompletableJob")]) != nil)
+            ? types.make(.classType(ClassType(
+                classSymbol: ensureInterfaceSymbol(named: "CompletableJob", in: coroutinesPkg, symbols: symbols, interner: interner),
+                args: [], nullability: .nonNull
+            ))) : jobType
         registerSyntheticCoroutineTopLevelFunction(
             named: "Job",
             packageFQName: coroutinesPkg,
             parameters: [],
-            returnType: jobType,
+            returnType: completableJobType,
             externalLinkName: "kk_job_new",
             symbols: symbols,
             interner: interner
@@ -2179,7 +2195,7 @@ extension DataFlowSemaPhase {
             named: "SupervisorJob",
             packageFQName: coroutinesPkg,
             parameters: [],
-            returnType: jobType,
+            returnType: completableJobType,
             externalLinkName: "kk_supervisor_job_new",
             symbols: symbols,
             interner: interner
@@ -2890,7 +2906,11 @@ extension DataFlowSemaPhase {
         }
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else {
+        let hasMatchingSignature = symbols.lookupAll(fqName: memberFQName).contains { member in
+            guard let signature = symbols.functionSignature(for: member) else { return false }
+            return signature.receiverType == ownerType && signature.parameterTypes == parameters.map(\.type)
+        }
+        guard !hasMatchingSignature else {
             return
         }
         let memberSymbol = symbols.define(
