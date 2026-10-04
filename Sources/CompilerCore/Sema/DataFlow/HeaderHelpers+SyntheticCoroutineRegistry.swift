@@ -1339,6 +1339,8 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
         types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
         symbols.setDirectSupertypes([coroutineContextElementSymbol], for: jobSymbol)
+        symbols.setDirectSupertypes([jobSymbol], for: deferredSymbol)
+        types.setNominalDirectSupertypes([jobSymbol], for: deferredSymbol)
         types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: jobSymbol)
 
         // `kotlinx.coroutines.isActive`: an extension on CoroutineContext (not just
@@ -2793,7 +2795,11 @@ extension DataFlowSemaPhase {
         }
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else {
+        let hasMatchingSignature = symbols.lookupAll(fqName: memberFQName).contains { member in
+            guard let signature = symbols.functionSignature(for: member) else { return false }
+            return signature.receiverType == ownerType && signature.parameterTypes == parameters.map(\.type)
+        }
+        guard !hasMatchingSignature else {
             return
         }
         let memberSymbol = symbols.define(

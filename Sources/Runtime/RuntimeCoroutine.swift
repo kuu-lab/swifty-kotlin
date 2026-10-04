@@ -621,7 +621,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     func makeContinuationContext() -> RuntimeCoroutineContext {
-        let jobRaw: Int = jobHandle.map { Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained($0).toOpaque())) } ?? 0
+        let jobRaw = jobHandle?.identityHandle ?? 0
         return RuntimeCoroutineContext(
             dispatcher: 0,
             name: scope?.name,
@@ -697,6 +697,7 @@ private final class RuntimeTaskAwaitSnapshot: @unchecked Sendable {
 }
 
 final class RuntimeAsyncTask: @unchecked Sendable {
+    let completionJob = RuntimeJobHandle()
     private let lock = NSLock()
     private var isCompleted = false
     private(set) var isCancelled = false
@@ -723,6 +724,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
 
     init() {
         RuntimeLiveHandles.register(self)
+        completionJob.associatedHandle = Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
     }
 
     deinit {
@@ -748,6 +750,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         lock.lock()
         isBodyStarted = true
         lock.unlock()
+        completionJob.markScheduled()
     }
 
     /// STDLIB-CORO-001: Capture the deferred-start action for a LAZY task.
@@ -843,6 +846,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let resumers = completionResumers
         completionResumers = []
         lock.unlock()
+        _ = completionJob.complete(with: result)
         for resumer in resumers {
             resumer(result, 0)
         }
@@ -860,12 +864,13 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let resumers = completionResumers
         completionResumers = []
         lock.unlock()
+        _ = completionJob.completeExceptionally(with: exception)
         for resumer in resumers {
             resumer(0, exception)
         }
     }
 
-    func cancel() {
+    func cancel(cause: Int = 0) {
         lock.lock()
         guard !isCompleted else {
             lock.unlock()
@@ -879,6 +884,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let snapshotResult = result
         let snapshotThrown = thrownException
         lock.unlock()
+        _ = completionJob.cancel(cause: cause)
         for resumer in resumers {
             resumer(snapshotResult, snapshotThrown)
         }
@@ -1105,6 +1111,10 @@ enum RuntimePendingLaunchQueue {
 /// A job handle representing a launched coroutine. Supports join, cancellation,
 /// explicit completion, and parent-child propagation.
 final class RuntimeJobHandle: @unchecked Sendable {
+    var associatedHandle: Int = 0
+    var identityHandle: Int {
+        associatedHandle != 0 ? associatedHandle : Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+    }
     private let lock = NSLock()
     private let completionSemaphore = DispatchSemaphore(value: 0)
     private var state: RuntimeJobState = .new
@@ -1114,6 +1124,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var cancelMessage: String = "CancellationException"
     weak var continuationState: RuntimeContinuationState?
     private var childJobHandles: [Int] = []
+    private weak var parentJob: RuntimeJobHandle?
     /// Set on the handle returned by `kotlinx.coroutines.SupervisorJob()`. Lets
     /// `CoroutineScope(context)` (see `kk_coroutine_scope_new_with_context`) tell a plain
     /// `Job()` in the context apart from a `SupervisorJob()`, so the constructed scope gets
@@ -1237,12 +1248,41 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     func registerChild(_ childHandle: Int) {
+        let childJob = runtimeJobHandle(from: childHandle) ?? runtimeAsyncTask(from: childHandle)?.completionJob
+        childJob?.attachParent(self)
         lock.lock()
         childJobHandles.append(childHandle)
-        let shouldCancelImmediately = state.isCancelled
+        let shouldCancelImmediately = state.isCancelled || state.isCompleted
         lock.unlock()
         if shouldCancelImmediately {
             runtimeCancelChild(childHandle)
+        }
+    }
+
+    private func attachParent(_ parent: RuntimeJobHandle) {
+        lock.lock()
+        parentJob = parent
+        lock.unlock()
+    }
+
+    func parentSnapshot() -> RuntimeJobHandle? {
+        lock.lock()
+        defer { lock.unlock() }
+        return state.isCompleted ? nil : parentJob
+    }
+
+    func childrenSnapshot() -> [Int] {
+        lock.lock()
+        let children = childJobHandles
+        lock.unlock()
+        return children.filter { handle in
+            if let job = runtimeJobHandle(from: handle) {
+                return !job.completedSnapshot()
+            }
+            if let task = runtimeAsyncTask(from: handle) {
+                return !task.isCompletedSnapshot()
+            }
+            return false
         }
     }
 
@@ -1276,12 +1316,18 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// KUU-CORO-101: register a completion handler, returning a disposal id
     /// (0 if the handler already fired inline because the job was already
     /// terminal). Must be called with `lock` unlocked.
-    func addCompletionHandler(onCancelling: Bool, handler: @escaping @Sendable (Int) -> Void) -> Int {
+    func addCompletionHandler(
+        onCancelling: Bool,
+        invokeImmediately: Bool = true,
+        handler: @escaping @Sendable (Int) -> Void
+    ) -> Int {
         lock.lock()
-        if state.isCompleted {
+        if state.isCompleted || (onCancelling && state == .cancelling) {
             let cause = completionCauseLocked()
             lock.unlock()
-            handler(cause)
+            if invokeImmediately {
+                handler(cause)
+            }
             return 0
         }
         let id = nextCompletionHandlerID
@@ -2491,6 +2537,12 @@ func runtimeStartLaunchedBody(
     job: RuntimeJobHandle?,
     onFinished: @escaping @Sendable (_ result: Int, _ thrown: Int) -> Void
 ) {
+    let previousScope = RuntimeCoroutineScope.current
+    let previousJob = RuntimeJobHandle.current
+    defer {
+        RuntimeCoroutineScope.current = previousScope
+        RuntimeJobHandle.current = previousJob
+    }
     RuntimeCoroutineScope.current = scope
     RuntimeJobHandle.current = job
     _ = runSuspendEntryLoopWithContinuation(
@@ -2761,19 +2813,8 @@ public func kk_kxmini_async(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     let task = RuntimeAsyncTask()
     let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
 
-    // CORO-003: Capture caller's scope from context (not TLS) and register child
-    let callerScope = RuntimeCoroutineScope.current
-    if let callerScope {
-        callerScope.registerChild(Int(bitPattern: taskPtr))
-    }
-
-    // CORO-003: Create continuation externally and propagate caller's scope
-    // so the child's entry loop discovers its parent scope (same pattern as
-    // kk_kxmini_launch).
     let continuation = kk_coroutine_continuation_new(functionID)
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = callerScope
-    }
+    let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
     KxMiniRuntime.launch {
         task.markStarted()
         // STDLIB-CORO-BUG-05: the async path reports the thrown exception
@@ -2785,7 +2826,7 @@ public func kk_kxmini_async(_ entryPointRaw: Int, _ functionID: Int) -> Int {
             entryPointRaw: entryPointRaw,
             continuation: continuation,
             scope: callerScope,
-            job: nil
+            job: task.completionJob
         ) { result, thrown in
             if thrown != 0 {
                 task.completeExceptionally(with: thrown)
@@ -2941,15 +2982,7 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
     let task = RuntimeAsyncTask()
     let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
 
-    // CORO-003: Capture caller's scope from context and register child
-    let callerScope = RuntimeCoroutineScope.current
-    if let callerScope {
-        callerScope.registerChild(Int(bitPattern: taskPtr))
-    }
-    // Propagate caller's scope to child continuation context
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = callerScope
-    }
+    let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
     KxMiniRuntime.launch {
         task.markStarted()
         // STDLIB-CORO-BUG-05: same reporting as kk_kxmini_async -- this is the
@@ -2959,7 +2992,7 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
             entryPointRaw: entryPointRaw,
             continuation: continuation,
             scope: callerScope,
-            job: nil
+            job: task.completionJob
         ) { result, thrown in
             if thrown != 0 {
                 task.completeExceptionally(with: thrown)
@@ -2975,9 +3008,7 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
 
 /// Registers a freshly created `async` task with the caller's scope and seeds
 /// the block's continuation with that scope, so the child's suspend-entry loop
-/// discovers its parent (CORO-003). Factored out of the four `async` start-mode
-/// entry points; `kk_kxmini_async` and `kk_kxmini_async_with_cont` do the same
-/// thing inline.
+/// discovers its parent (CORO-003).
 private func runtimeRegisterAsyncChild(
     taskPtr: UnsafeMutableRawPointer,
     continuation: Int
@@ -2986,8 +3017,12 @@ private func runtimeRegisterAsyncChild(
     if let callerScope {
         callerScope.registerChild(Int(bitPattern: taskPtr))
     }
+    RuntimeJobHandle.current?.registerChild(Int(bitPattern: taskPtr))
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
+        let job = runtimeAsyncTask(from: Int(bitPattern: taskPtr))?.completionJob
+        contState.jobHandle = job
+        job?.continuationState = contState
     }
     return callerScope
 }
@@ -3050,7 +3085,7 @@ private func runtimeAsyncLazy(entryPointRaw: Int, continuation: Int) -> Int {
                 entryPointRaw: entryPointRaw,
                 continuation: continuation,
                 scope: callerScope,
-                job: nil,
+                job: task.completionJob,
                 onFinished: runtimeAsyncTaskCompletion(task)
             )
         }
@@ -3111,9 +3146,7 @@ private func runtimeAsyncUndispatched(entryPointRaw: Int, continuation: Int) -> 
         entryPointRaw: entryPointRaw,
         continuation: continuation,
         scope: callerScope,
-        // `nil` like the other async entry points: an async body carries no
-        // ambient job of its own, since RuntimeAsyncTask is not a RuntimeJobHandle.
-        job: nil,
+        job: task.completionJob,
         onFinished: runtimeAsyncTaskCompletion(task)
     )
     RuntimeCoroutineScopeTaskKey.installKey(savedTaskKey)
@@ -3710,6 +3743,7 @@ public func kk_coroutine_scope_launch(_ scopeHandle: Int, _ entryPointRaw: Int, 
         state.scope = scope
     }
     scope.registerChild(Int(bitPattern: jobPtr))
+    scope.job?.registerChild(Int(bitPattern: jobPtr))
 
     KxMiniRuntime.launch {
         // See the identical guard in kk_kxmini_launch: a cancel() that races in
@@ -3760,6 +3794,7 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
         state.scope = scope
     }
     scope.registerChild(Int(bitPattern: jobPtr))
+    scope.job?.registerChild(Int(bitPattern: jobPtr))
 
     KxMiniRuntime.launch {
         if job.cancellationSnapshot() {
@@ -4303,7 +4338,7 @@ public func kk_job_cancel_with_cause(_ jobHandle: Int, _ cause: Int) -> Int {
     case .job(let job):
         _ = job.cancel(cause: cause)
     case .task(let task):
-        task.cancel()
+        task.cancel(cause: cause)
     case .other:
         break
     }
@@ -4524,13 +4559,26 @@ public func kk_job_invoke_on_completion(
     _ handlerFnPtr: Int,
     _ handlerClosureRaw: Int
 ) -> Int {
-    guard let job = runtimeJobHandle(from: jobHandle)
-    else {
+    __kk_job_invoke_on_completion(jobHandle, onCancelling, 1, handlerFnPtr, handlerClosureRaw)
+}
+
+@_cdecl("__kk_job_invoke_on_completion")
+public func __kk_job_invoke_on_completion(
+    _ jobHandle: Int,
+    _ onCancelling: Int,
+    _ invokeImmediately: Int,
+    _ handlerFnPtr: Int,
+    _ handlerClosureRaw: Int
+) -> Int {
+    guard let job = runtimeJobHandle(from: jobHandle) ?? runtimeAsyncTask(from: jobHandle)?.completionJob else {
         return 0
     }
     let capturedFnPtr = handlerFnPtr
     let capturedClosureRaw = handlerClosureRaw
-    return job.addCompletionHandler(onCancelling: onCancelling != 0) { cause in
+    return job.addCompletionHandler(
+        onCancelling: onCancelling != 0,
+        invokeImmediately: invokeImmediately != 0
+    ) { cause in
         guard capturedFnPtr != 0 else { return }
         _ = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: capturedFnPtr,
@@ -4545,11 +4593,29 @@ public func kk_job_invoke_on_completion(
 /// `Job.invokeOnCompletion` (via `__kk_job_dispose_completion_handler`).
 @_cdecl("kk_job_dispose_completion_handler")
 public func kk_job_dispose_completion_handler(_ jobHandle: Int, _ handlerID: Int) {
-    guard let job = runtimeJobHandle(from: jobHandle)
-    else {
-        return
+    __kk_job_dispose_handle(jobHandle, handlerID)
+}
+
+@_cdecl("__kk_job_dispose_handle")
+public func __kk_job_dispose_handle(_ jobHandle: Int, _ handlerID: Int) {
+    let job = runtimeJobHandle(from: jobHandle) ?? runtimeAsyncTask(from: jobHandle)?.completionJob
+    job?.removeCompletionHandler(id: handlerID)
+}
+
+@_cdecl("__kk_job_children")
+public func __kk_job_children(_ jobHandle: Int) -> Int {
+    let job = runtimeJobHandle(from: jobHandle) ?? runtimeAsyncTask(from: jobHandle)?.completionJob
+    let children = job?.childrenSnapshot() ?? []
+    return runtimeRegisterObject(RuntimeListBox(elements: children))
+}
+
+@_cdecl("__kk_job_parent")
+public func __kk_job_parent(_ jobHandle: Int) -> Int {
+    let job = runtimeJobHandle(from: jobHandle) ?? runtimeAsyncTask(from: jobHandle)?.completionJob
+    guard let parent = job?.parentSnapshot() else {
+        return runtimeNullSentinelInt
     }
-    job.removeCompletionHandler(id: handlerID)
+    return parent.identityHandle
 }
 
 /// Check if the coroutine associated with `continuation` has been cancelled.

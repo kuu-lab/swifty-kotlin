@@ -2,6 +2,7 @@ package kotlinx.coroutines
 
 import kotlin.coroutines.CoroutineContext
 import kotlin.internal.KsSymbolName
+import kotlin.sequences.asSequence
 
 // KUU-CORO-101: Job/CoroutineContext members that were unresolved wherever
 // real-world coroutine code reads its own job (`this.coroutineContext.job`),
@@ -13,15 +14,22 @@ import kotlin.internal.KsSymbolName
 @KsSymbolName("kk_job_get_cancellation_exception")
 internal external fun __kkJobGetCancellationException(job: Job): CancellationException
 
-@KsSymbolName("kk_job_invoke_on_completion")
+@KsSymbolName("__kk_job_invoke_on_completion")
 internal external fun __kkJobInvokeOnCompletion(
     job: Job,
     onCancelling: Boolean,
+    invokeImmediately: Boolean,
     handler: (Throwable?) -> Unit
 ): Int
 
-@KsSymbolName("kk_job_dispose_completion_handler")
+@KsSymbolName("__kk_job_dispose_handle")
 internal external fun __kkJobDisposeCompletionHandler(job: Job, handlerID: Int)
+
+@KsSymbolName("__kk_job_children")
+internal external fun __kkJobChildren(job: Job): List<Job>
+
+@KsSymbolName("__kk_job_parent")
+internal external fun __kkJobParent(job: Job): Job?
 
 @KsSymbolName("kk_context_get_job")
 internal external fun __kkContextGetJob(context: CoroutineContext): Job?
@@ -32,7 +40,27 @@ public val CoroutineContext.job: Job
 
 public fun Job.getCancellationException(): CancellationException = __kkJobGetCancellationException(this)
 
-public fun Job.invokeOnCompletion(onCancelling: Boolean = false, handler: (cause: Throwable?) -> Unit): DisposableHandle {
-    val id = __kkJobInvokeOnCompletion(this, onCancelling, handler)
+public val Job.children: Sequence<Job>
+    get() = __kkJobChildren(this).asSequence()
+
+public val Job.parent: Job?
+    get() = __kkJobParent(this)
+
+public fun Job.cancelChildren(cause: CancellationException? = null) {
+    for (child in children) {
+        child.cancel(cause)
+    }
+}
+
+public fun Job.invokeOnCompletion(handler: (cause: Throwable?) -> Unit): DisposableHandle =
+    invokeOnCompletion(false, true, handler)
+
+public fun Job.invokeOnCompletion(
+    onCancelling: Boolean,
+    invokeImmediately: Boolean = true,
+    handler: (cause: Throwable?) -> Unit
+): DisposableHandle {
+    val id = __kkJobInvokeOnCompletion(this, onCancelling, invokeImmediately, handler)
+    if (id == 0) return NonDisposableHandle
     return DisposableHandle { __kkJobDisposeCompletionHandler(this, id) }
 }
