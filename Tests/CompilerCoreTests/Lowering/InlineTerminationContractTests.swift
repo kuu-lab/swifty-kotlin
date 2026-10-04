@@ -209,6 +209,72 @@ struct InlineTerminationContractTests {
         #expect(!ctx.diagnostics.hasError)
     }
 
+    @Test(arguments: [false, true])
+    func testSnapshotPreparationPreservesNestedNonLocalReturn(returnsValue: Bool) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let module = makeModule([])
+        let blockSymbol = SymbolID(rawValue: 10)
+        let blockRef = module.arena.appendExpr(.symbolRef(blockSymbol), type: types.anyType)
+        let innerRef = module.arena.appendExpr(.symbolRef(SymbolID(rawValue: 3)), type: types.anyType)
+        let outerRef = module.arena.appendExpr(.symbolRef(SymbolID(rawValue: 4)), type: types.anyType)
+        let value = module.arena.appendExpr(.intLiteral(42), type: types.intType)
+        let invoke = makeFunction(
+            "invoke", symbol: 1, interner: interner, types: types,
+            body: [.constValue(result: blockRef, value: .symbolRef(blockSymbol)),
+                   call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [blockRef]), .returnUnit],
+            isInline: true, params: [KIRParameter(symbol: blockSymbol, type: types.anyType)]
+        )
+        let mandatory = makeFunction(
+            "mandatory", symbol: 2, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        )
+        let inner = makeFunction(
+            "inner", symbol: 3, interner: interner, types: types,
+            body: [
+                .constValue(result: value, value: .intLiteral(42)),
+                call(to: mandatory.symbol, callee: "mandatory", interner: interner),
+                .nonLocalReturn(returnsValue ? value : nil),
+            ]
+        )
+        let outer = makeFunction(
+            "outer", symbol: 4, interner: interner, types: types,
+            body: [call(to: invoke.symbol, callee: "invoke", interner: interner, arguments: [innerRef]), .returnUnit]
+        )
+        let main = makeFunction(
+            "main", symbol: 5, interner: interner, types: types,
+            body: [call(to: invoke.symbol, callee: "invoke", interner: interner, arguments: [outerRef]),
+                   call(to: nil, callee: "after", interner: interner), .returnUnit]
+        )
+        for function in [invoke, mandatory, inner, outer, main] {
+            _ = module.arena.appendDecl(.function(function))
+        }
+        let ctx = makeContext(diagnostics: DiagnosticEngine(), interner: interner)
+        let index = InlineExpansionIndex(module: module, importedInlineFunctions: ImportedInlineFunctionStore())
+        let pass = InlineLoweringPass()
+
+        pass.expandNestedBodylessInlineCalls(index: index, module: module, ctx: ctx, unitType: nil)
+
+        let prepared = try #require(index.allFunctionsBySymbol[outer.symbol])
+        #expect(prepared.body.contains { if case .nonLocalReturn = $0 { return true }; return false })
+        try pass.run(module: module, ctx: ctx)
+        let lowered = try #require(module.arena.declarations.compactMap { decl -> KIRFunction? in
+            guard case let .function(function) = decl, function.symbol == main.symbol else { return nil }
+            return function
+        }.first)
+        let afterOffset = try #require(lowered.body.firstIndex {
+            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+            return interner.resolve(callee) == "after"
+        })
+        #expect(lowered.body[..<afterOffset].contains {
+            if returnsValue, case .returnValue = $0 { return true }
+            if !returnsValue, case .returnUnit = $0 { return true }
+            return false
+        })
+        #expect(!lowered.body.contains { if case .nonLocalReturn = $0 { return true }; return false })
+        #expect(!ctx.diagnostics.hasError)
+    }
+
     @Test
     func testDeferredImportedChainIsDiscoveredWithoutParsingUnusedBodies() throws {
         let interner = StringInterner()
@@ -438,6 +504,10 @@ struct InlineTerminationContractTests {
         )
         decls.append(main)
         decls.append(leaf)
+        decls.append(makeFunction(
+            "unusedBodyless", symbol: 600, interner: interner, types: types,
+            isInline: true, isInlineOnly: true
+        ))
         let module = makeModule(decls)
         let diagnostics = DiagnosticEngine()
         let ctx = makeContext(diagnostics: diagnostics, interner: interner)
