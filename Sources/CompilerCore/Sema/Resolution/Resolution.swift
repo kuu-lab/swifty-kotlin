@@ -420,11 +420,47 @@ extension OverloadResolver {
             constraints.append(contentsOf: returnDecomposed)
         }
 
-        let solveResult = solveConstraints(
+        var solveResult = solveConstraints(
             constraints,
             solver: solver,
             typeSystem: ctx.types
         )
+        // Infer dependent parameters from concrete upper-bound projections, e.g.
+        // R = IntRange and R : ClosedRange<T> imply T = Int, even for a null argument.
+        for _ in 0 ..< signature.typeParameterSymbols.count {
+            guard case let .success(partial) = solveResult else { break }
+            var added = false
+            for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                guard let variable = typeVarBySymbol[symbol],
+                      let inferred = partial[variable],
+                      inferred != ctx.types.errorType
+                else { continue }
+                let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                    ? signature.typeParameterUpperBoundsList[index] : []
+                let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: symbol)
+                let bounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+                let dependentVariables = typeVarBySymbol.filter { $0.key != symbol }
+                for bound in bounds where containsTypeVariable(
+                    bound, typeVarBySymbol: dependentVariables, typeSystem: ctx.types
+                ) {
+                    let projected = decomposeSubtypeConstraint(
+                        subtype: inferred,
+                        supertype: bound,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: ctx.types,
+                        blameRange: call.range
+                    )
+                    for constraint in projected where !constraints.contains(where: {
+                        $0.kind == constraint.kind && $0.left == constraint.left && $0.right == constraint.right
+                    }) {
+                        constraints.append(constraint)
+                        added = true
+                    }
+                }
+            }
+            guard added else { break }
+            solveResult = solveConstraints(constraints, solver: solver, typeSystem: ctx.types)
+        }
         let substitution: [TypeVarID: TypeID]
         switch solveResult {
         case let .success(value):

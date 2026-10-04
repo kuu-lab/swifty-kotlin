@@ -2122,19 +2122,27 @@ extension CallTypeChecker {
            !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
            !candidates.isEmpty
         {
-            let receiverForExtensionLookup = sema.types.makeNonNullable(lookupReceiverType)
-            // Only user-declared extensions: bundled stdlib extensions carry
-            // constraints (`@OnlyInputTypes`) the resolver does not model, so
-            // retrying them would accept calls Kotlin rejects.
-            func receiverMatchingUserExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
+            let receiverForExtensionLookup = sema.types.makeNonNullable(effectiveReceiverType)
+            func receiverMatchingExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
                 scopeCandidates.filter { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate),
                           symbol.kind == .function,
-                          let declFile = symbol.declSite?.start.file,
-                          driver.sourceManager?.origin(of: declFile) == .user,
                           let signature = sema.symbols.functionSignature(for: candidate),
-                          let declaredReceiver = signature.receiverType
+                          let declaredReceiver = signature.receiverType,
+                          !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
                     else { return false }
+                    // OnlyInputTypes needs argument-only inference; do not widen
+                    // collection element types just to make a failed member viable.
+                    let annotatedSymbols = [candidate] + signature.typeParameterSymbols
+                    guard !annotatedSymbols.contains(where: { symbol in
+                        sema.symbols.annotations(for: symbol).contains {
+                            $0.annotationFQName.split(separator: ".").last == "OnlyInputTypes"
+                        }
+                    }) else { return false }
+                    let isUser = symbol.declSite.map {
+                        driver.sourceManager?.origin(of: $0.start.file) == .user
+                    } ?? false
+                    guard isUser || sema.symbols.isSourceBackedSymbol(candidate) else { return false }
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
@@ -2144,9 +2152,9 @@ extension CallTypeChecker {
             }
             // Innermost binding first so a user extension keeps shadowing a
             // same-named one; merge the whole chain only if that finds nothing.
-            var extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookup(calleeName))
+            var extensionCandidates = receiverMatchingExtensions(ctx.scope.lookup(calleeName))
             if extensionCandidates.isEmpty {
-                extensionCandidates = receiverMatchingUserExtensions(ctx.scope.lookupMergingChain(calleeName))
+                extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
                 let retried = resolveCallRespectingLambdaReturnType(
