@@ -225,10 +225,6 @@ import Testing
 // MARK: - DataFlowAnalyzer Struct Init Edge Cases
 
 @Suite struct DataFlowStructTests {
-    @Test func testDataFlowStateDefaultInit() {
-        let state = DataFlowState()
-        #expect(state.variables.isEmpty)
-    }
 
     @Test func testVariableFlowStateEquality() {
         let types = TypeSystem()

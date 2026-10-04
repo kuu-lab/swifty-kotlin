@@ -182,7 +182,8 @@ struct KlibContainerTests {
                     "unexpected errors: \(diagnostics.diagnostics.map(\.code))")
             let codes = Set(diagnostics.diagnostics.map(\.code))
             #expect(codes.contains("KSWIFTK-LIB-0027")) // bestEffort: abi 2.4
-            #expect(codes.contains("KSWIFTK-LIB-0028")) // import not yet implemented
+            // Declaration materialization is implemented; no import warnings.
+            #expect(!codes.contains("KSWIFTK-LIB-0028"))
         }
     }
 
