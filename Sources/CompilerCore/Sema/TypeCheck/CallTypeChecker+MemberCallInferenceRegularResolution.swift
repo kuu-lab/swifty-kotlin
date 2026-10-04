@@ -2817,6 +2817,8 @@ extension CallTypeChecker {
         guard !isClassNameReceiver, !isSuperCall else {
             return nil
         }
+        let scopedExtensionCandidates = Set(ctx.scope.lookupMergingChain(calleeName))
+        let allowsImportlessAtomicExtensions = isAtomicMigrationReceiver(memberLookupType, sema: sema, interner: interner)
         var allCandidates = collectExtensionCallCandidates(
             named: calleeName,
             memberLookupType: memberLookupType,
@@ -2825,7 +2827,12 @@ extension CallTypeChecker {
             ctx: ctx,
             sema: sema,
             interner: interner
-        )
+        ).filter { candidate in
+            !usesOnlyInputTypes(candidate, sema: sema)
+                && (!sema.symbols.isSourceBackedSymbol(candidate)
+                    || scopedExtensionCandidates.contains(candidate)
+                    || allowsImportlessAtomicExtensions)
+        }
         guard !allCandidates.isEmpty else {
             return nil
         }

@@ -39,7 +39,7 @@ struct InapplicableMemberExtensionResolutionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" }, "Expected an unimported extension to be unavailable: \(ctx.diagnostics.diagnostics)")
         }
     }
 

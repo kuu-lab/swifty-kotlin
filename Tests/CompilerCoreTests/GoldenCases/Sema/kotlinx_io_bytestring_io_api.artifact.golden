@@ -44,7 +44,7 @@ expr e@20:5#1 memberCall recv=e@20:5 callee=indexOf args=[_:e@20:20,_:e@20:27] t
 expr e@21:5 name(buffer) type=kotlinx.io.Buffer ref=probe.$0.buffer[kind=vparam]
 expr e@21:20 int(1) type=Int
 expr e@21:20#1 memberCall recv=e@21:20 callee=toByte args=[] type=Byte
-expr e@21:5#1 memberCall recv=e@21:5 callee=indexOf args=[_:e@21:20#1] type=Long call=kotlinx.io.indexOf[kind=fun;recv=kotlinx.io.Buffer;params=Byte,Long,Long]
+expr e@21:5#1 memberCall recv=e@21:5 callee=indexOf args=[_:e@21:20#1] type=Long call=kotlinx.io.Buffer.indexOf[kind=fun;recv=kotlinx.io.Buffer;params=Byte,Long,Long]
 expr e@22:5 name(buffer) type=kotlinx.io.Buffer ref=probe.$0.buffer[kind=vparam]
 expr e@22:5#1 memberCall recv=e@22:5 callee=snapshot args=[] type=kotlinx.io.bytestring.ByteString call=kotlinx.io.snapshot[kind=fun;recv=kotlinx.io.Buffer;params=]
 expr e@23:5 name(buffer) type=kotlinx.io.Buffer ref=probe.$0.buffer[kind=vparam]
