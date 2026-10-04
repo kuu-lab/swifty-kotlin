@@ -327,7 +327,39 @@ final class ObjectLiteralLowerer {
             driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
         }
 
-        for propertyDeclID in objectDecl.memberProperties {
+        // Property initializers and `init {}` blocks run interleaved in
+        // declaration order. An object decl without a recorded order (no
+        // `init` blocks were ever collected for it) keeps running its
+        // properties in member order.
+        let initOrder = objectDecl.classBodyInitOrder.isEmpty
+            ? objectDecl.memberProperties.indices.map { ClassBodyInitMember.property($0) }
+            : objectDecl.classBodyInitOrder
+        for member in initOrder {
+            let propertyDeclID: DeclID
+            switch member {
+            case let .initBlock(index):
+                guard index < objectDecl.initBlocks.count else { continue }
+                let initBlockExprs: [ExprID] = switch objectDecl.initBlocks[index] {
+                case let .block(exprIDs, _): exprIDs
+                case let .expr(exprID, _): [exprID]
+                case .unit: []
+                }
+                for exprID in initBlockExprs {
+                    _ = driver.lowerExpr(
+                        exprID,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    )
+                }
+                continue
+            case let .property(index):
+                guard index < objectDecl.memberProperties.count else { continue }
+                propertyDeclID = objectDecl.memberProperties[index]
+            }
             guard let propertySymbol = sema.bindings.declSymbols[propertyDeclID],
                   let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl

@@ -316,6 +316,14 @@ extension ExprTypeChecker {
             accessorBaseLocals: outerLocalsSnapshot,
             ctx: ctx
         )
+        // `init {}` blocks are lowered inline in the enclosing function,
+        // like property initializers, so they see the outer locals directly
+        // and need no capture fields.
+        driver.declChecker.typeCheckInitBlocks(
+            objectDecl.initBlocks,
+            ctx: objectCtx,
+            baseLocals: locals
+        )
 
         // KSP-CAP-001: member function bodies resolve outer locals the same
         // way lambda bodies do — seeded via `locals`, which `inferNameRefExpr`
