@@ -289,6 +289,72 @@ struct CallableReferenceExtensionReceiverTests {
         #expect(errors.isEmpty, "Bound `::m` member reference must keep working, got: \(errors)")
     }
 
+    @Test(arguments: [
+        "with(\"s\") { with(1) { ::tag } }",
+        "with(\"s\") { with(1) { with(true) { ::tag } } }",
+        "with(\"outer\") { with(\"inner\") { ::tag } }",
+    ])
+    func testImplicitExtensionCallableRefSearchesReceiverStack(expression: String) throws {
+        let ctx = makeContextFromSource("""
+        fun String.tag(): String = "ext:" + this
+        fun main() {
+            val f: () -> String = \(expression)
+            println(f())
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Implicit reference must bind the matching receiver: \(errors)")
+    }
+
+    @Test(arguments: [
+        "with(37) { ::lastDigit }",
+        "with(37) { with(\"s\") { ::lastDigit } }",
+    ])
+    func testImplicitExtensionPropertyCallableRefIsBound(expression: String) throws {
+        let ctx = makeContextFromSource("""
+        val Int.lastDigit: Int get() = this % 10
+        fun main() {
+            val p: kotlin.reflect.KProperty0<Int> = \(expression)
+            println(p.get())
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Implicit extension property must be a bound KProperty0: \(errors)")
+    }
+
+    @Test(arguments: [
+        "fun Int.ext(): Int = 1",
+        "val Int.ext: Int get() = 1",
+    ])
+    func testMemberExtensionRejectedInNestedReceiverScope(declaration: String) throws {
+        let ctx = makeContextFromSource("""
+        class C {
+            \(declaration)
+            fun capture() = with(1) { ::ext }
+        }
+        fun main() { println(C().capture()) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Member extensions must remain unreferenceable")
+    }
+
+    @Test func testCallableReferenceDoesNotBindDslHiddenReceiver() throws {
+        let ctx = makeContextFromSource("""
+        @DslMarker annotation class Marker
+        @Marker class Outer
+        @Marker class Inner
+        fun Outer.tag(): String = "outer"
+        fun main() {
+            val f = with(Outer()) { with(Inner()) { ::tag } }
+            println(f)
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "A shared DSL marker hides the outer implicit receiver")
+    }
+
     @Test func testBareCallableRefToTopLevelFunctionStillWorks() throws {
         let source = """
         fun double(x: Int): Int = x * 2
