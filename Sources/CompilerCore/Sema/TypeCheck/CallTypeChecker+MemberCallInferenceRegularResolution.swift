@@ -760,6 +760,9 @@ extension CallTypeChecker {
         if !isClassNameReceiver,
            args.isEmpty,
            !ast.arena.isExplicitCall(id),
+           driver.helpers.lookupMemberProperty(
+               named: calleeName, receiverType: memberLookupType, sema: sema
+           ) == nil,
            let sourceFile = ctx.currentASTFile,
            let preferredSourcePackage = preferredBundledStdlibPackage(
                sourceFile: sourceFile,

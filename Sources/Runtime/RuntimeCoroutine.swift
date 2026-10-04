@@ -4769,6 +4769,11 @@ public func kk_job_complete(_ jobHandle: Int, _ value: Int) -> Int {
     }
 }
 
+@_cdecl("kk_job_complete_unit")
+public func kk_job_complete_unit(_ jobHandle: Int) -> Int {
+    kk_job_complete(jobHandle, 0)
+}
+
 /// Mark a job as failed with an exception cause. Returns 1 if the transition succeeded.
 @_cdecl("kk_job_complete_exceptionally")
 public func kk_job_complete_exceptionally(_ jobHandle: Int, _ exception: Int) -> Int {

@@ -8,7 +8,9 @@ public fun interface DisposableHandle {
     public fun dispose()
 }
 
-public object NonDisposableHandle : DisposableHandle {
-    override fun dispose() {}
-    override fun toString(): String = "NonDisposableHandle"
+public object NonDisposableHandle : ChildHandle {
+    public override val parent: Job? get() = null
+    public override fun dispose() {}
+    public override fun childCancelled(cause: Throwable): Boolean = false
+    public override fun toString(): String = "NonDisposableHandle"
 }

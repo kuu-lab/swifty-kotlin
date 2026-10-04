@@ -154,6 +154,31 @@ extension ExprLowerer {
             {
                 return receiverExprID
             }
+            // The master launcher lowering can now bind a receiver value, but
+            // kk_coroutine_current_scope still returns an opaque runtime handle.
+            // Its CoroutineScope context must use the ambient context bridge.
+            let hasRuntimeScopeReceiver = driver.ctx.activeImplicitReceiverExprID().map {
+                driver.ctx.runtimeCoroutineScopeReceiverExprIDs.contains($0)
+            } ?? false
+            if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+               (driver.ctx.activeImplicitReceiverExprID() == nil || hasRuntimeScopeReceiver),
+               let symbol = sema.bindings.identifierSymbols[exprID],
+               sema.symbols.symbol(symbol)?.fqName == [
+                   interner.intern("kotlinx"), interner.intern("coroutines"),
+                   interner.intern("CoroutineScope"), interner.intern("coroutineContext"),
+               ]
+            {
+                let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_coroutine_current_context"),
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             // BUG-B/BUG-C: an enum value has no stored-field object layout
             // (its KIR representation is a raw ordinal Int, only boxed for
             // Any-erased contexts), so an implicit-receiver read of its
