@@ -273,16 +273,24 @@ extension DataFlowSemaPhase {
             overriddenKeys.insert(makeDiamondDispatchKey(for: memberSymbol, symbols: symbols))
         }
 
-        // `ULongRange.isEmpty` is source-backed on the bundled ULongRange
-        // declaration. The built-in declaration also implements both
-        // ClosedRange and OpenEndRange, so this concrete member resolves their
-        // shared interface override while the nominal owner moves to source.
-        let ulongRangeFQName = [
-            interner.intern("kotlin"),
-            interner.intern("ranges"),
-            interner.intern("ULongRange"),
+        // `ULongRange.isEmpty`/`UIntRange.isEmpty` are source-backed on the
+        // bundled declarations. Both built-in declarations also implement
+        // ClosedRange and OpenEndRange, so those concrete members resolve the
+        // shared interface override while the nominal owners move to source.
+        let unsignedRangeFQNames: Set<[InternedString]> = [
+            [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern("ULongRange"),
+            ],
+            [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern("UIntRange"),
+            ],
         ]
-        if symbols.symbol(ownerSymbol)?.fqName == ulongRangeFQName {
+        if let ownerFQName = symbols.symbol(ownerSymbol)?.fqName,
+           unsignedRangeFQNames.contains(ownerFQName) {
             let isEmptyName = interner.intern("isEmpty")
             for extensionSymbol in symbols.allSymbols() {
                 guard extensionSymbol.kind == .function,

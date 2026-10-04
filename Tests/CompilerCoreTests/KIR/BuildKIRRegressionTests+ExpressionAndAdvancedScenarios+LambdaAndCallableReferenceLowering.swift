@@ -342,6 +342,93 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testImplicitInterfaceCallableRefUsesVirtualDispatch() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        class BufferedWriter : Writer { override fun flush(): Int = 42 }
+        fun flush(): Int = 7
+        fun Writer.flushLater(): () -> Int = ::flush
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let interfaceFlush = try #require(sema.symbols.allSymbols().first { symbol in
+            symbol.kind == .function
+                && ctx.interner.resolve(symbol.name) == "flush"
+                && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
+                    == [ctx.interner.intern("Writer")]
+        }?.id)
+        // The bound reference is lowered to a helper function that performs the
+        // virtual call; its name is an implementation detail, so find it by body.
+        let wrapper = try #require(findAllKIRFunctions(in: module).first { function in
+            function.body.contains { instruction in
+                if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
+                    return symbol == interfaceFlush
+                }
+                return false
+            }
+        })
+        #expect(wrapper.params.count == 1, "Bound interface reference must capture its receiver.")
+        #expect(!wrapper.body.contains { instruction in
+            if case let .call(symbol, _, _, _, _, _, _, _) = instruction {
+                return symbol == interfaceFlush
+            }
+            return false
+        })
+        let flushLaterBody = try findKIRFunctionBody(named: "flushLater", in: module, interner: ctx.interner)
+        #expect(flushLaterBody.contains { instruction in
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                return ctx.interner.resolve(callee) == "kk_function_create_0"
+            }
+            return false
+        }, "A bound reference returned from a function must carry its receiver at runtime.")
+    }
+
+    @Test func testImplicitInterfaceCallableRefSamThunkUsesVirtualDispatch() throws {
+        let source = """
+        interface Writer { fun flush(): Int }
+        class BufferedWriter : Writer { override fun flush(): Int = 42 }
+        fun flush(): Int = 7
+        fun interface Action { fun run(): Int }
+        fun Writer.asAction(): Action = Action(::flush)
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let interfaceFlush = try #require(sema.symbols.allSymbols().first { symbol in
+            symbol.kind == .function
+                && ctx.interner.resolve(symbol.name) == "flush"
+                && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
+                    == [ctx.interner.intern("Writer")]
+        }?.id)
+        let allFunctions = findAllKIRFunctions(in: module)
+        #expect(allFunctions.contains { function in
+            ctx.interner.resolve(function.name).hasPrefix("kk_sam_ref_thunk_")
+        })
+        // The SAM thunk reaches the interface member through a virtual call
+        // (directly or via the bound-reference helper), never a direct call.
+        #expect(allFunctions.contains { function in
+            function.body.contains { instruction in
+                if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
+                    return symbol == interfaceFlush
+                }
+                return false
+            }
+        })
+        #expect(!allFunctions.contains { function in
+            function.body.contains { instruction in
+                if case let .call(symbol, _, _, _, _, _, _, _) = instruction {
+                    return symbol == interfaceFlush
+                }
+                return false
+            }
+        })
+    }
+
     @Test func testLocalCallableValueShadowsSameNamedStdlibExtension() throws {
         let source = """
         fun main(): Int {
