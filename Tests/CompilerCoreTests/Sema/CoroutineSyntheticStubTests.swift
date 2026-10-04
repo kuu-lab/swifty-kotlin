@@ -9,6 +9,71 @@ struct CoroutineSyntheticStubTests {
     // MARK: - Path-aware expression search helpers
 
     @Test
+    func coroutineLauncherFunctionValueResultTypesAreNotOverriddenByExpectedType() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        fun main() = runBlocking {
+            val block: suspend CoroutineScope.() -> Int = { 42 }
+            val wrong: String = withContext(Dispatchers.Default, block = block)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
+
+    @Test
+    func userDefinedCoroutineBuilderNamePreservesDeclaredReturnType() throws {
+        let source = """
+        import kotlinx.coroutines.CoroutineScope
+        fun runBlocking(block: suspend CoroutineScope.() -> Int): String = "custom"
+        fun main() {
+            val block: suspend CoroutineScope.() -> Int = { 42 }
+            val result: String = runBlocking(block = block)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func coroutineLaunchersAcceptReceiverFunctionValues() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() {
+            val root: suspend CoroutineScope.() -> Int = { 42 }
+            val result: Int = runBlocking(block = root)
+            runBlocking {
+                var side = 0
+                val f: suspend CoroutineScope.() -> Unit = { side = 5 }
+                launch(block = f).join()
+                launch(Dispatchers.Default, block = f).join()
+                launch(start = CoroutineStart.LAZY, block = f).join()
+                val scope: CoroutineScope = this
+                scope.launch(block = f).join()
+                val g: suspend CoroutineScope.() -> Int = { side + 7 }
+                val value: Int = async(block = g).await()
+                val lazyValue: Int = async(start = CoroutineStart.LAZY, block = g).await()
+                val switched: Int = withContext(Dispatchers.Default, block = g)
+                val timed: Int = withTimeout(1000L, block = g)
+                val nullable: Int? = withTimeoutOrNull(1000L, block = g)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func testCoroutineSyntheticStubs() throws {
         let sources: [String] = [
             // source 0

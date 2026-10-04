@@ -70,13 +70,21 @@ extension CallTypeChecker {
         // coroutineLauncherExpectedLambdaType above), not the body's actual
         // tightest type. Dig into the AST for the body expression's own bound
         // type instead, same as the Flow `.map` element-type readback.
-        guard case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(lambdaArgExpr),
-              let bodyReturnType = sema.bindings.exprType(for: bodyExpr)
-        else {
+        let bodyReturnType: TypeID?
+        if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(lambdaArgExpr) {
+            bodyReturnType = sema.bindings.exprType(for: bodyExpr)
+        } else if let type = sema.bindings.exprType(for: lambdaArgExpr),
+                  case let .functionType(function) = sema.types.kind(of: type) {
+            bodyReturnType = function.returnType
+        } else {
+            bodyReturnType = nil
+        }
+        guard let bodyReturnType else {
             return fallback
         }
         guard launcherName == "async" else {
-            return bodyReturnType
+            return launcherName == "withTimeoutOrNull"
+                ? sema.types.makeNullable(bodyReturnType) : bodyReturnType
         }
         sema.bindings.bindDeferredElementType(bodyReturnType, forExpr: id)
         return fallback

@@ -2098,6 +2098,9 @@ extension CallTypeChecker {
                 candidates = regexStringBridgeCandidates
             }
         }
+        let isDeferredAwait = !candidates.isEmpty && candidates.allSatisfy {
+            sema.symbols.externalLinkName(for: $0) == "kk_kxmini_async_await"
+        }
         var resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
@@ -2105,7 +2108,7 @@ extension CallTypeChecker {
             range: range,
             calleeName: calleeName,
             explicitTypeArgs: explicitTypeArgs,
-            expectedType: expectedType,
+            expectedType: isDeferredAwait ? nil : expectedType,
             implicitReceiverType: effectiveReceiverType,
             lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
             inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,

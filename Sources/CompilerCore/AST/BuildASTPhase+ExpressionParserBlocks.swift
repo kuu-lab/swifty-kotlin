@@ -150,16 +150,13 @@ extension BuildASTPhase.ExpressionParser {
                 ).parse()
             },
             parseTypeReference: { typeTokens in
-                guard let first = typeTokens.first else {
-                    return nil
-                }
-                let parser = BuildASTPhase.ExpressionParser(
-                    tokens: typeTokens,
+                TypeRefParserCore.parseTypeRefPrefix(
+                    typeTokens[...],
                     interner: interner,
                     astArena: astArena,
+                    options: .declaration,
                     diagnostics: self.diagnostics
-                )
-                return parser.parseTypeReference(first.range)
+                )?.ref
             },
             resolveDeclarationName: { token, interner in
                 guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {
