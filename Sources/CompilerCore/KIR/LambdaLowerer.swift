@@ -98,6 +98,8 @@ final class LambdaLowerer {
             "kk_suspend_function_invoke",
             "kk_suspend_function_invoke_2",
             "kk_suspend_function_invoke_3",
+            "kk_suspend_function_invoke_4",
+            "kk_suspend_function_invoke_5",
             "kk_suspend_coroutine",
             "kk_with_timeout",
             "kk_with_timeout_or_null",

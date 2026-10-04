@@ -29,11 +29,6 @@ public fun <T, R> Flow<T>.transformWhile(action: suspend FlowCollector<R>.(T) ->
     }
 }
 
-// KUU-955: suspend function-value callbacks currently run to completion, so
-// the cold-flow core cannot cancel an in-flight transform on the next value.
-public fun <T, R> Flow<T>.transformLatest(action: suspend FlowCollector<R>.(T) -> Unit): Flow<R> =
-    transform(action)
-
 public fun <T> Flow<T>.onStart(action: suspend FlowCollector<T>.() -> Unit): Flow<T> {
     val source = this
     return flow {

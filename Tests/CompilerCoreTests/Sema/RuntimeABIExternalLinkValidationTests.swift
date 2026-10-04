@@ -651,7 +651,9 @@ struct RuntimeABIExternalLinkValidationTests {
         if declaration.hasReceiver {
             loweredArity += 1
         }
-        loweredArity += declaration.functionTypedParameterCount
+        if !usesSuspendEntryPointABI(declaration) {
+            loweredArity += declaration.functionTypedParameterCount
+        }
         // A `vararg` value parameter lowers to a (packed array pointer, count)
         // pair in the runtime ABI (see CallSupportLowerer's kk_array_of path),
         // so each vararg contributes one extra count parameter.
@@ -780,7 +782,11 @@ struct RuntimeABIExternalLinkValidationTests {
                 types.append(RuntimeABICType.intptr.rawValue)
                 continue
             }
-            types.append(contentsOf: expectedRuntimeABIParameterTypes(for: parameterType, isFlat: isFlat))
+            if usesSuspendEntryPointABI(declaration), isFunctionType(normalizedKotlinType(parameterType)) {
+                types.append(RuntimeABICType.intptr.rawValue)
+            } else {
+                types.append(contentsOf: expectedRuntimeABIParameterTypes(for: parameterType, isFlat: isFlat))
+            }
         }
         // The coroutine lowering appends the continuation after all source
         // parameters. Throwing declarations may append their outThrown slot
@@ -796,6 +802,11 @@ struct RuntimeABIExternalLinkValidationTests {
             types.append(contentsOf: Array(repeating: RuntimeABICType.nullableIntptrPointer.rawValue, count: 3))
         }
         return types
+    }
+
+    // Timeout lowering passes a suspend entry point rather than a closure pair.
+    private func usesSuspendEntryPointABI(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
+        declaration.linkName == "kk_with_timeout" || declaration.linkName == "kk_with_timeout_or_null"
     }
 
     private func expectedRuntimeABIParameterTypes(for kotlinType: String, isFlat: Bool) -> [String] {

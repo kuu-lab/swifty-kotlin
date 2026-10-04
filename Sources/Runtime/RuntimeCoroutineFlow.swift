@@ -205,6 +205,12 @@ private final class RuntimeFlowHandle {
 /// seeds a fresh continuation for each invocation so the emitter receives its
 /// captures. Non-capturing builders keep the direct `(outThrown)` ABI.
 private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inout Int) {
+    let callerTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let callerJob = RuntimeJobHandle.current
+    defer {
+        RuntimeCoroutineScopeTaskKey.installKey(callerTaskKey)
+        RuntimeJobHandle.current = callerJob
+    }
     if let template = flow.emitterTemplateState {
         let continuation = kk_coroutine_continuation_new(Int(template.functionID))
         if let state = runtimeContinuationState(from: continuation) {
@@ -1593,7 +1599,11 @@ public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collecto
     // emitted value through the operator chain on every collect call.
     // For flowOf-backed flows (fixedValues != nil), the fixed values are used
     // directly without running an emitter function.
+    let callerState = RuntimeContinuationState.current
     let failure = runtimeFlowCollectLazy(flow, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr, continuation: continuation)
+    if outThrown == nil {
+        callerState?.thrownException = failure
+    }
     outThrown?.pointee = failure
     return failure
 }
