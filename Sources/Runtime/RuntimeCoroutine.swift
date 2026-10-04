@@ -300,6 +300,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// global pool. `nil` keeps the original global-pool behaviour, which is
     /// what dispatcher-bound bodies and direct runtime (test) calls get.
     var eventLoop: RuntimeEventLoop?
+    var builderContext: RuntimeCoroutineContext?
     private var uninterceptedEntryPointRaw: Int = 0
     private var uninterceptedCompletionContinuation: Int = 0
     private var hasStartedUninterceptedCoroutine = false
@@ -622,10 +623,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
 
     func makeContinuationContext() -> RuntimeCoroutineContext {
         let jobRaw: Int = jobHandle.map { Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained($0).toOpaque())) } ?? 0
+        let inherited = scope?.context ?? RuntimeCoroutineContext()
+        let context = inherited.plus(builderContext ?? RuntimeCoroutineContext())
         return RuntimeCoroutineContext(
-            dispatcher: 0,
-            name: scope?.name,
-            exceptionHandler: nil,
+            dispatcher: context.dispatcher,
+            name: context.name ?? scope?.name,
+            exceptionHandler: context.exceptionHandler,
             jobHandleRaw: jobRaw
         )
     }
@@ -1113,6 +1116,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var cancelCause: Int = 0
     private var cancelMessage: String = "CancellationException"
     weak var continuationState: RuntimeContinuationState?
+    var producerChannel: Int?
     private var childJobHandles: [Int] = []
     /// Set on the handle returned by `kotlinx.coroutines.SupervisorJob()`. Lets
     /// `CoroutineScope(context)` (see `kk_coroutine_scope_new_with_context`) tell a plain
@@ -1617,6 +1621,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// Cancellation cause stored when cancel(message:cause:) is called on this scope.
     private(set) var cancellationCause: Int = 0
     let isSupervisor: Bool
+    let context: RuntimeCoroutineContext
     /// The Job this scope installs into its block's coroutine context
     /// (KUU-964). `coroutineScope { }`/`supervisorScope { }` create a fresh
     /// child job at scope entry so `currentCoroutineContext().job` resolves
@@ -1626,6 +1631,22 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     fileprivate var parent: RuntimeCoroutineScope?
     /// Optional debug name assigned via CoroutineName context element (STDLIB-CORO-077).
     var name: String?
+
+    /// Handle of the `kotlinx.coroutines.test.TestCoroutineScheduler` lazily
+    /// minted for this scope (KSP-1583); 0 while unrequested so plain scopes
+    /// pay nothing.
+    private var testSchedulerHandle = 0
+
+    /// The scope's lazily minted `TestCoroutineScheduler` handle, backing
+    /// `TestScope.testScheduler` when this scope masquerades as a TestScope.
+    func schedulerForTest() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        if testSchedulerHandle == 0 {
+            testSchedulerHandle = runtimeRegisterObject(RuntimeTestScheduler())
+        }
+        return testSchedulerHandle
+    }
 
     // CORO-003: Task-local scope registry (replaces TLS).
     // Maps an opaque task token (assigned by the suspend-entry loop on entry) to
@@ -1681,8 +1702,9 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         }
     }
 
-    init(isSupervisor: Bool = false) {
+    init(isSupervisor: Bool = false, context: RuntimeCoroutineContext = RuntimeCoroutineContext()) {
         self.isSupervisor = isSupervisor
+        self.context = context
         RuntimeLiveHandles.register(self)
     }
 
@@ -2824,14 +2846,19 @@ public func kk_kxmini_run_blocking_with_cont(
     // coroutine (see kk_suspend_function_invoke_0), the body runs on a fresh
     // continuation. Seed it with the ambient scope so `launch`/`async` inside the
     // invoked block register with the enclosing structured-concurrency scope
-    // (e.g. a Kotlin-level `coroutineScope { }`) rather than detaching. Only the
-    // scope is inherited, not the caller job: inheriting the caller job would
-    // re-parent a supervisor scope's children to the root job and break failure
-    // isolation. A genuine top-level `runBlocking` has no ambient scope,
-    // so this is a no-op there.
+    // (e.g. a Kotlin-level `coroutineScope { }`) rather than detaching.
+    // A scope override owns its job context; a suspend-value invocation in the
+    // current scope shares the caller's job. A genuine top-level `runBlocking`
+    // has no ambient scope, so this is a no-op there.
     let contState = runtimeContinuationState(from: continuation)
     if let contState, contState.scope == nil {
         contState.scope = RuntimeCoroutineScope.current
+        if contState.jobHandle == nil,
+           RuntimeContinuationState.current == nil
+           || RuntimeContinuationState.current?.scope === contState.scope
+        {
+            contState.jobHandle = RuntimeJobHandle.current
+        }
     }
     if let contState, contState.jobHandle == nil {
         // KUU-964: a scoped block runs inside its scope's own Job — the
@@ -2839,9 +2866,14 @@ public func kk_kxmini_run_blocking_with_cont(
         // `coroutineScope { }` installed — so `currentCoroutineContext().job`
         // resolves inside the block (kotlinx's contract) and children launched
         // here parent to the scope's job, preserving failure isolation. Only
-        // when the scope carries no Job (e.g. a Job-less `CoroutineScope(context)`)
-        // does the invoked value keep the caller's job.
-        contState.jobHandle = contState.scope?.job ?? RuntimeContinuationState.current?.jobHandle
+        // when the scope carries no Job and matches the caller's scope does
+        // the invoked value keep the caller's job.
+        contState.jobHandle = contState.scope?.job
+        if contState.jobHandle == nil,
+           RuntimeContinuationState.current?.scope === contState.scope
+        {
+            contState.jobHandle = RuntimeContinuationState.current?.jobHandle
+        }
     }
     if let contState {
         // A non-capturing flow emitter enters through the direct C callback and
@@ -3140,6 +3172,7 @@ func runtimeKxMiniProduceWithCont(
 ) -> Int {
     let channelHandle = kk_channel_create(channelCapacity)
     let job = RuntimeJobHandle()
+    job.producerChannel = channelHandle
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3149,6 +3182,7 @@ func runtimeKxMiniProduceWithCont(
         job.continuationState = contState
         contState.jobHandle = job
         contState.launcherArgs[0] = Int64(channelHandle)
+        contState.eventLoop = RuntimeEventLoop.current
     }
 
     let callerScope = RuntimeCoroutineScope.current
@@ -3673,7 +3707,7 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
     if let job = runtimeJobHandle(from: ctx.jobHandleRaw) {
         isSupervisor = job.isSupervisorMarker
     }
-    let scope = RuntimeCoroutineScope(isSupervisor: isSupervisor)
+    let scope = RuntimeCoroutineScope(isSupervisor: isSupervisor, context: ctx)
     if let job = runtimeJobHandle(from: ctx.jobHandleRaw) {
         // The scope's job is the context's Job element: scope.cancel() cancels
         // it (kotlinx's CoroutineScope.cancel contract), and a cancel reaching
@@ -3681,6 +3715,96 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
         scope.adoptJob(job)
     }
     return runtimeRegisterObject(scope)
+}
+
+@_cdecl("kk_coroutine_scope_async_with_cont")
+public func kk_coroutine_scope_async_with_cont(
+    _ scopeHandle: Int, _ contextRaw: Int, _ start: Int,
+    _ entryPointRaw: Int, _ continuation: Int
+) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle),
+          let state = runtimeContinuationState(from: continuation)
+    else { runtimeStructuredPanic("CoroutineScope.async received an invalid scope or continuation") }
+    let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
+    state.scope = scope
+    state.builderContext = context
+    if context.dispatcher == 0 {
+        state.eventLoop = RuntimeEventLoop.current
+    }
+    return runtimeScopeAsync(scope: scope, context: context, start: start) { task in
+        runtimeStartLaunchedBody(
+            entryPointRaw: entryPointRaw, continuation: continuation,
+            scope: scope, job: nil, onFinished: runtimeAsyncTaskCompletion(task)
+        )
+    }
+}
+
+@_cdecl("kk_coroutine_scope_async")
+public func kk_coroutine_scope_async(
+    _ scopeHandle: Int, _ contextRaw: Int, _ start: Int,
+    _ entryPointRaw: Int, _ closureRaw: Int
+) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        runtimeStructuredPanic("CoroutineScope.async received an invalid scope")
+    }
+    let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
+    let hasEnvironment = closureRaw != 0 || runtimeFunctionValueBox(from: entryPointRaw) != nil
+    let function = resolveFunctionValuePair(fnPtr: entryPointRaw, closureRaw: closureRaw)
+    return runtimeScopeAsync(scope: scope, context: context, start: start) { task in
+        RuntimeCoroutineScope.current = scope
+        var thrown = 0
+        let result: Int
+        if hasEnvironment {
+            let invoke = unsafeBitCast(function.fnPtr, to: KKClosureThunkEntryPoint.self)
+            result = invoke(function.closureRaw, &thrown)
+        } else {
+            let invoke = unsafeBitCast(function.fnPtr, to: KKThunkEntryPoint.self)
+            result = invoke(&thrown)
+        }
+        runtimeAsyncTaskCompletion(task)(result, thrown)
+    }
+}
+
+private func runtimeScopeAsync(
+    scope: RuntimeCoroutineScope,
+    context: RuntimeCoroutineContext,
+    start: Int,
+    body: @escaping @Sendable (RuntimeAsyncTask) -> Void
+) -> Int {
+    let task = RuntimeAsyncTask()
+    let handle = Int(bitPattern: Unmanaged.passRetained(task).toOpaque())
+    scope.registerChild(handle)
+    let work: @Sendable () -> Void = {
+        task.markStarted()
+        if start != 2, task.isCancelledSnapshot() { return }
+        let savedKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let savedJob = RuntimeJobHandle.current
+        let savedDispatcher = RuntimeDispatcher.current
+        let workKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        defer {
+            RuntimeCoroutineScope.removeScope(forTask: workKey)
+            RuntimeCoroutineScopeTaskKey.installKey(savedKey)
+            RuntimeJobHandle.current = savedJob
+            RuntimeDispatcher.current = savedDispatcher
+        }
+        if context.dispatcher != 0 {
+            RuntimeDispatcher.current = runtimeResolveDispatcher(from: context.dispatcher)
+        }
+        body(task)
+    }
+    let schedule: @Sendable () -> Void = {
+        if context.dispatcher != 0 {
+            runtimeResolveDispatcher(from: context.dispatcher).queue.async(execute: work)
+        } else {
+            KxMiniRuntime.launch(work)
+        }
+    }
+    switch start {
+    case 1: task.installLazyStartBody(schedule)
+    case 3: work()
+    default: schedule()
+    }
+    return handle
 }
 
 /// Backing for `CoroutineScope.launch { block }`. Unlike `kk_kxmini_launch` (which
@@ -3781,6 +3905,253 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
     }
     return Int(bitPattern: jobPtr)
 }
+
+// MARK: - KSP-1583: kotlinx.coroutines.test
+
+/// Minimal virtual-clock backing for `kotlinx.coroutines.test.TestCoroutineScheduler`.
+/// The scheduler is only a virtual `currentTime` counter (milliseconds); no
+/// task queue exists yet, so `advanceUntilIdle`/`runCurrent` are degraded
+/// no-ops — matching the KSP-1583 phase-1 contract that rounds virtual time
+/// to real time (the runTest event loop runs children in real time).
+final class RuntimeTestScheduler: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _currentTimeMillis: Int64 = 0
+
+    init() {
+        RuntimeLiveHandles.register(self)
+    }
+
+    deinit {
+        RuntimeLiveHandles.unregister(self)
+    }
+
+    var currentTimeMillis: Int64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return _currentTimeMillis
+    }
+
+    func advanceTimeBy(_ millis: Int64) {
+        guard millis > 0 else { return }
+        lock.lock()
+        _currentTimeMillis += millis
+        lock.unlock()
+    }
+}
+
+/// Standalone `TestCoroutineScheduler()` construction (e.g. for the
+/// `StandardTestDispatcher(scheduler:)` factory's default).
+@_cdecl("kk_test_scheduler_new")
+public func kk_test_scheduler_new() -> Int {
+    return runtimeRegisterObject(RuntimeTestScheduler())
+}
+
+/// Lazily minted per-scope scheduler handle backing `TestScope.testScheduler`.
+@_cdecl("kk_test_scope_scheduler")
+public func kk_test_scope_scheduler(_ scopeHandle: Int) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_scope_scheduler received invalid scope handle")
+    }
+    return scope.schedulerForTest()
+}
+
+/// `TestScope.currentTime`: the scope's scheduler's virtual clock, lazily
+/// minting the scheduler on first read.
+@_cdecl("kk_test_scope_current_time")
+public func kk_test_scope_current_time(_ scopeHandle: Int) -> Int64 {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        return 0
+    }
+    guard let scheduler = resolveLiveRuntimeHandle(scope.schedulerForTest(), as: RuntimeTestScheduler.self) else {
+        return 0
+    }
+    return scheduler.currentTimeMillis
+}
+
+@_cdecl("kk_test_scheduler_current_time")
+public func kk_test_scheduler_current_time(_ schedulerHandle: Int) -> Int64 {
+    guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
+        return 0
+    }
+    return scheduler.currentTimeMillis
+}
+
+/// `advanceTimeBy(delayTimeMillis)`: bumps the virtual clock. With no
+/// virtual-time task queue there is nothing to schedule, so the call is a
+/// pure counter advance.
+@_cdecl("kk_test_scheduler_advance_time_by")
+public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTimeMillis: Int64) -> Int {
+    guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
+        return 0
+    }
+    scheduler.advanceTimeBy(delayTimeMillis)
+    return 0
+}
+
+/// Degraded `advanceUntilIdle`: no scheduled task queue exists yet.
+@_cdecl("kk_test_scheduler_advance_until_idle")
+public func kk_test_scheduler_advance_until_idle(_ schedulerHandle: Int) -> Int {
+    _ = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self)
+    return 0
+}
+
+/// Degraded `runCurrent`: no scheduled task queue exists yet.
+@_cdecl("kk_test_scheduler_run_current")
+public func kk_test_scheduler_run_current(_ schedulerHandle: Int) -> Int {
+    _ = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self)
+    return 0
+}
+
+/// Backing for `kotlinx.coroutines.test.runTest` — mints a `TestScope` (a
+/// real RuntimeCoroutineScope over `context`) and invokes `testBody` with
+/// `this` bound to it. Two block shapes reach this boundary, mirroring
+/// `__kk_produce_launch`:
+///  - A suspend *literal* the call-site rewrite resolves routes to
+///    `kk_test_run_blocking_with_cont` instead (launcher-continuation
+///    convention; the scope lands in launcherArgs[0]).
+///  - A suspend function *value* that does not resolve to a known suspend
+///    symbol (e.g. an opaque boxed `Function` object) crosses as the
+///    (entryPointRaw, closureRaw) pair suspend function values use at the
+///    ABI boundary, invoked under `__kk_produce_launch`'s convention: env
+///    expands to the leading slots and the scope handle passes as the
+///    trailing receiver (`(cap0..capN, receiver, outThrown)`). Blocks
+///    that DO resolve — literals and variable-held lambdas alike — route
+///    to `kk_test_run_blocking_with_cont` instead, which seeds the scope
+///    into the receiver launcher slot. `timeoutRaw` is accepted for
+///    signature compatibility but not enforced (degraded phase-1
+///    contract).
+@_cdecl("kk_test_run_blocking")
+public func kk_test_run_blocking(
+    _ contextRaw: Int,
+    _ timeoutRaw: Int,
+    _ entryPointRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard entryPointRaw != 0 else {
+        outThrown?.pointee = 0
+        return 0
+    }
+    let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_run_blocking failed to create test scope")
+    }
+
+    // Children launched inside the test body discover the test scope as
+    // their parent (upstream runTest semantics), so install it as ambient
+    // for the duration of the blocking run. An event loop is installed the
+    // same way: children queue on it (the thunk's nested blocking run
+    // reuses the current loop), and `waitForChildren`'s joins keep
+    // draining it until they complete.
+    let previousScope = RuntimeCoroutineScope.current
+    RuntimeCoroutineScope.current = scope
+    defer { RuntimeCoroutineScope.current = previousScope }
+    let previousLoop = RuntimeEventLoop.current
+    let loop = previousLoop ?? RuntimeEventLoop()
+    RuntimeEventLoop.current = loop
+    defer { RuntimeEventLoop.current = previousLoop }
+
+    // Expand the env slot into the thunk's positional captures, the same
+    // packed-shape expansion `__kk_produce_launch` performs: 0 → none, a
+    // packed env object (kk_object_new(2+N, classID: 0), captures at
+    // slots 2..) → N captures, anything else → a single raw capture.
+    let captures: [Int]
+    if closureRaw == 0 {
+        captures = []
+    } else if let envBox = resolveRuntimeHandle(closureRaw, as: RuntimeObjectBox.self),
+              envBox.classID == 0,
+              envBox.elements.count > 2
+    {
+        captures = Array(envBox.elements.dropFirst(2))
+    } else {
+        captures = [closureRaw]
+    }
+
+    var thrown = 0
+    let result = runtimeInvokeSuspendLauncherThunk(
+        entryPointRaw: entryPointRaw,
+        receiver: scopeHandle,
+        captures: captures,
+        outThrown: &thrown
+    )
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        // runTest semantics: a body failure cancels the scope's children.
+        scope.cancel()
+        _ = scope.waitForChildren(releaseOriginalHandles: false)
+        return 0
+    }
+    // Children launched inside the body parent to the test scope — join
+    // them the way a blocking runBlocking scope would, and surface the
+    // first child failure to the runTest caller.
+    let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
+    if childThrown != 0 {
+        outThrown?.pointee = childThrown
+        return 0
+    }
+    outThrown?.pointee = 0
+    return result
+}
+
+/// Literal-lambda counterpart to `kk_test_run_blocking`: the call-site
+/// rewrite built a launcher continuation holding the block's captures in
+/// launcherArgs; `scopeSlotRaw` names the suspend-entry receiver slot —
+/// 0 for launcher-marked (receiver-first) lambdas, `params.count - 1`
+/// for unmarked (captures-first) suspend values — and the freshly minted
+/// test scope lands there so `this` inside the body binds to the real
+/// RuntimeCoroutineScope. The nested runBlocking drains the suspend entry
+/// loop on this thread, matching `runTest`'s blocking contract.
+@_cdecl("kk_test_run_blocking_with_cont")
+public func kk_test_run_blocking_with_cont(
+    _ contextRaw: Int,
+    _ entryPointRaw: Int,
+    _ continuation: Int,
+    _ scopeSlotRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
+    guard let scope = runtimeCoroutineScope(from: scopeHandle),
+          let contState = runtimeContinuationState(from: continuation),
+          scopeSlotRaw >= 0
+    else {
+        outThrown?.pointee = 0
+        return 0
+    }
+    contState.launcherArgs[Int64(scopeSlotRaw)] = Int64(scopeHandle)
+    contState.scope = scope
+
+    let previousScope = RuntimeCoroutineScope.current
+    RuntimeCoroutineScope.current = scope
+    defer { RuntimeCoroutineScope.current = previousScope }
+    // Install the event loop the nested blocking run will reuse; it stays
+    // current after that run returns so `waitForChildren`'s joins can keep
+    // draining children that are still queued on it.
+    let previousLoop = RuntimeEventLoop.current
+    let loop = previousLoop ?? RuntimeEventLoop()
+    RuntimeEventLoop.current = loop
+    defer { RuntimeEventLoop.current = previousLoop }
+
+    let result = runtimeRunBlockingOnEventLoop(
+        entryPointRaw: entryPointRaw,
+        continuation: continuation,
+        outThrown: outThrown
+    )
+    // `contState.scope` being preset means the event-loop run treats the
+    // scope as borrowed and skips its own waitForChildren — so join the
+    // test scope's children here instead. runTest semantics: a body
+    // failure cancels the children; a child failure surfaces to the caller.
+    let bodyFailed = (outThrown?.pointee ?? 0) != 0
+    if bodyFailed {
+        scope.cancel()
+    }
+    let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
+    if !bodyFailed, childThrown != 0 {
+        outThrown?.pointee = childThrown
+        return 0
+    }
+    return result
+}
+
 /// KSP-1573: backing for the bundled `CoroutineScope.produce`/`actor`
 /// builders — `__kk_produce_launch(channel, blockFnPtr, blockEnvRaw)`.
 ///
@@ -3791,10 +4162,11 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
 ///    synthetic `kk_kxmini_produce_with_cont` launcher used.
 ///  - A suspend function *value* (a block stored in a variable or received
 ///    from another call) crosses as the (fnPtr, env) pair suspend function
-///    values use at the ABI boundary. A suspend value's invoke thunk is
-///    `(receiver, cap0..capN, outThrown)`, so the channel handle passes as
-///    arg0 and env supplies the captures. The thunk binds arg0 to
-///    launcherArgs[0] itself (nested runBlocking on the worker).
+///    values use at the ABI boundary. A value's invoke thunk keeps the
+///    ordinary captured-lambda layout `(cap0..capN, receiver, outThrown)` —
+///    only literals marked via coroutineLauncherLambdaExprIDs lower
+///    receiver-first — so env expands to the leading slots and the channel
+///    handle passes as the trailing receiver (the scope `this`).
 ///
 /// Both shapes register the child job on the ambient scope
 /// (`RuntimeCoroutineScope.current` — the same scope the synthetic
@@ -3806,6 +4178,7 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
         return channelHandle
     }
     let job = RuntimeJobHandle()
+    job.producerChannel = channelHandle
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3836,7 +4209,7 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
             return
         }
         RuntimeCoroutineScope.current = callerScope
-        RuntimeJobHandle.current = nil
+        RuntimeJobHandle.current = job
         var thrown = 0
         let result = runtimeInvokeSuspendLauncherThunk(
             entryPointRaw: entryPointRaw,
@@ -3854,8 +4227,10 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     return channelHandle
 }
 
-/// Invokes a suspend launcher thunk `(receiver, cap0..capN, outThrown)`
-/// whose captures arrive at the ABI boundary packed in env.
+/// Invokes a suspend launcher thunk `(cap0..capN, receiver, outThrown)` —
+/// the ordinary captured-lambda layout, captures first and the receiver
+/// (the block's `this`) trailing — whose captures arrive at the ABI
+/// boundary packed in env.
 private func runtimeInvokeSuspendLauncherThunk(
     entryPointRaw: Int,
     receiver: Int,
@@ -3868,16 +4243,16 @@ private func runtimeInvokeSuspendLauncherThunk(
         return invoke(receiver, outThrown)
     case 1:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint2.self)
-        return invoke(receiver, captures[0], outThrown)
+        return invoke(captures[0], receiver, outThrown)
     case 2:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint3.self)
-        return invoke(receiver, captures[0], captures[1], outThrown)
+        return invoke(captures[0], captures[1], receiver, outThrown)
     case 3:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint4.self)
-        return invoke(receiver, captures[0], captures[1], captures[2], outThrown)
+        return invoke(captures[0], captures[1], captures[2], receiver, outThrown)
     case 4:
         let invoke = unsafeBitCast(entryPointRaw, to: KKFunctionEntryPoint5.self)
-        return invoke(receiver, captures[0], captures[1], captures[2], captures[3], outThrown)
+        return invoke(captures[0], captures[1], captures[2], captures[3], receiver, outThrown)
     default:
         runtimeStructuredPanic("__kk_produce_launch: suspend block captures exceed launcher thunk arity")
         return 0
@@ -3895,6 +4270,7 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
         return channelHandle
     }
     let job = RuntimeJobHandle()
+    job.producerChannel = channelHandle
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3909,6 +4285,7 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
     contState.scope = callerScope
+    contState.eventLoop = RuntimeEventLoop.current
 
     KxMiniRuntime.launch {
         if job.cancellationSnapshot() {
@@ -4283,7 +4660,14 @@ public func kk_job_cancel(_ jobHandle: Int) -> Int {
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
     case .job(let job):
-        _ = job.cancel()
+        // KSP-1568: `NonCancellable.cancel()` is a no-op upstream. Now that
+        // `NonCancellable` conforms to `Job`, a Job-typed reference can reach
+        // this entry point with the shared never-cancelled singleton —
+        // cancelling it here would permanently corrupt every later
+        // `withContext(NonCancellable)` / `isActive` check.
+        if job !== runtimeNonCancellableJob {
+            _ = job.cancel()
+        }
     case .task(let task):
         task.cancel()
     case .other:
@@ -4301,7 +4685,9 @@ public func kk_job_cancel_with_cause(_ jobHandle: Int, _ cause: Int) -> Int {
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
     case .job(let job):
-        _ = job.cancel(cause: cause)
+        if job !== runtimeNonCancellableJob {
+            _ = job.cancel(cause: cause)
+        }
     case .task(let task):
         task.cancel()
     case .other:
@@ -4672,6 +5058,15 @@ public func kk_non_cancellable_instance() -> Int {
     return Int(bitPattern: ptr)
 }
 
+// KSP-1568: `awaitCancellation()` parks on the never-completing
+// `runtimeNonCancellableJob`: `kk_job_join` registers a resumer that can
+// never fire, so the suspend point only unwinds when the awaiting coroutine
+// itself is cancelled.
+@_cdecl("kk_await_cancellation")
+public func kk_await_cancellation(_ continuation: Int) -> Int {
+    return kk_job_join(kk_non_cancellable_instance(), continuation)
+}
+
 // MARK: - Suspend Entry Loop
 
 func runSuspendEntryLoop(
@@ -4716,9 +5111,15 @@ func runtimeRunBlockingOnEventLoop(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     let previousLoop = RuntimeEventLoop.current
+    let previousTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let previousJob = RuntimeJobHandle.current
     let loop = previousLoop ?? RuntimeEventLoop()
     RuntimeEventLoop.current = loop
-    defer { RuntimeEventLoop.current = previousLoop }
+    defer {
+        RuntimeEventLoop.current = previousLoop
+        RuntimeCoroutineScopeTaskKey.installKey(previousTaskKey)
+        RuntimeJobHandle.current = previousJob
+    }
 
     let state = runtimeContinuationState(from: continuation)
     state?.eventLoop = loop

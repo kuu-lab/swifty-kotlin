@@ -82,6 +82,13 @@ final class KIRLoweringContext {
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
+    /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI
+    /// (source literal was marked via `markCoroutineLauncherLambdaExpr` and
+    /// carries an explicit receiver). Launcher-continuation rewrites must
+    /// gate on this set: a lambda that resolves through a variable/alias was
+    /// never marked, so its thunk keeps the captures-first layout and seeding
+    /// the receiver at launcherArgs[0] would corrupt a capture slot.
+    var receiverFirstLauncherLambdaSymbols: Set<SymbolID> = []
     /// Lambda literals whose contextual parameter type declares a type
     /// parameter as its return type. `nil` until the first lookup builds it
     /// (see `lambdaReturnsErasedGeneric(for:ast:sema:)`).

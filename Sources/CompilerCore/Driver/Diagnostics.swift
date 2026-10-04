@@ -80,6 +80,12 @@ public final class DiagnosticEngine: @unchecked Sendable {
         }
     }
 
+    public func isSuppressed(code: String, range: SourceRange) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return suppressions[code]?.contains { $0.contains(range) } == true
+    }
+
     /// Marks the current diagnostic count for `rollback(to:)`.
     public func checkpoint() -> Int {
         lock.lock()

@@ -48,6 +48,86 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    @Test(arguments: [false, true])
+    func testOutputStreamBulkWritesPreserveBytes(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        import kotlinx.io.*
+        import java.io.IOException
+
+        fun main() {
+            val buffer = Buffer()
+            val out = buffer.asOutputStream()
+            out.write(listOf(104, 105, 106, 0, 127, 128, 255, -1, 256))
+            out.write(byteArrayOf(104, 105, 106, -128, -1))
+            out.write(listOf<Int>())
+            out.write(byteArrayOf())
+            out.write(65)
+            out.flush()
+            println(buffer.size)
+            while (buffer.size > 0) {
+                println(buffer.readByte().toInt())
+            }
+
+            val raw: RawSink = Buffer()
+            val closed = raw.buffered().asOutputStream()
+            closed.close()
+            try {
+                closed.write(listOf(104, 105, 106))
+                println("no-throw")
+            } catch (e: IOException) {
+                println(e.message)
+            }
+            try {
+                closed.write(byteArrayOf(104, 105, 106))
+                println("no-throw")
+            } catch (e: IOException) {
+                println(e.message)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "OutputStreamBulkWrites",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            15
+            104
+            105
+            106
+            0
+            127
+            -128
+            -1
+            -1
+            0
+            104
+            105
+            106
+            -128
+            -1
+            65
+            Underlying sink is closed.
+            Underlying sink is closed.
+
+            """)
+        }
+    }
+
     private static let abstractCollectionSource = """
     import kotlin.collections.AbstractCollection
     import kotlin.collections.Iterator
@@ -68,6 +148,77 @@ struct StdlibArtifactRegressionTests {
         println(EvenNumbers().size)
     }
     """
+
+    @Test
+    func testContinuationInterceptorThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ContinuationInterceptorArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            let expected = String(repeating: "true\n", count: 15) + "resumed\ndefault released\n1\n"
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected)
+        }
+    }
+
+    @Test
+    func testNativeDispatcherInterceptorThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.Dispatchers
+
+        class Done : Continuation<Unit> {
+            override val context: CoroutineContext = EmptyCoroutineContext
+            override fun resumeWith(result: Result<Unit>) {}
+        }
+        fun main() {
+            val original = Done()
+            val direct = Dispatchers.Default.interceptContinuation(original)
+            val interceptor: ContinuationInterceptor = Dispatchers.Default
+            val indirect = interceptor.interceptContinuation(original)
+            println(direct === indirect)
+            interceptor.releaseInterceptedContinuation(indirect)
+            println("released")
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "NativeInterceptorArtifact",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: false, stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "true\nreleased\n")
+        }
+    }
 
     @Test
     func testFlowTerminalLogicThroughSharedStdlibArtifact() throws {
