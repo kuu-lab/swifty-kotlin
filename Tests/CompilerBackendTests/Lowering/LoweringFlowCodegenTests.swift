@@ -359,18 +359,17 @@ struct LoweringFlowCodegenTests {
 
             #expect(allCallees.contains("kk_flow_create"))
             #expect(allCallees.contains("kk_flow_emit"))
-            #expect(allCallees.contains("kk_flow_collect"))
+            #expect(allCallees.contains("collect"))
             #expect(allCallees.contains("single"))
             #expect(allCallees.contains("transform"))
             #expect(!allCallees.contains("flow"))
-            #expect(!allCallees.contains("collect"))
             #expect(!allCallees.contains("__kk_flow_single"))
 
             // Operators stay source-backed; only cold-flow primitives use runtime links.
             for function in findAllKIRFunctions(in: module) where !function.isInlineOnly {
                 for instruction in function.body {
                     guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                          ["transform", "emit"].contains(ctx.interner.resolve(callee))
+                          ["transform", "emit", "collect"].contains(ctx.interner.resolve(callee))
                     else { continue }
                     let chosenSymbol = try #require(symbol, "Unresolved Flow call remains after lowering")
                     #expect(sema.symbols.isSourceBackedSymbol(chosenSymbol))
@@ -391,11 +390,13 @@ struct LoweringFlowCodegenTests {
     @Test
     func testCoroutineLoweringFlowCollectInjectsSuspendCollectorFunctionID() throws {
         let source = """
+        import kotlinx.coroutines.flow.*
+
         fun main() {
             runBlocking {
                 flow {
                     emit(1)
-                }.collect {
+                }.collectCold {
                     delay(1)
                     println(it)
                 }
@@ -525,9 +526,11 @@ struct LoweringFlowCodegenTests {
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
-            let collectCalls = findAllKIRFunctions(in: module).compactMap { function -> Int? in
+            let collectCalls = findAllKIRFunctions(in: module).filter {
+                ctx.interner.resolve($0.name).contains("runFlowCollectTwice")
+            }.compactMap { function -> Int? in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
-                let collectCount = callees.filter { $0 == "kk_flow_collect" }.count
+                let collectCount = callees.filter { $0 == "collect" }.count
                 return collectCount == 0 ? nil : collectCount
             }.reduce(0, +)
 
