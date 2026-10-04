@@ -77,7 +77,12 @@ struct RuntimeABIExternalLinkValidationTests {
                 failures.append("\(linkName) in \(paths) is missing from RuntimeABISpec")
                 continue
             }
-            let expectedArities = Set(declarations.flatMap { runtimeABIArityCandidates(for: $0, specs: specs) })
+            let expectedArities: Set<Int>
+            if let pinned = rewrittenSuspendBridgeParameterCounts[linkName] {
+                expectedArities = [pinned]
+            } else {
+                expectedArities = Set(declarations.flatMap { runtimeABIArityCandidates(for: $0, specs: specs) })
+            }
             if !specs.contains(where: { expectedArities.contains($0.parameters.count) }) {
                 let arities = specs.map { "\($0.parameters.count)" }.sorted().joined(separator: ", ")
                 let expected = expectedArities.map(String.init).sorted().joined(separator: ", ")
@@ -111,8 +116,13 @@ struct RuntimeABIExternalLinkValidationTests {
             guard !functionDeclarations.isEmpty else {
                 continue
             }
-            let expectedParameterTypeVariants = functionDeclarations.flatMap {
-                expectedRuntimeABIParameterTypeVariants(for: $0).map(canonicalHandleTypes)
+            let expectedParameterTypeVariants: [[String]]
+            if let pinned = rewrittenSuspendBridgeParameterTypes[linkName] {
+                expectedParameterTypeVariants = [canonicalHandleTypes(pinned)]
+            } else {
+                expectedParameterTypeVariants = functionDeclarations.flatMap {
+                    expectedRuntimeABIParameterTypeVariants(for: $0).map(canonicalHandleTypes)
+                }
             }
             let expectedReturnTypes = Set(functionDeclarations.compactMap {
                 expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
@@ -641,6 +651,29 @@ struct RuntimeABIExternalLinkValidationTests {
         let declarator = header[funRange.upperBound..<openParen]
         return declarator.contains(".")
     }
+
+    /// Link names whose calls CoroutineLoweringPass rewrites to an emitted ABI
+    /// that does not linearize from the declared source parameters: the suspend
+    /// block lowers to a single entry-point slot and `kk_with_timeout`'s thrown
+    /// channel arrives through the call's own thrownResult. The spec records the
+    /// emitted shape; the pinned parameter types below cover only the emitted
+    /// value arguments, the part the signature check compares a throwing spec on.
+    private let rewrittenSuspendBridgeParameterCounts: [String: Int] = [
+        "kk_with_timeout": 4,
+        "kk_with_timeout_or_null": 3,
+    ]
+    private let rewrittenSuspendBridgeParameterTypes: [String: [String]] = [
+        "kk_with_timeout": [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+        "kk_with_timeout_or_null": [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+    ]
 
     private func runtimeABIArityCandidates(
         for declaration: BundledKsSymbolNameDeclaration,

@@ -43,7 +43,7 @@ expr e@9:18#1 memberCall recv=e@9:18 callee=mapLatest args=[_:e@9:35] type=kotli
 expr e@9:5 localDecl mapped mutable=0 type=_ init=e@9:18#1 type=Unit ref=__local_3.mapped[kind=local]
 expr e@10:23 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=operators.$0.source[kind=vparam]
 expr e@10:72 name(value) type=Int ref=s-4
-expr e@10:67 call callee=e@10:67#1 args=[_:e@10:72] type=Unit
+expr e@10:67 call callee=e@10:67#1 args=[_:e@10:72] type=Unit call=kotlinx.coroutines.flow.FlowCollector.emit[kind=fun;recv=kotlinx.coroutines.flow.FlowCollector<T0>;params=T0;susp;gen=1] targs=[Int]
 expr e@10:56 lambda params=[value] body=e@10:67 label=transformLatest type=suspend kotlinx.coroutines.flow.FlowCollector<Int>.(Int) -> Unit
 expr e@10:23#1 memberCall recv=e@10:23 callee=transformLatest args=[_:e@10:56] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.transformLatest[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T1>;p=T0;ret=Unit};gen=2] targs=[Int,Int]
 expr e@10:5 localDecl transformed mutable=0 type=_ init=e@10:23#1 type=Unit ref=__local_4.transformed[kind=local]
