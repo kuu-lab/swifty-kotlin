@@ -167,23 +167,36 @@ public open class Base64 internal constructor(
     }
 
     private fun decodeRaw(source: String): ByteArray {
-        val hasPadding = source.indexOf('=') >= 0
-        when (padding) {
-            PaddingOption.PRESENT ->
-                if (!hasPadding && source.length % 4 != 0) {
-                    throw IllegalArgumentException("Missing base64 padding")
-                }
-            PaddingOption.ABSENT ->
-                if (hasPadding) {
-                    throw IllegalArgumentException("Unexpected base64 padding in ABSENT mode")
-                }
-            PaddingOption.PRESENT_OPTIONAL, PaddingOption.ABSENT_OPTIONAL -> {
-                // Accept either form.
-            }
-        }
-
         var end = source.length
         while (end > 0 && source[end - 1] == '=') end -= 1
+        val paddingCount = source.length - end
+
+        if (padding == PaddingOption.ABSENT) {
+            if (paddingCount > 0) {
+                throw IllegalArgumentException("Unexpected base64 padding in ABSENT mode")
+            }
+        } else {
+            // PRESENT requires padding on decode: absent padding is only accepted
+            // when the input length already fills whole quanta.
+            if (padding == PaddingOption.PRESENT && paddingCount == 0 && source.length % 4 != 0) {
+                throw IllegalArgumentException("Missing base64 padding")
+            }
+            // Padding that is present must be the correct amount completing the
+            // final quantum: one '=' after a 3-symbol tail, two after a 2-symbol tail.
+            val validPadding = when (paddingCount) {
+                0 -> true
+                1 -> end % 4 == 3
+                2 -> end % 4 == 2
+                else -> false
+            }
+            if (!validPadding) {
+                throw IllegalArgumentException("Illegal base64 padding")
+            }
+        }
+        // A lone leftover symbol carries fewer than 8 bits and cannot form a byte.
+        if (end % 4 == 1) {
+            throw IllegalArgumentException("The last quantum of source does not have enough bits")
+        }
 
         val bytes = ArrayList<Byte>()
         var buffer = 0

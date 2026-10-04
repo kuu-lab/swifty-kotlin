@@ -331,7 +331,7 @@ struct ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let linkedSetCall = try #require(firstExprID(in: ast) { _, expr in
+            let linkedSetCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
@@ -1475,7 +1475,9 @@ struct ListSyntheticMemberLinkTests {
                     .count
                 #expect(iterableCallCount > 0, "Expected Iterable.\(memberName) to bind to its source declaration")
 
-                let listSymbol = try #require(listBackedFunctionSymbol(
+                let listSymbol = try #require(memberName == "indexOf" ? sema.symbols.lookup(
+                    fqName: ["kotlin", "collections", "List", "indexOf"].map(ctx.interner.intern)
+                ) : listBackedFunctionSymbol(
                     memberName: memberName,
                     sema: sema,
                     interner: ctx.interner,

@@ -279,10 +279,26 @@ func runtimeSignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
     return true
 }
 
-/// Signed membership test for `element in range`: 1 when the element is a
+/// Membership test for `element in range`: 1 when the element is a
 /// member of the stepped range, 0 otherwise. Shared by `kk_op_contains` and
 /// `kk_collection_containsAll`.
 func runtimeRangeContains(_ range: RuntimeRangeBox, _ element: Int) -> Int {
+    switch range.kind {
+    case .uintRange, .uintProgression, .ulongRange, .ulongProgression:
+        let value = UInt(bitPattern: element)
+        let first = UInt(bitPattern: range.first)
+        let last = UInt(bitPattern: range.last)
+        if range.step > 0 {
+            guard value >= first, value <= last else { return 0 }
+            return (value - first) % UInt(range.step) == 0 ? 1 : 0
+        } else if range.step < 0 {
+            guard value <= first, value >= last else { return 0 }
+            return (first - value) % UInt(bitPattern: 0 &- range.step) == 0 ? 1 : 0
+        }
+        return 0
+    default:
+        break
+    }
     if range.step > 0 {
         guard element >= range.first, element <= range.last else { return 0 }
         // The signed distance can exceed Int64 range on full-span ranges
@@ -1170,7 +1186,13 @@ public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_contains")
     }
-    return runtimeRangeContains(range, value)
+    let element: Int = switch range.kind {
+    case .longRange, .longProgression: kk_unbox_long_static(value)
+    case .ulongRange, .ulongProgression: kk_unbox_ulong_static(value)
+    case .charRange, .charProgression: kk_unbox_char_static(value)
+    default: kk_unbox_int_static(value)
+    }
+    return runtimeRangeContains(range, element)
 }
 
 @_cdecl("__kk_range_endExclusive")

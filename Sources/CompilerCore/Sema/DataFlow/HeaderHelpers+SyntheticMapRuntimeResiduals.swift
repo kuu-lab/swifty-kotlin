@@ -177,6 +177,54 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // `MutableMap` must override `keys`/`values` with the mutable
+        // covariant types (`MutableSet<K>` / `MutableCollection<V>`),
+        // matching real Kotlin's `MutableMap<K, V>` declaration. Without
+        // this, a value statically typed as the bare `MutableMap<K, V>`
+        // interface (e.g. `mutableMapOf(...)`'s return type) inherits
+        // `Map.keys: Set<K>` / `Map.values: Collection<V>`, so
+        // `.remove()`/`.clear()`/etc. are unresolved even though the
+        // `entries` override above already lets `MutableSet` operations
+        // through.
+        if let mutableSetSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPkg + [interner.intern("MutableSet")]
+        ) {
+            let keysType = types.make(.classType(ClassType(
+                classSymbol: mutableSetSymbol,
+                args: [.invariant(mutableKeyType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticMapProperty(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                owner: mutableMapSymbol,
+                ownerFQName: mutableMapFQName,
+                name: "keys",
+                propertyType: keysType,
+                externalLinkName: "__kk_map_keys"
+            )
+        }
+        if let mutableCollectionSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPkg + [interner.intern("MutableCollection")]
+        ) {
+            let valuesType = types.make(.classType(ClassType(
+                classSymbol: mutableCollectionSymbol,
+                args: [.invariant(mutableValueType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticMapProperty(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                owner: mutableMapSymbol,
+                ownerFQName: mutableMapFQName,
+                name: "values",
+                propertyType: valuesType,
+                externalLinkName: "__kk_map_values"
+            )
+        }
+
         registerSyntheticMapFunction(
             symbols: symbols,
             interner: interner,

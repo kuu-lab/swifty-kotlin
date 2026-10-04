@@ -42,9 +42,7 @@ internal fun checkByteCount(byteCount: Long) {
 }
 
 internal fun Short.reverseBytes(): Short {
-    // Bare `toX()` calls do not resolve on the implicit primitive receiver
-    // inside extension bodies in this compiler, so use explicit `this`.
-    val i = this.toInt() and 0xffff
+    val i = toInt() and 0xffff
     return ((i and 0xff00 ushr 8) or (i and 0x00ff shl 8)).toShort()
 }
 
@@ -82,8 +80,8 @@ internal fun maxOf(a: Long, b: Long): Long = if (a >= b) a else b
 
 internal fun Byte.toHexString(): String {
     val result = StringBuilder()
-    result.append(HEX_DIGIT_CHARS[this.toInt() shr 4 and 0xf])
-    result.append(HEX_DIGIT_CHARS[this.toInt() and 0xf])
+    result.append(HEX_DIGIT_CHARS[toInt() shr 4 and 0xf])
+    result.append(HEX_DIGIT_CHARS[toInt() and 0xf])
     return result.toString()
 }
 

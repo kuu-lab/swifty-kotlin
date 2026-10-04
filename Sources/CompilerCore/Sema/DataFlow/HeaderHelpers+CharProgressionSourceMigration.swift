@@ -1,6 +1,6 @@
 extension DataFlowSemaPhase {
     private static let bundledCharProgressionSourcePath =
-        "__bundled_kotlin/ranges/CharProgression/Stdlib.kt"
+        "__bundled_kotlin/ranges/CharProgression/CharProgression.kt"
 
     /// Reuse the existing runtime-backed Companion for the source declaration.
     func reusableSyntheticCharProgressionSourceCompanionSymbol(

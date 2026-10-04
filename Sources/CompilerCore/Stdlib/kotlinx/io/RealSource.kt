@@ -115,7 +115,7 @@ internal class RealSource(
             if (bufferField.size == 0L && source.readAtMostTo(bufferField, Segment.SIZE.toLong()) == -1L) {
                 throw EOFException(
                     "Source exhausted before skipping $byteCount bytes " +
-                            "(only ${remainingByteCount - byteCount} bytes were skipped)."
+                            "(only ${byteCount - remainingByteCount} bytes were skipped)."
                 )
             }
             val toSkip = minOf(remainingByteCount, bufferField.size)

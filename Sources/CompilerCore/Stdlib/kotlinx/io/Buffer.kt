@@ -260,6 +260,33 @@ public class Buffer : Source, Sink {
      *
      * @sample kotlinx.io.samples.KotlinxIoCoreCommonSamples.bufferClear
      */
+    public fun indexOf(byte: Byte, startIndex: Long = 0L, endIndex: Long = size): Long {
+        val endOffset = if (endIndex > size) size else endIndex
+        checkBounds(size, startIndex, endOffset)
+        if (startIndex == endOffset) return -1L
+        var segment = head!!
+        var segmentOffset = 0L
+        while (startIndex >= segmentOffset + (segment.limit - segment.pos).toLong()) {
+            segmentOffset += (segment.limit - segment.pos).toLong()
+            segment = segment.next!!
+        }
+        var index = startIndex
+        while (index < endOffset) {
+            val limit = minOf(endOffset - segmentOffset, segment.limit - segment.pos).toInt()
+            var offset = (index - segmentOffset).toInt()
+            while (offset < limit) {
+                if (segment.getUnchecked(offset) == byte) return segmentOffset + offset.toLong()
+                offset += 1
+            }
+            segmentOffset += (segment.limit - segment.pos).toLong()
+            index = segmentOffset
+            if (index < endOffset) {
+                segment = segment.next!!
+            }
+        }
+        return -1L
+    }
+
     public fun clear(): Unit = skip(size)
 
     /**

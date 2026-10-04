@@ -24,6 +24,11 @@ extension CoroutineLoweringPass {
         /// receiver-less intrinsics (SuspendFunction0.kt) are inlined.
         let createCoroutineUninterceptedNoReceiverCallee: InternedString
         let startCoroutineUninterceptedOrReturnNoReceiverCallee: InternedString
+        /// Marker callees left behind when the source-backed receiver-bearing
+        /// intrinsics (SuspendFunction1.kt) are inlined; rewritten like the
+        /// receiver-less synthetic forms.
+        let createCoroutineUninterceptedWithReceiverCallee: InternedString
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee: InternedString
         let runtimeCreateCoroutineUninterceptedCallee: InternedString
         let runtimeStartCoroutineUninterceptedOrReturnCallee: InternedString
         let runtimeContinuationResumeCallee: InternedString
@@ -68,6 +73,9 @@ extension CoroutineLoweringPass {
             if function.isSuspend,
                let wrapperBody = buildSuspendWrapperBody(for: function, using: rewrite)
             {
+                if function.isInline {
+                    rewrite.module.inlineBodiesBeforeCoroutineLowering[function.symbol] = function.body
+                }
                 updated.replaceBody(
                     wrapperBody,
                     locations: Array(repeating: nil, count: wrapperBody.count)
@@ -312,6 +320,15 @@ extension CoroutineLoweringPass {
                 using: rewrite
             ) {
                 loweredBody.append(yieldInstruction)
+                continue
+            }
+
+            if let isLazyInstructions = rewriteCoroutineStartIsLazyCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            ) {
+                loweredBody.append(contentsOf: isLazyInstructions)
                 continue
             }
 
@@ -1172,6 +1189,31 @@ extension CoroutineLoweringPass {
         )
     }
 
+    /// `CoroutineStart.isLazy` is registered as a synthetic member property
+    /// with the `kk_coroutine_start_is_lazy` external link name. The enum
+    /// entries are symbolic markers with no distinct runtime value, so the
+    /// read folds here to a Boolean constant from the entry the receiver
+    /// refers to (the same compile-time resolution the launch/async
+    /// start-mode rewrite uses). A receiver that is not a compile-time-known
+    /// `CoroutineStart` entry folds to `false`, mirroring the launcher's
+    /// fallback-to-DEFAULT convention. `kk_coroutine_start_is_lazy` itself is
+    /// never emitted, so it needs no runtime entry point.
+    func rewriteCoroutineStartIsLazyCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction]? {
+        guard call.callee == rewrite.ctx.interner.intern("kk_coroutine_start_is_lazy"),
+              let result = call.result
+        else {
+            return nil
+        }
+        let entryName = call.arguments.first.flatMap {
+            coroutineStartEntryName($0, symbolByExprRaw: symbolByExprRaw, using: rewrite)
+        }
+        return [.constValue(result: result, value: .intLiteral(entryName == "LAZY" ? 1 : 0))]
+    }
+
     func rewriteCoroutineBuilderBuildCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
@@ -1497,7 +1539,8 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee
-                || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee,
+                || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
+                || call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil
@@ -1573,7 +1616,8 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.startCoroutineUninterceptedOrReturnCallee
-                || call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee,
+                || call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
+                || call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {
             return nil

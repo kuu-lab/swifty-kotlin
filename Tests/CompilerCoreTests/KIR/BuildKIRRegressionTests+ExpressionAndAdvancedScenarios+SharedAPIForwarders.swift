@@ -156,9 +156,12 @@ extension BuildKIRRegressionTests {
             type: intType,
             fixture: fixture
         )
+        let catchParamType = fixture.astArena.appendTypeRef(
+            .named(path: [fixture.interner.intern("Any")], args: [], nullable: false)
+        )
         let catchClause = CatchClause(
             paramName: fixture.interner.intern("e"),
-            paramTypeName: fixture.interner.intern("Any"),
+            paramType: catchParamType,
             body: catchBody,
             range: range
         )

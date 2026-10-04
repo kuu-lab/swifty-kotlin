@@ -1,0 +1,19 @@
+symbol fq=explicitCharProgressionCompanion[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.ranges.CharProgression.Companion
+symbol fq=implicitCharProgressionCompanion[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.ranges.CharProgression.Companion
+symbol fq=importedCharProgressionCompanion[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.ranges.CharProgression.Companion
+symbol fq=progressionFromCompanion.$0.factory[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=progressionFromCompanion[kind=fun;params=kotlin.ranges.CharProgression.Companion] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.CharProgression.Companion] ret=kotlin.ranges.CharProgression
+file fstdlib_kotlin_ranges_CharProgression_n_n package=_
+  decl implicitCharProgressionCompanion[kind=fun;params=] fun implicitCharProgressionCompanion sym=implicitCharProgressionCompanion[kind=fun;params=]
+  decl explicitCharProgressionCompanion[kind=fun;params=] fun explicitCharProgressionCompanion sym=explicitCharProgressionCompanion[kind=fun;params=]
+  decl importedCharProgressionCompanion[kind=fun;params=] fun importedCharProgressionCompanion sym=importedCharProgressionCompanion[kind=fun;params=]
+  decl progressionFromCompanion[kind=fun;params=kotlin.ranges.CharProgression.Companion] fun progressionFromCompanion sym=progressionFromCompanion[kind=fun;params=kotlin.ranges.CharProgression.Companion]
+expr e@3:69 name(CharProgression) type=kotlin.ranges.CharProgression.Companion ref=kotlin.ranges.CharProgression[kind=class]
+expr e@5:69 name(CharProgression) type=kotlin.ranges.CharProgression ref=kotlin.ranges.CharProgression[kind=class]
+expr e@5:69#1 memberCall recv=e@5:69 callee=Companion args=[] type=kotlin.ranges.CharProgression.Companion ref=kotlin.ranges.CharProgression.Companion[kind=obj]
+expr e@7:69 name(CharProgressionFactory) type=kotlin.ranges.CharProgression.Companion ref=kotlin.ranges.CharProgression.Companion[kind=obj]
+expr e@10:5 name(factory) type=kotlin.ranges.CharProgression.Companion ref=progressionFromCompanion.$0.factory[kind=vparam]
+expr e@10:29 char(97) type=Char
+expr e@10:34 char(103) type=Char
+expr e@10:39 int(2) type=Int
+expr e@10:5#1 memberCall recv=e@10:5 callee=fromClosedRange args=[_:e@10:29,_:e@10:34,_:e@10:39] type=kotlin.ranges.CharProgression call=kotlin.ranges.fromClosedRange[kind=fun;recv=kotlin.ranges.CharProgression.Companion;params=Char,Char,Int]
