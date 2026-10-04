@@ -1448,7 +1448,9 @@ extension DataFlowSemaPhase {
         do {
             let functionName = interner.intern("get")
             let functionFQName = coroutineContextFQName + [functionName]
-            if symbols.lookup(fqName: functionFQName) == nil {
+            if symbols.lookup(fqName: functionFQName) == nil,
+               !bundledIndex.contains(ownerFQName: coroutineContextFQName, name: functionName, arity: 1)
+            {
                 let functionSymbol = symbols.define(
                     kind: .function,
                     name: functionName,
@@ -1619,7 +1621,9 @@ extension DataFlowSemaPhase {
         do {
             let functionName = interner.intern("fold")
             let functionFQName = coroutineContextFQName + [functionName]
-            if symbols.lookup(fqName: functionFQName) == nil {
+            if symbols.lookup(fqName: functionFQName) == nil,
+               !bundledIndex.contains(ownerFQName: coroutineContextFQName, name: functionName, arity: 2)
+            {
                 let functionSymbol = symbols.define(
                     kind: .function,
                     name: functionName,
@@ -1687,7 +1691,9 @@ extension DataFlowSemaPhase {
         do {
             let functionName = interner.intern("minusKey")
             let functionFQName = coroutineContextFQName + [functionName]
-            if symbols.lookup(fqName: functionFQName) == nil {
+            if symbols.lookup(fqName: functionFQName) == nil,
+               !bundledIndex.contains(ownerFQName: coroutineContextFQName, name: functionName, arity: 1)
+            {
                 let functionSymbol = symbols.define(
                     kind: .function,
                     name: functionName,
@@ -1979,17 +1985,23 @@ extension DataFlowSemaPhase {
         )
 
         // CoroutineContext.plus(other: CoroutineContext): CoroutineContext
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineContextSymbol,
-            ownerType: coroutineContextType,
-            name: "plus",
-            externalLinkName: "kk_context_plus",
-            returnType: kotlinCoroutineContextType,
-            parameters: [(name: "context", type: kotlinCoroutineContextType)],
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: coroutineContextFQName,
+            name: interner.intern("plus"),
+            arity: 1
+        ) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: coroutineContextSymbol,
+                ownerType: coroutineContextType,
+                name: "plus",
+                externalLinkName: "kk_context_plus",
+                returnType: kotlinCoroutineContextType,
+                parameters: [(name: "context", type: kotlinCoroutineContextType)],
+                flags: [.synthetic, .operatorFunction],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineMember(
             ownerSymbol: dispatcherSymbol,
             ownerType: dispatcherType,

@@ -597,6 +597,24 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1]] + operationArgs
         }
+        // CoroutineContext.fold(initial, operation): the kk_context_fold cdecl
+        // takes (contextRaw, initial, fnPtr, closureRaw, outThrown), so the
+        // operation lambda must expand to a (fnPtr, closureRaw) pair like the
+        // collection-HOF callable arguments.
+        if loweredCalleeText == "kk_context_fold",
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let operationArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[2],
+                argExprID: sourceArgExprs[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], finalArguments[1]] + operationArgs
+        }
         let isComparatorBinarySearch: Bool = {
             guard loweredCalleeText == "binarySearch",
                   let chosenCallee,
