@@ -286,6 +286,11 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
+        if call.callee == rewrite.ctx.interner.intern("kk_coroutine_scope_async") {
+            return rewriteCoroutineScopeAsyncCall(
+                call: call, symbolByExprRaw: symbolByExprRaw, using: rewrite
+            )
+        }
         // KSP-1573: `__kk_produce_launch(channel, block)` is the runtime
         // bridge emitted inside the bundled produce/actor bodies (their
         // kirbin expansion materializes the call inline at every call site).
@@ -734,7 +739,7 @@ extension CoroutineLoweringPass {
     /// The `CoroutineStart` entry name a start argument refers to, when it is a
     /// compile-time-known entry. The owner check keeps a same-named entry of
     /// some other enum from being read as a `CoroutineStart` one.
-    private func coroutineStartEntryName(
+    func coroutineStartEntryName(
         _ exprID: KIRExprID,
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
