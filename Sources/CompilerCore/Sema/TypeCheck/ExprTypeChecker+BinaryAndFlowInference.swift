@@ -180,6 +180,27 @@ extension ExprTypeChecker {
             sema: sema,
             interner: interner
         )
+        // KSP-1281: the bundled generic `T.rangeTo`/`T.rangeUntil` extension in
+        // ranges/Stdlib.kt must not capture `..`/`..<` on primitive receivers —
+        // those keep the existing scalar range-handle path (markRangeExpr +
+        // `__kk_*` construction), which the heap-allocated ComparableRange the
+        // generic body builds cannot represent. The generic extension only
+        // covers receivers without a concrete range representation (String,
+        // user Comparable types), matching upstream where the concrete
+        // `Int.rangeTo` members win over the extension.
+        if lhsIsPrimitive, op == .rangeTo || op == .rangeUntil {
+            operatorCandidates = operatorCandidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let receiverType = signature.receiverType
+                else {
+                    return true
+                }
+                if case .typeParam = sema.types.kind(of: receiverType) {
+                    return false
+                }
+                return true
+            }
+        }
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators (Int/Long/etc. never have
         // an applicable arithmetic *member*), but that also hides a
