@@ -571,6 +571,31 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
+    /// Resolve the property read in a compound assignment through the existing
+    /// getter overload rules. Reserve the expression's call binding for its
+    /// arithmetic operator; lowering reads and writes the selected property.
+    private func resolveExtensionPropertyForCompoundAssignment(
+        id: ExprID,
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        let sema = ctx.sema
+        guard let propertyType = driver.callChecker.resolveExtensionPropertyGetter(
+            id: id,
+            calleeName: calleeName,
+            range: range,
+            receiverType: receiverType,
+            expectedType: nil,
+            ctx: ctx,
+            bindCall: false
+        ), let property = sema.bindings.identifierSymbol(for: id) else {
+            return nil
+        }
+        return (property, propertyType)
+    }
+
     /// Compound assignment through an explicit receiver, e.g. `obj.field += value`
     /// or `this.box.n += value`. Mirrors `inferCompoundAssignExpr`'s operator-overload
     /// resolution (`plusAssign` then binary-operator fallback) but resolves the
@@ -596,6 +621,12 @@ extension ExprTypeChecker {
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
+        ) ?? resolveExtensionPropertyForCompoundAssignment(
+            id: id,
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            range: range,
+            ctx: ctx
         ) else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
