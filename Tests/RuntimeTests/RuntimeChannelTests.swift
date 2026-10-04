@@ -154,9 +154,11 @@ struct RuntimeChannelTests {
         let channel = kk_channel_create(1)
         let sent = __kk_channel_send_blocking(channel, 42)
         #expect(__kk_channel_result_status(sent) == kChannelResultSuccess)
-        #expect(__kk_channel_result_value_or_null(sent) == 0)
+        // Success carries upstream's `success(Unit)` holder, a real object.
+        #expect(__kk_channel_result_value_or_null(sent) != 0)
+        #expect(__kk_channel_result_value_or_null(sent) != runtimeNullSentinelInt)
         var thrown = 0
-        #expect(__kk_channel_result_get_or_throw(sent, &thrown) == 0)
+        #expect(__kk_channel_result_get_or_throw(sent, &thrown) != 0)
         #expect(thrown == 0)
         #expect(channelReceiveValue(channel) == 42)
         _ = kk_channel_close(channel)

@@ -511,16 +511,18 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         _ = buffer.drain()
         let pendingSenders = senderQueue.drain()
         let pendingReceivers = receiverQueue.drain()
+        let closeSignal = awaitCloseSignal
+        awaitCloseSignal = nil
         let pendingCloseHandlers = closeHandlers
         closeHandlers.removeAll()
         lock.unlock()
 
+        closeSignal?.signal()
+
         for sender in pendingSenders {
-            sender.cancelledWakeup = true
             resumeSender(sender)
         }
         for receiver in pendingReceivers {
-            receiver.cancelledWakeup = true
             resumeReceiver(receiver)
         }
         for handler in pendingCloseHandlers {
@@ -1074,11 +1076,16 @@ public func __kk_channel_try_send(_ handle: Int, _ value: Int) -> Int {
     return runtimeChannelResultBox(status: status, value: boxValue, cause: cause)
 }
 
+/// KSP-1574 `SendChannel.trySendBlocking(element)` bridge: blocking send that
+/// reports its outcome as a `ChannelResult` box, with the same send-side
+/// cause substitution as `trySend` (`closed(sendException)` upstream).
 @_cdecl("__kk_channel_send_blocking")
 public func __kk_channel_send_blocking(_ handle: Int, _ value: Int) -> Int {
     let (channel, resolvedValue) = runtimeResolveChannelCall(handle, value)
     let status = channel.send(resolvedValue, continuation: 0)
-    return runtimeChannelResultBox(status: status, value: 0)
+    let cause = channelResultSendCause(channel: channel, status: status)
+    let boxValue = status == .success ? kk_box_unit(0) : 0
+    return runtimeChannelResultBox(status: status, value: boxValue, cause: cause)
 }
 
 /// KSP-1572: `ReceiveChannel.receiveCatching()` bridge. Performs the same
