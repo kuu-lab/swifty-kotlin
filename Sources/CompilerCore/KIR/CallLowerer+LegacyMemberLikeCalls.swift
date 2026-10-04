@@ -943,6 +943,7 @@ extension CallLowerer {
                         arena: arena,
                         resultType: sema.types.anyType,
                         requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
+                        sema: sema,
                         into: &instructions
                     )
                 } else {
@@ -1056,10 +1057,19 @@ extension CallLowerer {
             instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
             let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
             instructions.append(.constValue(result: argTagID, value: .intLiteral(argTag)))
+            let boxedResult = arena.appendTemporary(type: sema.types.makeNullable(sema.types.booleanType))
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_any_equals"),
                 arguments: [loweredReceiverID, receiverTagID, loweredArgIDs[0], argTagID],
+                result: boxedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_unbox_bool_static"),
+                arguments: [boxedResult],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -2359,6 +2369,7 @@ extension CallLowerer {
                         interner: interner,
                         arena: arena,
                         resultType: sema.types.nullableAnyType,
+                        sema: sema,
                         into: &instructions
                     )
                 }

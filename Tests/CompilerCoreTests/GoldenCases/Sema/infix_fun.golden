@@ -4,7 +4,7 @@ symbol fq=golden.sema.useInfix[kind=fun;params=] kind=function vis=public flags=
 file finfix_fun package=golden.sema
   decl golden.sema.add[kind=fun;recv=Int;params=Int] fun add sym=golden.sema.add[kind=fun;recv=Int;params=Int]
   decl golden.sema.useInfix[kind=fun;params=] fun useInfix sym=golden.sema.useInfix[kind=fun;params=]
-expr e@3:38 this type=Int
+expr e@3:38 this type=Int ref=s-0
 expr e@3:45 name(other) type=Int ref=golden.sema.add.$0.other[kind=vparam]
 expr e@3:38#1 binary(add) lhs=e@3:38 rhs=e@3:45 type=Int
 expr e@5:23 int(1) type=Int

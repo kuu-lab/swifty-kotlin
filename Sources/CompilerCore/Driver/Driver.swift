@@ -896,6 +896,9 @@ public final class CompilerDriver {
             collectExprDependencies(exprID: body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
             for clause in catchClauses {
                 collectExprDependencies(exprID: clause.body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                if let paramType = clause.paramType {
+                    collectTypeRefDependencies(typeRefID: paramType, ast: ast, interner: interner, depended: &depended)
+                }
             }
             if let finallyExpr {
                 collectExprDependencies(exprID: finallyExpr, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)

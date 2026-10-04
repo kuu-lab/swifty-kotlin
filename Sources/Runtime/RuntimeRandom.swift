@@ -101,15 +101,16 @@ final class SecureRandomBox {
 }
 
 /// Extract a SeededRandomBox from a raw receiver value.
-/// Returns `nil` when the receiver is 0 (= Random.Default / companion object).
+/// Returns `nil` when the receiver is 0 (= Random.Default / companion object)
+/// or when the handle belongs to a normal compiled Kotlin object.
 private func seededBox(from raw: Int) -> SeededRandomBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
+    let isSeededRandomPointer = runtimeStorage.withGCLock { state in
+        state.seededRandomPointers.contains(UInt(bitPattern: ptr))
     }
-    guard isObjectPointer else {
+    guard isSeededRandomPointer else {
         return nil
     }
     return Unmanaged<SeededRandomBox>.fromOpaque(ptr).takeUnretainedValue()
@@ -192,7 +193,9 @@ private func runtimeCreateSeededRandom(seed: Int) -> Int {
     let box = SeededRandomBox(seed: seed)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
+        let key = UInt(bitPattern: ptr)
+        state.objectPointers.insert(key)
+        state.seededRandomPointers.insert(key)
     }
     return Int(bitPattern: ptr)
 }

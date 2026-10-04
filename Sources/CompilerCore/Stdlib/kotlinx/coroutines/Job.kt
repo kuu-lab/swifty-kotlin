@@ -64,3 +64,16 @@ public fun Job.invokeOnCompletion(
     if (id == 0) return NonDisposableHandle
     return DisposableHandle { __kkJobDisposeCompletionHandler(this, id) }
 }
+
+// `Job.cancelAndJoin` / `Job.cancelAndJoin(cause)` from kotlinx-coroutines
+// Job.kt: cancel first so `join()` waits for the job to actually finish
+// winding down instead of suspending on a still-running job.
+public suspend fun Job.cancelAndJoin() {
+    cancel()
+    join()
+}
+
+public suspend fun Job.cancelAndJoin(cause: CancellationException?) {
+    cancel(cause)
+    join()
+}

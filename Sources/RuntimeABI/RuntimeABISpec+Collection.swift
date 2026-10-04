@@ -98,6 +98,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_listIterator",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_list_iterator_next",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
@@ -326,6 +335,16 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_array_list_new_checked",
+            parameters: [
+                RuntimeABIParameter(name: "initialCapacity", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_array_list_init",

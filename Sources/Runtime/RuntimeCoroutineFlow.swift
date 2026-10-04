@@ -202,12 +202,16 @@ private final class RuntimeFlowHandle {
 ///
 /// A capturing `flow { }` builder is lowered to a launcher thunk plus a
 /// continuation whose launcher-arg slots hold the captured values; the runtime
-/// invokes the thunk with that continuation so the emitter receives its
+/// seeds a fresh continuation for each invocation so the emitter receives its
 /// captures. Non-capturing builders keep the direct `(outThrown)` ABI.
 private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inout Int) {
     if let template = flow.emitterTemplateState {
         let continuation = kk_coroutine_continuation_new(Int(template.functionID))
-        runtimeContinuationState(from: continuation)?.launcherArgs = template.launcherArgs
+        if let state = runtimeContinuationState(from: continuation) {
+            state.launcherArgs = template.launcherArgs
+            state.scope = RuntimeContinuationState.current?.scope ?? RuntimeCoroutineScope.current
+            state.jobHandle = RuntimeContinuationState.current?.jobHandle
+        }
         if let context = runtimeFlowCurrentCollectContext() {
             runtimeContinuationState(from: continuation)?.flowCollectContext = context
         }
@@ -228,13 +232,11 @@ private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inou
 private func runtimeRegisterFlowHandle(_ flow: RuntimeFlowHandle) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(flow).toOpaque())
     let key = UInt(bitPattern: ptr)
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(key)
-        state.borrowedObjectPointers.insert(key)
-    }
-    runtimeStorage.withFlowLock { state in
-        state.flowHandles[key] = flow
-        state.flowRetainCounts[key] = 1
+    runtimeStorage.withFlowAndGCLocks { flowState, gcState in
+        flowState.flowHandles[key] = flow
+        flowState.flowRetainCounts[key] = 1
+        gcState.objectPointers.insert(key)
+        gcState.borrowedObjectPointers.insert(key)
     }
     return Int(bitPattern: ptr)
 }
@@ -1604,24 +1606,18 @@ public func __kk_flow_release(_ flowHandle: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_flow_release received invalid flow handle")
     }
     let key = UInt(bitPattern: ptr)
-    let shouldRemoveFromGC = runtimeStorage.withFlowLock { state -> Bool in
-        guard let count = state.flowRetainCounts[key] else {
-            return false
+    runtimeStorage.withFlowAndGCLocks { flowState, gcState in
+        guard let count = flowState.flowRetainCounts[key] else {
+            return
         }
         let nextCount = count - 1
         if nextCount <= 0 {
-            state.flowRetainCounts.removeValue(forKey: key)
-            state.flowHandles.removeValue(forKey: key)
-            return true
+            gcState.objectPointers.remove(key)
+            gcState.borrowedObjectPointers.remove(key)
+            flowState.flowRetainCounts.removeValue(forKey: key)
+            flowState.flowHandles.removeValue(forKey: key)
         } else {
-            state.flowRetainCounts[key] = nextCount
-            return false
-        }
-    }
-    if shouldRemoveFromGC {
-        runtimeStorage.withGCLock { state in
-            state.objectPointers.remove(key)
-            state.borrowedObjectPointers.remove(key)
+            flowState.flowRetainCounts[key] = nextCount
         }
     }
     return 0
