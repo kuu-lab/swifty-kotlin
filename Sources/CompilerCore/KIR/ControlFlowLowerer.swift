@@ -2549,14 +2549,18 @@ final class ControlFlowLowerer {
                     sema: sema,
                     interner: interner
                 )
-                instructions.append(.call(
+                driver.callLowerer.emitDestructuringComponentCall(
+                    candidate: resolved.candidate,
                     symbol: resolved.symbol,
                     callee: resolved.callee,
-                    arguments: [nextValueID],
+                    receiverExpr: nil,
+                    receiverID: nextValueID,
                     result: componentResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
             }
 
             if let symbol = candidates.first {
@@ -2699,12 +2703,17 @@ final class ControlFlowLowerer {
                 sema: sema,
                 interner: interner
             )
-            emitNonThrowingCall(
-                callee: resolved.callee,
-                arg: nextValueID,
-                result: componentResult,
+            driver.callLowerer.emitDestructuringComponentCall(
+                candidate: resolved.candidate,
                 symbol: resolved.symbol,
-                into: &instructions
+                callee: resolved.callee,
+                receiverExpr: nil,
+                receiverID: nextValueID,
+                result: componentResult,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
             )
 
             if let symbol = candidates.first {

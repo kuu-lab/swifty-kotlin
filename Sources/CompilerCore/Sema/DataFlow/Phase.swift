@@ -467,9 +467,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
-        // Resolve kotlin.Number as early as possible. Number is a builtin type
-        // name (BuiltinTypeNames.number), so signatures that mention `Number`
-        // need types.numberClassSymbol set before they are resolved.
+        // Numeric subtype and least-upper-bound checks use the canonical kotlin.Number symbol.
         resolveNumberClassSymbol(
             symbols: symbols,
             types: types,
@@ -619,6 +617,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // vtable/itable layout (layout only keys off arity/suspend, not
         // default flags, so ordering relative to it doesn't matter).
         inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
+        inheritOperatorModifierForOverrides(symbols: symbols, types: types, sourceManager: ctx.sourceManager)
         synthesizeNominalLayouts(
             symbols: symbols, types: types,
             interner: ctx.interner, diagnostics: ctx.diagnostics

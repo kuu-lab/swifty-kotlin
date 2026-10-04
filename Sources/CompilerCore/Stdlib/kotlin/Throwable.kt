@@ -26,10 +26,10 @@ public open class Throwable {
     @KsSymbolName("__kk_throwable_new_with_cause")
     public constructor(message: String?, cause: Throwable?)
 
-    public val message: String?
+    public open val message: String?
         get() = __kkThrowableMessage(this)
 
-    public val cause: Throwable?
+    public open val cause: Throwable?
         get() = __kkThrowableCause(this)
 
     public fun getStackTrace(): Array<String> = __kkThrowableRawStackFrames(this)

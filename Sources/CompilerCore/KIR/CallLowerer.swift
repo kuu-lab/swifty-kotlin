@@ -768,7 +768,15 @@ final class CallLowerer {
             }
             return loweredCollectionFactory
         }
+        // Numeric conversions take no value parameters, so a resolved callee
+        // that consumes the single argument (e.g. an implicit-receiver
+        // `toInt(radix)` inside a `String` extension) is a real call, not a
+        // conversion of that argument.
+        let chosenConsumesArgument = chosen
+            .flatMap { sema.symbols.functionSignature(for: $0) }
+            .map { $0.parameterTypes.count == args.count } ?? false
         if args.count == 1,
+           !chosenConsumesArgument,
            let loweredNumericConversion = lowerTopLevelNumericConversionCall(
                sourceCalleeName: sourceCalleeName,
                argumentExpr: args[0].expr,
@@ -1584,7 +1592,12 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
+            "__kk_channel_result_get_or_throw",
             "__kk_synchronized",
+            "__kk_cancellable_continuation_resume",
+            "__kk_cancellable_continuation_invoke_on_cancellation",
+            "__kk_cancellable_continuation_complete_resume",
+            "__kk_cancellable_continuation_get_result",
             "__kk_string_builder_new_capacity_checked",
             "__kk_mutable_list_add",
             "__kk_mutable_list_add_at",
@@ -1645,6 +1658,7 @@ final class CallLowerer {
 
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
         [
+            "__kk_channel_result_get_or_throw",
             "kk_runtime_result_get_or_else",
             "kk_runtime_result_get_or_throw",
             "kk_runtime_result_map",
@@ -1653,6 +1667,10 @@ final class CallLowerer {
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
             "__kk_synchronized",
+            "__kk_cancellable_continuation_resume",
+            "__kk_cancellable_continuation_invoke_on_cancellation",
+            "__kk_cancellable_continuation_complete_resume",
+            "__kk_cancellable_continuation_get_result",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "__kk_mutable_list_removeAt",

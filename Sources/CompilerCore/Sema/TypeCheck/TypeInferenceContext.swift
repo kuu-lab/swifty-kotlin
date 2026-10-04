@@ -8,6 +8,7 @@ struct TypeInferenceContext: CustomStringConvertible {
     let interner: StringInterner
     var scope: Scope
     var implicitReceiverType: TypeID?
+    var builderInference: BuilderInferenceSession?
     var loopDepth: Int
     var loopLabelStack: [InternedString]
     /// Stack of labels attached to enclosing lambda literals.
