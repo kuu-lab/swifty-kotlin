@@ -479,4 +479,45 @@ struct SymbolTableTests {
         symbols.setParentSymbol(parent, for: child)
         #expect(symbols.parentSymbol(for: child) == parent)
     }
+
+    // MARK: - Lazy imported metadata
+
+    /// The lazy `.kklib` loader re-enters the table (`lookupAll`, `define`,
+    /// `setFunctionSignature`, ...) while applying an imported record, and an
+    /// ensured accessor can fire it from inside `define`'s critical section
+    /// (`canCoexistAsOverload` → `extensionPropertyReceiverType`). The table
+    /// lock must be recursive; a plain NSLock self-deadlocks on this path.
+    @Test
+    func testLazyMetadataLoaderReentryFromDefineDoesNotDeadlock() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let name = interner.intern("shell")
+        let fqName = [interner.intern("pkg"), name]
+        let shell = symbols.define(
+            kind: .property,
+            name: name,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public
+        )
+        var loaderRan = false
+        symbols.setLazyImportedMetadataLoader { _ in
+            loaderRan = true
+            _ = symbols.lookupAll(fqName: fqName)
+        }
+
+        // Defining a colliding extension property makes canCoexistAsOverload
+        // query extensionPropertyReceiverType on the unmaterialized shell,
+        // which fires the loader while `define` still holds the lock.
+        let colliding = symbols.define(
+            kind: .property,
+            name: name,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public,
+            isExtensionProperty: true
+        )
+        #expect(loaderRan)
+        #expect(colliding == shell)
+    }
 }

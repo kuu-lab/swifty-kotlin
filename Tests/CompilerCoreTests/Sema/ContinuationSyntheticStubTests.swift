@@ -171,16 +171,47 @@ struct ContinuationSyntheticStubTests {
             "Expected kotlin.coroutines.ContinuationInterceptor.interceptContinuation to be registered"
         )
         let interceptContinuationSignature = try #require(sema.symbols.functionSignature(for: interceptContinuationSymbol))
-        #expect(sema.symbols.externalLinkName(for: interceptContinuationSymbol) == "kk_continuation_interceptor_intercept_continuation")
+        #expect(sema.symbols.externalLinkName(for: interceptContinuationSymbol) == nil)
+        #expect(sema.symbols.sourceFileID(for: interceptContinuationSymbol) != nil)
+        #expect(sema.symbols.symbol(interceptContinuationSymbol)?.flags.contains(.abstractType) == true)
         let interceptorType = sema.types.make(.classType(ClassType(
             classSymbol: interceptorSymbol,
             args: [],
             nullability: .nonNull
         )))
         #expect(interceptContinuationSignature.receiverType == interceptorType)
-        #expect(interceptContinuationSignature.parameterTypes == [continuationType])
-        #expect(interceptContinuationSignature.returnType == continuationType)
-        #expect(interceptContinuationSignature.typeParameterSymbols == [continuationTParamSymbol])
+        #expect(interceptContinuationSignature.typeParameterSymbols.count == 1)
+        #expect(interceptContinuationSignature.parameterTypes == [interceptContinuationSignature.returnType])
+
+        let dispatcherIntercept = try #require(sema.symbols.lookup(
+            fqName: dispatcherFQName + [interner.intern("interceptContinuation")]
+        ))
+        #expect(sema.symbols.externalLinkName(for: dispatcherIntercept) == "kk_continuation_interceptor_intercept_continuation")
+    }
+
+    @Test
+    func testContinuationInterceptorMembersAreSourceOwned() throws {
+        let (sema, interner) = try sharedSema()
+        let ownerFQName = ["kotlin", "coroutines", "ContinuationInterceptor"].map(interner.intern)
+        let owner = try #require(sema.symbols.lookup(fqName: ownerFQName))
+        let sourceFile = try #require(sema.symbols.sourceFileID(for: owner))
+        let layout = try #require(sema.symbols.nominalLayout(for: owner))
+
+        for (slot, name) in ["interceptContinuation", "releaseInterceptedContinuation"].enumerated() {
+            let member = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern(name)]))
+            #expect(layout.vtableSlots[member] == slot)
+        }
+        for name in ["get", "interceptContinuation", "minusKey", "releaseInterceptedContinuation"] {
+            let members = sema.symbols.lookupAll(fqName: ownerFQName + [interner.intern(name)])
+            #expect(members.count == 1)
+            let member = try #require(members.first)
+            #expect(sema.symbols.sourceFileID(for: member) == sourceFile)
+            #expect(sema.symbols.symbol(member)?.flags.contains(.synthetic) == false)
+            #expect(sema.symbols.externalLinkName(for: member) == nil)
+            let signature = try #require(sema.symbols.functionSignature(for: member))
+            #expect(signature.parameterTypes.count == 1)
+            #expect(signature.typeParameterSymbols.count == (["get", "interceptContinuation"].contains(name) ? 1 : 0))
+        }
     }
 
     @Test

@@ -174,6 +174,13 @@ extension CallLowerer {
             return interner.intern(arity >= 2 ? "__kk_mutable_list_add_at" : "__kk_mutable_list_add")
         case "removeAt":
             return interner.intern("__kk_mutable_list_removeAt")
+        case "remove":
+            return interner.intern("__kk_mutable_list_remove")
+        case "listIterator":
+            let arity = chosenCallee.flatMap {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes.count
+            } ?? 0
+            return interner.intern(arity == 0 ? "__kk_mutable_list_listIterator" : "kk_list_iterator_at")
         case "clear":
             return interner.intern("__kk_mutable_list_clear")
         case "removeAll":
@@ -1049,4 +1056,3 @@ extension CallLowerer {
         }
     }
 }
-

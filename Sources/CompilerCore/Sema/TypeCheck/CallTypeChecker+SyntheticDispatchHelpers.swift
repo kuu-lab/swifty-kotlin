@@ -3,6 +3,13 @@
 ///
 /// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
+    /// Returns true when `exprID` is a lambda literal.
+    func isLambdaLiteralArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let argExpr = ast.arena.expr(exprID) else { return false }
+        if case .lambdaLiteral = argExpr { return true }
+        return false
+    }
+
     /// Returns true when `exprID` is a lambda literal or callable reference.
     func isLambdaOrCallableRefArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
         guard let argExpr = ast.arena.expr(exprID) else { return false }
@@ -76,6 +83,18 @@ extension CallTypeChecker {
                 interner.intern("channels"),
             ]
             return symbol.fqName == channelsPackage + [symbol.name]
+        }
+        // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern binds
+        // its suspend TestScope receiver through the same launcher
+        // continuation convention (TestScope in launcherArgs[0]).
+        let runTest = interner.intern("runTest")
+        if symbol.name == runTest {
+            let testPackage = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("test"),
+            ]
+            return symbol.fqName == testPackage + [symbol.name]
         }
         return false
     }

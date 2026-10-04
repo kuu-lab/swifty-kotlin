@@ -14,6 +14,7 @@ extension CallTypeChecker {
         flowElementType: TypeID,
         hasLeadingLocaleArgument: Bool,
         invisibleCandidates: [SemanticSymbol],
+        isSuperCall: Bool,
         locals: inout LocalBindings
     ) -> TypeID {
         let id = request.id
@@ -1240,6 +1241,20 @@ extension CallTypeChecker {
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
         if let firstInvisible = invisibleCandidates.first {
+            // KUU-946: an inaccessible member cannot shadow a same-named
+            // extension that the call does resolve to.
+            if let fallbackType = tryBindShadowedExtensionCallFallback(
+                request,
+                receiverType: receiverType,
+                lookupReceiverType: lookupReceiverType,
+                memberLookupType: memberLookupType,
+                argTypes: argTypes,
+                isClassNameReceiver: isClassNameReceiver,
+                isSuperCall: isSuperCall,
+                locals: &locals
+            ) {
+                return fallbackType
+            }
             driver.helpers.emitVisibilityError(for: firstInvisible, name: calleeStr, range: range, diagnostics: ctx.semaCtx.diagnostics)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
@@ -1674,6 +1689,23 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: nestedType)
                 return nestedType
             }
+        }
+
+        // KUU-946: members that filtered out entirely (e.g. all invisible or
+        // removed by the shaping filters) must not shadow same-named
+        // extensions — retry against the extension candidate set before
+        // reporting the member failure.
+        if let fallbackType = tryBindShadowedExtensionCallFallback(
+            request,
+            receiverType: receiverType,
+            lookupReceiverType: lookupReceiverType,
+            memberLookupType: memberLookupType,
+            argTypes: argTypes,
+            isClassNameReceiver: isClassNameReceiver,
+            isSuperCall: isSuperCall,
+            locals: &locals
+        ) {
+            return fallbackType
         }
 
         ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(calleeStr)'.", range: range)

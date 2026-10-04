@@ -1,5 +1,5 @@
 symbol fq=Temperature.compareTo.$0.other[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=Temperature.compareTo[kind=fun;recv=Temperature;params=Temperature] kind=function vis=public flags=overrideMember sig=recv=Temperature params=[Temperature] ret=Int
+symbol fq=Temperature.compareTo[kind=fun;recv=Temperature;params=Temperature] kind=function vis=public flags=operatorFunction|overrideMember sig=recv=Temperature params=[Temperature] ret=Int
 symbol fq=Temperature.degrees[kind=prop] kind=property vis=public flags=_ type=Int
 symbol fq=Temperature[kind=class] kind=class vis=public flags=_
 symbol fq=compareGe.$1.a[kind=vparam] kind=valueParameter vis=private flags=_
@@ -25,7 +25,7 @@ file fcomparable_interface package=_
   decl compareInts[kind=fun;params=Int,Int] fun compareInts sym=compareInts[kind=fun;params=Int,Int]
   decl compareTemperatures[kind=fun;params=Temperature,Temperature] fun compareTemperatures sym=compareTemperatures[kind=fun;params=Temperature,Temperature]
   decl compareGe[kind=fun;params=Temperature,Temperature] fun compareGe sym=compareGe[kind=fun;params=Temperature,Temperature]
-expr e@5:55 this type=Temperature
+expr e@5:55 this type=Temperature ref=s-0
 expr e@5:55#1 memberCall recv=e@5:55 callee=degrees args=[] type=Int ref=Temperature.degrees[kind=prop]
 expr e@5:70 name(other) type=Temperature ref=Temperature.compareTo.$0.other[kind=vparam]
 expr e@5:70#1 memberCall recv=e@5:70 callee=degrees args=[] type=Int ref=Temperature.degrees[kind=prop]

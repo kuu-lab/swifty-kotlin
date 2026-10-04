@@ -4,12 +4,14 @@
  *
  * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/concurrent/atomics/Atomics.common.kt>.
  */
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
 package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-// The canonical atomics type is currently an alias of the runtime-backed
-// kotlin.concurrent.AtomicInt shell. Keep the runtime entry points private and
+// The canonical atomics type is a distinct source-backed class whose payload
+// uses the same runtime atomic box. Keep the runtime entry points private and
 // expose the public API as source-backed receiver declarations.
 @KsSymbolName("__kk_atomic_int_addAndFetch")
 private external fun AtomicInt.__kkAtomicIntAddAndFetch(delta: Int): Int
@@ -130,3 +132,26 @@ public inline fun AtomicInt.updateAndFetch(transform: (Int) -> Int): Int {
         if (compareAndSet(old, newValue)) return newValue
     }
 }
+
+// Compatibility names retained from the former kotlin.concurrent.AtomicInt
+// typealias surface. Defining them on the canonical receiver prevents calls
+// from binding to the legacy receiver after the nominal types split.
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicInt.fetchAndUpdate(transform: (Int) -> Int): Int {
+    while (true) {
+        val old = load()
+        val newValue = transform(old)
+        if (compareAndSet(old, newValue)) return old
+    }
+}
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicInt.getAndUpdate(transform: (Int) -> Int): Int =
+    fetchAndUpdate(transform)
+
+@ExperimentalAtomicApi
+@SinceKotlin("2.1")
+public inline fun AtomicInt.updateAndGet(transform: (Int) -> Int): Int =
+    updateAndFetch(transform)

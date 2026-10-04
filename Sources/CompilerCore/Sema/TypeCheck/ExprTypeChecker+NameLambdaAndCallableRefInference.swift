@@ -843,6 +843,17 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        if let receiverType = ctx.implicitReceiverType {
+            candidates.removeAll { candidate in
+                guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
+                    return false
+                }
+                return !sema.types.isSubtype(
+                    sema.types.makeNonNullable(receiverType),
+                    sema.types.makeNonNullable(declaredReceiver)
+                )
+            }
+        }
         if candidates.isEmpty {
             if let receiverType = ctx.implicitReceiverType,
                let result = driver.helpers.lookupMemberProperty(
@@ -1297,7 +1308,9 @@ extension ExprTypeChecker {
         bodyCtx = bodyCtx.enteringLambdaBody()
         // When the expected function type has a receiver (e.g. StringBuilder.() -> Unit),
         // set the implicit receiver so that unqualified member calls resolve correctly.
-        if let receiverType = expectedFunctionType?.receiver {
+        if let receiverType = expectedFunctionType?.receiver
+            ?? sema.bindings.coroutineScopeLambdaReceiverTypes[id]
+        {
             bodyCtx = bodyCtx.with(implicitReceiverType: receiverType)
             // The lambda's own receiver is its `this`: shadow the enclosing
             // function's receiver in `locals` (which `inferThisRefExpr` reads
@@ -1420,6 +1433,20 @@ extension ExprTypeChecker {
         }
 
         if let expectedType, let expectedFunctionType {
+            if let session = ctx.builderInference,
+               expectedFunctionType.returnType != sema.types.unitType,
+               session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
+            {
+                session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                    subtype: inferredBodyType,
+                    supertype: expectedFunctionType.returnType,
+                    typeVarBySymbol: session.typeVarBySymbol,
+                    typeSystem: sema.types,
+                    blameRange: ast.arena.exprRange(body)
+                ))
+                sema.bindings.bindExprType(id, type: expectedType)
+                return expectedType
+            }
             // Enhanced return type inference with Unit optimization
             let optimizedReturnType = inferOptimizedReturnType(
                 inferredBodyType: inferredBodyType,
@@ -2583,6 +2610,7 @@ extension ExprTypeChecker {
             return sema.types.errorType
         }
         if let thisLocal = locals[ctx.interner.intern("this")] {
+            sema.bindings.bindIdentifier(id, symbol: thisLocal.symbol)
             sema.bindings.bindExprType(id, type: thisLocal.type)
             return thisLocal.type
         }

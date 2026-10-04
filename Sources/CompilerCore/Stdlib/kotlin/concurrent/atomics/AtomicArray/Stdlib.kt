@@ -4,6 +4,8 @@
  *
  * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/concurrent/atomics/AtomicArrays.common.kt>.
  */
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
 package kotlin.concurrent.atomics
 
 /**

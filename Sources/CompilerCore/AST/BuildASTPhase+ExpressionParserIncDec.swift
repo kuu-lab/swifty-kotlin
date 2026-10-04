@@ -13,9 +13,11 @@ extension BuildASTPhase.ExpressionParser {
     ///   `x++`  ->  `{ val tmp = x; x += 1; tmp }`
     ///   `++x`  ->  `{ x += 1; x }`
     ///
-    /// The marked assignment reuses `.compoundAssign` / `.memberCompoundAssign`,
-    /// which already know how to store back into locals, captured variables,
-    /// globals and instance fields after the operator result is computed.
+    /// For a bare name the marked assignment reuses `.compoundAssign`, which
+    /// already knows how to store back into locals, captured variables and
+    /// globals after the operator result is computed. Member (`obj.p++`) and
+    /// indexed (`a[i]++`) targets instead call `inc()` / `dec()` explicitly so
+    /// that a custom getter / `get()` runs exactly once.
     func tryParseIncrementDecrement(operand: ExprID) -> ExprID? {
         guard let opToken = current(), let op = compoundAssignOp(for: opToken.kind) else {
             return nil
@@ -75,7 +77,6 @@ extension BuildASTPhase.ExpressionParser {
         // assignment that performs the mutation.
         let readExpr: ExprID
         let assignExpr: ExprID
-        var statements: [ExprID] = []
         switch operandExpr {
         case let .nameRef(name, _):
             readExpr = astArena.appendExpr(.nameRef(name, operandRange))
@@ -91,48 +92,34 @@ extension BuildASTPhase.ExpressionParser {
 
         case let .memberCall(receiver, callee, typeArgs, args, _)
             where typeArgs.isEmpty && args.isEmpty:
-            let cachedReceiver: ExprID
-            if isSideEffectFreeReceiver(receiver) {
-                cachedReceiver = receiver
-            } else {
-                let receiverRange = astArena.exprRange(receiver) ?? operandRange
-                let receiverName = interner.intern("$incdec$receiver$\(nextIncDecTempID())")
-                statements.append(astArena.appendExpr(.localDecl(
-                    name: receiverName,
-                    isMutable: false,
-                    typeAnnotation: nil,
-                    initializer: receiver,
-                    range: receiverRange
-                )))
-                cachedReceiver = astArena.appendExpr(.nameRef(receiverName, receiverRange))
-            }
-            readExpr = astArena.appendExpr(.memberCall(
-                receiver: cachedReceiver,
+            return desugarMemberIncrementDecrement(
+                receiver: receiver,
                 callee: callee,
-                typeArgs: [],
-                args: [],
-                range: operandRange
-            ))
-            let one = astArena.appendExpr(.intLiteral(1, opRange))
-            let assignment = astArena.appendExpr(.memberCompoundAssign(
                 op: op,
-                receiver: cachedReceiver,
-                callee: callee,
-                value: one,
-                range: range
-            ))
-            astArena.markIncrementDecrement(assignment)
-            assignExpr = assignment
+                operandRange: operandRange,
+                range: range,
+                isPrefix: isPrefix
+            )
+
+        case let .indexedAccess(receiver, indices, _):
+            return desugarIndexedIncrementDecrement(
+                receiver: receiver,
+                indices: indices,
+                op: op,
+                operandRange: operandRange,
+                range: range,
+                isPrefix: isPrefix
+            )
 
         default:
-            // Unsupported target (e.g. `a[i]++`): leave the operator unparsed so
-            // the existing behaviour is preserved.
+            // Unsupported target: leave the operator unparsed so the existing
+            // behaviour is preserved.
             return nil
         }
 
         if isPrefix {
             return astArena.appendExpr(.blockExpr(
-                statements: statements + [assignExpr],
+                statements: [assignExpr],
                 trailingExpr: readExpr,
                 range: range
             ))
@@ -147,16 +134,162 @@ extension BuildASTPhase.ExpressionParser {
             range: operandRange
         ))
         let tempRef = astArena.appendExpr(.nameRef(tempName, operandRange))
-        if case .memberCompoundAssign = astArena.expr(assignExpr) {
-            astArena.markIncrementDecrement(assignExpr, cachedValue: tempRef)
-        }
         return astArena.appendExpr(.blockExpr(
-            statements: statements + [tempDecl, assignExpr],
+            statements: [tempDecl, assignExpr],
             trailingExpr: tempRef,
             range: range
         ))
     }
 
+    /// `a[i]++` / `++a[i]` in expression position. Kotlin evaluates the
+    /// receiver and indices once, so non-trivial operands are hoisted into
+    /// temporaries and the element's `inc()` / `dec()` is called explicitly.
+    /// Postfix reads the element once; prefix follows `a[i] = a[i].inc(); a[i]`
+    /// and re-reads it after the write, exactly like kotlinc:
+    ///
+    ///   `a[i]++`  ->  `{ val r = a; val j = i; val old = r[j]; r[j] = old.inc(); old }`
+    ///   `++a[i]`  ->  `{ val r = a; val j = i; r[j] = r[j].inc(); r[j] }`
+    private func desugarIndexedIncrementDecrement(
+        receiver: ExprID,
+        indices: [ExprID],
+        op: CompoundAssignOp,
+        operandRange: SourceRange,
+        range: SourceRange,
+        isPrefix: Bool
+    ) -> ExprID {
+        var statements: [ExprID] = []
+
+        // Returns a factory producing a fresh AST node that re-reads `expr`'s
+        // value each time it is called.
+        func stabilized(_ expr: ExprID) -> () -> ExprID {
+            switch astArena.expr(expr) {
+            case let .nameRef(name, nameRange):
+                return { self.astArena.appendExpr(.nameRef(name, nameRange)) }
+            case let .thisRef(label, thisRange):
+                return { self.astArena.appendExpr(.thisRef(label: label, thisRange)) }
+            case let .intLiteral(value, literalRange):
+                return { self.astArena.appendExpr(.intLiteral(value, literalRange)) }
+            default:
+                let exprRange = astArena.exprRange(expr) ?? range
+                let name = makeTempName(range)
+                statements.append(astArena.appendExpr(.localDecl(
+                    name: name, isMutable: false, typeAnnotation: nil, initializer: expr, range: exprRange
+                )))
+                return { self.astArena.appendExpr(.nameRef(name, exprRange)) }
+            }
+        }
+
+        let receiverRef = stabilized(receiver)
+        let indexRefs = indices.map(stabilized)
+        let read = { self.astArena.appendExpr(.indexedAccess(
+            receiver: receiverRef(), indices: indexRefs.map { $0() }, range: operandRange
+        )) }
+        let operatorName = interner.intern(op == .plusAssign ? "inc" : "dec")
+        let applyOperator = { (operand: ExprID) in
+            self.astArena.appendExpr(.memberCall(
+                receiver: operand, callee: operatorName, typeArgs: [], args: [], range: range
+            ))
+        }
+
+        if isPrefix {
+            statements.append(astArena.appendExpr(.indexedAssign(
+                receiver: receiverRef(), indices: indexRefs.map { $0() },
+                value: applyOperator(read()), range: range
+            )))
+            return astArena.appendExpr(.blockExpr(
+                statements: statements,
+                trailingExpr: read(),
+                range: range
+            ))
+        }
+        let resultName = makeTempName(range)
+        let resultRef = { self.astArena.appendExpr(.nameRef(resultName, operandRange)) }
+        statements.append(astArena.appendExpr(.localDecl(
+            name: resultName, isMutable: false, typeAnnotation: nil,
+            initializer: read(), range: operandRange
+        )))
+        statements.append(astArena.appendExpr(.indexedAssign(
+            receiver: receiverRef(), indices: indexRefs.map { $0() },
+            value: applyOperator(resultRef()), range: range
+        )))
+        return astArena.appendExpr(.blockExpr(
+            statements: statements,
+            trailingExpr: resultRef(),
+            range: range
+        ))
+    }
+
+    /// `obj.p++` / `++obj.p` in expression position. Like the indexed form,
+    /// a custom getter runs exactly as often as in kotlinc: postfix reads the
+    /// property once into a temporary, prefix re-reads it after the write:
+    ///
+    ///   `obj.p++`  ->  `{ val old = obj.p; obj.p = old.inc(); old }`
+    ///   `++obj.p`  ->  `{ obj.p = obj.p.inc(); obj.p }`
+    ///
+    /// Receivers with effects are evaluated once and cached before the property read.
+    private func desugarMemberIncrementDecrement(
+        receiver: ExprID,
+        callee: InternedString,
+        op: CompoundAssignOp,
+        operandRange: SourceRange,
+        range: SourceRange,
+        isPrefix: Bool
+    ) -> ExprID? {
+        guard let receiverExpr = astArena.expr(receiver) else { return nil }
+        var statements: [ExprID] = []
+        let receiverRef: () -> ExprID
+        if isSideEffectFreeReceiver(receiver) {
+            receiverRef = { self.astArena.appendExpr(receiverExpr) }
+        } else {
+            let receiverRange = astArena.exprRange(receiver) ?? operandRange
+            let receiverName = makeTempName(range)
+            statements.append(astArena.appendExpr(.localDecl(
+                name: receiverName, isMutable: false, typeAnnotation: nil,
+                initializer: receiver, range: receiverRange
+            )))
+            receiverRef = { self.astArena.appendExpr(.nameRef(receiverName, receiverRange)) }
+        }
+        let read = { self.astArena.appendExpr(.memberCall(
+            receiver: receiverRef(), callee: callee, typeArgs: [], args: [], range: operandRange
+        )) }
+        let operatorName = interner.intern(op == .plusAssign ? "inc" : "dec")
+        let applyOperator = { (operand: ExprID) in
+            self.astArena.appendExpr(.memberCall(
+                receiver: operand, callee: operatorName, typeArgs: [], args: [], range: range
+            ))
+        }
+        if isPrefix {
+            let assignment = astArena.appendExpr(.memberAssign(
+                receiver: receiverRef(), callee: callee, value: applyOperator(read()), range: range
+            ))
+            return astArena.appendExpr(.blockExpr(
+                statements: statements + [assignment],
+                trailingExpr: read(),
+                range: range
+            ))
+        }
+        let resultName = makeTempName(range)
+        let resultRef = { self.astArena.appendExpr(.nameRef(resultName, operandRange)) }
+        let resultDecl = astArena.appendExpr(.localDecl(
+            name: resultName, isMutable: false, typeAnnotation: nil,
+            initializer: read(), range: operandRange
+        ))
+        let assignment = astArena.appendExpr(.memberAssign(
+            receiver: receiverRef(), callee: callee, value: applyOperator(resultRef()), range: range
+        ))
+        return astArena.appendExpr(.blockExpr(
+            statements: statements + [resultDecl, assignment],
+            trailingExpr: resultRef(),
+            range: range
+        ))
+    }
+
+    private func makeTempName(_ range: SourceRange) -> InternedString {
+        interner.intern("$incdec$\(range.start.offset)$\(nextIncDecTempID())")
+    }
+
+    /// Only receivers that can be evaluated twice without observable effects are
+    /// eligible, because the desugaring reads and writes the member separately.
     private func isSideEffectFreeReceiver(_ exprID: ExprID) -> Bool {
         switch astArena.expr(exprID) {
         case .nameRef, .thisRef:
