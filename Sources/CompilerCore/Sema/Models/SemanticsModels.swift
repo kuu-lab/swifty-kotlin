@@ -478,6 +478,7 @@ public final class SymbolTable {
     private var delegateProvideDelegateSymbols: [SymbolID: SymbolID] = [:]
     private var accessorOwnerProperties: [SymbolID: SymbolID] = [:]
     private var extensionPropertyReceiverTypes: [SymbolID: TypeID] = [:]
+    private var declaredExtensionProperties: Set<SymbolID> = []
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
@@ -517,6 +518,13 @@ public final class SymbolTable {
     /// CLASS-008: Interfaces delegated by a class via `: Interface by expr`.
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
+
+    /// Globals that carry `.importedLibrary` but whose storage is defined by
+    /// this compilation — `.klib` modules ship serialized IR without a
+    /// precompiled object, so the backend must emit a real slot instead of
+    /// an extern reference. Populated when KlibBodyLowerer materializes
+    /// top-level fields, enum entries and object singletons.
+    private var klibDefinedGlobalSymbols: Set<SymbolID> = []
 
     /// KUU-655: an `override` whose own declaration carries no default value
     /// expressions still accepts calls that omit the overridden parameter
@@ -681,7 +689,7 @@ public final class SymbolTable {
                 || canCoexistAsExpectActual(kind: kind, flags: flags, existingSymbols: existingSymbols)
                 || canCoexistAsSyntheticPropertyFamily(kind: kind, flags: flags, existingSymbols: existingSymbols)
             if shouldCoexist {
-                return appendNewSymbol(
+                let id = appendNewSymbol(
                     kind: kind,
                     name: name,
                     fqName: fqName,
@@ -689,10 +697,12 @@ public final class SymbolTable {
                     visibility: visibility,
                     flags: flags
                 )
+                if isExtensionProperty { declaredExtensionProperties.insert(id) }
+                return id
             }
             return existing[0]
         }
-        return appendNewSymbol(
+        let id = appendNewSymbol(
             kind: kind,
             name: name,
             fqName: fqName,
@@ -700,6 +710,8 @@ public final class SymbolTable {
             visibility: visibility,
             flags: flags
         )
+        if isExtensionProperty { declaredExtensionProperties.insert(id) }
+        return id
     }
 
     private func appendNewSymbol(
@@ -787,7 +799,7 @@ public final class SymbolTable {
                 // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
-                        || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
+                        || (existing.kind == .property && (existing.flags.contains(.synthetic) || hasExtensionPropertyReceiver(existing.id)))
                 }
             }
             return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
@@ -1130,6 +1142,17 @@ public final class SymbolTable {
         return externalLinkNames[symbol]
     }
 
+    /// Marks an `.importedLibrary`-flagged global as storage-defined by this
+    /// compilation (`.klib` globals have no precompiled object file behind
+    /// them — their serialized IR bodies are materialized into KIR here).
+    public func markKlibDefinedGlobal(_ symbol: SymbolID) {
+        klibDefinedGlobalSymbols.insert(symbol)
+    }
+
+    public func isKlibDefinedGlobal(_ symbol: SymbolID) -> Bool {
+        klibDefinedGlobalSymbols.contains(symbol)
+    }
+
     public func setFunctionABIReturnType(_ type: TypeID, for symbol: SymbolID) {
         functionABIReturnTypes[symbol] = type
     }
@@ -1229,6 +1252,10 @@ public final class SymbolTable {
     public func extensionPropertyReceiverType(for property: SymbolID) -> TypeID? {
         ensureLazyImportedMetadataLoaded(for: property)
         return extensionPropertyReceiverTypes[property]
+    }
+
+    public func hasExtensionPropertyReceiver(_ property: SymbolID) -> Bool {
+        declaredExtensionProperties.contains(property) || extensionPropertyReceiverTypes[property] != nil
     }
 
     public func setExtensionPropertyGetterAccessor(_ accessor: SymbolID, for property: SymbolID) {
@@ -2334,6 +2361,13 @@ public final class SemaModule {
     /// lowering pass reads + parses each body on first expansion instead of
     /// paying for every artifact up front.
     public var importedInlineFunctions: ImportedInlineFunctionStore
+    /// `.klib` modules whose declarations were imported through
+    /// `loadImportedLibrarySymbols`. The decoded IR and the
+    /// `(fileIndex, signatureIndex) → SymbolID` map stay alive here so KIR
+    /// lowering can materialize serialized bodies into this compilation's
+    /// arena (they are `internal` because `LoadedKlibModule` is a
+    /// `DataFlowSemaPhase` detail type).
+    var klibModules: [DataFlowSemaPhase.LoadedKlibModule] = []
     /// ARCH-029: resolves deferred imported inline bodies that the module's
     /// call sites actually demand. Set by the lazy metadata loader when a v2
     /// `.kklib` index is in use; `nil` on the eager import path.

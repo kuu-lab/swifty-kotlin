@@ -78,4 +78,14 @@ fun main() {
     println(defaultBytes.joinToString(","))
     buffer.write(byteArrayOf(11, 12))
     println(buffer.size)
+
+    val shortBuffer = Buffer()
+    shortBuffer.write(byteArrayOf(1, 2, 3))
+    val shortRaw: RawSource = shortBuffer
+    val shortSource = shortRaw.buffered()
+    try {
+        shortSource.skip(5L)
+    } catch (e: kotlinx.io.EOFException) {
+        println("buffered skip:${shortBuffer.size}:${shortSource.exhausted()}")
+    }
 }

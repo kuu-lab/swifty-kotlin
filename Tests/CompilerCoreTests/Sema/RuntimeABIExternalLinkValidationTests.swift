@@ -96,7 +96,12 @@ struct RuntimeABIExternalLinkValidationTests {
                 failures.append("\(linkName) in \(paths) is missing from RuntimeABISpec")
                 continue
             }
-            let expectedArities = Set(declarations.flatMap { runtimeABIArityCandidates(for: $0, specs: specs) })
+            let expectedArities: Set<Int>
+            if let pinned = rewrittenSuspendBridgeParameterCounts[linkName] {
+                expectedArities = [pinned]
+            } else {
+                expectedArities = Set(declarations.flatMap { runtimeABIArityCandidates(for: $0, specs: specs) })
+            }
             if !specs.contains(where: { expectedArities.contains($0.parameters.count) }) {
                 let arities = specs.map { "\($0.parameters.count)" }.sorted().joined(separator: ", ")
                 let expected = expectedArities.map(String.init).sorted().joined(separator: ", ")
@@ -130,8 +135,13 @@ struct RuntimeABIExternalLinkValidationTests {
             guard !functionDeclarations.isEmpty else {
                 continue
             }
-            let expectedParameterTypeVariants = functionDeclarations.flatMap {
-                expectedRuntimeABIParameterTypeVariants(for: $0).map(canonicalHandleTypes)
+            let expectedParameterTypeVariants: [[String]]
+            if let pinned = rewrittenSuspendBridgeParameterTypes[linkName] {
+                expectedParameterTypeVariants = [canonicalHandleTypes(pinned)]
+            } else {
+                expectedParameterTypeVariants = functionDeclarations.flatMap {
+                    expectedRuntimeABIParameterTypeVariants(for: $0).map(canonicalHandleTypes)
+                }
             }
             let expectedReturnTypes = Set(functionDeclarations.compactMap {
                 expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
@@ -661,6 +671,29 @@ struct RuntimeABIExternalLinkValidationTests {
         return declarator.contains(".")
     }
 
+    /// Link names whose calls CoroutineLoweringPass rewrites to an emitted ABI
+    /// that does not linearize from the declared source parameters: the suspend
+    /// block lowers to a single entry-point slot and `kk_with_timeout`'s thrown
+    /// channel arrives through the call's own thrownResult. The spec records the
+    /// emitted shape; the pinned parameter types below cover only the emitted
+    /// value arguments, the part the signature check compares a throwing spec on.
+    private let rewrittenSuspendBridgeParameterCounts: [String: Int] = [
+        "kk_with_timeout": 4,
+        "kk_with_timeout_or_null": 3,
+    ]
+    private let rewrittenSuspendBridgeParameterTypes: [String: [String]] = [
+        "kk_with_timeout": [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+        "kk_with_timeout_or_null": [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+    ]
+
     private func runtimeABIArityCandidates(
         for declaration: BundledKsSymbolNameDeclaration,
         specs: [RuntimeABIFunctionSpec]
@@ -670,17 +703,21 @@ struct RuntimeABIExternalLinkValidationTests {
         if declaration.hasReceiver {
             loweredArity += 1
         }
-        loweredArity += declaration.functionTypedParameterCount
+        if !usesCoroutineBlockEntryPoint(declaration) {
+            loweredArity += declaration.functionTypedParameterCount
+        }
         // A `vararg` value parameter lowers to a (packed array pointer, count)
         // pair in the runtime ABI (see CallSupportLowerer's kk_array_of path),
         // so each vararg contributes one extra count parameter.
         loweredArity += declaration.valueParameterIsVararg.filter { $0 }.count
         // Suspend functions carry the opaque continuation as the final ABI
         // argument after their source-level receiver and value parameters.
-        if declaration.isSuspend && !usesCoroutineLauncherABI(declaration) {
+        if declaration.isSuspend {
             loweredArity += 1
         }
-        if specs.contains(where: { $0.isThrowing && $0.parameters.last?.type == .nullableIntptrPointer }) {
+        if specs.contains(where: {
+            $0.isThrowing && $0.parameterTypeStrings.last == RuntimeABICType.nullableIntptrPointer.rawValue
+        }) {
             loweredArity += 1
         }
         candidates.insert(loweredArity)
@@ -705,7 +742,9 @@ struct RuntimeABIExternalLinkValidationTests {
             if normalizedKotlinType(declaration.returnType) == "String" {
                 flatCount += 3
             }
-            if specs.contains(where: \.isThrowing) {
+            if specs.contains(where: {
+                $0.isThrowing && $0.parameterTypeStrings.last == RuntimeABICType.nullableIntptrPointer.rawValue
+            }) {
                 flatCount += 1
             }
             candidates.insert(flatCount)
@@ -721,8 +760,11 @@ struct RuntimeABIExternalLinkValidationTests {
         normalizedKotlinType(type) == "String" ? 4 : (type == nil ? 0 : 1)
     }
 
-    private func usesCoroutineLauncherABI(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
-        declaration.linkName == "kk_with_timeout" || declaration.linkName == "kk_with_timeout_or_null"
+    private func usesCoroutineBlockEntryPoint(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
+        declaration.isSuspend
+            && ["kk_with_timeout", "kk_with_timeout_or_null"].contains(declaration.linkName)
+            && declaration.valueParameterTypes.count == 2
+            && isFunctionType(declaration.valueParameterTypes[1])
     }
 
     private func normalizedKotlinType(_ type: String?) -> String {
@@ -796,6 +838,12 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
         for (index, parameterType) in declaration.valueParameterTypes.enumerated() {
+            // Timeout lowering stores captures in the continuation and passes
+            // only the block entry point, not a (function, closure) pair.
+            if index == 1, usesCoroutineBlockEntryPoint(declaration) {
+                types.append(RuntimeABICType.intptr.rawValue)
+                continue
+            }
             if index < declaration.valueParameterIsVararg.count,
                declaration.valueParameterIsVararg[index] {
                 // vararg -> (packed array pointer, element count)
@@ -808,9 +856,7 @@ struct RuntimeABIExternalLinkValidationTests {
         // The coroutine lowering appends the continuation after all source
         // parameters. Throwing declarations may append their outThrown slot
         // after this continuation; that slot is stripped by the caller above.
-        // Timeout launchers replace the callable pair with an entry and packed
-        // child continuation; they do not append a caller continuation.
-        if declaration.isSuspend && !usesCoroutineLauncherABI(declaration) {
+        if declaration.isSuspend {
             types.append(RuntimeABICType.intptr.rawValue)
         }
         // KSP-717: a "_flat" bridge returning String reconstructs its result

@@ -117,5 +117,85 @@ struct KIRModelsBehaviorTests {
         #expect(dump.contains("return r"))
         #expect(dump.contains("lowerings: NormalizeBlocks, OperatorLowering"))
     }
+
+    /// `function(for:)` answers through a lazily built symbol index instead
+    /// of scanning every declaration (KUU-1129: lowering passes queried it
+    /// hundreds of thousands of times against ~8K stdlib decls). These pin
+    /// the observable contract the scan provided: first-occurrence wins on
+    /// duplicate symbols, misses for non-function or absent symbols, picks
+    /// up functions appended after the index was built, and stays correct
+    /// when a transform changes a function's symbol.
+    @Test func testFunctionForSymbolIndexMatchesScanSemantics() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        func makeSymbol(_ name: String) -> SymbolID {
+            symbols.define(
+                kind: .function,
+                name: interner.intern(name),
+                fqName: [interner.intern("pkg"), interner.intern(name)],
+                declSite: nil,
+                visibility: .public,
+                flags: []
+            )
+        }
+        func makeFunction(symbol: SymbolID, name: String, marker: Int32) -> KIRFunction {
+            KIRFunction(
+                symbol: symbol,
+                name: interner.intern(name),
+                params: [],
+                returnType: types.unitType,
+                body: [.constValue(result: KIRExprID(rawValue: marker), value: .intLiteral(1)), .returnUnit],
+                isSuspend: false,
+                isInline: false
+            )
+        }
+
+        let symA = makeSymbol("alpha")
+        let symDup = makeSymbol("dup")
+        let symGlobal = makeSymbol("glob")
+        let symLate = makeSymbol("late")
+        let symRenamed = makeSymbol("renamed")
+        let symMissing = makeSymbol("missing")
+
+        let arena = KIRArena()
+        _ = arena.appendDecl(.function(makeFunction(symbol: symA, name: "alpha", marker: 0)))
+        _ = arena.appendDecl(.function(makeFunction(symbol: symDup, name: "dup_first", marker: 1)))
+        _ = arena.appendDecl(.function(makeFunction(symbol: symDup, name: "dup_second", marker: 2)))
+        _ = arena.appendDecl(.global(KIRGlobal(symbol: symGlobal, type: types.anyType)))
+
+        // Force the index build, then exercise it.
+        #expect(arena.function(for: symA)?.name == interner.intern("alpha"))
+        // First occurrence wins, matching the old linear scan order.
+        #expect(arena.function(for: symDup)?.name == interner.intern("dup_first"))
+        // A symbol attached only to a non-function decl misses.
+        #expect(arena.function(for: symGlobal) == nil)
+        // A symbol with no decl at all misses.
+        #expect(arena.function(for: symMissing) == nil)
+
+        // Appends after the index was built must still resolve.
+        _ = arena.appendDecl(.function(makeFunction(symbol: symLate, name: "late", marker: 3)))
+        #expect(arena.function(for: symLate)?.name == interner.intern("late"))
+
+        // A transform that changes a symbol invalidates the index.
+        arena.transformFunctions { function in
+            guard function.name == interner.intern("alpha") else {
+                return function
+            }
+            return KIRFunction(
+                symbol: symRenamed,
+                name: function.name,
+                params: function.params,
+                returnType: function.returnType,
+                body: function.body,
+                isSuspend: function.isSuspend,
+                isInline: function.isInline
+            )
+        }
+        #expect(arena.function(for: symA) == nil)
+        #expect(arena.function(for: symRenamed)?.name == interner.intern("alpha"))
+        // Unrelated lookups keep working after invalidation.
+        #expect(arena.function(for: symDup)?.name == interner.intern("dup_first"))
+    }
 }
 #endif

@@ -156,6 +156,16 @@ func kirFindOverridePropertyGetter(
             return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: candidate)
         }
+        if ownerSym.flags.contains(.synthetic) {
+            for candidate in sema.symbols.lookupByShortName(propertySym.name) {
+                guard let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
+                      case let .classType(receiverClass) = sema.types.kind(of: receiver),
+                      receiverClass.classSymbol == nominal,
+                      let getter = sema.symbols.extensionPropertyGetterAccessor(for: candidate)
+                else { continue }
+                return getter
+            }
+        }
         current = kirSuperclass(of: nominal, sema: sema)
     }
 
@@ -355,6 +365,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
+    interfaceFilter: SymbolID? = nil,
     instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol) else {
@@ -366,6 +377,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     let interfaceSupertypes = cache.transitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
 
     for interfaceSymbol in interfaceSupertypes {
+        if let interfaceFilter, interfaceSymbol != interfaceFilter { continue }
         let getterSlots = cache.interfacePropertyGetterSlots(
             for: interfaceSymbol,
             sema: sema,
@@ -469,6 +481,7 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
     cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
+    interfaceFilter: SymbolID? = nil,
     instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol) else {
@@ -480,6 +493,7 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
     let interfaceSupertypes = cache.transitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
 
     for interfaceSymbol in interfaceSupertypes {
+        if let interfaceFilter, interfaceSymbol != interfaceFilter { continue }
         let setterSlots = kirInterfacePropertySetterSlots(
             interfaceSymbol: interfaceSymbol,
             sema: sema,

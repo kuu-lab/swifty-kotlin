@@ -143,7 +143,7 @@ struct BundledStdlibOrderingTests {
             let ctx = makeCompilationContext(inputs: [path])
             try LoadSourcesPhase().run(ctx)
             let paths = Set(ctx.sourceManager.fileIDs().map { ctx.sourceManager.path(of: $0) })
-            for name in ["Annotations.kt", "-Util.kt", "-CommonPlatform.kt"] {
+            for name in ["Annotations.kt", "-Util.kt", "-CommonPlatform.kt", "ByteStrings.kt", "Buffers.kt"] {
                 #expect(paths.contains("__bundled_kotlinx/io/\(name)"))
             }
             #expect(!paths.contains("__bundled_kotlinx/io/IOExceptions.kt"))

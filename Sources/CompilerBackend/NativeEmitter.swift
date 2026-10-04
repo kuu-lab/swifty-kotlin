@@ -666,7 +666,10 @@ struct NativeEmitter {
             return lhs.global.symbol.rawValue < rhs.global.symbol.rawValue
         }
         for (slotName, global) in globalDecls {
+            // `.klib` globals keep the imported flag but own their storage
+            // here — their bodies were materialized into this compilation.
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
+                && symbols?.isKlibDefinedGlobal(global.symbol) != true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if isImported {
                     // Imported globals are defined in another object file.

@@ -1155,6 +1155,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
+    interfaceFilter: SymbolID? = nil,
     instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let _ = sema.symbols.symbol(nominalSymbol),
@@ -1169,6 +1170,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         sema: sema
     )
     for interfaceSymbol in interfaceSupertypes {
+        if let interfaceFilter, interfaceSymbol != interfaceFilter { continue }
         guard let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol) else {
             continue
         }
@@ -1230,6 +1232,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
                 implementation: implementationSymbol,
                 nominalSymbol: nominalSymbol,
                 driver: driver,
+                implementationSignature: interfaceFilter == nil ? nil : sema.symbols.functionSignature(for: implementationSymbol),
                 arena: arena,
                 sema: sema,
                 interner: interner
@@ -1261,6 +1264,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
+        interfaceFilter: interfaceFilter,
         instructions: &instructions
     )
     // Setter counterpart: register interface property setters into the itable
@@ -1272,6 +1276,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
+        interfaceFilter: interfaceFilter,
         instructions: &instructions
     )
 }
@@ -1423,7 +1428,9 @@ private func kirFindMatchingMethod(
         }
         // Interface fallback must use a body-bearing source declaration;
         // synthetic residual declarations are not executable defaults.
-        if requireSourceBacked, !sema.symbols.isSourceBackedSymbol(candidate) {
+        if requireSourceBacked,
+           (!sema.symbols.isSourceBackedSymbol(candidate) || candidateSym.flags.contains(.abstractType))
+        {
             continue
         }
         if firstCandidate == nil {

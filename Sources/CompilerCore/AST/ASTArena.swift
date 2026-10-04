@@ -9,6 +9,7 @@ public struct ASTArenaSnapshot: Codable {
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
+    public let incrementDecrementCachedValues: [ExprID: ExprID]
 
     private enum CodingKeys: String, CodingKey {
         case declarations
@@ -19,6 +20,7 @@ public struct ASTArenaSnapshot: Codable {
         case lambdaParamTypeRefs
         case explicitCallExpressions
         case incrementDecrementExpressions
+        case incrementDecrementCachedValues
     }
 
     public init(
@@ -29,7 +31,8 @@ public struct ASTArenaSnapshot: Codable {
         whenSubjectVarNames: [ExprID: InternedString],
         lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
         explicitCallExpressions: Set<ExprID> = [],
-        incrementDecrementExpressions: Set<ExprID> = []
+        incrementDecrementExpressions: Set<ExprID> = [],
+        incrementDecrementCachedValues: [ExprID: ExprID] = [:]
     ) {
         self.declarations = declarations
         self.expressions = expressions
@@ -39,6 +42,7 @@ public struct ASTArenaSnapshot: Codable {
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
+        self.incrementDecrementCachedValues = incrementDecrementCachedValues
     }
 
     public init(from decoder: Decoder) throws {
@@ -54,6 +58,10 @@ public struct ASTArenaSnapshot: Codable {
             Set<ExprID>.self,
             forKey: .incrementDecrementExpressions
         ) ?? []
+        incrementDecrementCachedValues = try container.decodeIfPresent(
+            [ExprID: ExprID].self,
+            forKey: .incrementDecrementCachedValues
+        ) ?? [:]
     }
 }
 
@@ -127,6 +135,7 @@ public final class ASTArena: @unchecked Sendable {
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
+    private var _incrementDecrementCachedValues: [ExprID: ExprID] = [:]
 
     public var decls: [Decl] {
         lock.lock()
@@ -151,6 +160,7 @@ public final class ASTArena: @unchecked Sendable {
         _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
+        _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -164,7 +174,8 @@ public final class ASTArena: @unchecked Sendable {
             whenSubjectVarNames: _whenSubjectVarNames,
             lambdaParamTypeRefs: _lambdaParamTypeRefs,
             explicitCallExpressions: _explicitCallExpressions,
-            incrementDecrementExpressions: _incrementDecrementExpressions
+            incrementDecrementExpressions: _incrementDecrementExpressions,
+            incrementDecrementCachedValues: _incrementDecrementCachedValues
         )
     }
 
@@ -371,10 +382,19 @@ public final class ASTArena: @unchecked Sendable {
         return _explicitCallExpressions.contains(exprID)
     }
 
-    public func markIncrementDecrement(_ exprID: ExprID) {
+    public func markIncrementDecrement(_ exprID: ExprID, cachedValue: ExprID? = nil) {
         lock.lock()
         defer { lock.unlock() }
         _incrementDecrementExpressions.insert(exprID)
+        if let cachedValue {
+            _incrementDecrementCachedValues[exprID] = cachedValue
+        }
+    }
+
+    public func incrementDecrementCachedValue(for exprID: ExprID) -> ExprID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _incrementDecrementCachedValues[exprID]
     }
 
     public func isIncrementDecrement(_ exprID: ExprID) -> Bool {

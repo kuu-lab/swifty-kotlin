@@ -5,6 +5,45 @@ import Testing
 @Suite
 struct InapplicableMemberExtensionResolutionTests {
     @Test
+    func bundledNonGenericExtensionCoexistsWithMemberOverloads() throws {
+        let source = """
+        import kotlinx.io.Buffer
+        import kotlinx.io.Sink
+        import kotlinx.io.bytestring.ByteString
+        import kotlinx.io.write
+
+        fun use(buffer: Buffer, sink: Sink, bytes: ByteString) {
+            buffer.write(bytes)
+            sink.write(bytes, 1, 2)
+            buffer.write(byteArrayOf(1, 2))
+            sink.write(byteArrayOf(1, 2), 1)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected bundled extensions and members to coexist: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func bundledExtensionRequiresAnImportWhenMembersExist() throws {
+        let source = """
+        import kotlinx.io.Buffer
+        import kotlinx.io.bytestring.ByteString
+
+        fun use(buffer: Buffer, bytes: ByteString) {
+            buffer.write(bytes)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" }, "Expected an unimported extension to be unavailable: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func qualifiedCallFallsBackToApplicableExtension() throws {
         let source = """
         class Box {

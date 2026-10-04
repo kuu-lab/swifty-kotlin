@@ -640,6 +640,9 @@ extension ExprTypeChecker {
         sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
         let propType = propResult.type
         let propSymbol = sema.symbols.symbol(propResult.symbol)
+        if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
+            _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
+        }
 
         if let resolvedType = inferIncrementDecrementIfNeeded(
             exprID: id,
@@ -1662,13 +1665,51 @@ extension ExprTypeChecker {
             guard receiver == nil, !hasLocalDeclaration,
                   let implicitReceiver = ctx.implicitReceiverType
             else { return [] }
+            let nonNullImplicitReceiver = sema.types.makeNonNullable(implicitReceiver)
             let members = driver.helpers.collectMemberFunctionCandidates(
                 named: member,
-                receiverType: sema.types.makeNonNullable(implicitReceiver),
+                receiverType: nonNullImplicitReceiver,
                 sema: sema,
                 interner: interner
-            )
-            return ctx.filterByVisibility(members).0
+            ).filter { candidate in
+                // Kotlin rejects every `::` form for member-extensions
+                // ("member and an extension at the same time"), including
+                // the implicitly-bound `::name` form inside the owner.
+                !driver.helpers.declaresExtensionReceiver(
+                    candidate,
+                    sema: sema,
+                    interner: interner
+                )
+            }
+            // A bare `::ext` inside a receiver scope is a *bound* reference
+            // (`with("s") { ::ext }` means `this::ext`), so package-level
+            // extensions whose declared receiver accepts the implicit
+            // receiver are bound `() -> R` candidates as well — kotlinc
+            // resolves `with("42") { ::toInt }` to `() -> Int`.
+            let implicitExtensionCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
+                guard let symbol = ctx.cachedSymbol(symbolID),
+                      symbol.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let declaredReceiver = signature.receiverType,
+                      driver.helpers.declaresExtensionReceiver(
+                          symbolID,
+                          sema: sema,
+                          interner: interner
+                      )
+                else { return false }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullImplicitReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            // Members of the implicit receiver outrank same-named package
+            // extensions, mirroring member-call resolution in Kotlin.
+            let visibleMembers = ctx.filterByVisibility(members).0
+            if !visibleMembers.isEmpty {
+                return visibleMembers
+            }
+            return ctx.filterByVisibility(implicitExtensionCandidates).0
         }()
         // REFL-CTOR: set when `candidates` were filled with constructor
         // symbols for a bare `::Foo` reference below. A constructor
@@ -1689,7 +1730,17 @@ extension ExprTypeChecker {
                 sema: sema,
                 includeUnattachedPackageExtensions: true,
                 interner: interner
-            )
+            ).filter { candidate in
+                // Member-extensions are never valid callable-reference
+                // targets — `C::ext`, `c::ext`, and `this::ext` are all
+                // rejected by kotlinc — while package-level extensions on
+                // the receiver stay legal (`String::toInt`, `s::toInt`).
+                !driver.helpers.declaresExtensionReceiver(
+                    candidate,
+                    sema: sema,
+                    interner: interner
+                )
+            }
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
             } else {
@@ -1701,7 +1752,12 @@ extension ExprTypeChecker {
                         guard let symbol = ctx.cachedSymbol(symbolID) else {
                             return false
                         }
-                        return symbol.kind == .property || symbol.kind == .field
+                        // Member-extension properties are unreferenceable in
+                        // every `::` form, the same as member-extension
+                        // functions; `extensionPropertyReceiverType` is set
+                        // only when the member declares an extension receiver.
+                        return (symbol.kind == .property || symbol.kind == .field)
+                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
                     }
                     if let propertySymbol = propertyCandidates.first {
                         return bindPropertyCallableRef(
@@ -1789,7 +1845,11 @@ extension ExprTypeChecker {
                 guard let symbol = ctx.cachedSymbol(symbolID) else {
                     return false
                 }
+                // A bare `::name` cannot reference an extension property —
+                // kotlinc reports `unresolved reference`; only `Type::prop`
+                // and `obj::prop` reach extension properties.
                 return symbol.kind == .property
+                    && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
             }
             let packagePropertyShadowedByMember = propertyCandidates.first.map { propertySymbol in
                 let ownerKind = sema.symbols.parentSymbol(for: propertySymbol)
@@ -1868,12 +1928,23 @@ extension ExprTypeChecker {
                 guard let symbol = ctx.cachedSymbol(symbolID) else {
                     return false
                 }
-                return symbol.kind == .function || symbol.kind == .constructor
+                // A bare `::name` cannot reference an extension function —
+                // kotlinc reports `unresolved reference`; only `Type::ext`,
+                // `obj::ext`, and the implicit-receiver bound form (handled
+                // via `implicitMemberCandidates`) reach extensions.
+                return symbol.kind == .constructor
+                    || (symbol.kind == .function
+                        && !driver.helpers.declaresExtensionReceiver(
+                            symbolID,
+                            sema: sema,
+                            interner: interner
+                        ))
             }
             if candidates.isEmpty,
                let local = locals[member],
                let localSymbol = ctx.cachedSymbol(local.symbol),
-               localSymbol.kind == .function
+               localSymbol.kind == .function,
+               sema.symbols.functionSignature(for: local.symbol)?.receiverType == nil
             {
                 candidates = [local.symbol]
             }

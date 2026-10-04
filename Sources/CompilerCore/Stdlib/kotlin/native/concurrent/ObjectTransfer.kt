@@ -20,7 +20,8 @@ import kotlinx.cinterop.ExperimentalForeignApi
 private external fun __interpretCPointer(rawValue: NativePtr): COpaquePointer?
 
 @KsSymbolName("kk_cpointer_address")
-private external fun __nativePointerAddress(pointer: COpaquePointer?): NativePtr
+@PublishedApi
+internal external fun __nativePointerAddress(pointer: COpaquePointer?): NativePtr
 
 @KsSymbolName("__kk_native_concurrent_detach_object_graph")
 private external fun __detachObjectGraph(mode: Int, value: Any?): NativePtr
@@ -69,13 +70,19 @@ public class DetachedObjectGraph<T> internal constructor(pointer: NativePtr) {
  * happen once.
  */
 // KSwiftK keeps the managed reference itself as the opaque stable token (see
-// __kk_native_concurrent_detach_object_graph / __kk_native_concurrent_attach_object_graph),
-// so attaching is a single read of `stable.value` routed through the package
-// bridge. The upstream CAS-to-NULL loop is not expressible while the legacy
-// kotlin.concurrent.AtomicNativePtr receiver surface remains with KSP-1096.
+// __kk_native_concurrent_detach_object_graph / __kk_native_concurrent_attach_object_graph)
+// and the synthetic `kotlin.native.internal.NativePtr` has no `NULL` constant,
+// so the CAS loop stores the null token produced by `__nativePointerAddress(null)`
+// (`kk_cpointer_address` returns 0 for an invalid handle), matching upstream's
+// single-attach invalidation of `stable`.
 @ObsoleteWorkersApi
 @Deprecated("Support for the legacy memory manager has been completely removed.")
 @DeprecatedSinceKotlin(errorSince = "2.1")
 @Suppress("DEPRECATION_ERROR")
-public inline fun <reified T> DetachedObjectGraph<T>.attach(): T =
-    attachObjectGraphInternal(stable.value) as T
+public inline fun <reified T> DetachedObjectGraph<T>.attach(): T {
+    var rawStable: NativePtr
+    do {
+        rawStable = stable.value
+    } while (!stable.compareAndSet(rawStable, __nativePointerAddress(null)))
+    return attachObjectGraphInternal(rawStable) as T
+}
