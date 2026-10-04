@@ -307,7 +307,7 @@ enum MemberRuntimeDispatch {
             // can tell them apart, and it intercepts `.first()` before this
             // dispatch table is ever consulted. Keep routing arity-0 `first`
             // through the same source-backed-aware lookup as `start` so this
-            // never reconstructs a `kk_uint_range_first`/`_orThrow` name for
+            // never reconstructs a `__kk_uint_range_first`/`_orThrow` name for
             // a receiver kind whose HOF surface is source-backed.
             return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
         case "start":
@@ -465,15 +465,15 @@ enum MemberRuntimeDispatch {
         let member = wantLast ? "last" : "first"
         if orThrow {
             if kind.isULongRangeLike {
-                return "kk_ulong_range_\(member)_orThrow"
+                return "__kk_ulong_range_\(member)_orThrow"
             }
             if kind.isUIntRangeLike {
-                return "kk_uint_range_\(member)_orThrow"
+                return "__kk_uint_range_\(member)_orThrow"
             }
             return "__kk_range_\(member)_orThrow"
         }
         // KSP-1523/KSP-1524: the non-throwing property getter has no
-        // dedicated `kk_uint_range_first`/`kk_ulong_range_first` (or `_last`)
+        // dedicated `__kk_uint_range_first`/`__kk_ulong_range_first` (or `_last`)
         // entry point — both UInt and ULong share the common `__kk_range_*`
         // bridge with signed ranges. The raw bits stored in the box are
         // reinterpreted by the caller, so no unsigned-specific comparison is
@@ -504,7 +504,7 @@ enum MemberRuntimeDispatch {
         }
         if kind.isULongRangeLike {
             if member == "average" { return nil }
-            return "kk_ulong_range_\(member)"
+            return "__kk_ulong_range_\(member)"
         }
         if kind == .uintRange {
             let sourceBacked = Self.unsignedRangeSourceBackedHOFs.union([
@@ -518,7 +518,7 @@ enum MemberRuntimeDispatch {
                 // bundled declaration at all — real kotlinc rejects
                 // `UIntRange.average()` (see RangeHOF.kt), so it's simply
                 // unresolved at TypeCheck and never lowered. Listed here
-                // anyway so the interpolated `"kk_uint_range_\(member)"`
+                // anyway so the interpolated `"__kk_uint_range_\(member)"`
                 // below can never reconstruct a name for a symbol that no
                 // longer exists in Runtime, even in that unreachable case.
                 "first", "last", "firstOrNull", "lastOrNull",
@@ -529,7 +529,7 @@ enum MemberRuntimeDispatch {
             }
         }
         if kind.isUIntRangeLike {
-            return "kk_uint_range_\(member)"
+            return "__kk_uint_range_\(member)"
         }
 
         // KSP-453: IntRange/IntProgression HOFs are now implemented in bundled

@@ -20,7 +20,8 @@ package kotlin.ranges
 // `endInclusive`, `contains`, `isEmpty`, `lessThanOrEquals`) stay compiler
 // residuals for interface-typed dispatch (KSP-1299).
 // Typed range class shells are source-backed by IntRange.kt, LongRange.kt, and
-// CharRange.kt; unsigned range shells remain residual until KSP-709.
+// CharRange.kt; unsigned range shells are source-backed by
+// UIntRange/Stdlib.kt and ULongRange/Stdlib.kt (KSP-709).
 
 /**
  * Represents a range of values of type [T] with both bounds included in the range.

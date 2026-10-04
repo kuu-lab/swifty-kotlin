@@ -468,13 +468,14 @@
   - 前提: KSP-451, KSP-456, KSP-700（Comparable）
   - 完了: `IntRange.kt`/`LongRange.kt`/`CharRange.kt` を追加し、typed synthetic stub を削除。typed range の public `kk_*` cdecl は 0 件、残存 bridge は `__kk_*` に降格。`swift build`、関連 Sema/ABI テスト、`range_basic.kt`/`typed_range.kt` の kotlinc diff を確認済み（全体 suite / 全 diff は未実行）。
 
-- [ ] KSP-709: UnsignedRange (`UIntRange`/`ULongRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` を削除する
+- [x] KSP-709: UnsignedRange (`UIntRange`/`ULongRange`) class shells を Kotlin 化し `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticUnsignedRangeStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/` 新設 `UIntRange.kt`/`ULongRange.kt`
   - 削除/降格 kk_*: `kk_uint_range_*`, `kk_ulong_range_*` 等 public ブリッジ（`RuntimeRange*.swift`。着手時 rg）
   - 手順: T
   - diff: `range_basic.kt` 等既存 + unsigned range ケース追加
   - 前提: KSP-451, KSP-456, KSP-708
+  - 完了: class shell・ctor・Companion は KSP-1314〜1321 で `UIntRange/Stdlib.kt`/`ULongRange/Stdlib.kt` に source 化済みだったため、本チケットでは stub 削除と残余登録（`end`/`first`/`last`/`step`/`iterator`/`take`/`drop`）の source 側受け皿確認、両クラスへの `start` override 追加、dead 化した `HeaderHelpers+UIntRangeSourceMigration.swift` companion adoption helper の削除、public `kk_uint_range_*`(17)/`kk_ulong_range_*`(3) cdecl の `__kk_` 降格（Runtime + RuntimeABISpec + 全 emission 名 + `@KsSymbolName` + dispatch テスト）を実施。`end` alias（UIntRange のみ・Kotlin API 非存在）は除去。progression の `kk_*_progression_*` は KSP-714 スコープのため残置。
 
 - [ ] KSP-714: RangeProgression / RangeInterface / RangeUntil クラス群を Kotlin 化し stub 群を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeProgressionStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeInterfaceStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeUntilStubs.swift`
