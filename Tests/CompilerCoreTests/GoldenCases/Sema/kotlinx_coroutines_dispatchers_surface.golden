@@ -29,8 +29,8 @@ expr e@8:43#1 memberCall recv=e@8:43 callee=IO args=[] type=kotlinx.coroutines.C
 expr e@9:51 name(Dispatchers) type=kotlinx.coroutines.Dispatchers ref=kotlinx.coroutines.Dispatchers[kind=obj]
 expr e@9:51#1 memberCall recv=e@9:51 callee=Unconfined args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Unconfined[kind=prop]
 expr e@10:45 name(Dispatchers) type=kotlinx.coroutines.Dispatchers ref=kotlinx.coroutines.Dispatchers[kind=obj]
-expr e@10:45#1 memberCall recv=e@10:45 callee=Main args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Main[kind=prop]
-expr e@10:45#2 memberCall recv=e@10:45#1 callee=immediate args=[] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.immediate.$get[kind=fun;recv=kotlinx.coroutines.CoroutineDispatcher;params=]
+expr e@10:45#1 memberCall recv=e@10:45 callee=Main args=[] type=kotlinx.coroutines.MainCoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Main[kind=prop]
+expr e@10:45#2 memberCall recv=e@10:45#1 callee=immediate args=[] type=kotlinx.coroutines.MainCoroutineDispatcher ref=kotlinx.coroutines.MainCoroutineDispatcher.immediate[kind=prop]
 expr e@11:79 name(dispatcher) type=kotlinx.coroutines.CoroutineDispatcher ref=golden.sema.limitedDispatcher.$1.dispatcher[kind=vparam]
 expr e@11:109 int(2) type=Int
 expr e@11:79#1 memberCall recv=e@11:79 callee=limitedParallelism args=[_:e@11:109] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.limitedParallelism[kind=fun;recv=kotlinx.coroutines.CoroutineDispatcher;params=Int]
