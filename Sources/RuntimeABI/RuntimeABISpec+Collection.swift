@@ -328,6 +328,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_array_list_new_checked",
+            parameters: [
+                RuntimeABIParameter(name: "initialCapacity", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_array_list_init",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
