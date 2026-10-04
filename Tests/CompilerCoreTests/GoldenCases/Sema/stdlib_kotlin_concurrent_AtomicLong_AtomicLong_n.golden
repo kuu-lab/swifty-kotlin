@@ -1,0 +1,36 @@
+symbol fq=__local_0.exchanged[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_1.added[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_2.incremented[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_3.decremented[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=__local_4.current[kind=local] kind=local vis=private flags=_ type=Long
+symbol fq=golden.sema.atomicLongReceiverSurface.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongReceiverSurface.$0.delta[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongReceiverSurface.$0.expectedValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongReceiverSurface.$0.newValue[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicLong,Long,Long,Long] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicLong,Long,Long,Long] ret=String
+file fstdlib_kotlin_concurrent_AtomicLong_AtomicLong_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicLongReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicLong,Long,Long,Long] fun atomicLongReceiverSurface sym=golden.sema.atomicLongReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicLong,Long,Long,Long]
+expr e@13:27 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongReceiverSurface.$0.atomic[kind=vparam]
+expr e@13:53 name(expectedValue) type=Long ref=golden.sema.atomicLongReceiverSurface.$0.expectedValue[kind=vparam]
+expr e@13:68 name(newValue) type=Long ref=golden.sema.atomicLongReceiverSurface.$0.newValue[kind=vparam]
+expr e@13:27#1 memberCall recv=e@13:27 callee=compareAndExchange args=[_:e@13:53,_:e@13:68] type=Long call=kotlin.concurrent.AtomicLong.compareAndExchange[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long,Long]
+expr e@13:5 localDecl exchanged mutable=0 type=Long init=e@13:27#1 type=Unit ref=__local_0.exchanged[kind=local]
+expr e@14:23 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongReceiverSurface.$0.atomic[kind=vparam]
+expr e@14:40 name(delta) type=Long ref=golden.sema.atomicLongReceiverSurface.$0.delta[kind=vparam]
+expr e@14:23#1 memberCall recv=e@14:23 callee=getAndAdd args=[_:e@14:40] type=Long call=kotlin.concurrent.AtomicLong.getAndAdd[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
+expr e@14:5 localDecl added mutable=0 type=Long init=e@14:23#1 type=Unit ref=__local_1.added[kind=local]
+expr e@15:29 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongReceiverSurface.$0.atomic[kind=vparam]
+expr e@15:29#1 memberCall recv=e@15:29 callee=getAndIncrement args=[] type=Long call=kotlin.concurrent.AtomicLong.getAndIncrement[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@15:5 localDecl incremented mutable=0 type=Long init=e@15:29#1 type=Unit ref=__local_2.incremented[kind=local]
+expr e@16:29 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongReceiverSurface.$0.atomic[kind=vparam]
+expr e@16:29#1 memberCall recv=e@16:29 callee=getAndDecrement args=[] type=Long call=kotlin.concurrent.AtomicLong.getAndDecrement[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@16:5 localDecl decremented mutable=0 type=Long init=e@16:29#1 type=Unit ref=__local_3.decremented[kind=local]
+expr e@17:25 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongReceiverSurface.$0.atomic[kind=vparam]
+expr e@17:25#1 memberCall recv=e@17:25 callee=value args=[] type=Long ref=kotlin.concurrent.AtomicLong.value[kind=prop]
+expr e@17:5 localDecl current mutable=0 type=Long init=e@17:25#1 type=Unit ref=__local_4.current[kind=local]
+expr e@18:5 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongReceiverSurface.$0.atomic[kind=vparam]
+expr e@18:20 name(newValue) type=Long ref=golden.sema.atomicLongReceiverSurface.$0.newValue[kind=vparam]
+expr e@18:5#1 memberAssign recv=e@18:5 callee=value value=e@18:20 type=Unit ref=kotlin.concurrent.AtomicLong.value[kind=prop]
+expr e@19:12 name(atomic) type=kotlin.concurrent.AtomicLong ref=golden.sema.atomicLongReceiverSurface.$0.atomic[kind=vparam]
+expr e@19:12#1 memberCall recv=e@19:12 callee=toString args=[] type=String call=kotlin.concurrent.AtomicLong.toString[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@19:5 return value=e@19:12#1 type=Nothing
