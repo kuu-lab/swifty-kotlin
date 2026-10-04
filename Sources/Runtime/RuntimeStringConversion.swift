@@ -64,6 +64,36 @@ func runtimeParseKotlinInteger<T: FixedWidthInteger>(
     return T(exactly: magnitude)
 }
 
+/// JDK `NumberFormatException.forInputString(s, radix)`: the radix is only
+/// mentioned when it is not 10.
+func runtimeNumberFormatInputMessage(_ source: String, radix: Int) -> String {
+    radix == 10 ? "For input string: \"\(source)\"" : "For input string: \"\(source)\" under radix \(radix)"
+}
+
+/// JDK `Byte.parseByte` / `Short.parseShort`: parse as `Int` first (reporting
+/// unparsable input with `forInputString`), then reject values outside the
+/// target range with the "Value out of range" message.
+func runtimeParseNarrowKotlinInteger<T: FixedWidthInteger & SignedInteger>(
+    _ source: String,
+    radix: Int,
+    as _: T.Type,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let wide = runtimeParseKotlinInteger(source, radix: radix, as: Int32.self) else {
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: runtimeNumberFormatInputMessage(source, radix: radix)
+        )
+        return 0
+    }
+    guard let value = T(exactly: wide) else {
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "Value out of range. Value:\"\(source)\" Radix:\(radix)"
+        )
+        return 0
+    }
+    return Int(value)
+}
+
 @_cdecl("__kk_string_toInt")
 public func __kk_string_toInt(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -90,7 +120,7 @@ public func __kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: Un
     }
     guard let value = runtimeParseKotlinInteger(source, radix: radix, as: Int32.self) else {
         outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(source)\""
+            message: runtimeNumberFormatInputMessage(source, radix: radix)
         )
         return 0
     }
@@ -436,7 +466,7 @@ public func __kk_string_toLong_radix(_ strRaw: Int, _ radix: Int, _ outThrown: U
     }
     guard let value = runtimeParseKotlinInteger(source, radix: radix, as: Int64.self) else {
         outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(source)\""
+            message: runtimeNumberFormatInputMessage(source, radix: radix)
         )
         return 0
     }
@@ -551,13 +581,7 @@ public func __kk_string_toBooleanStrictOrNull(_ strRaw: Int) -> Int {
 public func __kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: Int16.self) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(source)\""
-        )
-        return 0
-    }
-    return Int(value)
+    return runtimeParseNarrowKotlinInteger(source, radix: 10, as: Int16.self, outThrown: outThrown)
 }
 
 @_cdecl("__kk_string_toShortOrNull")
@@ -573,13 +597,7 @@ public func __kk_string_toShortOrNull(_ strRaw: Int) -> Int {
 public func __kk_string_toByte(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: Int8.self) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(source)\""
-        )
-        return 0
-    }
-    return Int(value)
+    return runtimeParseNarrowKotlinInteger(source, radix: 10, as: Int8.self, outThrown: outThrown)
 }
 
 @_cdecl("__kk_string_toByte_radix")
@@ -597,13 +615,7 @@ public func __kk_string_toByte_radix(
         )
         return 0
     }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: Int8.self) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(source)\""
-        )
-        return 0
-    }
-    return Int(value)
+    return runtimeParseNarrowKotlinInteger(source, radix: radix, as: Int8.self, outThrown: outThrown)
 }
 
 @_cdecl("__kk_string_toByteOrNull")

@@ -154,6 +154,10 @@ public fun AtomicBoolean.getAndSet(newValue: Boolean): Boolean = exchange(newVal
 public fun AtomicBoolean.compareAndSet(expectedValue: Boolean, newValue: Boolean): Boolean =
     compareAndExchange(expectedValue, newValue) == expectedValue
 
+// The canonical `kotlin.concurrent.atomics.AtomicBoolean` is a distinct
+// class after KSP-1100, so the legacy receiver keeps its own `toString`.
+public fun AtomicBoolean.toString(): String = load().toString()
+
 public fun AtomicBoolean.getAndUpdate(transform: (Boolean) -> Boolean): Boolean {
     while (true) {
         val old = load()

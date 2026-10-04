@@ -380,13 +380,18 @@ extension BuildASTPhase {
                 return assignment
 
             case let .indexedAccess(receiver, indices, _):
-                return context.astArena.appendExpr(.indexedCompoundAssign(
+                let assignment = context.astArena.appendExpr(.indexedCompoundAssign(
                     op: op,
                     receiver: receiver,
                     indices: indices,
                     value: oneExpr,
                     range: range
                 ))
+                // `a[i]++` must resolve the element's `inc()`/`dec()`, not
+                // `plus(1)`/`minus(1)` — a user-defined element type usually
+                // has no `plus(Int)`.
+                context.astArena.markIncrementDecrement(assignment)
+                return assignment
 
             case let .memberCall(receiver, callee, typeArgs, args, _):
                 guard options.allowMemberAssign,
@@ -456,13 +461,15 @@ extension BuildASTPhase {
 
             let oneExpr = context.astArena.appendExpr(.intLiteral(1, firstToken.range))
             let range = SourceRange(start: firstToken.range.start, end: targetRange.end)
-            return context.astArena.appendExpr(.indexedCompoundAssign(
+            let assignment = context.astArena.appendExpr(.indexedCompoundAssign(
                 op: op,
                 receiver: receiver,
                 indices: indices,
                 value: oneExpr,
                 range: range
             ))
+            context.astArena.markIncrementDecrement(assignment)
+            return assignment
         }
 
         private static func parseCompoundAssignment(
