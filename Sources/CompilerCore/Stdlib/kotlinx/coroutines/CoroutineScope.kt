@@ -48,8 +48,16 @@ public suspend fun supervisorScope(block: suspend () -> Any): Any {
         throw e
     }
     // Supervisor semantics: wait for children but do not propagate their
-    // failures; only an exception thrown by the body itself escapes.
-    kkCoroutineScopeWait(scope)
+    // failures; only an exception thrown by the body itself escapes — plus the
+    // scope's own cancellation, which kotlinx delivers as a
+    // JobCancellationException ("SupervisorCoroutine was cancelled"). Childrens'
+    // cancellation results never reach `failure` (filtered inside
+    // kk_coroutine_scope_wait), so a CancellationException here can only be the
+    // scope's own.
+    val failure = kkCoroutineScopeWait(scope)
+    if (failure is CancellationException) {
+        throw failure
+    }
     return result
 }
 
