@@ -46,6 +46,7 @@ struct SequenceFactoryLifecycleTests {
         ("generateSequence<Int>(nextFunction = { null })", ["nextFunction"]),
         ("generateSequence(seed = 1, nextFunction = { null })", ["seed", "nextFunction"]),
         ("generateSequence<Int>(seedFunction = { 1 }, nextFunction = { null })", ["seedFunction", "nextFunction"]),
+        ("generateSequence<Int>(seedFunction = { throw IllegalStateException(\"retry\") }, nextFunction = { null })", ["seedFunction", "nextFunction"]),
     ])
     func generatorOverloadsKeepCanonicalSourceAndParameterNames(expression: String, parameters: [String]) throws {
         try withTemporaryFile(contents: "fun probe(): Sequence<Int> = \(expression)") { path in
@@ -68,6 +69,32 @@ struct SequenceFactoryLifecycleTests {
             #expect(signature.valueParameterSymbols.compactMap {
                 sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) }
             } == parameters)
+        }
+    }
+
+    @Test
+    func genericGeneratorUsesCanonicalSource() throws {
+        let source = """
+        fun <T : Any> probe(seed: () -> T?, next: (T) -> T?): Sequence<T> =
+            generateSequence(seedFunction = seed, nextFunction = next)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "generateSequence"
+            })
+            let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
+            let file = try #require(sema.symbols.sourceFileID(for: chosen))
+            #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/sequences/SequenceFactories.kt")
+            #expect(sema.symbols.externalLinkName(for: chosen) == nil)
+            #expect(sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == false)
         }
     }
 }

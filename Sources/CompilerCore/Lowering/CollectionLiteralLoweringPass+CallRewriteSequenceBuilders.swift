@@ -75,15 +75,15 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // yieldAll(iterable) inside sequence builder → __kk_sequence_builder_yieldAll (STDLIB-553)
+        // Keep initial iterator-probe exceptions in the producer's catch scope.
         if callee == lookup.yieldAllName, arguments.count == 2 {
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkSequenceBuilderYieldAllName,
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: true,
+                thrownResult: thrownResult
             ))
             return true
         }

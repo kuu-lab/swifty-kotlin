@@ -65,8 +65,9 @@ public fun <T : Any> generateSequence(
             var started = false
             return __kkSequenceGenerateNoArg<T>({
                 val result = if (!started) {
+                    val seed = seedFunction()
                     started = true
-                    seedFunction()
+                    seed
                 } else nextFunction(nextItem!!)
                 nextItem = result
                 result
