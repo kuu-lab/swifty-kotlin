@@ -60,6 +60,24 @@ struct ExtensionCallablePropertyTests {
         """)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let memberExtensionCalls = sema.bindings.callBindings.filter { exprID, binding in
+            isUserSourceExpr(exprID, in: ctx)
+                && sema.symbols.symbol(binding.chosenCallee).map { ctx.interner.resolve($0.name) } == "convert"
+        }
+        #expect(memberExtensionCalls.count == 1)
+    }
+
+    @Test
+    func genericMemberExtensionDoesNotConstrainItsReceiverToTheOwner() throws {
+        let ctx = makeContextFromSource("""
+        class Reader<T> {
+            fun String.echo(value: T): T = value
+            fun read(text: String, value: T): T = text.echo(value)
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
     @Test
