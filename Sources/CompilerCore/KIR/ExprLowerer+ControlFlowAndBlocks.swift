@@ -2239,7 +2239,11 @@ extension ExprLowerer {
             )
             let typeToken: KIRExprID = if let targetType = sema.bindings.isCheckTargetType(for: exprID) {
                 lowerTypeCheckTokenExpr(
-                    targetType: targetType,
+                    targetType: runtimeIsCheckTargetType(
+                        subjectType: sema.bindings.exprType(for: exprToCheck),
+                        targetType: targetType,
+                        sema: sema
+                    ),
                     sema: sema,
                     interner: interner,
                     arena: arena,

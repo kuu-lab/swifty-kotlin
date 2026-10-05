@@ -73,11 +73,10 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
-    @Test func testClassifyUnknownTypes() {
+    @Test func testClassifyFunctionType() {
         let types = TypeSystem()
         let sema = makeSemaModule(types: types).ctx
 
-        // Function type should classify as unknown
         let intType = types.make(.primitive(.int, .nonNull))
         let funcType = types.make(.functionType(FunctionType(
             receiver: nil,
@@ -87,7 +86,7 @@ struct RuntimeTypeCheckTokenTests {
             nullability: .nonNull
         )))
         let descriptor = RuntimeTypeCheckToken.classify(type: funcType, sema: sema)
-        #expect(descriptor.category.base == RuntimeTypeCheckToken.unknownBase)
+        #expect(descriptor.category.base == RuntimeTypeCheckToken.functionBase)
     }
 
     @Test func testEncodeConsistencyWithClassify() {

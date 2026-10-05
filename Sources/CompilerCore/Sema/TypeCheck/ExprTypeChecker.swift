@@ -346,7 +346,7 @@ final class ExprTypeChecker {
             return type
 
         case let .isCheck(exprID, typeRefID, negated, range):
-            _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            let subjectType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
             // Resolve the target type and validate it (P5-101)
             let targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
@@ -358,6 +358,18 @@ final class ExprTypeChecker {
                 inferenceContext: ctx,
                 usageRange: range
             )
+            if case .functionType = sema.types.kind(of: targetType),
+               !sema.types.isSubtype(
+                   sema.types.makeNonNullable(subjectType),
+                   sema.types.makeNonNullable(targetType)
+               )
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-ERASED-TYPE",
+                    "Cannot check for instance of erased type '\(sema.types.renderType(targetType))': function parameter and return types are not available at runtime.",
+                    range: range
+                )
+            }
             if case let .typeParam(typeParam) = sema.types.kind(of: targetType),
                let typeParameterSymbol = sema.symbols.symbol(typeParam.symbol),
                !typeParameterSymbol.flags.contains(.reifiedTypeParameter)
