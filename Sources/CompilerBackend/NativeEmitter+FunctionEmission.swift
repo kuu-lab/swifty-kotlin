@@ -948,6 +948,26 @@ extension NativeEmitter {
             if let existing = externalFunctions[effectiveName] {
                 return existing
             }
+            if let spec = Self.runtimeABIFunctionByName[effectiveName] {
+                let parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?] = spec.parameters.map { parameter in
+                    switch parameter.type {
+                    case .nullableIntptrPointer:
+                        return outThrownPointerType
+                    case .constUInt8Pointer, .nullableConstUInt8Pointer:
+                        // Flat bridges consume native pointers; legacy raw calls carry pointer bits as intptr.
+                        return Self.flatScalarReturnCallSpecs[effectiveName] != nil
+                            || Self.flatStringReturnCallSpecs[effectiveName] != nil
+                            ? typeLowering?.dataPointerType : int64Type
+                    default:
+                        return int64Type
+                    }
+                }
+                return declareExternalFunction(
+                    named: effectiveName,
+                    parameterTypes: parameterTypes,
+                    returnType: int64Type
+                )
+            }
             let maxArgsSeenInBody = maxKIRArgumentCountByExternalCallee[effectiveName] ?? 0
             let effectiveArgumentCount = max(argumentCount, maxArgsSeenInBody)
             var callParameterTypes = Array(repeating: int64Type, count: effectiveArgumentCount)
@@ -1716,7 +1736,11 @@ extension NativeEmitter {
             else {
                 return nil
             }
-            let parameters = [signature.receiverType].compactMap { $0 } + signature.parameterTypes
+            let omitsRuntimeReceiver = Self.runtimeABIFunctionByName[externalLinkName] != nil
+                && argumentCount == signature.parameterTypes.count
+            let includesReceiver = signature.receiverType != nil && !omitsRuntimeReceiver
+            let parameters = (includesReceiver ? [signature.receiverType].compactMap { $0 } : [])
+                + signature.parameterTypes
             guard parameters.count == argumentCount else {
                 return nil
             }
@@ -1733,7 +1757,7 @@ extension NativeEmitter {
             let resolvedParameters: [TypeID]
             let resolvedReturnType: TypeID
             func isVarargParameter(_ parameterIndex: Int) -> Bool {
-                let valueParameterIndex = parameterIndex - (signature.receiverType == nil ? 0 : 1)
+                let valueParameterIndex = parameterIndex - (includesReceiver ? 1 : 0)
                 return signature.valueParameterIsVararg.indices.contains(valueParameterIndex)
                     && signature.valueParameterIsVararg[valueParameterIndex]
             }
@@ -1745,7 +1769,7 @@ extension NativeEmitter {
                 // that is not part of the Kotlin parameter list, so exclude it
                 // when matching against the source-level signature.
                 let abiValueParameters = spec.parameters.filter { parameter in
-                    !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
+                    !(parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
                 }
                 if abiValueParameters.count == parameters.count {
                     resolvedParameters = zip(parameters, abiValueParameters).enumerated().map { index, pair in
@@ -2304,8 +2328,8 @@ extension NativeEmitter {
                 }
 
                 let calleeName = interner.resolve(callee)
-                let argumentValues = arguments.map(resolveValue)
-                let argumentTypes = arguments.map(module.arena.exprType)
+                var argumentValues = arguments.map(resolveValue)
+                var argumentTypes = arguments.map(module.arena.exprType)
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
                     argumentCount: argumentValues.count
@@ -2457,6 +2481,38 @@ extension NativeEmitter {
                 let calleeFunction: LLVMFunction?
                 let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
                 let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
+                // Default stubs can forward boxed callbacks without passing through CallLowerer's expansion.
+                if !isInternalCall,
+                   let spec = Self.runtimeABIFunctionByName[effectiveExternalName]
+                {
+                    let valueParameters = spec.parameters.filter { $0.name != "outThrown" }
+                    if argumentValues.count + 1 == valueParameters.count,
+                       let callbackIndex = valueParameters.firstIndex(where: { $0.name == "fnPtr" }),
+                       callbackIndex + 1 < valueParameters.count,
+                       valueParameters[callbackIndex + 1].name == "closureRaw",
+                       argumentTypes.indices.contains(callbackIndex),
+                       let callbackType = argumentTypes[callbackIndex],
+                       let typeSystem,
+                       case .functionType = typeSystem.kind(of: typeSystem.makeNonNullable(callbackType))
+                    {
+                        let callback = argumentValues[callbackIndex]
+                        var expandedCallback: [LLVMCAPIBindings.LLVMValueRef] = []
+                        for getter in ["kk_function_value_fn_ptr", "kk_function_value_closure_raw"] {
+                            if let function = declareExternalFunction(named: getter, argumentCount: 1, appendThrownChannel: false),
+                               let value = bindings.buildCall(
+                                   builder, functionType: function.type, callee: function.value,
+                                   arguments: [callback], name: "\(getter)_\(instructionIndex)"
+                               )
+                            {
+                                expandedCallback.append(value)
+                            }
+                        }
+                        if expandedCallback.count == 2 {
+                            argumentValues.replaceSubrange(callbackIndex...callbackIndex, with: expandedCallback)
+                            argumentTypes.replaceSubrange(callbackIndex...callbackIndex, with: [nil, nil])
+                        }
+                    }
+                }
                 let sourceExternalCallSignature = !isInternalCall
                     ? sourceExternalSignature(
                         for: effectiveSymbol,
@@ -2464,7 +2520,9 @@ extension NativeEmitter {
                     )
                     : nil
                 let shouldAppendThrownChannel = isInternalCall
-                    || (Self.runtimeABIFunctionByName[effectiveExternalName]?.isThrowing
+                    || (Self.runtimeABIFunctionByName[effectiveExternalName].map { spec in
+                        spec.parameters.contains { $0.name == "outThrown" && $0.type == .nullableIntptrPointer }
+                    }
                         ?? (usesThrownChannel || sourceExternalCallSignature != nil))
 
                 if let effectiveSymbol,
@@ -2515,7 +2573,12 @@ extension NativeEmitter {
                     symbols?.functionSignature(for: $0)?.valueParameterIsVararg
                 } ?? []
                 let callReceiverOffset: Int = effectiveSymbol.flatMap {
-                    symbols?.functionSignature(for: $0)?.receiverType == nil ? 0 : 1
+                    guard let signature = symbols?.functionSignature(for: $0),
+                          signature.receiverType != nil
+                    else {
+                        return 0
+                    }
+                    return sourceExternalCallSignature?.parameters.count == signature.parameterTypes.count ? 0 : 1
                 } ?? 0
                 let isRuntimeCallbackRawABIInternalCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
