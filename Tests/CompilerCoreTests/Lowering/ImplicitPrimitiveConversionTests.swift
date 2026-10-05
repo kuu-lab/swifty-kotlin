@@ -11,6 +11,7 @@ struct ImplicitPrimitiveConversionTests {
         fun shortExplicit(value: Short): UShort = value.toUShort()
         fun byteSafe(value: Byte?): UShort? = value?.toUShort()
         fun shortSafe(value: Short?): UShort? = value?.toUShort()
+        fun intSafe(value: Int?): UShort? = value?.toUShort()
         fun Byte.byteImplicit(): UShort = toUShort()
         fun Short.shortImplicit(): UShort = toUShort()
         fun Byte.byteThis(): UShort = this.toUShort()
@@ -26,6 +27,7 @@ struct ImplicitPrimitiveConversionTests {
             for name in [
                 "byteExplicit", "shortExplicit", "byteSafe", "shortSafe",
                 "byteImplicit", "shortImplicit", "byteThis", "shortThis",
+                "intSafe",
             ] {
                 let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
                 let calls = body.compactMap { instruction -> String? in
@@ -34,6 +36,17 @@ struct ImplicitPrimitiveConversionTests {
                 }
                 #expect(calls.filter { $0 == "kk_int_to_ushort" }.count == 1, "\(name): \(calls)")
                 #expect(!calls.contains("toUShort"), "\(name) must not emit an unresolved conversion")
+                if name.hasSuffix("Safe") {
+                    let guardIndex = try #require(body.firstIndex { if case .jumpIfNotNull = $0 { return true }; return false })
+                    let callIndex = try #require(body.firstIndex {
+                        if case let .call(_, callee, _, _, _, _, _, _) = $0 {
+                            return ctx.interner.resolve(callee) == "kk_int_to_ushort"
+                        }
+                        return false
+                    })
+                    #expect(guardIndex < callIndex, "\(name) must guard the conversion")
+                    #expect(body.contains { if case .constValue(_, .null) = $0 { return true }; return false })
+                }
             }
         }
     }

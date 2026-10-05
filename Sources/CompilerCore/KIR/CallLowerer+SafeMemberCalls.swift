@@ -673,14 +673,25 @@ extension CallLowerer {
             default: nil
             }
             if let callee = conversionCallee {
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
+                let nullValue = arena.appendExpr(.unit, type: resultType)
+                instructions.append(.constValue(result: nullValue, value: .null))
+                instructions.append(.copy(from: nullValue, to: result))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+                let nonNullResult = arena.appendTemporary(type: nonNullResultType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: callee,
                     arguments: [loweredReceiverID],
-                    result: result,
+                    result: nonNullResult,
                     canThrow: false,
                     thrownResult: nil
                 ))
+                instructions.append(.copy(from: nonNullResult, to: result))
+                instructions.append(.label(endLabel))
                 return result
             }
             let isRepresentationPreservingConversion =

@@ -7,6 +7,7 @@ fun byteUShort(value: Byte): UShort = value.toUShort()
 fun shortUShort(value: Short): UShort = value.toUShort()
 fun nullableByteUShort(value: Byte?): UShort? = value?.toUShort()
 fun nullableShortUShort(value: Short?): UShort? = value?.toUShort()
+fun nullableIntUShort(value: Int?): UShort? = value?.toUShort()
 
 fun main() {
     println((-1).toByte().toUShort())
@@ -29,4 +30,10 @@ fun main() {
     }
     println(nullableByteUShort(null))
     println(nullableShortUShort(null))
+    println(nullableByteUShort(null) == null)
+    println(nullableShortUShort(null) == null)
+    println(nullableIntUShort(null))
+    println(nullableIntUShort(null) == null)
+    println(nullableIntUShort(-1))
+    println(nullableIntUShort(0))
 }
