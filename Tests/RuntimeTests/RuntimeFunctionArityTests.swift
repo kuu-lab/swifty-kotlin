@@ -31,6 +31,25 @@ struct RuntimeFunctionArityTests {
         #expect(kk_op_is(property, functionToken(0)) == 0)
     }
 
+    @Test func callableReferenceMetadataSupportsNominalReflectionChecks() {
+        func nominalToken(_ typeID: Int64) -> Int {
+            Int((typeID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase)
+        }
+        let function = kk_callable_ref_tag_kfunction(0x234500, 0, 0, 1, 0)
+        let copied = kk_function_create_1(0x456700, 0, nil)
+        __kk_function_copy_description(function, copied)
+        for value in [function, copied] {
+            #expect(kk_op_is(value, nominalToken(kFunctionRuntimeTypeID)) == 1)
+            #expect(kk_op_is(value, nominalToken(kCallableRuntimeTypeID)) == 1)
+            #expect(kk_op_safe_cast(value, nominalToken(kFunctionRuntimeTypeID)) == value)
+            #expect(kk_op_is(value, nominalToken(kPropertyRuntimeTypeID)) == 0)
+        }
+        let lambda = kk_function_value_tag_arity(0x567800, 1)
+        #expect(kk_op_is(lambda, nominalToken(kFunctionRuntimeTypeID)) == 0)
+        #expect(kk_op_is(lambda, nominalToken(kCallableRuntimeTypeID)) == 0)
+        #expect(kk_op_is(runtimeNullSentinelInt, nominalToken(kCallableRuntimeTypeID)) == 0)
+    }
+
     @Test func taggingPreservesRawInvocationAndCastIdentity() {
         let entry: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { a, b, _ in a + b }
         let raw = unsafeBitCast(entry, to: Int.self)
