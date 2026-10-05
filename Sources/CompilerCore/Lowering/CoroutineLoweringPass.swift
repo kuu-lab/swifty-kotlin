@@ -138,8 +138,7 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
-            // KSP-1568: awaitCancellation() parks on the never-completing
-            // runtimeNonCancellableJob via kk_await_cancellation.
+            // awaitCancellation() parks a cancellable continuation.
             ctx.interner.intern("kk_await_cancellation"),
             // KUU-642: DeepRecursive callRecursive parks the caller continuation
             // and returns COROUTINE_SUSPENDED so invoke's trampoline loop can
@@ -164,7 +163,15 @@ final class CoroutineLoweringPass: LoweringPass {
             }
             return function
         }
-        let suspendFunctionSymbols = Set(suspendFunctions.map(\.symbol))
+        var suspendFunctionSymbols = Set(suspendFunctions.map(\.symbol))
+        if let sema = ctx.sema {
+            for symbol in sema.symbols.allSymbols()
+                where symbol.flags.contains(.importedLibrary)
+                && symbol.flags.contains(.suspendFunction)
+            {
+                suspendFunctionSymbols.insert(symbol.id)
+            }
+        }
         let suspendFunctionNames = Set(suspendFunctions.map(\.name))
 
         var existingFunctionNames: Set<InternedString> = Set(module.arena.declarations.compactMap { decl in
@@ -325,7 +332,6 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeContinuationResumeCallee = ctx.interner.intern("kk_coroutine_continuation_resume")
         let launcherArgSetCallee = ctx.interner.intern("kk_coroutine_launcher_arg_set")
         let coroutineScopeLaunchCallee = ctx.interner.intern("kk_coroutine_scope_launch")
-        let runtimeRunBlockingWithContCallee = ctx.interner.intern("kk_kxmini_run_blocking_with_cont")
         let kxMiniLauncherWithContCallees: [InternedString: InternedString] = [
             kxMiniRunBlockingCallee: ctx.interner.intern("kk_kxmini_run_blocking_with_cont"),
             kxMiniLaunchCallee: ctx.interner.intern("kk_kxmini_launch_with_cont"),
@@ -364,7 +370,6 @@ final class CoroutineLoweringPass: LoweringPass {
             continuationFactory: continuationFactory,
             directSuspendCallCallee: ctx.interner.intern("kk_coroutine_call_direct_suspend"),
             launcherArgSetCallee: launcherArgSetCallee,
-            runtimeRunBlockingWithContCallee: runtimeRunBlockingWithContCallee,
             kxMiniLauncherRuntimeCallees: kxMiniLauncherRuntimeCallees,
             kxMiniLauncherWithContCallees: kxMiniLauncherWithContCallees,
             coroutineScopeLaunchCallee: coroutineScopeLaunchCallee,
