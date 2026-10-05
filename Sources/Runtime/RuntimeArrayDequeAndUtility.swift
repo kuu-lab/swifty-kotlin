@@ -96,6 +96,30 @@ public func __kk_arraydeque_size(_ dequeRaw: Int) -> Int {
 
 // MARK: - Array utility functions (STDLIB-089)
 
+private let runtimeDoubleArrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.DoubleArray")
+private let runtimeFloatArrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.FloatArray")
+
+func runtimeArrayToString(
+    _ raw: Int,
+    box: RuntimeArrayBox,
+    renderElement: (RuntimeValue) -> String
+) -> String {
+    let typeIDs = runtimeArrayTypeIDs(rawValue: raw)
+    let parts: [String]
+    if typeIDs.contains(runtimeDoubleArrayTypeID) {
+        parts = box.elements.map {
+            runtimeFormatFloatingPoint(Double(bitPattern: UInt64(bitPattern: Int64($0))))
+        }
+    } else if typeIDs.contains(runtimeFloatArrayTypeID) {
+        parts = box.elements.map {
+            runtimeFormatFloatingPoint(Float(bitPattern: UInt32(truncatingIfNeeded: $0)))
+        }
+    } else {
+        parts = box.values.map(renderElement)
+    }
+    return "[\(parts.joined(separator: ", "))]"
+}
+
 @_cdecl("__kk_array_copyOf")
 public func __kk_array_copyOf(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
@@ -221,10 +245,9 @@ private func runtimeArrayBoxDeepToString(
     }
     defer { visited.remove(raw) }
 
-    let rendered = box.elements
-        .map { runtimeValueDeepToString($0, visited: &visited) }
-        .joined(separator: ", ")
-    return "[\(rendered)]"
+    return runtimeArrayToString(raw, box: box) {
+        runtimeValueDeepToString($0.legacyRawValue, visited: &visited)
+    }
 }
 
 private func runtimeValueDeepToString(_ raw: Int, visited: inout Set<Int>) -> String {
