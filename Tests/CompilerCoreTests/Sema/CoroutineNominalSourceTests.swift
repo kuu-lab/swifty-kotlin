@@ -4,6 +4,25 @@ import Testing
 @Suite
 struct CoroutineNominalSourceTests {
     @Test
+    func explicitStartResolvesWithoutBundledStdlib() throws {
+        try withTemporaryFile(contents: """
+        import kotlinx.coroutines.*
+        fun startJob(job: Job): Boolean = job.start()
+        fun startDeferred(deferred: Deferred): Boolean = deferred.start()
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let start = try #require(sema.symbols.lookup(fqName: [
+                "kotlinx", "coroutines", "Job", "start",
+            ].map(ctx.interner.intern)))
+            #expect(sema.symbols.externalLinkName(for: start) == "kk_job_start")
+            #expect(sema.symbols.symbol(start)?.flags.contains(.synthetic) == true)
+        }
+    }
+
+    @Test
     func nominalHierarchyAndConstructorsResolveFromBundledSource() throws {
         let source = """
         import kotlin.coroutines.*
@@ -31,6 +50,11 @@ struct CoroutineNominalSourceTests {
         fun factory(): CompletableJob = Job()
         fun supervisor(): CompletableJob = SupervisorJob()
         fun deferredJob(deferred: Deferred): Job = deferred
+        fun startJob(job: Job): Boolean = job.start()
+        fun startDeferred(deferred: Deferred<Int>): Boolean = deferred.start()
+        fun startCompletable(job: CompletableJob): Boolean = job.start()
+        fun startCompletableDeferred(deferred: CompletableDeferred<Int>): Boolean = deferred.start()
+        fun startSupport(job: JobSupport): Boolean = job.start()
         fun producerScope(scope: kotlinx.coroutines.channels.ProducerScope<Int>): CoroutineContext = scope.coroutineContext
         fun actorScope(scope: kotlinx.coroutines.channels.ActorScope<Int>): CoroutineContext = scope.coroutineContext
         """
@@ -69,6 +93,18 @@ struct CoroutineNominalSourceTests {
         #expect(sema.types.nominalTypeParameterVariances(for: abstractCoroutine) == [.in])
         let jobSupport = try #require(sema.symbols.lookup(fqName: root + [ctx.interner.intern("JobSupport")]))
         #expect(sema.symbols.symbol(jobSupport)?.flags.contains(.abstractType) == true)
+        let ast = try #require(ctx.ast)
+        let jobSupportCalls = memberCallExprIDs(named: "completeExceptionally", in: ast, interner: ctx.interner).filter { call in
+            guard case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call),
+                  case let .superRef(qualifier?, _) = ast.arena.expr(receiver)
+            else { return false }
+            return ctx.interner.resolve(qualifier) == "JobSupport"
+        }
+        #expect(jobSupportCalls.count == 1)
+        for call in jobSupportCalls {
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            #expect(sema.symbols.parentSymbol(for: binding.chosenCallee) == jobSupport)
+        }
         for name in ["Job", "ChildJob", "ParentJob"] {
             let parent = try #require(sema.symbols.lookup(fqName: root + [ctx.interner.intern(name)]))
             #expect(sema.symbols.directSupertypes(for: jobSupport).contains(parent))
@@ -79,5 +115,15 @@ struct CoroutineNominalSourceTests {
         let active = try #require(sema.symbols.lookup(fqName: root + [ctx.interner.intern("Job"), ctx.interner.intern("isActive")]))
         #expect(sema.symbols.parentSymbol(for: active) == job)
         #expect(sema.symbols.externalLinkName(for: active) == "kk_job_is_active")
+        let starts = sema.symbols.lookupAll(fqName: root + [ctx.interner.intern("Job"), ctx.interner.intern("start")])
+        #expect(starts.count == 1)
+        let start = try #require(starts.first)
+        #expect(sema.symbols.parentSymbol(for: start) == job)
+        #expect(sema.symbols.externalLinkName(for: start) == "kk_job_start")
+        let signature = try #require(sema.symbols.functionSignature(for: start))
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(signature.returnType == sema.types.booleanType)
+        #expect(!signature.isSuspend)
+        #expect(sema.symbols.sourceFileID(for: start) != nil)
     }
 }

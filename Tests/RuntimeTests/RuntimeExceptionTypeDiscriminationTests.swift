@@ -26,6 +26,24 @@ struct RuntimeExceptionTypeDiscriminationTests {
         return tryCast(ptr, to: RuntimeThrowableBox.self)
     }
 
+    @Test func stringIndexOutOfBoundsExceptionMatchesOnlyItsHierarchy() {
+        let thrown = runtimeAllocateStringIndexOutOfBoundsException(message: "bad index")
+        for fqName in [
+            "java.lang.StringIndexOutOfBoundsException",
+            "kotlin.IndexOutOfBoundsException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ] {
+            #expect(kk_op_is(thrown, nominalTypeToken(for: fqName)) == 1)
+        }
+        for fqName in ["kotlin.ArrayIndexOutOfBoundsException", "kotlin.IllegalArgumentException"] {
+            #expect(kk_op_is(thrown, nominalTypeToken(for: fqName)) == 0)
+        }
+        let arrayBounds = runtimeAllocateArrayIndexOutOfBoundsException(message: "bad index")
+        #expect(kk_op_is(arrayBounds, nominalTypeToken(for: "java.lang.StringIndexOutOfBoundsException")) == 0)
+    }
+
     // MARK: - kk_op_cast: `(42 as Any) as String` style failure (the reported repro)
 
     @Test func failedAsCastThrowsTypedClassCastException() throws {

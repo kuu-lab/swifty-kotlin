@@ -201,62 +201,67 @@ extension ExprTypeChecker {
             nullability: .nonNull
         )))
 
-        // Primary constructor: a synthetic `.constructor` symbol at the
-        // class's decl site so `primaryConstructorParameterLocals` /
-        // `typeCheckPrimaryConstructorSuperDelegation` find it via
-        // `symbols(atDeclSite:)`, plus one `.valueParameter` per header
-        // parameter for `emitPrimaryConstructorPropertyInitializers`.
         let initName = interner.intern("<init>")
-        let ctorSymbol = sema.symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: classFQName + [initName],
-            declSite: classDecl.range,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        sema.symbols.setParentSymbol(classSymbol, for: ctorSymbol)
-        var paramTypes: [TypeID] = []
-        var paramSymbols: [SymbolID] = []
-        for param in classDecl.primaryConstructorParams {
-            let paramType: TypeID = if let typeRefID = param.type {
-                driver.helpers.resolveTypeRef(
-                    typeRefID,
-                    ast: ast,
-                    sema: sema,
-                    interner: interner,
-                    scope: ctx.scope,
-                    diagnostics: ctx.semaCtx.diagnostics,
-                    inferenceContext: ctx,
-                    usageRange: classDecl.range
-                )
-            } else {
-                sema.types.anyType
-            }
-            let paramSymbol = sema.symbols.define(
-                kind: .valueParameter,
-                name: param.name,
-                fqName: classFQName + [initName, param.name],
-                declSite: classDecl.range,
-                visibility: .private,
+        let hasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty
+        var constructorHeaders: [(params: [ValueParamDecl], range: SourceRange)] = []
+        if hasPrimaryConstructor {
+            constructorHeaders.append((classDecl.primaryConstructorParams, classDecl.range))
+        }
+        constructorHeaders.append(contentsOf: classDecl.secondaryConstructors.map { ($0.valueParams, $0.range) })
+        var constructorSymbols: [SymbolID] = []
+        for header in constructorHeaders {
+            let ctorSymbol = sema.symbols.define(
+                kind: .constructor,
+                name: initName,
+                fqName: classFQName + [initName],
+                declSite: header.range,
+                visibility: .public,
                 flags: [.synthetic]
             )
-            sema.symbols.setParentSymbol(ctorSymbol, for: paramSymbol)
-            sema.symbols.setPropertyType(paramType, for: paramSymbol)
-            paramTypes.append(paramType)
-            paramSymbols.append(paramSymbol)
+            constructorSymbols.append(ctorSymbol)
+            sema.symbols.setParentSymbol(classSymbol, for: ctorSymbol)
+            var paramTypes: [TypeID] = []
+            var paramSymbols: [SymbolID] = []
+            for param in header.params {
+                let paramType: TypeID = if let typeRefID = param.type {
+                    driver.helpers.resolveTypeRef(
+                        typeRefID,
+                        ast: ast,
+                        sema: sema,
+                        interner: interner,
+                        scope: ctx.scope,
+                        diagnostics: ctx.semaCtx.diagnostics,
+                        inferenceContext: ctx,
+                        usageRange: header.range
+                    )
+                } else {
+                    sema.types.anyType
+                }
+                let paramSymbol = sema.symbols.define(
+                    kind: .valueParameter,
+                    name: param.name,
+                    fqName: classFQName + [initName, interner.intern("$\(ctorSymbol.rawValue)"), param.name],
+                    declSite: header.range,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                sema.symbols.setParentSymbol(ctorSymbol, for: paramSymbol)
+                sema.symbols.setPropertyType(paramType, for: paramSymbol)
+                paramTypes.append(paramType)
+                paramSymbols.append(paramSymbol)
+            }
+            sema.symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: classType,
+                    parameterTypes: paramTypes,
+                    returnType: classType,
+                    valueParameterSymbols: paramSymbols,
+                    valueParameterHasDefaultValues: header.params.map(\.hasDefaultValue),
+                    valueParameterIsVararg: header.params.map(\.isVararg)
+                ),
+                for: ctorSymbol
+            )
         }
-        sema.symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: classType,
-                parameterTypes: paramTypes,
-                returnType: classType,
-                valueParameterSymbols: paramSymbols,
-                valueParameterHasDefaultValues: classDecl.primaryConstructorParams.map(\.hasDefaultValue),
-                valueParameterIsVararg: classDecl.primaryConstructorParams.map(\.isVararg)
-            ),
-            for: ctorSymbol
-        )
 
         let classScope = ClassMemberScope(
             parent: ctx.scope,
@@ -281,7 +286,9 @@ extension ExprTypeChecker {
             objectScope: classScope,
             ctx: ctx
         )
-        classScope.insert(ctorSymbol)
+        for ctorSymbol in constructorSymbols {
+            classScope.insert(ctorSymbol)
+        }
         let classCtx = ctx.withOuterReceiver(
             label: classDecl.name,
             type: classType
@@ -318,7 +325,17 @@ extension ExprTypeChecker {
             classDecl,
             ctx: classCtx,
             solver: driver.solver,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.semaCtx.diagnostics,
+            baseLocals: outerLocalsSnapshot
+        )
+        driver.declChecker.typeCheckSecondaryConstructors(
+            classDecl.secondaryConstructors,
+            ctx: classCtx,
+            solver: driver.solver,
+            diagnostics: ctx.semaCtx.diagnostics,
+            ownerSymbol: classSymbol,
+            hasPrimaryConstructor: hasPrimaryConstructor,
+            baseLocals: outerLocalsSnapshot
         )
         driver.declChecker.typeCheckInitBlocks(
             classDecl.initBlocks,
@@ -336,6 +353,18 @@ extension ExprTypeChecker {
         )
 
         var capturedSymbols: Set<SymbolID> = []
+        var defaultExprRoots = classDecl.primaryConstructorParams.compactMap(\.defaultValue)
+        for constructor in classDecl.secondaryConstructors {
+            defaultExprRoots.append(contentsOf: constructor.valueParams.compactMap(\.defaultValue))
+            defaultExprRoots.append(contentsOf: constructor.delegationCall?.args.map(\.expr) ?? [])
+            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                inBody: constructor.body,
+                ast: ast,
+                sema: sema,
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
+            ))
+        }
         for functionDeclID in classDecl.memberFunctions {
             guard let functionSymbol = memberFunctionSymbolsByDecl[functionDeclID],
                   let decl = ast.arena.decl(functionDeclID),
@@ -351,11 +380,13 @@ extension ExprTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics,
                 baseLocals: outerLocalsSnapshot
             )
+            defaultExprRoots.append(contentsOf: functionDecl.valueParams.compactMap(\.defaultValue))
             capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
                 inBody: functionDecl.body,
                 ast: ast,
                 sema: sema,
-                outerSymbols: captureOuterSymbols
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
             ))
         }
         // Every initializer-side root of a local class (property
@@ -366,7 +397,7 @@ extension ExprTypeChecker {
             memberProperties: classDecl.memberProperties,
             includePropertyInitializers: true,
             extraBodies: classDecl.initBlocks,
-            extraExprRoots: classDecl.superTypeEntries.flatMap(\.constructorArgs).map(\.expr),
+            extraExprRoots: classDecl.superTypeEntries.flatMap(\.constructorArgs).map(\.expr) + defaultExprRoots,
             captureOuterSymbols: captureOuterSymbols,
             ast: ast,
             sema: sema

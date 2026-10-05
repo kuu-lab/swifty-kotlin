@@ -32,7 +32,7 @@ public func kk_sequence_reduceIndexed(
         return true
     }
 
-    let traversalState = runtimeTraverseSequenceSource(
+    runtimeTraverseSequenceSource(
         seqRaw,
         caller: #function,
         outThrown: outThrown,
@@ -40,10 +40,6 @@ public func kk_sequence_reduceIndexed(
     )
 
     if let outThrown, outThrown.pointee != 0 { return 0 }
-    if let traversalState, traversalState.limitReached {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
-        return 0
-    }
     if !hasAccumulator {
         outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: kEmptySequenceCannotReduce)
         return 0
@@ -82,7 +78,7 @@ public func kk_sequence_reduceIndexedOrNull(
         return true
     }
 
-    let traversalState = runtimeTraverseSequenceSource(
+    runtimeTraverseSequenceSource(
         seqRaw,
         caller: #function,
         outThrown: outThrown,
@@ -90,10 +86,6 @@ public func kk_sequence_reduceIndexedOrNull(
     )
 
     if let outThrown, outThrown.pointee != 0 { return 0 }
-    if let traversalState, traversalState.limitReached {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
-        return 0
-    }
     if !hasAccumulator {
         return runtimeNullSentinelInt
     }

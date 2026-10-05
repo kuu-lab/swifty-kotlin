@@ -348,6 +348,7 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
+        resultTypeOverride: TypeID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // `object` member properties never reach this point: they're always
@@ -364,7 +365,7 @@ extension CallLowerer {
         else {
             return nil
         }
-        let readResultType = sema.bindings.exprTypes[exprID]
+        let readResultType = resultTypeOverride ?? sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
         return lowerStoredMemberPropertyReadValue(
@@ -1235,6 +1236,7 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
+        interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // The receiver may itself be a qualified member-access chain (e.g. the
@@ -1336,6 +1338,19 @@ extension CallLowerer {
             // initializers) never ran, silently keeping every inherited
             // property at its zeroed default.
             if valueSymbol.kind == .object {
+                if let linkName = sema.symbols.externalLinkName(for: valueSymbolID), !linkName.isEmpty {
+                    let resultType = sema.symbols.propertyType(for: valueSymbolID) ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: valueSymbolID,
+                        callee: interner.intern(linkName),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 driver.emitObjectLazyInitGuardIfNeeded(
                     objectSymbol: valueSymbolID, arena: arena, sema: sema, instructions: &instructions
                 )

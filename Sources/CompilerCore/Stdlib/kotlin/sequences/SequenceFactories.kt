@@ -1,5 +1,6 @@
 package kotlin.sequences
 
+import kotlin.internal.KsNoInline
 import kotlin.internal.KsSymbolName
 
 // MIGRATION-SEQ-001 / KSP-651 / KSP-1338
@@ -45,11 +46,14 @@ public fun <T> sequenceOf(element: T): Sequence<T> = __kkSequenceOfSingle(elemen
 @kotlin.internal.InlineOnly
 public inline fun <T> sequenceOf(): Sequence<T> = emptySequence()
 
+// Callbacks escape into the sequence; retain boxed function values and captures.
+@KsNoInline
 public fun <T : Any> generateSequence(seed: T?, nextFunction: (T) -> T?): Sequence<T> {
     val nonNullSeed = seed ?: return emptySequence<T>()
     return __kkSequenceGenerate(nonNullSeed, nextFunction)
 }
 
+@KsNoInline
 public fun <T : Any> generateSequence(
     seedFunction: () -> T?,
     nextFunction: (T) -> T?
@@ -63,6 +67,7 @@ public fun <T : Any> generateSequence(
     }
 }
 
+@KsNoInline
 public fun <T : Any> generateSequence(nextFunction: () -> T?): Sequence<T> =
     __kkSequenceGenerateNoArg(nextFunction).constrainOnce()
 

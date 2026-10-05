@@ -297,12 +297,10 @@ extension KIRLoweringDriver {
                     isSuperCall: false
                 ))
             } else {
-                let nullOutThrown = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                body.append(.constValue(result: nullOutThrown, value: .null))
                 body.append(.call(
                     symbol: nil,
                     callee: shared.interner.intern("kk_abort_unreachable"),
-                    arguments: [nullOutThrown],
+                    arguments: [],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil,
@@ -565,12 +563,10 @@ extension KIRLoweringDriver {
                 isSuperCall: false
             ))
         } else {
-            let nullOutThrown = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-            body.append(.constValue(result: nullOutThrown, value: .null))
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_abort_unreachable"),
-                arguments: [nullOutThrown],
+                arguments: [],
                 result: nil,
                 canThrow: false,
                 thrownResult: nil,
@@ -923,14 +919,17 @@ extension KIRLoweringDriver {
             // Any's compiler-provided constructor is allocation-only.
             return
         }
-        if delegation.kind == .super_,
-           let resolvedSymbol,
+        if let resolvedSymbol,
            let receiver = ctx.activeImplicitReceiverExprID(),
            let superclassSymbol = sema.symbols.parentSymbol(for: resolvedSymbol),
+           let throwableSymbol = sema.symbols.lookup(fqName: [
+               shared.interner.intern("kotlin"), shared.interner.intern("Throwable"),
+           ]),
+           sema.types.isNominalSubtypeSymbol(superclassSymbol, of: throwableSymbol),
            isRuntimeThrowableSuperConstructor(resolvedSymbol, sema: sema)
         {
-            // `constructor(msg: String) : super(msg)` on an Exception subclass:
-            // the factory's box would be dropped, so copy its state instead.
+            // Runtime-backed Throwable factories return a separate box for
+            // both `this(...)` and `super(...)`; copy its state onto `this`.
             emitRuntimeThrowableSuperInitialization(
                 superCtorSymbol: resolvedSymbol,
                 superclassSymbol: superclassSymbol,
@@ -1167,13 +1166,11 @@ extension KIRLoweringDriver {
                     body.append(.label(nextLabel))
                 }
 
-                let nullOutThrown = arena.appendExpr(.null, type: nullableAnyType)
-                body.append(.constValue(result: nullOutThrown, value: .null))
                 let fallbackResult = arena.appendTemporary(type: propertyType)
                 body.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_abort_unreachable"),
-                    arguments: [nullOutThrown],
+                    arguments: [],
                     result: fallbackResult,
                     canThrow: false,
                     thrownResult: nil,

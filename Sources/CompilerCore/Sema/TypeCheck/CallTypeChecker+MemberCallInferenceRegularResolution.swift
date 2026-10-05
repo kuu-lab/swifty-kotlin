@@ -3,15 +3,6 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    func usesOnlyInputTypes(_ candidate: SymbolID, sema: SemaModule) -> Bool {
-        let annotatedSymbols = [candidate] + (sema.symbols.functionSignature(for: candidate)?.typeParameterSymbols ?? [])
-        return annotatedSymbols.contains { symbol in
-            sema.symbols.annotations(for: symbol).contains {
-                $0.annotationFQName.split(separator: ".").last == "OnlyInputTypes"
-            }
-        }
-    }
-
     /// Names of stdlib collection members backed by bundled Kotlin sources.
     /// Shared by member-call resolution paths that compare the resolved callee
     /// text; interned-String comparisons live on `KnownCompilerNames`.
@@ -179,7 +170,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
-        let isSyntacticRangeCollectionMember = calleeName == knownNames.plus || calleeName == knownNames.minus
+        let isSyntacticRangeCollectionMember = (calleeName == knownNames.plus || calleeName == knownNames.minus)
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
         if let result = tryInferRegularMemberCallPrimitiveSpecials(
@@ -194,47 +185,14 @@ extension CallTypeChecker {
 
         var isSuperCall = false
         var supertypeSymbols: Set<SymbolID> = []
-        var qualifiedSuperType: SymbolID?
-        if !safeCall {
-            if let superExpr = ast.arena.expr(receiverID), case let .superRef(interfaceQualifier, _) = superExpr {
-                isSuperCall = true
-                if let currentReceiverType = ctx.implicitReceiverType,
-                   let classSymbol = driver.helpers.nominalSymbol(of: currentReceiverType, types: sema.types)
-                {
-                    // Handle qualified super: super<Type>
-                    if let qualifier = interfaceQualifier {
-                        let qualifierStr = ctx.interner.resolve(qualifier)
-                        let directSupertypes = sema.symbols.directSupertypes(for: classSymbol)
-
-                        // Find the specified class or interface in direct supertypes
-                        for superID in directSupertypes {
-                            guard let superSym = sema.symbols.symbol(superID) else { continue }
-                            let isValidKind = superSym.kind == .interface || superSym.kind == .class || superSym.kind == .enumClass
-                            if isValidKind, superSym.name == qualifier {
-                                qualifiedSuperType = superID
-                                supertypeSymbols.insert(superID)
-                                break
-                            }
-                        }
-
-                        if qualifiedSuperType == nil {
-                            ctx.semaCtx.diagnostics.error(
-                                "KSWIFTK-SEMA-0054",
-                                "No type '\(qualifierStr)' found in direct supertypes for qualified 'super'.",
-                                range: ast.arena.exprRange(receiverID)
-                            )
-                        }
-                    } else {
-                        // Handle unqualified super: search all supertypes
-                        var queue = sema.symbols.directSupertypes(for: classSymbol)
-                        var visited: Set<SymbolID> = [classSymbol]
-                        while !queue.isEmpty {
-                            let next = queue.removeFirst()
-                            if visited.insert(next).inserted {
-                                supertypeSymbols.insert(next)
-                                queue.append(contentsOf: sema.symbols.directSupertypes(for: next))
-                            }
-                        }
+        if !safeCall, case .superRef = ast.arena.expr(receiverID) {
+            isSuperCall = true
+            if let selectedSupertype = driver.helpers.nominalSymbol(of: lookupReceiverType, types: sema.types) {
+                var queue = [selectedSupertype]
+                while !queue.isEmpty {
+                    let next = queue.removeFirst()
+                    if supertypeSymbols.insert(next).inserted {
+                        queue.append(contentsOf: sema.symbols.directSupertypes(for: next))
                     }
                 }
             }
@@ -263,7 +221,7 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        let memberLookupType = (isSuperCall ? ctx.implicitReceiverType : nil) ?? rangeSourceMemberLookupType ?? lookupReceiverType
+        let memberLookupType = rangeSourceMemberLookupType ?? lookupReceiverType
 
         // `ClosedRange.isEmpty` is also a valid candidate for a syntactic
         // ULongRange expression. Prefer the exact bundled ULongRange source
@@ -698,7 +656,7 @@ extension CallTypeChecker {
                             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                                 return false
                             }
-                            return signature.parameterTypes.isEmpty
+                            return signature.parameterTypes.isEmpty && signature.typeParameterSymbols.isEmpty
                         }
                         if let zeroArgNested,
                            let signature = sema.symbols.functionSignature(for: zeroArgNested)
@@ -751,7 +709,12 @@ extension CallTypeChecker {
                                 parameterMapping: resolved.parameterMapping
                             )
                         )
-                        let resultType = signature.returnType
+                        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                        let resultType = sema.types.substituteTypeParameters(
+                            in: signature.returnType,
+                            substitution: resolved.substitutedTypeArguments,
+                            typeVarBySymbol: typeVarBySymbol
+                        )
                         if ast.arena.isExplicitCall(id),
                            let nestedOwner = sema.symbols.parentSymbol(for: chosen),
                            let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
@@ -822,7 +785,18 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
-            let finalType = safeCall ? sema.types.makeNullable(propResult.type) : propResult.type
+            sema.bindings.bindExprType(id, type: propResult.type)
+            let narrowedType: TypeID? = if let reference = ctx.dataFlow.resolveStableReference(
+                id, locals: locals, ast: ast, sema: sema, interner: interner
+            ), reference.isStable {
+                ctx.dataFlow.resolvedTypeFromFlowState(
+                    ctx.flowState.includingMembers(from: locals), reference: reference.symbol
+                )
+            } else {
+                nil
+            }
+            let propertyType = narrowedType ?? propResult.type
+            let finalType = safeCall ? sema.types.makeNullable(propertyType) : propertyType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
@@ -1007,7 +981,7 @@ extension CallTypeChecker {
             // Normal instance receiver: use standard member lookup with
             // companion fallback via collectMemberFunctionCandidates.
             let allowedOwnerSymbols = isSuperCall && !supertypeSymbols.isEmpty ?
-                (qualifiedSuperType != nil ? [qualifiedSuperType!] : supertypeSymbols) : nil
+                supertypeSymbols : nil
             let hasScopedExactRangeExtension = rangeSourceMemberLookupType.map { sourceReceiverType in
                 guard isULongProgressionFirstLastMember,
                       let sourceReceiverSymbol = driver.helpers.nominalSymbol(
@@ -2114,9 +2088,6 @@ extension CallTypeChecker {
                           let declaredReceiver = signature.receiverType,
                           !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
                     else { return false }
-                    // OnlyInputTypes needs argument-only inference; do not widen
-                    // collection element types just to make a failed member viable.
-                    guard !usesOnlyInputTypes(candidate, sema: sema) else { return false }
                     let isUser = symbol.declSite.map {
                         driver.sourceManager?.origin(of: $0.start.file) == .user
                     } ?? false
@@ -2134,10 +2105,15 @@ extension CallTypeChecker {
                     )
                 }
             }
-            // Innermost binding first so a user extension keeps shadowing a
-            // same-named one; merge the whole chain only if that finds nothing.
+            // Viable user extensions shadow outer bindings, not inapplicable ones.
             var extensionCandidates = receiverMatchingExtensions(ctx.scope.lookup(calleeName))
-            if extensionCandidates.isEmpty {
+            if extensionCandidates.isEmpty || ctx.resolver.probeCall(
+                candidates: extensionCandidates,
+                call: CallExpr(range: range, calleeName: calleeName, args: preparedArgs.argTypes.map { CallArg(type: $0) }),
+                expectedType: expectedType,
+                implicitReceiverType: receiverForExtensionLookup,
+                ctx: ctx.semaCtx
+            ).viableCandidates.isEmpty {
                 extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
@@ -2909,11 +2885,10 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner
         ).filter { candidate in
-            !usesOnlyInputTypes(candidate, sema: sema)
-                && (!sema.symbols.isSourceBackedSymbol(candidate)
-                    || scopedExtensionCandidates.contains(candidate)
-                    || locals[calleeName]?.symbol == candidate
-                    || allowsImportlessAtomicExtensions)
+            !sema.symbols.isSourceBackedSymbol(candidate)
+                || scopedExtensionCandidates.contains(candidate)
+                || locals[calleeName]?.symbol == candidate
+                || allowsImportlessAtomicExtensions
         }
         guard !allCandidates.isEmpty else {
             return nil

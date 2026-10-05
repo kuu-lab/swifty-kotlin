@@ -15,10 +15,14 @@ import kotlin.random.Random
 
 // Float/Double maxOf uses these existing shared numeric helpers so NaN and
 // signed-zero behavior stays identical to kotlin.comparisons.maxOf.
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
-private external fun kk_unbox_float(value: Float): Float
-private external fun kk_unbox_double(value: Double): Double
+@PublishedApi
+internal external fun kk_max_float(a: Float, b: Float): Float
+@PublishedApi
+internal external fun kk_max_double(a: Double, b: Double): Double
+@PublishedApi
+internal external fun kk_unbox_float(value: Float): Float
+@PublishedApi
+internal external fun kk_unbox_double(value: Double): Double
 
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
