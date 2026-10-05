@@ -9,6 +9,11 @@ struct CoroutineScopeSourceMigrationTests {
         let ctx = makeContextFromSource("""
         import kotlinx.coroutines.*
 
+        suspend fun throughCoroutine(block: suspend CoroutineScope.() -> Int): Int =
+            coroutineScope(block = block)
+        suspend fun throughSupervisor(block: suspend CoroutineScope.() -> Int): Int =
+            supervisorScope(block)
+
         suspend fun probe(block: suspend CoroutineScope.() -> Int) {
             coroutineScope(block = block)
             supervisorScope(block)
