@@ -78,3 +78,83 @@ public fun LongArray.withIndex(): Iterable<IndexedValue<Long>> {
         override fun iterator(): Iterator<IndexedValue<Long>> = IndexingIterator(array.iterator())
     }
 }
+
+public operator fun IntArray.component1(): Int = this[0]
+
+public operator fun IntArray.component2(): Int = this[1]
+
+public operator fun IntArray.component3(): Int = this[2]
+
+public operator fun IntArray.component4(): Int = this[3]
+
+public operator fun IntArray.component5(): Int = this[4]
+
+public operator fun LongArray.component1(): Long = this[0]
+
+public operator fun LongArray.component2(): Long = this[1]
+
+public operator fun LongArray.component3(): Long = this[2]
+
+public operator fun LongArray.component4(): Long = this[3]
+
+public operator fun LongArray.component5(): Long = this[4]
+
+public operator fun ShortArray.component1(): Short = this[0]
+
+public operator fun ShortArray.component2(): Short = this[1]
+
+public operator fun ShortArray.component3(): Short = this[2]
+
+public operator fun ShortArray.component4(): Short = this[3]
+
+public operator fun ShortArray.component5(): Short = this[4]
+
+public operator fun ByteArray.component1(): Byte = this[0]
+
+public operator fun ByteArray.component2(): Byte = this[1]
+
+public operator fun ByteArray.component3(): Byte = this[2]
+
+public operator fun ByteArray.component4(): Byte = this[3]
+
+public operator fun ByteArray.component5(): Byte = this[4]
+
+public operator fun CharArray.component1(): Char = this[0]
+
+public operator fun CharArray.component2(): Char = this[1]
+
+public operator fun CharArray.component3(): Char = this[2]
+
+public operator fun CharArray.component4(): Char = this[3]
+
+public operator fun CharArray.component5(): Char = this[4]
+
+public operator fun BooleanArray.component1(): Boolean = this[0]
+
+public operator fun BooleanArray.component2(): Boolean = this[1]
+
+public operator fun BooleanArray.component3(): Boolean = this[2]
+
+public operator fun BooleanArray.component4(): Boolean = this[3]
+
+public operator fun BooleanArray.component5(): Boolean = this[4]
+
+public operator fun FloatArray.component1(): Float = this[0]
+
+public operator fun FloatArray.component2(): Float = this[1]
+
+public operator fun FloatArray.component3(): Float = this[2]
+
+public operator fun FloatArray.component4(): Float = this[3]
+
+public operator fun FloatArray.component5(): Float = this[4]
+
+public operator fun DoubleArray.component1(): Double = this[0]
+
+public operator fun DoubleArray.component2(): Double = this[1]
+
+public operator fun DoubleArray.component3(): Double = this[2]
+
+public operator fun DoubleArray.component4(): Double = this[3]
+
+public operator fun DoubleArray.component5(): Double = this[4]
