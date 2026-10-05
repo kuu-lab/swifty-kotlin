@@ -5,6 +5,38 @@ import Testing
 
 extension CompanionObjectTests {
 
+    @Test(arguments: ["", "Factory"])
+    func testCompanionMembersResolveInsideOwner(companionName: String) throws {
+        let qualifier = companionName.isEmpty ? "Companion" : companionName
+        let source = """
+        class Log {
+            val size: Int = 0
+            fun add(value: String): Boolean = true
+        }
+        class C {
+            val initialSize: Int = log.size
+            init { log.add("init") }
+            fun prop(): Int = log.size
+            fun add() { log.add("x") }
+            fun call(): C = create()
+            fun inc() {
+                count++; ++count
+                C.count++; ++C.count
+                \(qualifier).count++; ++\(qualifier).count
+            }
+            fun qualified() { C.log.add("c"); \(qualifier).log.add("companion") }
+            companion object \(companionName) {
+                val log = Log()
+                var count = 0
+                fun create() = C()
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testFactoryConstAndLoweringSema() throws {
         let sources: [String] = [
             // testCompanionFactoryFunctionResolvesEndToEnd
