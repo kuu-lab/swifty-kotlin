@@ -599,6 +599,20 @@ struct RuntimeAssertionsTests {
     }
 
     @Test
+    func testStringIndexOutOfBoundsExceptionRuntimeConstructors() throws {
+        let cases: [(Int, String?)] = [
+            (kk_string_index_out_of_bounds_exception_new(), nil),
+            (kk_string_index_out_of_bounds_exception_new_message(makeRuntimeString("bad index")), "bad index"),
+            (kk_string_index_out_of_bounds_exception_new_message(runtimeNullSentinelInt), nil),
+        ]
+        for (raw, message) in cases {
+            let box = try #require(runtimeBox(from: raw, as: RuntimeStringIndexOutOfBoundsExceptionBox.self))
+            #expect(box.exceptionFQName == "java.lang.StringIndexOutOfBoundsException")
+            #expect(box.message == message)
+        }
+    }
+
+    @Test
     func testNegativeArraySizeExceptionRuntimeConstructors() throws {
         let messageRaw = makeRuntimeString("-1")
         let messageOnly = kk_negative_array_size_exception_new_message(messageRaw)
