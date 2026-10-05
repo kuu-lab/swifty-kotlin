@@ -61,6 +61,8 @@ struct CallableRefTypeIdentityTests {
         "val ref = Box<Missing>::echo",
         "val ref = Missing<String>::echo",
         "val ref = Box<String>::class",
+        "val ref = Box<String, Int>::echo",
+        "val ref = Int<String>::plus",
     ])
     func testInvalidExplicitTypeReceiverIsRejected(_ declaration: String) throws {
         let ctx = makeContextFromSource("""
@@ -69,6 +71,26 @@ struct CallableRefTypeIdentityTests {
         """)
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test(arguments: [
+        "val instance = Outer.Nested<String>()",
+        "val instance: Outer.Nested<String> = Outer.Nested()",
+        "val instance = Outer.Nested<String>(1)",
+    ])
+    func testNestedGenericConstructorCanSupplyUnboundReceiver(_ declaration: String) throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            class Nested<T>(val initial: Int = 0) { fun echo(value: Int): Int = value }
+        }
+        fun main() {
+            \(declaration)
+            val ref = Outer.Nested<String>::echo
+            val result: Int = ref(instance, 42)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test func testExplicitTypeReceiverSelectsSpecializedOverload() throws {

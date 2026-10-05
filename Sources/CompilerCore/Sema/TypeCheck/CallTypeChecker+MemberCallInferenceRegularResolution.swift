@@ -688,7 +688,7 @@ extension CallTypeChecker {
                             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                                 return false
                             }
-                            return signature.parameterTypes.isEmpty
+                            return signature.parameterTypes.isEmpty && signature.typeParameterSymbols.isEmpty
                         }
                         if let zeroArgNested,
                            let signature = sema.symbols.functionSignature(for: zeroArgNested)
@@ -741,7 +741,12 @@ extension CallTypeChecker {
                                 parameterMapping: resolved.parameterMapping
                             )
                         )
-                        let resultType = signature.returnType
+                        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                        let resultType = sema.types.substituteTypeParameters(
+                            in: signature.returnType,
+                            substitution: resolved.substitutedTypeArguments,
+                            typeVarBySymbol: typeVarBySymbol
+                        )
                         if ast.arena.isExplicitCall(id),
                            let nestedOwner = sema.symbols.parentSymbol(for: chosen),
                            let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),

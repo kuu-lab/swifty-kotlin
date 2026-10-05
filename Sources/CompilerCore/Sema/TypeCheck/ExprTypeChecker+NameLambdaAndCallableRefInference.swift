@@ -1606,6 +1606,7 @@ extension ExprTypeChecker {
         // primitive receiver name never introduces real function/constructor
         // candidates that this could shadow.
         if let receiver,
+           ast.arena.callableRefReceiverTypeRef(for: id) == nil,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil,
            let result = inferPrimitiveOperatorCallableRefExpr(
@@ -1633,6 +1634,27 @@ extension ExprTypeChecker {
                 inferenceContext: ctx,
                 usageRange: range
             )
+            if let unboundClassType {
+                let argumentCounts: (expected: Int, actual: Int)?
+                if case let .classType(owner) = sema.types.kind(of: unboundClassType) {
+                    argumentCounts = (sema.types.nominalTypeParameterSymbols(for: owner.classSymbol).count, owner.args.count)
+                } else if case let .named(path, arguments, _) = ast.arena.typeRef(receiverTypeRef),
+                          let name = path.last,
+                          driver.helpers.resolveBuiltinTypeName(name, types: sema.types, interner: interner) != nil
+                {
+                    argumentCounts = (0, arguments.count)
+                } else {
+                    argumentCounts = nil
+                }
+                if let argumentCounts, argumentCounts.expected != argumentCounts.actual {
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0062",
+                        "Type argument count mismatch: expected \(argumentCounts.expected) but got \(argumentCounts.actual).",
+                        range: range
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+            }
         } else if let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil
