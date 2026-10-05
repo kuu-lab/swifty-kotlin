@@ -195,3 +195,49 @@ the diff gate quietly is if someone then marks it `SKIP-DIFF`.
   snappy. Byte-diff program stdout against a checked-in-style `.expected` file
   in the terminal so the recording itself proves every line, not just the ones
   a viewer can eyeball.
+
+## Probe-authoring gotchas
+
+Constructs that mislead in parity probes:
+
+- **`typeOf<suspend F>` is rejected by kotlinc** ("suspend functional types are
+  not supported in typeOf") — it can never be a byte-parity probe. If kswiftc
+  compiles it and renders `suspend (P) -> R`, that is a deliberate
+  more-permissive divergence, not a bug: document it, don't "fix" it.
+- **`x is (P) -> R` literals are rejected by kotlinc too** ("cannot check for
+  instance of erased type 'FunctionN<…>'"). For `is`-literal probes the
+  expected behavior is *both compilers fail to compile* — compare
+  diagnostics/exit codes, not stdout. kswiftc's current diagnostic is
+  `KSWIFTK-SEMA-0023` (cryptic but clean).
+- **`e::class` / `.simpleName` on a caught exception is unsupported in
+  kswiftc** (`SEMA-0022` unresolved '::class'). In catch-all branches print
+  `e.message` or a fixed tag instead.
+- **`(x as? F)(args)` doesn't compile anywhere** — `as?` yields nullable, so
+  call via `?.invoke(args)` or bind `val c = x as? F` first.
+- **`typeOf<FunctionN<*, *>>` keeps nominal spelling in kotlinc**
+  (`kotlin.Function1<*, *>`); kswiftc's function-notation renderer must fall
+  back to nominal when any projection is a star, or it prints `(*) -> *`.
+  Always include at least one star-projection `typeOf` in shape probes.
+- **Implicit-`it` lambdas may not infer through `FunctionN` declared types**
+  in kswiftc even when the same lambda into a `(P) -> R`-typed context works.
+  Isolate with a pair: `fun a(f: (Int)->String)` vs
+  `fun b(f: Function1<Int,String>)`.
+- **Representation traps for function values:** non-capturing lambdas and
+  unbound `::refs` lower to raw fnPtrs in kswiftc (no runtime type info —
+  `is`/`as FunctionN` cannot see them), while capturing lambdas and bound refs
+  are boxed. Always probe `is`/`as`/`invoke` for ALL four shapes
+  (`{…no capture}`, `{…captures}`, `::topLevel`, `recv::member`, `recv::prop`)
+  in `Any`-erased position.
+
+Shell pipeline traps:
+
+- `compiler 2>&1 | grep -v noise && next_step` silently short-circuits:
+  `grep -v` exits 1 when it filters out *every* line, so `&&` never runs
+  `next_step` even though the compile succeeded. Use `grep -v noise || true`,
+  or `;` separators, when filtering compiler output inside a `&&` chain.
+- `./bin > out.txt` loses buffered stdout on SIGSEGV — the file stays empty
+  even if the program printed before crashing. Bisect a crash by one construct
+  per .kt file (each compile+run ~10s with a warm .kklib) instead of trusting
+  partial output.
+- `cmd | head -N` hides the real exit code — print `${PIPESTATUS[0]}` when a
+  crash exit code is itself evidence (SIGSEGV → 139/141).
