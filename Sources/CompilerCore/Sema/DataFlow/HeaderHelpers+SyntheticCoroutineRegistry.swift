@@ -2356,13 +2356,9 @@ extension DataFlowSemaPhase {
         // operations through the synthetic `kk_coroutine_scope_*` members.
         //
         // `testScheduler`/`currentTime`/`backgroundScope` are synthetic
-        // member properties (upstream declares them as `val TestScope.x`
-        // extensions): extension *properties* on the suspend-lambda receiver
-        // do not resolve the implicit-receiver path — they emit a
-        // kk_global_root_slot_* load for a slot that is never defined —
-        // while member properties route through the same kk_ bridge as
-        // `isActive`. The surface syntax (`scope.testScheduler` etc.) is
-        // identical either way.
+        // member properties routing through runtime bridges, like `isActive`.
+        // Extension properties also use the bound implicit receiver, including
+        // when it is captured by a nested lambda.
         let testPkg = ensureSyntheticCoroutinePackage(
             coroutinesPkg + [interner.intern("test")],
             symbols: symbols,
