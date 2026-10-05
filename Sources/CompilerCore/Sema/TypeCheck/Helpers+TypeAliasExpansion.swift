@@ -146,7 +146,8 @@ extension TypeCheckHelpers {
             return types.make(.functionType(FunctionType(
                 contextReceivers: newContextReceivers,
                 receiver: newReceiver, params: newParams, returnType: newReturn,
-                isSuspend: fnType.isSuspend, nullability: fnType.nullability
+                isSuspend: fnType.isSuspend, isCallableReference: fnType.isCallableReference,
+                nullability: fnType.nullability
             )))
         case let .intersection(parts):
             let newParts = parts.map {
