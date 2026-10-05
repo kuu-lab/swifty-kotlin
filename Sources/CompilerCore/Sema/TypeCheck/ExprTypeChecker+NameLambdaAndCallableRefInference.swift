@@ -911,6 +911,11 @@ extension ExprTypeChecker {
         }) ?? candidates.first
         if let preferredCandidate {
             sema.bindings.bindIdentifier(id, symbol: preferredCandidate.id)
+            if ctx.implicitReceiverType != nil,
+               sema.symbols.extensionPropertyReceiverType(for: preferredCandidate.id) != nil
+            {
+                sema.bindings.markImplicitReceiverMember(id, name: name)
+            }
             // ANNO-001: Check for @Deprecated annotation on the resolved symbol.
             driver.helpers.checkDeprecation(
                 for: preferredCandidate.id,
