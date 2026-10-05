@@ -1890,8 +1890,48 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             )
         }
 
-        #expect(name(forSymbolRawValue: 104_789) == "kk_fn_get_104789")
-        #expect(name(forSymbolRawValue: -104_789) == "kk_fn_get_s104789")
+        #expect(name(forSymbolRawValue: 104_789).hasPrefix("kk_fn_get_104789__"))
+        #expect(name(forSymbolRawValue: -104_789).hasPrefix("kk_fn_get_s104789__"))
+        #expect(name(forSymbolRawValue: 104_789) != name(forSymbolRawValue: -104_789))
+    }
+
+    @Test
+    func testCodegenFunctionSymbolNamespacesIndependentCompilations() {
+        func name(module: String, fqName: [String]) -> String {
+            let interner = StringInterner()
+            let symbols = SymbolTable()
+            let types = TypeSystem()
+            let symbol = symbols.define(
+                kind: .function,
+                name: interner.intern("libraryValue"),
+                fqName: fqName.map { interner.intern($0) },
+                declSite: nil,
+                visibility: .public
+            )
+            return CodegenSymbolSupport.cFunctionSymbol(
+                for: KIRFunction(
+                    symbol: symbol,
+                    name: interner.intern("libraryValue"),
+                    params: [],
+                    returnType: types.unitType,
+                    body: [.returnUnit],
+                    isSuspend: false,
+                    isInline: false
+                ),
+                interner: interner,
+                moduleName: module,
+                symbols: symbols
+            )
+        }
+
+        let left = name(module: "LeftLib", fqName: ["left", "libraryValue"])
+        #expect(left == name(module: "LeftLib", fqName: ["left", "libraryValue"]))
+        #expect(left != name(module: "RightLib", fqName: ["left", "libraryValue"]))
+        #expect(left != name(module: "LeftLib", fqName: ["right", "libraryValue"]))
+        #expect(name(module: "a-b", fqName: []) != name(module: "a_b", fqName: []))
+        #expect(name(module: "M", fqName: ["a-b"]) != name(module: "M", fqName: ["a_b"]))
+        #expect(name(module: "M", fqName: ["a", "b"]) != name(module: "M", fqName: ["a_b"]))
+        #expect(name(module: "M", fqName: ["日本語"]) != name(module: "M", fqName: ["日本語_ "]))
     }
 
     @Test

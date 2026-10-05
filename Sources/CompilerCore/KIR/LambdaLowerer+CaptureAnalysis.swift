@@ -290,6 +290,11 @@ extension LambdaLowerer {
 
         case let .memberCall(receiverExpr, _, _, args, _),
              let .safeMemberCall(receiverExpr, _, _, args, _):
+            if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
             collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             for argument in args {
                 collectBoundIdentifierSymbols(in: argument.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
@@ -395,7 +400,7 @@ extension LambdaLowerer {
                 collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
 
-        case let .localFunDecl(_, _, _, functionBody, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 for nestedExpr in exprIDs {
@@ -694,7 +699,7 @@ extension LambdaLowerer {
             }
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
 
-        case let .localFunDecl(_, _, _, functionBody, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 return exprIDs.contains { containsImplicitReceiverReference(in: $0, ast: ast) }

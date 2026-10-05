@@ -39,6 +39,50 @@ struct DeclarationBoundaryTests {
     }
 
     @Test(arguments: [
+        "object Cast : Holder({ value -> calls += 1; value as? String })",
+        "class Cast : Holder({ value -> calls += 1; value as? String })",
+        "object Cast : Holder({ value -> calls += 1; value as? String }) { fun member() {} }",
+        "class Cast : Holder(f = { value -> calls += 1; value as? String }) { fun member() {} }",
+        "object Cast : Holder(listOf({ value -> calls += 1; value as? String })[0])",
+        "class Cast : Holder({ value -> val copy = value; calls += 1; copy as? String }, 42)",
+    ])
+    func superConstructorLambdaSemicolonsStayInsideDeclaration(declaration: String) throws {
+        let parsed = parse("\(declaration)\nfun after() {}")
+        let declarationNode = try #require(parsed.arena.nodes.first {
+            $0.kind == .classDecl || $0.kind == .objectDecl
+        })
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(declarationNode.range.end.offset == declaration.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == (declaration.contains("member") ? 2 : 1))
+    }
+
+    @Test(arguments: ["super", "this"])
+    func secondaryConstructorLambdaSemicolonsStayInsideDelegation(delegation: String) throws {
+        let constructor = "constructor() : \(delegation)({ value -> calls += 1; value as? String }) {}"
+        let prefix = "class Cast : Holder {\n    constructor(f: (Any) -> String?) : super(f)\n    "
+        let source = prefix + constructor + "\n    fun member() {}\n}\nfun after() {}"
+        let parsed = parse(source)
+        let constructors = parsed.arena.nodes.filter { $0.kind == .constructorDecl }
+        let lambdaConstructor = try #require(constructors.last)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(constructors.count == 2)
+        #expect(lambdaConstructor.range.end.offset == prefix.utf8.count + constructor.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test
+    func topLevelSemicolonStillSeparatesSuperConstructorDeclaration() {
+        let declaration = "object Cast : Holder({ value -> calls += 1; value as? String });"
+        let parsed = parse("\(declaration) fun after() {}")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.nodes.first { $0.kind == .objectDecl }?.range.end.offset == declaration.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test(arguments: [
         "bytes[2].toInt()",
         "bytes[0]",
         "bytes.size",

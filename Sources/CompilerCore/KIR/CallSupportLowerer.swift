@@ -649,6 +649,18 @@ final class CallSupportLowerer {
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
                 if isVararg[paramIndex] {
+                    for argIndex in argIndices
+                        where sourceArgExprs.indices.contains(argIndex)
+                        && (!spreadFlags.indices.contains(argIndex) || !spreadFlags[argIndex])
+                    {
+                        boxedArguments[argIndex] = driver.callLowerer.adaptSuspendFunctionValueArgument(
+                            providedArguments[argIndex],
+                            sourceExpr: sourceArgExprs[argIndex],
+                            parameterType: signature.parameterTypes[paramIndex],
+                            sema: sema, arena: arena, interner: interner,
+                            instructions: &instructions
+                        )
+                    }
                     let primitiveArrayType = primitiveVarargArrayType(
                         elementType: signature.parameterTypes[paramIndex],
                         sema: sema,
@@ -681,7 +693,18 @@ final class CallSupportLowerer {
                     )
                     normalized.append(packed)
                 } else if let argIndex = argIndices.first {
-                    normalized.append(providedArguments[argIndex])
+                    let argument = providedArguments[argIndex]
+                    if sourceArgExprs.indices.contains(argIndex) {
+                        normalized.append(driver.callLowerer.adaptSuspendFunctionValueArgument(
+                            argument,
+                            sourceExpr: sourceArgExprs[argIndex],
+                            parameterType: signature.parameterTypes[paramIndex],
+                            sema: sema, arena: arena, interner: interner,
+                            instructions: &instructions
+                        ))
+                    } else {
+                        normalized.append(argument)
+                    }
                 }
                 continue
             }

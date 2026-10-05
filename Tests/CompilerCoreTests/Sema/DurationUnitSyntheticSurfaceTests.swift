@@ -5,7 +5,7 @@ import Testing
 
 @Suite
 struct DurationUnitSyntheticSurfaceTests {
-    private static let fixture = SemaFixture(surface: "DurationUnit", diagnostics: .noDiagnostics)
+    private static let fixture = SemaFixture(surface: "DurationUnit", diagnostics: .noErrors)
 
     private func sharedSema(
         sourceLocation: Testing.SourceLocation = #_sourceLocation
