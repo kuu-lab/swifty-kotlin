@@ -1658,8 +1658,7 @@ final class CallTypeChecker {
                 lambdaReturnType = expectedType ?? sema.types.nullableAnyType
             }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
-                receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
-                    ? nil : coroutineScopeType(sema: sema, interner: interner),
+                receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
                 returnType: lambdaReturnType,
                 isSuspend: true,
@@ -2764,7 +2763,7 @@ final class CallTypeChecker {
             }
         }
         if !candidates.isEmpty {
-            // Synthetic builders erase their result type. Resolve arguments first,
+            // Coroutine builders erase their result type. Resolve arguments first,
             // then recover the actual block result instead of constraining Any.
             let coroutineBuilderNames: Set<String> = [
                 "runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull",
@@ -2775,6 +2774,9 @@ final class CallTypeChecker {
                 return externalLinkName == "kk_coroutine_scope_async"
                     || externalLinkName == "kk_with_timeout"
                     || externalLinkName == "kk_with_timeout_or_null"
+                    || sema.symbols.isSourceBackedSymbol(candidate)
+                    && (symbol.name == knownNames.coroutineScope || symbol.name == knownNames.supervisorScope)
+                    && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     || symbol.flags.contains(.synthetic)
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     && coroutineBuilderNames.contains(interner.resolve(symbol.name))
