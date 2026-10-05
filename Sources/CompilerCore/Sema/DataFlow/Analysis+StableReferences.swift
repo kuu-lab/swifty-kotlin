@@ -38,7 +38,10 @@ extension DataFlowAnalyzer {
         } else {
             true
         }
-        return (DataFlowReference(root: local.symbol), local.type, isStable)
+        let mutatedInClosure = localDeclarations[local.symbol].map {
+            localStability.isMutatedInClosure($0, sema: sema)
+        } ?? false
+        return (DataFlowReference(root: local.symbol), local.type, isStable && !mutatedInClosure)
     }
 
     private func isStableMemberProperty(_ property: SymbolID, ast: ASTModule, sema: SemaModule) -> Bool {

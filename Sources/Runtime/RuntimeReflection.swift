@@ -70,6 +70,11 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
     }
 }
 
+/// Renders class handles consistently across Any.toString, printing, and collections.
+func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
+    "class \(box.reflectionQualifiedName)"
+}
+
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
 @_cdecl("__kk_kclass_get_arity")

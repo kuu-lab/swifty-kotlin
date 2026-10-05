@@ -91,7 +91,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
             work.run()
         }
 
-        validateFunctionReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+        validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
 
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
@@ -136,8 +136,9 @@ final class TypeCheckSemaPhase: CompilerPhase {
         )
     }
 
-    private func validateFunctionReturnLambdaPaths(ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine) {
-        guard !sema.bindings.functionReturnLambdaPaths.isEmpty else { return }
+    private func validateReturnLambdaPaths(ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine) {
+        guard !sema.bindings.functionReturnLambdaPaths.isEmpty
+            || !sema.bindings.lambdaReturnLambdaPaths.isEmpty else { return }
         var inlineLambdaArguments: Set<ExprID> = []
         for (callExprID, binding) in sema.bindings.callBindings {
             guard sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
@@ -163,13 +164,17 @@ final class TypeCheckSemaPhase: CompilerPhase {
                 }
             }
         }
-        for returnExprID in sema.bindings.functionReturnLambdaPaths.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
-            guard let lambdaPath = sema.bindings.functionReturnLambdaPaths[returnExprID],
+        let returnPaths = sema.bindings.functionReturnLambdaPaths.merging(
+            sema.bindings.lambdaReturnLambdaPaths, uniquingKeysWith: { _, lambdaPath in lambdaPath }
+        )
+        for returnExprID in returnPaths.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let lambdaPath = returnPaths[returnExprID],
                   !lambdaPath.allSatisfy({ inlineLambdaArguments.contains($0) })
             else { continue }
+            let destination = sema.bindings.lambdaReturnTargets[returnExprID] == nil ? "function" : "lambda"
             diagnostics.error(
                 "KSWIFTK-SEMA-0042",
-                "A return to an enclosing function cannot cross a non-inline, crossinline, or noinline lambda boundary.",
+                "A return to an enclosing \(destination) cannot cross a non-inline, crossinline, or noinline lambda boundary.",
                 range: ast.arena.exprRange(returnExprID)
             )
         }

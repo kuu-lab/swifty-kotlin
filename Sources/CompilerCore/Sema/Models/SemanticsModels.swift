@@ -29,6 +29,23 @@ public enum SymbolKind: Hashable, Sendable {
 }
 
 extension SymbolTable {
+    /// Whether `import <path>` contributes the declarations nested under that
+    /// path to unqualified lookup. A path that resolves only to packages acts
+    /// like a package import (the `import kotlin.collections` quirk), and a
+    /// wildcard import (`import a.b.*`) always contributes. A non-wildcard
+    /// import whose path also resolves to a declaration must not: a class may
+    /// share its FQ name with a synthesised package record, so treating
+    /// `import kotlin.coroutines.CoroutineContext` as a package import would
+    /// leak the interface's members (Element, Key, ...) into bare-name
+    /// resolution and shadow same-named user declarations (KUU-1205).
+    public func importPathContributesMembers(_ path: [InternedString], isWildcard: Bool) -> Bool {
+        let resolved = lookupAll(fqName: path)
+        guard resolved.contains(where: { symbol($0)?.kind == .package }) else {
+            return false
+        }
+        return isWildcard || resolved.allSatisfy { symbol($0)?.kind == .package }
+    }
+
     /// Member extensions use [dispatch, extension, value arguments], while
     /// their semantic signature stores only the extension receiver.
     public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {
@@ -750,6 +767,12 @@ public final class SymbolTable {
                 if isExtensionProperty { declaredExtensionProperties.insert(id) }
                 return id
             }
+            // When a classifier coexists with a factory, a duplicate classifier
+            // must reuse the classifier rather than the first (possibly callable) entry.
+            if isNominalType(kind) || kind == .typeAlias,
+               let matching = existingSymbols.first(where: { $0.kind == kind }) {
+                return matching.id
+            }
             return existing[0]
         }
         let id = appendNewSymbol(
@@ -864,6 +887,10 @@ public final class SymbolTable {
             return existingNonPackageKinds.allSatisfy {
                 isCallableLike($0) || isNominalType($0) || $0 == .typeAlias || $0 == .property
             }
+        }
+        // Classifiers and factory functions must coexist in either registration order.
+        if isNominalType(kind) || kind == .typeAlias {
+            return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
         }
         guard isOverloadable(kind) else {
             return false
@@ -1611,8 +1638,11 @@ public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
-    /// Lambda boundaries crossed by a return targeting an enclosing named function.
+    /// Actual lambda destination and the boundaries crossed to reach it.
     /// Validated after overload resolution has bound the containing calls.
+    public private(set) var lambdaReturnTargets: [ExprID: ExprID] = [:]
+    public private(set) var lambdaReturnLambdaPaths: [ExprID: [ExprID]] = [:]
+    /// Lambda boundaries crossed by a return targeting an enclosing named function.
     public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
@@ -1830,6 +1860,11 @@ public final class BindingTable {
     func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
         identifierSymbols[expr] = symbol
         functionReturnLambdaPaths[expr] = lambdaPath
+    }
+
+    func bindLambdaReturn(_ expr: ExprID, target: ExprID, lambdaPath: [ExprID]) {
+        lambdaReturnTargets[expr] = target
+        lambdaReturnLambdaPaths[expr] = lambdaPath
     }
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {

@@ -274,13 +274,12 @@ extension DataFlowSemaPhase {
             }
 
             // `extractQualifiedPath` removes the `*` from wildcard imports.
-            // A package symbol therefore identifies the imports that should
-            // contribute a member named by this simple reference.
+            // Package-only paths (and `a.b.*` wildcards) contribute members;
+            // a path also resolving to a declaration does not — the synthetic
+            // package record sharing a class's FQ name must not leak the
+            // class's neighbours into bare-name supertype lookup (KUU-1205).
             for importDecl in imports where importDecl.alias == nil {
-                let isPackageImport = symbols.lookupAll(fqName: importDecl.path).contains { symbolID in
-                    symbols.symbol(symbolID)?.kind == .package
-                }
-                if isPackageImport {
+                if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                     append(importDecl.path + path)
                 }
             }
@@ -327,10 +326,7 @@ extension DataFlowSemaPhase {
             // Wildcard/package imports contribute the whole qualified path,
             // e.g. `import kotlin.coroutines.*` + `CoroutineContext.Key`.
             for importDecl in imports where importDecl.alias == nil {
-                let isPackageImport = symbols.lookupAll(fqName: importDecl.path).contains { symbolID in
-                    symbols.symbol(symbolID)?.kind == .package
-                }
-                if isPackageImport {
+                if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                     append(importDecl.path + path)
                 }
             }

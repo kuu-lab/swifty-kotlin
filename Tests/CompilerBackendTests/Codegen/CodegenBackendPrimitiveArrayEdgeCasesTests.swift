@@ -8,6 +8,28 @@ import Testing
 struct CodegenBackendPrimitiveArrayEdgeCasesTests {
 
     @Test
+    func testUnsignedArrayViewsUseTheirOwnKindsInDeepOperations() throws {
+        let source = """
+        fun main() {
+            println(arrayOf(byteArrayOf(-56, 1).asUByteArray()).contentDeepToString())
+            println(arrayOf(ubyteArrayOf(200u).asByteArray()).contentDeepToString())
+            val bytes = byteArrayOf(-56, 1)
+            val view = bytes.asUByteArray()
+            println(arrayOf(view).contentDeepEquals(arrayOf(ubyteArrayOf(200u, 1u))))
+            bytes[0] = 42
+            view[1] = 255u.toUByte()
+            println(arrayOf<Any>(bytes, view).contentDeepToString())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "UnsignedArrayViewsDeep", expected: """
+        [[200, 1]]
+        [[-56]]
+        true
+        [[42, -1], [42, 255]]
+        """ + "\n")
+    }
+
+    @Test
     func testFloatingPointArrayToStringAcrossAnyContexts() throws {
         let source = """
         data class Arrays(val d: DoubleArray, val f: FloatArray)

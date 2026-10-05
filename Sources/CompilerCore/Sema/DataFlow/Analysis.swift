@@ -69,6 +69,7 @@ final class DataFlowAnalyzer {
     var stableMemberProperties: [SymbolID: Bool] = [:]
     let localStability = LocalVariableStabilityAnalyzer()
     var stableMutableReceivers: Set<SymbolID> = []
+    var localDeclarations: [SymbolID: ExprID] = [:]
     init() {}
 
     private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {

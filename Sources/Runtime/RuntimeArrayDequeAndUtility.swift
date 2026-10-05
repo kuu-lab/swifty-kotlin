@@ -238,6 +238,8 @@ private func runtimePrimitiveArrayElementHash(
 }
 
 /// `Arrays.equals(x[], x[])` element equality for a primitive element word.
+/// Narrow integer elements compare their storage-width bits, so signed and
+/// unsigned machine-word encodings of the same view element agree.
 /// Floating-point elements compare canonical-NaN bitwise so different NaN
 /// payloads are equal while -0.0 != 0.0, matching `Double.equals`.
 private func runtimePrimitiveArrayElementsEqual(
@@ -246,6 +248,12 @@ private func runtimePrimitiveArrayElementsEqual(
     kind: RuntimePrimitiveArrayElementKind
 ) -> Bool {
     switch kind {
+    case .byte, .uByte:
+        return UInt8(truncatingIfNeeded: lhsRaw) == UInt8(truncatingIfNeeded: rhsRaw)
+    case .short, .uShort:
+        return UInt16(truncatingIfNeeded: lhsRaw) == UInt16(truncatingIfNeeded: rhsRaw)
+    case .int, .uInt:
+        return UInt32(truncatingIfNeeded: lhsRaw) == UInt32(truncatingIfNeeded: rhsRaw)
     case .double:
         return runtimeCanonicalDoubleBits(lhsRaw) == runtimeCanonicalDoubleBits(rhsRaw)
     case .float:

@@ -562,9 +562,10 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            if let packageSymbol = symbols.lookup(fqName: importDecl.path),
-               symbols.symbol(packageSymbol)?.kind == .package
-            {
+            // Non-wildcard imports whose path names a declaration (a class may
+            // share a synthetic package record's FQ name) do not expose the
+            // declaration's neighbours as bare annotation names (KUU-1205).
+            if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                 if let child = symbols.children(ofFQName: importDecl.path).compactMap({ symbols.symbol($0) }).first(where: { $0.kind == .annotationClass && $0.name == shortName }) {
                     return child.id
                 }

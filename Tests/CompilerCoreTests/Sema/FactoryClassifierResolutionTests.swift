@@ -3,6 +3,18 @@ import Testing
 
 @Suite
 struct FactoryClassifierResolutionTests {
+    @Test(arguments: [false, true])
+    func sameNamedFactoryDoesNotMakeInstanceMembersStatic(factoryFirst: Bool) throws {
+        let classifier = "class Foo(val x: Int) { fun tag() = x }"
+        let factory = "fun Foo() = 0"
+        let declarations = factoryFirst ? factory + "\n" + classifier : classifier + "\n" + factory
+        try withTemporaryFile(contents: "package dup\n" + declarations + "\nfun invalid() = dup.Foo.tag()") { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
+
     @Test(arguments: ["wildcard", "explicit", "alias", "default"])
     func qualifiedClassifierSurvivesSameNamedFunctions(importKind: String) throws {
         let importedPackage = importKind == "default" ? "kotlin" : "selected"

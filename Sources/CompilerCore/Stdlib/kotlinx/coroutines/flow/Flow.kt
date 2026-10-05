@@ -55,15 +55,19 @@ public fun <T> Flow<T>.filter(predicate: suspend (T) -> Boolean): Flow<T> {
 }
 
 public fun <T> Flow<T>.take(count: Int): Flow<T> {
+    require(count > 0) { "Requested element count $count should be positive" }
     val source = this
     return flow {
-        if (count <= 0) return@flow
+        val collector = SendingCollector<T> { value -> emit(value) }
         var emitted = 0
-        source.collect { value ->
-            if (emitted < count) {
-                emit(value)
+        try {
+            source.collect { value ->
+                collector.emit(value)
                 emitted += 1
+                if (emitted == count) throw AbortFlowException(collector)
             }
+        } catch (e: AbortFlowException) {
+            if (e.owner !== collector) throw e
         }
     }
 }
@@ -79,11 +83,17 @@ public suspend fun <T> Flow<T>.first(): T {
     val source = this
     var found = false
     var result: Any? = null
-    source.collect { value ->
-        if (!found) {
-            result = value
-            found = true
+    val collector = SendingCollector<T> { value ->
+        result = value
+        found = true
+    }
+    try {
+        source.collect { value ->
+            collector.emit(value)
+            throw AbortFlowException(collector)
         }
+    } catch (e: AbortFlowException) {
+        if (e.owner !== collector) throw e
     }
     if (!found) throw NoSuchElementException("Flow is empty.")
     @Suppress("UNCHECKED_CAST")
