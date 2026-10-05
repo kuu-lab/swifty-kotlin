@@ -302,23 +302,28 @@ final class MemberLowerer {
                         compilationCtx: compilationCtx
                     ))
                 }
-                let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
+                let shared = KIRLoweringSharedContext(
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
+                let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                    classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+                ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                    classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+                )
+                let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+                    symbol: symbol, memberDecls: nestedDirect + forwardingDecls
+                )))
                 directMembers.append(kirID)
                 allDecls.append(kirID)
                 allDecls.append(contentsOf: nestedAllDecls)
+                allDecls.append(contentsOf: forwardingDecls)
 
                 // Lower constructors for nested classes (inner and static).
                 // Without this, nested class constructors would not be emitted
                 // into KIR and codegen would produce undefined symbol references.
                 let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
                 let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                let shared = KIRLoweringSharedContext(
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers
-                )
                 for ctorSymbol in ctorSymbols {
                     let ctorDecls = driver.lowerConstructor(
                         ctorSymbol: ctorSymbol,
@@ -379,10 +384,22 @@ final class MemberLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 compilationCtx: compilationCtx
             )
-            let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
+            let shared = KIRLoweringSharedContext(
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+            ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+            )
+            let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+                symbol: symbol, memberDecls: nestedDirect + forwardingDecls
+            )))
             directMembers.append(kirID)
             allDecls.append(kirID)
             allDecls.append(contentsOf: nestedAll)
+            allDecls.append(contentsOf: forwardingDecls)
 
             // Nested objects that implement interfaces need a heap-backed global
             // and initializer so interface-typed receivers can use dynamic

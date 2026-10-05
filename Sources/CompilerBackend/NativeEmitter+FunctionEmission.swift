@@ -3237,6 +3237,33 @@ extension NativeEmitter {
                     fptrRaw = searchPointer
                 }
 
+                // Native dispatcher tags have no Kotlin itable. Use the exact
+                // source default selected by this compilation's symbol/layout;
+                // Kotlin objects must retain their dynamically resolved override.
+                if let effectiveSymbol,
+                   let symbols,
+                   let member = symbols.symbol(effectiveSymbol),
+                   ["get", "minusKey"].contains(interner.resolve(member.name)),
+                   let owner = symbols.parentSymbol(for: effectiveSymbol),
+                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "coroutines", "ContinuationInterceptor"],
+                   !member.flags.contains(.abstractType),
+                   symbols.isSourceBackedSymbol(effectiveSymbol),
+                   let defaultPointer = bindings.buildPtrToInt(
+                       builder, value: calleeFunction.value, type: int64Type,
+                       name: "dispatcher_default_\(instructionIndex)"
+                   ),
+                   let selectMethod = declareExternalFunction(
+                       named: "__kk_dispatcher_default_method", argumentCount: 3, appendThrownChannel: false
+                   ),
+                   let method = bindings.buildCall(
+                       builder, functionType: selectMethod.type, callee: selectMethod.value,
+                       arguments: [lookupReceiver, fptrRaw, defaultPointer],
+                       name: "dispatcher_dispatch_\(instructionIndex)"
+                   )
+                {
+                    fptrRaw = method
+                }
+
                 // Guard against null vtable/itable lookup: if fptrRaw == 0
                 // call kk_dispatch_error runtime trap instead of falling back
                 // to direct dispatch (GEN-002).

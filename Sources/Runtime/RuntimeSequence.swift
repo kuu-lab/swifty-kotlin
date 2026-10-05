@@ -37,7 +37,10 @@ final class RuntimeSequenceIteratorBox {
                     source: .nullable(fnPtr: fnPtr, closureRaw: closureRaw)
                 )
             case let .lazyBuilder(coroutine):
-                pullCursor = RuntimeSequencePullIteratorCursor(seq: seq, source: .builder(coroutine))
+                pullCursor = RuntimeSequencePullIteratorCursor(
+                    seq: seq,
+                    source: .builder(coroutine.freshIterator())
+                )
             default:
                 break
             }
@@ -90,6 +93,7 @@ fileprivate final class RuntimeSequencePullIteratorCursor {
     private var bufferedElements: [Int] = []
     private var bufferedIndex = 0
     private var exhausted = false
+    private var builderFailed = false
     private var started = false
 
     init(seq: RuntimeSequenceBox, source: Source) {
@@ -106,6 +110,10 @@ fileprivate final class RuntimeSequencePullIteratorCursor {
     }
 
     func hasNext(outThrown: UnsafeMutablePointer<Int>?) -> Bool {
+        if builderFailed {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Iterator has failed.")
+            return false
+        }
         if bufferedIndex < bufferedElements.count { return true }
         guard !exhausted else { return false }
         if !started {
@@ -113,9 +121,6 @@ fileprivate final class RuntimeSequencePullIteratorCursor {
             guard runtimeSequenceBeginTraversal(seq, outThrown: outThrown) else {
                 exhausted = true
                 return false
-            }
-            if case let .builder(coroutine) = source {
-                coroutine.resetIteration()
             }
         }
 
@@ -158,6 +163,18 @@ fileprivate final class RuntimeSequencePullIteratorCursor {
 
     private func nextSourceElement(outThrown: UnsafeMutablePointer<Int>?) -> Int? {
         switch source {
+        case let .builder(coroutine):
+            var thrown = 0
+            let next = coroutine.nextElement(outThrown: &thrown)
+            if thrown != 0 {
+                builderFailed = true
+                outThrown?.pointee = thrown
+                return nil
+            }
+            switch next {
+            case let .value(value): return value
+            case .done: return nil
+            }
         case let .seeded(seed, fnPtr, closureRaw):
             if seededPending {
                 seededPending = false
@@ -182,14 +199,6 @@ fileprivate final class RuntimeSequencePullIteratorCursor {
             }
             current = nextValue
             return nextValue
-        case let .builder(coroutine):
-            switch coroutine.nextElement() {
-            case let .value(element):
-                return element
-            case .done:
-                exhausted = true
-                return nil
-            }
         case let .nullable(fnPtr, closureRaw):
             let nextFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
             var thrown = 0
@@ -1105,11 +1114,11 @@ func runtimeTraverseSequenceWithState(
             // Request one element at a time from the coroutine so that
             // short-circuiting operations (take, first, etc.) only
             // compute the elements they actually need.
-            coroutine.resetIteration()
+            let coroutine = coroutine.freshIterator()
             var done = false
             while true {
                 if state.stop || done { break }
-                let next = coroutine.nextElement()
+                let next = coroutine.nextElement(outThrown: outThrown)
                 switch next {
                 case let .value(element):
                     emit(element)
@@ -1260,7 +1269,7 @@ func runtimeTraverseSequenceSource(
 /// Extracts source elements from a sequence step, if applicable.
 /// `.stringSource` is NOT extracted here — it is handled lazily in evaluateSequence
 /// and runtimeTraverseSequence to avoid eager materialization.
-private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
+private func extractSourceElements(from step: SequenceStepKind, outThrown: UnsafeMutablePointer<Int>? = nil) -> [Int]? {
     switch step {
     case let .source(sourceElements):
         return sourceElements
@@ -1270,7 +1279,12 @@ private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
         return builderElements
     case let .lazyBuilder(coroutine):
         // STDLIB-563: Materialize the lazy coroutine into an element array.
-        return coroutine.materializeAll()
+        let iterator = coroutine.freshIterator()
+        var elements: [Int] = []
+        while case let .value(element) = iterator.nextElement(outThrown: outThrown) {
+            elements.append(element)
+        }
+        return elements
     case let .pullSource(produce):
         var elements: [Int] = []
         while let element = produce() {
@@ -1526,7 +1540,7 @@ private func evaluateSequence(
     // Find the source elements
     var elements: [Int] = []
     for step in seq.steps {
-        if let source = extractSourceElements(from: step) {
+        if let source = extractSourceElements(from: step, outThrown: outThrown) {
             elements = source
             break
         }
@@ -1710,7 +1724,7 @@ private func evaluateSequenceValues(
         case .generator, .nullableGenerator:
             return evaluateSequence(seq, outThrown: outThrown, markConsumption: false).map { RuntimeValue(raw: $0) }
         default:
-            if let source = extractSourceElements(from: step) {
+            if let source = extractSourceElements(from: step, outThrown: outThrown) {
                 return source.map { RuntimeValue(raw: $0) }
             }
         }
@@ -3808,7 +3822,11 @@ public func kk_sequence_box_iterator(_ seqRaw: Int, _ outThrown: UnsafeMutablePo
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         return 0
     }
-    let iterator = RuntimeSequenceIteratorBox(seq: seq)
+    guard runtimeSequenceBeginTraversal(seq, outThrown: outThrown) else {
+        return 0
+    }
+    let iteratorSource = seq.constrainOnceState == nil ? seq : RuntimeSequenceBox(steps: seq.steps)
+    let iterator = RuntimeSequenceIteratorBox(seq: iteratorSource)
     return registerRuntimeObject(iterator)
 }
 

@@ -1917,9 +1917,10 @@ package final class MetadataEncoder {
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
-            // ITable slot layout is part of the nominal type shape and must round-trip
-            // completely, even for synthetic or non-public interface supertypes.
-            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+            // Dependency interfaces are not re-exported, but their slots still belong to the layout.
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID),
+               !symbol.flags.contains(.importedLibrary)
+            {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")

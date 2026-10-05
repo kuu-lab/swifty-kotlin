@@ -48,6 +48,25 @@ extension BuildKIRRegressionTests {
     }
 
     @Test
+    func testRuntimeSuppliedScopeReceiverLiteralsKeepLauncherABI() throws {
+        let ctx = makeContextFromSource("""
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            val bonus = 7
+            launch { delay(1); println(bonus) }.join()
+            println(async { delay(1); bonus }.await())
+            println(withTimeout(1000L) { delay(1); bonus })
+            println(withTimeoutOrNull(1000L) { delay(1); bonus })
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        try LoweringPhase().run(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func testCoroutineLauncherCapturesEnclosingGenericReceiverSeparatelyFromScope() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.coroutines.*

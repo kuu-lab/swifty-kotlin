@@ -38,6 +38,17 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_coroutine_call_suspend_wrapper",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_coroutine_continuation_factory",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
@@ -787,6 +798,24 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
                 RuntimeABIParameter(name: "keyRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_is_native_dispatcher",
+            parameters: [RuntimeABIParameter(name: "receiver", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_default_method",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "virtualMethod", type: .intptr),
+                RuntimeABIParameter(name: "defaultMethod", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine",

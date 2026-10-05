@@ -1611,6 +1611,9 @@ public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
+    /// Lambda boundaries crossed by a return targeting an enclosing named function.
+    /// Validated after overload resolution has bound the containing calls.
+    public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
     public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
@@ -1664,6 +1667,8 @@ public final class BindingTable {
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var floatingPointRangeElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var floatingPointRangeElementTypesBySymbol: [SymbolID: TypeID] = [:]
+    private var openFloatingPointRangeExprIDs: Set<ExprID> = []
+    private var openFloatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
     /// Tracks the real element type produced by an `async { ... }` call, keyed by
@@ -1725,6 +1730,8 @@ public final class BindingTable {
     /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
     /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
+    /// Runtime trampolines require a raw suspend entry, not a nested boxed adapter.
+    public private(set) var rawSuspendEntryLambdaExprIDs: Set<ExprID> = []
     /// Receivers supplied by the running continuation, not by launcherArgs.
     public private(set) var coroutineScopeLambdaReceiverTypes: [ExprID: TypeID] = [:]
     /// Tracks expressions whose expected type comes from a type annotation
@@ -1804,6 +1811,11 @@ public final class BindingTable {
 
     public func bindIdentifier(_ expr: ExprID, symbol: SymbolID) {
         identifierSymbols[expr] = symbol
+    }
+
+    func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
+        identifierSymbols[expr] = symbol
+        functionReturnLambdaPaths[expr] = lambdaPath
     }
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {
@@ -1947,9 +1959,18 @@ public final class BindingTable {
         floatingPointRangeExprIDs.contains(expr)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID, endExclusive: Bool = false) {
         floatingPointRangeExprIDs.insert(expr)
         floatingPointRangeElementTypesByExpr[expr] = type
+        if endExclusive {
+            openFloatingPointRangeExprIDs.insert(expr)
+        } else {
+            openFloatingPointRangeExprIDs.remove(expr)
+        }
+    }
+
+    public func isOpenFloatingPointRangeExpr(_ expr: ExprID) -> Bool {
+        openFloatingPointRangeExprIDs.contains(expr)
     }
 
     public func floatingPointRangeElementType(forExpr expr: ExprID) -> TypeID? {
@@ -2057,9 +2078,18 @@ public final class BindingTable {
         floatingPointRangeSymbolIDs.contains(symbol)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID, endExclusive: Bool = false) {
         floatingPointRangeSymbolIDs.insert(symbol)
         floatingPointRangeElementTypesBySymbol[symbol] = type
+        if endExclusive {
+            openFloatingPointRangeSymbolIDs.insert(symbol)
+        } else {
+            openFloatingPointRangeSymbolIDs.remove(symbol)
+        }
+    }
+
+    public func isOpenFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
+        openFloatingPointRangeSymbolIDs.contains(symbol)
     }
 
     public func floatingPointRangeElementType(forSymbol symbol: SymbolID) -> TypeID? {
@@ -2311,6 +2341,10 @@ public final class BindingTable {
     /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.
     public func markCoroutineLauncherLambdaExpr(_ expr: ExprID) {
         coroutineLauncherLambdaExprIDs.insert(expr)
+    }
+
+    public func markRawSuspendEntryLambdaExpr(_ expr: ExprID) {
+        rawSuspendEntryLambdaExprIDs.insert(expr)
     }
 
     /// Whether the lambda literal is a KIR-level coroutine launcher's block

@@ -873,3 +873,12 @@ identity without retaining a wrapper through its job.
 compiler passes the generated getter slot; tags return themselves and Kotlin
 objects retain virtual getter dispatch. This adds one `__kk_*` bridge (reason:
 memory representation) without changing scheduler behavior.
+
+Inherited `ContinuationInterceptor.get`/`minusKey` calls on native dispatchers
+select the source-backed Kotlin default using `__kk_dispatcher_default_method`;
+the compiler supplies its function pointer instead of assigning fixed itable
+slots. Kotlin receivers retain their resolved overrides and thrown channels.
+`__kk_is_native_dispatcher` lets these defaults avoid the Kotlin `key` getter
+for native tags/handles while keeping polymorphic-key logic in Kotlin. The two
+new `__kk_*` entries are memory-representation bridges: native schedulers have
+no source-object layout, and neither bridge implements context-key semantics.

@@ -69,10 +69,48 @@ struct FlowHandleLifetimeLoweringTests {
             returnType: TypeSystem().unitType, body: body, isSuspend: true, isInline: false
         )))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [functionID])], arena: arena)
-        CoroutineLoweringPass().lowerFlowExpressions(module: module, ctx: makeKIRContext(interner: interner))
         let function = try #require(arena.decl(functionID)?.function)
+        let names = FlowLoweringNames(
+            flow: interner.intern("flow"), emit: interner.intern("emit"),
+            collect: interner.intern("collect"), collectLatest: interner.intern("collectLatest"),
+            map: interner.intern("map"), filter: interner.intern("filter"),
+            take: interner.intern("take"), transform: interner.intern("transform"),
+            single: interner.intern("single"), takeWhile: interner.intern("takeWhile"),
+            dropWhile: interner.intern("dropWhile"), flatMapConcat: interner.intern("flatMapConcat"),
+            flatMapMerge: interner.intern("flatMapMerge"), flatMapLatest: interner.intern("flatMapLatest"),
+            combine: interner.intern("combine"), zip: interner.intern("zip"),
+            merge: interner.intern("merge"), buffer: interner.intern("buffer"),
+            conflate: interner.intern("conflate"), flowOn: interner.intern("flowOn"),
+            debounce: interner.intern("debounce"), sample: interner.intern("sample"),
+            delayEach: interner.intern("delayEach"), catchHandler: interner.intern("catch"),
+            retry: interner.intern("retry"), retryWhen: interner.intern("retryWhen"),
+            onErrorReturn: interner.intern("onErrorReturn"), onErrorResume: interner.intern("onErrorResume"),
+            toList: interner.intern("toList"), first: interner.intern("first"),
+            kkFlowCreate: interner.intern("kk_flow_create"), kkFlowEmit: interner.intern("kk_flow_emit"),
+            kkFlowCollect: interner.intern("kk_flow_collect"), kkFlowCollectLatest: interner.intern("__kk_flow_collectLatest"),
+            kkFlowRetain: interner.intern("__kk_flow_retain"), kkFlowRelease: interner.intern("__kk_flow_release"),
+            kkFlowToList: interner.intern("__kk_flow_to_list"), kkFlowFirst: interner.intern("__kk_flow_first"),
+            kkFlowSingle: interner.intern("__kk_flow_single"), kkFlowZip: interner.intern("__kk_flow_zip"),
+            kkFlowCombine: interner.intern("__kk_flow_combine"), kkFlowMerge: interner.intern("__kk_flow_merge"),
+            kkFlowFlatMapConcat: interner.intern("__kk_flow_flat_map_concat"),
+            kkFlowFlatMapMerge: interner.intern("__kk_flow_flat_map_merge"),
+            kkFlowFlatMapLatest: interner.intern("__kk_flow_flat_map_latest")
+        )
+        var flowExprIDs: Set<Int32> = [handle.rawValue]
+        var remainingConsumes = [handle.rawValue: finalConsume ? 2 : 1]
+        // Pin lexical consume releases separately from guarded scope-exit ownership cleanup.
+        let rewritten = CoroutineLoweringPass().rewriteFlowInstructions(
+            originalBody: function.body, originalLocations: function.instructionLocations,
+            module: module, ctx: makeKIRContext(interner: interner),
+            flowExprIDs: &flowExprIDs, remainingConsumes: &remainingConsumes,
+            symbolByExprRaw: [:], names: names, isFlowScopeFunction: false
+        )
+        #expect(rewritten.instructions.filter { instruction in
+            if case .call(_, names.kkFlowCollect, _, _, _, _, _, _) = instruction { return true }
+            return false
+        }.count == (finalConsume ? 2 : 1))
         var afterLoop = false
-        return function.body.compactMap { instruction in
+        return rewritten.instructions.compactMap { instruction in
             if case .label(40) = instruction { afterLoop = true }
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
                   interner.resolve(callee) == "__kk_flow_release"

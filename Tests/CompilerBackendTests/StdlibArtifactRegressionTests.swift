@@ -2418,6 +2418,30 @@ struct StdlibArtifactRegressionTests {
             """, artifactPath: artifactPath, expected: "scope\n41\n41\n2\n")
     }
 
+    @Test(arguments: [false, true])
+    func testProduceActorLiteralBlocks(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kotlinx_coroutines_produce_actor_basic.kt"
+        ), encoding: .utf8)
+        try expectFlowSharingOutput(source, artifactPath: artifactPath,
+                                    expected: "produced total: 60\ncaptured: 2\nlooped last: 9\nactor got: 107\nactor got: 108\ndone\n")
+    }
+
+    @Test(arguments: [false, true])
+    func testProduceActorStoredBlocks(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kuu1127_produce_actor_stored_blocks.kt"
+        ), encoding: .utf8)
+        try expectFlowSharingOutput(source, artifactPath: artifactPath,
+                                    expected: "uncaptured: 3\nsingle: 6\ncaptured: 9\nforwarded: 15\nactor: 33\n")
+    }
+
     private func expectFlowSharingOutput(_ source: String, artifactPath: String?, expected: String) throws {
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory

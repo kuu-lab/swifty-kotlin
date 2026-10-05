@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct ExperimentalTimeSourceSyntheticSurfaceTests {
-    private static let fixture = SemaFixture(surface: "experimental time source", diagnostics: .noDiagnostics)
+    private static let fixture = SemaFixture(surface: "experimental time source")
 
     private func sharedSema(
         sourceLocation: Testing.SourceLocation = #_sourceLocation
@@ -195,7 +195,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
+        let diagnostics = diagnosticsForPath(ctx.options.inputs[0], withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
         let hasOptInError = diagnostics.contains {
             $0.severity == .error && $0.message.contains("kotlin.time.ExperimentalTime")
         }
@@ -217,7 +217,7 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
+        let diagnostics = diagnosticsForPath(ctx.options.inputs[0], withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
         #expect(
             diagnostics.isEmpty,
             "Expected @OptIn(ExperimentalTime::class) to suppress opt-in diagnostics, got \(ctx.diagnostics.diagnostics)"

@@ -312,6 +312,7 @@ extension CoroutineLoweringPass {
     func rewriteLauncherCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         if call.callee == rewrite.ctx.interner.intern("kk_coroutine_scope_async") {
@@ -330,6 +331,7 @@ extension CoroutineLoweringPass {
             return rewriteChannelProduceLaunchCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
+                functionValueInfoByExprRaw: functionValueInfoByExprRaw,
                 using: rewrite
             )
         }
@@ -1144,12 +1146,15 @@ extension CoroutineLoweringPass {
     /// would land in its leading capture slot. Leave such calls in place
     /// for `__kk_produce_launch` to invoke under the boxed (fnPtr, env)
     /// function-value convention.
+    /// Known closure-first suspend adapters also use a launcher continuation,
+    /// seeded with their environment before the channel receiver.
     func rewriteChannelProduceLaunchCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.arguments.count == 2 else {
+        guard call.arguments.count >= 2 else {
             return nil
         }
         let channelExpr = call.arguments[0]
@@ -1170,7 +1175,11 @@ extension CoroutineLoweringPass {
             )
         }
 
-        guard isCoroutineLauncherMarkedBlock(suspendSymbol, using: rewrite) else {
+        let callableInfo = rewrite.module.arena.callableValueInfo(for: suspendArgExpr)
+            ?? functionValueInfoByExprRaw[suspendArgExpr.rawValue]
+        guard isCoroutineLauncherMarkedBlock(suspendSymbol, using: rewrite)
+            || callableInfo?.hasClosureParam == true
+        else {
             return rewriteProduceLaunchFunctionValueCall(
                 call: call,
                 channelExpr: channelExpr,
@@ -1179,13 +1188,11 @@ extension CoroutineLoweringPass {
             )
         }
 
-        // Captures either arrive flattened as trailing call args or ride
-        // inside the suspend value's callable info — use whichever form the
-        // emitter produced.
-        let trailingCaptures = Array(call.arguments.dropFirst(2))
-        let captures: [KIRExprID] = trailingCaptures.isEmpty
-            ? (rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments ?? [])
-            : trailingCaptures
+        // Callable metadata preserves positional captures when the native
+        // ABI has packed them into a trailing environment argument.
+        let captures = callableInfo?.captureArguments
+            ?? rewrite.module.arena.lambdaCaptureArgsBySymbol[suspendSymbol]
+            ?? Array(call.arguments.dropFirst(2))
 
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
@@ -1205,10 +1212,12 @@ extension CoroutineLoweringPass {
             ),
         ]
 
-        // Slot 0 is reserved for the produced channel receiver.
-        for (index, argExpr) in captures.enumerated() {
+        let launcherArguments = callableInfo?.hasClosureParam == true
+            ? captures + [channelExpr]
+            : [channelExpr] + captures
+        for (index, argExpr) in launcherArguments.enumerated() {
             let slotExpr = rewrite.module.arena.appendExpr(
-                .intLiteral(Int64(index + 1)),
+                .intLiteral(Int64(index)),
                 type: rewrite.intType
             )
             rewritten.append(
@@ -1389,7 +1398,10 @@ extension CoroutineLoweringPass {
         channelExpr: KIRExprID,
         suspendArgExpr: KIRExprID,
         using rewrite: SuspendRewriteContext
-    ) -> [KIRInstruction] {
+    ) -> [KIRInstruction]? {
+        guard call.arguments.count == 2 else {
+            return nil
+        }
         let arena = rewrite.module.arena
         var instructions: [KIRInstruction] = []
 

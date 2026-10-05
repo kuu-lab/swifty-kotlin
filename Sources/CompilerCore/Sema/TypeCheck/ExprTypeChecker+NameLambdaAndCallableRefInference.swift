@@ -863,7 +863,10 @@ extension ExprTypeChecker {
             if sema.bindings.isFloatingPointRangeSymbol(local.symbol) {
                 sema.bindings.markFloatingPointRangeExpr(id)
                 if let elementType = sema.bindings.floatingPointRangeElementType(forSymbol: local.symbol) {
-                    sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                    sema.bindings.bindFloatingPointRangeElementType(
+                        elementType, forExpr: id,
+                        endExclusive: sema.bindings.isOpenFloatingPointRangeSymbol(local.symbol)
+                    )
                 }
             }
             if sema.bindings.isFlowSymbol(local.symbol) {
@@ -1397,7 +1400,7 @@ extension ExprTypeChecker {
         } else {
             ctx
         }
-        bodyCtx = bodyCtx.enteringLambdaBody()
+        bodyCtx = bodyCtx.enteringLambdaBody(id)
         if let receiverType = ctx.implicitReceiverType,
            let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
            bodyCtx.implicitReceiverStack.last?.symbol != receiverSymbol
