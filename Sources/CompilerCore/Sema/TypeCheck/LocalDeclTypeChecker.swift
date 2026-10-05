@@ -140,6 +140,11 @@ final class LocalDeclTypeChecker {
         }
         sema.symbols.setPropertyType(localType, for: localSymbol)
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
+        if isMutable, initializer != nil, !isDelegated,
+           ctx.dataFlow.localStability.isNeverReassigned(id)
+        {
+            ctx.dataFlow.stableMutableReceivers.insert(localSymbol)
+        }
         sema.bindings.bindIdentifier(id, symbol: localSymbol)
         // Propagate collection marks through local variable declarations
         // so that `val list = listOf(1,2,3); list.size` still recognizes

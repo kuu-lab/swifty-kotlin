@@ -64,6 +64,8 @@ struct ConditionBranch: Equatable {
 
 final class DataFlowAnalyzer {
     var stableMemberProperties: [SymbolID: Bool] = [:]
+    let localStability = LocalVariableStabilityAnalyzer()
+    var stableMutableReceivers: Set<SymbolID> = []
     init() {}
 
     private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {

@@ -21,7 +21,10 @@ extension DataFlowAnalyzer {
                   isStableMemberProperty(property, ast: ast, sema: sema),
                   let base = resolveStableReference(receiver, locals: locals, ast: ast, sema: sema, interner: interner),
                   base.isStable,
-                  !locals.values.contains(where: { $0.symbol == base.symbol.root && $0.isMutable }),
+                  !locals.values.contains(where: {
+                      $0.symbol == base.symbol.root && $0.isMutable
+                          && !stableMutableReceivers.contains($0.symbol)
+                  }),
                   let type = sema.bindings.exprType(for: id)
             else { return nil }
             var reference = base.symbol
