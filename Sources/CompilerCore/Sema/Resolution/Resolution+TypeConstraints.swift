@@ -410,6 +410,21 @@ extension OverloadResolver {
         if case let .typeParam(typeParam) = supertypeKind,
            let variable = typeVarBySymbol[typeParam.symbol]
         {
+            // Contextual lambda inputs can still refer to the candidate's
+            // own parameters. Keep their relationship in the inference graph
+            // rather than treating the left parameter as an opaque Any value.
+            if case let .typeParam(subParameter) = typeSystem.kind(of: subtype),
+               let subVariable = typeVarBySymbol[subParameter.symbol],
+               subParameter.nullability == .nonNull,
+               typeParam.nullability == .nonNull
+            {
+                return [VariableConstraint(
+                    kind: .subtype,
+                    left: .variable(subVariable),
+                    right: .variable(variable),
+                    blameRange: blameRange
+                )]
+            }
             if typeParam.nullability != .nonNull {
                 if case .nothing(.nullable) = typeSystem.kind(of: subtype) {
                     // `null` has type `Nothing?`. Although it is compatible

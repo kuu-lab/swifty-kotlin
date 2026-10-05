@@ -366,6 +366,17 @@ extension CallLowerer {
                 interner: interner
             )
         }()
+        // KUU-1256: Array extensions retain their typed Kotlin call convention.
+        // In particular, an Array receiver must never reach a List zip bridge.
+        let isSourceBackedArrayIterableCall: Bool = {
+            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  sema.symbols.isSourceBackedSymbol(chosenCallee),
+                  let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType
+            else {
+                return false
+            }
+            return isGenericKotlinArrayType(declaredReceiver, sema: sema, interner: interner)
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -1326,7 +1337,7 @@ extension CallLowerer {
 
         // Migrated source-backed members must lower through their Kotlin body;
         // flat ABI exceptions are excluded by isSourceBackedMemberCall above.
-        if !isSourceBackedMemberCall, !isSourceBackedIterableCollectionCall {
+        if !isSourceBackedMemberCall, !isSourceBackedIterableCollectionCall, !isSourceBackedArrayIterableCall {
         // Collection nullable-receiver isNullOrEmpty fallback.
         // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
