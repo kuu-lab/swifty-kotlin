@@ -64,6 +64,18 @@ struct RuntimeUnsignedArrayAsListTests {
         #expect(ulongRaw == longRaw)
     }
 
+    @Test func uIntArrayToListNormalizesSignedBackingAndCopiesElements() {
+        let intRaw = makeRuntimeArray([-1, -2_147_483_648, 0, 2_147_483_647])
+        let uintRaw = kk_intArray_asUIntArray(intRaw)
+        let listRaw = kk_uIntArray_toList(uintRaw)
+
+        #expect(listElements(from: listRaw) == [4_294_967_295, 2_147_483_648, 0, 2_147_483_647])
+        #expect(arrayElements(from: intRaw) == [-1, -2_147_483_648, 0, 2_147_483_647])
+        runtimeArrayBox(from: intRaw)?.elements[0] = 1
+        #expect(listElements(from: listRaw).first == 4_294_967_295)
+        #expect(listElements(from: kk_uIntArray_toList(makeRuntimeArray([]))).isEmpty)
+    }
+
     @Test func uByteArrayAsListViewReflectsMutations() throws {
         let arrayRaw = makeRuntimeArray([1, 2, 3])
         let listRaw = kk_uByteArray_asList(arrayRaw)
