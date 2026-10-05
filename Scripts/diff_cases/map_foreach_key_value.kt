@@ -2,6 +2,10 @@ fun visit(key: String, value: Int) {
     println("ref:$key=$value")
 }
 
+inline fun <K, V> visitPair(key: K, value: V, action: (K, V) -> Unit) {
+    action(key, value)
+}
+
 fun main() {
     val m = mapOf("a" to 1, "b" to 2)
     m.forEach { k, v -> println("$k$v") }
@@ -22,6 +26,10 @@ fun main() {
     val action: (String, Int) -> Unit = { k, v -> println("stored:$k=$v") }
     m.forEach(action)
     m.forEach(::visit)
+    val storedReference = ::visit
+    m.forEach(storedReference)
+    visitPair("inline", 9, ::visit)
+    visitPair("stored-ref", 10, storedReference)
     m.forEach { k, v ->
         if (k == "a") return@forEach
         println("skip:$k=$v")
