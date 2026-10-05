@@ -79,6 +79,9 @@ extension DataFlowSemaPhase {
         var importedBindings: [ImportedLibraryBinding] = []
         let lazyLoaderState = ImportedLibraryLazyLoaderState(importedInlineFunctions: importedInlineFunctions)
         var klibModules: [LoadedKlibModule] = []
+        /// Every `.klib` that passed manifest gating — including ones whose
+        /// IR failed to decode — so `depends` checks see the full set.
+        var recognizedKlibs: [KlibModule] = []
         var stdlibArtifactLoaded = false
         var stdlibModuleName: InternedString?
 
@@ -181,6 +184,7 @@ extension DataFlowSemaPhase {
         for libraryDir in libraryDirs {
             if libraryDir.hasSuffix(".klib") {
                 if let module = loadKlibModule(path: libraryDir, diagnostics: diagnostics) {
+                    recognizedKlibs.append(module)
                     let stdlibArtifact = isStdlibArtifact(libraryDir)
                     if stdlibArtifact {
                         stdlibArtifactLoaded = true
@@ -637,6 +641,24 @@ extension DataFlowSemaPhase {
             externalLinkNameToSymbol: externalLinkNameToSymbol,
             importedSymbolByFQName: importedSymbolByFQName
         )
+
+        // `depends` ordering: a dependency's module init (top-level field
+        // stores, object pre-allocations) must run before its dependents'.
+        // KIR lowering iterates `klibModules` in this order.
+        if !recognizedKlibs.isEmpty {
+            let ordered = resolveKlibDependencies(
+                recognizedKlibs,
+                stdlibPresent: stdlibArtifactLoaded || options.includeStdlib,
+                diagnostics: diagnostics
+            )
+            var rank: [String: Int] = [:]
+            for (index, module) in ordered.enumerated() {
+                rank[module.uniqueName] = index
+            }
+            klibModules.sort {
+                (rank[$0.module.uniqueName] ?? .max) < (rank[$1.module.uniqueName] ?? .max)
+            }
+        }
 
         return LibraryImportDeferredWork(
             pendingSupertypeEdges: pendingSupertypeEdges,

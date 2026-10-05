@@ -101,20 +101,6 @@ public fun Source.readCodePointValue(): Int {
     }
 }
 
-public fun Source.indexOf(byte: Byte, startIndex: Long = 0L, endIndex: Long = Long.MAX_VALUE): Long {
-    if (startIndex < 0L || startIndex > endIndex) {
-        throw IllegalArgumentException("startIndex ($startIndex) is not within the range [0..endIndex($endIndex))")
-    }
-    var offset = startIndex
-    while (offset < endIndex && this.request(offset + 1L)) {
-        val end = if (endIndex < this.buffer.size) endIndex else this.buffer.size
-        val index = this.buffer.indexOf(byte, offset, end)
-        if (index != -1L) return index
-        offset = this.buffer.size
-    }
-    return -1L
-}
-
 public fun Source.readLine(): String? {
     if (!this.request(1)) return null
     var lfIndex = this.indexOf(10.toByte())

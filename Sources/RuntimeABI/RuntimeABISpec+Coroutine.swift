@@ -791,7 +791,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_continuation_intercepted",
+            name: "__kk_continuation_intercepted",
             parameters: [
                 RuntimeABIParameter(name: "continuationRaw", type: .intptr),
             ],
@@ -858,6 +858,41 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_try_receive",
+            parameters: [RuntimeABIParameter(name: "handle", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_builder_exchange",
+            parameters: [RuntimeABIParameter(name: "builder", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_start_job",
+            parameters: [RuntimeABIParameter(name: "job", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_builder_current",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_receive_value",
+            parameters: [RuntimeABIParameter(name: "token", type: .intptr)],
             returnType: .intptr,
             section: "Coroutine",
             isThrowing: false

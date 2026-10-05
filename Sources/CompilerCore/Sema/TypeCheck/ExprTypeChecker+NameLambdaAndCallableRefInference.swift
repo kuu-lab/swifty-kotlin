@@ -1206,7 +1206,7 @@ extension ExprTypeChecker {
         // though the enclosing member's `this` shadows them in `locals` — the
         // enclosing context (e.g. an object literal) captured them, so the
         // lambda can capture them through the same chain.
-        let outerSymbols = Set(locals.values.map(\.symbol))
+        let outerSymbols = Set(locals.values.map(\.symbol) + ctx.implicitReceiverStack.map(\.symbol))
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
         let inferredImplicitItType = params.isEmpty
             ? inferItParameterType(ctx: ctx, id: id, sema: sema)
@@ -1306,6 +1306,12 @@ extension ExprTypeChecker {
             ctx
         }
         bodyCtx = bodyCtx.enteringLambdaBody(id)
+        if let receiverType = ctx.implicitReceiverType,
+           let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
+           bodyCtx.implicitReceiverStack.last?.symbol != receiverSymbol
+        {
+            bodyCtx.implicitReceiverStack.append((receiverType, receiverSymbol))
+        }
         // When the expected function type has a receiver (e.g. StringBuilder.() -> Unit),
         // set the implicit receiver so that unqualified member calls resolve correctly.
         if let receiverType = expectedFunctionType?.receiver
@@ -1317,6 +1323,7 @@ extension ExprTypeChecker {
             // first) and address it through a per-lambda symbol so that
             // `this@callee` from a nested lambda can capture it.
             let receiverSymbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: id)
+            bodyCtx.implicitReceiverStack.append((receiverType, receiverSymbol))
             lambdaLocals[ctx.interner.intern("this")] = (
                 type: receiverType,
                 symbol: receiverSymbol,
@@ -1661,56 +1668,122 @@ extension ExprTypeChecker {
         // a package `val flush` must not hide `Writer.flush` for `::flush` in
         // implicit-receiver scope. Local declarations retain lexical priority.
         let hasLocalDeclaration = locals[member] != nil
+        var implicitBoundReceiver: (type: TypeID, symbol: SymbolID)?
+        var implicitPropertyCandidate: SymbolID?
         let implicitMemberCandidates: [SymbolID] = {
-            guard receiver == nil, !hasLocalDeclaration,
-                  let implicitReceiver = ctx.implicitReceiverType
+            guard receiver == nil, !hasLocalDeclaration
             else { return [] }
-            let nonNullImplicitReceiver = sema.types.makeNonNullable(implicitReceiver)
-            let members = driver.helpers.collectMemberFunctionCandidates(
-                named: member,
-                receiverType: nonNullImplicitReceiver,
-                sema: sema,
-                interner: interner
-            ).filter { candidate in
-                // Kotlin rejects every `::` form for member-extensions
-                // ("member and an extension at the same time"), including
-                // the implicitly-bound `::name` form inside the owner.
-                !driver.helpers.declaresExtensionReceiver(
-                    candidate,
+            var receivers = ctx.implicitReceiverStack
+            if let type = ctx.implicitReceiverType,
+               let symbol = locals[interner.intern("this")]?.symbol,
+               receivers.last?.symbol != symbol
+            {
+                receivers.append((type, symbol))
+            }
+            var hiddenDslMarkers = Set<String>()
+            for implicitReceiver in receivers.reversed() {
+                let markers = ctx.collectDslMarkerAnnotations(for: implicitReceiver.type)
+                let isHidden = !hiddenDslMarkers.isDisjoint(with: markers)
+                hiddenDslMarkers.formUnion(markers)
+                if isHidden { continue }
+                let nonNullImplicitReceiver = sema.types.makeNonNullable(implicitReceiver.type)
+                let members = driver.helpers.collectMemberFunctionCandidates(
+                    named: member,
+                    receiverType: nonNullImplicitReceiver,
                     sema: sema,
                     interner: interner
-                )
+                ).filter { candidate in
+                    // Kotlin rejects every `::` form for member-extensions
+                    // ("member and an extension at the same time"), including
+                    // the implicitly-bound `::name` form inside the owner.
+                    !driver.helpers.declaresExtensionReceiver(
+                        candidate,
+                        sema: sema,
+                        interner: interner
+                    )
+                }
+                // A bare `::ext` inside a receiver scope is a *bound* reference
+                // (`with("s") { ::ext }` means `this::ext`), so package-level
+                // extensions whose declared receiver accepts the implicit
+                // receiver are bound `() -> R` candidates as well — kotlinc
+                // resolves `with("42") { ::toInt }` to `() -> Int`.
+                let implicitExtensionCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
+                    let owner = sema.symbols.parentSymbol(for: symbolID).flatMap { ctx.cachedSymbol($0) }
+                    guard let symbol = ctx.cachedSymbol(symbolID),
+                          symbol.kind == .function,
+                          owner == nil || owner?.kind == .package
+                              || Array(symbol.fqName.dropLast()) != owner?.fqName,
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          let declaredReceiver = signature.receiverType,
+                          driver.helpers.declaresExtensionReceiver(
+                              symbolID,
+                              sema: sema,
+                              interner: interner
+                          )
+                    else { return false }
+                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullImplicitReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+                // Members of the implicit receiver outrank same-named package
+                // extensions, mirroring member-call resolution in Kotlin.
+                let visibleMembers = ctx.filterByVisibility(members).0
+                if !visibleMembers.isEmpty {
+                    implicitBoundReceiver = implicitReceiver
+                    return visibleMembers
+                }
+                let memberProperties: [SymbolID] = if let (_, owner) = resolveClassTypeSymbol(nonNullImplicitReceiver, sema: sema) {
+                    sema.symbols.lookupAll(fqName: owner.fqName + [member]).filter { symbolID in
+                        let kind = ctx.cachedSymbol(symbolID)?.kind
+                        return (kind == .property || kind == .field)
+                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
+                    }
+                } else { [] }
+                let extensionProperties = ctx.cachedScopeLookup(member).filter { symbolID in
+                    let ownerKind = sema.symbols.parentSymbol(for: symbolID).flatMap { ctx.cachedSymbol($0)?.kind }
+                    guard ctx.cachedSymbol(symbolID)?.kind == .property,
+                          let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: symbolID),
+                          ownerKind == nil || ownerKind == .package
+                    else { return false }
+                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullImplicitReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+                if let property = ctx.filterByVisibility(memberProperties).0.first {
+                    implicitBoundReceiver = implicitReceiver
+                    implicitPropertyCandidate = property
+                    return []
+                }
+                let visibleExtensions = ctx.filterByVisibility(implicitExtensionCandidates).0
+                if !visibleExtensions.isEmpty {
+                    implicitBoundReceiver = implicitReceiver
+                    return visibleExtensions
+                }
+                if let property = ctx.filterByVisibility(extensionProperties).0.first {
+                    implicitBoundReceiver = implicitReceiver
+                    implicitPropertyCandidate = property
+                    return []
+                }
             }
-            // A bare `::ext` inside a receiver scope is a *bound* reference
-            // (`with("s") { ::ext }` means `this::ext`), so package-level
-            // extensions whose declared receiver accepts the implicit
-            // receiver are bound `() -> R` candidates as well — kotlinc
-            // resolves `with("42") { ::toInt }` to `() -> Int`.
-            let implicitExtensionCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
-                guard let symbol = ctx.cachedSymbol(symbolID),
-                      symbol.kind == .function,
-                      let signature = sema.symbols.functionSignature(for: symbolID),
-                      let declaredReceiver = signature.receiverType,
-                      driver.helpers.declaresExtensionReceiver(
-                          symbolID,
-                          sema: sema,
-                          interner: interner
-                      )
-                else { return false }
-                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: nonNullImplicitReceiver,
-                    declaredReceiver: declaredReceiver,
-                    sema: sema
-                )
-            }
-            // Members of the implicit receiver outrank same-named package
-            // extensions, mirroring member-call resolution in Kotlin.
-            let visibleMembers = ctx.filterByVisibility(members).0
-            if !visibleMembers.isEmpty {
-                return visibleMembers
-            }
-            return ctx.filterByVisibility(implicitExtensionCandidates).0
+            return []
         }()
+        if let property = implicitPropertyCandidate, let implicitBoundReceiver {
+            sema.bindings.markImplicitReceiverMember(id, name: member)
+            sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
+            return bindPropertyCallableRef(
+                id,
+                propertySymbol: property,
+                ownerType: nil,
+                isUnbound: false,
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner
+            )
+        }
         // REFL-CTOR: set when `candidates` were filled with constructor
         // symbols for a bare `::Foo` reference below. A constructor
         // signature's `receiverType` field carries the class type for the
@@ -2081,7 +2154,8 @@ extension ExprTypeChecker {
 
         // Only a bound `value::member` reference has a concrete receiver
         // instantiation to substitute into the member's signature.
-        let boundReceiverType: TypeID? = (receiver != nil && unboundClassType == nil && !isConstructorReference)
+        let boundReceiverType: TypeID? = isImplicitlyBoundMember ? implicitBoundReceiver?.type
+            : (receiver != nil && unboundClassType == nil && !isConstructorReference)
             ? effectiveReceiverType.map { sema.types.makeNonNullable($0) }
             : nil
         let chosen = driver.helpers.chooseCallableReferenceTarget(
@@ -2148,6 +2222,9 @@ extension ExprTypeChecker {
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)
             if isImplicitlyBoundMember {
                 sema.bindings.markImplicitReceiverMember(id, name: member)
+                if let implicitBoundReceiver {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
+                }
             }
             if unboundClassType != nil && !isConstructorReference {
                 sema.bindings.markUnboundCallableRef(id)
@@ -2492,6 +2569,27 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: kClassType)
             _ = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
             return kClassType
+        }
+        // KUU-1084: `FunctionN::class`. The synthetic `kotlin.Function.FunctionN`
+        // interfaces live outside ordinary scope lookup, but `FunctionN::class`
+        // is the classifier of every arity-N function type in Kotlin.
+        let receiverNameString = interner.resolve(receiverName)
+        if receiverNameString.hasPrefix("Function"),
+           let arity = Int(receiverNameString.dropFirst("Function".count)),
+           arity >= 0 {
+            let functionFQName = [
+                interner.intern("kotlin"), interner.intern("Function"), receiverName,
+            ]
+            if let functionSymbol = sema.symbols.lookupAll(fqName: functionFQName)
+                .compactMap({ sema.symbols.symbol($0) })
+                .first(where: { $0.kind == .interface })?.id {
+                let classType = sema.types.make(.classType(ClassType(classSymbol: functionSymbol)))
+                sema.bindings.bindClassRefTargetType(id, type: classType)
+                let kClassType = sema.types.makeKClassType(argument: classType)
+                sema.bindings.bindExprType(id, type: kClassType)
+                _ = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+                return kClassType
+            }
         }
         return nil
     }

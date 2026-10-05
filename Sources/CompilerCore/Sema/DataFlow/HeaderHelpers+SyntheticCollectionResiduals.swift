@@ -127,7 +127,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            bundledIndex: bundledIndex
         )
         // STDLIB-021: Collection.toMutableList() and Iterable mutable conversions
         if let mutableListSym = symbols.lookup(

@@ -4,6 +4,36 @@ import Testing
 
 @Suite(.runtimeIsolation(.gcAndMetadata))
 struct RuntimeIsCheckCollectionBoxTests {
+    @Test(arguments: [false, true])
+    func mutableMapEntriesDispatchSetValueWithoutChangingReadOnlyGetters(useTypedValues: Bool) throws {
+        let map = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [2]))
+        let entry = useTypedValues
+            ? runtimeMutableMapEntryNew(mapRaw: map, key: RuntimeValue(raw: 1), value: RuntimeValue(raw: 2))
+            : runtimeMutableMapEntryNew(mapRaw: map, key: 1, value: 2)
+        let mutableEntryID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap.MutableEntry"))
+        let entryID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Map.Entry"))
+        let pointer = kk_itable_lookup_dynamic(entry, mutableEntryID, 0)
+        try #require(pointer != 0)
+        let setValue = unsafeBitCast(pointer, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var thrown = 0
+        #expect(setValue(entry, 4, &thrown) == 2)
+        #expect(thrown == 0)
+        #expect(kk_map_get(map, 1) == 4)
+        #expect(setValue(entry, 7, &thrown) == 4)
+        #expect(thrown == 0)
+        #expect(kk_map_get(map, 1) == 7)
+        for (slot, expected) in [(0, 1), (1, 7)] {
+            let getterPointer = kk_itable_lookup_dynamic(entry, entryID, slot)
+            try #require(getterPointer != 0)
+            let getter = unsafeBitCast(getterPointer, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            #expect(getter(entry, &thrown) == expected)
+            #expect(thrown == 0)
+        }
+        let readonly = runtimeMapEntryNew(key: 1, value: 2)
+        #expect(kk_itable_lookup_dynamic(readonly, mutableEntryID, 0) == 0)
+        #expect(kk_itable_lookup_dynamic(readonly, entryID, 0) != 0)
+    }
+
     private func token(_ name: String) -> Int {
         let typeID = runtimeStableNominalTypeID(fqName: name)
         return Int(6 | (typeID << 9))

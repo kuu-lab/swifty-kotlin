@@ -18,6 +18,8 @@ struct InlineExpansion {
 }
 
 final class InlineLoweringPass: LoweringPass {
+    var lambdaCaptureArgsByExpr: [KIRExprID: [KIRExprID]] = [:]
+
     static let name = "InlineLowering"
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .propertyLowered
@@ -28,10 +30,17 @@ final class InlineLoweringPass: LoweringPass {
         if let imported = ctx.sema?.importedInlineFunctions, !imported.isEmpty {
             return true
         }
-        return false
+        return module.arena.declarations.contains { declaration in
+            guard case let .function(function) = declaration else { return false }
+            return function.body.contains { instruction in
+                if case .beginNonLocalReturnScope = instruction { return true }
+                return false
+            }
+        }
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
+        lambdaCaptureArgsByExpr.removeAll(keepingCapacity: true)
         let unitType = ctx.sema?.types.unitType
         // The expansion-target index snapshots every body the pass can
         // splice: module declarations (regular, `inline`, lambda bodies) and
@@ -162,8 +171,10 @@ final class InlineLoweringPass: LoweringPass {
                     retryInvoke = false
                     continue
                 }
-                let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
-                    .map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+                let captureArgs = lambdaCaptureArguments(
+                    for: callableExpr, symbol: lambdaFunction.symbol,
+                    aliases: aliases, arena: module.arena
+                )
                 guard budget.permitsAdditional(
                     captureArgs.count + resolvedArguments.count,
                     outputCount: loweredBody.instructions.count, arena: module.arena
@@ -339,6 +350,13 @@ final class InlineLoweringPass: LoweringPass {
                     // Skip unreachable instructions after a terminator until
                     // the next label starts a new block.
                     if afterTerminator {
+                        switch expandedInstruction {
+                        case .beginNonLocalReturnScope, .endNonLocalReturnScope,
+                             .beginFinallyCleanup, .endFinallyCleanup, .beginFinallyGuard, .endFinallyGuard:
+                            loweredBody.append(expandedInstruction)
+                        default:
+                            break
+                        }
                         if case .label = expandedInstruction {
                             afterTerminator = false
                             loweredBody.append(expandedInstruction)
@@ -348,16 +366,12 @@ final class InlineLoweringPass: LoweringPass {
 
                     switch expandedInstruction {
                     case let .nonLocalReturn(value):
-                        // Snapshots may later be spliced into another caller.
-                        if preserveNonLocalReturns {
-                            loweredBody.append(.nonLocalReturn(value.map {
-                                InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
-                            }))
-                        } else if let value {
-                            loweredBody.append(.returnValue(InlineExprAliasing.resolveAlias(of: value, aliases: aliases)))
-                        } else {
-                            loweredBody.append(.returnUnit)
-                        }
+                        loweredBody.append(.nonLocalReturn(value.map {
+                            InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
+                        }))
+                        afterTerminator = true
+                    case .resumeNonLocalReturn:
+                        loweredBody.append(expandedInstruction)
                         afterTerminator = true
                     case .label:
                         // A label starts a new block, so we are no longer after a terminator.

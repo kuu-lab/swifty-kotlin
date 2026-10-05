@@ -57,17 +57,17 @@ public fun AtomicInt.exchange(newValue: Int): Int =
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun AtomicInt.getAndAdd(delta: Int): Int =
+public fun AtomicInt.fetchAndAdd(delta: Int): Int =
     __kkAtomicIntFetchAndAdd(delta)
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun AtomicInt.getAndDecrement(): Int =
+public fun AtomicInt.fetchAndDecrement(): Int =
     __kkAtomicIntFetchAndDecrement()
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun AtomicInt.getAndIncrement(): Int =
+public fun AtomicInt.fetchAndIncrement(): Int =
     __kkAtomicIntFetchAndIncrement()
 
 @ExperimentalAtomicApi
@@ -133,9 +133,6 @@ public inline fun AtomicInt.updateAndFetch(transform: (Int) -> Int): Int {
     }
 }
 
-// Compatibility names retained from the former kotlin.concurrent.AtomicInt
-// typealias surface. Defining them on the canonical receiver prevents calls
-// from binding to the legacy receiver after the nominal types split.
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public inline fun AtomicInt.fetchAndUpdate(transform: (Int) -> Int): Int {
@@ -145,13 +142,3 @@ public inline fun AtomicInt.fetchAndUpdate(transform: (Int) -> Int): Int {
         if (compareAndSet(old, newValue)) return old
     }
 }
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public inline fun AtomicInt.getAndUpdate(transform: (Int) -> Int): Int =
-    fetchAndUpdate(transform)
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public inline fun AtomicInt.updateAndGet(transform: (Int) -> Int): Int =
-    updateAndFetch(transform)

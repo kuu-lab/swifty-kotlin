@@ -7,8 +7,9 @@ import Testing
 /// (`find*` / `indexOf*` / `contains*` / `count` / `any` / `all` / `none` /
 /// `first*` / `last*`) is routed through `CollectionLiteralLoweringPass`.
 ///
-/// KSP-423 moved every one of these List overloads to
-/// `Stdlib/kotlin/collections/ListSearchHOF.kt`, so
+/// KSP-423 moved these List overloads to
+/// `Stdlib/kotlin/collections/ListSearchHOF.kt`; KSP-1030 subsequently added
+/// canonical `List/List.kt` members for `indexOf` / `lastIndexOf`. In both cases
 /// the source-backed preservation gate keeps the resolved Kotlin
 /// declaration and no `kk_*` rewrite may fire for a List receiver.  That is
 /// what makes the deleted List `count(predicate)` rewrite unreachable.
@@ -57,7 +58,7 @@ struct ListSearchPredicateLoweringRoutingTests {
         "none", "first", "last", "firstOrNull", "lastOrNull",
     ]
 
-    /// The overloads that carry a resolved `ListSearchHOF.kt` symbol and are
+    /// The overloads that carry a resolved bundled-source symbol and are
     /// therefore preserved by the source-backed preservation gate.
     /// No-predicate overloads take just the receiver; predicate overloads take
     /// receiver + lambda.  `count/1` is absent on purpose — see
@@ -97,7 +98,7 @@ struct ListSearchPredicateLoweringRoutingTests {
         return module
     }
 
-    /// Direct `.call` instructions whose callee is one of `names`, with the
+    /// Direct or virtual calls whose callee is one of `names`, with the
     /// resolved symbol and argument count (receiver included).
     private static func calls(
         in body: [KIRInstruction],
@@ -105,16 +106,30 @@ struct ListSearchPredicateLoweringRoutingTests {
         interner: StringInterner
     ) -> [(name: String, argumentCount: Int, symbol: SymbolID?)] {
         body.compactMap { instruction in
-            guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction else { return nil }
+            let symbol: SymbolID?
+            let callee: InternedString
+            let argumentCount: Int
+            switch instruction {
+            case let .call(callSymbol, callCallee, arguments, _, _, _, _, _):
+                symbol = callSymbol
+                callee = callCallee
+                argumentCount = arguments.count
+            case let .virtualCall(callSymbol, callCallee, _, arguments, _, _, _, _):
+                symbol = callSymbol
+                callee = callCallee
+                argumentCount = arguments.count + 1
+            default:
+                return nil
+            }
             let name = interner.resolve(callee)
             guard names.contains(name) else { return nil }
-            return (name, arguments.count, symbol)
+            return (name, argumentCount, symbol)
         }
     }
 
     // MARK: - source-backed routing (the production path)
 
-    /// Every List overload stays a call to its `ListSearchHOF.kt` declaration,
+    /// Every List overload stays a call to its canonical bundled declaration,
     /// and no collection runtime bridge is substituted for it.
     @Test
     func sourceBackedListSearchCallsSurviveCollectionLiteralLowering() throws {
@@ -178,10 +193,10 @@ struct ListSearchPredicateLoweringRoutingTests {
         }
     }
 
-    /// The reason the rewrites are skipped: each callee resolves to a
-    /// source-backed declaration in `ListSearchHOF.kt`.
+    /// Search members dispatch virtually to List; the remaining HOFs resolve
+    /// to source-backed extensions in ListSearchHOF.kt.
     @Test
-    func listSearchPredicateCalleesResolveToListSearchHOF() throws {
+    func listSearchPredicateCalleesResolveToCanonicalSources() throws {
         try withTemporaryFile(contents: Self.listSearchSource) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
@@ -206,16 +221,31 @@ struct ListSearchPredicateLoweringRoutingTests {
             )
 
             let sema = try #require(ctx.sema)
+            let virtualSearchNames = body.compactMap { instruction -> String? in
+                guard case let .virtualCall(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+                let name = ctx.interner.resolve(callee)
+                return Self.searchPredicateNames.contains(name) ? name : nil
+            }
+            #expect(virtualSearchNames.sorted() == ["indexOf", "lastIndexOf"])
             for call in searchCalls where call.symbol != nil {
                 let label = "\(call.name)/\(call.argumentCount)"
                 let symbolID = try #require(call.symbol)
                 #expect(sema.symbols.isSourceBackedSymbol(symbolID), "\(label) must be source-backed")
 
                 let fileID = try #require(sema.symbols.sourceFileID(for: symbolID), "\(label): missing source file")
+                let isListMember = call.name == "indexOf" || call.name == "lastIndexOf"
+                let expectedPath = isListMember
+                    ? "__bundled_kotlin/collections/List/List.kt"
+                    : "__bundled_kotlin/collections/ListSearchHOF.kt"
                 #expect(
-                    ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListSearchHOF.kt",
-                    "\(label) must resolve to ListSearchHOF.kt; got \(String(describing: ctx.sourceManager.path(of: fileID)))"
+                    ctx.sourceManager.path(of: fileID) == expectedPath,
+                    "\(label) must resolve to \(expectedPath); got \(String(describing: ctx.sourceManager.path(of: fileID)))"
                 )
+                if isListMember {
+                    let parent = try #require(sema.symbols.parentSymbol(for: symbolID))
+                    #expect(sema.symbols.symbol(parent)?.fqName.map(ctx.interner.resolve) == ["kotlin", "collections", "List"])
+                    #expect(sema.symbols.symbol(symbolID)?.flags.contains(.extensionMemberAlias) == false)
+                }
             }
         }
     }

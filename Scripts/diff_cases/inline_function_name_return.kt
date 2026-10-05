@@ -38,25 +38,42 @@ fun shadowReturn(): String {
 }
 
 fun finallyReturn(): Int {
-    invokeBlock {
-        try {
-            return@finallyReturn 31
-        } finally {
-            println("inner-finally")
+    try {
+        invokeBlock {
+            try {
+                return@finallyReturn 31
+            } finally {
+                println("inner-finally")
+            }
         }
+    } finally {
+        println("outer-finally")
     }
     return -1
 }
 
 fun capturedFinallyReturn(value: Int): Int {
-    invokeBlock {
-        try {
-            return@capturedFinallyReturn value
-        } finally {
-            println(value + 1)
+    try {
+        invokeBlock {
+            try {
+                return@capturedFinallyReturn value
+            } finally {
+                println(value + 1)
+            }
         }
+    } finally {
+        println(value + 2)
     }
     return -1
+}
+
+fun unitFinallyReturn() {
+    try {
+        invokeBlock { return@unitFinallyReturn }
+    } finally {
+        println("unit-outer-finally")
+    }
+    println("unreachable-unit-finally")
 }
 
 fun localFunctionReturn(): Int {
@@ -81,6 +98,7 @@ fun main() {
     println(shadowReturn())
     println(finallyReturn())
     println(capturedFinallyReturn(37))
+    unitFinallyReturn()
     println(localFunctionReturn())
     println(directReturn())
 }

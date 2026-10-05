@@ -2069,27 +2069,25 @@ extension ExprLowerer {
                 } else {
                     returnValue = lowered
                 }
-                // CODE-001: Inline all enclosing finally blocks before return.
-                inlineAllEnclosingFinallyBlocks(
-                    ast: ast, sema: sema, arena: arena, interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
                 if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
                     instructions.append(.nonLocalReturn(returnValue))
                 } else {
+                    inlineAllEnclosingFinallyBlocks(
+                        ast: ast, sema: sema, arena: arena, interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    )
                     instructions.append(.returnValue(returnValue))
                 }
             } else {
-                // CODE-001: Inline all enclosing finally blocks before return.
-                inlineAllEnclosingFinallyBlocks(
-                    ast: ast, sema: sema, arena: arena, interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
                 if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
                     instructions.append(.nonLocalReturn(nil))
                 } else {
+                    inlineAllEnclosingFinallyBlocks(
+                        ast: ast, sema: sema, arena: arena, interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    )
                     instructions.append(.returnUnit)
                 }
             }

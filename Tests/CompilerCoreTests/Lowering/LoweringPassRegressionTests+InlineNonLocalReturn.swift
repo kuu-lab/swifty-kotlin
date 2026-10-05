@@ -49,12 +49,19 @@ extension LoweringPassRegressionTests {
         inline fun invokeBlock(block: () -> Unit) { block() }
         fun cleanup(value: Int) {}
         fun uncaptured(): Int {
-            invokeBlock { try { return@uncaptured 17 } finally { cleanup(1) } }
+            try {
+                invokeBlock { try { return@uncaptured 17 } finally { cleanup(1) } }
+            } finally { cleanup(2) }
             return -1
         }
         fun captured(value: Int): Int {
-            invokeBlock { try { return@captured value } finally { cleanup(value) } }
+            try {
+                invokeBlock { try { return@captured value } finally { cleanup(value) } }
+            } finally { cleanup(value + 1) }
             return -1
+        }
+        fun unitReturn() {
+            try { invokeBlock { return@unitReturn } } finally { cleanup(1) }
         }
         """)
         try runToKIR(ctx)
