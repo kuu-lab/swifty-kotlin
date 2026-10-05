@@ -12,24 +12,26 @@ import Testing
 @Suite("GoldenHarness.Inventory")
 struct GoldenHarnessInventoryTests {
     private static let requiredTargetedCases: Set<String> = [
+        "Sema/kotlinx_coroutines_completable.kt",
         "Sema/stdlib_kotlin_Any_n_n.kt",
         "Sema/stdlib_kotlin_Pair_n_n.kt",
         "Sema/stdlib_kotlin_Triple_Triple_n.kt",
         "Sema/stdlib_kotlin_collections_Map_Entry_n.kt",
         "Sema/stdlib_kotlin_collections_Iterable_collection.kt",
         "Sema/stdlib_kotlin_collections_HashSet_n_n.kt",
-        "Sema/stdlib_kotlin_collections_MutableList_n.kt",
-        "Sema/stdlib_kotlin_collections_n_List_interface.kt",
-        "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
         "Sema/stdlib_kotlin_collections_AbstractList_AbstractList_n.kt",
-        "Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt",
+        "Sema/stdlib_kotlin_collections_MutableList_n.kt",
+        "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
+        "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt",
+        "Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt",
         "Sema/stdlib_kotlin_coroutines_polymorphic_keys_source.kt",
         "Sema/stdlib_kotlin_coroutines_polymorphic_keys_artifact.kt",
-        "Sema/kotlinx_coroutines_completable.kt",
     ]
 
     private static let requiredArtifactCases: Set<String> = [
+        "Sema/kotlinx_coroutines_completable.kt",
+        "Sema/kotlinx_io_bytestring_io_api.kt",
         "Sema/stdlib_kotlin_Any_n_n.kt",
         "Sema/stdlib_kotlin_Pair_n_n.kt",
         "Sema/stdlib_kotlin_Triple_Triple_n.kt",
@@ -37,12 +39,10 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_Iterable_collection.kt",
         "Sema/stdlib_kotlin_collections_HashSet_n_n.kt",
         "Sema/stdlib_kotlin_collections_MutableList_n.kt",
-        "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
+        "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt",
         "Sema/stdlib_kotlin_coroutines_polymorphic_keys_artifact.kt",
-        "Sema/kotlinx_coroutines_completable.kt",
-        "Sema/kotlinx_io_bytestring_io_api.kt",
     ]
 
     private static let requiredTargetContracts: Set<String> = [
