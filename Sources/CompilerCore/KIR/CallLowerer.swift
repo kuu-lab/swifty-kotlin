@@ -400,6 +400,19 @@ final class CallLowerer {
             objectValue: result, factoryName: callee,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
+        if let owner = sema.symbols.parentSymbol(for: constructorSymbol),
+           sema.symbols.symbol(owner)?.fqName == ["kotlin", "collections", "ArrayDeque"].map(interner.intern)
+        {
+            appendObjectVtableMethodRegistrations(
+                objectValue: result,
+                nominalSymbol: owner,
+                driver: driver,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         return result
     }
 
