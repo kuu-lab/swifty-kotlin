@@ -26,11 +26,22 @@ func runtimeFunctionDescription(_ value: Int) -> String? {
 
 @_cdecl("__kk_function_copy_description")
 public func __kk_function_copy_description(_ source: Int, _ target: Int) {
-    guard let description = runtimeFunctionDescription(source) else {
-        return
+    let description = runtimeFunctionDescription(source)
+    let metadata = runtimeStorage.withDelegateLock { state in
+        if let description {
+            state.functionDescriptionsByValue[target] = description
+        }
+        let metadata = state.callableRefMetadataByValue[source]
+        if let metadata {
+            state.callableRefMetadataByValue[target] = metadata
+        }
+        return metadata
     }
-    runtimeStorage.withDelegateLock { state in
-        state.functionDescriptionsByValue[target] = description
+    if let metadata {
+        runtimeRegisterKCallableItableIfNeeded(
+            rawValue: target,
+            typeID: metadata.kind == .function ? kFunctionRuntimeTypeID : kPropertyRuntimeTypeID
+        )
     }
 }
 

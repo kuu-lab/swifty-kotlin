@@ -13,7 +13,7 @@ package kotlin.time
 import kotlin.internal.KsSymbolName
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
-import kotlin.time.nanoseconds
+import kotlin.time.Duration.Companion.nanoseconds
 
 @KsSymbolName("__kk_time_source_monotonic_mark_now")
 private external fun __kk_time_source_monotonic_mark_now(receiver: Long): Long

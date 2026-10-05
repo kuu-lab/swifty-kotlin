@@ -2272,6 +2272,7 @@ extension ExprTypeChecker {
                 params: [receiverParam],
                 returnType: sema.types.stringType,
                 isSuspend: false,
+                isCallableReference: true,
                 nullability: .nonNull
             )))
             let resultType: TypeID
@@ -2478,6 +2479,7 @@ extension ExprTypeChecker {
             params: [operandType, operandType],
             returnType: operandType,
             isSuspend: false,
+            isCallableReference: true,
             nullability: .nonNull
         )))
         driver.emitSubtypeConstraint(

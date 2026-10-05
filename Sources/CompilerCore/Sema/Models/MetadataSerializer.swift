@@ -721,6 +721,7 @@ package final class MetadataEncoder {
                 params: newParams,
                 returnType: newReturn,
                 isSuspend: functionType.isSuspend,
+                isCallableReference: functionType.isCallableReference,
                 nullability: functionType.nullability
             )))
 
