@@ -2643,6 +2643,7 @@ struct StdlibArtifactRegressionTests {
     /// they must keep working when the consumer only sees them through a prebuilt stdlib artifact.
     /// This covers `value`, `tryEmit`, `emit`, `replayCache`, `collect`, and the `stateIn` extension
     /// lowered to `kk_flow_collect` on an explicit local receiver.
+    @Test
     func testStateFlowThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -2701,6 +2702,119 @@ struct StdlibArtifactRegressionTests {
                 [30]
                 3
                 [6]
+
+                """)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testSnapshotFlowAPIs(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.coroutines.EmptyCoroutineContext
+        import kotlinx.coroutines.runBlocking
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            val shared = MutableSharedFlow<Int>(2)
+            shared.emit(1)
+            shared.emit(2)
+            val count = shared.subscriptionCount
+            val view = shared.asSharedFlow()
+            println(count.value)
+            view.collect { value ->
+                println("shared=$value/count=${count.value}")
+                if (value == 1) {
+                    shared.resetReplayCache()
+                    shared.tryEmit(3)
+                }
+            }
+            println(count.value)
+            println(view.replayCache)
+            try {
+                view.collect { throw IllegalStateException("stop") }
+            } catch (e: IllegalStateException) {
+                println("exception/count=${count.value}")
+            }
+            shared.collect {
+                shared.collect { println("nested=${count.value}") }
+                println("outer=${count.value}")
+            }
+            println(count.value)
+            println(view.buffer(0) === view)
+            println(view.flowOn(EmptyCoroutineContext) === view)
+            println(view.cancellable() === view)
+            println(view.conflate() === view)
+            try {
+                view.buffer(-3)
+            } catch (e: IllegalArgumentException) {
+                println("invalid buffer")
+            }
+            val state = MutableStateFlow(5)
+            val stateCount = state.subscriptionCount
+            val stateView = state.asStateFlow()
+            stateView.collect { value ->
+                state.value = 6
+                println("state=$value/count=${stateCount.value}")
+            }
+            println(stateCount.value)
+            println(stateView.value)
+            println(stateView.replayCache)
+            println(stateView.distinctUntilChanged() === stateView)
+            println(state.asSharedFlow().replayCache)
+            state.setValue(7)
+            println(stateView.value)
+            try {
+                state.collect { throw IllegalStateException("stop") }
+            } catch (e: IllegalStateException) {
+                println("state exception/count=${stateCount.value}")
+            }
+            stateCount.collect { println("count snapshot=$it") }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                0
+                shared=1/count=1
+                shared=2/count=1
+                0
+                [3]
+                exception/count=0
+                nested=2
+                outer=1
+                0
+                true
+                true
+                true
+                true
+                invalid buffer
+                state=5/count=1
+                0
+                6
+                [6]
+                true
+                [6]
+                7
+                state exception/count=0
+                count snapshot=0
 
                 """)
         }
