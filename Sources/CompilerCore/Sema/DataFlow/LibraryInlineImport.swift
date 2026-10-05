@@ -216,6 +216,12 @@ extension DataFlowSemaPhase {
             return .returnValue(shift(value))
         case let .nonLocalReturn(value):
             return .nonLocalReturn(value.map(shift))
+        case let .beginNonLocalReturnScope(value, target):
+            return .beginNonLocalReturnScope(value: shift(value), target: target)
+        case .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup:
+            return instruction
+        case let .resumeNonLocalReturn(value):
+            return .resumeNonLocalReturn(shift(value))
         }
     }
 
@@ -423,6 +429,21 @@ extension DataFlowSemaPhase {
             return .rethrow(value: KIRExprID(rawValue: value))
         case "beginFinallyGuard":
             return .beginFinallyGuard
+        case "beginNonLocalReturnScope":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
+                  let targetRaw = pairs["target"], let target = Int32(targetRaw)
+            else { return nil }
+            return .beginNonLocalReturnScope(value: KIRExprID(rawValue: value), target: target)
+        case "endNonLocalReturnScope":
+            return .endNonLocalReturnScope
+        case "beginFinallyCleanup":
+            guard let raw = pairs["skipping"], let skipping = Int(raw), skipping >= 0 else { return nil }
+            return .beginFinallyCleanup(skipping: skipping)
+        case "endFinallyCleanup":
+            return .endFinallyCleanup
+        case "resumeNonLocalReturn":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw) else { return nil }
+            return .resumeNonLocalReturn(KIRExprID(rawValue: value))
         case "endFinallyGuard":
             return .endFinallyGuard
         case "returnUnit":

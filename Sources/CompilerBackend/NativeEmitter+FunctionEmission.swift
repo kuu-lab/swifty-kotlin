@@ -881,7 +881,9 @@ extension NativeEmitter {
             case .jump, .label, .jumpIfEqual, .jumpIfNotNull,
                  .storeGlobal, .rethrow, .returnIfEqual, .returnUnit, .returnValue,
                  .beginBlock, .endBlock, .nop, .nonLocalReturn,
-                 .beginFinallyGuard, .endFinallyGuard:
+                 .beginFinallyGuard, .endFinallyGuard,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope, .resumeNonLocalReturn,
+                 .beginFinallyCleanup, .endFinallyCleanup:
                 return []
             }
         }
@@ -2073,7 +2075,8 @@ extension NativeEmitter {
             }
 
             switch instruction {
-            case .nop, .beginBlock, .endBlock, .beginFinallyGuard, .endFinallyGuard:
+            case .nop, .beginBlock, .endBlock, .beginFinallyGuard, .endFinallyGuard,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup:
                 continue
 
             case let .label(id):
@@ -3539,6 +3542,10 @@ extension NativeEmitter {
                     )
                 }
                 _ = bindings.buildRet(builder, value: returnValue)
+
+            case .resumeNonLocalReturn:
+                assertionFailure("resumeNonLocalReturn reached codegen -- InlineLoweringPass should have converted it")
+                continue
 
             case let .nonLocalReturn(value):
                 // Non-local returns should have been lowered by InlineLoweringPass.
