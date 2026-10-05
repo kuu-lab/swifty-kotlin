@@ -49,6 +49,50 @@ struct StdlibArtifactRegressionTests {
     }
 
     @Test(arguments: [false, true])
+    func testStringLengthPropertyReferencesPreserveGetterABI(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/callable_ref_string_length.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "StringLengthPropertyReferences",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            [1, 2]
+            3
+            [0, 6]
+            4
+            5
+            [0, 2, 2]
+            6
+            6
+            6
+            6
+            [[x], [yy]]
+            [z]
+
+            """)
+        }
+    }
+
+    @Test(arguments: [false, true])
     func testOutputStreamBulkWritesPreserveBytes(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
         let source = """
