@@ -1342,6 +1342,8 @@ final class ExprTypeChecker {
             switch interner.resolve(name) {
             case "downTo", "rangeTo", "rangeUntil", "step":
                 return true
+            case "unaryPlus", "unaryMinus":
+                return sema.types.isUnsigned(receiverType)
             default:
                 return false
             }
@@ -1575,7 +1577,7 @@ final class ExprTypeChecker {
             return returnType
         }
 
-        if !lhsIsPrimitive,
+        if (!lhsIsPrimitive || sema.types.isUnsigned(operandType)),
            operandType != sema.types.anyType,
            operandType != sema.types.nullableAnyType,
            operandType != sema.types.errorType
