@@ -12,6 +12,136 @@ import Testing
 /// `resolveLocalVariable`).
 @Suite
 struct WhenSubjectSmartCastTests {
+    @Test func testSealedWhenInterfaceBranchCoversImplementingSubclasses() throws {
+        let source = """
+        sealed class Grammar
+        interface SimpleGrammar { val g: Grammar }
+        class MaybeG(override val g: Grammar) : Grammar(), SimpleGrammar
+        class ManyG(override val g: Grammar) : Grammar(), SimpleGrammar
+        class SeqG(val gs: List<Grammar>) : Grammar()
+        class OrG(val gs: List<Grammar>) : Grammar()
+        fun f(g: Grammar) = when (g) {
+            is SeqG -> 1
+            is OrG -> 2
+            is SimpleGrammar -> 3
+        }
+        fun Grammar.classify() = when (this) {
+            is SeqG, is OrG -> 1
+            is SimpleGrammar -> 2
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testSealedWhenInterfaceBranchCoversInheritedImplementations() throws {
+        let source = """
+        interface Tag
+        interface ChildTag : Tag
+        open class Tagged : ChildTag
+        sealed interface Node
+        class Leaf : Tagged(), Node
+        object End : Node
+        class Holder(val node: Node)
+        fun classify(holder: Holder) = when (holder.node) {
+            is Tag -> 1
+            End -> 2
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testSealedWhenInterfaceBranchReportsOnlyUncoveredSubclass() throws {
+        let source = """
+        sealed class Grammar
+        interface SimpleGrammar
+        class MaybeG : Grammar(), SimpleGrammar
+        class ManyG : Grammar(), SimpleGrammar
+        class SeqG : Grammar()
+        class OrG : Grammar()
+        fun classify(g: Grammar) = when (g) {
+            is SimpleGrammar -> 1
+            is SeqG -> 2
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0071" }
+        #expect(diagnostics.count == 1)
+        #expect(diagnostics.first?.message == "Non-exhaustive when expression on sealed type. Missing branches: OrG.")
+    }
+
+    @Test func testNullableSealedWhenInterfaceBranchStillRequiresNull() throws {
+        let source = """
+        sealed interface Node
+        interface Tag
+        class Leaf : Node, Tag
+        fun complete(node: Node?) = when (node) {
+            is Tag -> 1
+            null -> 2
+        }
+        fun incomplete(node: Node?) = when (node) {
+            is Tag -> 1
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1)
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0004")
+        assertNoDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
+    }
+
+    @Test func testGuardedAndNegatedInterfaceBranchesDoNotCoverImplementers() throws {
+        let source = """
+        sealed interface Node
+        interface Tag
+        class Leaf : Node, Tag
+        object End : Node
+        fun guarded(node: Node, flag: Boolean) = when (node) {
+            is Tag if flag -> 1
+            End -> 2
+        }
+        fun negated(node: Node) = when (node) {
+            !is Tag -> 1
+            End -> 2
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0071" }
+        #expect(diagnostics.count == 2)
+        #expect(diagnostics.allSatisfy { $0.message.contains("Missing branches: Leaf.") })
+    }
+
+    @Test func testUnrelatedInterfaceWithSameShortNameDoesNotCoverSubclass() throws {
+        let source = """
+        sealed interface Node {
+            class Leaf : Node
+            object End : Node
+        }
+        interface Other {
+            interface Leaf
+        }
+        fun classify(node: Node) = when (node) {
+            is Other.Leaf -> 1
+            Node.End -> 2
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
+    }
+
     @Test func testLambdaParameterWhenSubjectSmartCast() throws {
         let source = """
         sealed interface Shape
