@@ -10,6 +10,16 @@ fun invoke1(action: suspend (Int) -> Int) = runBlocking { action(7) }
 fun invoke2(action: suspend (Int, Int) -> Int) = runBlocking { action(4, 5) }
 fun <T, R> invokeGeneric(value: T, action: suspend (T) -> R) = runBlocking { action(value) }
 fun invokeReceiver(action: suspend Int.(Int) -> Int) = runBlocking { 6.action(2) }
+fun invokeVararg(vararg actions: suspend (Int) -> Int) = runBlocking {
+    for (action in actions) println(action(3))
+}
+fun runFailure(action: (Int) -> Unit) = runBlocking {
+    try {
+        flowOf(1).collect(action)
+    } catch (e: IllegalArgumentException) {
+        println(e.message)
+    }
+}
 
 fun main() {
     runCollect(flowOf(12, 13)) { println(it) }
@@ -29,10 +39,7 @@ fun main() {
     println(invoke2(two))
     println(invokeGeneric(8, text))
     println(invokeReceiver(receiver))
+    invokeVararg(one, one)
     val failure: (Int) -> Unit = { throw IllegalArgumentException("converted") }
-    try {
-        runCollect(flowOf(1), failure)
-    } catch (e: IllegalArgumentException) {
-        println(e.message)
-    }
+    runFailure(failure)
 }

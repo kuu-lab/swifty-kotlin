@@ -299,7 +299,7 @@ struct StdlibArtifactRegressionTests {
         import kotlinx.coroutines.*
         import kotlinx.coroutines.flow.*
 
-        fun runCollect(source: Flow<Int>, action: (Int) -> Unit) = runBlocking {
+        fun runCollect(source: Flow<Int>, action: suspend (Int) -> Unit) = runBlocking {
             source.collect(action)
         }
 
@@ -323,9 +323,6 @@ struct StdlibArtifactRegressionTests {
             }
             collector.emitAll(flowOf(10, 11))
             runCollect(flowOf(12, 13)) { value -> println("forwarded:$value") }
-            var total = 10
-            runCollect(flowOf(2, 3)) { value -> total += value }
-            println("captured:$total")
             try {
                 emptyFlow<Int>().onEmpty { throw IllegalArgumentException("action") }.toList()
             } catch (e: IllegalArgumentException) {
@@ -365,10 +362,52 @@ struct StdlibArtifactRegressionTests {
                 collector:11
                 forwarded:12
                 forwarded:13
-                captured:15
                 action failure
 
                 """)
+        }
+    }
+
+    @Test
+    func testFlowCollectSuspendConversionThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.flow.*
+        import kotlinx.coroutines.runBlocking
+        fun runCollect(source: Flow<Int>, action: (Int) -> Unit) = runBlocking {
+            source.collect(action)
+        }
+        fun runFailure(action: (Int) -> Unit) = runBlocking {
+            try { flowOf(1).collect(action) }
+            catch (e: IllegalArgumentException) { println(e.message) }
+        }
+        fun main() {
+            runCollect(flowOf(12, 13)) { println(it) }
+            var total = 10
+            val action: (Int) -> Unit = { total += it }
+            runCollect(flowOf(2, 3), action)
+            runCollect(flowOf(4), action)
+            println(total)
+            val failure: (Int) -> Unit = { throw IllegalArgumentException("converted") }
+            runFailure(failure)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "FlowCollectSuspendConversion",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: false, stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "12\n13\n19\nconverted\n")
         }
     }
 

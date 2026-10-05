@@ -22,7 +22,7 @@ struct SuspendConversionTests {
 
     @Test(arguments: [
         "fun bad(action: (String) -> Unit) { consume(action) }",
-        "fun bad(action: (Int) -> String) { consume(action) }",
+        "fun number(action: suspend (Int) -> Int) {}\nfun bad(action: (Int) -> String) { number(action) }",
         "fun bad(action: (Int, Int) -> Unit) { consume(action) }",
         "fun bad(action: ((Int) -> Unit)?) { consume(action) }",
         "fun ordinary(action: (Int) -> Unit) {}\nfun bad(action: suspend (Int) -> Unit) { ordinary(action) }",
