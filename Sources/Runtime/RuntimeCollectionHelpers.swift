@@ -1214,11 +1214,7 @@ private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutable
 }
 
 private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    if kk_range_hasNext(iterRaw) == 0 {
-        return runtimeThrowIteratorExhausted(outThrown)
-    }
-    return kk_range_next(iterRaw)
+    kk_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -1525,7 +1521,8 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             return lhsInt.enumClassID == rhsInt.enumClassID
                 && lhsInt.value == rhsInt.value
         }
-        return lhsInt.value == rhsInt.value
+        return lhsInt.primitiveTypeBase == rhsInt.primitiveTypeBase
+            && lhsInt.value == rhsInt.value
     }
     if let lhsBool = tryCast(lhsPtr, to: RuntimeBoolBox.self),
        let rhsBool = tryCast(rhsPtr, to: RuntimeBoolBox.self)
@@ -1979,8 +1976,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let parts = arrayBox.values.map { runtimeElementToString($0) }
-        return "[" + parts.joined(separator: ", ") + "]"
+        return runtimeArrayIdentityToString(elem)
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
@@ -2061,8 +2057,13 @@ func runtimeInvokeCollectionLambda1(
     value: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
-    return fn(maybeUnbox(closureRaw), maybeUnbox(value), outThrown)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 1, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda1.self)
+    return fn(
+        maybeUnbox(pair.closureRaw),
+        pair.preservesBoxes ? value : maybeUnbox(value),
+        outThrown
+    )
 }
 
 /// Like `runtimeInvokeCollectionLambda1`, but tolerates `fnPtr` arriving as a
@@ -2117,8 +2118,9 @@ func runtimeInvokeCollectionLambda1PreservingBox(
     value: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
-    return fn(maybeUnbox(closureRaw), value, outThrown)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 1, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda1.self)
+    return fn(maybeUnbox(pair.closureRaw), value, outThrown)
 }
 
 @inline(__always)
@@ -2129,8 +2131,14 @@ func runtimeInvokeCollectionLambda2(
     rhs: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda2.self)
-    return fn(maybeUnbox(closureRaw), maybeUnbox(lhs), maybeUnbox(rhs), outThrown)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 2, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda2.self)
+    return fn(
+        maybeUnbox(pair.closureRaw),
+        pair.preservesBoxes ? lhs : maybeUnbox(lhs),
+        pair.preservesBoxes ? rhs : maybeUnbox(rhs),
+        outThrown
+    )
 }
 
 @inline(__always)
@@ -2142,12 +2150,13 @@ func runtimeInvokeCollectionLambda3(
     arg3: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda3.self)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 3, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda3.self)
     return fn(
-        maybeUnbox(closureRaw),
-        maybeUnbox(arg1),
-        maybeUnbox(arg2),
-        maybeUnbox(arg3),
+        maybeUnbox(pair.closureRaw),
+        pair.preservesBoxes ? arg1 : maybeUnbox(arg1),
+        pair.preservesBoxes ? arg2 : maybeUnbox(arg2),
+        pair.preservesBoxes ? arg3 : maybeUnbox(arg3),
         outThrown
     )
 }
@@ -2162,13 +2171,14 @@ func runtimeInvokeCollectionLambda4(
     arg4: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda4.self)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 4, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda4.self)
     return fn(
-        maybeUnbox(closureRaw),
-        maybeUnbox(arg1),
-        maybeUnbox(arg2),
-        maybeUnbox(arg3),
-        maybeUnbox(arg4),
+        maybeUnbox(pair.closureRaw),
+        pair.preservesBoxes ? arg1 : maybeUnbox(arg1),
+        pair.preservesBoxes ? arg2 : maybeUnbox(arg2),
+        pair.preservesBoxes ? arg3 : maybeUnbox(arg3),
+        pair.preservesBoxes ? arg4 : maybeUnbox(arg4),
         outThrown
     )
 }
@@ -2179,8 +2189,9 @@ func runtimeInvokeClosureThunk(
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: KKClosureThunkEntryPoint.self)
-    return fn(closureRaw, outThrown)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 0, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: KKClosureThunkEntryPoint.self)
+    return fn(pair.closureRaw, outThrown)
 }
 
 /// Like `runtimeInvokeClosureThunk`, but tolerates `fnPtr` arriving as a
@@ -2526,9 +2537,8 @@ func runtimeComparePrimitiveValues(_ lhs: Int, _ rhs: Int, kind: RuntimePrimitiv
 /// `RuntimePrimitiveCompareKind` ordering) selecting signed / unsigned / IEEE
 /// floating semantics. The result is the sign of the comparison (-1/0/1),
 /// matching `Integer.compare` / `Long.compare` / `Double.compare` — i.e.
-/// Kotlin's `Comparable<T>.compareTo` contract. (Char keeps its own
-/// `kk_char_compareTo` entry point, which returns the raw codepoint
-/// difference to mirror `Character.compare`.)
+/// Kotlin's primitive `compareTo` behavior. Char keeps its own
+/// `kk_char_compareTo` entry point with the same sign-normalized result.
 @_cdecl("kk_primitive_compareTo")
 public func kk_primitive_compareTo(_ lhsRaw: Int, _ rhsRaw: Int, _ kindRaw: Int32) -> Int {
     runtimeComparePrimitiveValues(lhsRaw, rhsRaw, kind: runtimePrimitiveCompareKind(from: kindRaw))

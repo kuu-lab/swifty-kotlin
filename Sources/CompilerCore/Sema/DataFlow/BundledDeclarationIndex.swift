@@ -1320,6 +1320,7 @@ struct BundledDeclarationIndex: Sendable {
             [kotlin, io],
             [kotlin],
             [kotlin, reflect],
+            [interner.intern("java"), interner.intern("lang")],
         ]
 
         // Compiler-provided synthetic types that are default-imported but not

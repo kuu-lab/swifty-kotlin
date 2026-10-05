@@ -988,7 +988,7 @@ extension KotlinParser {
             default:
                 break
             }
-            if case .symbol(.semicolon) = token.kind {
+            if case .symbol(.semicolon) = token.kind, atTopLevel {
                 break
             }
             if !inBlock, hasLeadingNewline(stream.peek()) {

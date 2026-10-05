@@ -184,7 +184,15 @@ extension ControlFlowLowerer {
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let typeTokenLiteral: Int64 = if let targetType = sema.bindings.isCheckTargetType(for: conditionExprID) {
-                RuntimeTypeCheckToken.encode(type: targetType, sema: sema, interner: interner)
+                RuntimeTypeCheckToken.encode(
+                    type: driver.exprLowerer.runtimeIsCheckTargetType(
+                        subjectType: sema.bindings.exprType(for: checkedExprID),
+                        targetType: targetType,
+                        sema: sema
+                    ),
+                    sema: sema,
+                    interner: interner
+                )
             } else {
                 RuntimeTypeCheckToken.unknownBase
             }

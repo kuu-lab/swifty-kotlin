@@ -38,24 +38,32 @@ struct MutableMapInterfaceSourceMigrationTests {
         #expect(sema.symbols.directSupertypes(for: mutableMapSymbol) == [mapSymbol])
     }
 
-    /// `MutableMap` must override `keys`/`values` with the mutable
-    /// covariant types (`MutableSet<K>` / `MutableCollection<V>`), matching
-    /// real Kotlin's `MutableMap<K, V>` declaration. Before this fix they
-    /// fell through to `Map`'s read-only `Set<K>` / `Collection<V>`, so
-    /// `MutableMap<K, V>`-typed receivers (e.g. `mutableMapOf(...)`'s return
-    /// type) rejected `keys.remove()` / `values.remove()` / `keys.clear()`
-    /// with "Unresolved member function" even though the equivalent
-    /// `entries` override already worked.
     @Test
-    func mutableMapOverridesKeysAndValuesWithMutableCovariantTypes() throws {
+    func mutableMapOverridesViewsWithSourceBackedMutableTypes() throws {
         let ctx = makeContextFromSource(
             """
-            fun probe(values: MutableMap<String, Int>): MutableMap<String, Int> = values
+            fun probe(values: MutableMap<String, Int?>): Boolean {
+                val keys: MutableSet<String> = values.keys
+                val vals: MutableCollection<Int?> = values.values
+                val entries: MutableSet<MutableMap.MutableEntry<String, Int?>> = values.entries
+                keys.clear()
+                vals.clear()
+                entries.clear()
+                return values.keys.remove("a") && values.values.remove(2)
+            }
+            fun factoryViews(): Boolean {
+                val values = mutableMapOf("a" to 1, "b" to 2)
+                val keys: MutableSet<String> = values.keys
+                val vals: MutableCollection<Int> = values.values
+                return keys.remove("a") && vals.remove(2)
+            }
+            fun readOnlyKeys(values: Map<String, Int>): Set<String> = values.keys
+            fun readOnlyValues(values: Map<String, Int>): Collection<Int> = values.values
             """
         )
         try runSema(ctx)
 
-        #expect(!ctx.diagnostics.hasError)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let types = sema.types
@@ -68,13 +76,18 @@ struct MutableMapInterfaceSourceMigrationTests {
         let valueType = types.make(.typeParam(TypeParamType(symbol: typeParameters[1], nullability: .nonNull)))
 
         func property(named name: String) throws -> SymbolID {
-            try #require(
-                sema.symbols.lookupAll(fqName: mutableMapFQName + [interner.intern(name)]).first {
-                    sema.symbols.symbol($0)?.kind == .property
-                        && sema.symbols.parentSymbol(for: $0) == mutableMapSymbol
-                },
-                "Missing MutableMap.\(name)"
+            let candidates = sema.symbols.lookupAll(fqName: mutableMapFQName + [interner.intern(name)]).filter {
+                sema.symbols.symbol($0)?.kind == .property
+                    && sema.symbols.parentSymbol(for: $0) == mutableMapSymbol
+            }
+            #expect(candidates.count == 1)
+            let symbol = try #require(candidates.first, "Missing MutableMap.\(name)")
+            #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
+            let sourceFile = try #require(sema.symbols.sourceFileID(for: symbol))
+            #expect(
+                ctx.sourceManager.path(of: sourceFile) == "__bundled_kotlin/collections/MutableMap.kt"
             )
+            return symbol
         }
 
         let mutableSetSymbol = try #require(
@@ -101,6 +114,23 @@ struct MutableMapInterfaceSourceMigrationTests {
             nullability: .nonNull
         )))
         #expect(sema.symbols.propertyType(for: valuesSymbol) == expectedValuesType)
+
+        let mutableEntrySymbol = try #require(
+            sema.symbols.lookup(fqName: mutableMapFQName + [interner.intern("MutableEntry")])
+        )
+        let entryType = types.make(.classType(ClassType(
+            classSymbol: mutableEntrySymbol,
+            args: [.invariant(keyType), .invariant(valueType)],
+            nullability: .nonNull
+        )))
+        let entriesSymbol = try property(named: "entries")
+        #expect(sema.symbols.externalLinkName(for: entriesSymbol) == "__kk_map_entries")
+        let expectedEntriesType = types.make(.classType(ClassType(
+            classSymbol: mutableSetSymbol,
+            args: [.invariant(entryType)],
+            nullability: .nonNull
+        )))
+        #expect(sema.symbols.propertyType(for: entriesSymbol) == expectedEntriesType)
     }
 
     @Test

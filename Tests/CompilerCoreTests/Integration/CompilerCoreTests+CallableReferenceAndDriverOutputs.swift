@@ -654,6 +654,85 @@ extension CompilerCoreTests {
         }
     }
 
+    @Test func testPrimitiveOperatorReferenceWithoutExpectedTypeIsAmbiguous() throws {
+        let source = """
+        fun main() {
+            val plus = Int::plus
+            println(plus(2, 3))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        #expect(sema.bindings.exprTypes[ref] == sema.types.errorType)
+        #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == nil)
+        #expect(sema.bindings.callableRefKind(for: ref) == nil)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0003"
+                && $0.message.contains("Int::plus")
+                && $0.primaryRange == ast.arena.exprRange(ref)
+        })
+    }
+
+    @Test(arguments: ["", ": Any"])
+    func testPrimitiveOperatorReferencesNeedFunctionExpectedType(annotation: String) throws {
+        let receivers = ["Int", "Long", "UInt", "ULong", "Float", "Double"]
+        let source = receivers.flatMap { receiver in
+            ["plus", "times"].map { member in
+                "val ref\(receiver)\(member)\(annotation) = \(receiver)::\(member)"
+            }
+        }.joined(separator: "\n")
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case .callableRef = ast.arena.expr(id) else { return nil }
+            return id
+        }
+        #expect(refs.count == 12)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0003" }.count == 12)
+        for ref in refs {
+            #expect(sema.bindings.exprTypes[ref] == sema.types.errorType)
+            #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == nil)
+        }
+    }
+
+    @Test func testPrimitiveOperatorReferencesWithExpectedTypesRemainValid() throws {
+        let source = """
+        fun accept(op: (Int, Int) -> Int): Int = op(2, 3)
+        fun use(): Int {
+            val plus: (Int, Int) -> Int = Int::plus
+            val times: (Int, Int) -> Int = Int::times
+            return accept(Int::plus) + accept(Int::times) + plus(2, 3) + times(2, 3)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case .callableRef = ast.arena.expr(id) else { return nil }
+            return id
+        }
+        #expect(refs.count == 4)
+        for (ref, op) in zip(refs, [BinaryOp.add, .multiply, .add, .multiply]) {
+            #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == op)
+        }
+    }
+
     /// A bound reference to a method of a generic interface instantiation
     /// (`t::apply` with `t: Transformer<Int, Int>`) substitutes the receiver's
     /// type arguments into the member's signature instead of leaving the

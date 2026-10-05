@@ -195,18 +195,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_string_builder_append_range",
-            parameters: [
-                RuntimeABIParameter(name: "sbRaw", type: .intptr),
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-                RuntimeABIParameter(name: "startIndex", type: .intptr),
-                RuntimeABIParameter(name: "endIndex", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "StringBuilder"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_string_builder_append_obj_flat",
             parameters: [
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),

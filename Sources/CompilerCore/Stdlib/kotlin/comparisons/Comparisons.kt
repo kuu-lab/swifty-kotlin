@@ -8,10 +8,14 @@ package kotlin.comparisons
 // overloads delegate to the existing runtime helpers so NaN propagation and
 // signed-zero ordering stay aligned with Kotlin semantics.
 
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_min_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
-private external fun kk_min_double(a: Double, b: Double): Double
+@PublishedApi
+internal external fun kk_max_float(a: Float, b: Float): Float
+@PublishedApi
+internal external fun kk_min_float(a: Float, b: Float): Float
+@PublishedApi
+internal external fun kk_max_double(a: Double, b: Double): Double
+@PublishedApi
+internal external fun kk_min_double(a: Double, b: Double): Double
 
 // Comparable overloads
 

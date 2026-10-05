@@ -147,6 +147,7 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.UninitializedPropertyAccessException", "UninitializedPropertyAccessException"),
     ("kotlin.IndexOutOfBoundsException", "IndexOutOfBoundsException"),
     ("kotlin.ArrayIndexOutOfBoundsException", "ArrayIndexOutOfBoundsException"),
+    ("java.lang.StringIndexOutOfBoundsException", "StringIndexOutOfBoundsException"),
     ("kotlin.KotlinNothingValueException", "KotlinNothingValueException"),
     ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
     ("kotlin.NotImplementedError", "NotImplementedError"),
@@ -1533,8 +1534,8 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
 /// Returns the qualified name of the type encoded in the given type token.
 /// For built-in Kotlin stdlib types (Any, String, Int, Boolean, etc.) this
 /// returns the fully-qualified "kotlin.X" name as Kotlin reflection specifies.
-/// For nominal (user-defined) types the compiler-supplied name hint already
-/// carries the fully-qualified name, so it is returned unchanged.
+/// For nominal (user-defined) types registered metadata takes precedence over
+/// the compiler-supplied name hint, which can carry only the simple name.
 @_cdecl("__kk_type_token_qualified_name")
 public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -1571,7 +1572,11 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
             Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
         }
     }
-    // For nominal types the nameHint carries the fully-qualified name.
+    if base == RuntimeTypeTokenEncoding.nominalBase,
+       let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
+    {
+        return runtimeMakeStringRaw(metadata.qualifiedName)
+    }
     return __kk_type_token_simple_name(typeToken, nameHint)
 }
 
@@ -1619,6 +1624,50 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     return winner
 }
 
+// Metadata / memory representation: bound literals inspect the boxed value's classifier.
+@_cdecl("__kk_kclass_of")
+public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) -> Int {
+    if let typeID = runtimeObjectTypeID(rawValue: value) {
+        let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+        return __kk_kclass_create(Int(truncatingIfNeeded: token), 0)
+    }
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value),
+       runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }) {
+        let base: Int64?
+        if let box = tryCast(ptr, to: RuntimeIntBox.self) {
+            if let enumID = box.enumClassID {
+                let token = (enumID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+                    | RuntimeTypeTokenEncoding.nominalBase
+                return __kk_kclass_create(Int(truncatingIfNeeded: token), 0)
+            }
+            base = box.primitiveTypeBase
+        } else if tryCast(ptr, to: RuntimeStringBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.stringBase
+        } else if tryCast(ptr, to: RuntimeLongBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.longBase
+        } else if tryCast(ptr, to: RuntimeULongBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.ulongBase
+        } else if tryCast(ptr, to: RuntimeDoubleBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.doubleBase
+        } else if tryCast(ptr, to: RuntimeFloatBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.floatBase
+        } else if tryCast(ptr, to: RuntimeCharBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.charBase
+        } else if tryCast(ptr, to: RuntimeBoolBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.booleanBase
+        } else if tryCast(ptr, to: RuntimeUnitBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.unitBase
+        } else {
+            base = nil
+        }
+        if let base {
+            return __kk_kclass_create(Int(base), 0)
+        }
+    }
+    return __kk_kclass_create(fallbackToken, nameHint)
+}
+
 // MARK: - KSP-496: KClass-handle-based simpleName / qualifiedName bridges
 //
 // Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
@@ -1633,6 +1682,9 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
     }
+    if let metadata = box.metadata {
+        return runtimeMakeStringRaw(metadata.simpleName)
+    }
     return __kk_type_token_simple_name(box.typeToken, box.nameHint)
 }
 
@@ -1640,6 +1692,9 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
 public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
+    }
+    if let metadata = box.metadata {
+        return runtimeMakeStringRaw(metadata.qualifiedName)
     }
     return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
 }
@@ -2722,7 +2777,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return runtimeArrayIdentityToString(value)
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue

@@ -451,6 +451,7 @@ extension KIRLoweringDriver {
             loweredArgs: loweredArgs,
             spreadFlags: superArgs.map(\.isSpread),
             callBinding: callBinding,
+            sourceArgExprs: superArgs.map(\.expr),
             result: resultID,
             shared: shared,
             body: &body

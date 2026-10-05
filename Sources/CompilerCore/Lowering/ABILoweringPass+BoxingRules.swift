@@ -53,6 +53,7 @@ extension ABILoweringPass {
         "__kk_pair_new",
         "__kk_triple_new",
         "__kk_mutable_collection_add",
+        "__kk_mutable_collection_add_throwing",
         "__kk_mutable_list_add",
         "__kk_mutable_list_add_at",
         "__kk_mutable_list_set",
@@ -312,9 +313,8 @@ extension ABILoweringPass {
             if classType.nullability == .nonNull, sym.kind == .enumClass {
                 return false
             }
-            // Exclude value classes — they are unboxed to their underlying
-            // primitive.
-            if sym.flags.contains(.valueType) {
+            // Nullable value classes carry a box or the null sentinel.
+            if classType.nullability == .nonNull, sym.flags.contains(.valueType) {
                 return false
             }
         }
