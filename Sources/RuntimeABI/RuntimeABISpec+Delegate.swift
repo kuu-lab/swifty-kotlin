@@ -27,6 +27,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_function_value_tag_arity",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arity", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_function_invoke",
             parameters: [
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),

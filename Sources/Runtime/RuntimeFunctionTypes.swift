@@ -1,6 +1,17 @@
 
 // MARK: - ランタイム関数型操作
 
+@_cdecl("kk_function_value_tag_arity")
+public func kk_function_value_tag_arity(_ functionRaw: Int, _ arity: Int) -> Int {
+    guard functionRaw != 0, arity >= 0 else {
+        return functionRaw
+    }
+    runtimeStorage.withDelegateLock { state in
+        state.functionArityByPointer[functionRaw] = arity
+    }
+    return functionRaw
+}
+
 @_cdecl("__kk_function_set_description")
 public func __kk_function_set_description(_ value: Int, _ descriptionRaw: Int, _ identity: Int) {
     guard let description = extractString(from: UnsafeMutableRawPointer(bitPattern: descriptionRaw)) else {

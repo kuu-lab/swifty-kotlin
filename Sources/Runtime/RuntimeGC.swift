@@ -89,6 +89,7 @@ struct ThreadLocalState {
 
 struct DelegateState {
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
+    var functionArityByPointer: [Int: Int] = [:]
     var functionDescriptionsByValue: [Int: String] = [:]
 }
 
@@ -645,6 +646,7 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
 func kk_runtime_reset_delegate() {
     runtimeStorage.withDelegateLock { state in
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
+        state.functionArityByPointer.removeAll(keepingCapacity: false)
         state.functionDescriptionsByValue.removeAll(keepingCapacity: false)
     }
 }
