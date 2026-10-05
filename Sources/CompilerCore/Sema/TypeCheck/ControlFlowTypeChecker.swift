@@ -6,6 +6,47 @@ final class ControlFlowTypeChecker {
         self.driver = driver
     }
 
+    /// Validate the receiver before falling back to the built-in iteration routes.
+    func inferLoopElementType(
+        exprID: ExprID,
+        iterableExpr: ExprID,
+        iterableType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let sema = ctx.sema
+        if iterableType == sema.types.errorType {
+            return sema.types.errorType
+        }
+        guard sema.types.nullability(of: iterableType) != .nullable else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0172",
+                "The for-loop cannot iterate over a nullable receiver.",
+                range: ctx.ast.arena.exprRange(iterableExpr) ?? range
+            )
+            return sema.types.errorType
+        }
+        let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
+            || sema.bindings.isRangeExpr(iterableExpr)
+        if let elementType = bindLoopIterationOperators(
+            exprID: exprID, iterableType: iterableType, range: range, ctx: ctx
+        ) ?? driver.helpers.iterableElementType(
+            for: iterableType,
+            isRangeExpr: isRangeExpr,
+            isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
+            sema: sema,
+            interner: ctx.interner
+        ) {
+            return elementType
+        }
+        ctx.semaCtx.diagnostics.error(
+            "KSWIFTK-SEMA-0172",
+            "The for-loop must have an 'iterator()' method.",
+            range: ctx.ast.arena.exprRange(iterableExpr) ?? range
+        )
+        return sema.types.errorType
+    }
+
     func bindLoopIterationOperators(
         exprID: ExprID,
         iterableType: TypeID,
@@ -16,7 +57,10 @@ final class ControlFlowTypeChecker {
         let interner = ctx.interner
         let nonNullIterableType = sema.types.makeNonNullable(iterableType)
 
-        guard case .classType = sema.types.kind(of: nonNullIterableType) else {
+        switch sema.types.kind(of: nonNullIterableType) {
+        case .classType, .typeParam, .intersection:
+            break
+        default:
             return nil
         }
 
@@ -47,6 +91,11 @@ final class ControlFlowTypeChecker {
                 implicitReceiverType: nonNullIterableType,
                 ctx: ctx.semaCtx
             )
+
+            if let diagnostic = iteratorResolved.diagnostic {
+                ctx.semaCtx.diagnostics.emit(diagnostic)
+                return sema.types.errorType
+            }
 
             guard let iteratorChosen = iteratorResolved.chosenCallee,
                   let iteratorSignature = sema.symbols.functionSignature(for: iteratorChosen)
@@ -128,6 +177,11 @@ final class ControlFlowTypeChecker {
             implicitReceiverType: iteratorType,
             ctx: ctx.semaCtx
         )
+
+        if let diagnostic = hasNextResolved.diagnostic ?? nextResolved.diagnostic {
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            return sema.types.errorType
+        }
 
         guard let hasNextChosen = hasNextResolved.chosenCallee,
               let nextChosen = nextResolved.chosenCallee,
@@ -224,25 +278,12 @@ final class ControlFlowTypeChecker {
     ) -> TypeID {
         let sema = ctx.sema
         let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let elementType = inferLoopElementType(
+            exprID: id, iterableExpr: iterableExpr, iterableType: iterableType,
+            range: range, ctx: ctx
+        )
         var bodyLocals = locals
         if let loopVariable {
-            // `until` desugars to a memberCall (infix function), not a `.binary` range
-            // op, so the AST-shape check alone misses it; fall back to the semantic
-            // flag that markRangeCallBindings sets when resolving such calls.
-            let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
-                || sema.bindings.isRangeExpr(iterableExpr)
-            let elementType = bindLoopIterationOperators(
-                exprID: id,
-                iterableType: iterableType,
-                range: range,
-                ctx: ctx
-            ) ?? driver.helpers.iterableElementType(
-                for: iterableType,
-                isRangeExpr: isRangeExpr,
-                isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
-                sema: sema,
-                interner: ctx.interner
-            ) ?? sema.types.anyType
             let loopVariableSymbol = sema.symbols.define(
                 kind: .local,
                 name: loopVariable,
