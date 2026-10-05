@@ -369,7 +369,13 @@ extension LambdaLowerer {
             return thunk
         }
         if let getter = arena.function(for: accessor.getterSymbol) {
-            return (accessor.getterSymbol, getter.name)
+            return propertyGetterThunk(
+                accessor: accessor,
+                getterName: getter.name,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
         }
         // REFL-EXTPROP: an extension property imported from a precompiled
         // stdlib `.kklib` (e.g. `String.length`) links its getter externally
@@ -380,9 +386,76 @@ extension LambdaLowerer {
         if let externalLinkName = sema.symbols.externalLinkName(for: accessor.getterSymbol),
            !externalLinkName.isEmpty
         {
-            return (accessor.getterSymbol, interner.intern(externalLinkName))
+            return propertyGetterThunk(
+                accessor: accessor,
+                getterName: interner.intern(externalLinkName),
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
         }
         return nil
+    }
+
+    private func propertyGetterThunk(
+        accessor: PropertyReferenceAccessor,
+        getterName: InternedString,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> (symbol: SymbolID, name: InternedString) {
+        let name = interner.intern("kk_lambda_property_getter_\(accessor.propertySymbol.rawValue)")
+        if let existing = sema.symbols.lookup(fqName: [name]) {
+            return (existing, name)
+        }
+        let symbol = sema.symbols.define(
+            kind: .function,
+            name: name,
+            fqName: [name],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        let receiverType = sema.symbols.functionSignature(for: accessor.getterSymbol)?.receiverType
+        let params = receiverType.map { type in
+            [KIRParameter(
+                symbol: driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: symbol),
+                type: type
+            )]
+        } ?? []
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(receiverType: receiverType, parameterTypes: [], returnType: accessor.propertyType),
+            for: symbol
+        )
+        var body: [KIRInstruction] = [.beginBlock]
+        let arguments = params.map { param in
+            let value = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: value, value: .symbolRef(param.symbol)))
+            return value
+        }
+        let result = arena.appendTemporary(type: accessor.propertyType)
+        // Adapt the thunk, not the getter, to the raw function-value ABI.
+        // Imported getters must retain their compiled aggregate/throwing ABI.
+        body.append(.call(
+            symbol: accessor.getterSymbol,
+            callee: getterName,
+            arguments: arguments,
+            result: result,
+            canThrow: true,
+            thrownResult: nil
+        ))
+        body.append(.returnValue(result))
+        body.append(.endBlock)
+        driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+            symbol: symbol,
+            name: name,
+            params: params,
+            returnType: accessor.propertyType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        ))))
+        return (symbol, name)
     }
 
     private func ensurePropertyReferenceAccessor(
@@ -412,18 +485,16 @@ extension LambdaLowerer {
         // and declare no virtual dispatch never allocate a real heap
         // instance) — this used to crash with SIGSEGV.
         //
-        // Every other owner kind — including `.class`/`.interface` (real
-        // per-instance field storage) and `.enumClass` (per-*entry*
-        // instance storage — confirmed by testing that it must NOT be
-        // treated like `.object` here, or a per-entry constructor property
-        // like `enum class E(val v: Int) { A(1), B(2) }`'s `v` silently
-        // reads back `0` for every entry instead of each entry's own value;
-        // see isCaptureEligibleInstanceContainerSymbol's doc comment) —
-        // keeps the original unconditional ownerType computation, unchanged
-        // from before this fix.
-        let ownerType: TypeID? = ownerKind == .object
-            ? nil
-            : ownerSymbol.flatMap { owner in
+        // Extension getters receive their declared receiver, not their package.
+        // Class/interface/enum properties retain per-instance storage; package
+        // and singleton object properties have no instance receiver.
+        let ownerType: TypeID?
+        if let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol) {
+            ownerType = extensionReceiverType
+        } else if ownerKind == .object || ownerKind == .package {
+            ownerType = nil
+        } else {
+            ownerType = ownerSymbol.flatMap { owner in
                 sema.symbols.symbol(owner).map {
                     sema.types.make(.classType(ClassType(
                         classSymbol: $0.id,
@@ -432,6 +503,7 @@ extension LambdaLowerer {
                     )))
                 }
             }
+        }
         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
             ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
