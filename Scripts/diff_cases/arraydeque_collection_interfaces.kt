@@ -16,6 +16,26 @@ fun compareErased(value: Any, other: Any) {
     println(value)
 }
 
+fun <T> throughAbstractList(values: AbstractMutableList<T>, replacement: T) {
+    println(values.size)
+    println(values.isEmpty())
+    println(values[0])
+    println(values.iterator().next())
+    println(values.set(0, replacement))
+    println(values.add(replacement))
+    println(values.listIterator(1).previous())
+    val sub = values.subList(0, 1)
+    sub.clear()
+    println(values)
+    println(values == values.toList())
+    println(values.hashCode() == values.toList().hashCode())
+    try {
+        values[values.size]
+    } catch (e: IndexOutOfBoundsException) {
+        println("abstract bounds")
+    }
+}
+
 fun inspectDeque(value: Any) {
     println(value is ArrayDeque<*>)
     println(value is AbstractMutableList<*>)
@@ -52,6 +72,14 @@ fun main() {
     println(setOf<Any>(d, d.toList()).size)
     val lookup = mapOf<Any, String>(d to "deque")
     println(lookup[d.toList()])
+    throughAbstractList(ArrayDeque<Int>(listOf(1, 2)), 9)
+    throughAbstractList(ArrayDeque<String?>(listOf("one", null)), "new")
+    val capacity = ArrayDeque<Int>(4)
+    capacity.addLast(5)
+    throughAbstractList(capacity, 6)
+    val default = ArrayDeque<Int>()
+    default.addLast(7)
+    throughAbstractList(default, 8)
 
     m.add(3)
     m.add(1, 9)

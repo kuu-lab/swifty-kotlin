@@ -235,12 +235,11 @@ extension CallLowerer {
     }
 
     /// True when the receiver's static type is `kotlin.collections.MutableList`
-    /// — the only spelling a runtime list box (`mutableListOf`, `subList`
-    /// views) can satisfy. `AbstractMutableList` is deliberately excluded: it
-    /// is a class, so a MutableList interface receiver can never bind one, and
-    /// an `AbstractMutableList`-typed receiver is always a real Kotlin object
-    /// (user subclass or the bundled SubList) whose calls must keep virtual
-    /// dispatch. Runtime list boxes carry no Kotlin vtable/itable, so these
+    /// — the interface spelling used by runtime list boxes (`mutableListOf`,
+    /// `subList` views). `AbstractMutableList` is deliberately excluded: its
+    /// receivers use registered vtable dispatch, including runtime-backed
+    /// `ArrayDeque` objects and user-defined subclasses. Runtime list boxes
+    /// carry no Kotlin vtable/itable, so these
     /// members must lower to the `__kk_mutable_list_*` ABI entry points rather
     /// than dispatch dynamically (KSP-1503).
     private func isMutableListRuntimeFamilyType(

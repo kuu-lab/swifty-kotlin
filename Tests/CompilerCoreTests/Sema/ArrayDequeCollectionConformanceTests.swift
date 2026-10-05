@@ -4,6 +4,32 @@ import Testing
 @Suite
 struct ArrayDequeCollectionConformanceTests {
     @Test
+    func runtimeConstructorsRegisterSuperclassDispatch() throws {
+        let source = """
+        fun empty(): ArrayDeque<Int> = ArrayDeque<Int>()
+        fun capacity(): ArrayDeque<Int> = ArrayDeque<Int>(8)
+        fun copy(values: Collection<Int>): ArrayDeque<Int> = ArrayDeque<Int>(values)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+            for (name, factory) in [
+                ("empty", "__kk_arraydeque_new"),
+                ("capacity", "__kk_arraydeque_new_with_capacity"),
+                ("copy", "__kk_arraydeque_new_from_collection"),
+            ] {
+                let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
+                let calls = extractCallees(from: body, interner: ctx.interner)
+                #expect(calls.contains(factory))
+                #expect(calls.contains("kk_object_register_vtable_method"))
+                #expect(!calls.contains("kk_object_new"))
+            }
+        }
+    }
+
+    @Test
     func hierarchyAndCollectionExtensionsPreserveElementTypes() throws {
         let source = """
         fun <T> copy(values: Iterable<T>): List<T> = values.toList()
