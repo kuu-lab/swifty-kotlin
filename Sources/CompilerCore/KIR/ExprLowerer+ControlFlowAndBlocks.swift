@@ -1326,8 +1326,8 @@ extension ExprLowerer {
                     return semanticSymbol.kind == .valueParameter
                 }
 
-                // Implicit receiver (this/super) is not collected by
-                // collectBoundIdentifierSymbols, so check separately —
+                // Explicit this/super and implicit member accesses do not
+                // collect the receiver in collectBoundIdentifierSymbols, so check separately —
                 // mirrors the post-filter in lexicalCaptureSymbolsForLambda.
                 if localFunReceiverParam == nil,
                    let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
@@ -1336,6 +1336,10 @@ extension ExprLowerer {
                 {
                     let needsReceiver = captureBodyExprIDs.contains { bodyExprID in
                         driver.lambdaLowerer.containsImplicitReceiverReference(in: bodyExprID, ast: ast)
+                            || driver.lambdaLowerer.containsImplicitReceiverMemberAccess(
+                                in: bodyExprID, ast: ast, sema: sema,
+                                excludingLocalExtensionBodies: true
+                            )
                     }
                     if needsReceiver {
                         captureSymbols.append(receiverSymbol)
