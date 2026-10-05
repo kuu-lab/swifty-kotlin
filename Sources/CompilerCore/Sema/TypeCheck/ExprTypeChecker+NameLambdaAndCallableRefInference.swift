@@ -1566,6 +1566,18 @@ extension ExprTypeChecker {
 
         // ── T::class  — reified type-parameter class reference ──────────
         if member == KnownCompilerNames(interner: interner).className,
+           ast.arena.callableRefReceiverTypeRef(for: id) != nil
+        {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0022",
+                "Type arguments are not allowed on the left-hand side of '::class'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+
+        if member == KnownCompilerNames(interner: interner).className,
            let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver)
         {
@@ -1602,6 +1614,7 @@ extension ExprTypeChecker {
         // primitive receiver name never introduces real function/constructor
         // candidates that this could shadow.
         if let receiver,
+           ast.arena.callableRefReceiverTypeRef(for: id) == nil,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil,
            let result = inferPrimitiveOperatorCallableRefExpr(
@@ -1618,7 +1631,39 @@ extension ExprTypeChecker {
         // The resulting function type includes the receiver type as the
         // first parameter: `Type::method` becomes `(Type) -> ReturnType`.
         var unboundClassType: TypeID?
-        if let receiver,
+        if let receiverTypeRef = ast.arena.callableRefReceiverTypeRef(for: id) {
+            unboundClassType = driver.helpers.resolveTypeRef(
+                receiverTypeRef,
+                ast: ast,
+                sema: sema,
+                interner: interner,
+                scope: ctx.scope,
+                diagnostics: ctx.semaCtx.diagnostics,
+                inferenceContext: ctx,
+                usageRange: range
+            )
+            if let unboundClassType {
+                let argumentCounts: (expected: Int, actual: Int)?
+                if case let .classType(owner) = sema.types.kind(of: unboundClassType) {
+                    argumentCounts = (sema.types.nominalTypeParameterSymbols(for: owner.classSymbol).count, owner.args.count)
+                } else if case let .named(path, arguments, _) = ast.arena.typeRef(receiverTypeRef),
+                          let name = path.last,
+                          driver.helpers.resolveBuiltinTypeName(name, types: sema.types, interner: interner) != nil
+                {
+                    argumentCounts = (0, arguments.count)
+                } else {
+                    argumentCounts = nil
+                }
+                if let argumentCounts, argumentCounts.expected != argumentCounts.actual {
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0062",
+                        "Type argument count mismatch: expected \(argumentCounts.expected) but got \(argumentCounts.actual).",
+                        range: range
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+            }
+        } else if let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil
         {
@@ -1653,10 +1698,17 @@ extension ExprTypeChecker {
             }
         }
 
-        let receiverType: TypeID? = if let receiver {
-            driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+        let receiverType: TypeID?
+        if let receiver, let unboundClassType {
+            sema.bindings.bindExprType(receiver, type: unboundClassType)
+            if let (_, symbol) = resolveClassTypeSymbol(unboundClassType, sema: sema) {
+                sema.bindings.bindIdentifier(receiver, symbol: symbol.id)
+            }
+            receiverType = unboundClassType
+        } else if let receiver {
+            receiverType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
         } else {
-            nil
+            receiverType = nil
         }
 
         // For unbound type references, use the resolved class type for
@@ -2157,12 +2209,14 @@ extension ExprTypeChecker {
             return resultType
         }
 
-        // Only a bound `value::member` reference has a concrete receiver
-        // instantiation to substitute into the member's signature.
-        let boundReceiverType: TypeID? = isImplicitlyBoundMember ? implicitBoundReceiver?.type
-            : (receiver != nil && unboundClassType == nil && !isConstructorReference)
-            ? effectiveReceiverType.map { sema.types.makeNonNullable($0) }
-            : nil
+        // Concrete value and type receivers specialize the owner's type parameters.
+        let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
+            implicitBoundReceiver?.type
+        } else if receiver != nil && !isConstructorReference {
+            effectiveReceiverType.map { sema.types.makeNonNullable($0) }
+        } else {
+            nil
+        }
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
             expectedType: expectedFunctionType,
@@ -2369,7 +2423,15 @@ extension ExprTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
+        var propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
+        if let ownerType, let owner = sema.symbols.parentSymbol(for: propertySymbol) {
+            propertyType = driver.helpers.resolveMemberPropertyType(
+                propertyType,
+                receiverType: ownerType,
+                ownerSymbol: owner,
+                sema: sema
+            )
+        }
         let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
         let inferredType = kPropertyReferenceType(
             ownerType: ownerType,
