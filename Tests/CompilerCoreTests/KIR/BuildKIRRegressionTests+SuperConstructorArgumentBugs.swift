@@ -7,6 +7,43 @@ import Testing
 /// constructor. The executable counterpart is
 /// `Scripts/diff_cases/super_ctor_named_defaults_and_throwable_factories.kt`.
 extension BuildKIRRegressionTests {
+    @Test(arguments: [
+        "object Cast : Holder({ value -> value as? String })",
+        "class Cast : Holder(f = { value -> value as? String })",
+        "class Cast : Holder { constructor() : super({ value -> value as? String }) }",
+        "class Cast(f: (Any) -> String?) : Holder(f) { constructor() : this({ value -> value as? String }) }",
+        "object Cast : Holder(f = { value -> value as? String }, marker = 9)",
+        "object Cast : Holder(f = { value -> value as? String })",
+    ])
+    func constructorDelegationMaterializesLambdaArguments(declaration: String) throws {
+        let source = """
+        open class Holder(val marker: Int = 7, val f: (Any) -> String?) {
+            constructor(f: (Any) -> String?) : this(7, f)
+        }
+        \(declaration)
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+
+        let delegatesWithFunctionValue = findAllKIRFunctions(in: module).contains { function in
+            for (index, instruction) in function.body.enumerated() {
+                guard case let .call(_, callee, _, materialized?, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "kk_function_create_1"
+                else { continue }
+                if function.body.dropFirst(index + 1).contains(where: { instruction in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else { return false }
+                    return ["<init>", "Holder$default"].contains(ctx.interner.resolve(callee))
+                        && arguments.contains(materialized)
+                }) {
+                    return true
+                }
+            }
+            return false
+        }
+        #expect(delegatesWithFunctionValue)
+    }
+
     /// `object O : Base()` used to call `Base.<init>` with no arguments,
     /// reading garbage for both defaulted parameters.
     @Test

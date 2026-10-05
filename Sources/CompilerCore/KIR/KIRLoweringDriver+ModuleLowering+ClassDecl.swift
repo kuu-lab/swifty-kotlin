@@ -949,6 +949,7 @@ extension KIRLoweringDriver {
             loweredArgs: loweredArgs,
             spreadFlags: delegation.args.map(\.isSpread),
             callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+            sourceArgExprs: delegation.args.map(\.expr),
             result: delegationResultID,
             shared: shared,
             body: &body
@@ -965,6 +966,7 @@ extension KIRLoweringDriver {
         loweredArgs: [KIRExprID],
         spreadFlags: [Bool],
         callBinding: CallBinding?,
+        sourceArgExprs: [ExprID],
         result: KIRExprID,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
@@ -990,6 +992,17 @@ extension KIRLoweringDriver {
         } else {
             argIDs.append(contentsOf: loweredArgs)
         }
+        callLowerer.materializeSourceBackedFunctionValueArguments(
+            chosenCallee: target,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema,
+            arena: arena,
+            interner: shared.interner,
+            instructions: &body.instructions,
+            arguments: &argIDs,
+            valueArgOffsetOverride: receiver == nil ? 0 : 1,
+            parameterMapping: callBinding?.chosenCallee == target ? callBinding?.parameterMapping : nil
+        )
         if defaultMask != 0,
            let target,
            sema.symbols.externalLinkName(for: target)?.isEmpty ?? true,
