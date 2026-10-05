@@ -41,6 +41,20 @@ public fun CharSequence.toMutableList(): MutableList<Char> {
     return result
 }
 
+@SinceKotlin("1.4")
+public fun String.toCharArray(startIndex: Int = 0, endIndex: Int = this.length): CharArray {
+    if (startIndex < 0 || endIndex > this.length) throw IndexOutOfBoundsException()
+    if (startIndex > endIndex) throw IllegalArgumentException()
+
+    val result = CharArray(endIndex - startIndex)
+    var index = startIndex
+    while (index < endIndex) {
+        result[index - startIndex] = this[index]
+        index++
+    }
+    return result
+}
+
 public fun CharSequence.toCharArray(): CharArray {
     val length = __kk_string_struct_get_length(this)
     val result = CharArray(length)

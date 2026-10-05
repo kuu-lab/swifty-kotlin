@@ -107,6 +107,14 @@ public enum KIRInstruction: Equatable, Sendable {
     /// During inline expansion this is converted into a real return
     /// from the enclosing (caller) function.
     case nonLocalReturn(KIRExprID?)
+    /// Lexical cleanup continuation retained until inline expansion completes.
+    /// The value slot carries the original return representation without boxing.
+    case beginNonLocalReturnScope(value: KIRExprID, target: Int32)
+    case endNonLocalReturnScope
+    case resumeNonLocalReturn(KIRExprID)
+    /// Eager cleanup must not re-enter finally blocks already being executed.
+    case beginFinallyCleanup(skipping: Int)
+    case endFinallyCleanup
     /// Sentinel markers delimiting an already-wrapped finally guard region.
     /// `appendThrowAwareInstructions` passes instructions between these
     /// sentinels through verbatim to prevent double-wrapping.
@@ -480,6 +488,7 @@ public final class KIRModule {
     public private(set) var executedLowerings: [String]
     public private(set) var stage: KIRStage
     package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
+    package var inlineBodiesBeforeFinallyLowering: [SymbolID: [KIRInstruction]] = [:]
 
     /// Callee names that are known non-throwing, registered by earlier passes
     /// (e.g. LambdaClosureConversionPass).  ABILoweringPass consults this set
@@ -729,6 +738,16 @@ public final class KIRModule {
             }
         case .beginFinallyGuard:
             return "beginFinallyGuard"
+        case let .beginNonLocalReturnScope(value, target):
+            return "beginNonLocalReturnScope r\(value.rawValue), L\(target)"
+        case .endNonLocalReturnScope:
+            return "endNonLocalReturnScope"
+        case let .resumeNonLocalReturn(value):
+            return "resumeNonLocalReturn r\(value.rawValue)"
+        case let .beginFinallyCleanup(skipping):
+            return "beginFinallyCleanup skipping=\(skipping)"
+        case .endFinallyCleanup:
+            return "endFinallyCleanup"
         case .endFinallyGuard:
             return "endFinallyGuard"
         }

@@ -2136,6 +2136,28 @@ final class CallTypeChecker {
             return implicitReceiverResult
         }
 
+        if let calleeName,
+           let local = locals[calleeName],
+           case .classType = sema.types.kind(of: sema.types.makeNonNullable(local.type))
+        {
+            let invokeName = interner.intern("invoke")
+            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: invokeName,
+                receiverType: local.type,
+                sema: sema,
+                interner: interner
+            ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
+            if !invokeCandidates.isEmpty {
+                let returnType = inferMemberCallExpr(
+                    id, receiverID: calleeID, calleeName: invokeName,
+                    args: args, range: range, ctx: ctx, locals: &locals,
+                    expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+                )
+                sema.bindings.markInvokeOperatorCall(id)
+                return returnType
+            }
+        }
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         // A generic destination parameter can be constrained from the call's
@@ -2866,21 +2888,7 @@ final class CallTypeChecker {
                     }
                 }
             }
-            // Resolution may narrow a literal only after choosing a vararg
-            // element type. Persist that type for KIR lowering and codegen.
-            if let signature = sema.symbols.functionSignature(for: chosen) {
-                for (index, argument) in args.enumerated() where !argument.isSpread {
-                    guard let parameterIndex = resolved.parameterMapping[index],
-                          signature.valueParameterIsVararg.indices.contains(parameterIndex),
-                          signature.valueParameterIsVararg[parameterIndex],
-                          parameterIndex < signature.parameterTypes.count
-                    else { continue }
-                    let parameterType = signature.parameterTypes[parameterIndex]
-                    let literal = integerLiteralValues(argument.expr, ast: ast)
-                    guard literal.signed != nil || literal.unsigned != nil else { continue }
-                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
-                }
-            }
+            contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
             // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern uses

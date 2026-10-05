@@ -112,7 +112,7 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     override external fun removeAt(index: Int): E
 
     @IgnorableReturnValue
-    @KsSymbolName("__kk_mutable_list_remove")
+    @KsSymbolName("__kk_mutable_list_remove_dispatch")
     override external fun remove(element: E): Boolean
 
     @IgnorableReturnValue
