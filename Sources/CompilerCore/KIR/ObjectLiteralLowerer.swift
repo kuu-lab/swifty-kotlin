@@ -632,6 +632,7 @@ final class ObjectLiteralLowerer {
         }
         if let owner = sema.symbols.parentSymbol(for: symbol),
            let receiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
+               ?? driver.ctx.capturedOuterReceiverExprID(reaching: owner, sema: sema)
         {
             return receiver
         }

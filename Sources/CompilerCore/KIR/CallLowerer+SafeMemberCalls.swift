@@ -1084,7 +1084,14 @@ extension CallLowerer {
         }
 
         let dispatchReceiver = chosen.flatMap {
-            memberExtensionDispatchReceiver(for: $0, callExprID: exprID, sema: sema)
+            memberExtensionDispatchReceiver(
+                for: $0,
+                callExprID: exprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions
+            )
         }
         if let dispatchReceiver {
             finalArguments.insert(dispatchReceiver, at: 0)
