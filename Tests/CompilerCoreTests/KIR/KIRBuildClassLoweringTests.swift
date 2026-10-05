@@ -404,8 +404,14 @@ struct KIRBuildClassLoweringTests {
         let module = try #require(ctx.kir)
         let boxSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Box")]))
         let forwardingProperties = sema.symbols.classDelegationForwardingPropertySymbols(forClass: boxSymbol)
+        let inputSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Input")]))
         let declaredProperties = sema.bindings.declSymbols.values.filter {
-            sema.bindings.isObjectLiteralPropertySymbol($0)
+            guard sema.bindings.isObjectLiteralPropertySymbol($0),
+                  let owner = sema.symbols.parentSymbol(for: $0)
+            else {
+                return false
+            }
+            return sema.symbols.directSupertypes(for: owner).contains(inputSymbol)
         }
         #expect(declaredProperties.count == 2)
 
