@@ -234,7 +234,7 @@ extension KotlinParser {
         return arena.appendNode(kind: .whenExpr, range: range.value ?? invalidRange, children)
     }
 
-    /// Parse a structured `try` expression: `try body [catch (params) body]* [finally body]`
+    /// Parse a structured `try` expression with at least one catch or finally clause.
     func parseTryStatement(inBlock: Bool) -> NodeID {
         guard enterNesting() else {
             return recoverFromNestingLimit(inBlock: inBlock)
@@ -244,9 +244,17 @@ extension KotlinParser {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
-        _ = consumeToken(into: &children, range: &range)
+        let tryToken = consumeToken(into: &children, range: &range)
 
         appendTryBody(inBlock: inBlock, into: &children, range: &range)
+
+        if stream.peek().kind != .keyword(.catch), stream.peek().kind != .keyword(.finally) {
+            diagnostics.error(
+                "KSWIFTK-PARSE-0015",
+                "Expected 'catch' or 'finally' after 'try' block.",
+                range: tryToken.range
+            )
+        }
 
         while case .keyword(.catch) = stream.peek().kind {
             _ = consumeToken(into: &children, range: &range)

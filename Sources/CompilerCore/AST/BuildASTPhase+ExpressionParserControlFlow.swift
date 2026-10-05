@@ -683,6 +683,16 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        // Nested expressions can bypass the structured CST parser. Use the
+        // same range and diagnostic so reparsing a CST error reports it once.
+        if !matches(.keyword(.catch)), !matches(.keyword(.finally)) {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0015",
+                "Expected 'catch' or 'finally' after 'try' block.",
+                range: tryToken.range
+            )
+        }
+
         var catchClauses: [CatchClause] = []
         while matches(.keyword(.catch)) {
             let catchToken = consume()!
