@@ -111,6 +111,26 @@ extension CallTypeChecker {
             }
         }
 
+        // Class-name values must denote their companions before they constrain
+        // receiver lambdas, e.g. the block in `with(Duration) { ... }`.
+        for (index, argument) in args.enumerated() {
+            if let type = inferredNonLambdaArgTypes[index],
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   argument.expr, currentType: type, ast: ast, sema: sema
+               )
+            {
+                inferredNonLambdaArgTypes[index] = companionType
+            }
+        }
+
+        for (index, argument) in args.enumerated() {
+            if let type = inferredNonLambdaArgTypes[index] {
+                inferredNonLambdaArgTypes[index] = sourceLevelRangeArgumentType(
+                    argument.expr, inferredType: type, ctx: ctx
+                )
+            }
+        }
+
         if lambdaLiteralIndices.count > 1 {
             blockedLambdaRefinement = true
         }
@@ -274,17 +294,12 @@ extension CallTypeChecker {
             } else {
                 argTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
             }
+            argTypes[index] = sourceLevelRangeArgumentType(
+                argument.expr, inferredType: argTypes[index], ctx: ctx
+            )
             inferredNonLambdaArgTypes[index] = argTypes[index]
         }
 
-        // An inline range literal (e.g. `1..3`) is bound with its element type
-        // (Int) plus a range-expr marker, so it does not match a range-class
-        // parameter (IntRange) by subtyping alone. When a candidate expects a
-        // range-like parameter at this position, report the argument as the
-        // corresponding range class type so source-backed overloads such as
-        // String.slice(IntRange) resolve. The same holds for a plain
-        // `Iterable<T>` parameter, which every range class implements
-        // (`fun f(x: Iterable<Int>)` called as `f(1..3)`).
         let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
             let type = argTypes[index]
             // A bare `ClassName` argument denotes the class's companion object.
@@ -295,34 +310,7 @@ extension CallTypeChecker {
             {
                 return companionType
             }
-            guard !lambdaLiteralIndices.contains(index),
-                  let rangeClassType = sourceLevelRangeMemberLookupType(
-                      receiverExpr: argument.expr,
-                      receiverType: type,
-                      sema: sema,
-                      interner: ctx.interner
-                  ),
-                  candidates.contains(where: { candidate in
-                      guard let signature = sema.symbols.functionSignature(for: candidate),
-                            let parameterType = parameterTypeForArgument(at: index, in: signature)
-                      else {
-                          return false
-                      }
-                      let nonNullParameterType = sema.types.makeNonNullable(parameterType)
-                      return driver.helpers.isRangeLikeType(
-                          nonNullParameterType,
-                          sema: sema,
-                          interner: ctx.interner
-                      ) || driver.helpers.isPlainIterableType(
-                          nonNullParameterType,
-                          sema: sema,
-                          interner: ctx.interner
-                      )
-                  })
-            else {
-                return type
-            }
-            return rangeClassType
+            return type
         }
 
         return PreparedCallArguments(
@@ -332,6 +320,32 @@ extension CallTypeChecker {
             blockedLambdaRefinement: blockedLambdaRefinement,
             hasUnresolvableImplicitLambdaParameter: hasUnresolvableImplicitLambdaParameter
         )
+    }
+
+    private func sourceLevelRangeArgumentType(
+        _ expr: ExprID,
+        inferredType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let sema = ctx.sema
+        // Preserve the scalar binding for range lowering, but use the nominal
+        // type for argument constraints, including generic upper bounds.
+        guard sema.bindings.isRangeExpr(expr) || sema.bindings.isFloatingPointRangeExpr(expr),
+              case .primitive = sema.types.kind(of: sema.types.makeNonNullable(inferredType)),
+              let rangeType = floatingPointRangeArgumentType(
+                  expr, ast: ctx.ast, sema: sema, interner: ctx.interner
+              ) ?? sourceLevelRangeMemberLookupType(
+                  receiverExpr: expr,
+                  receiverType: inferredType,
+                  sema: sema,
+                  interner: ctx.interner
+              )
+        else {
+            return inferredType
+        }
+        return sema.types.nullability(of: inferredType) == .nullable
+            ? sema.types.makeNullable(rangeType)
+            : rangeType
     }
 
     func resolveCallRespectingLambdaReturnType(
@@ -690,7 +704,10 @@ extension CallTypeChecker {
         let effectiveReceiverType = receiverType ?? ctx.implicitReceiverType
         let candidates = effectiveReceiverType != nil
             ? candidates
-            : candidates.filter { sema.symbols.functionSignature(for: $0)?.receiverType == nil }
+            : candidates.filter {
+                sema.symbols.symbol($0)?.kind == .constructor
+                    || sema.symbols.functionSignature(for: $0)?.receiverType == nil
+            }
 
         var narrowed = candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
@@ -784,6 +801,9 @@ extension CallTypeChecker {
         // corrupts the lambda's expected type with irreconcilable parameter
         // shapes and leaves implicit `it` untyped.
         let receiverFeasible = narrowed.filter { candidate in
+            if sema.symbols.symbol(candidate)?.kind == .constructor {
+                return true
+            }
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return false
             }

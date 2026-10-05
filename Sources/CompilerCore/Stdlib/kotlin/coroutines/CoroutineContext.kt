@@ -16,7 +16,7 @@ import kotlin.internal.KsSymbolName
 // instead of carrying Kotlin bodies. KSP-1144 places the Element defaults in
 // the same source owner as the upstream stdlib.
 public interface CoroutineContext {
-    @KsSymbolName("kk_context_get")
+    @KsSymbolName("__kk_context_get_dispatch")
     public operator fun <E : Element> get(key: Key<E>): E?
 
     @KsSymbolName("kk_context_fold")
@@ -25,7 +25,7 @@ public interface CoroutineContext {
     @KsSymbolName("kk_context_plus")
     public operator fun plus(context: CoroutineContext): CoroutineContext
 
-    @KsSymbolName("kk_context_minusKey")
+    @KsSymbolName("__kk_context_minusKey_dispatch")
     public fun minusKey(key: Key<*>): CoroutineContext
 
     /** A context element is a context containing only itself. */

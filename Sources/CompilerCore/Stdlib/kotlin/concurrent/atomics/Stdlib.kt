@@ -60,7 +60,8 @@ public external fun <T> atomicArrayOfNulls(size: Int): AtomicArray<T?>
 // element type directly instead of casting `atomicArrayOfNulls`' result.
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 @KsSymbolName("kk_atomic_ref_array_new")
-private external fun <T> __kkAtomicRefArrayNew(size: Int): AtomicArray<T>
+@PublishedApi
+internal external fun <T> __kkAtomicRefArrayNew(size: Int): AtomicArray<T>
 
 /**
  * Creates a new [AtomicArray] of the given [size], where each element is

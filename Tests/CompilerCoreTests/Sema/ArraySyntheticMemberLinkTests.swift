@@ -877,10 +877,97 @@ struct ArraySyntheticMemberLinkTests {
     }
 
     @Test
+    func testArraySortAndComponentsBindBundledKotlinSource() throws {
+        let ctx = makeContextFromSource(
+            """
+            fun sample(words: Array<out String>, int: IntArray, long: LongArray, short: ShortArray, byte: ByteArray, char: CharArray, boolean: BooleanArray, float: FloatArray, double: DoubleArray) {
+                words.sort()
+                int.sort()
+                int.sort(1, 3)
+                int.sort(toIndex = 3)
+                int.sortDescending()
+                int.sortDescending(1, 3)
+                int.component1()
+                int.component2()
+                int.component3()
+                int.component4()
+                int.component5()
+                long.component1()
+                long.component2()
+                long.component3()
+                long.component4()
+                long.component5()
+                short.component1()
+                short.component2()
+                short.component3()
+                short.component4()
+                short.component5()
+                byte.component1()
+                byte.component2()
+                byte.component3()
+                byte.component4()
+                byte.component5()
+                char.component1()
+                char.component2()
+                char.component3()
+                char.component4()
+                char.component5()
+                boolean.component1()
+                boolean.component2()
+                boolean.component3()
+                boolean.component4()
+                boolean.component5()
+                float.component1()
+                float.component2()
+                float.component3()
+                float.component4()
+                float.component5()
+                double.component1()
+                double.component2()
+                double.component3()
+                double.component4()
+                double.component5()
+            }
+            """
+        )
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.isEmpty)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        var componentCount = 0
+        var sortCount = 0
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, name, _, _, range) = ast.arena.expr(exprID),
+                  ctx.sourceManager.origin(of: range.start.file) == .user
+            else {
+                continue
+            }
+            let memberName = ctx.interner.resolve(name)
+            guard memberName.hasPrefix("component") || memberName == "sort" || memberName == "sortDescending" else {
+                continue
+            }
+            let chosen = try #require(sema.bindings.callBinding(for: exprID)?.chosenCallee)
+            #expect(sema.symbols.isSourceBackedSymbol(chosen))
+            #expect(sema.symbols.externalLinkName(for: chosen) == nil)
+            if memberName.hasPrefix("component") {
+                let symbol = try #require(sema.symbols.symbol(chosen))
+                #expect(symbol.flags.contains(.operatorFunction))
+                componentCount += 1
+            } else {
+                sortCount += 1
+            }
+        }
+        #expect(componentCount == 40)
+        #expect(sortCount == 6)
+    }
+
+    @Test
     func testArrayIndexAndIterationMembersBindBundledKotlinSource() throws {
         let ctx = makeContextFromSource(
             """
-            fun sample(values: Array<String>, ints: IntArray, longs: LongArray) {
+            fun sample(values: Array<String>, ints: IntArray, longs: LongArray, bytes: ByteArray, chars: CharArray) {
                 values.indices
                 values.lastIndex
                 values.iterator()
@@ -896,6 +983,13 @@ struct ArraySyntheticMemberLinkTests {
                 longs.lastIndex
                 longs.iterator()
                 longs.withIndex()
+
+                val byteIndices: IntRange = bytes.indices
+                val byteLastIndex: Int = bytes.lastIndex
+                val charIndices: IntRange = chars.indices
+                val charLastIndex: Int = chars.lastIndex
+                for (i in bytes.indices) { bytes[i] }
+                for (i in chars.indices) { chars[i] }
             }
             """
         )
@@ -903,9 +997,10 @@ struct ArraySyntheticMemberLinkTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
-            ctx.diagnostics.diagnostics.isEmpty,
-            "Expected array index and iteration members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+            errors.isEmpty,
+            "Expected array index and iteration members to type-check, got: \(errors)"
         )
 
         let userPath = try #require(
@@ -917,6 +1012,7 @@ struct ArraySyntheticMemberLinkTests {
             "Array.indices", "Array.lastIndex", "Array.iterator", "Array.withIndex",
             "IntArray.indices", "IntArray.lastIndex", "IntArray.iterator", "IntArray.withIndex", "IntArray.sort",
             "LongArray.indices", "LongArray.lastIndex", "LongArray.iterator", "LongArray.withIndex",
+            "ByteArray.indices", "ByteArray.lastIndex", "CharArray.indices", "CharArray.lastIndex",
         ]
         var boundMembers = Set<String>()
 

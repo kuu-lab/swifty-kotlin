@@ -701,6 +701,18 @@ extension CallLowerer {
                 return nil
             }
             switch memberName {
+            case "start":
+                return interner.intern(
+                    floatingPointElementType == sema.types.floatType
+                        ? "__kk_float_range_start"
+                        : "__kk_double_range_start"
+                )
+            case "endInclusive":
+                return interner.intern(
+                    floatingPointElementType == sema.types.floatType
+                        ? "__kk_float_range_endInclusive"
+                        : "__kk_double_range_endInclusive"
+                )
             case "contains":
                 return interner.intern(
                     floatingPointElementType == sema.types.floatType

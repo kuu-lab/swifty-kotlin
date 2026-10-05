@@ -11,6 +11,44 @@ import Testing
 // dispatch and CallLowerer+Operators's string-add shortcut) used to ignore
 // argument applicability and silently miscompile these calls.
 extension BuildKIRRegressionTests {
+    @Test(arguments: ["plus", "times", "div", "rem"])
+    func testBuildKIRUsesCharArithmeticExtensionForExplicitCall(name: String) throws {
+        let rhsType = name == "plus" ? "Char" : "Int"
+        let source = """
+        operator fun Char.\(name)(other: \(rhsType)): Int = this.code + 7
+        fun useMemberCall(c: Char, other: \(rhsType)): Int = c.\(name)(other)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let exprID = try #require(topLevelExpressionBodyExprID(named: "useMemberCall", ast: ast, interner: ctx.interner))
+        let chosen = try #require(sema.bindings.callBindings[exprID]?.chosenCallee)
+        try BuildKIRPhase().run(ctx)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "useMemberCall", in: module, interner: ctx.interner)
+        #expect(body.contains { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == chosen
+        })
+        #expect(!body.contains { instruction in
+            if case .binary = instruction { return true }
+            return false
+        })
+    }
+
+    @Test
+    func testBuildKIRLowersExplicitCharPlusStringToFlatConcat() throws {
+        let ctx = makeContextFromSource("fun useMemberCall(c: Char, s: String): String = c.plus(s)")
+        try runSema(ctx)
+        try BuildKIRPhase().run(ctx)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "useMemberCall", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_string_concat_flat"))
+        #expect(!callees.contains("plus"))
+    }
+
     @Test func testBuildKIRUsesExtensionOperatorSymbolForPrimitiveReceiverBinaryTimesExpression() throws {
         let source = """
         class Vec {

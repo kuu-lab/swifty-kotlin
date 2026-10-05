@@ -600,7 +600,7 @@ extension CallTypeChecker {
                 true
             }
             let lambdaReturnType: TypeID = switch memberName {
-            case "filter":
+            case "filter", "takeWhile", "dropWhile":
                 sema.types.booleanType
             case "collect", "collectLatest":
                 sema.types.unitType
@@ -609,8 +609,6 @@ extension CallTypeChecker {
                 // the callback itself returns Unit. The lightweight Flow
                 // special case has no receiver-type inference for those
                 // emissions, so keep its output type conservatively erased.
-                sema.types.unitType
-            case "takeWhile", "dropWhile":
                 sema.types.unitType
             case "catch":
                 sema.types.unitType
@@ -630,7 +628,7 @@ extension CallTypeChecker {
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: lambdaParameterTypes,
                 returnType: lambdaReturnType,
-                isSuspend: memberName == "collect" || memberName == "collectLatest",
+                isSuspend: ["collect", "collectLatest", "takeWhile", "dropWhile"].contains(memberName),
                 nullability: .nonNull
             )))
             if expectsLambdaTypeConstraint {

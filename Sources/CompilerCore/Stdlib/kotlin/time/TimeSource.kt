@@ -8,13 +8,12 @@ package kotlin.time
 // samples the monotonic clock, and the Kotlin source wraps the reading in a
 // ValueTimeMark. __kk_time_source_as_clock builds a Clock backed by a time source.
 //
-// TimeMark and ComparableTimeMark are migrated to marker interfaces; their
-// operations remain extension functions in kotlin/time/TimeMark.kt.
+// TimeMark and ComparableTimeMark operations dispatch through source members.
 
 import kotlin.internal.KsSymbolName
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
-import kotlin.time.nanoseconds
+import kotlin.time.Duration.Companion.nanoseconds
 
 @KsSymbolName("__kk_time_source_monotonic_mark_now")
 private external fun __kk_time_source_monotonic_mark_now(receiver: Long): Long
@@ -37,13 +36,13 @@ public interface TimeSource {
 
         @JvmInline
         public value class ValueTimeMark internal constructor(internal val reading: Long) : ComparableTimeMark {
-            public fun elapsedNow(): Duration =
+            public override fun elapsedNow(): Duration =
                 timeMarkElapsedNanos(reading).nanoseconds
 
-            public operator fun plus(duration: Duration): ValueTimeMark =
+            public override operator fun plus(duration: Duration): ValueTimeMark =
                 ValueTimeMark(timeMarkAddNanos(reading, duration.inWholeNanoseconds))
 
-            public operator fun minus(duration: Duration): ValueTimeMark =
+            public override operator fun minus(duration: Duration): ValueTimeMark =
                 plus(-duration)
 
             public override fun hasPassedNow(): Boolean = !elapsedNow().isNegative()

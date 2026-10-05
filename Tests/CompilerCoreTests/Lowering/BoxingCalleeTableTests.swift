@@ -51,7 +51,7 @@ struct BoxingCalleeTableTests {
             let unboxCallee = table.unboxCallee(for: type, types: types, requireNonNull: true)
             let expectedBoxName = nonNullBoxOverrides[primitive] ?? boxName
             #expect(boxCallee.map(interner.resolve) == expectedBoxName)
-            #expect(unboxCallee.map(interner.resolve) == unboxName)
+            #expect(unboxCallee.map(interner.resolve) == (primitive == .double ? "kk_unbox_double_nonnull" : unboxName))
         }
 
         // Nullable Long/ULong sources must keep resolving to the default
@@ -101,7 +101,7 @@ struct BoxingCalleeTableTests {
             .ulong: ("kk_box_ulong_nonnull_static", "kk_unbox_ulong_static"),
             .boolean: ("kk_box_bool_static", "kk_unbox_bool_static"),
             .float: ("kk_box_float_static", "kk_unbox_float_static"),
-            .double: ("kk_box_double_nonnull_static", "kk_unbox_double_static"),
+            .double: ("kk_box_double_nonnull_static", "kk_unbox_double_nonnull_static"),
             .char: ("kk_box_char_static", "kk_unbox_char_static"),
         ]
 
@@ -124,6 +124,18 @@ struct BoxingCalleeTableTests {
                 ).map(interner.resolve) == unboxName
             )
         }
+    }
+
+    @Test(arguments: [false, true])
+    func testNullableDoubleUnboxingKeepsNullAwareCallee(preferStaticPrimitive: Bool) {
+        let interner = StringInterner()
+        let table = BoxingCalleeTable(interner: interner)
+        let callee = table.unboxCallee(
+            for: .primitive(.double, .nullable),
+            requireNonNull: false,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
+        #expect(callee.map(interner.resolve) == (preferStaticPrimitive ? "kk_unbox_double_static" : "kk_unbox_double"))
     }
 }
 #endif

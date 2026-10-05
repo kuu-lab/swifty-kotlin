@@ -99,11 +99,10 @@ public func __kk_arraydeque_size(_ dequeRaw: Int) -> Int {
 private let runtimeDoubleArrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.DoubleArray")
 private let runtimeFloatArrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.FloatArray")
 
-func runtimeArrayToString(
+func runtimeFloatingPointArrayToString(
     _ raw: Int,
-    box: RuntimeArrayBox,
-    renderElement: (RuntimeValue) -> String
-) -> String {
+    box: RuntimeArrayBox
+) -> String? {
     let typeIDs = runtimeArrayTypeIDs(rawValue: raw)
     let parts: [String]
     if typeIDs.contains(runtimeDoubleArrayTypeID) {
@@ -115,7 +114,7 @@ func runtimeArrayToString(
             runtimeFormatFloatingPoint(Float(bitPattern: UInt32(truncatingIfNeeded: $0)))
         }
     } else {
-        parts = box.values.map(renderElement)
+        return nil
     }
     return "[\(parts.joined(separator: ", "))]"
 }
@@ -245,9 +244,13 @@ private func runtimeArrayBoxDeepToString(
     }
     defer { visited.remove(raw) }
 
-    return runtimeArrayToString(raw, box: box) {
-        runtimeValueDeepToString($0.legacyRawValue, visited: &visited)
+    if let rendered = runtimeFloatingPointArrayToString(raw, box: box) {
+        return rendered
     }
+    let rendered = box.elements
+        .map { runtimeValueDeepToString($0, visited: &visited) }
+        .joined(separator: ", ")
+    return "[\(rendered)]"
 }
 
 private func runtimeValueDeepToString(_ raw: Int, visited: inout Set<Int>) -> String {

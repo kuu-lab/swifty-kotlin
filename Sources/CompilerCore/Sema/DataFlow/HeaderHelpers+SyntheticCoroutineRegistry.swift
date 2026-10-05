@@ -1482,117 +1482,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // CoroutineContext.Element.getPolymorphicElement(key: Key<E>): E?
-        do {
-            let functionName = interner.intern("getPolymorphicElement")
-            let functionFQName = kotlinCoroutinesPkg + [functionName]
-            if symbols.lookup(fqName: functionFQName) == nil {
-                let functionSymbol = symbols.define(
-                    kind: .function,
-                    name: functionName,
-                    fqName: functionFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                if let packageSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
-                    symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-                }
-                let functionTypeParamName = interner.intern("E")
-                let functionTypeParamSymbol = symbols.define(
-                    kind: .typeParameter,
-                    name: functionTypeParamName,
-                    fqName: functionFQName + [interner.intern("$synthetic"), functionTypeParamName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                let functionTypeParamType = types.make(.typeParam(TypeParamType(
-                    symbol: functionTypeParamSymbol,
-                    nullability: .nonNull
-                )))
-                symbols.setTypeParameterUpperBounds([coroutineContextKeyTypeParamBound], for: functionTypeParamSymbol)
-
-                let keyType = types.make(.classType(ClassType(
-                    classSymbol: coroutineContextKeySymbol,
-                    args: [.invariant(functionTypeParamType)],
-                    nullability: .nonNull
-                )))
-                let keyParamName = interner.intern("key")
-                let keyParamSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: keyParamName,
-                    fqName: functionFQName + [keyParamName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(functionSymbol, for: keyParamSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: coroutineContextElementType,
-                        parameterTypes: [keyType],
-                        returnType: types.makeNullable(functionTypeParamType),
-                        valueParameterSymbols: [keyParamSymbol],
-                        valueParameterHasDefaultValues: [false],
-                        valueParameterIsVararg: [false],
-                        typeParameterSymbols: [functionTypeParamSymbol],
-                        typeParameterUpperBoundsList: [[coroutineContextKeyTypeParamBound]]
-                    ),
-                    for: functionSymbol
-                )
-                symbols.setExternalLinkName("kk_context_get", for: functionSymbol)
-                attachCoroutineExperimentalStdlibApiAnnotation(to: functionSymbol, symbols: symbols)
-            }
-        }
-
-        // CoroutineContext.Element.minusPolymorphicKey(key: Key<*>): CoroutineContext
-        do {
-            let functionName = interner.intern("minusPolymorphicKey")
-            let functionFQName = kotlinCoroutinesPkg + [functionName]
-            if symbols.lookup(fqName: functionFQName) == nil {
-                let functionSymbol = symbols.define(
-                    kind: .function,
-                    name: functionName,
-                    fqName: functionFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                if let packageSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
-                    symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-                }
-                let keyType = types.make(.classType(ClassType(
-                    classSymbol: coroutineContextKeySymbol,
-                    args: [.star],
-                    nullability: .nonNull
-                )))
-                let keyParamName = interner.intern("key")
-                let keyParamSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: keyParamName,
-                    fqName: functionFQName + [keyParamName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(functionSymbol, for: keyParamSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: coroutineContextElementType,
-                        parameterTypes: [keyType],
-                        returnType: coroutineContextType,
-                        valueParameterSymbols: [keyParamSymbol],
-                        valueParameterHasDefaultValues: [false],
-                        valueParameterIsVararg: [false]
-                    ),
-                    for: functionSymbol
-                )
-                symbols.setExternalLinkName("kk_context_minusKey", for: functionSymbol)
-                attachCoroutineExperimentalStdlibApiAnnotation(to: functionSymbol, symbols: symbols)
-            }
-        }
-
         // CoroutineContext.fold(initial: R, operation: (R, Element) -> R): R
         do {
             let functionName = interner.intern("fold")
@@ -1745,8 +1634,12 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(coroutineNameType, for: coroutineNameSymbol)
-        symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineNameSymbol)
-        types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineNameSymbol)
+        let coroutineNameFQName = coroutinesPkg + [interner.intern("CoroutineName")]
+        let hasBundledCoroutineName = bundledIndex.containsNominal(fqName: coroutineNameFQName)
+        if !hasBundledCoroutineName {
+            symbols.setDirectSupertypes([coroutineContextElementSymbol], for: coroutineNameSymbol)
+            types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: coroutineNameSymbol)
+        }
 
         let coroutineExceptionHandlerSymbol = ensureClassSymbol(
             named: "CoroutineExceptionHandler",
@@ -1776,24 +1669,26 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // CoroutineName(name: String) constructor
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "CoroutineName",
-            packageFQName: coroutinesPkg,
-            parameters: [(name: "name", type: types.stringType)],
-            returnType: coroutineNameType,
-            externalLinkName: "kk_coroutine_name_create",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineConstructor(
-            ownerSymbol: coroutineNameSymbol,
-            ownerType: coroutineNameType,
-            externalLinkName: "kk_coroutine_name_create",
-            parameters: [(name: "name", type: types.stringType)],
-            symbols: symbols,
-            interner: interner
-        )
+        // The bundled constructor allocates the runtime-owned name handle.
+        if !hasBundledCoroutineName {
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "CoroutineName",
+                packageFQName: coroutinesPkg,
+                parameters: [(name: "name", type: types.stringType)],
+                returnType: coroutineNameType,
+                externalLinkName: "kk_coroutine_name_create",
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticCoroutineConstructor(
+                ownerSymbol: coroutineNameSymbol,
+                ownerType: coroutineNameType,
+                externalLinkName: "kk_coroutine_name_create",
+                parameters: [(name: "name", type: types.stringType)],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // CoroutineExceptionHandler { context, exception -> } factory
         registerSyntheticCoroutineTopLevelFunction(
@@ -1993,17 +1888,19 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineNameSymbol,
-            ownerType: coroutineNameType,
-            name: "plus",
-            externalLinkName: "kk_context_plus",
-            returnType: kotlinCoroutineContextType,
-            parameters: [(name: "context", type: kotlinCoroutineContextType)],
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
-        )
+        if !hasBundledCoroutineName {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: coroutineNameSymbol,
+                ownerType: coroutineNameType,
+                name: "plus",
+                externalLinkName: "kk_context_plus",
+                returnType: kotlinCoroutineContextType,
+                parameters: [(name: "context", type: kotlinCoroutineContextType)],
+                flags: [.synthetic, .operatorFunction],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineMember(
             ownerSymbol: coroutineExceptionHandlerSymbol,
             ownerType: coroutineExceptionHandlerType,
@@ -2072,6 +1969,17 @@ extension DataFlowSemaPhase {
             symbols.setTypeAliasUnderlyingType(receiveChannelUnderlyingType, for: receiveChannelAliasSymbol)
         }
 
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("start"), arity: 0) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: jobSymbol,
+                ownerType: jobType,
+                name: "start",
+                externalLinkName: "kk_job_start",
+                returnType: types.booleanType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineMember(
             ownerSymbol: jobSymbol,
             ownerType: jobType,
@@ -2356,13 +2264,9 @@ extension DataFlowSemaPhase {
         // operations through the synthetic `kk_coroutine_scope_*` members.
         //
         // `testScheduler`/`currentTime`/`backgroundScope` are synthetic
-        // member properties (upstream declares them as `val TestScope.x`
-        // extensions): extension *properties* on the suspend-lambda receiver
-        // do not resolve the implicit-receiver path — they emit a
-        // kk_global_root_slot_* load for a slot that is never defined —
-        // while member properties route through the same kk_ bridge as
-        // `isActive`. The surface syntax (`scope.testScheduler` etc.) is
-        // identical either way.
+        // member properties routing through runtime bridges, like `isActive`.
+        // Extension properties also use the bound implicit receiver, including
+        // when it is captured by a nested lambda.
         let testPkg = ensureSyntheticCoroutinePackage(
             coroutinesPkg + [interner.intern("test")],
             symbols: symbols,

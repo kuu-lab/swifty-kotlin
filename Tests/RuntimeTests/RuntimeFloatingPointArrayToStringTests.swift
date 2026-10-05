@@ -31,7 +31,7 @@ struct RuntimeFloatingPointArrayToStringTests {
         let doubles = makeArray([Int(bitPattern: UInt(Double(1.0).bitPattern))], type: "kotlin.DoubleArray")
         let floats = makeArray([Int(Float(2.5).bitPattern)], type: "kotlin.FloatArray")
         let nested = makeArray([doubles, floats], type: "kotlin.Array")
-        expectRendering(nested, "[[1.0], [2.5]]")
+        expectRendering(nested, runtimeArrayIdentityToString(nested))
         #expect(extractString(from: __kk_array_contentDeepToString(nested)) == "[[1.0], [2.5]]")
 
         let list = registerRuntimeObject(RuntimeListBox(elements: [doubles, floats]))
@@ -39,10 +39,13 @@ struct RuntimeFloatingPointArrayToStringTests {
     }
 
     @Test
-    func integerArraysAreNotReinterpretedAsFloatingPoint() {
-        expectRendering(makeArray([1065353216, -1], type: "kotlin.IntArray"), "[1065353216, -1]")
-        expectRendering(makeArray([4607182418800017408, -1], type: "kotlin.LongArray"), "[4607182418800017408, -1]")
-        expectRendering(makeArray([1065353216, -1], type: "kotlin.Array"), "[1065353216, -1]")
+    func integerArraysAreNotReinterpretedAsFloatingPoint() throws {
+        for type in ["kotlin.IntArray", "kotlin.LongArray", "kotlin.Array"] {
+            let array = makeArray([1065353216, -1], type: type)
+            let box = try #require(runtimeArrayBox(from: array))
+            #expect(runtimeFloatingPointArrayToString(array, box: box) == nil)
+            expectRendering(array, runtimeArrayIdentityToString(array))
+        }
     }
 
     private func makeArray(_ elements: [Int], type: String) -> Int {

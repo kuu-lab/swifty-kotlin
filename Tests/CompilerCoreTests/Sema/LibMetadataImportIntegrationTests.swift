@@ -5,6 +5,45 @@ import Testing
 
 @Suite
 struct LibMetadataImportIntegrationTests {
+    @Test(arguments: [false, true])
+    func testInlineParameterReturnModesSurviveSignatureNormalization(indexed: Bool) throws {
+        let libDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+        let manifest = """
+        {"formatVersion": 1, "moduleName": "InlineParameters", "metadata": "metadata.bin"}
+        """
+        let records = [MetadataRecord(
+            kind: .function,
+            mangledName: "_KK_inlineParameters",
+            fqName: "test.inlineParameters",
+            arity: 3,
+            isInline: true,
+            typeSignature: "F3<F0<Z>,F0<Z>,F0<Z>,Z>",
+            valueParameterAllowsNonLocalReturn: [true, false, false],
+            valueParameterNames: ["block", "crossinlineBlock", "noinlineBlock"]
+        )]
+        let encoder = MetadataEncoder()
+        let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], searchPaths: [libDir.path], includeStdlib: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let function = try #require(sema.symbols.lookup(
+                fqName: ["test", "inlineParameters"].map(ctx.interner.intern)
+            ))
+            let signature = try #require(sema.symbols.functionSignature(for: function))
+            #expect(signature.parameterTypes.count == 3)
+            #expect(signature.valueParameterAllowsNonLocalReturn == [true, false, false])
+        }
+    }
+
     @Test func testInputOnlyTypeParameterAnnotationIsRestored() throws {
         let libDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")

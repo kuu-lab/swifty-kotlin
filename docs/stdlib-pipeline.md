@@ -612,9 +612,11 @@ Kotlin heap の通常の Continuation は Swift object として cast せず同�
 `kk_*` → `__kk_*` は 1 対 1 の降格であり ABI 関数総数は増えない。
 `RuntimeABISpec.specVersion` は登録変更から自動再計算される。
 
-これは公開 API の source 化であり、Kotlin/Native の interception 機構全体の移植ではない。
-既存 `RuntimeContinuationState` には `ContinuationImpl` の context interceptor lookup・
-intercepted result cache・release lifecycle がなく、この移行でもその制約は維持する。
+KUU-1164 で生成 state に completion context の保持、source-defined interceptor の
+interface dispatch、intercepted result cache、完了時の release を追加した。
+private bridge は Kotlin source の `ContinuationInterceptor.Key` を受け取り、通常の
+source Continuation の context は読まず、生成 state のみ context lookup を行う。
+native dispatcher wrapper の resume は元の生成 state に戻る。
 Swift `KKContinuation` の dispatcher wrapper は wrapper 自身の再 interception は identity だが、
 元 continuation に対する複数回の呼び出しの cache は持たない。
 生成 continuation の custom `ContinuationInterceptor` 対応には state/context/lifecycle の整備が必要
@@ -871,3 +873,12 @@ identity without retaining a wrapper through its job.
 compiler passes the generated getter slot; tags return themselves and Kotlin
 objects retain virtual getter dispatch. This adds one `__kk_*` bridge (reason:
 memory representation) without changing scheduler behavior.
+
+Inherited `ContinuationInterceptor.get`/`minusKey` calls on native dispatchers
+select the source-backed Kotlin default using `__kk_dispatcher_default_method`;
+the compiler supplies its function pointer instead of assigning fixed itable
+slots. Kotlin receivers retain their resolved overrides and thrown channels.
+`__kk_is_native_dispatcher` lets these defaults avoid the Kotlin `key` getter
+for native tags/handles while keeping polymorphic-key logic in Kotlin. The two
+new `__kk_*` entries are memory-representation bridges: native schedulers have
+no source-object layout, and neither bridge implements context-key semantics.

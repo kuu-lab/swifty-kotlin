@@ -24,7 +24,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                     lowerBinaryInstruction(
                         op: op, lhs: lhs, rhs: rhs, result: result,
                         arena: module.arena, interner: ctx.interner,
-                        types: ctx.sema?.types, newBody: &newBody
+                        types: ctx.sema?.types, symbols: ctx.sema?.symbols, newBody: &newBody
                     )
                 case let .unary(op, operand, result):
                     let callee: InternedString = switch op {
@@ -126,6 +126,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem?,
+        symbols: SymbolTable?,
         newBody: inout KIRLoweringEmitContext
     ) {
         // STDLIB-CORO-077: CoroutineContext + operator -> kk_context_plus
@@ -157,8 +158,10 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             let sentinelCollidingKinds: Set<PrimitiveType> = [.long, .ulong, .double, .float]
             let lhsNullableKind = nullablePrimitiveKind(lhs, arena: arena, types: types)
             let rhsNullableKind = nullablePrimitiveKind(rhs, arena: arena, types: types)
-            let lhsNeedsSentinelSafeCompare = lhsNullableKind.map(sentinelCollidingKinds.contains) ?? false
-            let rhsNeedsSentinelSafeCompare = rhsNullableKind.map(sentinelCollidingKinds.contains) ?? false
+            let lhsNeedsSentinelSafeCompare = (lhsNullableKind.map(sentinelCollidingKinds.contains) ?? false)
+                || isNullableSentinelCollidingValueClass(lhs, arena: arena, types: types, symbols: symbols)
+            let rhsNeedsSentinelSafeCompare = (rhsNullableKind.map(sentinelCollidingKinds.contains) ?? false)
+                || isNullableSentinelCollidingValueClass(rhs, arena: arena, types: types, symbols: symbols)
             if lhsNeedsSentinelSafeCompare || rhsNeedsSentinelSafeCompare {
                 let nullableSide: KIRExprID
                 let peerSide: KIRExprID
@@ -297,6 +300,20 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return primitiveType
         }
         return nil
+    }
+
+    private func isNullableSentinelCollidingValueClass(
+        _ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?, symbols: SymbolTable?
+    ) -> Bool {
+        guard let types, let typeID = arena.exprType(exprID),
+              case let .classType(classType) = types.kind(of: typeID),
+              classType.nullability != .nonNull,
+              symbols?.symbol(classType.classSymbol)?.flags.contains(.valueType) == true,
+              case let .primitive(primitive, .nonNull) = resolveValueClassKind(
+                  types.kind(of: types.makeNonNullable(typeID)), types: types, symbols: symbols
+              )
+        else { return false }
+        return primitive.rawValueCollidesWithNullSentinel
     }
 
     /// The expression's static primitive kind, if its type is a non-null

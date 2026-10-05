@@ -209,7 +209,8 @@ public func kk_char_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
 public func kk_char_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = kk_unbox_char(lhsRaw)
     let rhs = kk_unbox_char(rhsRaw)
-    return lhs - rhs
+    if lhs == rhs { return 0 }
+    return lhs < rhs ? -1 : 1
 }
 
 // New numeric conversion functions
@@ -249,8 +250,7 @@ public func kk_char_toDoubleOrNull(_ value: Int) -> Int {
 // Code point and Unicode properties
 @_cdecl("kk_char_code")
 public func kk_char_code(_ value: Int) -> Int {
-    // Return Unicode code point
-    return value
+    kk_unbox_char(value)
 }
 
 @_cdecl("kk_char_category")
