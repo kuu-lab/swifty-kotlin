@@ -3,7 +3,8 @@ extension BuildASTPhase {
     func parseLocalFunDeclExpr(
         from statementTokens: [Token],
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        bodyOverride: FunctionBody? = nil
     ) -> ExprID? {
         guard !statementTokens.isEmpty else {
             return nil
@@ -77,7 +78,9 @@ extension BuildASTPhase {
         )
 
         let body: FunctionBody
-        if index < funTokens.count, funTokens[index].kind == .symbol(.assign) {
+        if let bodyOverride {
+            body = bodyOverride
+        } else if index < funTokens.count, funTokens[index].kind == .symbol(.assign) {
             index += 1
             // Only strip top-level semicolons (matching filterTopLevelSemicolons'
             // caller convention) so a nested block in the expression body — e.g.

@@ -237,6 +237,11 @@ struct CaptureAnalyzer {
                 }
 
             case let .callableRef(receiver, _, _):
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 if let receiver {
                     visit(receiver)
                 }
