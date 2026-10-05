@@ -24,7 +24,14 @@ struct ResultSourceMigrationTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let calls = memberCallExprIDs(named: "getOrDefault", in: ast, path: path, ctx: ctx, interner: ctx.interner)
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                switch expr {
+                case let .memberCall(_, callee, _, _, _), let .safeMemberCall(_, callee, _, _, _):
+                    ctx.interner.resolve(callee) == "getOrDefault"
+                default:
+                    false
+                }
+            }
             #expect(!calls.isEmpty)
             let expectedType = switch expectedTypeName {
             case "Int": sema.types.intType
@@ -344,7 +351,7 @@ struct ResultSourceMigrationTests {
             let sema = try #require(ctx.sema)
 
             for propertyName in ["isSuccess", "isFailure"] {
-                let memberRead = try #require(firstExprID(in: ast) { _, expr in
+                let memberRead = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == propertyName
                 })
