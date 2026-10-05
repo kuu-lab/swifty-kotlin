@@ -605,6 +605,34 @@ extension BuildKIRRegressionTests {
         })
     }
 
+    @Test func testSamWrapperPreservesCallbackThrowingContract() throws {
+        let source = """
+        fun interface Action { fun run(): Int }
+        fun action(callback: () -> Int): Action = Action { callback() }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let module = try #require(ctx.kir)
+        let wrapper = try #require(findAllKIRFunctions(in: module).first { function in
+            ctx.interner.resolve(function.name) == "run"
+                && function.body.contains { instruction in
+                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                        return ctx.interner.resolve(callee).hasPrefix("kk_lambda_")
+                    }
+                    return false
+                }
+        })
+        let throwingCalls = wrapper.body.compactMap { instruction -> Bool? in
+            guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction,
+                  ctx.interner.resolve(callee).hasPrefix("kk_lambda_")
+            else { return nil }
+            return canThrow
+        }
+        #expect(throwingCalls == [true])
+    }
+
     @Test func testLocalCallableValueShadowsSameNamedStdlibExtension() throws {
         let source = """
         fun main(): Int {

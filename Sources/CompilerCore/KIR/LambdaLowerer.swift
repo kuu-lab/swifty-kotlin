@@ -1066,7 +1066,7 @@ final class LambdaLowerer {
             callee: lambdaName,
             arguments: loadedCaptureExprs + loweredMethodParamExprs,
             result: callResult,
-            canThrow: false,
+            canThrow: true,
             thrownResult: nil
         ))
         if lambdaReturnType == sema.types.unitType {
