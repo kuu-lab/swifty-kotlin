@@ -19,6 +19,35 @@ inline fun atLeastOnce(block: () -> Unit) {
     block()
 }
 
+inline fun readFromHead(block: (Int) -> Int): Int {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+    return block(0)
+}
+
+fun read(block: (Int) -> Int): Int {
+    var result: Int
+    readFromHead { array ->
+        result = block(array)
+        result
+    }
+    return result
+}
+
+inline fun readBufferHead(start: Int, end: Int, block: (Int, Int) -> Int): Int {
+    contract { callsInPlace(block, InvocationKind.AT_LEAST_ONCE) }
+    block(start, end)
+    return block(start + 1, end)
+}
+
+fun readBuffer(block: (Int, Int) -> Int): Int {
+    var result: Int
+    readBufferHead(block = { start, end ->
+        result = block(start, end)
+        result
+    }, end = 9, start = 2)
+    return result
+}
+
 fun viaCustomExactlyOnce(): Int {
     var result: Int
     once { result = 7 }
@@ -68,6 +97,8 @@ fun viaMemberRun(): Int {
 }
 
 fun main() {
+    println(read { it + 42 })
+    println(readBuffer { start, end -> end - start })
     println(viaCustomExactlyOnce())
     println(viaCustomAtLeastOnce())
     println(viaFreeRun())
