@@ -104,6 +104,11 @@ func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
 /// `kotlin.comparisons.compareValues`).
 @_cdecl("__kk_comparable_compareTo")
 public func __kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    let lhs = runtimeValueFromCollectionABI(lhsRaw)
+    if lhs.tag == RuntimeValue.charTag, rhsRaw != runtimeNullSentinelInt {
+        // JVM Character.compareTo preserves the code-unit difference, unlike direct Char.compareTo.
+        return lhs.payload0 - kk_unbox_char(rhsRaw)
+    }
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }
 

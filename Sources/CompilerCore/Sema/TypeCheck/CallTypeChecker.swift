@@ -1658,8 +1658,7 @@ final class CallTypeChecker {
                 lambdaReturnType = expectedType ?? sema.types.nullableAnyType
             }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
-                receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
-                    ? nil : coroutineScopeType(sema: sema, interner: interner),
+                receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
                 returnType: lambdaReturnType,
                 isSuspend: true,
@@ -1997,9 +1996,17 @@ final class CallTypeChecker {
         {
             let firstType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let secondType = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals)
-            let comparatorArgType = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals)
+            let comparatorArgType: TypeID? = if args.count == 4,
+                                               !isLambdaOrCallableRefArg(args[2].expr, ast: ast)
+            {
+                driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals)
+            } else {
+                nil
+            }
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
-            if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+            if let comparatorArgType,
+               let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
+            {
                 let nonNullComparatorArgType = sema.types.makeNonNullable(comparatorArgType)
                 let inferredKeyType: TypeID? = if case let .classType(classType) = sema.types.kind(of: nonNullComparatorArgType),
                                                   classType.classSymbol == comparatorSymbol,
@@ -2764,7 +2771,7 @@ final class CallTypeChecker {
             }
         }
         if !candidates.isEmpty {
-            // Synthetic builders erase their result type. Resolve arguments first,
+            // Coroutine builders erase their result type. Resolve arguments first,
             // then recover the actual block result instead of constraining Any.
             let coroutineBuilderNames: Set<String> = [
                 "runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull",
@@ -2775,6 +2782,9 @@ final class CallTypeChecker {
                 return externalLinkName == "kk_coroutine_scope_async"
                     || externalLinkName == "kk_with_timeout"
                     || externalLinkName == "kk_with_timeout_or_null"
+                    || sema.symbols.isSourceBackedSymbol(candidate)
+                    && (symbol.name == knownNames.coroutineScope || symbol.name == knownNames.supervisorScope)
+                    && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     || symbol.flags.contains(.synthetic)
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     && coroutineBuilderNames.contains(interner.resolve(symbol.name))

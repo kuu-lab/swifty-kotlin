@@ -7,8 +7,10 @@ import kotlin.contracts.contract
 import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.random.Random
 
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
+@PublishedApi
+internal external fun kk_max_float(a: Float, b: Float): Float
+@PublishedApi
+internal external fun kk_max_double(a: Double, b: Double): Double
 
 // MIGRATION-TEXT-008 / KSP-410
 // String higher-order functions migrated from Swift runtime (RuntimeStringHOF.swift).
@@ -1744,4 +1746,3 @@ public fun CharSequence.padEnd(length: Int, padChar: Char = ' '): CharSequence {
         sb.append(padChar)
     return sb
 }
-

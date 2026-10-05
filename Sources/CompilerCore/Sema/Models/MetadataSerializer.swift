@@ -724,6 +724,7 @@ package final class MetadataEncoder {
                 params: newParams,
                 returnType: newReturn,
                 isSuspend: functionType.isSuspend,
+                isCallableReference: functionType.isCallableReference,
                 nullability: functionType.nullability
             )))
 
@@ -913,7 +914,7 @@ package final class MetadataEncoder {
         var valueParameterNames: [String] = []
         var reifiedTypeParameterIndices: Set<Int> = []
         var defaultStubExternalLinkName: String?
-        var externalLinkName: String?
+        var externalLinkName = symbols.externalLinkName(for: symbol.id)
         var abiReturnTypeSignature: String?
 
         if symbol.kind == .function || symbol.kind == .constructor, let signature = symbols.functionSignature(for: symbol.id) {
@@ -932,7 +933,11 @@ package final class MetadataEncoder {
                     callsInPlaceEffects.first { $0.parameterSymbol == paramSymbol }?.kind
                 }
             }
-            valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
+            // Auto-inlined HOF bodies still have ordinary Kotlin parameters:
+            // their callbacks may escape and must retain their closure values.
+            valueParameterAllowsNonLocalReturn = symbol.flags.contains(.inlineFunction)
+                ? signature.valueParameterAllowsNonLocalReturn
+                : Array(repeating: false, count: signature.parameterTypes.count)
             // KUU-655: an override with an inheritance link
             // (`overrideDefaultsBaseSymbol`) has its *effective* defaults
             // flags copied from the overridden declaration in-memory
@@ -1098,7 +1103,8 @@ package final class MetadataEncoder {
             {
                 propertyGetterExternalLinkName = propertyLink
             }
-            if let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
+            if propertyGetterExternalLinkName == nil,
+               let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
                 propertyGetterExternalLinkName = linkName
             }
@@ -1541,12 +1547,12 @@ package final class MetadataEncoder {
                 if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                     fields.append("defaultLink=\(linkName)")
                 }
-                if let linkName = record.externalLinkName, !linkName.isEmpty {
-                    fields.append("link=\(linkName)")
-                }
                 if let abiSig = record.abiReturnTypeSignature {
                     fields.append("abiSig=\(abiSig)")
                 }
+            }
+            if let linkName = record.externalLinkName, !linkName.isEmpty {
+                fields.append("link=\(linkName)")
             }
             if record.kind == .property || record.kind == .field {
                 if let sig = record.typeSignature {
@@ -1723,9 +1729,9 @@ package final class MetadataEncoder {
             if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                 fields.append("defaultLink=\(linkName)")
             }
-            if let linkName = record.externalLinkName, !linkName.isEmpty {
-                fields.append("link=\(linkName)")
-            }
+        }
+        if let linkName = record.externalLinkName, !linkName.isEmpty {
+            fields.append("link=\(linkName)")
         }
         if let receiverOwnerFQName = record.receiverOwnerFQName, !receiverOwnerFQName.isEmpty {
             fields.append("receiverFq=\(receiverOwnerFQName)")

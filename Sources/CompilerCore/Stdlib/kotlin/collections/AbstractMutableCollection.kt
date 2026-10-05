@@ -159,7 +159,8 @@ public inline operator fun <T> MutableCollection<in T>.minusAssign(element: T) {
     removeElement(this, element)
 }
 
-private fun <T> removeElement(destination: MutableCollection<in T>, element: T) {
+@PublishedApi
+internal fun <T> removeElement(destination: MutableCollection<in T>, element: T) {
     destination.remove(element)
 }
 
@@ -193,7 +194,8 @@ public fun <T> MutableCollection<in T>.addAll(elements: Iterable<T>): Boolean {
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun <T> addAllIterable(
+@PublishedApi
+internal fun <T> addAllIterable(
     destination: MutableCollection<in T>,
     elements: Iterable<T>
 ): Boolean {
@@ -217,7 +219,8 @@ public fun <T> MutableCollection<in T>.addAll(elements: Sequence<T>): Boolean {
     return addAllSequence(this, elements)
 }
 
-private fun <T> addAllSequence(
+@PublishedApi
+internal fun <T> addAllSequence(
     destination: MutableCollection<in T>,
     elements: Sequence<T>
 ): Boolean {
@@ -236,7 +239,8 @@ public fun <T> MutableCollection<in T>.addAll(elements: Array<out T>): Boolean {
     return addAllArray(this, elements)
 }
 
-private fun <T> addAllArray(
+@PublishedApi
+internal fun <T> addAllArray(
     destination: MutableCollection<in T>,
     elements: Array<out T>
 ): Boolean {
@@ -267,7 +271,8 @@ public fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun <T> removeAllIterable(
+@PublishedApi
+internal fun <T> removeAllIterable(
     destination: MutableCollection<in T>,
     elements: Iterable<T>
 ): Boolean {
@@ -287,7 +292,8 @@ public fun <T> MutableCollection<in T>.removeAll(elements: Sequence<T>): Boolean
     return removeAllSequence(this, elements)
 }
 
-private fun <T> removeAllSequence(
+@PublishedApi
+internal fun <T> removeAllSequence(
     destination: MutableCollection<in T>,
     elements: Sequence<T>
 ): Boolean {
@@ -303,7 +309,8 @@ public fun <T> MutableCollection<in T>.removeAll(elements: Array<out T>): Boolea
     return removeAllArray(this, elements)
 }
 
-private fun <T> removeAllArray(
+@PublishedApi
+internal fun <T> removeAllArray(
     destination: MutableCollection<in T>,
     elements: Array<out T>
 ): Boolean {

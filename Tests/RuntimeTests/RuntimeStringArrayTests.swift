@@ -1611,6 +1611,91 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatParenthesesPreserveNonNegativeValuesAndIntegerLimits() {
+        let args = makeRuntimeArray([
+            kk_box_int(-42),
+            kk_box_int(42),
+            kk_box_int(0),
+            kk_box_int(Int(Int32.min)),
+            kk_box_long(Int(Int64.min)),
+            kk_box_long(Int(Int64.max)),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%(d|%(d|%(d|%(d|%(d|%(d",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "(42)|42|0|(2147483648)|(9223372036854775808)|9223372036854775807")
+    }
+
+    @Test
+    func testStringFormatParenthesesCombineWithWidthSignsAndArgumentReuse() {
+        let cases: [(String, Int, String)] = [
+            ("%(6d", -42, "  (42)"),
+            ("%-(6d", -42, "(42)  "),
+            ("%(06d", -42, "(0042)"),
+            ("%(3d", -42, "(42)"),
+            ("%(06d", 42, "000042"),
+            ("%+(06d", -42, "(0042)"),
+            ("%+(06d", 42, "+00042"),
+            ("% (06d", -42, "(0042)"),
+            ("% (06d", 42, " 00042"),
+            ("%(,012d", -1234, "(000001,234)"),
+            ("%(,012d", 1234, "00000001,234"),
+            ("%1$(d|%<(06d", -42, "(42)|(0042)"),
+        ]
+        for (template, value, expected) in cases {
+            let formatted = flatStringReturnValueNoThrow(
+                template,
+                intArg: makeRuntimeArray([kk_box_int(value)]),
+                using: __kk_string_format_flat
+            )
+            #expect(formatted == expected, "Template: \(template), value: \(value)")
+        }
+    }
+
+    @Test
+    func testStringFormatParenthesesCoverFloatingPointSignsAndSpecialValues() {
+        let cases: [(String, Double, String)] = [
+            ("%(010.2f", -42.5, "(00042.50)"),
+            ("%(010.2f", 42.5, "0000042.50"),
+            ("%(010.2f", -0.0, "(00000.00)"),
+            ("%(010.2f", 0.0, "0000000.00"),
+            ("%(.2e", -42.5, "(4.25e+01)"),
+            ("%(.2E", -42.5, "(4.25E+01)"),
+            ("%(.4g", -42.5, "(42.50)"),
+            ("%(012f", -.infinity, "  (Infinity)"),
+            ("%(012E", -.infinity, "  (INFINITY)"),
+            ("%(012f", .infinity, "    Infinity"),
+            ("%(012f", .nan, "         NaN"),
+        ]
+        for (template, value, expected) in cases {
+            let argument = kk_box_double_nonnull(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+            let formatted = flatStringReturnValueNoThrow(
+                template,
+                intArg: makeRuntimeArray([argument]),
+                using: __kk_string_format_flat
+            )
+            #expect(formatted == expected, "Template: \(template), value: \(value)")
+        }
+    }
+
+    @Test
+    func testStringFormatParenthesesApplyAfterLocaleGroupingBeforePadding() {
+        let formatted = flatStringReturnValue(
+            "%(,012d|%(,012.2f",
+            leadingIntArg: makeLocale(language: "de", country: "DE"),
+            trailingIntArg: makeRuntimeArray([
+                kk_box_int(-1234),
+                kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: (-1234.5).bitPattern))),
+            ]),
+            using: __kk_string_format_locale_flat
+        )
+        #expect(formatted == "(000001.234)|(001.234,50)")
+    }
+
+    @Test
     func testStringFormatSupportsJavaHexFloatingPoint() {
         let boxDouble: (Double) -> Int = { value in
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))

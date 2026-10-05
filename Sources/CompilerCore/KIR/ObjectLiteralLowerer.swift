@@ -145,7 +145,7 @@ final class ObjectLiteralLowerer {
             )
             let initName = interner.intern("<init>")
             let ctorFQName = ownerFQName + [initName]
-            if let ctorSymbol = sema.symbols.lookupAll(fqName: ctorFQName).first(where: {
+            for ctorSymbol in sema.symbols.lookupAll(fqName: ctorFQName).filter({
                 sema.symbols.symbol($0)?.kind == .constructor
             }) {
                 let ctorDecls = driver.lowerConstructor(

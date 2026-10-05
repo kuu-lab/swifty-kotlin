@@ -17,7 +17,7 @@ public abstract class JobSupport(active: Boolean) : Job, ChildJob, ParentJob {
         this.parent = parent
     }
 
-    public fun start(): Boolean {
+    public final override fun start(): Boolean {
         if (activeState || completedState) return false
         activeState = true
         onStart()
@@ -77,5 +77,5 @@ public class JobImpl(parent: Job? = null) : JobSupport(true), CompletableJob {
 
     public override fun complete(): Boolean = complete(Unit)
     public override fun completeExceptionally(exception: Throwable): Boolean =
-        super.completeExceptionally(exception)
+        super<JobSupport>.completeExceptionally(exception)
 }

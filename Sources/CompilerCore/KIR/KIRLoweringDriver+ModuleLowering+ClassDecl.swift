@@ -919,14 +919,17 @@ extension KIRLoweringDriver {
             // Any's compiler-provided constructor is allocation-only.
             return
         }
-        if delegation.kind == .super_,
-           let resolvedSymbol,
+        if let resolvedSymbol,
            let receiver = ctx.activeImplicitReceiverExprID(),
            let superclassSymbol = sema.symbols.parentSymbol(for: resolvedSymbol),
+           let throwableSymbol = sema.symbols.lookup(fqName: [
+               shared.interner.intern("kotlin"), shared.interner.intern("Throwable"),
+           ]),
+           sema.types.isNominalSubtypeSymbol(superclassSymbol, of: throwableSymbol),
            isRuntimeThrowableSuperConstructor(resolvedSymbol, sema: sema)
         {
-            // `constructor(msg: String) : super(msg)` on an Exception subclass:
-            // the factory's box would be dropped, so copy its state instead.
+            // Runtime-backed Throwable factories return a separate box for
+            // both `this(...)` and `super(...)`; copy its state onto `this`.
             emitRuntimeThrowableSuperInitialization(
                 superCtorSymbol: resolvedSymbol,
                 superclassSymbol: superclassSymbol,
