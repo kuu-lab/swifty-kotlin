@@ -860,8 +860,9 @@ extension LoweringPassRegressionTests {
 
     // MARK: - produce/actor Function-Value Block Tests
 
-    @Test(arguments: [false, true], [0, 42])
-    func testProduceLaunchFunctionValuePreservesCallableLayout(hasClosureParam: Bool, captureValue: Int64) throws {
+    @Test(arguments: [(false, false), (true, false), (true, true)], [0, 42])
+    func testProduceLaunchFunctionValuePreservesCallableLayout(layout: (Bool, Bool), captureValue: Int64) throws {
+        let (hasClosureParam, hasPackedEnvironment) = layout
         // Raw capture-first values use (fnPtr, env); known closure-first
         // suspend adapters use a continuation with [env, receiver] slots.
         let interner = StringInterner()
@@ -875,6 +876,7 @@ extension LoweringPassRegressionTests {
         let channelExpr = arena.appendExpr(.intLiteral(7))
         let captureExpr = arena.appendExpr(.intLiteral(captureValue))
         let suspendRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
+        let packedEnvironmentExpr = arena.appendExpr(.intLiteral(77))
         let produceResult = arena.appendExpr(.temporary(3))
 
         let mainFn = KIRFunction(
@@ -886,10 +888,11 @@ extension LoweringPassRegressionTests {
                 .constValue(result: channelExpr, value: .intLiteral(7)),
                 .constValue(result: captureExpr, value: .intLiteral(captureValue)),
                 .constValue(result: suspendRefExpr, value: .symbolRef(suspendSymbol)),
+                .constValue(result: packedEnvironmentExpr, value: .intLiteral(77)),
                 .call(
                     symbol: nil,
                     callee: interner.intern("__kk_produce_launch"),
-                    arguments: [channelExpr, suspendRefExpr],
+                    arguments: [channelExpr, suspendRefExpr] + (hasPackedEnvironment ? [packedEnvironmentExpr] : []),
                     result: produceResult,
                     canThrow: false,
                     thrownResult: nil
@@ -965,8 +968,8 @@ extension LoweringPassRegressionTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
-    @Test
-    func testProduceLaunchOpaqueFunctionValuePreservesRuntimeABI() throws {
+    @Test(arguments: [false, true])
+    func testProduceLaunchOpaqueFunctionValuePreservesRuntimeABI(hasExplicitEnvironment: Bool) throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -977,6 +980,7 @@ extension LoweringPassRegressionTests {
 
         let channelExpr = arena.appendExpr(.intLiteral(7))
         let suspendRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
+        let environmentExpr = arena.appendExpr(.intLiteral(17))
         let produceResult = arena.appendExpr(.temporary(3))
 
         let mainFn = KIRFunction(
@@ -987,10 +991,11 @@ extension LoweringPassRegressionTests {
             body: [
                 .constValue(result: channelExpr, value: .intLiteral(7)),
                 .constValue(result: suspendRefExpr, value: .symbolRef(suspendSymbol)),
+                .constValue(result: environmentExpr, value: .intLiteral(17)),
                 .call(
                     symbol: nil,
                     callee: interner.intern("__kk_produce_launch"),
-                    arguments: [channelExpr, suspendRefExpr],
+                    arguments: [channelExpr, suspendRefExpr] + (hasExplicitEnvironment ? [environmentExpr] : []),
                     result: produceResult,
                     canThrow: false,
                     thrownResult: nil
@@ -1034,7 +1039,7 @@ extension LoweringPassRegressionTests {
         let launchArgs = try #require(launchCalls.first)
         #expect(launchArgs.count == 3)
         #expect(launchArgs[1] == suspendRefExpr)
-        #expect(arena.expr(launchArgs[2]) == .intLiteral(0))
+        #expect(arena.expr(launchArgs[2]) == .intLiteral(hasExplicitEnvironment ? 17 : 0))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 

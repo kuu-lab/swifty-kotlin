@@ -1149,7 +1149,7 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.arguments.count == 2 else {
+        guard call.arguments.count >= 2 else {
             return nil
         }
         let channelExpr = call.arguments[0]
@@ -1183,13 +1183,9 @@ extension CoroutineLoweringPass {
             )
         }
 
-        // Captures either arrive flattened as trailing call args or ride
-        // inside the suspend value's callable info — use whichever form the
-        // emitter produced.
-        let trailingCaptures = Array(call.arguments.dropFirst(2))
-        let captures: [KIRExprID] = trailingCaptures.isEmpty
-            ? (callableInfo?.captureArguments ?? [])
-            : trailingCaptures
+        // Callable metadata preserves positional captures when the native
+        // ABI has packed them into a trailing environment argument.
+        let captures = callableInfo?.captureArguments ?? Array(call.arguments.dropFirst(2))
 
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
@@ -1395,7 +1391,10 @@ extension CoroutineLoweringPass {
         channelExpr: KIRExprID,
         suspendArgExpr: KIRExprID,
         using rewrite: SuspendRewriteContext
-    ) -> [KIRInstruction] {
+    ) -> [KIRInstruction]? {
+        guard call.arguments.count == 2 else {
+            return nil
+        }
         let arena = rewrite.module.arena
         var instructions: [KIRInstruction] = []
 
