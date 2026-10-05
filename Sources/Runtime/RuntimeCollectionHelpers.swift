@@ -2008,6 +2008,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let ktypeProjectionBox = tryCast(ptr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)
     }
+    if let kclassBox = tryCast(ptr, to: RuntimeKClassBox.self) {
+        return runtimeKClassToString(kclassBox)
+    }
     if let ktypeBox = tryCast(ptr, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
     }
