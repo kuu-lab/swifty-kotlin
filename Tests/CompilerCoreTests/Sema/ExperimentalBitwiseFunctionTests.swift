@@ -242,6 +242,38 @@ struct ExperimentalBitwiseFunctionTests {
         #expect(errors.isEmpty, "Expected sample \(sample) to resolve: \(errors)")
     }
 
+    @Test func testUnimportedByteShortBitwiseExtensionsAreRejectedInIsolation() throws {
+        try withTemporaryFiles(contents: [Self.sources[5]]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 28, "Expected unimported bitwise extensions to be rejected: \(errors)")
+        }
+    }
+
+    @Test func testAliasedImportsDoNotExposeOriginalNames() throws {
+        let source = """
+        import kotlin.experimental.and as bitAnd
+        import kotlin.experimental.inv as bitInv
+        fun ops(b: Byte, s: Short) {
+            b.bitAnd(b)
+            s.bitAnd(s)
+            b.bitInv()
+            s.bitInv()
+            b.and(b)
+            s.and(s)
+            b.inv()
+            s.inv()
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 4, "Expected only the original names to be unresolved: \(errors)")
+        }
+    }
+
     @Test func testBitwiseResultKeepsReceiverType() throws {
         let (ctx, paths) = try shared()
         let ast = try #require(ctx.ast)

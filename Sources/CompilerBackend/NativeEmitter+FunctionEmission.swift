@@ -2308,7 +2308,8 @@ extension NativeEmitter {
                 let argumentTypes = arguments.map(module.arena.exprType)
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
-                    argumentCount: argumentValues.count
+                    argumentCount: argumentValues.count,
+                    resolvedSymbol: symbol
                 ) ?? calleeName
 
                 if emitFlatStringRuntimeCall(
@@ -2840,7 +2841,8 @@ extension NativeEmitter {
                 }()
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
-                    argumentCount: argumentValues.count
+                    argumentCount: argumentValues.count,
+                    resolvedSymbol: symbol
                 ) ?? calleeName
 
                 let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
@@ -3620,8 +3622,18 @@ extension NativeEmitter {
             || calleeName == "kk_string_struct_get_length"
     }
 
-    private static func runtimePrimitiveAlias(for calleeName: String, argumentCount: Int) -> String? {
-        switch calleeName {
+    private static func runtimePrimitiveAlias(
+        for calleeName: String,
+        argumentCount: Int,
+        resolvedSymbol: SymbolID?
+    ) -> String? {
+        if ["and", "or", "xor"].contains(calleeName),
+           let resolvedSymbol,
+           resolvedSymbol != .invalid
+        {
+            return nil
+        }
+        return switch calleeName {
         case "and": "kk_bitwise_and"
         case "or": "kk_bitwise_or"
         case "xor": "kk_bitwise_xor"
