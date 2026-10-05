@@ -220,30 +220,21 @@ extension ExprTypeChecker {
         // user-declared extension such as `operator fun Int.times(v: Vec)`:
         // extension functions aren't members, so they can't be found that way
         // regardless of receiver type. Only search scope for one when the RHS
-        // isn't itself numeric, i.e. when the built-in primitive arithmetic
-        // below cannot apply — this leaves built-in arithmetic (and the
+        // isn't itself numeric, or a Char operand has no builtin arithmetic
+        // overload — this leaves built-in arithmetic (and the
         // member-wins behavior `operator_extension.kt` checks) unaffected.
         if operatorCandidates.isEmpty,
            lhsIsPrimitive,
            [.add, .subtract, .multiply, .divide, .modulo].contains(op)
         {
             let rhsIsNumeric = if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(rhs)) { true } else { false }
-            if !rhsIsNumeric {
-                let extensionCandidates = operatorNames.flatMap { name in
-                    ctx.cachedScopeLookup(name).filter { candidate in
-                        guard let symbol = ctx.cachedSymbol(candidate),
-                              symbol.kind == .function,
-                              symbol.flags.contains(.operatorFunction),
-                              let signature = sema.symbols.functionSignature(for: candidate),
-                              let declaredReceiver = signature.receiverType
-                        else { return false }
-                        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: lhs,
-                            declaredReceiver: declaredReceiver,
-                            sema: sema
-                        )
-                    }
-                }
+            if !rhsIsNumeric || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
+                let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                    names: operatorNames,
+                    receiverType: lhs,
+                    argumentType: lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                    ctx: ctx
+                )
                 if !extensionCandidates.isEmpty {
                     operatorCandidates = extensionCandidates
                 }
@@ -254,7 +245,11 @@ extension ExprTypeChecker {
         // just because the RHS happens to be a String (e.g. `1 + "x"` is not valid
         // Kotlin, and `listOf("x") + "y"` must resolve via the List plus fallback
         // below, not collapse to `String`).
-        if op == .add, sema.types.isString(lhs) {
+        if op == .add,
+           sema.types.isString(lhs)
+            || (lhs == charType && sema.types.isString(rhs)
+                && sema.types.isDefinitelyNonNull(rhs) && operatorCandidates.isEmpty)
+        {
             sema.bindings.bindExprType(id, type: stringType)
             return stringType
         }
@@ -407,6 +402,15 @@ extension ExprTypeChecker {
             }
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
+        }
+        if hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
         let type: TypeID
 
@@ -611,6 +615,50 @@ extension ExprTypeChecker {
         }
         sema.bindings.bindExprType(id, type: type)
         return type
+    }
+
+    func collectScopedOperatorExtensionCandidates(
+        names: [InternedString],
+        receiverType: TypeID,
+        argumentType: TypeID? = nil,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        names.flatMap { name in
+            ctx.cachedScopeLookup(name).filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType
+                else { return false }
+                if let argumentType,
+                   (signature.parameterTypes.count != 1 || !ctx.sema.types.isSubtype(argumentType, signature.parameterTypes[0]))
+                {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: receiverType, declaredReceiver: declaredReceiver, sema: ctx.sema
+                )
+            }
+        }
+    }
+
+    func hasInvalidBuiltinCharArithmetic(op: BinaryOp, lhs: TypeID, rhs: TypeID, sema: SemaModule) -> Bool {
+        guard sema.types.makeNonNullable(lhs) == sema.types.charType
+            || sema.types.makeNonNullable(rhs) == sema.types.charType
+        else { return false }
+        switch op {
+        case .add:
+            return !(lhs == sema.types.charType
+                && (rhs == sema.types.intType || (sema.types.isString(rhs) && sema.types.isDefinitelyNonNull(rhs))))
+                && !sema.types.isString(lhs)
+        case .subtract:
+            return !(lhs == sema.types.charType && (rhs == sema.types.intType || rhs == sema.types.charType))
+        case .multiply, .divide, .modulo:
+            return true
+        default:
+            return false
+        }
     }
 
     private func nominalRangeType(

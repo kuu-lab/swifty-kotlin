@@ -13,6 +13,14 @@ extension ExprTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
+        if !requireUnitReturn, !bindCall,
+           receiverType == sema.types.charType, valueType == sema.types.intType,
+           !hasInvalidBuiltinCharArithmetic(
+               op: driver.helpers.compoundAssignToBinaryOp(op), lhs: receiverType, rhs: valueType, sema: sema
+           )
+        {
+            return sema.types.unitType
+        }
         // Kotlin resolves `a += b` in two phases: first the dedicated in-place
         // operator (e.g. `plusAssign`, which must return Unit), then the
         // corresponding binary operator (e.g. `plus`) rebinding as `a = a.plus(b)`.
@@ -23,11 +31,24 @@ extension ExprTypeChecker {
         let operatorNames = requireUnitReturn
             ? operatorFunctionNames(for: op, interner: interner)
             : operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)
-        let operatorCandidates = collectOperatorCandidates(
+        var operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
             receiverType: receiverType,
             ctx: ctx
         )
+        var usesScopedCharExtensions = false
+        if operatorCandidates.isEmpty,
+           sema.types.makeNonNullable(receiverType) == sema.types.charType
+            || sema.types.makeNonNullable(valueType) == sema.types.charType,
+           requireUnitReturn || hasInvalidBuiltinCharArithmetic(
+               op: driver.helpers.compoundAssignToBinaryOp(op), lhs: receiverType, rhs: valueType, sema: sema
+           )
+        {
+            operatorCandidates = collectScopedOperatorExtensionCandidates(
+                names: operatorNames, receiverType: receiverType, ctx: ctx
+            )
+            usesScopedCharExtensions = true
+        }
         guard !operatorCandidates.isEmpty else {
             return nil
         }
@@ -44,6 +65,11 @@ extension ExprTypeChecker {
             ctx: ctx.semaCtx
         )
 
+        if usesScopedCharExtensions, resolved.chosenCallee == nil,
+           resolved.diagnostic?.code == "KSWIFTK-SEMA-0002"
+        {
+            return nil
+        }
         if let diagnostic = resolved.diagnostic {
             if emitDiagnostics {
                 ctx.semaCtx.diagnostics.emit(diagnostic)
@@ -274,6 +300,31 @@ extension ExprTypeChecker {
         }
     }
 
+    func rejectInvalidBuiltinCharCompoundAssignment(
+        _ id: ExprID,
+        op: CompoundAssignOp,
+        lhs: TypeID,
+        rhs: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let binaryOp = driver.helpers.compoundAssignToBinaryOp(op)
+        let invalidResult = lhs == sema.types.charType
+            && [.add, .subtract].contains(binaryOp)
+            && rhs != sema.types.intType
+        guard invalidResult || hasInvalidBuiltinCharArithmetic(op: binaryOp, lhs: lhs, rhs: rhs, sema: sema) else {
+            return false
+        }
+        ctx.semaCtx.diagnostics.error(
+            "KSWIFTK-SEMA-0002",
+            "No viable builtin Char operator for compound assignment.",
+            range: range
+        )
+        sema.bindings.bindExprType(id, type: sema.types.errorType)
+        return true
+    }
+
     func inferCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -377,6 +428,11 @@ extension ExprTypeChecker {
                 )
             }
             let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
+            if rejectInvalidBuiltinCharCompoundAssignment(
+                id, op: op, lhs: local.type, rhs: valueType, range: range, ctx: ctx
+            ) {
+                return sema.types.errorType
+            }
             // Arithmetic compound assignment keeps the target's own numeric type
             // (BUG-015): demoting `Long`/`Double`/unsigned locals to `Int` here broke
             // later member resolution such as `longVar and 0xFFL`.
@@ -523,6 +579,11 @@ extension ExprTypeChecker {
                 )
             }
             let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
+            if rejectInvalidBuiltinCharCompoundAssignment(
+                id, op: op, lhs: propType, rhs: valueType, range: range, ctx: ctx
+            ) {
+                return sema.types.errorType
+            }
             let resultType: TypeID = switch underlyingOp {
             case .add:
                 if propType == stringType || valueType == stringType {
@@ -737,6 +798,11 @@ extension ExprTypeChecker {
         // string concat at KIR-lowering time). Unlike a bare local, a property's
         // declared type doesn't get narrowed per-assignment, so there is nothing
         // to propagate back into `locals` here.
+        if rejectInvalidBuiltinCharCompoundAssignment(
+            id, op: op, lhs: propType, rhs: valueType, range: range, ctx: ctx
+        ) {
+            return sema.types.errorType
+        }
         if propSymbol?.flags.contains(.mutable) != true {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0014",
