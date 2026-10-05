@@ -32,13 +32,14 @@ struct CompanionClassScopeTests {
         ]))
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "g", in: module, interner: ctx.interner)
-        let receiver = try #require(body.compactMap { instruction -> KIRExprID? in
-            guard case let .call(symbol, _, arguments, _, _, _) = instruction,
+        let receivers = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
                   let symbol,
                   sema.symbols.symbol(symbol)?.name == ctx.interner.intern("getXs")
             else { return nil }
             return arguments.first
-        }.first)
+        }
+        let receiver = try #require(receivers.first)
         #expect(module.arena.expr(receiver) == .symbolRef(companion))
     }
 
