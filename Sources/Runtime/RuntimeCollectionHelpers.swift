@@ -1942,6 +1942,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
+    if let localeBox = tryCast(ptr, to: RuntimeLocaleBox.self) {
+        return runtimeLocaleToString(localeBox)
+    }
     if let listBox = runtimeListBox(from: elem) {
         let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"

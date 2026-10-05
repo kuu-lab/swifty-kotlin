@@ -130,5 +130,36 @@ struct RuntimeStringLocaleTests {
         #expect(boolValue(kk_any_equals(lhs, 0, rhs, 0)))
         #expect(kk_any_hashCode(lhs, 0) == kk_any_hashCode(rhs, 0))
     }
+
+    @Test(arguments: [
+        ("en", "US", "en_US"),
+        ("tr", "TR", "tr_TR"),
+        ("EN", "us", "en_US"),
+        ("en", "", "en"),
+        ("", "us", "_US"),
+        ("", "", ""),
+        ("en_US", "gb", "en_us_GB"),
+    ])
+    func testLocaleToString(language: String, country: String, expected: String) {
+        let locale = makeLocale(language: language, country: country)
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = __kk_locale_toString_flat(locale, &length, &byteCount, &hash)
+        #expect(runtimeStringFromFlatFields(
+            data: data.map { UnsafePointer($0) }, length: length, byteCount: byteCount, hash: hash
+        ) == expected)
+        #expect(length == expected.utf16.count)
+        #expect(byteCount == expected.utf8.count)
+        // Runtime-produced flat strings leave the cached hash unset.
+        #expect(hash == 0)
+        #expect(runtimeRenderAnyForPrint(locale) == expected)
+        #expect(runtimeElementToString(locale) == expected)
+    }
+
+    @Test(arguments: [("EN", "en"), ("en_US", "en_us"), ("", "")])
+    func testLanguageOnlyLocaleToString(language: String, expected: String) {
+        #expect(runtimeElementToString(makeLocale(language)) == expected)
+    }
 }
 #endif
