@@ -187,6 +187,52 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(source, kind: .propertyDecl) == 2)
     }
 
+    @Test(arguments: [
+        "listOf(object : J { override fun f() = 7; override fun g() = 8 })",
+        "id(object : J { override fun f() = 7; override fun g() = 8 })",
+        "(object : J { override fun f() = 7; override fun g() = 8 })",
+        "listOf(listOf(object : J { override fun f() = 7; override fun g() = 8 }))",
+        "listOf(object { val x = 7; val y = 8 })",
+        "listOf(object : J { override fun f() = 7; override fun g() = 8; })",
+        "object : J { override fun f() = 7; override fun g() = 8 }",
+        "listOf(object : J { override fun f() = 7; override fun g() = 8 })[0]",
+        "object : J { override fun f() = 7; override fun g() = 8 }.f()",
+        "listOf(object : J { override fun f() = 7 })",
+        "run { 1; 2 }",
+        "run({ 1; 2 })",
+    ])
+    func nestedSemicolonsDoNotEndPropertyInitializer(initializer: String) throws {
+        let source = """
+        interface J { fun f() = 1; fun g(): Int }
+        fun main() {
+            val result = \(initializer)
+            println(result)
+        }
+        """
+        let parsed = parse(source)
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).range.end.offset == source.utf8.count)
+        let property = try #require(parsed.arena.nodes.first { $0.kind == .propertyDecl })
+        let prefix = "interface J { fun f() = 1; fun g(): Int }\nfun main() {\n    val result = "
+        #expect(property.range.end.offset == prefix.utf8.count + initializer.utf8.count)
+    }
+
+    @Test(arguments: ["val result", "fun result()"])
+    func nestedSemicolonsDoNotEndTopLevelExpressionBody(declaration: String) throws {
+        let source = """
+        \(declaration) = listOf(object { val x = 7; val y = 8 })
+        fun next() = 9
+        """
+        let parsed = parse(source)
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        let first = try #require(parsed.arena.children(of: parsed.root).compactMap { child -> SyntaxNode? in
+            guard case let .node(id) = child else { return nil }
+            return parsed.arena.node(id)
+        }.first)
+        #expect(first.range.end.offset == source.split(separator: "\n")[0].utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == (declaration == "val result" ? 1 : 2))
+    }
+
     @Test
     func testAnnotatedFunctionAfterSemicolonOnSameLineIsNotAbsorbed() {
         let source = """
