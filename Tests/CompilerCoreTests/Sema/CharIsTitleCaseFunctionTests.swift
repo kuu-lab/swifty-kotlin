@@ -41,7 +41,7 @@ struct CharIsTitleCaseFunctionTests {
             charReceiverSymbol,
             "Char.isTitleCase() synthetic stub should be registered"
         )
-        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_char_isTitleCase")
+        #expect(sema.symbols.externalLinkName(for: symbol) == nil)
     }
 }
 #endif

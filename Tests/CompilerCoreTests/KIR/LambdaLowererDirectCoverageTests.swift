@@ -96,13 +96,12 @@ struct LambdaLowererDirectCoverageTests {
                 sema: fixture.sema, arena: fixture.kirArena, interner: fixture.interner,
                 instructions: &instructions, arguments: &arguments
             )
-            if importedParameterAllowsNonLocalReturn == true {
-                #expect(arguments == [callable])
-                #expect(instructions.count == instructionCount)
-            } else {
-                #expect(arguments != [callable])
-                #expect(instructions.count > instructionCount)
-            }
+            // A capturing callable cannot cross an imported inline boundary as a
+            // raw symbol even when the parameter allows non-local returns: the
+            // environment can only travel inside a FunctionN object, so the
+            // materialization wraps it regardless of the metadata flag.
+            #expect(arguments != [callable])
+            #expect(instructions.count > instructionCount)
         }
     }
 

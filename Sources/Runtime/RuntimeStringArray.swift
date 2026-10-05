@@ -417,43 +417,22 @@ public func __kk_throwable_toString(
     return Int(bitPattern: runtimeMakeStringPointer(runtimeRenderedExceptionMessage(typeName, message)))
 }
 
-/// Matches the JVM UTF-8 encoder's replacement for malformed UTF-16 at the
-/// console boundary, without changing Kotlin's internal code units.
-func runtimeConsoleString(_ value: String) -> String {
-    var units = KotlinStringSurrogateEncoding.utf16CodeUnits(value)
-    var index = 0
-    while index < units.count {
-        let unit = units[index]
-        if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
-           (0xDC00 ... 0xDFFF).contains(units[index + 1])
-        {
-            index += 2
-            continue
-        }
-        if (0xD800 ... 0xDFFF).contains(unit) {
-            units[index] = 0x003F
-        }
-        index += 1
-    }
-    return String(decoding: units, as: UTF16.self)
-}
-
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(runtimeConsoleString(message), terminator: "")
+    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "")
 }
 
 @_cdecl("__kk_println_raw")
 public func __kk_println_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(runtimeConsoleString(message), terminator: "\n")
+    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "\n")
 }
 
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
-    FileHandle.standardError.write(Data(runtimeConsoleString(message).utf8))
+    FileHandle.standardError.write(Data(KotlinStringSurrogateEncoding.printableString(message).utf8))
     return 0
 }
 
@@ -1457,11 +1436,21 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     if let set = runtimeSetBox(from: container) {
         return set.contains(rawValue: element) ? 1 : 0
     }
-    // Array check
-    guard let array = runtimeArrayBox(from: container) else {
-        return 0
+    // Array check — `RuntimeObjectBox` subclasses `RuntimeArrayBox`, so plain
+    // `runtimeArrayBox` would also match class instances (whose storage holds
+    // fields, not elements) and wrongly answer `false` for `x in obj`.
+    if let array = runtimeArrayBoxExcludingObjects(from: container) {
+        return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
-    return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
+    // Source-defined collections (e.g. `class C : List<Int> by delegate`)
+    // are not native boxes; dispatch through the object's Collection itable.
+    return runtimeSourceInterfaceCall1(
+        container,
+        element,
+        interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection"),
+        methodSlot: 1,
+        context: "Collection.contains dispatch"
+    ) ?? 0
 }
 
 @_cdecl("kk_array_new")

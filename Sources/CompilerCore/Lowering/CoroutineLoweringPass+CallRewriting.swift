@@ -711,18 +711,33 @@ extension CoroutineLoweringPass {
               call.arguments.count == 2,
               let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[0])
                   ?? functionValueInfoByExprRaw[call.arguments[0].rawValue],
-              !callableInfo.captureArguments.isEmpty,
-              let loweredTarget = rewrite.loweredBySymbol[callableInfo.symbol],
-              let thunk = rewrite.launcherThunkByOriginalSymbol[callableInfo.symbol]
+              let loweredTarget = rewrite.loweredBySymbol[callableInfo.symbol]
         else {
             return nil
+        }
+
+        // A non-capturing builder still suspends (`delay`, `emit` backpressure),
+        // so it must ride the suspend-entry path too: with no parameters the
+        // lowered target is directly callable as the entry point, matching the
+        // `channelFlow`/`callbackFlow` rewrite below.
+        let entryPointSymbol: SymbolID
+        let targetArity = rewrite.suspendFunctionArityBySymbol[loweredTarget.symbol] ?? 0
+        if targetArity == 0 {
+            entryPointSymbol = loweredTarget.symbol
+        } else {
+            guard let thunk = rewrite.launcherThunkByOriginalSymbol[callableInfo.symbol] else {
+                return nil
+            }
+            entryPointSymbol = thunk.symbol
         }
 
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
             type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType)
+        let continuationExpr = rewrite.module.arena.appendTemporary(
+            type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.intType
+        )
         var rewritten: [KIRInstruction] = [
             .call(
                 symbol: nil,
@@ -750,7 +765,7 @@ extension CoroutineLoweringPass {
         }
 
         let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType)
-        rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
+        rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(entryPointSymbol)))
         rewritten.append(.call(
             symbol: call.symbol,
             callee: call.callee,

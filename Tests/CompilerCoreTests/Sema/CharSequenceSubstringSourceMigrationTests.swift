@@ -79,8 +79,8 @@ struct CharSequenceSubstringSourceMigrationTests {
             val stringRange = text.substring(1..3)
             val builderBounded = (builder as CharSequence).substring(1, 3)
             val builderRange = builder.substring(1..3)
-            return fromIndex + bounded + range + namedRange + stringFromIndex
-                + stringBounded + stringRange + builderBounded + builderRange
+            return (fromIndex + bounded + range + namedRange + stringFromIndex
+                + stringBounded + stringRange + builderBounded + builderRange)
         }
         """
         let ctx = makeContextFromSource(source)

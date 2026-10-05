@@ -58,6 +58,14 @@ func kirInterfacePropertyGetterSlots(
                     interner.intern("entries"), interner.intern("keys"),
                     sizeName, interner.intern("values"),
                 ].contains(property.name)
+            // Continuation.context is likewise runtime-bridged
+            // (`__kk_coroutine_continuation_context`), and that bridge falls
+            // back to source-backed itable dispatch for user-defined
+            // Continuation implementations — keep its getter slot so the
+            // fallback has a registered target.
+            let isContinuationContext = interfaceInfo.fqName == [
+                interner.intern("kotlin"), interner.intern("coroutines"), interner.intern("Continuation"),
+            ] && property.name == interner.intern("context")
             // Stdlib interface properties bridged to a runtime `kk_*` getter
             // (e.g. `length`) are read through their external link, not an
             // itable slot — leave them out of the property getter table.
@@ -70,7 +78,7 @@ func kirInterfacePropertyGetterSlots(
                 }
             // Imported properties can carry the bridge on their getter instead
             // of the property symbol. Preserve the source-side slot layout.
-            if hasRuntimeLink, !isSyntheticMapProperty, !isSyntheticCollectionSize {
+            if hasRuntimeLink, !isSyntheticMapProperty, !isSyntheticCollectionSize, !isContinuationContext {
                 return nil
             }
             // Likewise for synthetic runtime members registered on an otherwise

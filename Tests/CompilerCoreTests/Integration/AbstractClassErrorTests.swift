@@ -183,13 +183,11 @@ import Testing
                 assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diagnostics)
             }
 
+            // KUU-984 removed the "abstract class has no abstract members"
+            // warning pass entirely, so nested abstract classes no longer warn.
             let nestedDiagnostics = diagnosticsForPath(paths[4], in: ctx)
             #expect(!nestedDiagnostics.hasError)
-            let warnings = nestedDiagnostics.filter {
-                $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.severity == .warning
-            }
-            #expect(warnings.count == 1)
-            #expect(warnings.first?.message == "Abstract class 'sealedOuter.Outer.Inner' has no abstract members. Consider removing the 'abstract' modifier.")
+            assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: nestedDiagnostics)
 
             let contractDiagnostics = diagnosticsForPath(paths[5], in: ctx)
             #expect(contractDiagnostics.hasError)
