@@ -59,6 +59,8 @@ extension BuildASTPhase.ExpressionParser {
             // Distinct from `fun` as a declaration modifier/keyword, which is
             // never followed directly by `(` (a name always comes first).
             return parseAnonymousFunctionLiteral()
+        case .keyword(.in), .keyword(.is), .keyword(.as):
+            return nil
         case let .keyword(keyword):
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(keyword.rawValue), token.range))
