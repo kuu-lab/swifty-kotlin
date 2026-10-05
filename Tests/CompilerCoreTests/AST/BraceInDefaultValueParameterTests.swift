@@ -47,5 +47,30 @@ struct BraceInDefaultValueParameterTests {
         #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["x", "y"])
         #expect(funDecl.valueParams.allSatisfy { $0.hasDefaultValue })
     }
+
+    @Test
+    func testDefaultLambdaPreservesSemicolonStatementBoundaries() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        fun f(value: Int = run { var count = 0; count = count + 1; count }, tail: Int = 2): Int = value + tail
+        """, includeStdlib: false)
+        let function = try #require(firstFunDecl(named: "f", in: ast, interner: ctx.interner))
+        #expect(function.valueParams.count == 2)
+        let defaultExpr = try #require(function.valueParams.first?.defaultValue)
+        guard case let .call(_, _, args, _) = ast.arena.expr(defaultExpr),
+              let lambda = args.last,
+              case let .lambdaLiteral(_, body, _, _) = ast.arena.expr(lambda.expr),
+              case let .blockExpr(statements, trailingExpr, _) = ast.arena.expr(body)
+        else {
+            Issue.record("Expected a run lambda with a block body")
+            return
+        }
+        #expect(statements.count == 2)
+        let trailing = try #require(trailingExpr)
+        guard case let .nameRef(name, _) = ast.arena.expr(trailing) else {
+            Issue.record("Expected the lambda's trailing count reference")
+            return
+        }
+        #expect(ctx.interner.resolve(name) == "count")
+    }
 }
 #endif

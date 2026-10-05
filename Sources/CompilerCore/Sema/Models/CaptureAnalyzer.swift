@@ -327,6 +327,11 @@ struct CaptureAnalyzer {
                 guard let decl = ast.arena.decl(declID) else {
                     break
                 }
+                if let owner = sema.bindings.declSymbol(for: declID) {
+                    captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
+                        outerSymbols.contains($0)
+                    })
+                }
                 let constructorArgExprs: [ExprID]
                 let memberFunctionDecls: [DeclID]
                 let memberPropertyDecls: [DeclID]
