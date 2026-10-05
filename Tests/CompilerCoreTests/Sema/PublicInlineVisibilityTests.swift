@@ -18,7 +18,13 @@ struct PublicInlineVisibilityTests {
             ("private fun hidden(): Int = 1\ninline fun exposed(): Int = hidden()", true),
             ("internal inline fun hidden(): Int = 1\ninline fun exposed(): Int = hidden()", true),
             ("internal fun hidden(): Int = 1\ninline fun exposed(): Int = hidden()", true),
-            ("class Hidden private constructor()\ninline fun exposed(): Hidden = Hidden()", true),
+            ("""
+            class Owner private constructor() {
+                companion object {
+                    inline fun exposed(): Owner = Owner()
+                }
+            }
+            """, true),
             ("""
             private fun hidden(): Int = 1
             @PublishedApi internal inline fun exposed(): Int = hidden()
@@ -57,6 +63,15 @@ struct PublicInlineVisibilityTests {
             ("""
             @PublishedApi internal inline fun hidden(): Int = 55
             inline fun exposed(): Int = hidden()
+            """, false),
+            ("""
+            inline fun around(block: () -> Unit) { block() }
+            @PublishedApi internal inline fun hidden(): Int {
+                try { around { return 55 } } finally { println("hidden-finally") }
+                return -1
+            }
+            inline fun exposed(): Int = hidden()
+            fun main() { println(exposed()) }
             """, false),
             ("""
             @kotlin.PublishedApi internal fun hidden(): Int = 55
