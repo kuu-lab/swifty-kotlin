@@ -296,7 +296,9 @@ extension CallTypeChecker {
                 return companionType
             }
             guard !lambdaLiteralIndices.contains(index),
-                  let rangeClassType = sourceLevelRangeMemberLookupType(
+                  let rangeClassType = floatingPointRangeArgumentType(
+                      argument.expr, ast: ast, sema: sema, interner: ctx.interner
+                  ) ?? sourceLevelRangeMemberLookupType(
                       receiverExpr: argument.expr,
                       receiverType: type,
                       sema: sema,

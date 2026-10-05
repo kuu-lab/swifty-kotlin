@@ -494,6 +494,27 @@ struct MetadataSerializerTests {
         #expect(serialized == "v2:pget:demo.Box.value@3")
     }
 
+    @Test func testSerializeITableSlotsPreservesDependencyInterfaces() {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let dependencyName = interner.intern("Dependency")
+        let localName = interner.intern("Local")
+        let dependency = symbols.define(
+            kind: .interface, name: dependencyName, fqName: [dependencyName],
+            declSite: nil, visibility: .public, flags: [.importedLibrary]
+        )
+        let local = symbols.define(
+            kind: .interface, name: localName, fqName: [localName],
+            declSite: nil, visibility: .public
+        )
+        let serialized = encoder.serializeITableSlots(
+            [local: 0, dependency: 1], symbols: symbols, interner: interner,
+            includedSymbolIDs: []
+        )
+        #expect(serialized == "Dependency@1")
+    }
+
     @Test func testSerializeMultipleRecords() {
         let encoder = MetadataEncoder()
         let records = [

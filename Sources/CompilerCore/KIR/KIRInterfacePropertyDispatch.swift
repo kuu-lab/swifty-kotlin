@@ -38,10 +38,15 @@ func kirInterfacePropertyGetterSlots(
     let sizeName = knownNames.size
     let isCollectionOrMap = interfaceInfo.fqName == knownNames.kotlinCollectionsCollectionFQName
         || interfaceInfo.fqName == knownNames.kotlinCollectionsMapFQName
+    let isClosedFloatingPointRange = interfaceInfo.fqName == [
+        interner.intern("kotlin"), interner.intern("ranges"), interner.intern("ClosedFloatingPointRange"),
+    ]
     var properties = sema.symbols.children(ofFQName: interfaceInfo.fqName)
         .compactMap { id -> (symbol: SymbolID?, name: InternedString)? in
             guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
             let isSyntheticCollectionSize = isCollectionOrMap && property.name == sizeName
+            let isFloatingPointEndpoint = isClosedFloatingPointRange
+                && [interner.intern("start"), interner.intern("endInclusive")].contains(property.name)
             // BUG-240: Map's other runtime-bridged view properties
             // (keys/values/entries/size) need itable getter slots too so a
             // custom Map — delegated (`class C : Map<K,V> by d`) or
@@ -77,6 +82,7 @@ func kirInterfacePropertyGetterSlots(
                 || property.flags.contains(.importedLibrary)
                 || isSyntheticCollectionSize
                 || isSyntheticMapProperty
+                || isFloatingPointEndpoint
             else {
                 return nil
             }

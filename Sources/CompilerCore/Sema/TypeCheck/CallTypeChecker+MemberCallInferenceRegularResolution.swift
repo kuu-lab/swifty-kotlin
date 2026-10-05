@@ -3373,12 +3373,20 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         let knownNames = KnownCompilerNames(interner: interner)
+        let rangeFQName = sema.bindings.isOpenFloatingPointRangeExpr(exprID)
+            ? knownNames.kotlinRangesPackage + [interner.intern("OpenEndRange")]
+            : knownNames.kotlinRangesClosedFloatingPointRangeFQName
         guard sema.bindings.isFloatingPointRangeExpr(exprID),
               let rangeSymbol = sema.symbols.lookup(
-                  fqName: knownNames.kotlinRangesClosedFloatingPointRangeFQName
+                  fqName: rangeFQName
               )
         else {
             return nil
+        }
+        if let inferredType = sema.bindings.exprType(for: exprID),
+           driver.helpers.isRangeLikeType(inferredType, sema: sema, interner: interner)
+        {
+            return inferredType
         }
         let elementType: TypeID = if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID) {
             elementType

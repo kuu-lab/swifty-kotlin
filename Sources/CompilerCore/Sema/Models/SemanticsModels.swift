@@ -1634,6 +1634,8 @@ public final class BindingTable {
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var floatingPointRangeElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var floatingPointRangeElementTypesBySymbol: [SymbolID: TypeID] = [:]
+    private var openFloatingPointRangeExprIDs: Set<ExprID> = []
+    private var openFloatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
     /// Tracks the real element type produced by an `async { ... }` call, keyed by
@@ -1912,9 +1914,18 @@ public final class BindingTable {
         floatingPointRangeExprIDs.contains(expr)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID, endExclusive: Bool = false) {
         floatingPointRangeExprIDs.insert(expr)
         floatingPointRangeElementTypesByExpr[expr] = type
+        if endExclusive {
+            openFloatingPointRangeExprIDs.insert(expr)
+        } else {
+            openFloatingPointRangeExprIDs.remove(expr)
+        }
+    }
+
+    public func isOpenFloatingPointRangeExpr(_ expr: ExprID) -> Bool {
+        openFloatingPointRangeExprIDs.contains(expr)
     }
 
     public func floatingPointRangeElementType(forExpr expr: ExprID) -> TypeID? {
@@ -2022,9 +2033,18 @@ public final class BindingTable {
         floatingPointRangeSymbolIDs.contains(symbol)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID, endExclusive: Bool = false) {
         floatingPointRangeSymbolIDs.insert(symbol)
         floatingPointRangeElementTypesBySymbol[symbol] = type
+        if endExclusive {
+            openFloatingPointRangeSymbolIDs.insert(symbol)
+        } else {
+            openFloatingPointRangeSymbolIDs.remove(symbol)
+        }
+    }
+
+    public func isOpenFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
+        openFloatingPointRangeSymbolIDs.contains(symbol)
     }
 
     public func floatingPointRangeElementType(forSymbol symbol: SymbolID) -> TypeID? {

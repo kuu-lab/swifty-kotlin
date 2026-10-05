@@ -4,6 +4,23 @@ import Testing
 /// Runtime contracts for typed range value equality and hashing.
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeRangeValueSemanticsTests {
+    @Test func floatingPointEndpointProbePreservesBitsAndRejectsOtherObjects() {
+        let doubleStart = Int(bitPattern: UInt(Double(-0.0).bitPattern))
+        let doubleEnd = Int(bitPattern: UInt(Double.nan.bitPattern))
+        let doubleRange = __kk_double_rangeTo(doubleStart, doubleEnd)
+        #expect(kk_unbox_double(__kk_floating_range_endpoint_or_null(doubleRange, 0)) == doubleStart)
+        #expect(kk_unbox_double(__kk_floating_range_endpoint_or_null(doubleRange, 1)) == doubleEnd)
+        let floatStart = Int(Float(-0.0).bitPattern)
+        let floatEnd = Int(Float.infinity.bitPattern)
+        let floatRange = __kk_float_rangeTo(floatStart, floatEnd)
+        #expect(kk_unbox_float(__kk_floating_range_endpoint_or_null(floatRange, 0)) == floatStart)
+        #expect(kk_unbox_float(__kk_floating_range_endpoint_or_null(floatRange, 1)) == floatEnd)
+        for raw in [runtimeNullSentinelInt, 0, kk_op_rangeTo(1, 2), kk_box_double(0),
+                    __kk_double_rangeUntil(0, doubleEnd), __kk_float_rangeUntil(0, floatEnd)] {
+            #expect(__kk_floating_range_endpoint_or_null(raw, 0) == runtimeNullSentinelInt)
+        }
+    }
+
     @Test
     func rangesCompareByValueAndEmptyRangesCompareEqual() {
         let range = kk_op_rangeTo(1, 3)

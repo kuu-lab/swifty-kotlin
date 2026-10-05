@@ -758,7 +758,8 @@ extension CallLowerer {
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
               ownerInfo.kind == .interface,
               (propertyInfo.declSite != nil
-                  || propertyInfo.flags.contains(.importedLibrary)),
+                  || propertyInfo.flags.contains(.importedLibrary)
+                  || ownerInfo.fqName == ["kotlin", "ranges", "ClosedFloatingPointRange"].map(interner.intern)),
               let methodSlot = kirInterfacePropertyGetterSlot(
                   interfaceProperty: propertySymbol,
                   interfaceSymbol: ownerSymbol,
@@ -784,6 +785,12 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+        let rangeEndLabel = emitRuntimeFloatingPointEndpointFastPath(
+            propertyInfo: propertyInfo, ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID, result: result,
+            resultType: resultType, sema: sema, arena: arena,
+            interner: interner, instructions: &instructions
+        )
         instructions.append(.virtualCall(
             symbol: getterSymbol,
             callee: interner.intern("get"),
@@ -797,7 +804,54 @@ extension CallLowerer {
         if let runtimeNameEndLabel {
             instructions.append(.label(runtimeNameEndLabel))
         }
+        if let rangeEndLabel {
+            instructions.append(.label(rangeEndLabel))
+        }
         return result
+    }
+
+    private func emitRuntimeFloatingPointEndpointFastPath(
+        propertyInfo: SemanticSymbol,
+        ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        resultType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Int32? {
+        let owner = ownerInfo.fqName.map(interner.resolve)
+        let member = interner.resolve(propertyInfo.name)
+        guard owner == ["kotlin", "ranges", "ClosedFloatingPointRange"]
+            || owner == ["kotlin", "ranges", "ClosedRange"],
+            member == "start" || member == "endInclusive"
+        else { return nil }
+
+        let endpoint = arena.appendExpr(.intLiteral(member == "start" ? 0 : 1), type: sema.types.intType)
+        instructions.append(.constValue(result: endpoint, value: .intLiteral(member == "start" ? 0 : 1)))
+        let boxed = arena.appendTemporary(type: sema.types.nullableAnyType)
+        instructions.append(.call(
+            symbol: nil, callee: interner.intern("__kk_floating_range_endpoint_or_null"),
+            arguments: [loweredReceiverID, endpoint], result: boxed,
+            canThrow: false, thrownResult: nil
+        ))
+        let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+        instructions.append(.constValue(result: null, value: .null))
+        let interfaceLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfEqual(lhs: boxed, rhs: null, target: interfaceLabel))
+        // Generic/nullable endpoints retain the box; concrete endpoints use raw IEEE bits.
+        switch sema.types.kind(of: resultType) {
+        case .primitive(.double, .nonNull), .primitive(.float, .nonNull):
+            let callee = resultType == sema.types.doubleType ? "kk_unbox_double" : "kk_unbox_float"
+            emitNonThrowingCall(callee: interner.intern(callee), arg: boxed, result: result, into: &instructions)
+        default:
+            instructions.append(.copy(from: boxed, to: result))
+        }
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(interfaceLabel))
+        return endLabel
     }
 
     /// Runtime reflection values (tagged callable references, delegate
