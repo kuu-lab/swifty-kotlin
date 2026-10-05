@@ -1207,11 +1207,12 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case let .localFunDecl(localFunName, localFunValueParams, _, localFunBody, _, _):
+        case let .localFunDecl(localFunName, _, localFunValueParams, _, localFunBody, _, _):
             if let symbol = sema.bindings.identifierSymbols[exprID] {
                 let sig = sema.symbols.functionSignature(for: symbol)
                 let funType: TypeID = if let sig {
                     sema.types.make(.functionType(FunctionType(
+                        receiver: sig.receiverType,
                         params: sig.parameterTypes,
                         returnType: sig.returnType,
                         isSuspend: sig.isSuspend,
@@ -1228,6 +1229,9 @@ extension ExprLowerer {
 
                 // Emit the local function body as a KIRFunction declaration.
                 let localFunValueParamList: [KIRParameter]
+                let localFunReceiverParam = sig?.receiverType.map {
+                    KIRParameter(symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), type: $0)
+                }
                 let localFunReturnType: TypeID
                 if let sig {
                     localFunValueParamList = zip(sig.valueParameterSymbols, sig.parameterTypes).map { pair in
@@ -1268,7 +1272,7 @@ extension ExprLowerer {
                         seen: &seenSymbols
                     )
                 }
-                let localFunParamSymbols = Set(localFunValueParamList.map(\.symbol))
+                let localFunParamSymbols = Set(((localFunReceiverParam.map { [$0] } ?? []) + localFunValueParamList).map(\.symbol))
                 var captureSymbols = referencedSymbols.filter { sym in
                     if localFunParamSymbols.contains(sym) { return false }
                     if sym == symbol { return false }
@@ -1283,7 +1287,8 @@ extension ExprLowerer {
                 // Implicit receiver (this/super) is not collected by
                 // collectBoundIdentifierSymbols, so check separately —
                 // mirrors the post-filter in lexicalCaptureSymbolsForLambda.
-                if let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+                if localFunReceiverParam == nil,
+                   let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
                    driver.ctx.activeImplicitReceiverExprID() != nil,
                    !captureSymbols.contains(receiverSymbol)
                 {
@@ -1412,6 +1417,12 @@ extension ExprLowerer {
                     let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
                     localFunBodyInstructions.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
                     driver.ctx.setLocalValue(paramExpr, for: param.symbol)
+                }
+                if let param = localFunReceiverParam {
+                    let receiverExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+                    localFunBodyInstructions.append(.constValue(result: receiverExpr, value: .symbolRef(param.symbol)))
+                    driver.ctx.setLocalValue(receiverExpr, for: param.symbol)
+                    driver.ctx.setImplicitReceiver(symbol: param.symbol, exprID: receiverExpr)
                 }
 
                 // Propagate callable value info for captured callables so that
@@ -1560,7 +1571,7 @@ extension ExprLowerer {
                         KIRFunction(
                             symbol: symbol,
                             name: localFunName,
-                            params: captureBindings.map(\.param) + localFunValueParamList,
+                            params: captureBindings.map(\.param) + (localFunReceiverParam.map { [$0] } ?? []) + localFunValueParamList,
                             returnType: localFunReturnType,
                             body: localFunBodyInstructions,
                             isSuspend: sig?.isSuspend ?? false,
@@ -2069,7 +2080,7 @@ extension ExprLowerer {
                     returnValue = lowered
                 }
                 if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
-                    instructions.append(.nonLocalReturn(returnValue))
+                    instructions.append(.nonLocalReturn(returnValue, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
                         ast: ast, sema: sema, arena: arena, interner: interner,
@@ -2080,7 +2091,7 @@ extension ExprLowerer {
                 }
             } else {
                 if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
-                    instructions.append(.nonLocalReturn(nil))
+                    instructions.append(.nonLocalReturn(nil, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
                         ast: ast, sema: sema, arena: arena, interner: interner,
@@ -2239,7 +2250,11 @@ extension ExprLowerer {
             )
             let typeToken: KIRExprID = if let targetType = sema.bindings.isCheckTargetType(for: exprID) {
                 lowerTypeCheckTokenExpr(
-                    targetType: targetType,
+                    targetType: runtimeIsCheckTargetType(
+                        subjectType: sema.bindings.exprType(for: exprToCheck),
+                        targetType: targetType,
+                        sema: sema
+                    ),
                     sema: sema,
                     interner: interner,
                     arena: arena,
@@ -2709,6 +2724,14 @@ extension ExprLowerer {
                               let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
                               return pk == nil || pk == .package || pk == .object
                           }() {
+                    if let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                       sema.symbols.symbol(ownerSymbol)?.kind == .object
+                    {
+                        driver.emitObjectLazyInitGuardIfNeeded(
+                            objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                            instructions: &instructions
+                        )
+                    }
                     let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                     let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
                     instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))

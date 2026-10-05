@@ -147,6 +147,7 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.UninitializedPropertyAccessException", "UninitializedPropertyAccessException"),
     ("kotlin.IndexOutOfBoundsException", "IndexOutOfBoundsException"),
     ("kotlin.ArrayIndexOutOfBoundsException", "ArrayIndexOutOfBoundsException"),
+    ("java.lang.StringIndexOutOfBoundsException", "StringIndexOutOfBoundsException"),
     ("kotlin.KotlinNothingValueException", "KotlinNothingValueException"),
     ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
     ("kotlin.NotImplementedError", "NotImplementedError"),
@@ -2722,7 +2723,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return runtimeArrayIdentityToString(value)
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue

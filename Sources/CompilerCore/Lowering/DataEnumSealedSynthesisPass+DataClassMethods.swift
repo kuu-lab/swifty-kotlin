@@ -514,7 +514,8 @@ extension DataEnumSealedSynthesisPass {
     ///   result = 31 * result + property2.hashCode()
     ///   ...
     ///   return result
-    /// Each property hash is obtained via `kk_any_hashCode`, and the accumulation
+    /// Array properties use the matching `contentHashCode` overload; other properties
+    /// use `kk_any_hashCode`. The accumulation
     /// uses `kk_op_mul` (31 * result) and `kk_op_add` (+ propertyHash).
     func appendSyntheticDataClassHashCodeIfNeeded(
         owner: SemanticSymbol,
@@ -600,23 +601,34 @@ extension DataEnumSealedSynthesisPass {
                     thrownResult: nil
                 ))
 
-                // Keep the synthetic hashCode tag in sync with every other
-                // Any-fallback call site, including the numeric raw-value tags.
-                let tagValue = computeAnyFallbackTag(for: propType, sema: sema)
-                let tagExpr = module.arena.appendTemporary(type: intType
-                )
-                body.append(.constValue(result: tagExpr, value: .intLiteral(tagValue)))
-
                 let propHashExpr = module.arena.appendTemporary(type: intType
                 )
-                body.append(.call(
-                    symbol: nil,
-                    callee: hashCodeCallee,
-                    arguments: [fieldValueExpr, tagExpr],
-                    result: propHashExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                if let arrayHashSymbol = dataClassArrayContentHashSymbol(
+                    for: propType, sema: sema, interner: interner
+                ) {
+                    let callee = sema.symbols.externalLinkName(for: arrayHashSymbol)
+                        .map(interner.intern) ?? interner.intern("contentHashCode")
+                    body.append(.call(
+                        symbol: arrayHashSymbol,
+                        callee: callee,
+                        arguments: [fieldValueExpr],
+                        result: propHashExpr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                } else {
+                    let tagValue = computeAnyFallbackTag(for: propType, sema: sema)
+                    let tagExpr = module.arena.appendTemporary(type: intType)
+                    body.append(.constValue(result: tagExpr, value: .intLiteral(tagValue)))
+                    body.append(.call(
+                        symbol: nil,
+                        callee: hashCodeCallee,
+                        arguments: [fieldValueExpr, tagExpr],
+                        result: propHashExpr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
 
                 if index == 0 {
                     resultExpr = propHashExpr
@@ -672,6 +684,34 @@ extension DataEnumSealedSynthesisPass {
             params: [receiverParam],
             body: body
         )
+    }
+
+    private func dataClassArrayContentHashSymbol(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let (arrayType, arraySymbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(type), sema: sema
+        ),
+            arraySymbol.fqName == [interner.intern("kotlin"), arraySymbol.name],
+            KnownCompilerNames(interner: interner).isArrayLikeName(arraySymbol.name)
+        else {
+            return nil
+        }
+        let fqName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("contentHashCode")]
+        return sema.symbols.lookupAll(fqName: fqName).first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.isEmpty,
+                  let receiverType = signature.receiverType,
+                  let (receiverClass, _) = resolveClassTypeSymbol(
+                      sema.types.makeNonNullable(receiverType), sema: sema
+                  )
+            else {
+                return false
+            }
+            return receiverClass.classSymbol == arrayType.classSymbol
+        }
     }
 
     /// Synthesizes `toString(): String` for data class with properties.
@@ -799,12 +839,10 @@ extension DataEnumSealedSynthesisPass {
                     thrownResult: nil
                 ))
             } else {
-                let nullOutThrown = module.arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                body.append(.constValue(result: nullOutThrown, value: .null))
                 body.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_abort_unreachable"),
-                    arguments: [nullOutThrown],
+                    arguments: [],
                     result: propValue,
                     canThrow: false,
                     thrownResult: nil
@@ -1145,12 +1183,10 @@ extension DataEnumSealedSynthesisPass {
                         thrownResult: nil
                     ))
                 } else {
-                    let nullOutThrown = module.arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                    body.append(.constValue(result: nullOutThrown, value: .null))
                     body.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_abort_unreachable"),
-                        arguments: [nullOutThrown],
+                        arguments: [],
                         result: selfProp,
                         canThrow: false,
                         thrownResult: nil
@@ -1158,7 +1194,7 @@ extension DataEnumSealedSynthesisPass {
                     body.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_abort_unreachable"),
-                        arguments: [nullOutThrown],
+                        arguments: [],
                         result: otherProp,
                         canThrow: false,
                         thrownResult: nil

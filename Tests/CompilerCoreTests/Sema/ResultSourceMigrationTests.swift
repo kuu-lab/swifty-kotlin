@@ -5,6 +5,47 @@ import Testing
 
 @Suite
 struct ResultSourceMigrationTests {
+    @Test(arguments: [
+        ("fun probe() = runCatching { throw IllegalStateException(\"x\") }.getOrDefault(-2)", "Int"),
+        ("fun probe(): Int = runCatching { throw IllegalStateException(\"x\") }.getOrDefault(-2)", "Int"),
+        ("fun probe() = runCatching { throw IllegalStateException(\"x\") }.getOrDefault(\"fallback\")", "String"),
+        ("fun probe() = runCatching { 42 }.getOrDefault(-2)", "Int"),
+        ("fun probe() = runCatching { 42 }.getOrDefault(null)", "Int?"),
+        ("fun probe() = runCatching { null }.getOrDefault(-2)", "Int?"),
+        ("fun probe(result: Result<Nothing>?) = result?.getOrDefault(-2)", "Int?"),
+        ("fun probe(result: Result<Any>) = result.getOrDefault(-2)", "Any"),
+        ("fun probe(result: Result<Int>, fallback: Any) = result.getOrDefault(fallback)", "Any"),
+    ])
+    func testResultGetOrDefaultInfersFallbackType(source: String, expectedTypeName: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                switch expr {
+                case let .memberCall(_, callee, _, _, _), let .safeMemberCall(_, callee, _, _, _):
+                    ctx.interner.resolve(callee) == "getOrDefault"
+                default:
+                    false
+                }
+            }
+            #expect(!calls.isEmpty)
+            let expectedType = switch expectedTypeName {
+            case "Int": sema.types.intType
+            case "Int?": sema.types.makeNullable(sema.types.intType)
+            case "String": sema.types.stringType
+            default: sema.types.anyType
+            }
+            for call in calls {
+                #expect(sema.bindings.exprType(for: call) == expectedType)
+                try expectCallUsesBundledResultSource(call, expectedExternalLink: nil, sema: sema, ctx: ctx)
+            }
+        }
+    }
+
     @Test func testResultAPISymbolsComeFromBundledKotlinSource() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -98,7 +139,7 @@ struct ResultSourceMigrationTests {
             )
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let constructorCall = try #require(firstExprID(in: ast) { _, expr in
+            let constructorCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       let calleeExpr = ast.arena.expr(callee),
                       case let .nameRef(name, _) = calleeExpr
@@ -144,7 +185,7 @@ struct ResultSourceMigrationTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let runCatchingCall = try #require(firstExprID(in: ast) { _, expr in
+            let runCatchingCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       let calleeExpr = ast.arena.expr(callee),
                       case let .nameRef(name, _) = calleeExpr
@@ -168,7 +209,7 @@ struct ResultSourceMigrationTests {
                 "getOrDefault": nil,
             ]
             for (memberName, expectedLink) in expectedMemberLinks {
-                let memberCall = try #require(firstExprID(in: ast) { _, expr in
+                let memberCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
@@ -310,7 +351,7 @@ struct ResultSourceMigrationTests {
             let sema = try #require(ctx.sema)
 
             for propertyName in ["isSuccess", "isFailure"] {
-                let memberRead = try #require(firstExprID(in: ast) { _, expr in
+                let memberRead = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == propertyName
                 })

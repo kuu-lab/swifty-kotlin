@@ -391,10 +391,30 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // CoroutineStart.LAZY / UNDISPATCHED async (STDLIB-CORO-001).
+        // CoroutineStart.ATOMIC / LAZY / UNDISPATCHED async (STDLIB-CORO-001).
         // The launch family above returns a Job handle; these return a Deferred
         // one carrying the block's result, so each start mode needs its own
         // entry point rather than sharing launch's.
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_atomic",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_atomic_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_async_lazy",
             parameters: [
@@ -761,6 +781,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_context_get_dispatch",
+            parameters: [
+                RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "keyRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_context_fold",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
@@ -783,6 +813,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_context_minusKey_dispatch",
+            parameters: [
+                RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "keyRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_context_get_dispatcher",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
@@ -794,9 +834,12 @@ public extension RuntimeABISpec {
             name: "__kk_continuation_intercepted",
             parameters: [
                 RuntimeABIParameter(name: "continuationRaw", type: .intptr),
+                RuntimeABIParameter(name: "interceptorKey", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_continuation_interceptor_intercept_continuation",

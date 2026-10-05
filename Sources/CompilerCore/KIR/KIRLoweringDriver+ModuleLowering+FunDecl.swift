@@ -58,6 +58,7 @@ extension KIRLoweringDriver {
         }
         let hasNoInlineAnnotation = function.annotations.contains { ann in
             ann.name == "NoInline" || ann.name == "kotlin.native.NoInline"
+                || ann.name == "KsNoInline" || ann.name == "kotlin.internal.KsNoInline"
         }
         let autoInline = hasLambdaParam && !function.isSuspend && !hasNoInlineAnnotation
         let effectiveInline: Bool = function.isInline || autoInline

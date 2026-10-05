@@ -5,6 +5,57 @@ import Testing
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeRangeValueSemanticsTests {
     @Test
+    func erasedIteratorDispatchPreservesNumericElementKinds() throws {
+        let iteratorTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator"))
+        for (range, matching, mismatching) in [
+            (kk_op_rangeTo(2, 2), kk_box_int(2), kk_box_long(2)),
+            (__kk_uint_rangeTo(2, 2), kk_box_uint(2), kk_box_int(2)),
+            (kk_long_rangeTo(2, 2), kk_box_long(2), kk_box_int(2)),
+            (kk_char_rangeTo(kk_box_char(98), kk_box_char(98)), kk_box_char(98), kk_box_int(98))
+        ] {
+            let iterator = kk_range_iterator(range)
+            let method = kk_itable_lookup_dynamic(iterator, iteratorTypeID, 1)
+            try #require(method != 0)
+            let next = unsafeBitCast(method, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 0
+            let element = next(iterator, &thrown)
+            #expect(thrown == 0)
+            #expect(kk_unbox_bool(kk_any_equals(element, 1, matching, 1)) == 1)
+            #expect(kk_unbox_bool(kk_any_equals(element, 1, mismatching, 1)) == 0)
+            _ = next(iterator, &thrown)
+            #expect(thrown != 0)
+        }
+    }
+
+    @Test
+    func floatingPointRangeGettersPreserveEndpointBits() {
+        let doubleEndpoints: [(Double, Double)] = [
+            (-1.25, 2.5), (1.0, 0.0), (-0.0, 0.0),
+            (-.infinity, .infinity), (.nan, 1.0), (0.0, .nan),
+        ]
+        for (start, end) in doubleEndpoints {
+            let startBits = Int(bitPattern: UInt(start.bitPattern))
+            let endBits = Int(bitPattern: UInt(end.bitPattern))
+            let range = __kk_double_rangeTo(startBits, endBits)
+            #expect(__kk_double_range_start(range) == startBits)
+            #expect(__kk_double_range_endInclusive(range) == endBits)
+            #expect(__kk_double_range_isEmpty(range) == (start <= end ? 0 : 1))
+        }
+        let floatEndpoints: [(Float, Float)] = [
+            (-1.25, 2.5), (1.0, 0.0), (-0.0, 0.0),
+            (-.infinity, .infinity), (.nan, 1.0), (0.0, .nan),
+        ]
+        for (start, end) in floatEndpoints {
+            let startBits = Int(Int32(bitPattern: start.bitPattern))
+            let endBits = Int(Int32(bitPattern: end.bitPattern))
+            let range = __kk_float_rangeTo(startBits, endBits)
+            #expect(__kk_float_range_start(range) == startBits)
+            #expect(__kk_float_range_endInclusive(range) == endBits)
+            #expect(__kk_float_range_isEmpty(range) == (start <= end ? 0 : 1))
+        }
+    }
+
+    @Test
     func rangesCompareByValueAndEmptyRangesCompareEqual() {
         let range = kk_op_rangeTo(1, 3)
         let sameRange = kk_op_rangeTo(1, 3)

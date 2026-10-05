@@ -45,6 +45,14 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> TypeRefID? {
         let tokens = collectTokens(from: nodeID, in: arena)
+        return declarationReceiverType(from: tokens, interner: interner, astArena: astArena)
+    }
+
+    func declarationReceiverType(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> TypeRefID? {
         guard let paramsOpenIndex = functionParameterOpenParenIndex(in: tokens),
               paramsOpenIndex > 0
         else {
@@ -53,7 +61,7 @@ extension BuildASTPhase {
 
         var nameIndex: Int?
         for index in stride(from: paramsOpenIndex - 1, through: 0, by: -1)
-            where TypeRefParserCore.isTypeLikeNameToken(tokens[index].kind) {
+            where TypeRefParserCore.isDeclarationNameToken(tokens[index].kind) {
             nameIndex = index
             break
         }

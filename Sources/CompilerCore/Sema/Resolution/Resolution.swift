@@ -292,7 +292,6 @@ extension OverloadResolver {
         // from a Byte/Long argument instead of Int from IntRange, making an
         // inapplicable member steal the call from an exact user extension.
         if !isConstructor,
-           signature.receiverType == nil,
            signature.classTypeParameterCount > 0,
            let implicitReceiverType,
            isNominalMemberFunction(candidate, typeSystem: ctx.types),
@@ -335,6 +334,25 @@ extension OverloadResolver {
                 typeSystem: ctx.types,
                 blameRange: call.range
             ))
+            if signature.receiverType != nil,
+               case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType),
+               receiverOwner.classSymbol == owner
+            {
+                for (parameter, argument) in zip(
+                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount),
+                    receiverOwner.args
+                ) {
+                    guard let variable = typeVarBySymbol[parameter] else { continue }
+                    let type: TypeID
+                    switch argument {
+                    case let .invariant(value), let .out(value), let .in(value): type = value
+                    case .star: continue
+                    }
+                    constraints.append(VariableConstraint(
+                        kind: .equal, left: .variable(variable), right: .type(type), blameRange: call.range
+                    ))
+                }
+            }
         }
 
         guard let parameterMapping = buildParameterMapping(
@@ -375,6 +393,7 @@ extension OverloadResolver {
                 )
             }
         }
+        var inputConstraints = constraints
 
         // Upper bounds can relate two function type parameters (for example
         // `where C : Collection<*>, C : R`). Add those relationships to the
@@ -418,6 +437,7 @@ extension OverloadResolver {
                 blameRange: call.range
             )
             constraints.append(contentsOf: returnDecomposed)
+            inputConstraints.append(contentsOf: returnDecomposed)
         }
 
         var solveResult = solveConstraints(
@@ -468,6 +488,16 @@ extension OverloadResolver {
         case let .constraintFailure(diagnostic):
             return .constraintFailure(diagnostic)
         case .rejected:
+            return .rejected
+        }
+
+        guard satisfiesOnlyInputTypes(
+            signature: signature,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol,
+            inputConstraints: inputConstraints,
+            ctx: ctx
+        ) else {
             return .rejected
         }
 
@@ -680,9 +710,12 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
-            let argType = !arg.isSpread
+            let inferredArgType = !arg.isSpread
                 ? (integerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
                 : arg.type
+            let argType = !arg.isSpread
+                ? (typeSystem.suspendConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
+                : inferredArgType
 
             // A spread argument contributes the element type of its array to
             // the vararg parameter. Recover that type when possible so
