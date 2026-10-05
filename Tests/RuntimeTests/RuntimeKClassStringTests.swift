@@ -27,6 +27,19 @@ struct RuntimeKClassStringTests {
         checkRenderers(raw, expected: "class sample.Annotated")
     }
 
+    @Test func nestedDisplayNamePreservesReflectionNames() {
+        let token = 0x1262_0200
+        _ = __kk_kclass_register_metadata(
+            token, runtimeMakeStringRaw("Sample.lower.nested"),
+            runtimeMakeStringRaw("nested"), 0, 0, 0, 0, 0
+        )
+        let raw = __kk_kclass_create(token, runtimeMakeStringRaw("nested"))
+        _ = __kk_kclass_register_display_name(token, runtimeMakeStringRaw("Sample.lower$nested"))
+        checkRenderers(raw, expected: "class Sample.lower$nested")
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_kclass_qualified_name(raw))) == "Sample.lower.nested")
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_kclass_simple_name(raw))) == "nested")
+    }
+
     @Test func builtinClassUsesQualifiedName() {
         checkRenderers(__kk_kclass_create(15, 0), expected: "class kotlin.Unit")
     }

@@ -155,6 +155,15 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck"
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_register_display_name",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "displayNameRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
         // REFL-004: KClass binary metadata registration and accessors
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_register_metadata",

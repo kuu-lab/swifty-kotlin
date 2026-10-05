@@ -1841,6 +1841,15 @@ public func __kk_kclass_register_metadata_v2(
     return 0
 }
 
+/// Registers a compiler-derived JVM binary name without changing qualifiedName.
+@_cdecl("__kk_kclass_register_display_name")
+public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw: Int) -> Int {
+    if let displayName = extractString(from: UnsafeMutableRawPointer(bitPattern: displayNameRaw)) {
+        runtimeKClassMetadataRegistry.setDisplayName(typeToken: typeToken, displayName: displayName)
+    }
+    return 0
+}
+
 /// Returns 1 if the KClass represents a data class, 0 otherwise.
 @_cdecl("__kk_kclass_is_data")
 public func __kk_kclass_is_data(_ kclassRaw: Int) -> Int {
