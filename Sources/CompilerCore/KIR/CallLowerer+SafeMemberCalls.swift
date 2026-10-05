@@ -235,9 +235,14 @@ extension CallLowerer {
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
                 let nonNullResult = arena.appendTemporary(type: callResultType)
+                var receiverArgument = loweredReceiverID
+                if receiverType != nonNullReceiverType {
+                    receiverArgument = arena.appendTemporary(type: nonNullReceiverType)
+                    instructions.append(.copy(from: loweredReceiverID, to: receiverArgument))
+                }
                 emitNonThrowingCall(
                     callee: interner.intern("kk_op_inv"),
-                    arg: loweredReceiverID,
+                    arg: receiverArgument,
                     result: nonNullResult,
                     into: &instructions.instructions
                 )

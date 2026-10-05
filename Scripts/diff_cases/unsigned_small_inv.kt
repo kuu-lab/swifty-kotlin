@@ -42,4 +42,12 @@ fun main() {
     println(0xFuL.inv())
     println(15.inv())
     println(18L.inv())
+    val nullableInt: Int? = 15
+    val nullableLong: Long? = 18L
+    val nullableUInt: UInt? = 0xFu
+    val nullableULong: ULong? = 0xFuL
+    println(nullableInt?.inv())
+    println(nullableLong?.inv())
+    println(nullableUInt?.inv())
+    println(nullableULong?.inv())
 }
