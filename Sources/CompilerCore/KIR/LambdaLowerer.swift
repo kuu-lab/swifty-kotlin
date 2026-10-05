@@ -326,6 +326,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
         for capture in functionCaptureBindings {
@@ -2276,6 +2277,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 

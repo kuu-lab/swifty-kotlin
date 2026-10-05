@@ -202,10 +202,10 @@ enum ImportedInlineKIRMaterializer {
             return .returnIfEqual(lhs: remap(lhs), rhs: remap(rhs))
         case let .returnValue(value):
             return .returnValue(remap(value))
-        case let .nonLocalReturn(value):
-            return .nonLocalReturn(value.map(remap))
-        case let .beginNonLocalReturnScope(value, target):
-            return .beginNonLocalReturnScope(value: remap(value), target: target)
+        case let .nonLocalReturn(value, target):
+            return .nonLocalReturn(value.map(remap), target: target)
+        case let .beginNonLocalReturnScope(value, target, function):
+            return .beginNonLocalReturnScope(value: remap(value), target: target, function: function)
         case .endNonLocalReturnScope:
             return instruction
         case let .resumeNonLocalReturn(value):
