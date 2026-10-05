@@ -1763,10 +1763,8 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-016: imported synthetic enum entries for
-    /// `CharDirectionality` must round-trip as compile-time ordinals so the
-    /// shared stdlib `Char.directionality` extension can compare directionality
-    /// values by ordinal.
+    /// STDLIB-ARTIFACT-016: source-backed CharDirectionality entries must
+    /// preserve ordinal comparisons through the shared stdlib artifact.
     @Test
     func testCharDirectionalityConstantsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
