@@ -366,9 +366,9 @@ struct ImportedInlineKIRMaterializerTests {
             return [lhs, rhs]
         case let .returnValue(value):
             return [value]
-        case let .nonLocalReturn(value):
+        case let .nonLocalReturn(value, _):
             return value.map { [$0] } ?? []
-        case let .beginNonLocalReturnScope(value, _), let .resumeNonLocalReturn(value):
+        case let .beginNonLocalReturnScope(value, _, _), let .resumeNonLocalReturn(value):
             return [value]
         }
     }
