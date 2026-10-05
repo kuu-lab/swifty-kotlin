@@ -32,10 +32,17 @@ public final class TypeSystem {
     /// The symbol ID of the synthetic `kotlin.reflect.KFunction` interface (STDLIB-REFLECT-063).
     /// Used in subtyping to allow function types to be assigned to KFunction<R> variables.
     public internal(set) var kFunctionInterfaceSymbol: SymbolID?
+    public internal(set) var kCallableInterfaceSymbol: SymbolID?
 
     /// The symbol of the bundled `kotlin.Function<R>` interface.
     /// Function types are subtypes of this source-backed common function interface.
     public internal(set) var functionInterfaceSymbol: SymbolID?
+
+    /// The symbols of the synthetic `kotlin.Function.FunctionN` interfaces,
+    /// keyed by arity. Populated by `registerSyntheticFunctionInterface` so
+    /// subtyping can treat a function type as a subtype of the matching-arity
+    /// `FunctionN` nominal and vice versa (KUU-1084).
+    public internal(set) var functionNInterfaceSymbols: [Int: SymbolID] = [:]
 
     /// The symbol ID of the synthetic `kotlin.reflect.KClass` interface.
     public internal(set) var kClassInterfaceSymbol: SymbolID?

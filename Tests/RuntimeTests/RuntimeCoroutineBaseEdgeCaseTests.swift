@@ -380,17 +380,17 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
     // MARK: - ContinuationInterceptor
 
-    /// kk_continuation_intercepted with a fresh continuation returns a valid handle.
+    /// __kk_continuation_intercepted with a fresh continuation returns a valid handle.
     @Test func testContinuationInterceptedFreshContinuationReturnsNonZero() {
         let cont = kk_coroutine_continuation_new(9915)
         #expect(cont != 0)
-        let intercepted = kk_continuation_intercepted(cont)
+        let intercepted = __kk_continuation_intercepted(cont)
         #expect(intercepted != 0, "intercepted handle should be non-zero")
     }
 
-    /// kk_continuation_intercepted with zero handle returns zero.
+    /// __kk_continuation_intercepted with zero handle returns zero.
     @Test func testContinuationInterceptedZeroHandleReturnsZero() {
-        let intercepted = kk_continuation_intercepted(0)
+        let intercepted = __kk_continuation_intercepted(0)
         #expect(intercepted == 0, "intercepted(0) should return 0")
     }
 

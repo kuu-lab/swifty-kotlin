@@ -103,20 +103,26 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.objectLiteral(superTypes: superTypes, decl: declID, range: range))
     }
 
-    func parseCallableReferenceWithoutReceiver() -> ExprID? {
-        let savedIndex = index
+    func parseCallableReference(receiver: ExprID? = nil) -> ExprID? {
         guard let opToken = consume() else {
             return nil
         }
         guard let memberToken = current(),
               let memberName = tokenText(memberToken)
         else {
-            index = savedIndex
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0014",
+                "Expected an identifier after '::'.",
+                range: opToken.range
+            )
             return nil
         }
         _ = consume()
-        let range = SourceRange(start: opToken.range.start, end: memberToken.range.end)
-        return astArena.appendExpr(.callableRef(receiver: nil, member: memberName, range: range))
+        let range = SourceRange(
+            start: receiver.flatMap { astArena.exprRange($0)?.start } ?? opToken.range.start,
+            end: memberToken.range.end
+        )
+        return astArena.appendExpr(.callableRef(receiver: receiver, member: memberName, range: range))
     }
 
     /// Consumes tokens up to and including a closing brace matching a

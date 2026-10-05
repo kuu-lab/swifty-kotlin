@@ -159,6 +159,7 @@ extension DataFlowSemaPhase {
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
+                contractImplicationEffects: metadataRecord.contractImplicationEffects,
                 canThrow: metadataRecord.canThrow,
                 valueParameterNames: metadataRecord.valueParameterNames,
                 reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
@@ -515,6 +516,9 @@ extension DataFlowSemaPhase {
                 ContractCallsInPlaceEffect(parameterSymbol: valueParameterSymbols[index], kind: kind!),
                 for: ownerSymbol
             )
+        }
+        for effect in record.contractImplicationEffects where effect.parameterIndex < valueParameterSymbols.count {
+            symbols.addContractImplicationEffect(effect, for: ownerSymbol)
         }
         return FunctionSignature(
             receiverType: functionType.receiver,

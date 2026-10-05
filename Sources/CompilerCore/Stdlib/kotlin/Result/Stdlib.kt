@@ -23,7 +23,7 @@ private fun <T> resultIsSuccess(result: Result<T>): Boolean =
 // The runtime stores Result values in RuntimeResultBox instances. Keep the
 // constructor internal, matching Kotlin's @PublishedApi internal
 // constructor, and lower its calls to the runtime success factory.
-public class Result<T> {
+public class Result<out T> {
     @KsSymbolName("kk_runtime_result_success")
     @PublishedApi
     internal constructor(value: Any?)
@@ -37,11 +37,11 @@ public class Result<T> {
     public fun getOrNull(): T? =
         __kkRuntimeResultValueOrNull(this)
 
-    public fun getOrDefault(defaultValue: T): T =
+    public fun getOrDefault(defaultValue: @UnsafeVariance T): T =
         if (resultIsSuccess(this)) getOrThrow() else defaultValue
 
     @KsSymbolName("kk_runtime_result_get_or_else")
-    public external fun getOrElse(failureTransform: (Throwable) -> T): T
+    public external fun getOrElse(failureTransform: (Throwable) -> @UnsafeVariance T): T
 
     public fun getOrThrow(): T =
         __kkRuntimeResultGetOrThrow(this)

@@ -540,42 +540,22 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-        let callableValue: KIRExprID
-        if functionType.isCallableReference {
-            let name = arena.appendTemporary(type: sema.types.stringType)
-            let returnType = arena.appendTemporary(type: sema.types.stringType)
-            emitNonThrowingCall(
-                callee: interner.intern("__kk_kcallable_get_name"), arg: loweredArgID,
-                result: name, into: &instructions
-            )
-            emitNonThrowingCall(
-                callee: interner.intern("__kk_kcallable_get_return_type"), arg: loweredArgID,
-                result: returnType, into: &instructions
-            )
-            let arity = arena.appendExpr(.intLiteral(Int64(valueArity)), type: sema.types.intType)
-            instructions.append(.constValue(result: arity, value: .intLiteral(Int64(valueArity))))
-            let isSuspend = arena.appendExpr(.intLiteral(functionType.isSuspend ? 1 : 0), type: sema.types.intType)
-            instructions.append(.constValue(result: isSuspend, value: .intLiteral(functionType.isSuspend ? 1 : 0)))
-            callableValue = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_callable_ref_tag_kfunction"),
-                arguments: [materialized, name, returnType, arity, isSuspend],
-                result: callableValue,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        } else {
-            callableValue = materialized
-        }
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_function_copy_description"),
+            arguments: [loweredArgID, materialized],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
         driver.ctx.registerCallableValue(
-            callableValue,
+            materialized,
             symbol: resolvedCallableInfo.symbol,
             callee: resolvedCallableInfo.callee,
             captureArguments: [closureRaw],
             hasClosureParam: true
         )
-        return callableValue
+        return materialized
     }
 
     func materializeSourceBackedFunctionValueArguments(
@@ -597,12 +577,6 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
-
-        // Source-backed inline functions are fully expanded in the same
-        // module, so lambda arguments can be consumed directly there.
-        if isInline, !isImported {
-            return
-        }
 
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
@@ -650,6 +624,13 @@ extension CallLowerer {
                   !signature.valueParameterIsVararg.indices.contains(parameterIndex)
                     || !signature.valueParameterIsVararg[parameterIndex]
             else {
+                continue
+            }
+            // Same-module inline expansion can consume raw symbols directly,
+            // but tagged callable references still cross the erased invoke ABI.
+            if isInline, !isImported,
+               case .symbolRef? = arena.expr(arguments[finalArgIndex])
+            {
                 continue
             }
             let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
@@ -700,12 +681,13 @@ extension CallLowerer {
             default:
                 continue
             }
-            // A non-local return must be expanded into its caller. Wrapping
-            // that lambda in a Function object hides its body from imported
-            // inline expansion and turns the return into a runtime callback.
+            // Keep eligible inline arguments visible to imported expansion,
+            // including normal returns and nested non-local returns.
             if isInline,
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               arena.function(for: callable.symbol)?.isInlineOnly == true
+               (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                   || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                   || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
                 continue
             }

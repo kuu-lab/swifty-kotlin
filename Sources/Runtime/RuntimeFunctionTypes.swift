@@ -1,6 +1,50 @@
 
 // MARK: - ランタイム関数型操作
 
+@_cdecl("__kk_function_set_description")
+public func __kk_function_set_description(_ value: Int, _ descriptionRaw: Int, _ identity: Int) {
+    guard let description = extractString(from: UnsafeMutableRawPointer(bitPattern: descriptionRaw)) else {
+        return
+    }
+    let text = identity == 0 ? description : "\(description)@\(String(UInt(bitPattern: value), radix: 16))"
+    runtimeStorage.withDelegateLock { state in
+        state.functionDescriptionsByValue[value] = text
+    }
+}
+
+func runtimeFunctionDescription(_ value: Int) -> String? {
+    if let description = runtimeStorage.withDelegateLock({ state in
+        state.functionDescriptionsByValue[value]
+    }) {
+        return description
+    }
+    if let function = runtimeFunctionValueBox(from: value) {
+        return "kotlin.Function\(function.arity)@\(String(UInt(bitPattern: value), radix: 16))"
+    }
+    return nil
+}
+
+@_cdecl("__kk_function_copy_description")
+public func __kk_function_copy_description(_ source: Int, _ target: Int) {
+    let description = runtimeFunctionDescription(source)
+    let metadata = runtimeStorage.withDelegateLock { state in
+        if let description {
+            state.functionDescriptionsByValue[target] = description
+        }
+        let metadata = state.callableRefMetadataByValue[source]
+        if let metadata {
+            state.callableRefMetadataByValue[target] = metadata
+        }
+        return metadata
+    }
+    if let metadata {
+        runtimeRegisterKCallableItableIfNeeded(
+            rawValue: target,
+            typeID: metadata.kind == .function ? kFunctionRuntimeTypeID : kPropertyRuntimeTypeID
+        )
+    }
+}
+
 func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil

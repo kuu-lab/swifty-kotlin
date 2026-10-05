@@ -4,6 +4,30 @@ import Testing
 
 @Suite
 struct CallableRefTypeIdentityTests {
+    @Test func testFunctionValueDescriptionsIncludeReferenceSignaturesAndLambdaIdentity() throws {
+        let ctx = makeContextFromSource("""
+        fun top(): Int = 7
+        fun main() {
+            val f = { 1 }
+            val ref = ::top
+            val anon = fun() = 2
+            println(anon())
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let descriptions = body.compactMap { instruction -> String? in
+            guard case let .call(_, callee, args, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "__kk_function_set_description",
+                  case let .stringLiteral(text) = module.arena.expr(args[1])
+            else { return nil }
+            return ctx.interner.resolve(text)
+        }
+        #expect(descriptions.contains("fun top(): kotlin.Int"))
+        #expect(descriptions.filter { $0 == "kotlin.Function0" }.count == 2)
+    }
 
     @Test func testInferredFunctionReferenceNameResolvesAndLowersToMetadata() throws {
         let ctx = makeContextFromSource("""
@@ -44,10 +68,10 @@ struct CallableRefTypeIdentityTests {
         #expect(!boxedValues.isEmpty)
         #expect(body.contains { instruction in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction",
-                  let value = arguments.first
+                  ctx.interner.resolve(callee) == "__kk_function_copy_description",
+                  arguments.count == 2
             else { return false }
-            return boxedValues.contains(value)
+            return boxedValues.contains(arguments[1])
         })
     }
 
@@ -73,6 +97,36 @@ struct CallableRefTypeIdentityTests {
         fun main() {
             val f: KFunction<Int> = { 3 }
         }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test func testBoxedFunctionReferencesResolveInheritedReflectionMembers() throws {
+        let ctx = makeContextFromSource("""
+        fun defaultFun(x: Int = 2) = x + 1
+        class Box { fun member(x: Int) = x }
+        fun <T> identity(value: T): T = value
+        fun main(box: Box) {
+            val ref = identity(::defaultFun)
+            println(ref.parameters[0].name)
+            println(ref.callBy(emptyMap()))
+            println(listOf(::defaultFun)[0].call(7))
+            println(identity(box::member).call(3))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "val f = { 3 }; println(f.call())",
+        "val f: () -> Int = ::topFun; println(f.call())",
+    ])
+    func testPlainFunctionValuesDoNotExposeReflectionCall(body: String) throws {
+        let ctx = makeContextFromSource("""
+        fun topFun() = 3
+        fun main() { \(body) }
         """)
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError)

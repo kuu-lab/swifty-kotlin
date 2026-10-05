@@ -277,7 +277,9 @@ public final class CodegenPhase: CompilerPhase {
             let fileName = MetadataEncoder.inlineKIRFileName(for: mangled)
             let filePath = outputDir + "/\(fileName)"
             let parameterSymbols = Set(function.params.map(\.symbol))
-            let inlineBody = module.inlineBodiesBeforeCoroutineLowering[function.symbol] ?? function.body
+            let inlineBody = module.inlineBodiesBeforeFinallyLowering[function.symbol]
+                ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
+                ?? function.body
             let bodyLines = inlineBody.map { instruction in
                 serializeInlineInstruction(
                     instruction,
@@ -407,6 +409,16 @@ public final class CodegenPhase: CompilerPhase {
             }
         case .beginFinallyGuard:
             return "beginFinallyGuard"
+        case let .beginNonLocalReturnScope(value, target):
+            return "beginNonLocalReturnScope value=\(value.rawValue) target=\(target)"
+        case .endNonLocalReturnScope:
+            return "endNonLocalReturnScope"
+        case let .resumeNonLocalReturn(value):
+            return "resumeNonLocalReturn value=\(value.rawValue)"
+        case let .beginFinallyCleanup(skipping):
+            return "beginFinallyCleanup skipping=\(skipping)"
+        case .endFinallyCleanup:
+            return "endFinallyCleanup"
         case .endFinallyGuard:
             return "endFinallyGuard"
         }

@@ -2,6 +2,7 @@ import kotlin.reflect.KCallable
 import kotlin.reflect.KFunction
 
 fun topFun() = 3
+fun defaultFun(x: Int = 2) = x + 1
 val topVal = 4
 
 class Box(val value: Int) {
@@ -24,6 +25,11 @@ fun main() {
     println(identity(fr)())
     println(makeRef().name)
     println(listOf(fr)[0].name)
+    val defaultRef = identity(::defaultFun)
+    println(defaultRef.name)
+    println(defaultRef.parameters[0].name)
+    println(defaultRef.callBy(emptyMap()))
+    println(listOf(::defaultFun)[0].call(7))
     println(callableName(fr))
     val typed: KFunction<Int> = fr
     println(typed.name)
@@ -35,6 +41,8 @@ fun main() {
     println(bound(2))
     println(identity(bound).name)
     println(identity(bound)(3))
+    println(identity(bound).parameters.size)
+    println(identity(bound).call(3))
     println(unbound.name)
     println(unbound(box, 5))
     val extension = Int::double

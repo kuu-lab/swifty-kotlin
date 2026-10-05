@@ -6,7 +6,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString]
+        kotlinCollectionsPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let mapFQName = kotlinCollectionsPkg + [interner.intern("Map")]
         guard let mapSymbol = symbols.lookup(fqName: mapFQName) else { return }
@@ -225,32 +226,36 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticMapFunction(
-            symbols: symbols,
-            interner: interner,
-            owner: mutableMapSymbol,
-            ownerFQName: mutableMapFQName,
-            name: "put",
-            receiverType: mutableReceiverType,
-            parameterTypes: [mutableKeyType, mutableValueType],
-            returnType: types.makeNullable(mutableValueType),
-            externalLinkName: "__kk_mutable_map_put",
-            flags: [.synthetic, .throwingFunction],
-            typeParameterSymbols: [mutableKeySymbol, mutableValueSymbol]
-        )
-        registerSyntheticMapFunction(
-            symbols: symbols,
-            interner: interner,
-            owner: mutableMapSymbol,
-            ownerFQName: mutableMapFQName,
-            name: "putAll",
-            receiverType: mutableReceiverType,
-            parameterTypes: [mapParameterType],
-            returnType: types.unitType,
-            externalLinkName: "__kk_mutable_map_putAll",
-            flags: [.synthetic, .throwingFunction],
-            typeParameterSymbols: [mutableKeySymbol, mutableValueSymbol]
-        )
+        if !bundledIndex.contains(owner: mutableMapFQName, name: interner.intern("put"), arity: 2) {
+            registerSyntheticMapFunction(
+                symbols: symbols,
+                interner: interner,
+                owner: mutableMapSymbol,
+                ownerFQName: mutableMapFQName,
+                name: "put",
+                receiverType: mutableReceiverType,
+                parameterTypes: [mutableKeyType, mutableValueType],
+                returnType: types.makeNullable(mutableValueType),
+                externalLinkName: "__kk_mutable_map_put",
+                flags: [.synthetic, .throwingFunction],
+                typeParameterSymbols: [mutableKeySymbol, mutableValueSymbol]
+            )
+        }
+        if !bundledIndex.contains(owner: mutableMapFQName, name: interner.intern("putAll"), arity: 1) {
+            registerSyntheticMapFunction(
+                symbols: symbols,
+                interner: interner,
+                owner: mutableMapSymbol,
+                ownerFQName: mutableMapFQName,
+                name: "putAll",
+                receiverType: mutableReceiverType,
+                parameterTypes: [mapParameterType],
+                returnType: types.unitType,
+                externalLinkName: "__kk_mutable_map_putAll",
+                flags: [.synthetic, .throwingFunction],
+                typeParameterSymbols: [mutableKeySymbol, mutableValueSymbol]
+            )
+        }
     }
 
     private func ensureSyntheticMapRuntimeTypeParameter(
