@@ -255,11 +255,20 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }
-            case "shl", "shr", "ushr":
+            case "shl", "shr":
                 if isShiftReceiver,
                    rawRhsType == intType
                 {
                     // shift amount must be Int; receiver can be Int/Long/UInt/ULong
+                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
+            case "ushr":
+                // Unsigned integers only expose shl/shr; ushr is signed-only.
+                if (receiverForCheck == intType || receiverForCheck == longType),
+                   rawRhsType == intType
+                {
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
