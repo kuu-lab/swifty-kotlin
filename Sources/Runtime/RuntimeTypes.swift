@@ -539,11 +539,13 @@ final class RuntimeFunctionValueBox {
     let fnPtr: Int
     let closureRaw: Int
     let arity: Int
+    let suspendEntryPoint: Int
 
-    init(fnPtr: Int, closureRaw: Int, arity: Int) {
+    init(fnPtr: Int, closureRaw: Int, arity: Int, suspendEntryPoint: Int = 0) {
         self.fnPtr = fnPtr
         self.closureRaw = closureRaw
         self.arity = arity
+        self.suspendEntryPoint = suspendEntryPoint
     }
 }
 

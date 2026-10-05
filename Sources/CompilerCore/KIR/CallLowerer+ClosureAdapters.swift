@@ -279,7 +279,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
         var loweredCallableID = loweredArgID
-        var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+        let callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if let originalCallableInfo = callableInfo,
            !originalCallableInfo.hasClosureParam,
            !adaptOnlyWhenCapturing || !originalCallableInfo.captureArguments.isEmpty,
@@ -307,18 +307,16 @@ extension CallLowerer {
                 hasClosureParam: adapted.hasClosureParam
             )
             loweredCallableID = adaptedExpr
-            callableInfo = adapted
         }
 
-        var finalArgs: [KIRExprID] = [loweredCallableID]
-        finalArgs.append(makeClosureRawOrBoxedArgument(
-            callableInfo: callableInfo,
+        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+            loweredCallableID,
             sema: sema,
             arena: arena,
             interner: interner,
             instructions: &instructions
-        ))
-        return finalArgs
+        )
+        return [fnPtrExpr, envPtrExpr]
     }
 
     private func makeCollectionHOFSelectorArgument(
@@ -447,7 +445,8 @@ extension CallLowerer {
                 symbol: function.symbol,
                 callee: function.name,
                 captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
-                hasClosureParam: function.params.count >= functionType.params.count + 1
+                hasClosureParam: function.params.count >= functionType.params.count
+                    + (functionType.receiver == nil ? 0 : 1) + 1
             )
         }
 
@@ -708,11 +707,12 @@ extension CallLowerer {
             let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                 ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 : !isImported
-            // Keep eligible inline arguments visible to expansion, including
-            // normal returns and nested non-local returns.
+            // Suspend callbacks need the callable ABI unless a non-local
+            // return requires their raw body to stay visible for inlining.
             if isInline,
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
+               (!functionType.isSuspend || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (allowsRawInlineArgument
                    || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {

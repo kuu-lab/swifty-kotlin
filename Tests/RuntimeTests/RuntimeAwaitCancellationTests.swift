@@ -109,7 +109,7 @@ struct RuntimeAwaitCancellationTests {
         typealias Thunk = @convention(c) (UnsafeMutablePointer<Int>?) -> Int
         let thunk = unsafeBitCast(runtime_test_suspend_wrapper_throw_thunk as Thunk, to: Int.self)
         var thrown = 0
-        let result = kk_suspend_function_invoke_0(thunk, &thrown)
+        let result = kk_suspend_function_invoke_0(thunk, callerRaw, &thrown)
         #expect(result == Int(bitPattern: kk_coroutine_suspended()))
         #expect(thrown == 0)
         #expect(caller.thrownException != 0)

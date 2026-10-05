@@ -166,6 +166,64 @@ private func runtimeFunctionInvokeInvalidArity(expected: Int, actual: Int) -> In
     runtimeAllocateThrowable(message: "Function invoke arity mismatch: expected \(expected), got \(actual)")
 }
 
+@_cdecl("kk_suspend_function_create")
+public func kk_suspend_function_create(
+    _ bodyRaw: Int,
+    _ closureRaw: Int,
+    _ arity: Int,
+    _ entryPointRaw: Int
+) -> Int {
+    registerRuntimeObject(RuntimeFunctionValueBox(
+        fnPtr: bodyRaw, closureRaw: closureRaw, arity: arity,
+        suspendEntryPoint: entryPointRaw
+    ))
+}
+
+func runtimeInvokeSuspendFunction(
+    _ functionRaw: Int,
+    arguments: [Int],
+    continuation: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard functionRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
+        return 0
+    }
+    if let box = runtimeFunctionValueBox(from: functionRaw), box.suspendEntryPoint != 0 {
+        guard box.arity == arguments.count else {
+            outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: box.arity, actual: arguments.count)
+            return 0
+        }
+        let child = kk_coroutine_continuation_new(box.suspendEntryPoint)
+        for (index, argument) in ([box.closureRaw] + arguments).enumerated() {
+            _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+        }
+        if runtimeContinuationState(from: continuation) != nil {
+            return kk_coroutine_call_direct_suspend(box.suspendEntryPoint, child, continuation)
+        }
+        return kk_kxmini_run_blocking_with_cont(box.suspendEntryPoint, child, outThrown)
+    }
+
+    // Legacy raw thunks and synchronous callbacks retain their ordinary ABI.
+    let callerState = runtimeContinuationState(from: continuation)
+    var thrown = 0
+    let result: Int
+    switch arguments.count {
+    case 0: result = kk_function_invoke_0(functionRaw, &thrown)
+    case 1: result = kk_function_invoke(functionRaw, arguments[0], &thrown)
+    case 2: result = kk_function_invoke_2(functionRaw, arguments[0], arguments[1], &thrown)
+    case 3: result = kk_function_invoke_3(functionRaw, arguments[0], arguments[1], arguments[2], &thrown)
+    case 4: result = kk_function_invoke_4(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], &thrown)
+    default: result = kk_function_invoke_5(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], &thrown)
+    }
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        callerState?.thrownException = thrown
+    }
+    outThrown?.pointee = thrown
+    return result
+}
+
 private func runtimeCreateFunctionValue(
     bodyRaw: Int,
     closureRaw: Int,
