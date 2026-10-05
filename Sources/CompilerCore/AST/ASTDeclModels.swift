@@ -632,17 +632,33 @@ public struct TypeParamDecl: Codable {
     public let variance: TypeVariance
     public let isReified: Bool
     public let upperBounds: [TypeRefID]
+    public let annotations: [AnnotationNode]
 
     public init(
         name: InternedString,
         variance: TypeVariance = .invariant,
         isReified: Bool = false,
-        upperBounds: [TypeRefID] = []
+        upperBounds: [TypeRefID] = [],
+        annotations: [AnnotationNode] = []
     ) {
         self.name = name
         self.variance = variance
         self.isReified = isReified
         self.upperBounds = upperBounds
+        self.annotations = annotations
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, variance, isReified, upperBounds, annotations
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(InternedString.self, forKey: .name)
+        variance = try container.decode(TypeVariance.self, forKey: .variance)
+        isReified = try container.decode(Bool.self, forKey: .isReified)
+        upperBounds = try container.decode([TypeRefID].self, forKey: .upperBounds)
+        annotations = try container.decodeIfPresent([AnnotationNode].self, forKey: .annotations) ?? []
     }
 }
 

@@ -395,6 +395,44 @@ extension BuildASTPhase {
         return parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
     }
 
+    /// True when the `get`/`set` token at `index` is followed by a `( ... )`
+    /// parameter list (and an optional `: Type`) whose body is the next
+    /// sibling `.block` node, i.e. a same-line `get() { ... }` accessor.
+    private func isSiblingBlockAccessorHeader(
+        at index: Int,
+        in children: [SyntaxChild],
+        arena: SyntaxArena,
+        previous: Token?
+    ) -> Bool {
+        if let previous {
+            switch previous.kind {
+            case .symbol(.dot), .symbol(.questionDot): return false
+            default: break
+            }
+        }
+        var following: [Token] = []
+        for child in children[(index + 1)...] {
+            switch child {
+            case let .token(tokenID):
+                guard let token = resolveToken(tokenID, in: arena) else { continue }
+                following.append(token)
+            case let .node(childID):
+                guard arena.node(childID).kind == .block,
+                      following.first?.kind == .symbol(.lParen)
+                else {
+                    return false
+                }
+                let afterClose = skipBalancedBracket(
+                    in: following, from: 0, open: .symbol(.lParen), close: .symbol(.rParen)
+                )
+                // `get()` alone, or `get(): Type`, directly before the block.
+                return afterClose == following.count
+                    || (afterClose < following.count && following[afterClose].kind == .symbol(.colon))
+            }
+        }
+        return false
+    }
+
     func propertyHeadTokens(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -403,7 +441,8 @@ extension BuildASTPhase {
         var tokens: [Token] = []
         var inlineAccessorScanEnd = 0
         var enteredNestedBlock = false
-        for child in arena.children(of: nodeID) {
+        let children = Array(arena.children(of: nodeID))
+        for (childIndex, child) in children.enumerated() {
             switch child {
             case let .token(tokenID):
                 if let token = resolveToken(tokenID, in: arena) {
@@ -414,6 +453,15 @@ extension BuildASTPhase {
                         case .softKeyword(.get), .softKeyword(.set):
                             if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
                                 return Array(tokens.prefix(idx))
+                            }
+                            // `var p: Int get() { ... }` keeps the getter's
+                            // block as a sibling node, so the direct tokens
+                            // end at `get()` and the scan above cannot see a
+                            // body. Use the following children instead.
+                            if isSiblingBlockAccessorHeader(
+                                at: childIndex, in: children, arena: arena, previous: tokens.last
+                            ) {
+                                return tokens
                             }
                         default:
                             break

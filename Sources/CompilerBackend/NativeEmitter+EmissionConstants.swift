@@ -242,28 +242,6 @@ extension NativeEmitter {
             bindings.buildICmpNotEqual(state.builder, lhs: value, rhs: state.zeroValue, name: name)
         }
 
-        func buildSignedFloorMod(name: String) -> LLVMCAPIBindings.LLVMValueRef? {
-            guard let quotient = bindings.buildSDiv(state.builder, lhs: lhs, rhs: rhs, name: "\(name)_q_\(instructionIndex)"),
-                  let product = bindings.buildMul(state.builder, lhs: quotient, rhs: rhs, name: "\(name)_p_\(instructionIndex)"),
-                  let remainder = bindings.buildSub(state.builder, lhs: lhs, rhs: product, name: "\(name)_rem_\(instructionIndex)"),
-                  let remainderIsNonZero = bindings.buildICmpNotEqual(state.builder, lhs: remainder, rhs: state.zeroValue, name: "\(name)_nonzero_\(instructionIndex)"),
-                  let lhsIsNegative = bindings.buildICmpSignedLessThan(state.builder, lhs: lhs, rhs: state.zeroValue, name: "\(name)_lhs_neg_\(instructionIndex)"),
-                  let rhsIsNegative = bindings.buildICmpSignedLessThan(state.builder, lhs: rhs, rhs: state.zeroValue, name: "\(name)_rhs_neg_\(instructionIndex)"),
-                  let signsDiffer = bindings.buildXor(state.builder, lhs: lhsIsNegative, rhs: rhsIsNegative, name: "\(name)_signs_\(instructionIndex)"),
-                  let shouldAdjust = bindings.buildAnd(state.builder, lhs: remainderIsNonZero, rhs: signsDiffer, name: "\(name)_adjust_\(instructionIndex)"),
-                  let adjusted = bindings.buildAdd(state.builder, lhs: remainder, rhs: rhs, name: "\(name)_adjusted_\(instructionIndex)")
-            else {
-                return nil
-            }
-            return bindings.buildSelect(
-                state.builder,
-                condition: shouldAdjust,
-                thenValue: adjusted,
-                elseValue: remainder,
-                name: "\(name)_\(instructionIndex)"
-            )
-        }
-
         // Sign-extend the low 32 bits of a 64-bit slot back into a canonical
         // 64-bit representation of a Kotlin `Int`. Implemented as
         // `(value << 32) >>a 32` so it needs no dedicated i32 type / SExt
@@ -371,32 +349,6 @@ extension NativeEmitter {
             lowered = bindings.buildSub(state.builder, lhs: lhs, rhs: rhs, name: "sub_\(instructionIndex)")
         case "kk_op_mul":
             lowered = bindings.buildMul(state.builder, lhs: lhs, rhs: rhs, name: "mul_\(instructionIndex)")
-        case "kk_op_floor_div", "kk_op_lfloor_div":
-            if let quotient = bindings.buildSDiv(state.builder, lhs: lhs, rhs: rhs, name: "floordiv_q_\(instructionIndex)"),
-               let product = bindings.buildMul(state.builder, lhs: quotient, rhs: rhs, name: "floordiv_p_\(instructionIndex)"),
-               let remainder = bindings.buildSub(state.builder, lhs: lhs, rhs: product, name: "floordiv_r_\(instructionIndex)"),
-               let remainderNonZero = bindings.buildICmpNotEqual(state.builder, lhs: remainder, rhs: state.zeroValue, name: "floordiv_rnz_\(instructionIndex)"),
-               let lhsNegative = bindings.buildICmpSignedLessThan(state.builder, lhs: lhs, rhs: state.zeroValue, name: "floordiv_lneg_\(instructionIndex)"),
-               let rhsNegative = bindings.buildICmpSignedLessThan(state.builder, lhs: rhs, rhs: state.zeroValue, name: "floordiv_rneg_\(instructionIndex)"),
-               let signsDiffer = bindings.buildXor(state.builder, lhs: lhsNegative, rhs: rhsNegative, name: "floordiv_sdiff_\(instructionIndex)"),
-               let shouldAdjust = bindings.buildAnd(state.builder, lhs: remainderNonZero, rhs: signsDiffer, name: "floordiv_adj_\(instructionIndex)"),
-               let one = bindings.constInt(state.int64Type, value: 1),
-               let adjustedQuotient = bindings.buildSub(state.builder, lhs: quotient, rhs: one, name: "floordiv_dec_\(instructionIndex)")
-            {
-                lowered = bindings.buildSelect(
-                    state.builder,
-                    condition: shouldAdjust,
-                    thenValue: adjustedQuotient,
-                    elseValue: quotient,
-                    name: "floordiv_\(instructionIndex)"
-                )
-            } else {
-                lowered = nil
-            }
-        case "kk_op_floor_mod":
-            lowered = buildSignedFloorMod(name: "floor_mod")
-        case "kk_op_lfloor_mod":
-            lowered = buildSignedFloorMod(name: "lfloor_mod")
         // kk_op_udiv/kk_op_urem are intentionally NOT lowered as native LLVM
         // UDiv/URem here (unlike kk_op_uge/ugt/ule/ult below): LLVM's udiv/urem
         // by zero is undefined behavior (traps at the hardware level), but
@@ -405,6 +357,9 @@ extension NativeEmitter {
         // generic external-call path below routes these to the throwing
         // Sources/Runtime/RuntimeNumericCompat.swift implementations, exactly
         // like kk_op_div/kk_op_mod (which are likewise absent from this switch).
+        // The flooring kk_op_floor_div/kk_op_lfloor_div/kk_op_floor_mod/
+        // kk_op_lfloor_mod (Int/Long/Byte/Short `floorDiv`/`mod`) take the same
+        // runtime route for the same reason.
         case "kk_op_eq":
             if let stringEq = emitStringAggregateEquality(
                 lhsValue: lhs, lhsType: argumentTypes.indices.contains(0) ? argumentTypes[0] : nil,
@@ -691,6 +646,7 @@ extension NativeEmitter {
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
         nameCounter: GeneratedNameCounter,
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
+        declareExternalSymbolFunction: (SymbolID) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
         func nullStringAggregateIfExpected() -> LLVMCAPIBindings.LLVMValueRef? {
@@ -873,18 +829,9 @@ extension NativeEmitter {
             // but they may be referenced as function pointers (e.g. for vtable/itable
             // registration). Resolve them by their external link name.
             //
-            // Declarations are cached module-wide by name, so the thrown channel here must
-            // match the callee's real ABI; hardcoding `true` mis-sized non-throwing runtime
-            // callees (e.g. kk_list_iterator) for every other call site reached later.
-            if let symbols = self.symbols,
-               let signature = symbols.functionSignature(for: symbol),
-               let linkName = symbols.externalLinkName(for: symbol),
-               !linkName.isEmpty,
-               let externFn = declareExternalFunction(
-                   linkName,
-                   [signature.receiverType].compactMap { $0 }.count + signature.parameterTypes.count,
-                   Self.runtimeABIFunctionByName[linkName]?.isThrowing ?? true
-               ),
+            // Function addresses and direct calls share a module-wide declaration;
+            // both must use the imported signature, including aggregate String types.
+            if let externFn = declareExternalSymbolFunction(symbol),
                let functionPointer = bindings.buildPtrToInt(
                    state.builder,
                    value: externFn.value,

@@ -88,7 +88,17 @@ struct TypeCheckHelpers {
         guard let symbolID = candidates.first else {
             return nil
         }
-        return sema.types.make(.classType(ClassType(classSymbol: symbolID, args: [], nullability: .nonNull)))
+        // Source-backed Deferred is generic (`Deferred<out T>`). An empty
+        // ClassType.args list is an arity mismatch and breaks `.await()`
+        // member matching after KSP-1564 / #7485.
+        let typeArguments: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbolID).map { _ in
+            .out(sema.types.anyType)
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbolID,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
     }
 
     func emitVisibilityError(

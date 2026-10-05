@@ -22,11 +22,24 @@ private let runtimeThrowableToStringVtableMethod: @convention(c) (Int, UnsafeMut
 private let runtimeThrowableStackTraceVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =
     __kk_throwable_rawStackFrames
 
-// Keep these slots aligned with the bundled Throwable layout. The native
-// getStackTraceAddresses extension occupies slot 2, so toString is slot 1.
+private let runtimeThrowableMessageVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return __kk_throwable_message(raw)
+}
+
+private let runtimeThrowableCauseVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return __kk_throwable_cause(raw)
+}
+
+// Keep these slots aligned with the bundled Throwable layout: methods are
+// numbered first (getStackTrace, toString), then the open property getters
+// (message, cause).
 enum RuntimeThrowableVtableSlot {
     static let getStackTrace = 0
     static let toString = 1
+    static let message = 2
+    static let cause = 3
 }
 
 func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
@@ -48,9 +61,34 @@ func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
         return unsafeBitCast(runtimeThrowableStackTraceVtableMethod, to: Int.self)
     case RuntimeThrowableVtableSlot.toString:
         return unsafeBitCast(runtimeThrowableToStringVtableMethod, to: Int.self)
+    case RuntimeThrowableVtableSlot.message:
+        return unsafeBitCast(runtimeThrowableMessageVtableMethod, to: Int.self)
+    case RuntimeThrowableVtableSlot.cause:
+        return unsafeBitCast(runtimeThrowableCauseVtableMethod, to: Int.self)
     default:
         return nil
     }
+}
+
+/// `message` of a Kotlin-defined Throwable subclass, read through its vtable
+/// slot so an `override val message` is honoured; falls back to the stored
+/// constructor message when there is no override or the getter throws.
+func runtimeSourceThrowableMessage(_ raw: Int, object: RuntimeObjectBox) -> String? {
+    guard let methodRaw = runtimeThrowableVtableMethodRaw(raw, slot: RuntimeThrowableVtableSlot.message),
+          methodRaw != unsafeBitCast(runtimeThrowableMessageVtableMethod, to: Int.self)
+    else {
+        return object.throwableMessage
+    }
+    let method = unsafeBitCast(methodRaw, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    let messageRaw = method(raw, &thrown)
+    if thrown != 0 {
+        return object.throwableMessage
+    }
+    if messageRaw == runtimeNullSentinelInt || messageRaw == 0 {
+        return nil
+    }
+    return extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
 }
 
 func runtimeThrowableToString(_ receiver: Int) -> String? {
@@ -181,9 +219,9 @@ func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
     )
 }
 
-private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox) -> String {
+private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox, raw: Int) -> String {
     let typeName = runtimeSourceThrowableSimpleName(for: object.classID)
-    guard let message = object.throwableMessage else {
+    guard let message = runtimeSourceThrowableMessage(raw, object: object) else {
         return typeName
     }
     return "\(typeName): \(message)"
@@ -203,7 +241,7 @@ private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [St
         return [throwable.renderedMessage]
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        return [runtimeSourceThrowableHeader(from: object)]
+        return [runtimeSourceThrowableHeader(from: object, raw: throwableRaw)]
     }
     return []
 }
@@ -365,7 +403,7 @@ public func __kk_throwable_toString(
         }
         if let object {
             typeName = runtimeSourceThrowableQualifiedName(for: object.classID)
-            message = object.throwableMessage
+            message = runtimeSourceThrowableMessage(throwableRaw, object: object)
         } else {
             typeName = "kotlin.Throwable"
             message = nil
@@ -495,7 +533,7 @@ func runtimeStructuredPanic(_ message: @autoclosure () -> String) -> Never {
     fatalError(runtimeStructuredPanicMessage(message()))
 }
 
-private enum RuntimeTypeTokenEncoding {
+enum RuntimeTypeTokenEncoding {
     static let baseMask: Int64 = 0xFF
     static let nullableBit: Int64 = 0x100
     static let payloadShift: Int64 = 9
@@ -519,6 +557,14 @@ private enum RuntimeTypeTokenEncoding {
     static let charBase: Int64 = 14
     // STDLIB-REFLECT-ABI-001: Unit::class token base.
     static let unitBase: Int64 = 15
+    // KUU-1084: Function-type token base. Payload packs the FunctionN arity
+    // in bits 0-7 and the suspend flag in bit 8.
+    static let functionBase: Int64 = 18
+
+    /// Decodes a function-type token payload into its parts.
+    static func functionPayloadParts(_ payload: Int64) -> (arity: Int, isSuspend: Bool) {
+        (Int(payload & 0xFF), (payload & 0x100) != 0)
+    }
 }
 
 func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
@@ -1097,6 +1143,28 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
 
+    case RuntimeTypeTokenEncoding.functionBase:
+        // KUU-1084: function-type tokens encode the FunctionN arity in the
+        // low payload byte; a value matches when it is a function value of
+        // the same arity (the suspend bit does not change `is` semantics).
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
+              runtimeStorage.withGCLock({ state in
+                  state.objectPointers.contains(UInt(bitPattern: ptr))
+              })
+        else {
+            return 0
+        }
+        let (arity, _) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+        if let fnBox = tryCast(ptr, to: RuntimeFunctionValueBox.self) {
+            return fnBox.arity == arity ? 1 : 0
+        }
+        // Callable references (`::foo`) also satisfy function-type checks at
+        // their declared arity.
+        if let kfnBox = tryCast(ptr, to: RuntimeKFunctionBox.self) {
+            return kfnBox.arity == arity ? 1 : 0
+        }
+        return 0
+
     case RuntimeTypeTokenEncoding.longBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
@@ -1238,6 +1306,23 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             return runtimeIsAssignable(
                 sourceTypeID: runtimeStableNominalTypeID(
                     fqName: "kotlin.ranges.ClosedFloatingPointRange"
+                ),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // Range iterator handles (`(1..5).iterator()`) are likewise registered
+        // without object type metadata. They are typed `kotlin.collections.Iterator`
+        // only: the element-specialized XIterator classes can't be honored
+        // because `nextInt()`/`nextChar()` member calls on an XIterator receiver
+        // lower to vtable/itable dispatch that an unregistered box cannot
+        // answer, so claiming them here would turn `is IntIterator` into a
+        // reachable dispatch trap. `kotlin.collections.Iterator` answers the
+        // interface checks (`is Iterator`, `as Iterator`) like kotlinc while
+        // `is IntIterator`/`is MutableIterator` stay false.
+        if runtimeRangeIteratorBox(from: value) != nil {
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStableNominalTypeID(
+                    fqName: "kotlin.collections.Iterator"
                 ),
                 targetTypeID: payload
             ) ? 1 : 0
@@ -1386,12 +1471,24 @@ public func kk_object_type_id(_ objectRaw: Int) -> Int {
 /// was known at compile-time after inline expansion).
 @_cdecl("__kk_type_token_simple_name")
 public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
+    let token = Int64(truncatingIfNeeded: typeToken)
+    let base = token & RuntimeTypeTokenEncoding.baseMask
+    // KUU-1084: function-type names derive from the token payload itself so
+    // they stay stable regardless of which call site interned the KClass or
+    // what name hint it passed.
+    if base == RuntimeTypeTokenEncoding.functionBase {
+        let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+        let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+        let name = isSuspend ? "SuspendFunction\(arity)" : "Function\(arity)"
+        let utf8 = Array(name.utf8)
+        return utf8.withUnsafeBufferPointer { buf in
+            Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
+        }
+    }
     // If a compiler-provided name hint is available, use it directly.
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
         return nameHint
     }
-    let token = Int64(truncatingIfNeeded: typeToken)
-    let base = token & RuntimeTypeTokenEncoding.baseMask
     let name = switch base {
     case RuntimeTypeTokenEncoding.anyBase:
         "Any"
@@ -1445,7 +1542,13 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
     // Built-in stdlib types always live in the `kotlin` package.
+    let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    let (functionArity, isSuspendFunction) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
     let qualifiedName: String? = switch base {
+    case RuntimeTypeTokenEncoding.functionBase:
+        isSuspendFunction
+            ? "kotlin.coroutines.intrinsics.SuspendFunction\(functionArity)"
+            : "kotlin.Function\(functionArity)"
     case RuntimeTypeTokenEncoding.anyBase:     "kotlin.Any"
     case RuntimeTypeTokenEncoding.stringBase:  "kotlin.String"
     case RuntimeTypeTokenEncoding.intBase:     "kotlin.Int"
@@ -2404,7 +2507,7 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
     }
     guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.count)."
+            message: "Index \(index) out of bounds for length \(array.count)"
         )
         return 0
     }
@@ -2433,7 +2536,7 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
     }
     guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.count)."
+            message: "Index \(index) out of bounds for length \(array.count)"
         )
         return 0
     }
@@ -2638,6 +2741,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let rendered = runtimeRenderIndexedValueObject(value, render: runtimeRenderAnyForPrint) {
         return rendered
+    }
+    if let resultBox = tryCast(raw, to: RuntimeResultBox.self) {
+        return runtimeResultToString(resultBox, render: runtimeRenderAnyForPrint)
     }
     return "<object \(raw)>"
 }

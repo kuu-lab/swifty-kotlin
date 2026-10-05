@@ -366,7 +366,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
 | `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | ~~`java.net.URL`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-124, 2026-08-14)。公開 URL surface と URL runtime/ABI exports を除去し、Network の HTTP request builder handoff は保持。 |
-| `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
+| `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-709）。`UIntRange`/`ULongRange` class shells と `start` override は `Stdlib/kotlin/ranges/UIntRange/Stdlib.kt`/`ULongRange/Stdlib.kt`、残余メンバーは既存 bundled RangeHOF/RangeIterators/RangeMembership と progression クラスに集約。`kk_uint_range_*`/`kk_ulong_range_*` public ブリッジは `__kk_` に降格。 |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
 | `HeaderHelpers+SyntheticW3CDomStubs.swift` | 78 | (a) | Kotlin/JS DOM surface; cleanup candidate. |
 
@@ -825,9 +825,27 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
 |---|---|---|---|
+| `kotlinx/coroutines/selects/Select.kt` / `SelectClauses.kt`（KSP-1579） | 登録順に readiness を poll し、未成立なら `yield()`。`selectUnbiased` も同順序。句呼び出しはトップレベル拡張と登録中 builder の thread-local を使用。第一級 channel 句は要素型を `Any?` に消去し、`Deferred<T>.onAwait` 関数は型付きで、第一級 property は `Deferred<*>` / `Any?` に消去する。`Mutex.onLock` の owner は追跡しない。結果の明示型または期待型が必要 | `SelectBuilder<R>` 内の型付き member extension、atomic な句登録・選択、unbiased ordering と owner-aware mutex | issue で順次評価を許容。builder inference / member extension dispatch は [KUU-954](https://linear.app/kuu/issue/KUU-954/receiver-builder-内のコールバック結果から型引数を推論できないselectbuild-dsl) で追跡し、型付き property・owner-aware Mutex と coroutine scheduler の対応後に本家形へ戻す |
 | `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |
 | `kotlin/Throws.kt` | 解消済み（`public annotation class Throws(public vararg val exceptionClasses: KClass<out Throwable>)` へ復元、合成登録を撤廃） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証、解消済み）|
 | `uuid/Uuid.kt`（KSP-1502） | `generateV7()` の単調性カウンタを `AtomicLong` + CAS ループでなく plain `var`（`UuidV7MonotonicState`）で実装（スレッド安全性なし） | `private object UuidV7Generator` が `kotlin.concurrent.atomics.AtomicLong`（`@OptIn(ExperimentalAtomicApi::class)`）を CAS ループで使用 | `kotlin.concurrent.atomics.AtomicLong` の `load()`/`compareAndSet()` が実運用で動作検証され次第、本家形へ復元 |
 | `uuid/Uuid.kt`（KSP-1502） | `generateV7()`/`generateV7NonMonotonicAt()` の乱数を専用 CSPRNG バイト列でなく既存 `random()`（`__kk_uuid_random` ブリッジ）の出力から抽出して転用 | `ByteArray(10)` を `secureRandomBytes()` で都度生成 | 新規ブリッジ追加が§13-2の入場審査コストに見合うと判断された場合（現状は不要と判断） |
 | `collections/LinkedHashMap.kt`（KSP-703） | `LinkedHashMap<K, V>` が本来無関係な `MutableMap<K, V>` interface への typealias になっており、diff オラクル（`kotlinc-jvm`）・kotlin-native いずれの本家形とも一致しない。`HashMap()`/`LinkedHashMap()` はどちらも `CollectionLiteralLoweringPass`（`+LookupTables+Map.swift` の `mutableMapConstructorNames`）が名前で認識し runtime map box を直接構築するため、機能上は区別できず `is HashMap`/`is LinkedHashMap` が本来持つべき非対称性がない | diff オラクルの `kotlinc-jvm` では `HashMap`/`LinkedHashMap` は java.util の別クラスで `LinkedHashMap extends HashMap`（実測: `HashMap() is LinkedHashMap<*, *>` は false、`LinkedHashMap() is HashMap<*, *>` は true）。kotlin-native は逆に `HashMap` が `LinkedHashMap` への typealias（`actual typealias LinkedHashMap<K, V> = HashMap<K, V>`）で同一型になるが、diff オラクルには使われない | `LinkedHashSet` と同様に `LinkedHashMap` を concrete class へ昇格し、`class LinkedHashMap<K, V> : HashMap<K, V>` として JVM 参照形の一方向継承（`is HashMap` のみ真）を再現する構造変更。`linkedHashMapRuntimeTypeID` 新設・Sema/Lowering の construction 経路拡張を伴うため独立タスク化が必要 |
 | `kotlinx/cinterop/StableRef.kt`（KSP-1217） | `asStableRef()` を通常の型パラメータ版 `fun <T : Any> COpaquePointer.asStableRef(): StableRef<T>` として実装 | `inline fun <reified T : Any> CPointer<*>.asStableRef(): StableRef<T>` | 拡張関数の receiver 型に対する `inline`/`reified` の組み合わせの実績が無いため据え置き。`get()` の unchecked cast で機能的には等価。実績確認・CAP 起票され次第、本家形へ復元 |
+
+#### Scope factory integration boundary
+
+`CoroutineScope.coroutineContext` reads use bundled `__kkScopeContext`: opaque
+runtime builder handles read the ambient context, while source objects invoke
+their actual interface getter. `__kk_coroutine_scope_is_runtime` adds one internal
+ABI entry (MEMORY_REPRESENTATION: runtime handles and Kotlin objects have distinct
+layouts); it only queries the existing live-handle registry. Job factories bind
+raw jobs to source wrappers and public hierarchy queries preserve live wrapper
+identity without retaining a wrapper through its job.
+### Coroutine nominal/master integration
+
+`__kk_dispatcher_immediate` bridges the memory representation of scheduler tags
+(`Dispatchers.Main`) and source-defined `MainCoroutineDispatcher` objects. The
+compiler passes the generated getter slot; tags return themselves and Kotlin
+objects retain virtual getter dispatch. This adds one `__kk_*` bridge (reason:
+memory representation) without changing scheduler behavior.

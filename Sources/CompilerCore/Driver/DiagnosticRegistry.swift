@@ -104,6 +104,8 @@ enum DiagnosticRegistry {
     }
 
     private static let suppressionAliases: [String: [String]] = [
+        "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_WARNING": ["KSWIFTK-SEMA-BOUND"],
+        "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_ERROR": ["KSWIFTK-SEMA-BOUND"],
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
         "INVISIBLE_MEMBER": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
         "INVISIBLE_REFERENCE": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
@@ -797,6 +799,18 @@ enum DiagnosticRegistry {
             pass: "LIB",
             defaultSeverity: .warning,
             summary: "Kotlin .klib recognized; declaration import pending."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0029",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib body contains unsupported serialized IR."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0030",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib dependency missing from the library search path."
         ),
     ]
 

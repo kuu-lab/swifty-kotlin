@@ -134,6 +134,25 @@ extension CallLowerer {
             return typeOfResult
         }
 
+        // Qualified `kotlin.comparisons.minOf(...)`/`maxOf(...)` calls fold
+        // through the same inline comparison lowering as the unqualified
+        // spelling (KUU-965). The source-backed overloads exist only for
+        // Sema overload resolution — CallLowerer never emits them as real
+        // symbols — so falling through to lowerResolvedCallBody leaves an
+        // undefined `minOf`/`maxOf` reference at link time.
+        if let comparisonResult = lowerComparisonSpecialCallExpr(
+            exprID,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        ) {
+            return comparisonResult
+        }
+
         let chosen = callBinding.chosenCallee
         let loweredArgIDs = args.enumerated().map { argumentIndex, argument in
             let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance

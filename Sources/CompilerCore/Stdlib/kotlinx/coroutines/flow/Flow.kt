@@ -7,7 +7,26 @@
 
 package kotlinx.coroutines.flow
 
+import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.ensureActive
+
+public interface Flow<out T>
+
+@KsSymbolName("kk_flow_collect")
+internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> Unit)
+
+public suspend fun <T> Flow<T>.collect(collector: suspend (T) -> Unit) {
+    if (this is SharedFlow<*>) {
+        @Suppress("UNCHECKED_CAST")
+        (this as SharedFlow<T>).collect(collector)
+    } else {
+        this.collectCold { value -> collector(value) }
+    }
+}
+
+public suspend fun <T> Flow<T>.collect(collector: FlowCollector<T>) {
+    this.collect { value -> collector.emit(value) }
+}
 
 // MIGRATION-FLOW-004 (KSP-499)
 // Flow operators are bundled Kotlin source. The compiler/runtime keep only the
@@ -200,8 +219,6 @@ public fun <T> Flow<T>.conflate(): Flow<T> = this
 
 public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> = this
 
-public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> = this
-
 // `cancellable` is the exception to the pass-throughs above: it composes the
 // retained collect/emit core with `ensureActive`, so a collector running in a
 // cancelled coroutine stops between elements instead of draining the upstream
@@ -297,18 +314,4 @@ public suspend fun <T> Flow<T>.retryWhen(
             attempt += 1
         }
     }
-}
-
-// `onEmpty` signature adaptation (KSP-1577): upstream's action runs with a
-// `FlowCollector<T>` receiver (`onEmpty { emit(fallback) }`). There is no
-// FlowCollector type on this surface, so — like `catch`/`onCompletion` above —
-// the receiver is dropped and the action cannot emit fallback elements. The
-// action's result is typed `Any` (as `coroutineScope`'s block is): a strict
-// `() -> Unit` parameter does not accept a plain zero-parameter lambda.
-public suspend fun <T> Flow<T>.onEmpty(action: suspend () -> Any): Flow<T> {
-    val items = this.toList()
-    if (items.isEmpty()) {
-        action()
-    }
-    return items.asFlow()
 }

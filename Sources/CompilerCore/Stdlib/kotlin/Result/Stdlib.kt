@@ -23,7 +23,7 @@ private fun <T> resultIsSuccess(result: Result<T>): Boolean =
 // The runtime stores Result values in RuntimeResultBox instances. Keep the
 // constructor internal, matching Kotlin's @PublishedApi internal
 // constructor, and lower its calls to the runtime success factory.
-public class Result<T> {
+public class Result<out T> {
     @KsSymbolName("kk_runtime_result_success")
     @PublishedApi
     internal constructor(value: Any?)
@@ -37,11 +37,11 @@ public class Result<T> {
     public fun getOrNull(): T? =
         __kkRuntimeResultValueOrNull(this)
 
-    public fun getOrDefault(defaultValue: T): T =
+    public fun getOrDefault(defaultValue: @UnsafeVariance T): T =
         if (resultIsSuccess(this)) getOrThrow() else defaultValue
 
     @KsSymbolName("kk_runtime_result_get_or_else")
-    public external fun getOrElse(failureTransform: (Throwable) -> T): T
+    public external fun getOrElse(failureTransform: (Throwable) -> @UnsafeVariance T): T
 
     public fun getOrThrow(): T =
         __kkRuntimeResultGetOrThrow(this)
@@ -50,7 +50,12 @@ public class Result<T> {
         __kkRuntimeResultExceptionOrNull(this)
 
     @KsSymbolName("kk_runtime_result_map")
-    public external fun <R> map(transform: (T) -> R): Result<Any?>
+    public external fun <R> map(transform: (T) -> R): Result<R>
+
+    // A failed receiver rethrows its stored exception from getOrThrow(), so
+    // runCatching re-wraps the same throwable, matching Kotlin's mapCatching.
+    public fun <R> mapCatching(transform: (T) -> R): Result<R> =
+        runCatching { transform(getOrThrow()) }
 
     @KsSymbolName("kk_runtime_result_fold")
     public external fun <R> fold(successTransform: (T) -> R, failureTransform: (Throwable) -> R): R
@@ -62,10 +67,10 @@ public class Result<T> {
     public external fun onFailure(action: (Throwable) -> Unit): Result<T>
 
     @KsSymbolName("kk_runtime_result_recover")
-    public external fun <R> recover(transform: (Throwable) -> R): Result<Any?>
+    public external fun <R> recover(transform: (Throwable) -> R): Result<R>
 
     @KsSymbolName("kk_runtime_result_recover_catching")
-    public external fun <R> recoverCatching(transform: (Throwable) -> R): Result<Any?>
+    public external fun <R> recoverCatching(transform: (Throwable) -> R): Result<R>
 
     public companion object {}
 }

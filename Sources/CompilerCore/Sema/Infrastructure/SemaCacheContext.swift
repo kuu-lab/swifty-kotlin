@@ -84,6 +84,8 @@ final class SemaCacheContext {
         let argTypes: [TypeID]
         let argLabels: [InternedString?]
         let argIsSpread: [Bool]
+        let signedIntegerLiterals: [Int64?]
+        let unsignedIntegerLiterals: [UInt64?]
         let explicitTypeArgs: [TypeID]
         let expectedType: TypeID?
         let implicitReceiverType: TypeID?
@@ -130,6 +132,8 @@ final class SemaCacheContext {
             argTypes: call.args.map(\.type),
             argLabels: call.args.map(\.label),
             argIsSpread: call.args.map(\.isSpread),
+            signedIntegerLiterals: call.args.map(\.signedIntegerLiteral),
+            unsignedIntegerLiterals: call.args.map(\.unsignedIntegerLiteral),
             explicitTypeArgs: call.explicitTypeArgs,
             expectedType: expectedType,
             implicitReceiverType: implicitReceiverType

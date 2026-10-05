@@ -242,6 +242,7 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     appendObjectVtablePropertyAccessorRegistrations(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
+        driver: driver,
         sema: sema,
         cache: driver.ctx.nominalDispatchCache,
         arena: arena,
@@ -654,6 +655,7 @@ func kirVtablePropertyAccessorImplementations(
 func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver,
     sema: SemaModule,
     cache: KIRNominalDispatchCache,
     arena: KIRArena,
@@ -670,11 +672,27 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
 
     let intType = sema.types.intType
     let registerCallee = interner.intern("kk_object_register_vtable_method")
+    let throwableMessageSlot = sema.symbols.throwableMessageGetterSlot(for: nominalSymbol, interner: interner)
     for implementation in implementations {
+        // Runtime-allocated exceptions answer the Throwable `message` slot with
+        // a raw-pointer bridge, so the slot's dispatch ABI is the raw String?
+        // handle. Kotlin getters return the flat aggregate; adapt them through
+        // a raw-return bridge.
+        var accessorFn = implementation.implementation
+        if implementation.slot == throwableMessageSlot {
+            accessorFn = throwableMessageGetterBridgeSymbol(
+                getter: implementation.implementation,
+                nominalSymbol: nominalSymbol,
+                driver: driver,
+                arena: arena,
+                sema: sema,
+                interner: interner
+            )
+        }
         let slotExpr = arena.appendExpr(.intLiteral(Int64(implementation.slot)), type: intType)
         instructions.append(.constValue(result: slotExpr, value: .intLiteral(Int64(implementation.slot))))
-        let accessorFnExpr = arena.appendExpr(.symbolRef(implementation.implementation), type: intType)
-        instructions.append(.constValue(result: accessorFnExpr, value: .symbolRef(implementation.implementation)))
+        let accessorFnExpr = arena.appendExpr(.symbolRef(accessorFn), type: intType)
+        instructions.append(.constValue(result: accessorFnExpr, value: .symbolRef(accessorFn)))
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
@@ -684,6 +702,86 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
             canThrow: false,
             thrownResult: nil
         ))
+    }
+}
+
+/// Raw-returning bridge for a `Throwable.message` getter: calls the Kotlin
+/// getter (flat `String?` aggregate) and returns the raw handle, relying on the
+/// backend's String bridging at `returnValue`.
+private func throwableMessageGetterBridgeSymbol(
+    getter: SymbolID,
+    nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver,
+    arena: KIRArena,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID {
+    if let cached = driver.ctx.throwableMessageBridgeSymbolsByGetter[getter] {
+        return cached
+    }
+    let bridgeSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+    driver.ctx.throwableMessageBridgeSymbolsByGetter[getter] = bridgeSymbol
+
+    let receiverType = sema.types.make(.classType(ClassType(
+        classSymbol: nominalSymbol, args: [], nullability: .nonNull
+    )))
+    let receiverParam = KIRParameter(
+        symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+        type: receiverType
+    )
+    let receiverExpr = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverType)
+    let messageType = sema.types.make(.stringStruct(.nullable))
+    let callResult = arena.appendTemporary(type: messageType)
+    let body: [KIRInstruction] = [
+        .beginBlock,
+        .constValue(result: receiverExpr, value: .symbolRef(receiverParam.symbol)),
+        .call(
+            symbol: getter,
+            callee: interner.intern("get"),
+            arguments: [receiverExpr],
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ),
+        .returnValue(callResult),
+        .endBlock,
+    ]
+    let bridgeDecl = arena.appendDecl(.function(KIRFunction(
+        symbol: bridgeSymbol,
+        name: interner.intern("kk_throwable_message_bridge_\(getter.rawValue)_\(bridgeSymbol.rawValue)"),
+        params: [receiverParam],
+        returnType: sema.types.intType,
+        body: body,
+        isSuspend: false,
+        isInline: false
+    )))
+    driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    return bridgeSymbol
+}
+
+public extension SymbolTable {
+    /// Vtable slot of the `kotlin.Throwable.message` getter in `nominalSymbol`'s
+    /// layout, or nil when the nominal does not inherit from Throwable. Shared
+    /// by KIR vtable registration and the backend's virtual-call ABI choice,
+    /// which must agree that this slot uses the raw String? handle ABI.
+    func throwableMessageGetterSlot(for nominalSymbol: SymbolID, interner: StringInterner) -> Int? {
+        guard let layout = nominalLayout(for: nominalSymbol) else {
+            return nil
+        }
+        let throwableFQName = [interner.intern("kotlin"), interner.intern("Throwable")]
+        let messageName = interner.intern("message")
+        for (accessorSymbol, slot) in layout.vtableSlots {
+            guard let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(accessorSymbol),
+                  decoded.kind == .getter,
+                  symbol(decoded.property)?.name == messageName,
+                  let owner = parentSymbol(for: decoded.property),
+                  symbol(owner)?.fqName == throwableFQName
+            else {
+                continue
+            }
+            return slot
+        }
+        return nil
     }
 }
 
@@ -757,17 +855,19 @@ func itableBridgeSymbolForMethod(
         }
         return true
     }
-    // An enum member body treats `this` as the raw ordinal (direct calls pass
-    // it unboxed), but itable dispatch reaches it through an Any-erased enum
-    // box (`kk_enum_box_ordinal`), so the bridge must unbox the receiver
-    // first. `kk_unbox_int` passes an already-raw ordinal through unchanged.
+    // Enum values are raw ordinals everywhere except behind an interface or
+    // `Any` slot, where they are `kk_enum_box_ordinal` boxes. An enum member
+    // (or `$enumEntryDispatch$` helper) expects the raw ordinal receiver --
+    // `F.f` re-boxes its receiver for an `Any`-typed callee, so a box pointer
+    // passed straight through would be boxed a second time. Itable dispatch
+    // always hands over the box, so the bridge unboxes it (`kk_unbox_int`
+    // passes a raw ordinal through unchanged) before forwarding.
     let needsEnumReceiverUnboxing: Bool = {
-        guard interfaceReceiver != nil,
+        guard let interfaceReceiver,
               let implReceiver = implementationParamTypes.first,
+              implReceiver != interfaceReceiver,
               case let .classType(receiverClass) = sema.types.kind(of: implReceiver),
-              receiverClass.nullability == .nonNull,
-              let receiverSym = sema.symbols.symbol(receiverClass.classSymbol),
-              receiverSym.kind == .enumClass
+              sema.symbols.symbol(receiverClass.classSymbol)?.kind == .enumClass
         else {
             return false
         }
@@ -835,16 +935,16 @@ func itableBridgeSymbolForMethod(
     let unboxingTable = BoxingCalleeTable(interner: interner)
     var forwardedArgExprs = bridgeParamExprs
     if needsEnumReceiverUnboxing, let implReceiver = implementationParamTypes.first {
-        let unboxedReceiver = arena.appendTemporary(type: implReceiver)
+        let ordinal = arena.appendTemporary(type: implReceiver)
         body.append(.call(
             symbol: nil,
             callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
             arguments: [bridgeParamExprs[0]],
-            result: unboxedReceiver,
+            result: ordinal,
             canThrow: false,
             thrownResult: nil
         ))
-        forwardedArgExprs[0] = unboxedReceiver
+        forwardedArgExprs[0] = ordinal
     }
     for (index, implType) in implementationParamTypes.enumerated() {
         guard needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: interfaceParamTypes[index]),
@@ -1055,6 +1155,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
+    interfaceFilter: SymbolID? = nil,
     instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let _ = sema.symbols.symbol(nominalSymbol),
@@ -1069,6 +1170,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         sema: sema
     )
     for interfaceSymbol in interfaceSupertypes {
+        if let interfaceFilter, interfaceSymbol != interfaceFilter { continue }
         guard let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol) else {
             continue
         }
@@ -1117,11 +1219,20 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
                 sema: sema,
                 interner: interner
             )
+            if implementationSymbol == methodSymbol,
+               sema.symbols.symbol(interfaceSymbol)?.fqName == ["kotlin", "collections", "MutableSet"].map(interner.intern),
+               let method = sema.symbols.symbol(methodSymbol),
+               ["removeAll", "retainAll"].contains(interner.resolve(method.name))
+            {
+                // Default bulk bodies re-enter their runtime bridge, not an override.
+                continue
+            }
             let bridgeSymbol = itableBridgeSymbolForMethod(
                 interfaceMethod: methodSymbol,
                 implementation: implementationSymbol,
                 nominalSymbol: nominalSymbol,
                 driver: driver,
+                implementationSignature: interfaceFilter == nil ? nil : sema.symbols.functionSignature(for: implementationSymbol),
                 arena: arena,
                 sema: sema,
                 interner: interner
@@ -1153,6 +1264,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
+        interfaceFilter: interfaceFilter,
         instructions: &instructions
     )
     // Setter counterpart: register interface property setters into the itable
@@ -1164,6 +1276,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
+        interfaceFilter: interfaceFilter,
         instructions: &instructions
     )
 }
@@ -1315,7 +1428,9 @@ private func kirFindMatchingMethod(
         }
         // Interface fallback must use a body-bearing source declaration;
         // synthetic residual declarations are not executable defaults.
-        if requireSourceBacked, !sema.symbols.isSourceBackedSymbol(candidate) {
+        if requireSourceBacked,
+           (!sema.symbols.isSourceBackedSymbol(candidate) || candidateSym.flags.contains(.abstractType))
+        {
             continue
         }
         if firstCandidate == nil {

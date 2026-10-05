@@ -133,13 +133,13 @@ public struct CallArgument: Equatable, Codable {
 
 public struct CatchClause: Equatable, Codable {
     public let paramName: InternedString?
-    public let paramTypeName: InternedString?
+    public let paramType: TypeRefID?
     public let body: ExprID
     public let range: SourceRange
 
-    public init(paramName: InternedString? = nil, paramTypeName: InternedString? = nil, body: ExprID, range: SourceRange) {
+    public init(paramName: InternedString? = nil, paramType: TypeRefID? = nil, body: ExprID, range: SourceRange) {
         self.paramName = paramName
-        self.paramTypeName = paramTypeName
+        self.paramType = paramType
         self.body = body
         self.range = range
     }

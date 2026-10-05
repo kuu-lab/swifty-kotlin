@@ -7,6 +7,37 @@ import Testing
 @Suite
 struct CodegenBackendVirtualDispatchTests {
 
+    @Test(arguments: [true, false])
+    func testInterfaceBlockBodyMinimalReproducer(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        interface I {
+            fun f(): Int { return 1 }
+        }
+        class C : I
+
+        fun main() {
+            println(C().f())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "Kuu947InterfaceBlockBody",
+            expected: "1\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testInterfaceBlockBodiesDispatchAcrossImplementations(allowDefaultStdlibLibrary: Bool) throws {
+        let source = try diffCaseSource("kuu947_interface_method_bodies.kt")
+        try assertKotlinOutput(
+            source,
+            moduleName: "Kuu947InterfaceBlockBodyDispatch",
+            expected: "1\n1\n7\n3\n3\n1\n42\ntotal:41\n43\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testOpenClassVirtualDispatchChoosesConcreteOverride() throws {
         let source = """

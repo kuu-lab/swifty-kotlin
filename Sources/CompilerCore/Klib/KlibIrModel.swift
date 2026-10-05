@@ -51,6 +51,20 @@ package enum KlibSymbolKind: Int, Sendable, CustomStringConvertible {
     }
 }
 
+/// Signature-table identity: all `signatures`/`types`/`bodies`/`strings`
+/// tables are file-local, so a signature index only makes sense paired with
+/// its file index. Used as the key of the `(fileIndex, signatureIndex) →
+/// SymbolID` map that body materialization resolves symbol references with.
+package struct KlibSignatureKey: Hashable, Sendable {
+    package let fileIndex: Int
+    package let signatureIndex: Int
+
+    package init(fileIndex: Int, signatureIndex: Int) {
+        self.fileIndex = fileIndex
+        self.signatureIndex = signatureIndex
+    }
+}
+
 /// A decoded `BinarySymbolData` code referencing a signature-table entry.
 package struct KlibSymbolRef: Equatable, Sendable {
     /// Index into the file's `signatures.knt` row.

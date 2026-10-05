@@ -8,6 +8,22 @@ import Testing
 /// pipeline first ran against the bundled standard library.
 @Suite
 struct LLVMOptimizationRegressionTests {
+    @Test(arguments: [0, 2])
+    func inheritedMapToStringUsesImportedABI(optimization: Int) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_1157_abstract_mutable_map_putall.kt"
+        ), encoding: .utf8)
+        try assertOutput(
+            source,
+            moduleName: "InheritedMapToStringABI",
+            expected: "9\n{initial=1, new=4, source=9}\n{initial=1, new=4, source=9}\n{source=9}\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
     @Test
     func optimizedStdlibArtifactRetainsExternallyCalledEntryPoints() throws {
         let outputBase = FileManager.default.temporaryDirectory

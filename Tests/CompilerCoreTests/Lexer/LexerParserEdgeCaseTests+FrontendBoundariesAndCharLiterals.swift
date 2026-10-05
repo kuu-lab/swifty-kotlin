@@ -268,10 +268,45 @@ extension LexerParserEdgeCaseTests {
 
     @Test
     func testCharLiteralSupportsSingleNonASCIIScalar() {
-        let source = "'あ'"
+        let source = "'é' 'あ' '\u{D7FF}' '\u{E000}' '\u{FFFF}'"
         let result = lex(source)
-        #expect(charValues(in: result.tokens) == [0x3042])
+        #expect(charValues(in: result.tokens) == [0xE9, 0x3042, 0xD7FF, 0xE000, 0xFFFF])
         #expect(!(result.diagnostics.hasError))
+    }
+
+    @Test
+    func testCharLiteralRejectsSupplementaryScalarsAndRecovers() throws {
+        for scalar in ["\u{10000}", "😀", "𝒜", "\u{10FFFF}"] {
+            let literal = "'\(scalar)'"
+            let result = lex("\(literal) 'A'")
+            assertDiagnosticCount("KSWIFTK-LEX-0003", expected: 1, in: result.diagnostics.diagnostics)
+            assertNoDiagnostic("KSWIFTK-LEX-0002", in: result.diagnostics.diagnostics)
+            #expect(charValues(in: result.tokens) == [0, 65])
+            #expect(result.tokens.last?.kind == .eof)
+
+            let diagnostic = try #require(result.diagnostics.diagnostics.first)
+            let range = try #require(diagnostic.primaryRange)
+            #expect(range.start.offset == 0)
+            #expect(range.end.offset == literal.utf8.count)
+            #expect(result.tokens.first?.range == range)
+        }
+    }
+
+    @Test
+    func testCharLiteralRejectsSupplementaryScalarInsideStringTemplate() {
+        let result = lex("\"${'😀'}\" 'A'")
+        assertDiagnosticCount("KSWIFTK-LEX-0003", expected: 1, in: result.diagnostics.diagnostics)
+        assertNoDiagnostic("KSWIFTK-LEX-0002", in: result.diagnostics.diagnostics)
+        #expect(charValues(in: result.tokens) == [0, 65])
+        #expect(result.tokens.contains { $0.kind == .templateExprEnd })
+        #expect(result.tokens.last?.kind == .eof)
+    }
+
+    @Test
+    func testCharLiteralAcceptsSingleEscapedSurrogateCodeUnits() {
+        let result = lex("'\\uD800' '\\uDBFF' '\\uDC00' '\\uDFFF'")
+        #expect(charValues(in: result.tokens) == [0xD800, 0xDBFF, 0xDC00, 0xDFFF])
+        #expect(!result.diagnostics.hasError)
     }
 
     @Test
@@ -284,9 +319,9 @@ extension LexerParserEdgeCaseTests {
 
     @Test
     func testCharLiteralUnicodeEscapeRequiresUXXXXForm() {
-        let source = "'\\u{0041}' '\\u12G4'"
+        let source = "'\\u{0041}' '\\u12G4' '\\u1F600' '\\uD83D\\uDE00'"
         let result = lex(source)
-        assertDiagnosticCount("KSWIFTK-LEX-0003", expected: 2, in: result.diagnostics.diagnostics)
+        assertDiagnosticCount("KSWIFTK-LEX-0003", expected: 4, in: result.diagnostics.diagnostics)
         assertNoDiagnostic("KSWIFTK-LEX-0002", in: result.diagnostics.diagnostics)
     }
 
