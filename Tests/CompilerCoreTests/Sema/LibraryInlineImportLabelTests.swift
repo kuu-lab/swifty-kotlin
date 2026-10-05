@@ -30,6 +30,39 @@ struct LibraryInlineImportLabelTests {
     }
 
     @Test
+    func testCleanupContinuationsSurviveParsingAndMaterialization() throws {
+        let artifact = """
+        params=0
+        body:
+        beginNonLocalReturnScope value=500 target=10
+        beginFinallyCleanup skipping=1
+        endFinallyCleanup
+        endNonLocalReturnScope
+        label id=10
+        resumeNonLocalReturn value=500
+        returnUnit
+        """
+        let (parsed, diags) = try parseInlineArtifact(content: artifact)
+        #expect(!diags.hasError)
+        let function = try #require(parsed)
+        var imported = [function.symbol: function]
+        let arena = KIRArena()
+        ImportedInlineKIRMaterializer.materialize(
+            importedFunctions: &imported, arena: arena, types: TypeSystem(), interner: StringInterner()
+        )
+        let body = try #require(imported[function.symbol]?.body)
+        guard case let .beginNonLocalReturnScope(slot, target) = body[0] else {
+            Issue.record("Expected cleanup scope")
+            return
+        }
+        #expect(slot.rawValue != 500)
+        #expect(arena.expr(slot) != nil)
+        #expect(target == 10)
+        #expect(body[1] == .beginFinallyCleanup(skipping: 1))
+        #expect(body[5] == .resumeNonLocalReturn(slot))
+    }
+
+    @Test
     func testDefinedLabelAtInt32MaxIsRejectedWithDiagnostic() throws {
         let artifact = """
         params=0

@@ -400,7 +400,9 @@ extension DataFlowSemaPhase {
             else {
                 return nil
             }
-            let functionArgs: [TypeArg] = [.out(returnType)] + paramTypes.map { .in($0) }
+            // KUU-1084: FunctionN declares its type params in Kotlin order
+            // [P1..PN, R], so the supertype args carry params then return type.
+            let functionArgs: [TypeArg] = paramTypes.map { .in($0) } + [.out(returnType)]
             return ResolvedSupertype(symbol: functionSymbol, typeArgs: functionArgs)
         case .intersection, .annotated:
             return nil

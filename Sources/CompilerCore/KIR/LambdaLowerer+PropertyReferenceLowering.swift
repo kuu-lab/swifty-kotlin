@@ -262,6 +262,14 @@ extension LambdaLowerer {
             captureArguments: [wrapperValue],
             hasClosureParam: false
         )
+        registerCallableReflection(
+            value: taggedValue, callableSymbol: getterMethodSymbol, callableName: interner.intern("get"),
+            targetSymbol: accessor.propertySymbol,
+            parameterTypes: shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType],
+            returnType: accessor.propertyType, captures: [wrapperValue], receiverCount: shape.arity,
+            setterSymbol: setterMethodSymbol, sema: sema, arena: arena, interner: interner,
+            instructions: &instructions
+        )
         _ = isUnbound
         return taggedValue
     }

@@ -225,6 +225,12 @@ enum DiagnosticRegistry {
             summary: "Structured syntax nesting exceeds the maximum supported depth."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0014",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected an identifier after '::'."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,

@@ -106,6 +106,89 @@ struct LoweringFlowCodegenTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testOnEmptyPreservesEmitAndEmitAllOrder(useSourceStdlib: Bool) throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+        import kotlinx.coroutines.runBlocking
+
+        fun main() = runBlocking {
+            println(emptyFlow<Int>().onEmpty {
+                emit(7)
+                emitAll(flowOf(8, 9))
+            }.toList())
+            println(emptyFlow<Int>().onEmpty {
+                emitAll(flowOf(8, 9))
+                emit(7)
+            }.toList())
+            println(emptyFlow<Int>().onEmpty {
+                emit(7)
+                emit(8)
+                emitAll(flowOf(9))
+            }.toList())
+            val fallback = emptyFlow<Int>().onEmpty {
+                emit(1)
+                emitAll(emptyFlow<Int>())
+                emit(2)
+                emitAll(flowOf(3, 4))
+                emit(5)
+                emitAll(flowOf(6))
+                emit(7)
+            }
+            println(fallback.toList())
+            println(fallback.toList())
+            println(emptyFlow<Int?>().onEmpty {
+                emit(null)
+                emitAll(flowOf(8, null))
+                emit(9)
+            }.toList())
+            var calls = 0
+            println(flowOf(10).onEmpty {
+                calls += 1
+                emit(7)
+                emitAll(flowOf(8, 9))
+            }.toList())
+            println("calls:$calls")
+            println(emptyFlow<Int>().onEmpty { emit(10) }.toList())
+            println(flow<Int> {
+                emit(7)
+                emitAll(flowOf(8, 9))
+            }.toList())
+            try {
+                emptyFlow<Int>().onEmpty {
+                    emit(7)
+                    emitAll(flow<Int> { throw IllegalArgumentException("nested") })
+                    emit(8)
+                }.collect { println("value:$it") }
+            } catch (e: IllegalArgumentException) {
+                println("failure:${e.message}")
+            }
+            Unit
+        }
+        """
+
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "OnEmptyMixedEmissions",
+            expectedStdout: """
+            [7, 8, 9]
+            [8, 9, 7]
+            [7, 8, 9]
+            [1, 2, 3, 4, 5, 6, 7]
+            [1, 2, 3, 4, 5, 6, 7]
+            [null, 8, null, 9]
+            [10]
+            calls:0
+            [10]
+            [7, 8, 9]
+            value:7
+            failure:nested
+
+            """,
+            useSourceStdlib: useSourceStdlib
+        )
+    }
+
     @Test(arguments: [2, 3, 4, 5])
     func testCapturedSuspendFunctionUsesInvokeABI(arity: Int) throws {
         let parameterTypes = Array(repeating: "Int", count: arity).joined(separator: ", ")
@@ -141,10 +224,11 @@ struct LoweringFlowCodegenTests {
     @Test
     func testSuspendFunctionValuesInFlowCallbacksPreserveClosureEnvironment() throws {
         let source = """
+        import kotlinx.coroutines.runBlocking
         import kotlinx.coroutines.flow.*
 
         suspend fun runFilter(pred: suspend (Int) -> Boolean) {
-            flow { emit(1) }.collect { v ->
+            flow<Int> { emit(1) }.collect { v ->
                 try { pred(v) } catch (e: Throwable) { }
             }
             println("filter done")
@@ -154,7 +238,7 @@ struct LoweringFlowCodegenTests {
             val scale = 2
             val op = { value: Int -> println(value * scale) }
             var n = 0
-            flow { emit(1) }.collect { v -> op(v); n += 1 }
+            flow<Int> { emit(1) }.collect { v -> op(v); n += 1 }
             println(n)
         }
 
@@ -205,7 +289,10 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump, includeStdlib: false)
+            // Exercise intrinsic lowering without bundled Flow declarations.
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump, includeStdlib: false
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
@@ -239,7 +326,9 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump, includeStdlib: false)
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump, includeStdlib: false
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
@@ -303,7 +392,7 @@ struct LoweringFlowCodegenTests {
         }
 
         fun main() {
-            runBlocking(::runFlowCollectExecutable)
+            runBlocking { runFlowCollectExecutable() }
             return
         }
         """
@@ -356,7 +445,9 @@ struct LoweringFlowCodegenTests {
         }
         """
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump, includeStdlib: false)
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump, includeStdlib: false
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
@@ -393,7 +484,9 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowOwnership", emit: .kirDump, includeStdlib: false)
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "FlowOwnership", emit: .kirDump, includeStdlib: false
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
@@ -422,7 +515,7 @@ struct LoweringFlowCodegenTests {
         }
 
         fun main() {
-            runBlocking(::runFlowOf)
+            runBlocking { runFlowOf() }
             return
         }
         """
@@ -446,7 +539,7 @@ struct LoweringFlowCodegenTests {
         }
 
         fun main() {
-            runBlocking(::runEmptyFlow)
+            runBlocking { runEmptyFlow() }
             return
         }
         """
@@ -471,7 +564,7 @@ struct LoweringFlowCodegenTests {
         }
 
         fun main() {
-            runBlocking(::runAsFlow)
+            runBlocking { runAsFlow() }
             return
         }
         """
@@ -498,7 +591,7 @@ struct LoweringFlowCodegenTests {
         }
 
         fun main() {
-            runBlocking(::runCapturingFlow)
+            runBlocking { runCapturingFlow() }
             return
         }
         """
@@ -512,7 +605,8 @@ struct LoweringFlowCodegenTests {
     private func assertFlowExecutableOutput(
         source: String,
         moduleName: String,
-        expectedStdout: String
+        expectedStdout: String,
+        useSourceStdlib: Bool = false
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let fileManager = FileManager.default
@@ -521,13 +615,24 @@ struct LoweringFlowCodegenTests {
             defer { try? fileManager.removeItem(at: workDir) }
             let outputPath = workDir.appendingPathComponent("flow-executable").path
 
-            let ctx = try makeArtifactCompilationContext(
-                inputs: [path],
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputPath
-            )
+            let ctx = if useSourceStdlib {
+                makeCompilationContext(
+                    inputs: [path],
+                    moduleName: moduleName,
+                    emit: .executable,
+                    outputPath: outputPath,
+                    allowDefaultStdlibLibrary: false
+                )
+            } else {
+                try makeArtifactCompilationContext(
+                    inputs: [path],
+                    moduleName: moduleName,
+                    emit: .executable,
+                    outputPath: outputPath
+                )
+            }
             try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
 

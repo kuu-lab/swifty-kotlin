@@ -7,13 +7,14 @@ extension DataFlowSemaPhase {
     /// - Constructor parameters are exempt from variance checks.
     func validateDeclarationSiteVariance(
         ast: ASTModule,
-        symbols _: SymbolTable,
-        bindings _: BindingTable,
-        types _: TypeSystem,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
-        let env = VarianceCheckEnv(ast: ast, diagnostics: diagnostics, interner: interner)
+        let env = VarianceCheckEnv(ast: ast, symbols: symbols, bindings: bindings,
+                                   types: types, diagnostics: diagnostics, interner: interner)
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
                 validateVarianceForDecl(declID: declID, env: env)
@@ -22,16 +23,26 @@ extension DataFlowSemaPhase {
     }
 
     /// Represents the expected position for variance checking.
-    private enum VariancePosition {
+    private enum VariancePosition: Hashable {
         /// Covariant position: return types, val property types, out type args
         case out
         /// Contravariant position: function parameters, in type args
         case contravariant
+        case invariant
 
         var flipped: VariancePosition {
             switch self {
             case .out: .contravariant
             case .contravariant: .out
+            case .invariant: .invariant
+            }
+        }
+
+        func composed(with variance: TypeVariance) -> VariancePosition {
+            switch variance {
+            case .out: self
+            case .in: flipped
+            case .invariant: .invariant
             }
         }
     }
@@ -39,8 +50,12 @@ extension DataFlowSemaPhase {
     /// Bundles the immutable context needed by every variance-check helper.
     private struct VarianceCheckEnv {
         let ast: ASTModule
+        let symbols: SymbolTable
+        let bindings: BindingTable
+        let types: TypeSystem
         let diagnostics: DiagnosticEngine
         let interner: StringInterner
+        var ownerFQName: [InternedString] = []
     }
 
     // MARK: - Declaration dispatch
@@ -50,6 +65,11 @@ extension DataFlowSemaPhase {
         outerVarianceMap: [InternedString: TypeVariance] = [:]
     ) {
         guard let decl = env.ast.arena.decl(declID) else { return }
+        var env = env
+        if let symbolID = env.bindings.declSymbol(for: declID),
+           let symbol = env.symbols.symbol(symbolID) {
+            env.ownerFQName = symbol.fqName
+        }
         switch decl {
         case let .classDecl(classDecl):
             validateVarianceForClassDecl(classDecl, env: env, outerVarianceMap: outerVarianceMap)
@@ -72,8 +92,6 @@ extension DataFlowSemaPhase {
                 varianceMap.removeValue(forKey: typeParam.name)
             }
         }
-        guard !varianceMap.isEmpty else { return }
-
         validateMemberFunctions(classDecl.memberFunctions, varianceMap: varianceMap, env: env)
         validateMemberProperties(classDecl.memberProperties, varianceMap: varianceMap, env: env)
 
@@ -96,8 +114,6 @@ extension DataFlowSemaPhase {
                 varianceMap.removeValue(forKey: typeParam.name)
             }
         }
-        guard !varianceMap.isEmpty else { return }
-
         validateMemberFunctions(iface.memberFunctions, varianceMap: varianceMap, env: env)
         validateMemberProperties(iface.memberProperties, varianceMap: varianceMap, env: env)
 
@@ -200,7 +216,7 @@ extension DataFlowSemaPhase {
         guard let typeRef = env.ast.arena.typeRef(typeRefID) else { return }
         switch typeRef {
         case let .named(path, typeArgs, _):
-            checkNamedTypeVariance(path: path, typeArgs: typeArgs, position: position,
+            checkNamedTypeVariance(typeRefID: typeRefID, path: path, typeArgs: typeArgs, position: position,
                                    varianceMap: varianceMap, env: env, memberRange: memberRange)
         case let .functionType(contextReceiverTypeRefs, receiverTypeRef, paramTypeRefs, returnTypeRef, _, _):
             for contextReceiverTypeRef in contextReceiverTypeRefs {
@@ -229,6 +245,7 @@ extension DataFlowSemaPhase {
     }
 
     private func checkNamedTypeVariance(
+        typeRefID: TypeRefID,
         path: [InternedString],
         typeArgs: [TypeArgRef],
         position: VariancePosition,
@@ -241,19 +258,96 @@ extension DataFlowSemaPhase {
                                   declaredVariance: declaredVariance,
                                   position: position, diagnostics: env.diagnostics, range: memberRange)
         }
-        for typeArg in typeArgs {
-            let (innerRefID, innerPosition) = typeArgProjection(typeArg, position: position)
+        guard !typeArgs.isEmpty else { return }
+        let file = env.ast.file(for: memberRange.start.file)
+        let resolvedType = resolveTypeRef(
+            typeRefID, ast: env.ast, symbols: env.symbols, types: env.types,
+            interner: env.interner, relativeOwnerFQName: env.ownerFQName,
+            currentPackageFQName: file?.packageFQName, imports: file?.imports ?? [],
+            expandTypeAlias: false
+        )
+        let declaredVariances: [TypeVariance?]
+        if let resolvedType, case let .classType(nominal) = env.types.kind(of: resolvedType) {
+            if let underlying = env.symbols.typeAliasUnderlyingType(for: nominal.classSymbol) {
+                declaredVariances = env.symbols.typeAliasTypeParameters(for: nominal.classSymbol).map { parameter in
+                    let positions = aliasParameterPositions(parameter, in: underlying, position: .out, env: env)
+                    if positions.isEmpty { return nil }
+                    if positions == [.out] { return .out }
+                    if positions == [.contravariant] { return .in }
+                    return .invariant
+                }
+            } else {
+                declaredVariances = env.types.nominalTypeParameterVariances(for: nominal.classSymbol).map { $0 }
+            }
+        } else if let resolvedType, case .kClassType = env.types.kind(of: resolvedType) {
+            declaredVariances = [.out]
+        } else {
+            declaredVariances = []
+        }
+        for (index, typeArg) in typeArgs.enumerated() {
+            guard let declaredVariance = index < declaredVariances.count ? declaredVariances[index] : .invariant else { continue }
+            let (innerRefID, innerPosition) = typeArgProjection(
+                typeArg, declaredVariance: declaredVariance, position: position
+            )
             guard let refID = innerRefID else { continue }
             checkTypeRefVariance(refID, position: innerPosition,
                                  varianceMap: varianceMap, env: env, memberRange: memberRange)
         }
     }
 
+    private func aliasParameterPositions(
+        _ parameter: SymbolID, in type: TypeID, position: VariancePosition,
+        env: VarianceCheckEnv, depth: Int = 0
+    ) -> Set<VariancePosition> {
+        guard depth <= Self.maxStructuralRecursionDepth else { return [.invariant] }
+        switch env.types.kind(of: type) {
+        case let .typeParam(typeParam):
+            return typeParam.symbol == parameter ? [position] : []
+        case let .classType(nominal):
+            let variances = env.types.nominalTypeParameterVariances(for: nominal.classSymbol)
+            var positions: Set<VariancePosition> = []
+            for (index, argument) in nominal.args.enumerated() {
+                let innerType: TypeID
+                let innerPosition: VariancePosition
+                switch argument {
+                case let .invariant(type):
+                    innerType = type
+                    innerPosition = position.composed(with: index < variances.count ? variances[index] : .invariant)
+                case let .out(type):
+                    innerType = type
+                    innerPosition = position
+                case let .in(type):
+                    innerType = type
+                    innerPosition = position.flipped
+                case .star:
+                    continue
+                }
+                positions.formUnion(aliasParameterPositions(parameter, in: innerType, position: innerPosition, env: env, depth: depth + 1))
+            }
+            return positions
+        case let .functionType(function):
+            var positions = aliasParameterPositions(parameter, in: function.returnType, position: position, env: env, depth: depth + 1)
+            let inputs = function.contextReceivers + (function.receiver.map { [$0] } ?? []) + function.params
+            for input in inputs {
+                positions.formUnion(aliasParameterPositions(parameter, in: input, position: position.flipped, env: env, depth: depth + 1))
+            }
+            return positions
+        case let .kClassType(kClass):
+            return aliasParameterPositions(parameter, in: kClass.argument, position: position, env: env, depth: depth + 1)
+        case let .intersection(parts):
+            return parts.reduce(into: []) { positions, part in
+                positions.formUnion(aliasParameterPositions(parameter, in: part, position: position, env: env, depth: depth + 1))
+            }
+        default:
+            return []
+        }
+    }
+
     private func typeArgProjection(
-        _ typeArg: TypeArgRef, position: VariancePosition
+        _ typeArg: TypeArgRef, declaredVariance: TypeVariance, position: VariancePosition
     ) -> (TypeRefID?, VariancePosition) {
         switch typeArg {
-        case let .invariant(ref): (ref, position)
+        case let .invariant(ref): (ref, position.composed(with: declaredVariance))
         case let .out(ref): (ref, position)
         case let .in(ref): (ref, position.flipped)
         case .star: (nil, position)
@@ -284,16 +378,16 @@ extension DataFlowSemaPhase {
         range: SourceRange?
     ) {
         switch (declaredVariance, position) {
-        case (.out, .contravariant):
+        case (.out, .contravariant), (.out, .invariant):
             diagnostics.error(
                 "KSWIFTK-SEMA-VARIANCE",
-                "Type parameter \(paramName) is declared as 'out' but occurs in 'in' position",
+                "Type parameter \(paramName) is declared as 'out' but occurs in '\(position == .invariant ? "invariant" : "in")' position",
                 range: range
             )
-        case (.in, .out):
+        case (.in, .out), (.in, .invariant):
             diagnostics.error(
                 "KSWIFTK-SEMA-VARIANCE",
-                "Type parameter \(paramName) is declared as 'in' but occurs in 'out' position",
+                "Type parameter \(paramName) is declared as 'in' but occurs in '\(position == .invariant ? "invariant" : "out")' position",
                 range: range
             )
         default:

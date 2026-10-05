@@ -8,19 +8,9 @@ import kotlin.coroutines.CoroutineContext
 // closed (resolveToCoroutineContext), so for now it is an ordinary
 // `AbstractCoroutineContextElement` usable through `ctx[CoroutineId]`.
 //
-// The context key is a top-level object: a companion `object Key` cannot be
-// referenced from the declaring class's own supertype-constructor argument
-// list (the companion accessor does not resolve there). `CoroutineId.Key`
-// stays public API through the companion member property, so
-// `ctx[CoroutineId]` reads exactly like upstream.
-internal object CoroutineIdKey : CoroutineContext.Key<CoroutineId>
-
 @ExperimentalCoroutinesApi
-public class CoroutineId(id: Long) : AbstractCoroutineContextElement(CoroutineIdKey) {
-
-    public companion object {
-        public val Key: CoroutineContext.Key<CoroutineId> = CoroutineIdKey
-    }
+public class CoroutineId(id: Long) : AbstractCoroutineContextElement(CoroutineId.Key) {
+    public companion object Key : CoroutineContext.Key<CoroutineId>
 
     public val id: Long = id
 

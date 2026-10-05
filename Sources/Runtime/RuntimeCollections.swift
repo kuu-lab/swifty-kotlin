@@ -103,8 +103,8 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     }
     if let stringBox = tryCast(pointer, to: RuntimeStringBox.self) {
         hasher.combine(3)
-        hasher.combine(stringBox.value.utf16.count)
-        for codeUnit in stringBox.value.utf16 {
+        hasher.combine(stringBox.utf16Length)
+        for codeUnit in stringBox.utf16CodeUnits {
             hasher.combine(codeUnit)
         }
         return
@@ -151,7 +151,7 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     }
     if let durationBox = tryCast(pointer, to: RuntimeDurationBox.self) {
         hasher.combine(11)
-        hasher.combine(durationBox.nanoseconds)
+        hasher.combine(durationBox.rawValue)
         return
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
@@ -372,6 +372,25 @@ public func kk_list_size(_ listRaw: Int) -> Int {
     return runtimeSourceCollectionSize(listRaw) ?? 0
 }
 
+// Legacy non-throwing collection bridges keep their C signatures. Lowering
+// emits this check before accessing a potentially invalid list view.
+@_cdecl("__kk_list_check_modification")
+public func kk_list_check_modification(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if let list = runtimeListBox(from: listRaw), !list.isValidView {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+    }
+    return 0
+}
+
+func runtimeCheckListView(_ list: RuntimeListBox, outThrown: UnsafeMutablePointer<Int>?) -> Bool {
+    guard list.isValidView else {
+        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+        return false
+    }
+    return true
+}
+
 @_cdecl("__kk_list_get")
 public func kk_list_get(
     _ listRaw: Int,
@@ -393,6 +412,7 @@ public func kk_list_get(
         )
         return 0
     }
+    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     return list[index]
 }
 
@@ -526,6 +546,7 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
         registerListIteratorItable(raw: raw)
         return raw
     }
+    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     guard (0...list.count).contains(index) else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
             message: "Index: \(index), Size: \(list.count)"
@@ -587,14 +608,20 @@ public func kk_list_subList(
         return 0
     }
     guard fromIndex >= 0,
-          toIndex <= list.count,
-          fromIndex <= toIndex
+          toIndex <= list.count
     else {
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIndexOutOfBoundsException(
                 message: "fromIndex: \(fromIndex), toIndex: \(toIndex), size: \(list.count)"
             )
+        )
+        return 0
+    }
+    guard fromIndex <= toIndex else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalArgumentException(message: "fromIndex(\(fromIndex)) > toIndex(\(toIndex))")
         )
         return 0
     }
@@ -734,10 +761,7 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
         runtimeElementToString(elem)
     }
     let str = "[" + parts.joined(separator: ", ") + "]"
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
+    return runtimeMakeStringPointer(str)
 }
 
 // MARK: - List toMap (STDLIB-200)
@@ -947,6 +971,7 @@ public func kk_mutable_list_add(
         }
         return kk_box_bool(0)
     }
+    guard runtimeCheckListView(list, outThrown: outThrown) else { return kk_box_bool(0) }
     guard !list.isReadOnly else {
         outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
@@ -959,19 +984,35 @@ public func kk_mutable_list_add(
 
 @_cdecl("__kk_mutable_list_remove")
 public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
+    kk_mutable_list_remove_dispatch(listRaw, elem, nil)
+}
+
+@_cdecl("__kk_mutable_list_remove_dispatch")
+public func kk_mutable_list_remove_dispatch(
+    _ listRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     if runtimeListBox(from: listRaw) == nil,
        let result = runtimeSourceInterfaceCall1(
            listRaw, elem,
            interfaceTypeID: runtimeMutableListInterfaceTypeID,
            methodSlot: 7,
-           context: "MutableList.remove dispatch"
+           context: "MutableList.remove dispatch",
+           outThrown: outThrown
        )
     {
         return result
     }
-    guard let list = runtimeListBox(from: listRaw),
-          let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) })
-    else {
+    guard let list = runtimeListBox(from: listRaw) else {
+        return kk_box_bool(0)
+    }
+    guard !list.isReadOnly else {
+        runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
+        return kk_box_bool(0)
+    }
+    guard let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) }) else {
         return kk_box_bool(0)
     }
     list.withMutableValues { $0.remove(at: index) }
@@ -1005,6 +1046,7 @@ public func kk_mutable_list_removeAt(
         )
         return outThrown == nil ? runtimeNullSentinelInt : 0
     }
+    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     return list.withMutableValues { $0.remove(at: index).legacyRawValue }
 }
 
@@ -1089,6 +1131,7 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
         )
         return 0
     }
+    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     list.withMutableValues { values in
         values.insert(runtimeMutableListInsertedValue(for: values, rawValue: element), at: index)
     }
@@ -1122,6 +1165,12 @@ public func kk_mutable_list_addAll_at(
         )
         return 0
     }
+    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
+    if let collection = runtimeListBox(from: collectionRaw),
+       !runtimeCheckListView(collection, outThrown: outThrown)
+    {
+        return 0
+    }
     guard let newValues = runtimeCollectionOrArrayValues(from: collectionRaw), !newValues.isEmpty else {
         return kk_box_bool(0)
     }
@@ -1144,13 +1193,14 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "MutableList reference is null."))
         return 0
     }
-    let values = list.values
-    guard values.indices.contains(index) else {
+    guard list.indices.contains(index) else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "Index \(index) out of bounds for length \(values.count)"
+            message: "Index \(index) out of bounds for length \(list.count)"
         )
         return 0
     }
+    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
+    let values = list.values
     let old = values[index]
     let replacement = runtimeMutableListInsertedValue(for: values, rawValue: element)
     list.setValue(replacement, at: index)
