@@ -53,6 +53,13 @@ extension DataFlowAnalyzer {
               let declID = sema.bindings.declSymbols.first(where: { $0.value == property })?.key,
               case let .propertyDecl(decl) = ast.arena.decl(declID)
         else { return false }
+        if decl.modifiers.contains(.override), !decl.modifiers.contains(.final),
+           let owner = sema.symbols.parentSymbol(for: property),
+           let ownerSymbol = sema.symbols.symbol(owner),
+           ownerSymbol.flags.contains(.openType) || ownerSymbol.flags.contains(.abstractType)
+        {
+            return false
+        }
         return decl.delegateExpression == nil
             && !decl.modifiers.contains(.open) && !decl.modifiers.contains(.abstract)
             && (decl.getter == nil || decl.getter?.body == .unit)

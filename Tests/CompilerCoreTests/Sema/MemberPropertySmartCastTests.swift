@@ -16,6 +16,7 @@ struct MemberPropertySmartCastTests {
         "checkNotNull(args.x) { \"missing\" }; println(args.x.length)",
         "require(args.x != null); println(args.x.length)",
         "check(args.x != null); println(args.x.length)",
+        "if (args.x == null) return; println(args.x.length)",
         "when (args.x) { null -> println(0); else -> println(args.x.length) }",
         "when { args.x != null -> println(args.x.length); else -> println(0) }"
     ])
@@ -79,6 +80,7 @@ struct MemberPropertySmartCastTests {
         "class Args { val x: String? get() = \"hello\" }",
         "open class Args { open val x: String? = \"hello\" }",
         "abstract class Args { abstract val x: String? }",
+        "open class Base { open val x: String? = null }; open class Args : Base() { override val x: String? = \"hello\" }",
         "class Args { val x: String? by lazy { \"hello\" } }"
     ])
     func unstablePropertiesAreNotNarrowed(declaration: String) throws {
@@ -104,6 +106,36 @@ struct MemberPropertySmartCastTests {
         """)
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0026", in: ctx)
+    }
+
+    @Test func nullableIntermediateReceiver() throws {
+        let ctx = makeContextFromSource("""
+        class Inner(val x: String?)
+        class Outer(val inner: Inner?)
+        fun test(outer: Outer) {
+            if (outer.inner != null && outer.inner.x != null) println(outer.inner.x.length)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func sourceContractNarrowsMember() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.contracts.*
+        @OptIn(ExperimentalContracts::class)
+        inline fun ensure(value: String?) {
+            contract { returns() implies (value != null) }
+            if (value == null) throw IllegalArgumentException("missing")
+        }
+        class Args(val x: String?)
+        fun test(args: Args) {
+            ensure(args.x)
+            println(args.x.length)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
     @Test func memberFlowMergeKeepsOnlyFactsOnBothPaths() {
