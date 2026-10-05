@@ -54,10 +54,11 @@ extension DeclTypeChecker {
         signature: FunctionSignature,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
-        var locals: LocalBindings = [:]
+        var locals = baseLocals
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
             guard let param = sema.symbols.symbol(paramSymbol) else { continue }
             let type = localTypeForParameter(
@@ -85,7 +86,8 @@ extension DeclTypeChecker {
         _ classDecl: ClassDecl,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         guard classDecl.primaryConstructorParams.contains(where: { $0.defaultValue != nil }) else {
             return
@@ -104,7 +106,8 @@ extension DeclTypeChecker {
             signature: signature,
             ctx: ctx,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            baseLocals: baseLocals
         )
     }
 
@@ -310,11 +313,12 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         ownerSymbol: SymbolID? = nil,
         hasPrimaryConstructor: Bool = true,
-        explicitSuperclassSymbol: SymbolID? = nil
+        explicitSuperclassSymbol: SymbolID? = nil,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
         for ctor in constructors {
-            var locals: LocalBindings = [:]
+            var locals = baseLocals
             let ctorSymbols = sema.symbols.symbols(atDeclSite: ctor.range)
                 .compactMap { sema.symbols.symbol($0) }
                 .filter { $0.kind == .constructor }
@@ -355,7 +359,8 @@ extension DeclTypeChecker {
                         signature: signature,
                         ctx: constructorCtx,
                         solver: solver,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        baseLocals: baseLocals
                     )
                 }
             }
@@ -636,7 +641,11 @@ extension DeclTypeChecker {
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
         // extension receiver from inside a lambda with its own receiver.
         if let extensionReceiverType = signature.receiverType {
-            functionCtx = functionCtx.withOuterReceiver(label: function.name, type: extensionReceiverType)
+            functionCtx = functionCtx.withOuterReceiver(
+                label: function.name,
+                type: extensionReceiverType,
+                symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            )
         }
         // Propagate suppression flag so that individual `return` statements inside
         // functions with inferred return types also skip the platform-type warning.
@@ -647,7 +656,8 @@ extension DeclTypeChecker {
             signature: signature,
             ctx: functionCtx,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            baseLocals: baseLocals
         )
 
         // Bodyless declarations use .unit as their sentinel. Abstract and expect

@@ -75,6 +75,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// vtable/itable slot or be treated as a real member of the nominal
     /// (KUU-545).
     public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
+    public static let localFunction = SymbolFlags(rawValue: 1 << 25)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -1580,6 +1581,7 @@ public final class SymbolTable {
 
 public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
@@ -1722,6 +1724,7 @@ public final class BindingTable {
     /// Maps callable reference expression IDs to their kind (function vs property)
     /// so that KIR lowering can emit KFunction / KProperty type identity (REFL-003).
     public private(set) var callableRefKinds: [ExprID: CallableRefKind] = [:]
+    public var inferredCallableReferenceSymbols: Set<SymbolID> = []
     /// Tracks callable reference expressions that are unbound type references
     /// (e.g. `Type::member`).  The receiver is not captured; instead it
     /// becomes a parameter of the resulting function type (REFL-003).
@@ -1764,6 +1767,10 @@ public final class BindingTable {
 
     public func bindExprType(_ expr: ExprID, type: TypeID) {
         exprTypes[expr] = type
+    }
+
+    public func bindWhenExhaustiveness(_ expr: ExprID, isExhaustive: Bool) {
+        whenExhaustiveness[expr] = isExhaustive
     }
 
     public func bindIdentifier(_ expr: ExprID, symbol: SymbolID) {

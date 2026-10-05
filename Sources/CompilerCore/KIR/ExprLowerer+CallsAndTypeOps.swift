@@ -1,5 +1,25 @@
 
 extension ExprLowerer {
+    func runtimeIsCheckTargetType(
+        subjectType: TypeID?,
+        targetType: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        guard let subjectType,
+              case .functionType = sema.types.kind(of: targetType),
+              sema.types.isSubtype(
+                  sema.types.makeNonNullable(subjectType),
+                  sema.types.makeNonNullable(targetType)
+              )
+        else {
+            return targetType
+        }
+        // Compatible function values may be raw pointers or boxed closures;
+        // their signature is known statically, so only nullability remains.
+        return sema.types.nullability(of: targetType) == .nullable
+            ? sema.types.nullableAnyType : sema.types.anyType
+    }
+
     /// A generic Array cast only changes the erased element type. When both
     /// sides are statically the same non-null Array class, checking the
     /// parameterized type at runtime is both unnecessary and impossible: the

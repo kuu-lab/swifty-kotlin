@@ -3,6 +3,42 @@
 import Testing
 
 extension DataFlowAnalyzerTests {
+    @Test(arguments: [false, true])
+    func testSealedInterfaceCoverageUsesResolvedSymbols(useMetadata: Bool) {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, symbols, types, interner) = makeSemaModule()
+        func define(_ name: String, kind: SymbolKind = .class, flags: SymbolFlags = []) -> SymbolID {
+            let interned = interner.intern(name)
+            return symbols.define(kind: kind, name: interned, fqName: [interned], declSite: nil, visibility: .public, flags: flags)
+        }
+        let root = define("Root", flags: .sealedType)
+        let tag = define("Tag", kind: .interface)
+        let childTag = define("ChildTag", kind: .interface)
+        let taggedBase = define("TaggedBase")
+        let leaf = define("Leaf")
+        let other = define("Other")
+        symbols.setDirectSupertypes([tag], for: childTag)
+        symbols.setDirectSupertypes([childTag], for: taggedBase)
+        symbols.setDirectSupertypes([root, taggedBase], for: leaf)
+        symbols.setDirectSupertypes([root], for: other)
+        if useMetadata {
+            symbols.setSealedSubclasses([leaf, other], for: root)
+        }
+        let rootType = types.make(.classType(ClassType(classSymbol: root)))
+        let incomplete = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [tag])
+        #expect(!analyzer.isWhenExhaustive(subjectType: rootType, branches: incomplete, sema: sema))
+        #expect(analyzer.missingSealedBranches(subjectType: rootType, branches: incomplete, sema: sema) == [interner.intern("Other")])
+
+        let complete = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [tag, other])
+        #expect(analyzer.isWhenExhaustive(subjectType: rootType, branches: complete, sema: sema))
+        #expect(analyzer.missingSealedBranches(subjectType: rootType, branches: complete, sema: sema) == nil)
+
+        if useMetadata {
+            symbols.setSealedSubclasses([], for: root)
+            #expect(!analyzer.isWhenExhaustive(subjectType: rootType, branches: complete, sema: sema))
+        }
+    }
+
     @Test func testIsWhenExhaustiveNonSealedClassReturnsFalse() {
         let analyzer = DataFlowAnalyzer()
         let (sema, symbols, types, interner) = makeSemaModule()

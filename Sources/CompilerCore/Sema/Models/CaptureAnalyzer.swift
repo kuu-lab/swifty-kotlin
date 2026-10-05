@@ -246,7 +246,7 @@ struct CaptureAnalyzer {
                     visit(receiver)
                 }
 
-            case let .localFunDecl(_, _, _, body, _, _):
+            case let .localFunDecl(_, _, _, _, body, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
                 }
@@ -331,6 +331,11 @@ struct CaptureAnalyzer {
                 // visited here or the enclosing closure won't capture it.
                 guard let decl = ast.arena.decl(declID) else {
                     break
+                }
+                if let owner = sema.bindings.declSymbol(for: declID) {
+                    captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
+                        outerSymbols.contains($0)
+                    })
                 }
                 let constructorArgExprs: [ExprID]
                 let memberFunctionDecls: [DeclID]

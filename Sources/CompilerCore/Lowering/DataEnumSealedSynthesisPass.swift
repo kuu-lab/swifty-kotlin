@@ -666,12 +666,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 }
             }
 
-            let nullOutThrown = module.arena.appendExpr(.null, type: sema.types.nullableAnyType)
-            body.append(.constValue(result: nullOutThrown, value: .null))
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_abort_unreachable"),
-                arguments: [nullOutThrown],
+                arguments: [],
                 result: resultExpr,
                 canThrow: false,
                 thrownResult: nil

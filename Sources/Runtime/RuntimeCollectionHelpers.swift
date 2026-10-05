@@ -1563,7 +1563,7 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if let lhsDuration = tryCast(lhsPtr, to: RuntimeDurationBox.self),
        let rhsDuration = tryCast(rhsPtr, to: RuntimeDurationBox.self)
     {
-        return lhsDuration.nanoseconds == rhsDuration.nanoseconds
+        return lhsDuration.rawValue == rhsDuration.rawValue
     }
     if let lhsInstant = tryCast(lhsPtr, to: RuntimeInstantBox.self),
        let rhsInstant = tryCast(rhsPtr, to: RuntimeInstantBox.self)
@@ -1979,8 +1979,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let parts = arrayBox.values.map { runtimeElementToString($0) }
-        return "[" + parts.joined(separator: ", ") + "]"
+        return runtimeArrayIdentityToString(elem)
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
