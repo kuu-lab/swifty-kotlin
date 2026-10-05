@@ -10,6 +10,9 @@ fun main() = runBlocking {
     val block: suspend CoroutineScope.() -> Int = { 23 }
     println(coroutineScope(block = block))
     println(supervisorScope(block = block))
+    val nullable: suspend CoroutineScope.() -> Int? = { null }
+    println(coroutineScope(block = nullable))
+    println(supervisorScope(block = nullable))
 
     val label = "captured"
     val increment = 4

@@ -99,10 +99,37 @@ struct ReceiverBuilderInferenceTests {
         #expect(ctx.diagnostics.hasError)
     }
 
-    @Test func emptyBuilderStillReportsUninferredType() throws {
+    @Test(arguments: ["", "println(1)", "val unused = 1"])
+    func builderWithoutTypeEvidenceReportsUninferredType(body: String) throws {
         let ctx = makeContextFromSource(builder + """
 
-        fun main() { val result = build {} }
+        fun main() { val result = build { \(body) } }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-INFER", in: ctx)
+    }
+
+    @Test func emptyBuilderUsesExpectedExplicitAndArgumentTypes() throws {
+        try expectIntResult(builder + """
+
+        fun main() {
+            val expected: Int = build {}
+            val explicit = build<Int> {}
+            println(expected + explicit)
+        }
+        """, callCount: 2)
+        try expectIntResult("""
+        class Builder<T>
+        fun <R> build(seed: R, builder: Builder<R>.() -> Unit): R = seed
+        fun main() { val result = build(1) {} }
+        """)
+    }
+
+    @Test func partiallyInferredEmptyBuilderReportsMissingType() throws {
+        let ctx = makeContextFromSource("""
+        class Builder<T>
+        fun <R, S> build(seed: S, builder: Builder<R>.() -> Unit): R = null as R
+        fun main() { val result = build(1) {} }
         """)
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-INFER", in: ctx)

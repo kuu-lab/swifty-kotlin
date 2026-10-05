@@ -96,12 +96,14 @@ extension CallTypeChecker {
             vars: ctx.resolver.usedTypeVariables(from: session.constraints),
             constraints: session.constraints, typeSystem: sema.types
         )
-        guard solution.isSuccess,
-              ctx.resolver.checkForUninferredTypeVariables(
-                  signature: signature, substitution: solution.substitution,
-                  typeVarBySymbol: variables, range: range, typeSystem: sema.types
-              ) == nil
-        else { return nil }
+        guard solution.isSuccess else { return nil }
+        if let diagnostic = ctx.resolver.checkForUninferredTypeVariables(
+            signature: signature, substitution: solution.substitution,
+            typeVarBySymbol: variables, range: range, typeSystem: sema.types
+        ) {
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
 
         let lambdaType = sema.types.substituteTypeParameters(
             in: signature.parameterTypes[parameterIndex],

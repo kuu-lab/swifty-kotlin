@@ -16,6 +16,9 @@ extension BundledStdlibExecutionTests {
                 val block: suspend CoroutineScope.() -> Int = { 23 }
                 println(coroutineScope(block = block))
                 println(supervisorScope(block = block))
+                val nullable: suspend CoroutineScope.() -> Int? = { null }
+                println(coroutineScope(block = nullable))
+                println(supervisorScope(block = nullable))
                 val label = "captured"
                 val increment = 4
                 val offset = 19
@@ -56,7 +59,7 @@ extension BundledStdlibExecutionTests {
                 Unit
             }
             """,
-            expectedOutput: "23\n23\ncaptured\ntrue\n26\ncaptured\ntrue\n30\n11\n7\n11\ncaptured\ncaptured\n",
+            expectedOutput: "23\n23\nnull\nnull\ncaptured\ntrue\n26\ncaptured\ntrue\n30\n11\n7\n11\ncaptured\ncaptured\n",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }

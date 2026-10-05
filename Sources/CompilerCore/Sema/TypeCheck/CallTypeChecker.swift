@@ -1656,7 +1656,7 @@ final class CallTypeChecker {
                 lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
                     ?? sema.types.nullableAnyType
             } else {
-                lambdaReturnType = expectedType ?? sema.types.anyType
+                lambdaReturnType = expectedType ?? sema.types.nullableAnyType
             }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
                 receiver: coroutineScopeType(sema: sema, interner: interner),
@@ -1698,7 +1698,7 @@ final class CallTypeChecker {
             sema.types.make(.functionType(FunctionType(
                 receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
-                returnType: expectedType ?? sema.types.anyType,
+                returnType: expectedType ?? sema.types.nullableAnyType,
                 isSuspend: true,
                 nullability: .nonNull
             )))
