@@ -1385,7 +1385,8 @@ extension ExprTypeChecker {
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
-            expectedType: bodyExpectedType
+            expectedType: bodyExpectedType,
+            isStatementContext: expectedFunctionType?.returnType == sema.types.unitType
         )
         // STDLIB-592 definite assignment: record which outer-scope locals this
         // lambda body unconditionally initializes, mirroring the blockExpr merge
