@@ -154,6 +154,31 @@ extension ExprLowerer {
             {
                 return receiverExprID
             }
+            // The master launcher lowering can now bind a receiver value, but
+            // kk_coroutine_current_scope still returns an opaque runtime handle.
+            // Its CoroutineScope context must use the ambient context bridge.
+            let hasRuntimeScopeReceiver = driver.ctx.activeImplicitReceiverExprID().map {
+                driver.ctx.runtimeCoroutineScopeReceiverExprIDs.contains($0)
+            } ?? false
+            if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+               (driver.ctx.activeImplicitReceiverExprID() == nil || hasRuntimeScopeReceiver),
+               let symbol = sema.bindings.identifierSymbols[exprID],
+               sema.symbols.symbol(symbol)?.fqName == [
+                   interner.intern("kotlinx"), interner.intern("coroutines"),
+                   interner.intern("CoroutineScope"), interner.intern("coroutineContext"),
+               ]
+            {
+                let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_coroutine_current_context"),
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             // BUG-B/BUG-C: an enum value has no stored-field object layout
             // (its KIR representation is a raw ordinal Int, only boxed for
             // Any-erased contexts), so an implicit-receiver read of its
@@ -584,12 +609,30 @@ extension ExprLowerer {
                        sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
                    ]
                 {
+                    // BUG-inner-outer: an inner class's implicit receiver is
+                    // its own instance, but a bare reference to a property
+                    // declared on an *enclosing* class must read through the
+                    // `$outer` chain instead -- otherwise this applies
+                    // `ownerSymbol`'s field offset to the wrong object,
+                    // aliasing whatever the inner class's own field happens
+                    // to occupy at that slot. A no-op (returns
+                    // `receiverExprID` unchanged) for every other case,
+                    // where the receiver already is (or subclasses)
+                    // `ownerSymbol`.
+                    let fieldReceiverExprID = resolveOuterChainValue(
+                        from: receiverExprID,
+                        to: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) ?? receiverExprID
                     let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_get_inbounds"),
-                        arguments: [receiverExprID, offsetExpr],
+                        arguments: [fieldReceiverExprID, offsetExpr],
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -662,6 +705,16 @@ extension ExprLowerer {
                     return delegateValue
                 }
                 if let localValue = driver.ctx.localValue(for: symbol) {
+                    if let boundType,
+                       let storedType = arena.exprType(localValue),
+                       case let .primitive(storedPrimitive, .nullable) = sema.types.kind(of: storedType),
+                       case let .primitive(narrowedPrimitive, .nonNull) = sema.types.kind(of: boundType),
+                       storedPrimitive == narrowedPrimitive
+                    {
+                        let narrowed = arena.appendTemporary(type: boundType)
+                        instructions.append(.copy(from: localValue, to: narrowed))
+                        return narrowed
+                    }
                     return localValue
                 }
                 // A bare companion/object property reference can resolve
@@ -767,9 +820,25 @@ extension ExprLowerer {
                 // written, so reading it here would yield garbage. Those dispatch to
                 // the getter accessor in the branch below, matching the explicit
                 // `this.size` path in CallLowerer+MemberPropertyReads.swift.
+                //
+                // KSP-CAP-001: a bare read of this kind resolved via plain scope
+                // lookup rather than `resolveImplicitReceiverMember` (see
+                // `inferNameRefExpr`), so it never set `implicitReceiverMemberNames`
+                // and skipped the STDLIB-004 branch above, which is the only other
+                // place that calls `implicitReceiverExprID(forProperty:)`. Without
+                // it here too, an object-literal member function reading an
+                // enclosing class's mutable property would use its own `this`
+                // (`activeImplicitReceiverExprID`) with the enclosing class's field
+                // offset -- the same wrong-receiver/offset mismatch PR #7186 fixed
+                // for inner classes, but for object literals' bare mutable-property
+                // reads. Mirror the write side (`.localAssign`'s field-offset branch
+                // below), which already walks the captured outer-receiver chain.
                 if let sym = sema.symbols.symbol(symbol),
                    sym.kind == .property || sym.kind == .field || sym.kind == .backingField,
-                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                       forProperty: symbol,
+                       sema: sema
+                   ),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
                    ownerKind == .class || ownerKind == .interface,
@@ -783,13 +852,28 @@ extension ExprLowerer {
                     let resultType = boundType
                         ?? sema.symbols.propertyType(for: symbol)
                         ?? sema.types.anyType
+                    // BUG-inner-outer: an inner class's implicit receiver is
+                    // its own instance, but a bare reference to a property
+                    // declared on an *enclosing* class must read through
+                    // the `$outer` chain instead of applying `ownerSymbol`'s
+                    // field offset to the wrong object. A no-op for every
+                    // other case, where the receiver already is (or
+                    // subclasses) `ownerSymbol`.
+                    let fieldReceiverExprID = resolveOuterChainValue(
+                        from: receiverExprID,
+                        to: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) ?? receiverExprID
                     let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                     let result = arena.appendTemporary(type: resultType)
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_get_inbounds"),
-                        arguments: [receiverExprID, offsetExpr],
+                        arguments: [fieldReceiverExprID, offsetExpr],
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -815,7 +899,10 @@ extension ExprLowerer {
                 // resolves through the active receiver's instance layout.
                 if let sym = sema.symbols.symbol(symbol),
                    sym.kind == .property,
-                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                       forProperty: symbol,
+                       sema: sema
+                   ),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
                    ownerKind == .class,
@@ -1776,6 +1863,19 @@ extension ExprLowerer {
                               sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
                           ]
                 {
+                    // BUG-inner-outer: see the read-side fix above -- a
+                    // bare `counter = value` referencing a property
+                    // declared on an *enclosing* class must write through
+                    // the `$outer` chain instead of applying
+                    // `ownerSymbol`'s field offset to the wrong object.
+                    let fieldReceiverExprID = resolveOuterChainValue(
+                        from: receiverExprID,
+                        to: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) ?? receiverExprID
                     let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                     let storedValueID = normalizedValueForNullablePrimitiveSlot(
@@ -1788,7 +1888,7 @@ extension ExprLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_set"),
-                        arguments: [receiverExprID, offsetExpr, storedValueID],
+                        arguments: [fieldReceiverExprID, offsetExpr, storedValueID],
                         result: nil,
                         canThrow: false,
                         thrownResult: nil
@@ -2654,6 +2754,22 @@ extension ExprLowerer {
                     // and lowerMemberAssignExpr (plain `=` writes). Falling through
                     // to the local-variable branch below would silently discard the
                     // computed result instead of storing it back into the instance.
+                    //
+                    // BUG-inner-outer: an inner class's implicit receiver is its
+                    // own instance, but `counter++`/`counter += v` referencing a
+                    // property declared on an *enclosing* class must read/write
+                    // through the `$outer` chain instead of applying
+                    // `ownerSymbol`'s field offset to the wrong object. A no-op
+                    // for every other case, where the receiver already is (or
+                    // subclasses) `ownerSymbol`.
+                    let fieldReceiverExprID = resolveOuterChainValue(
+                        from: receiverID,
+                        to: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) ?? receiverID
                     let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                     let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -2661,7 +2777,7 @@ extension ExprLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_get_inbounds"),
-                        arguments: [receiverID, offsetExpr],
+                        arguments: [fieldReceiverExprID, offsetExpr],
                         result: loadedValue,
                         canThrow: false,
                         thrownResult: nil
@@ -2677,7 +2793,7 @@ extension ExprLowerer {
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_array_set"),
-                            arguments: [receiverID, offsetExpr, storedValue],
+                            arguments: [fieldReceiverExprID, offsetExpr, storedValue],
                             result: nil,
                             canThrow: false,
                             thrownResult: nil
@@ -3107,6 +3223,32 @@ extension ExprLowerer {
             {
                 return receiverExprID
             }
+            // BUG-inner-outer: `this@Outer` from within an inner class's
+            // body resolves (Sema binds this `.thisRef` expression's own
+            // type to Outer's) to an *enclosing* class, not the active
+            // implicit receiver (Inner's own `this`) the fallback below
+            // would otherwise silently return. Walk the `$outer` chain
+            // from the active implicit receiver to Outer's instance
+            // instead. A no-op when this `.thisRef` names the innermost
+            // receiver's own class already (0 hops) or isn't reachable
+            // through any `$outer` link (e.g. inside a lambda/object
+            // literal, where `qualifiedThisReceiverExprID` above is the
+            // right mechanism).
+            if label != nil,
+               let implicitReceiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+               let thisRefType = sema.bindings.exprTypes[exprID],
+               let (_, targetClassSymbol) = resolveClassTypeSymbol(thisRefType, sema: sema),
+               let outerValue = resolveOuterChainValue(
+                   from: implicitReceiverExprID,
+                   to: targetClassSymbol.id,
+                   sema: sema,
+                   arena: arena,
+                   interner: interner,
+                   instructions: &instructions
+               )
+            {
+                return outerValue
+            }
             if let receiverExprID = driver.ctx.activeImplicitReceiverExprID() {
                 return receiverExprID
             }
@@ -3204,14 +3346,18 @@ extension ExprLowerer {
                 let calleeSymbol: SymbolID? = chosenCallee.flatMap { callee in
                     sema.symbols.isSourceBackedSymbol(callee) ? callee : nil
                 }
-                instructions.append(.call(
+                driver.callLowerer.emitDestructuringComponentCall(
+                    candidate: chosenCallee,
                     symbol: calleeSymbol,
                     callee: calleeName,
-                    arguments: [rhsID],
+                    receiverExpr: initializer,
+                    receiverID: rhsID,
                     result: componentResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
 
                 // Bind the destructured variable to the component result
                 if let symbol = candidates.first {
@@ -3296,6 +3442,7 @@ extension ExprLowerer {
                     containerExpr: rhsExpr,
                     resultID: result,
                     sema: sema,
+                    arena: arena,
                     interner: interner,
                     instructions: &instructions
                 )
@@ -3334,6 +3481,7 @@ extension ExprLowerer {
                 containerExpr: rhsExpr,
                 resultID: containsResult,
                 sema: sema,
+                arena: arena,
                 interner: interner,
                 instructions: &instructions
             )
@@ -3354,6 +3502,7 @@ extension ExprLowerer {
         containerExpr: ExprID,
         resultID: KIRExprID,
         sema: SemaModule,
+        arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
@@ -3367,6 +3516,11 @@ extension ExprLowerer {
            signature.receiverType != nil
         {
             let calleeName: InternedString
+            // Set when `calleeName` is a concrete runtime range bridge rather
+            // than the member itself; such callees must never be dispatched
+            // through a vtable/itable (mirrors the remap gate in
+            // `CallLowerer+MemberCallEmission`).
+            var remappedToRangeBridge = false
             if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
                !linkName.isEmpty
             {
@@ -3384,10 +3538,30 @@ extension ExprLowerer {
                 // Generic range interface members may lack a link name; use
                 // the concrete runtime bridge, as in the `r.contains(x)` path.
                 calleeName = rangeLink
+                remappedToRangeBridge = true
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
                 calleeName = sym.name
             } else {
                 calleeName = interner.intern("contains")
+            }
+            // An open member `contains` must dispatch on the container's
+            // runtime type, exactly like `container.contains(element)`.
+            if !remappedToRangeBridge,
+               let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+                   chosenCallee: callBinding.chosenCallee,
+                   calleeName: calleeName,
+                   receiverExpr: containerExpr,
+                   loweredReceiverID: containerID,
+                   isSuperCall: false,
+                   finalArguments: [containerID, elementID],
+                   result: resultID,
+                   sema: sema,
+                   arena: arena,
+                   interner: interner
+               )
+            {
+                instructions.append(virtualInstruction)
+                return
             }
             instructions.append(.call(
                 symbol: callBinding.chosenCallee,

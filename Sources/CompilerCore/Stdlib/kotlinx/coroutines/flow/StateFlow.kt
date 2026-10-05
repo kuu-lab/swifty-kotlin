@@ -18,7 +18,7 @@ public interface StateFlow<out T> : SharedFlow<T> {
     public val value: T
 }
 
-public class MutableStateFlow<T>(initialValue: T) : StateFlow<T> {
+public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, FlowCollector<T> {
     private var _value: T = initialValue
     private var subscribers: MutableStateFlow<Int>? = null
 
@@ -53,7 +53,7 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T> {
         return true
     }
 
-    public suspend fun emit(value: T) {
+    override suspend fun emit(value: T) {
         tryEmit(value)
     }
 

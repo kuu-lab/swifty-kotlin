@@ -110,7 +110,7 @@ struct RangeLookupNames {
         kkCharRangeToListName = interner.intern("__kk_char_range_toList")
         kkCharRangeForEachName = interner.intern("__kk_char_range_forEach")
         // ULongRange (STDLIB-524, STDLIB-RANGE-037)
-        kkULongRangeStepName = interner.intern("kk_ulong_range_step")
+        kkULongRangeStepName = interner.intern("__kk_ulong_range_step")
         kkULongRangeIteratorName = interner.intern("__kk_ulong_range_iterator")
         kkULongRangeHasNextName = interner.intern("__kk_ulong_range_hasNext")
         kkULongRangeNextName = interner.intern("__kk_ulong_range_next")

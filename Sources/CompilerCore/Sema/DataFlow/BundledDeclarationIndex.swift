@@ -640,12 +640,18 @@ struct BundledDeclarationIndex: Sendable {
         var keys: Set<BundledMemberKey> = []
         for file in bundledFiles {
             let topLevelNominalNames = topLevelNominalNamesByPackage[file.packageFQName] ?? []
+            var importedNameToPackage = defaultImportedNameToPackage
+            for importDecl in file.imports where !importDecl.isWildcard && importDecl.alias == nil {
+                if let name = importDecl.path.last {
+                    importedNameToPackage[name] = Array(importDecl.path.dropLast())
+                }
+            }
             for declID in file.topLevelDecls {
                 collectBundledTopLevelDecl(
                     declID: declID,
                     packageFQName: file.packageFQName,
                     topLevelNominalNames: topLevelNominalNames,
-                    defaultImportedNameToPackage: defaultImportedNameToPackage,
+                    defaultImportedNameToPackage: importedNameToPackage,
                     ast: ast,
                     builtinNames: builtinNames,
                     interner: interner,
@@ -720,6 +726,14 @@ struct BundledDeclarationIndex: Sendable {
         types: TypeSystem,
         interner: StringInterner?
     ) -> BundledMemberKey? {
+        // Imported index shells carry arity and receiver-owner shape in the
+        // compact v2 index. Answering from it keeps arity-key scans (the
+        // retained-overlap gates below walk `allSymbols()`) from forcing a
+        // declaration-body materialization per candidate.
+        if let indexShape = symbols.importedMemberIndexShape(for: symbolID) {
+            let owner = indexShape.receiverOwnerFQName ?? Array(symbol.fqName.dropLast())
+            return BundledMemberKey(ownerFQName: owner, name: symbol.name, arity: indexShape.arity)
+        }
         let arity: Int
         let receiverType: TypeID?
         switch symbol.kind {

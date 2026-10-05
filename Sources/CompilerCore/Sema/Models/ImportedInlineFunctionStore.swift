@@ -75,6 +75,25 @@ public final class ImportedInlineFunctionStore {
         descriptors[symbol] = descriptor
     }
 
+    /// Seeds an already-parsed body (used when the lazy metadata loader
+    /// resolves a demanded inline callee before the expansion pass).
+    func seed(_ function: KIRFunction, for symbol: SymbolID) {
+        functions[symbol] = function
+        descriptors.removeValue(forKey: symbol)
+    }
+
+    subscript(symbol: SymbolID) -> KIRFunction? {
+        get { functions[symbol] }
+        set {
+            if let newValue {
+                seed(newValue, for: symbol)
+            } else {
+                functions.removeValue(forKey: symbol)
+                descriptors.removeValue(forKey: symbol)
+            }
+        }
+    }
+
     /// Captures the resolution context once, after all imported bindings have
     /// been applied. Called by `loadImportedLibrarySymbols` so deferred
     /// parses resolve callees against the final link-name and FQ-name maps.

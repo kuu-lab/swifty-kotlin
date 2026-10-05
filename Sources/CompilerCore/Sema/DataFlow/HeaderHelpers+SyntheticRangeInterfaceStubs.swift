@@ -1,14 +1,7 @@
 
 extension DataFlowSemaPhase {
-    /// KSP-652: the `ClosedRange<T>` / `ClosedFloatingPointRange<T>` declarations are
-    /// source-backed by `Stdlib/kotlin/ranges/Ranges.kt`, which reuses the shells registered
-    /// here on bundle load (the `.synthetic` flag is cleared then).
-    ///
-    /// The members and the concrete `IntRange`/`LongRange`/`CharRange`/`UIntRange`/`ULongRange`
-    /// conformances stay compiler-side residuals per `docs/stdlib-pipeline.md` (c): the
-    /// conformances are wired before bundled headers are collected, so interface-typed member
-    /// calls have to keep resolving to these stubs rather than to itable slots that the
-    /// pre-bundle wiring cannot populate. Moving them to Kotlin belongs with KSP-451.
+    /// Bootstrap shells and `--no-stdlib` members. Bundled ClosedRange source
+    /// reuses these symbols and owns their declarations and default bodies.
     func registerSyntheticRangeInterfaceStubs(
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
@@ -92,14 +85,20 @@ extension DataFlowSemaPhase {
             args: [.invariant(typeParamType)],
             nullability: .nonNull
         )))
-        symbols.setTypeParameterUpperBounds(
-            [comparableBoundType(
-                comparableSymbol: comparableSymbol,
-                elementType: typeParamType,
-                types: types
-            )],
-            for: typeParamSymbol
-        )
+        if symbols.typeParameterUpperBounds(for: typeParamSymbol).isEmpty {
+            symbols.setTypeParameterUpperBounds(
+                [types.make(.classType(ClassType(
+                    classSymbol: comparableSymbol,
+                    args: [.invariant(typeParamType)],
+                    nullability: .nonNull
+                )))],
+                for: typeParamSymbol
+            )
+        }
+
+        if BundledSyntheticStubRegistration.bundledIndex.contains(owner: interfaceFQName, name: interner.intern("contains"), arity: 1) {
+            return interfaceSymbol
+        }
 
         registerRangeInterfaceProperty(
             named: "start",
@@ -125,6 +124,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction],
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
+            externalLinkName: "__kk_range_contains",
             symbols: symbols,
             types: types,
             interner: interner
@@ -305,6 +305,7 @@ extension DataFlowSemaPhase {
         flags: SymbolFlags = [.synthetic],
         typeParameterSymbols: [SymbolID] = [],
         classTypeParameterCount: Int = 0,
+        externalLinkName: String? = nil,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
@@ -348,6 +349,9 @@ extension DataFlowSemaPhase {
             visibility: .public,
             flags: flags
         )
+        if let externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        }
         symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
         for parameterSymbol in parameterSymbols {
             symbols.setParentSymbol(functionSymbol, for: parameterSymbol)

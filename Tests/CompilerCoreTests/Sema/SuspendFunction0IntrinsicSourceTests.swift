@@ -25,10 +25,17 @@ struct SuspendFunction0IntrinsicSourceTests {
         for name in ["createCoroutineUnintercepted", "startCoroutineUninterceptedOrReturn"] {
             let overloads = symbols.lookupAll(fqName: prefix + [ctx.interner.intern(name)])
             #expect(overloads.count == 2)
-            let backed = overloads.filter(symbols.isSourceBackedSymbol)
-            #expect(backed.count == 1)
-            let fileID = try #require(backed.first.flatMap { symbols.sourceFileID(for: $0) })
-            #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/coroutines/intrinsics/SuspendFunction0.kt")
+            // Both the receiver-less (SuspendFunction0.kt) and the receiver-bearing
+            // (SuspendFunction1.kt) overloads are bundled source; they differ in arity.
+            #expect(overloads.allSatisfy(symbols.isSourceBackedSymbol))
+            func sourcePath(ofParameterCount count: Int) throws -> String? {
+                let overload = try #require(overloads.first {
+                    symbols.functionSignature(for: $0)?.parameterTypes.count == count
+                })
+                return symbols.sourceFileID(for: overload).flatMap { ctx.sourceManager.path(of: $0) }
+            }
+            #expect(try sourcePath(ofParameterCount: 1) == "__bundled_kotlin/coroutines/intrinsics/SuspendFunction0.kt")
+            #expect(try sourcePath(ofParameterCount: 2) == "__bundled_kotlin/coroutines/intrinsics/SuspendFunction1.kt")
         }
     }
 }

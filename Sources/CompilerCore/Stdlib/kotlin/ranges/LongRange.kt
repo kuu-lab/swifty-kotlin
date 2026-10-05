@@ -25,6 +25,7 @@ public class LongRange @KsSymbolName("__kk_long_rangeTo") constructor(
             return last + 1L
         }
     public override fun isEmpty(): Boolean = first > last
+    public override operator fun contains(value: Long): Boolean = value >= first && value <= last
 
     public override fun equals(other: Any?): Boolean {
         if (this === other) return true

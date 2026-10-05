@@ -76,6 +76,14 @@ package struct KlibIrModule {
         return try KlibIrDecoding.statement(ProtoFields(bodies.element(row: fileIndex, column: Int(bodyIndex))))
     }
 
+    /// `bodies` element decoded as a bare `IrExpression` — the payload stored
+    /// for `IrField.initializer`, `IrEnumEntry.initializer` and
+    /// `IrValueParameter.defaultValue` (`deserializeExpressionBody`).
+    package func expressionBody(_ bodyIndex: Int32, fileIndex: Int) throws -> KlibIrExpression {
+        guard let bodies else { throw KlibFormatError.corruptChunk("no bodies table") }
+        return try KlibIrDecoding.expression(ProtoFields(bodies.element(row: fileIndex, column: Int(bodyIndex))))
+    }
+
     package func type(_ typeIndex: Int32, fileIndex: Int) throws -> KlibIrType {
         guard let types else { throw KlibFormatError.corruptChunk("no types table") }
         return try KlibIrDecoding.type(ProtoFields(types.element(row: fileIndex, column: Int(typeIndex))))

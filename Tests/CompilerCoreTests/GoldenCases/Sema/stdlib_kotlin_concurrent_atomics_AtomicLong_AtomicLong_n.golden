@@ -1,4 +1,4 @@
-symbol fq=__local_0.atomic[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.AtomicLong
+symbol fq=__local_0.atomic[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLong
 symbol fq=__local_1.loaded[kind=local] kind=local vis=private flags=_ type=Long
 symbol fq=__local_2.exchanged[kind=local] kind=local vis=private flags=_ type=Long
 symbol fq=__local_3.added[kind=local] kind=local vis=private flags=_ type=Long
@@ -11,39 +11,39 @@ symbol fq=golden.sema.atomicLongReceiverMembers[kind=fun;params=] kind=function 
 file fstdlib_kotlin_concurrent_atomics_AtomicLong_AtomicLong_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
   decl golden.sema.atomicLongReceiverMembers[kind=fun;params=] fun atomicLongReceiverMembers sym=golden.sema.atomicLongReceiverMembers[kind=fun;params=]
 expr e@8:29 long(10) type=Long
-expr e@8:18 call callee=e@8:18#1 args=[_:e@8:29] type=kotlin.concurrent.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long]
+expr e@8:18 call callee=e@8:18#1 args=[_:e@8:29] type=kotlin.concurrent.atomics.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long]
 expr e@8:5 localDecl atomic mutable=0 type=_ init=e@8:18 type=Unit ref=__local_0.atomic[kind=local]
-expr e@9:18 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
-expr e@9:18#1 memberCall recv=e@9:18 callee=load args=[] type=Long call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@9:18 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@9:18#1 memberCall recv=e@9:18 callee=load args=[] type=Long call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=]
 expr e@9:5 localDecl loaded mutable=0 type=_ init=e@9:18#1 type=Unit ref=__local_1.loaded[kind=local]
-expr e@10:5 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@10:5 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
 expr e@10:18 long(11) type=Long
-expr e@10:5#1 memberCall recv=e@10:5 callee=store args=[_:e@10:18] type=Unit call=kotlin.concurrent.atomics.store[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
-expr e@11:21 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@10:5#1 memberCall recv=e@10:5 callee=store args=[_:e@10:18] type=Unit call=kotlin.concurrent.atomics.store[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=Long]
+expr e@11:21 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
 expr e@11:37 long(12) type=Long
-expr e@11:21#1 memberCall recv=e@11:21 callee=exchange args=[_:e@11:37] type=Long call=kotlin.concurrent.atomics.exchange[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
+expr e@11:21#1 memberCall recv=e@11:21 callee=exchange args=[_:e@11:37] type=Long call=kotlin.concurrent.atomics.exchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=Long]
 expr e@11:5 localDecl exchanged mutable=0 type=_ init=e@11:21#1 type=Unit ref=__local_2.exchanged[kind=local]
-expr e@12:17 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@12:17 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
 expr e@12:36 long(3) type=Long
-expr e@12:17#1 memberCall recv=e@12:17 callee=addAndFetch args=[_:e@12:36] type=Long call=kotlin.concurrent.atomics.addAndFetch[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
+expr e@12:17#1 memberCall recv=e@12:17 callee=addAndFetch args=[_:e@12:36] type=Long call=kotlin.concurrent.atomics.addAndFetch[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=Long]
 expr e@12:5 localDecl added mutable=0 type=_ init=e@12:17#1 type=Unit ref=__local_3.added[kind=local]
-expr e@13:20 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@13:20 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
 expr e@13:37 long(4) type=Long
-expr e@13:20#1 memberCall recv=e@13:20 callee=getAndAdd args=[_:e@13:37] type=Long call=kotlin.concurrent.atomics.getAndAdd[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long]
+expr e@13:20#1 memberCall recv=e@13:20 callee=getAndAdd args=[_:e@13:37] type=Long call=kotlin.concurrent.atomics.getAndAdd[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=Long]
 expr e@13:5 localDecl oldAdded mutable=0 type=_ init=e@13:20#1 type=Unit ref=__local_4.oldAdded[kind=local]
-expr e@14:24 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
-expr e@14:24#1 memberCall recv=e@14:24 callee=getAndIncrement args=[] type=Long call=kotlin.concurrent.atomics.getAndIncrement[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@14:24 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@14:24#1 memberCall recv=e@14:24 callee=getAndIncrement args=[] type=Long call=kotlin.concurrent.atomics.getAndIncrement[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=]
 expr e@14:5 localDecl oldIncrement mutable=0 type=_ init=e@14:24#1 type=Unit ref=__local_5.oldIncrement[kind=local]
-expr e@15:24 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
-expr e@15:24#1 memberCall recv=e@15:24 callee=getAndDecrement args=[] type=Long call=kotlin.concurrent.atomics.getAndDecrement[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@15:24 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@15:24#1 memberCall recv=e@15:24 callee=getAndDecrement args=[] type=Long call=kotlin.concurrent.atomics.getAndDecrement[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=]
 expr e@15:5 localDecl oldDecrement mutable=0 type=_ init=e@15:24#1 type=Unit ref=__local_6.oldDecrement[kind=local]
-expr e@16:20 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@16:20 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
 expr e@16:46 long(15) type=Long
 expr e@16:51 long(16) type=Long
-expr e@16:20#1 memberCall recv=e@16:20 callee=compareAndExchange args=[_:e@16:46,_:e@16:51] type=Long call=kotlin.concurrent.atomics.compareAndExchange[kind=fun;recv=kotlin.concurrent.AtomicLong;params=Long,Long]
+expr e@16:20#1 memberCall recv=e@16:20 callee=compareAndExchange args=[_:e@16:46,_:e@16:51] type=Long call=kotlin.concurrent.atomics.compareAndExchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=Long,Long]
 expr e@16:5 localDecl compared mutable=0 type=_ init=e@16:20#1 type=Unit ref=__local_7.compared[kind=local]
-expr e@17:19 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
-expr e@17:19#1 memberCall recv=e@17:19 callee=value args=[] type=Long ref=kotlin.concurrent.AtomicLong.value[kind=prop]
+expr e@17:19 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@17:19#1 memberCall recv=e@17:19 callee=value args=[] type=Long ref=kotlin.concurrent.atomics.AtomicLong.value[kind=prop]
 expr e@17:5 localDecl current mutable=0 type=_ init=e@17:19#1 type=Unit ref=__local_8.current[kind=local]
 expr e@18:14 name(loaded) type=Long ref=__local_1.loaded[kind=local]
 expr e@18:22 name(exchanged) type=Long ref=__local_2.exchanged[kind=local]
@@ -53,7 +53,7 @@ expr e@18:50 name(oldIncrement) type=Long ref=__local_5.oldIncrement[kind=local]
 expr e@18:64 name(oldDecrement) type=Long ref=__local_6.oldDecrement[kind=local]
 expr e@18:78 name(compared) type=Long ref=__local_7.compared[kind=local]
 expr e@18:88 name(current) type=Long ref=__local_8.current[kind=local]
-expr e@18:98 name(atomic) type=kotlin.concurrent.AtomicLong ref=__local_0.atomic[kind=local]
-expr e@18:98#1 memberCall recv=e@18:98 callee=toString args=[] type=String call=kotlin.concurrent.atomics.toString[kind=fun;recv=kotlin.concurrent.AtomicLong;params=]
+expr e@18:98 name(atomic) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.atomic[kind=local]
+expr e@18:98#1 memberCall recv=e@18:98 callee=toString args=[] type=String call=kotlin.concurrent.atomics.toString[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=]
 expr e@18:12 stringTemplate[expr(e@18:14),lit(:),expr(e@18:22),lit(:),expr(e@18:33),lit(:),expr(e@18:40),lit(:),expr(e@18:50),lit(:),expr(e@18:64),lit(:),expr(e@18:78),lit(:),expr(e@18:88),lit(:),expr(e@18:98#1)] type=String
 expr e@18:5 return value=e@18:12 type=Nothing

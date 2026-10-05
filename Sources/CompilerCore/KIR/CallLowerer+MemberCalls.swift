@@ -50,8 +50,18 @@ extension CallLowerer {
         // rather than chasing every receiver-construction shortcut
         // individually, covers all of them uniformly. A no-op for anything
         // that isn't a source-backed object/companion (see `objectLazyInit`).
+        //
+        // A `const val` read is the exception: Kotlin inlines it at the use
+        // site and never runs the owner's clinit (`O.C` must not print
+        // `O`'s `init` output). The predicate mirrors
+        // `tryFoldConstMemberProperty`'s, so whenever this skips the guard
+        // the read is folded; any path that declines to fold still lowers
+        // the receiver or the property through its own guarded route.
         if let targetSymbol = sema.bindings.callBindings[exprID]?.chosenCallee
             ?? sema.bindings.identifierSymbol(for: exprID),
+           !isFoldableConstProperty(
+               targetSymbol, sema: sema, propertyConstantInitializers: propertyConstantInitializers
+           ),
            let ownerSymbol = sema.symbols.parentSymbol(for: targetSymbol)
         {
             driver.emitObjectLazyInitGuardIfNeeded(

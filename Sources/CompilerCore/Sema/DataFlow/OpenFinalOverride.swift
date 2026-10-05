@@ -1315,6 +1315,8 @@ extension DataFlowSemaPhase {
                 guard let child = symbols.symbol(childID) else {
                     continue
                 }
+                guard child.fqName == sym.fqName + [child.name] else { continue }
+                guard !child.flags.contains(.extensionMemberAlias) else { continue }
                 let isMatch = child.kind == .function
                     || child.kind == .property
                 guard isMatch, child.name == memberName else {
