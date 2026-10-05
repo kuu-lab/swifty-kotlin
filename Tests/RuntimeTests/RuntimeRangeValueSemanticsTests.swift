@@ -5,6 +5,29 @@ import Testing
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeRangeValueSemanticsTests {
     @Test
+    func erasedIteratorDispatchPreservesNumericElementKinds() throws {
+        let iteratorTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator"))
+        for (range, matching, mismatching) in [
+            (kk_op_rangeTo(2, 2), kk_box_int(2), kk_box_long(2)),
+            (__kk_uint_rangeTo(2, 2), kk_box_uint(2), kk_box_int(2)),
+            (kk_long_rangeTo(2, 2), kk_box_long(2), kk_box_int(2)),
+            (kk_char_rangeTo(kk_box_char(98), kk_box_char(98)), kk_box_char(98), kk_box_int(98))
+        ] {
+            let iterator = kk_range_iterator(range)
+            let method = kk_itable_lookup_dynamic(iterator, iteratorTypeID, 1)
+            try #require(method != 0)
+            let next = unsafeBitCast(method, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 0
+            let element = next(iterator, &thrown)
+            #expect(thrown == 0)
+            #expect(kk_unbox_bool(kk_any_equals(element, 1, matching, 1)) == 1)
+            #expect(kk_unbox_bool(kk_any_equals(element, 1, mismatching, 1)) == 0)
+            _ = next(iterator, &thrown)
+            #expect(thrown != 0)
+        }
+    }
+
+    @Test
     func floatingPointRangeGettersPreserveEndpointBits() {
         let doubleEndpoints: [(Double, Double)] = [
             (-1.25, 2.5), (1.0, 0.0), (-0.0, 0.0),

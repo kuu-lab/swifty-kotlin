@@ -1214,11 +1214,7 @@ private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutable
 }
 
 private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    if kk_range_hasNext(iterRaw) == 0 {
-        return runtimeThrowIteratorExhausted(outThrown)
-    }
-    return kk_range_next(iterRaw)
+    kk_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -1525,7 +1521,8 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             return lhsInt.enumClassID == rhsInt.enumClassID
                 && lhsInt.value == rhsInt.value
         }
-        return lhsInt.value == rhsInt.value
+        return lhsInt.primitiveTypeBase == rhsInt.primitiveTypeBase
+            && lhsInt.value == rhsInt.value
     }
     if let lhsBool = tryCast(lhsPtr, to: RuntimeBoolBox.self),
        let rhsBool = tryCast(rhsPtr, to: RuntimeBoolBox.self)
