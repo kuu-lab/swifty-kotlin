@@ -94,13 +94,13 @@ final class TypeCheckDriver {
               let binding = sema.bindings.callBinding(for: id),
               let callee = sema.symbols.symbol(binding.chosenCallee),
               !ctx.visibilityChecker.isPublicAPI(callee, allowProtected: false),
-              let expr = ast.arena.expr(id),
+              let range = ast.arena.exprRange(id),
               diagnosedInlineAccessExpressions.insert(id).inserted
         else { return }
         diagnostics.error(
             "KSWIFTK-SEMA-0045",
             "Public-API inline function cannot access non-public-API declaration '\(interner.resolve(callee.name))'.",
-            range: expr.range
+            range: range
         )
     }
 

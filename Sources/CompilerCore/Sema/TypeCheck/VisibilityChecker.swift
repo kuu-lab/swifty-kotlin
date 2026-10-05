@@ -98,6 +98,11 @@ struct VisibilityChecker {
     }
 
     func isPublicAPI(_ symbol: SemanticSymbol, allowProtected: Bool = true) -> Bool {
+        if symbol.flags.contains(.constructorVisibilityInherited),
+           let parent = symbols.parentSymbol(for: symbol.id),
+           let owner = symbols.symbol(parent) {
+            return isPublicAPI(owner, allowProtected: allowProtected)
+        }
         switch symbol.visibility {
         case .public:
             break

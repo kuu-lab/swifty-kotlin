@@ -4,15 +4,13 @@ import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.internal.__valuesEqual
 
 // Float/Double maxOf uses these existing shared numeric helpers directly, the
-// same way Iterables.kt does, so NaN and signed-zero behavior stays identical
+// shared with Iterables.kt, so NaN and signed-zero behavior stays identical
 // to kotlin.comparisons.maxOf (calling that inline wrapper itself by
 // fully-qualified name from a non-inline caller left an unresolved "_maxOf"
 // symbol at link time in --stdlib-from-source mode). minOf uses the
 // comparisonMinOf import alias above instead of a local kk_min_float/double
 // redeclaration — a local redeclaration of kk_min_float produced wrong
 // results (returned the first operand unchanged) when called directly.
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
 
 // MIGRATION-SEQ-004
 // Sequence aggregate HOFs migrated to Kotlin source.

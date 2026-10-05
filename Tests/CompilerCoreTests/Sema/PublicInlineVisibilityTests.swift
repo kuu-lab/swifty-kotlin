@@ -18,6 +18,7 @@ struct PublicInlineVisibilityTests {
             ("private fun hidden(): Int = 1\ninline fun exposed(): Int = hidden()", true),
             ("internal inline fun hidden(): Int = 1\ninline fun exposed(): Int = hidden()", true),
             ("internal fun hidden(): Int = 1\ninline fun exposed(): Int = hidden()", true),
+            ("class Hidden private constructor()\ninline fun exposed(): Hidden = Hidden()", true),
             ("""
             private fun hidden(): Int = 1
             @PublishedApi internal inline fun exposed(): Int = hidden()
@@ -89,6 +90,27 @@ struct PublicInlineVisibilityTests {
             }
             """, false),
             ("""
+            @PublishedApi internal class Owner
+            inline fun exposed(): Any = Owner()
+            """, false),
+            ("""
+            class Owner {
+                class Nested @PublishedApi internal constructor()
+            }
+            inline fun exposed(): Any = Owner.Nested()
+            """, false),
+            ("""
+            inline fun around(block: () -> Unit) { block() }
+            fun helper(): Int = 1
+            inline fun exposed(): Int = helper()
+            """, false),
+            ("""
+            inline fun exposed(crossinline block: () -> Int): Int {
+                val local = { block() }
+                return local()
+            }
+            """, false),
+            ("""
             @Suppress("NON_PUBLIC_CALL_FROM_PUBLIC_INLINE")
             inline fun exposed(): Int = hidden()
             private fun hidden(): Int = 1
@@ -103,6 +125,8 @@ struct PublicInlineVisibilityTests {
                 if sample.rejected {
                     #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0045" },
                             "Sample \(index): \(errors)")
+                    #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0045" },
+                            "Sample \(index): unrelated errors \(errors)")
                 } else {
                     #expect(errors.isEmpty, "Sample \(index): \(errors)")
                 }
