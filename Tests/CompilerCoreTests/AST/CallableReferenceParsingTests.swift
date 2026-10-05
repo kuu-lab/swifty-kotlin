@@ -1,0 +1,115 @@
+#if canImport(Testing)
+@testable import CompilerCore
+import Foundation
+import Testing
+
+@Suite
+struct CallableReferenceParsingTests {
+    @Test(arguments: [
+        "::", "x::", "println(\"d\")::",
+        "(::)", "(x::)", "consume(::)", "consume(x::)",
+        "consume(::, 1)", "consume(x::, 1)", "(:: + 1)", "(x:: + 1)",
+    ])
+    func missingMemberReportsParseError(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            diagnostics: lexed.diagnostics
+        )
+        _ = parser.parse()
+
+        #expect(lexed.diagnostics.diagnostics.count == 1)
+        let diagnostic = try #require(lexed.diagnostics.diagnostics.first)
+        let opToken = try #require(lexed.tokens.first { $0.kind == .symbol(.doubleColon) })
+        #expect(diagnostic.code == "KSWIFTK-PARSE-0014")
+        #expect(diagnostic.severity == .error)
+        #expect(diagnostic.message == "Expected an identifier after '::'.")
+        #expect(diagnostic.primaryRange == opToken.range)
+        #expect(!arena.exprs.contains { if case .callableRef = $0 { true } else { false } })
+    }
+
+    @Test(arguments: ["::", "x::"])
+    func missingMemberAtEOFReportsOnce(_ source: String) {
+        let lexed = lex(source)
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens,
+            interner: lexed.interner,
+            astArena: ASTArena(),
+            diagnostics: lexed.diagnostics
+        )
+        _ = parser.parse()
+
+        #expect(lexed.diagnostics.diagnostics.count == 1)
+        #expect(lexed.diagnostics.diagnostics.first?.code == "KSWIFTK-PARSE-0014")
+        #expect(parser.current()?.kind == .eof)
+    }
+
+    @Test(arguments: ["::)", "::,", "::+", "::42"])
+    func missingMemberLeavesUnexpectedTokenForRecovery(_ source: String) {
+        let lexed = lex(source)
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens,
+            interner: lexed.interner,
+            astArena: ASTArena(),
+            diagnostics: lexed.diagnostics
+        )
+
+        #expect(parser.parseCallableReference() == nil)
+        #expect(parser.index == 1)
+        #expect(parser.current() == lexed.tokens[1])
+        #expect(lexed.diagnostics.diagnostics.count == 1)
+    }
+
+    @Test(arguments: [
+        "::target", "receiver::target", "::`when`", "receiver::`when`",
+        "::get", "receiver::get", "::suspend", "receiver::suspend", "String::class",
+    ])
+    func validMemberPreservesCallableReference(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            diagnostics: lexed.diagnostics
+        )
+        let exprID = try #require(parser.parse())
+        guard case let .callableRef(receiver, member, range) = arena.expr(exprID) else {
+            Issue.record("Expected a callable reference.")
+            return
+        }
+
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+        #expect((receiver == nil) == source.hasPrefix("::"))
+        let expectedMember = source.components(separatedBy: "::")[1].replacingOccurrences(of: "`", with: "")
+        #expect(lexed.interner.resolve(member) == expectedMember)
+        #expect(range.start.offset == 0)
+        #expect(range.end.offset == source.utf8.count)
+        #expect(parser.current() == nil)
+    }
+
+    @Test(arguments: [
+        "fun main() { :: }",
+        "fun main() { println(\"d\"):: }",
+        "fun main() { val x = 1; x:: }",
+        "fun main() { val r = :: }",
+        "fun main() { val x = 1; val r = x:: }",
+        "fun main() { consume(::) }",
+        "fun main() { println(\"d\")\n:: }",
+        "fun main() { val r = { :: } }",
+        "fun ref() = ::",
+        "val r = ::",
+        "fun main() {\n::\nprintln(\"d\")::\nval r = ::\n}",
+    ])
+    func frontendRejectsMissingMember(_ source: String) throws {
+        let (_, ctx) = try buildASTModule(from: source, includeStdlib: false)
+
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0014" && $0.severity == .error
+        })
+    }
+}
+#endif
