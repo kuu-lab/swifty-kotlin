@@ -77,5 +77,5 @@ public class JobImpl(parent: Job? = null) : JobSupport(true), CompletableJob {
 
     public override fun complete(): Boolean = complete(Unit)
     public override fun completeExceptionally(exception: Throwable): Boolean =
-        super.completeExceptionally(exception)
+        super<JobSupport>.completeExceptionally(exception)
 }
