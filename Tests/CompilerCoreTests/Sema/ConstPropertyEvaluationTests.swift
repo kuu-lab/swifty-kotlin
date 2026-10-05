@@ -11,6 +11,9 @@ struct ConstPropertyEvaluationTests {
             package constants
             import constants.Later.CODE as importedCode
             class Limits { companion object { const val MIN: Long = Long.MIN_VALUE } }
+            interface Sized { companion object { const val BITS: Int = Int.SIZE_BITS } }
+            const val COMPANION_MIN: Long = Limits.MIN
+            const val COMPANION_BITS: Int = Sized.BITS
             object First { const val CODE: Int = Later.CODE + 1 }
             const val IMPORTED: Int = importedCode
             const val LONG_BASE: Long = 1
@@ -22,6 +25,8 @@ struct ConstPropertyEvaluationTests {
             const val BITS: Int = (0xF0 or 0x0F) xor (0xFF and 0x0F)
             const val LONG_MASKED: Long = -1L ushr 64
             const val LONG_BITS: Long = (0xF0L or 0x0FL) xor (0xFFL and 0x0FL)
+            const val INFERRED_LONG = 2147483648
+            const val INFERRED_SHIFT: Long = INFERRED_LONG shr 31
             const val DOT: Int = 255.ushr(4)
             const val WRAP: Int = Int.MAX_VALUE + 1
             const val NESTED: Int = (First.CODE shl 1) + SHIFTED
@@ -37,7 +42,7 @@ struct ConstPropertyEvaluationTests {
         let expectedInts: [String: Int64] = [
             "CODE": 66, "IMPORTED": 65, "SHIFTED": 15, "UNSIGNED_SHIFT": 2147483647,
             "MASKED": 1, "NEGATIVE_SHIFT": -2147483648, "BITS": 240,
-            "DOT": 15, "WRAP": -2147483648, "NESTED": 147,
+            "DOT": 15, "WRAP": -2147483648, "NESTED": 147, "COMPANION_BITS": 32,
         ]
         for (name, value) in expectedInts {
             let path = name == "CODE" ? ["constants", "First", name] : ["constants", name]
@@ -48,7 +53,7 @@ struct ConstPropertyEvaluationTests {
             }
             #expect(actual == value)
         }
-        for (name, value) in [("LONG_BASE", Int64(1)), ("LONG_SHIFT", Int64.min), ("LONG_MASKED", -1), ("LONG_BITS", 240)] {
+        for (name, value) in [("LONG_BASE", Int64(1)), ("LONG_SHIFT", Int64.min), ("LONG_MASKED", -1), ("LONG_BITS", 240), ("COMPANION_MIN", Int64.min), ("INFERRED_LONG", 2147483648), ("INFERRED_SHIFT", 1)] {
             let symbol = try #require(sema.symbols.lookup(fqName: ["constants", name].map { ctx.interner.intern($0) }))
             guard case let .longLiteral(actual) = sema.symbols.constValueExprKind(for: symbol) else {
                 Issue.record("Missing Long constant for \(name)")

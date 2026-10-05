@@ -3,7 +3,9 @@ final class ConstPropertyEvaluator {
     private let sema: SemaModule
     private let interner: StringInterner
     private var properties: [SymbolID: PropertyDecl] = [:]
+    private var collected: Set<DeclID> = []
     private var evaluating: Set<SymbolID> = []
+    private var evaluated: Set<SymbolID> = []
     private var failed: Set<SymbolID> = []
 
     init(ast: ASTModule, sema: SemaModule, interner: StringInterner) {
@@ -11,11 +13,34 @@ final class ConstPropertyEvaluator {
         self.sema = sema
         self.interner = interner
         for declID in ast.activeDeclarationIDs.sorted(by: { $0.rawValue < $1.rawValue }) {
-            guard case let .propertyDecl(property) = ast.arena.decl(declID),
-                  property.modifiers.contains(.const),
+            collectProperties(in: declID)
+        }
+    }
+
+    private func collectProperties(in declID: DeclID) {
+        guard collected.insert(declID).inserted else { return }
+        switch ast.arena.decl(declID) {
+        case let .propertyDecl(property):
+            guard property.modifiers.contains(.const),
                   let symbol = sema.bindings.declSymbol(for: declID)
-            else { continue }
+            else { return }
             properties[symbol] = property
+        case let .classDecl(decl):
+            for child in decl.memberProperties + decl.nestedClasses + decl.nestedObjects {
+                collectProperties(in: child)
+            }
+            if let companion = decl.companionObject { collectProperties(in: companion) }
+        case let .interfaceDecl(decl):
+            for child in decl.memberProperties + decl.nestedClasses + decl.nestedObjects {
+                collectProperties(in: child)
+            }
+            if let companion = decl.companionObject { collectProperties(in: companion) }
+        case let .objectDecl(decl):
+            for child in decl.memberProperties + decl.nestedClasses + decl.nestedObjects {
+                collectProperties(in: child)
+            }
+        default:
+            break
         }
     }
 
@@ -33,7 +58,8 @@ final class ConstPropertyEvaluator {
     }
 
     private func constant(for symbol: SymbolID) -> KIRExprKind? {
-        if let value = sema.symbols.constValueExprKind(for: symbol) { return value }
+        if properties[symbol] == nil || evaluated.contains(symbol),
+           let value = sema.symbols.constValueExprKind(for: symbol) { return value }
         if let value = primitiveCompanionConstant(for: symbol) { return value }
         guard !failed.contains(symbol), evaluating.count < DataFlowSemaPhase.maxStructuralRecursionDepth,
               let property = properties[symbol], !property.isVar,
@@ -52,11 +78,16 @@ final class ConstPropertyEvaluator {
         let converted = collector.convertConstant(value, to: type, types: sema.types)
         sema.symbols.setConstValueExprKind(converted, for: symbol)
         sema.bindings.bindConstExprValue(initializer, value: converted)
+        evaluated.insert(symbol)
         return converted
     }
 
     private func resolvedConstant(for expr: ExprID) -> KIRExprKind? {
-        if let symbol = sema.bindings.identifierSymbol(for: expr),
+        let callee = sema.bindings.callBinding(for: expr)?.chosenCallee
+        let property = callee.flatMap {
+            sema.symbols.accessorOwnerProperty(for: $0) ?? sema.symbols.parentSymbol(for: $0)
+        }
+        if let symbol = sema.bindings.identifierSymbol(for: expr) ?? property,
            let info = sema.symbols.symbol(symbol), info.kind == .property,
            info.flags.contains(.constValue) || primitiveCompanionConstant(for: symbol) != nil
         {
