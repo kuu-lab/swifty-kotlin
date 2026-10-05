@@ -77,6 +77,17 @@ extension DataFlowSemaPhase {
         let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
+        /// The library (module name, or metadata path when unnamed) that
+        /// claimed each symbol. `SymbolTable.define` merges a record onto the
+        /// first symbol declared at its FQ name; when two libraries export the
+        /// same declaration the second record therefore lands on an
+        /// already-bound symbol. First on the search path wins — the loser's
+        /// record is shadowed so the symbol's signature, owning module, and
+        /// inline body stay consistent — while its external link names still
+        /// alias to the merged symbol so bodies in the losing library that
+        /// reference the declaration keep resolving.
+        var boundSymbolOrigins: [SymbolID: String] = [:]
+        var shadowedDuplicateRecords: [(record: ImportedLibrarySymbolRecord, symbol: SymbolID)] = []
         let lazyLoaderState = ImportedLibraryLazyLoaderState(importedInlineFunctions: importedInlineFunctions)
         var klibModules: [LoadedKlibModule] = []
         /// Every `.klib` that passed manifest gating — including ones whose
@@ -143,6 +154,18 @@ extension DataFlowSemaPhase {
                 visibility: record.visibility,
                 flags: flags
             )
+            let origin = moduleFQN.map { "module '\(interner.resolve($0))'" }
+                ?? "'\(metadataPath)'"
+            if let winner = boundSymbolOrigins[symbol] {
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0031",
+                    "Duplicate declaration '\(renderFQName(record.fqName, interner: interner))' imported from \(origin) ignored; \(winner) takes precedence",
+                    range: nil
+                )
+                shadowedDuplicateRecords.append((record: record, symbol: symbol))
+                return symbol
+            }
+            boundSymbolOrigins[symbol] = origin
             if let moduleFQN {
                 symbols.setModuleFQN(moduleFQN, for: symbol)
             }
@@ -386,6 +409,18 @@ extension DataFlowSemaPhase {
                 importedSymbolByFQName[fQName] = binding.symbol
             }
         }
+        // A shadowed duplicate still contributes its external link names as
+        // aliases of the merged symbol: call sites inside the losing library
+        // (including its surviving non-duplicate declarations) resolve by
+        // that library's own link names.
+        for shadowed in shadowedDuplicateRecords {
+            if let linkName = shadowed.record.externalLinkName, !linkName.isEmpty {
+                externalLinkNameToSymbol[linkName] = shadowed.symbol
+            }
+            if let linkName = shadowed.record.defaultStubExternalLinkName, !linkName.isEmpty {
+                externalLinkNameToSymbol[linkName] = SyntheticSymbolScheme.defaultStubSymbol(for: shadowed.symbol)
+            }
+        }
 
         // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: a function's type parameter is
         // "phantom" when it never appears in its receiver, value parameters,
@@ -459,6 +494,16 @@ extension DataFlowSemaPhase {
         for binding in propertyBindingsWithGetter {
             guard let getterLink = binding.record.propertyGetterExternalLinkName,
                   let getterSymbol = symbols.extensionPropertyGetterAccessor(for: binding.symbol)
+            else {
+                continue
+            }
+            externalLinkNameToSymbol[getterLink] = getterSymbol
+        }
+        for shadowed in shadowedDuplicateRecords {
+            guard shadowed.record.kind == .property || shadowed.record.kind == .field,
+                  let getterLink = shadowed.record.propertyGetterExternalLinkName,
+                  !getterLink.isEmpty,
+                  let getterSymbol = symbols.extensionPropertyGetterAccessor(for: shadowed.symbol)
             else {
                 continue
             }

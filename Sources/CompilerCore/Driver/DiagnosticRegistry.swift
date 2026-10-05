@@ -826,6 +826,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .warning,
             summary: "Kotlin .klib dependency missing from the library search path."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0031",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Duplicate library declaration ignored; first on the search path wins."
+        ),
     ]
 
     // MARK: - KIR generation pass (KIR)
