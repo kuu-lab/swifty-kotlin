@@ -39,7 +39,7 @@ extension CallLowerer {
         case knownNames.yield:
             return interner.intern("__kk_sequence_builder_yield")
         case knownNames.yieldAll:
-            return interner.intern("__kk_sequence_builder_yieldAll")
+            return interner.intern("__kk_sequence_builder_yieldAll_checked")
         default:
             return nil
         }

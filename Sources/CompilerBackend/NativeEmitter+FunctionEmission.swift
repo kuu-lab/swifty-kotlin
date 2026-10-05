@@ -2552,6 +2552,7 @@ extension NativeEmitter {
                 // builder. Honor the remapped bridge after boxing is complete.
                 let isSequenceBuilderRuntimeCall = calleeName == "__kk_sequence_builder_yield"
                     || calleeName == "__kk_sequence_builder_yieldAll"
+                    || calleeName == "__kk_sequence_builder_yieldAll_checked"
                 let normalizedSymbol: SymbolID? = if !isFunctionValueInvoke,
                                                        !isSequenceBuilderRuntimeCall,
                                                        let symbol,

@@ -34,6 +34,48 @@ public func __kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int 
 
 // MARK: - yieldAll(iterable) (STDLIB-553)
 
+@_cdecl("__kk_sequence_builder_yieldAll_checked")
+public func __kk_sequence_builder_yieldAll_checked(
+    _ builderRaw: Int,
+    _ collectionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) else {
+        return __kk_sequence_builder_yieldAll(builderRaw, collectionRaw)
+    }
+    if runtimeListBox(from: collectionRaw) != nil
+        || runtimeArrayBox(from: collectionRaw) != nil
+        || runtimeSetBox(from: collectionRaw) != nil
+    {
+        return __kk_sequence_builder_yieldAll(builderRaw, collectionRaw)
+    }
+    var thrown = 0
+    let iterator = runtimeSequenceBox(from: collectionRaw) != nil
+        ? kk_sequence_box_iterator(collectionRaw, &thrown)
+        : collectionRaw
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    let hasNext = kk_iterator_hasNext(iterator, &thrown)
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    if hasNext == 0 { return 0 }
+
+    // Only the initial probe runs in the producer's catch scope. Once
+    // delegation starts, iterator failures belong to the consumer.
+    repeat {
+        let value = kk_iterator_next(iterator, &thrown)
+        if thrown != 0 { break }
+        _ = proxy.coroutine.yieldValue(value)
+    } while kk_iterator_hasNext(iterator, &thrown) != 0 && thrown == 0
+    proxy.coroutine.recordFailure(thrown)
+    return 0
+}
+
 @_cdecl("__kk_sequence_builder_yieldAll")
 public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int) -> Int {
     // STDLIB-563: If the handle is a coroutine builder proxy, yield each element lazily.

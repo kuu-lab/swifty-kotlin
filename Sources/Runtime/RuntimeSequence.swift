@@ -128,7 +128,17 @@ fileprivate final class RuntimeSequencePullIteratorCursor {
             bufferedElements.removeAll(keepingCapacity: true)
             bufferedIndex = 0
             guard let element = nextSourceElement(outThrown: outThrown) else {
+                if (outThrown?.pointee ?? 0) != 0 { return false }
                 exhausted = true
+                runtimeSequenceFlushChunkedTransforms(
+                    transformSteps,
+                    state: state,
+                    outThrown: outThrown,
+                    yield: { [weak self] value in
+                        self?.bufferedElements.append(value)
+                        return true
+                    }
+                )
                 break
             }
             runtimeSequenceTransformElement(
@@ -190,7 +200,6 @@ fileprivate final class RuntimeSequencePullIteratorCursor {
             let nextValue = nextFn(closureRaw, previous, &thrown)
             if thrown != 0 {
                 outThrown?.pointee = thrown
-                exhausted = true
                 return nil
             }
             guard nextValue != runtimeNullSentinelInt else {
@@ -205,7 +214,6 @@ fileprivate final class RuntimeSequencePullIteratorCursor {
             let nextValue = nextFn(closureRaw, &thrown)
             if thrown != 0 {
                 outThrown?.pointee = thrown
-                exhausted = true
                 return nil
             }
             guard nextValue != runtimeNullSentinelInt else {

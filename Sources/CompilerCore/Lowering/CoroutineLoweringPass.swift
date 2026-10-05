@@ -375,7 +375,7 @@ final class CoroutineLoweringPass: LoweringPass {
             coroutineScopeLaunchCallee: coroutineScopeLaunchCallee,
             sequenceBuilderBuildCallee: ctx.interner.intern("__kk_sequence_builder_build"),
             sequenceBuilderBuildCoroCallee: ctx.interner.intern("__kk_sequence_builder_build_coro"),
-            sequenceBuilderYieldAllCallee: ctx.interner.intern("__kk_sequence_builder_yieldAll"),
+            sequenceBuilderYieldAllCallee: ctx.interner.intern("__kk_sequence_builder_yieldAll_checked"),
             sequenceBuilderYieldCallee: ctx.interner.intern("__kk_sequence_builder_yield"),
             sequenceClassSymbol: sequenceClassSymbol,
             iteratorBuilderBuildCallee: ctx.interner.intern("__kk_iterator_builder_build"),
