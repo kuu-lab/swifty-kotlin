@@ -105,8 +105,15 @@ extension CallTypeChecker {
                     expectedType: sema.types.ulongType
                 )
             }
-            let inferredType = sema.bindings.exprType(for: arg.expr)
-                ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            // Speculative declaration checks can leave a name reference bound
+            // to a placeholder type. Read its current local/member type again.
+            let inferredType: TypeID
+            if case .nameRef = ast.arena.expr(arg.expr) {
+                inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            } else {
+                inferredType = sema.bindings.exprType(for: arg.expr)
+                    ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            }
             if calleeName == knownNames.coerceIn,
                let rangeType = floatingPointRangeArgumentType(
                    arg.expr,
