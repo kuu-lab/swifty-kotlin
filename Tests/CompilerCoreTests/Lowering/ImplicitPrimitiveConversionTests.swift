@@ -5,6 +5,53 @@ import Testing
 @Suite
 struct ImplicitPrimitiveConversionTests {
     @Test
+    func testSmallSignedIntegerToUShortCallsUseExistingRuntimeBridge() throws {
+        let source = """
+        fun byteExplicit(value: Byte): UShort = value.toUShort()
+        fun shortExplicit(value: Short): UShort = value.toUShort()
+        fun byteSafe(value: Byte?): UShort? = value?.toUShort()
+        fun shortSafe(value: Short?): UShort? = value?.toUShort()
+        fun intSafe(value: Int?): UShort? = value?.toUShort()
+        fun Byte.byteImplicit(): UShort = toUShort()
+        fun Short.shortImplicit(): UShort = toUShort()
+        fun Byte.byteThis(): UShort = this.toUShort()
+        fun Short.shortThis(): UShort = this.toUShort()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+
+            for name in [
+                "byteExplicit", "shortExplicit", "byteSafe", "shortSafe",
+                "byteImplicit", "shortImplicit", "byteThis", "shortThis",
+                "intSafe",
+            ] {
+                let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
+                let calls = body.compactMap { instruction -> String? in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+                    return ctx.interner.resolve(callee)
+                }
+                #expect(calls.filter { $0 == "kk_int_to_ushort" }.count == 1, "\(name): \(calls)")
+                #expect(!calls.contains("toUShort"), "\(name) must not emit an unresolved conversion")
+                if name.hasSuffix("Safe") {
+                    let guardIndex = try #require(body.firstIndex { if case .jumpIfNotNull = $0 { return true }; return false })
+                    let callIndex = try #require(body.firstIndex {
+                        if case let .call(_, callee, _, _, _, _, _, _) = $0 {
+                            return ctx.interner.resolve(callee) == "kk_int_to_ushort"
+                        }
+                        return false
+                    })
+                    #expect(guardIndex < callIndex, "\(name) must guard the conversion")
+                    #expect(body.contains { if case .constValue(_, .null) = $0 { return true }; return false })
+                }
+            }
+        }
+    }
+
+    @Test
     func testImplicitSmallIntegerConversionsBindAndLowerToRealBridgesOrCopies() throws {
         let source = """
         fun Byte.byteInt(): Int = toInt()

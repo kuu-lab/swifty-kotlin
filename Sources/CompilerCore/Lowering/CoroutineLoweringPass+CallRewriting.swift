@@ -1109,24 +1109,22 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        // KSP-1566: a Duration argument arrives unboxed as nanoseconds;
-        // convert to milliseconds inline (`inWholeMilliseconds`). Millis
-        // arguments (Long/Int) pass through untouched.
+        // KSP-1566: adapt Duration's tagged payload to the coroutine runtime's
+        // millisecond ABI. Long/Int arguments already contain milliseconds.
         var timeMillisExpr = call.arguments[0]
         var rewritten: [KIRInstruction] = []
         if let argType = rewrite.module.arena.exprType(timeMillisExpr) {
             let longType = rewrite.ctx.sema?.types.make(.primitive(.long, .nonNull))
             if argType != longType, argType != rewrite.intType {
-                let divisorExpr = rewrite.module.arena.appendExpr(
-                    .intLiteral(1_000_000),
-                    type: longType
-                )
                 let millisExpr = rewrite.module.arena.appendTemporary(type: longType)
-                rewritten.append(.binary(
-                    op: .divide,
-                    lhs: timeMillisExpr,
-                    rhs: divisorExpr,
-                    result: millisExpr
+                rewritten.append(.call(
+                    symbol: nil,
+                    callee: rewrite.ctx.interner.intern("kk_duration_inWholeMilliseconds"),
+                    arguments: [timeMillisExpr],
+                    result: millisExpr,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: false
                 ))
                 timeMillisExpr = millisExpr
             }

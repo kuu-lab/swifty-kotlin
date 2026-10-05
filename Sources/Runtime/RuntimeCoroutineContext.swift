@@ -213,12 +213,13 @@ public func kk_context_get_dispatcher(_ contextRaw: Int) -> Int {
 }
 
 /// Intercept a continuation using its dispatcher-backed context, if any.
-@_cdecl("kk_continuation_intercepted")
-public func kk_continuation_intercepted(_ continuationRaw: Int) -> Int {
+@_cdecl("__kk_continuation_intercepted")
+public func __kk_continuation_intercepted(_ continuationRaw: Int) -> Int {
     guard continuationRaw != 0,
+          isRegisteredRuntimeObjectPointer(continuationRaw),
           let ptr = UnsafeMutableRawPointer(bitPattern: continuationRaw)
     else {
-        return 0
+        return continuationRaw
     }
     let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     guard let continuation = object as? KKContinuation else {

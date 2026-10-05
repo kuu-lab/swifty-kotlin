@@ -17,6 +17,8 @@ extension CallTypeChecker {
     private static let arraySourceBackedNames: Set<String> = [
         "sliceArray", "reversedArray", "asList", "toTypedArray",
         "asIterable", "sumOf",
+        "associate", "associateBy", "associateWith",
+        "associateTo", "associateByTo", "associateWithTo",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import

@@ -159,11 +159,19 @@ struct ContinuationSyntheticStubTests {
             "Expected kotlin.coroutines.intrinsics.intercepted to be registered"
         )
         let interceptedSignature = try #require(sema.symbols.functionSignature(for: interceptedSymbol))
-        #expect(sema.symbols.externalLinkName(for: interceptedSymbol) == "kk_continuation_intercepted")
-        #expect(interceptedSignature.receiverType == continuationType)
-        #expect(interceptedSignature.returnType == continuationType)
-        #expect(interceptedSignature.typeParameterSymbols == [continuationTParamSymbol])
-        #expect(interceptedSignature.classTypeParameterCount == 1)
+        #expect(sema.symbols.externalLinkName(for: interceptedSymbol) == nil)
+        #expect(sema.symbols.symbol(interceptedSymbol)?.flags.contains(.synthetic) == false)
+        #expect(interceptedSignature.typeParameterSymbols.count == 1)
+        #expect(interceptedSignature.classTypeParameterCount == 0)
+        let interceptedT = try #require(interceptedSignature.typeParameterSymbols.first)
+        let interceptedTType = sema.types.make(.typeParam(TypeParamType(symbol: interceptedT, nullability: .nonNull)))
+        let interceptedContinuationType = sema.types.make(.classType(ClassType(
+            classSymbol: continuationSymbol,
+            args: [.invariant(interceptedTType)],
+            nullability: .nonNull
+        )))
+        #expect(interceptedSignature.receiverType == interceptedContinuationType)
+        #expect(interceptedSignature.returnType == interceptedContinuationType)
 
         let interceptContinuationFQName = ["kotlin", "coroutines", "ContinuationInterceptor", "interceptContinuation"].map { interner.intern($0) }
         let interceptContinuationSymbol = try #require(
@@ -360,10 +368,8 @@ struct ContinuationSyntheticStubTests {
             sema.bindings.callBinding(for: callExpr)?.chosenCallee,
             "Expected intercepted() to resolve"
         )
-        #expect(
-            sema.symbols.externalLinkName(for: chosenCallee) ==
-            "kk_continuation_intercepted"
-        )
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+        #expect(sema.symbols.symbol(chosenCallee)?.flags.contains(.synthetic) == false)
     }
 
     @Test

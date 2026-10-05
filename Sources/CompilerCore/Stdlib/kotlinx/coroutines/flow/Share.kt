@@ -201,18 +201,18 @@ private class SubscribedSharedFlow<T>(
         collectSource(collector)
     }
 
+    @Suppress("UNCHECKED_CAST")
     suspend fun runActions(collector: suspend (T) -> Unit) {
         if (source is SubscribedSharedFlow<*>) {
-            @Suppress("UNCHECKED_CAST")
             (source as SubscribedSharedFlow<T>).runActions(collector)
         }
         val forwarding = SubscriptionCollector(collector)
         action(forwarding)
     }
 
+    @Suppress("UNCHECKED_CAST")
     suspend fun collectSource(collector: suspend (T) -> Unit) {
         if (source is SubscribedSharedFlow<*>) {
-            @Suppress("UNCHECKED_CAST")
             (source as SubscribedSharedFlow<T>).collectSource(collector)
         } else {
             source.collect(collector)

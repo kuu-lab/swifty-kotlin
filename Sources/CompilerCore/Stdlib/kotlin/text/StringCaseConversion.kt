@@ -37,14 +37,22 @@ public fun String.uppercase(): String {
 }
 
 /**
- * Returns a copy of this string with the first character upper-cased.
+ * Returns a copy of this string with the first character title-cased if it is lower case.
  *
  * Deprecated by Kotlin, but still provided for compatibility.
  */
 public fun String.capitalize(): String {
     if (this.length == 0) return this
+    val first = this[0]
+    if (!first.isLowerCase()) return this
+
     val sb = StringBuilder()
-    sb.append(this[0].uppercase())
+    val title = first.titlecaseChar()
+    if (title != first.uppercaseChar()) {
+        sb.append(title)
+    } else {
+        sb.append(first.uppercase())
+    }
     var i = 1
     while (i < length) {
         sb.append(this[i])

@@ -174,20 +174,44 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
     @Test func interceptedFreshContinuationReturnsIdentity() {
         let cont = kk_coroutine_continuation_new(8801)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
-        let intercepted = kk_continuation_intercepted(cont)
+        let intercepted = __kk_continuation_intercepted(cont)
         #expect(intercepted == cont, "intercepted() on a continuation with no interceptor must return the same handle (bypass)")
     }
 
     @Test func interceptedZeroHandleReturnsZero() {
-        let result = kk_continuation_intercepted(0)
+        let result = __kk_continuation_intercepted(0)
         #expect(result == 0, "intercepted(null) must return 0")
     }
 
     @Test func interceptedValidContinuationIsNonZero() {
         let cont = kk_coroutine_continuation_new(8802)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
-        let intercepted = kk_continuation_intercepted(cont)
+        let intercepted = __kk_continuation_intercepted(cont)
         #expect(intercepted != 0, "intercepted() must return a non-zero handle for a valid continuation")
+    }
+
+    @Test func interceptedNonSwiftMemoryReturnsIdentity() {
+        let pointer = UnsafeMutableRawPointer.allocate(byteCount: 32, alignment: 8)
+        defer { pointer.deallocate() }
+        pointer.initializeMemory(as: UInt8.self, repeating: 0, count: 32)
+        let raw = Int(bitPattern: pointer)
+        #expect(__kk_continuation_intercepted(raw) == raw)
+    }
+
+    @Test func interceptedDispatcherContinuationStillDispatchesResume() throws {
+        let completion = DispatchGroup()
+        completion.enter()
+        let continuation = runtimeRegisterObject(KKDispatchContinuation(
+            context: UnsafeMutableRawPointer(bitPattern: kk_dispatcher_default()),
+            callback: { _ in completion.leave() }
+        ))
+        let intercepted = __kk_continuation_intercepted(continuation)
+        #expect(intercepted != 0 && intercepted != continuation)
+        #expect(__kk_continuation_intercepted(intercepted) == intercepted)
+        let pointer = try #require(UnsafeMutableRawPointer(bitPattern: intercepted))
+        let wrapper = try #require(Unmanaged<AnyObject>.fromOpaque(pointer).takeUnretainedValue() as? KKContinuation)
+        wrapper.resumeWith(nil)
+        #expect(completion.wait(timeout: .now() + 2) == .success)
     }
 
     // MARK: - kk_continuation_interceptor_intercept_continuation
