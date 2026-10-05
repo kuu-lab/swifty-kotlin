@@ -125,12 +125,20 @@ func runtimeRangeHashCode(_ range: RuntimeRangeBox) -> Int {
 }
 
 func runtimeRangeToString(_ range: RuntimeRangeBox) -> String {
-    let first = range.kind.usesUnsignedValues
-        ? String(UInt(bitPattern: range.first))
-        : String(range.first)
-    let last = range.kind.usesUnsignedValues
-        ? String(UInt(bitPattern: range.last))
-        : String(range.last)
+    let first: String
+    let last: String
+    switch range.kind {
+    case .charRange, .charProgression:
+        first = runtimeCharacterFromRaw(range.first)
+        last = runtimeCharacterFromRaw(range.last)
+    default:
+        first = range.kind.usesUnsignedValues
+            ? String(UInt(bitPattern: range.first))
+            : String(range.first)
+        last = range.kind.usesUnsignedValues
+            ? String(UInt(bitPattern: range.last))
+            : String(range.last)
+    }
     guard range.kind.isProgression else {
         return "\(first)..\(last)"
     }

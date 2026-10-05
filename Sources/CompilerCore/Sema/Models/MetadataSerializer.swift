@@ -21,6 +21,10 @@ package struct MetadataRecord {
     package let isOperator: Bool
     /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
+    /// Nominal owner of a callable/property receiver. The indexed metadata
+    /// path keeps this compact routing key available without decoding the
+    /// declaration body, so synthetic stdlib overlap guards can run eagerly.
+    let receiverOwnerFQName: String?
     let typeSignature: String?
     /// Upper-bound type signatures for callable type parameters, in declaration order.
     /// Empty entries preserve alignment when only a later type parameter is bounded.
@@ -34,6 +38,7 @@ package struct MetadataRecord {
     /// to other generic calls) and disambiguates parameters across overloads
     /// that share one FQ name.
     package let callableTypeParameterSignatures: [String]
+    package let inputOnlyTypeParameterIndices: Set<Int>
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter flags indicating whether a function-type argument may
@@ -151,9 +156,11 @@ package struct MetadataRecord {
         isInline: Bool = false,
         isOperator: Bool = false,
         isOverride: Bool = false,
+        receiverOwnerFQName: String? = nil,
         typeSignature: String? = nil,
         typeParameterUpperBoundsSignatures: [[String]] = [],
         callableTypeParameterSignatures: [String] = [],
+        inputOnlyTypeParameterIndices: Set<Int> = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
@@ -207,9 +214,11 @@ package struct MetadataRecord {
         self.isInline = isInline
         self.isOperator = isOperator
         self.isOverride = isOverride
+        self.receiverOwnerFQName = receiverOwnerFQName
         self.typeSignature = typeSignature
         self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
         self.callableTypeParameterSignatures = callableTypeParameterSignatures
+        self.inputOnlyTypeParameterIndices = inputOnlyTypeParameterIndices
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -273,6 +282,86 @@ public struct MetadataAnnotationRecord: Equatable {
         self.annotationFQName = annotationFQName
         self.arguments = arguments
         self.useSiteTarget = useSiteTarget
+    }
+}
+
+/// One entry in the v2 metadata index. Offsets and lengths are measured in
+/// UTF-8 bytes relative to the beginning of the body section.
+struct MetadataIndexEntry {
+    let offset: Int
+    let length: Int
+    let record: MetadataRecord
+}
+
+/// Lazily reads v2 metadata records from the body section of `metadata.bin`.
+/// The index is parsed at library discovery time; the body is sliced only when
+/// a semantic query needs the corresponding declaration.
+final class IndexedMetadataFile {
+    let entries: [MetadataIndexEntry]
+
+    private let data: Data
+    private let bodyStart: Int
+    private var decodedRecords: [Int: MetadataRecord] = [:]
+
+    init?(data: Data) {
+        self.data = data
+        var cursor = 0
+        let bytes = [UInt8](data)
+
+        func readLine() -> String? {
+            guard cursor <= bytes.count else { return nil }
+            let start = cursor
+            while cursor < bytes.count, bytes[cursor] != 0x0A {
+                cursor += 1
+            }
+            let line = String(decoding: bytes[start ..< cursor], as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if cursor < bytes.count {
+                cursor += 1
+            }
+            return line
+        }
+
+        guard readLine() == "kklib-metadata-v2" else { return nil }
+        guard let recordsLine = readLine(), recordsLine.hasPrefix("records=") else { return nil }
+        guard Int(recordsLine.dropFirst("records=".count)) != nil else { return nil }
+        guard readLine() == "index" else { return nil }
+
+        var parsedEntries: [MetadataIndexEntry] = []
+        let decoder = MetadataDecoder()
+        while let line = readLine(), line != "body" {
+            let fields = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+            guard fields.count == 3,
+                  let offset = Int(fields[0]),
+                  let length = Int(fields[1]),
+                  offset >= 0,
+                  length > 0,
+                  let record = decoder.decode("symbols=1\n\(fields[2])\n").first
+            else {
+                return nil
+            }
+            parsedEntries.append(MetadataIndexEntry(offset: offset, length: length, record: record))
+        }
+
+        guard cursor <= bytes.count else { return nil }
+        self.bodyStart = cursor
+        self.entries = parsedEntries
+    }
+
+    func record(for entry: MetadataIndexEntry) -> MetadataRecord? {
+        if let cached = decodedRecords[entry.offset] {
+            return cached
+        }
+        let start = bodyStart + entry.offset
+        let end = start + entry.length
+        guard start >= bodyStart, end <= data.count else { return nil }
+        let body = data.subdata(in: start ..< end)
+        guard let line = String(data: body, encoding: .utf8) else { return nil }
+        let record = MetadataDecoder().decode("symbols=1\n\(line)\n").first
+        if let record {
+            decodedRecords[entry.offset] = record
+        }
+        return record
     }
 }
 
@@ -806,9 +895,11 @@ package final class MetadataEncoder {
         var isInline = false
         var isOperator = false
         var isOverride = false
+        var receiverOwnerFQName: String?
         var typeSignature: String?
         var typeParameterUpperBoundsSignatures: [[String]] = []
         var callableTypeParameterSignatures: [String] = []
+        var inputOnlyTypeParameterIndices: Set<Int> = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -860,6 +951,14 @@ package final class MetadataEncoder {
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
             }
             reifiedTypeParameterIndices = signature.reifiedTypeParameterIndices
+            receiverOwnerFQName = signature.receiverType.flatMap { receiverType in
+                BundledDeclarationIndex.receiverOwnerFQName(
+                    for: receiverType,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )?.map { interner.resolve($0) }.joined(separator: ".")
+            }
             typeSignature = mangler.mangledSignature(
                 for: symbol,
                 symbols: symbols,
@@ -879,6 +978,11 @@ package final class MetadataEncoder {
                 }
             }
             callableTypeParameterSignatures = signature.typeParameterSymbols.map { "T\($0.rawValue)" }
+            inputOnlyTypeParameterIndices = Set(signature.typeParameterSymbols.indices.filter { index in
+                symbols.annotations(for: signature.typeParameterSymbols[index]).contains {
+                    $0.annotationFQName.split(separator: ".").last == "OnlyInputTypes"
+                }
+            })
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             // KUU-655: uses the (already override-corrected) local flag, not
             // `signature.valueParameterHasDefaultValues` directly, so an
@@ -936,6 +1040,14 @@ package final class MetadataEncoder {
                     mangler: mangler,
                     nameResolver: { interner.resolve($0) }
                 )
+            }
+            receiverOwnerFQName = symbols.extensionPropertyReceiverType(for: symbol.id).flatMap { receiverType in
+                BundledDeclarationIndex.receiverOwnerFQName(
+                    for: receiverType,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )?.map { interner.resolve($0) }.joined(separator: ".")
             }
             // Property accessors are lowered as functions in the artifact
             // objects. Record the getter link even for abstract properties:
@@ -1155,9 +1267,11 @@ package final class MetadataEncoder {
             isInline: isInline,
             isOperator: isOperator,
             isOverride: isOverride,
+            receiverOwnerFQName: receiverOwnerFQName,
             typeSignature: typeSignature,
             typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
             callableTypeParameterSignatures: callableTypeParameterSignatures,
+            inputOnlyTypeParameterIndices: inputOnlyTypeParameterIndices,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
@@ -1407,6 +1521,9 @@ package final class MetadataEncoder {
                 if !record.callableTypeParameterSignatures.isEmpty {
                     fields.append("callTParams=\(record.callableTypeParameterSignatures.joined(separator: ","))")
                 }
+                if !record.inputOnlyTypeParameterIndices.isEmpty {
+                    fields.append("inputOnlyTParams=\(record.inputOnlyTypeParameterIndices.sorted().map(String.init).joined(separator: ","))")
+                }
                 if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                     fields.append("defaultLink=\(linkName)")
                 }
@@ -1439,6 +1556,9 @@ package final class MetadataEncoder {
                 if let constValue = record.constValueLiteral, !constValue.isEmpty {
                     fields.append("const=\(constValue)")
                 }
+            }
+            if let receiverOwnerFQName = record.receiverOwnerFQName, !receiverOwnerFQName.isEmpty {
+                fields.append("receiverFq=\(receiverOwnerFQName)")
             }
             if record.kind == .typeAlias {
                 if let sig = record.typeSignature {
@@ -1531,6 +1651,99 @@ package final class MetadataEncoder {
             lines.append(fields.joined(separator: " "))
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// Serialize metadata with a compact declaration index and a separately
+    /// addressable body. Legacy readers continue to accept `serialize(_:)`.
+    package func serializeIndexed(_ records: [MetadataRecord]) -> String {
+        let legacyLines = serialize(records)
+            .split(whereSeparator: \.isNewline)
+            .dropFirst()
+            .map(String.init)
+
+        var body = Data()
+        var indexLines: [String] = []
+        indexLines.reserveCapacity(records.count)
+        for (record, legacyLine) in zip(records, legacyLines) {
+            let bodyLine = Data((legacyLine + "\n").utf8)
+            let offset = body.count
+            body.append(bodyLine)
+            indexLines.append(
+                "\(offset)\t\(bodyLine.count)\t\(serializeIndexRecordLine(record))"
+            )
+        }
+
+        let prefix = "kklib-metadata-v2\nrecords=\(records.count)\nindex\n"
+            + indexLines.joined(separator: "\n")
+            + "\nbody\n"
+        var result = Data(prefix.utf8)
+        result.append(body)
+        return String(decoding: result, as: UTF8.self)
+    }
+
+    private func serializeIndexRecordLine(_ record: MetadataRecord) -> String {
+        var fields: [String] = [
+            "\(record.kind)",
+            record.mangledName,
+            "fq=\(record.fqName)",
+            "schema=v1",
+        ]
+        // Imported visibility checks run on the compact index record before
+        // any body is decoded, so the index must carry it too.
+        if record.visibility != .public {
+            let encoded: String = switch record.visibility {
+            case .public: "public"
+            case .private: "private"
+            case .internal: "internal"
+            case .protected: "protected"
+            }
+            fields.append("visibility=\(encoded)")
+        }
+        if record.kind == .function || record.kind == .constructor {
+            fields.append("arity=\(record.arity)")
+            fields.append("suspend=\(record.isSuspend ? 1 : 0)")
+            fields.append("inline=\(record.isInline ? 1 : 0)")
+            fields.append("operator=\(record.isOperator ? 1 : 0)")
+            if record.isOverride { fields.append("override=1") }
+            if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
+                fields.append("defaultLink=\(linkName)")
+            }
+            if let linkName = record.externalLinkName, !linkName.isEmpty {
+                fields.append("link=\(linkName)")
+            }
+        }
+        if let receiverOwnerFQName = record.receiverOwnerFQName, !receiverOwnerFQName.isEmpty {
+            fields.append("receiverFq=\(receiverOwnerFQName)")
+        }
+        if record.kind == .property || record.kind == .field {
+            if let receiver = record.propertyReceiverTypeSignature {
+                fields.append("recv=\(receiver)")
+            }
+            if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
+                fields.append("getterLink=\(getterLink)")
+            }
+            if record.isMutable { fields.append("mutable=1") }
+        }
+        if Self.nominalKinds.contains(record.kind),
+           let typeParamsSig = record.nominalTypeParametersSignature
+        {
+            fields.append("typeParamsSig=\(typeParamsSig)")
+        }
+        if Self.nominalKinds.contains(record.kind),
+           let companionFQName = record.companionObjectFQName,
+           !companionFQName.isEmpty
+        {
+            fields.append("companionFq=\(companionFQName)")
+        }
+        if record.isDataClass { fields.append("dataClass=1") }
+        if record.isOpenClass { fields.append("openClass=1") }
+        if record.modality != .final { fields.append("modality=\(record.modality.rawValue)") }
+        if record.isSealedClass { fields.append("sealedClass=1") }
+        if record.isFunInterface { fields.append("funInterface=1") }
+        if record.isValueClass { fields.append("valueClass=1") }
+        if record.isExpect { fields.append("expect=1") }
+        if record.isActual { fields.append("actual=1") }
+        return fields.joined(separator: " ")
     }
 
     func serializeFieldOffsets(
@@ -1750,6 +1963,11 @@ final class MetadataDecoder {
 
     /// Parse text content into metadata records.
     func decode(_ content: String) -> [MetadataRecord] {
+        if content.hasPrefix("kklib-metadata-v2\n"),
+           let indexed = IndexedMetadataFile(data: Data(content.utf8))
+        {
+            return indexed.entries.compactMap { indexed.record(for: $0) }
+        }
         var records: [MetadataRecord] = []
         for rawLine in content.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1795,9 +2013,11 @@ final class MetadataDecoder {
                 isInline: rec.isInline,
                 isOperator: rec.isOperator,
                 isOverride: rec.isOverride,
+                receiverOwnerFQName: rec.receiverOwnerFQName,
                 typeSignature: rec.typeSignature,
                 typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
                 callableTypeParameterSignatures: rec.callableTypeParameterSignatures,
+                inputOnlyTypeParameterIndices: rec.inputOnlyTypeParameterIndices,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
@@ -1857,8 +2077,10 @@ final class MetadataDecoder {
         var isInline: Bool = false
         var isOperator: Bool = false
         var isOverride: Bool = false
+        var receiverOwnerFQName: String?
         var typeSignature: String?
         var callableTypeParameterSignatures: [String] = []
+        var inputOnlyTypeParameterIndices: Set<Int> = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -1928,6 +2150,8 @@ final class MetadataDecoder {
             record.isOperator = value == "1" || value == "true"
         case "override":
             record.isOverride = value == "1" || value == "true"
+        case "receiverFq":
+            record.receiverOwnerFQName = value.isEmpty ? nil : value
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
         case "nonLocal":
@@ -1960,6 +2184,8 @@ final class MetadataDecoder {
             record.typeParameterUpperBoundsSignatures = decodeMetadataTypeParameterUpperBounds(value)
         case "callTParams":
             record.callableTypeParameterSignatures = value.split(separator: ",").map(String.init)
+        case "inputOnlyTParams":
+            record.inputOnlyTypeParameterIndices = Set(value.split(separator: ",").compactMap { Int($0) })
         case "link":
             record.externalLinkName = value.isEmpty ? nil : value
         case "fields":

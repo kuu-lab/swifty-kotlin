@@ -18,13 +18,18 @@ extension InlineLoweringPass {
         module: KIRModule,
         ctx: KIRContext,
         callerBody: [KIRInstruction],
-        labels: inout InlineLabelAllocator
+        labels: inout InlineLabelAllocator,
+        expansionBudget: InlineExpansionBudget? = nil
     ) -> InlineExpansion? {
         guard arguments.count == inlineTarget.params.count else {
             return nil
         }
+        let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
+        guard budget.enter(inlineTarget, arena: module.arena, isInline: true) else { return nil }
+        defer { budget.leave() }
+        guard budget.permitsAdditional(arguments.count, outputCount: 0, arena: module.arena) else { return nil }
 
-        let parameterValues = Dictionary(uniqueKeysWithValues: zip(inlineTarget.params.map(\.symbol), arguments))
+        var parameterValues = Dictionary(uniqueKeysWithValues: zip(inlineTarget.params.map(\.symbol), arguments))
 
         let typeParamTokenValues = InlineReifiedTypeTokens.buildTypeParamTokenValues(
             inlineTarget: inlineTarget,
@@ -80,7 +85,14 @@ extension InlineLoweringPass {
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var unitResultAliasExprs: Set<KIRExprID> = []
         var lowered = KIRLoweringEmitContext()
+        var callAncestries: [Int: [SymbolID]] = [:]
         lowered.instructions.reserveCapacity(inlineTarget.body.count)
+        for param in inlineTarget.params {
+            guard let argument = parameterValues[param.symbol] else { continue }
+            parameterValues[param.symbol] = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
+                argument, parameterType: param.type, module: module, ctx: ctx, into: &lowered
+            )
+        }
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
         var hasNormalReturn = false
@@ -125,6 +137,15 @@ extension InlineLoweringPass {
 
         let sequenceGenerateCallee = ctx.interner.intern("__kk_sequence_generate")
         for instruction in inlineTarget.body {
+            guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
+            let outputStart = lowered.instructions.count
+            defer {
+                for offset in outputStart ..< lowered.instructions.count {
+                    if case .call = lowered.instructions[offset], callAncestries[offset] == nil {
+                        callAncestries[offset] = budget.ancestry
+                    }
+                }
+            }
             switch instruction {
             case .beginBlock, .endBlock:
                 continue
@@ -193,14 +214,11 @@ extension InlineLoweringPass {
                     localExprMap[result] = mapped
                     continue
                 }
-                if case let .symbolRef(symbol) = value,
-                   let captureArgs = module.arena.lambdaCaptureArgsBySymbol[symbol],
-                   !captureArgs.isEmpty
-                {
-                    let resolvedCaptureArgs = captureArgs.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                    module.arena.registerLambdaCaptureArgs(symbol, captureArgs: resolvedCaptureArgs)
-                }
                 let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
+                recordClonedLambdaCaptures(
+                    source: result, cloned: loweredResult, value: value,
+                    aliases: localExprMap, arena: module.arena
+                )
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
@@ -215,6 +233,10 @@ extension InlineLoweringPass {
                 )
 
             case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+                guard budget.permitsAdditional(
+                    args.count + (result == nil ? 0 : 2) + (thrownResult == nil ? 0 : 1),
+                    outputCount: lowered.instructions.count, arena: module.arena
+                ) else { return nil }
                 let calleeStr = ctx.interner.resolve(callee)
                 // Attempt to inline a lambda argument passed to this inline function.
                 let resolvedLambdaParamSymbol: SymbolID? = if let symbol, lambdaParamSymbols.contains(symbol) {
@@ -234,9 +256,12 @@ extension InlineLoweringPass {
                    )
                 {
                     let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                    let captureArgs = module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? []
+                    let captureArgs = lambdaCaptureArguments(
+                        for: argExpr, symbol: lambdaFunction.symbol,
+                        aliases: localExprMap, arena: module.arena
+                    )
                     let valueArgs: [KIRExprID]
-                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"]
+                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"]
                         .contains(calleeStr)
                     {
                         valueArgs = Array(resolvedArgs.dropFirst())
@@ -257,7 +282,8 @@ extension InlineLoweringPass {
                         module: module,
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
-                        labels: &labels
+                        labels: &labels,
+                        expansionBudget: budget
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
@@ -265,6 +291,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            callAncestries: &callAncestries,
                             into: &lowered
                         )
                         if let result {
@@ -295,7 +322,7 @@ extension InlineLoweringPass {
                 // local alias map, inline its body here as well so returned
                 // function values preserve their captures.
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(calleeStr),
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"].contains(calleeStr),
                    let callableExpr = resolvedArgs.first,
                    let lambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
@@ -304,8 +331,10 @@ extension InlineLoweringPass {
                        callerBody: callerBody
                    )
                 {
-                    let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
-                        .map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
+                    let captureArgs = lambdaCaptureArguments(
+                        for: callableExpr, symbol: lambdaFunction.symbol,
+                        aliases: localExprMap, arena: module.arena
+                    )
                     let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                         arguments: captureArgs + Array(resolvedArgs.dropFirst()),
                         lambdaFunction: lambdaFunction,
@@ -320,7 +349,8 @@ extension InlineLoweringPass {
                         module: module,
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
-                        labels: &labels
+                        labels: &labels,
+                        expansionBudget: budget
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
@@ -328,6 +358,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            callAncestries: &callAncestries,
                             into: &lowered
                         )
                         if let result {
@@ -396,6 +427,8 @@ extension InlineLoweringPass {
                         symbols: ctx.sema?.symbols,
                         interner: ctx.interner,
                         arena: module.arena,
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
                         into: &lowered
                     )
                 }
@@ -618,11 +651,13 @@ extension InlineLoweringPass {
             lowered.append(.label(inlineExitLabel))
         }
 
+        guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
         return InlineExpansion(
             instructions: lowered.instructions,
             returnedExpr: returnedExpr,
             hasNonLocalReturn: hasNonLocalReturn,
-            hasNormalReturn: hasNormalReturn
+            hasNormalReturn: hasNormalReturn,
+            callAncestries: callAncestries
         )
     }
 

@@ -24,19 +24,6 @@ extension KIRLoweringDriver {
         // already populated for the lazy-init guard to actually fire;
         // lowering member functions first left the registry empty for
         // their own enclosing companion.
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: symbol),
-           sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0 > 0
-        {
-            let companionType = sema.types.make(.classType(ClassType(
-                classSymbol: companionSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            declIDs.append(arena.appendDecl(.global(KIRGlobal(
-                symbol: companionSymbol,
-                type: companionType
-            ))))
-        }
         declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
             companionDeclID: classDecl.companionObject,
             ownerSymbol: symbol,
@@ -929,6 +916,26 @@ extension KIRLoweringDriver {
            sema.symbols.parentSymbol(for: resolvedSymbol) == sema.types.anyClassSymbol
         {
             // Any's compiler-provided constructor is allocation-only.
+            return
+        }
+        if delegation.kind == .super_,
+           let resolvedSymbol,
+           let receiver = ctx.activeImplicitReceiverExprID(),
+           let superclassSymbol = sema.symbols.parentSymbol(for: resolvedSymbol),
+           isRuntimeThrowableSuperConstructor(resolvedSymbol, sema: sema)
+        {
+            // `constructor(msg: String) : super(msg)` on an Exception subclass:
+            // the factory's box would be dropped, so copy its state instead.
+            emitRuntimeThrowableSuperInitialization(
+                superCtorSymbol: resolvedSymbol,
+                superclassSymbol: superclassSymbol,
+                receiver: receiver,
+                loweredArgs: loweredArgs,
+                spreadFlags: delegation.args.map(\.isSpread),
+                callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+                shared: shared,
+                body: &body
+            )
             return
         }
         emitDelegatedConstructorCall(

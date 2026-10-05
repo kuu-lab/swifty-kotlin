@@ -7,9 +7,27 @@
 
 package kotlin.coroutines
 
-// KSP-1140: keep the ContinuationInterceptor.Key companion object in bundled
-// Kotlin source. The residual coroutine registry retains the interceptor's
-// runtime-backed members until their dedicated migrations are complete.
 public interface ContinuationInterceptor : CoroutineContext.Element {
     public companion object Key : CoroutineContext.Key<ContinuationInterceptor>
+
+    public fun <T> interceptContinuation(continuation: Continuation<T>): Continuation<T>
+
+    public fun releaseInterceptedContinuation(continuation: Continuation<*>) {}
+
+    @OptIn(ExperimentalStdlibApi::class)
+    @Suppress("UNCHECKED_CAST")
+    public override operator fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? {
+        if (key is AbstractCoroutineContextKey<*, *>) {
+            return if (key.isSubKey(this.key)) key.tryCast(this) as? E else null
+        }
+        return if (ContinuationInterceptor.Key === key) this as E else null
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    public override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext {
+        if (key is AbstractCoroutineContextKey<*, *>) {
+            return if (key.isSubKey(this.key) && key.tryCast(this) != null) EmptyCoroutineContext else this
+        }
+        return if (ContinuationInterceptor.Key === key) EmptyCoroutineContext else this
+    }
 }

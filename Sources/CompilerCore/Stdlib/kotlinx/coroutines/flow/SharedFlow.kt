@@ -18,14 +18,18 @@ package kotlinx.coroutines.flow
 // replays the buffered snapshot and returns instead of suspending forever on a
 // live subscription. StateFlow is now Kotlin source as well (StateFlow.kt, KSP-676).
 
-public interface SharedFlow<out T> {
+public interface SharedFlow<out T> : Flow<T> {
     public val replayCache: List<T>
 
     public suspend fun collect(collector: suspend (T) -> Unit)
 }
 
-public class MutableSharedFlow<T>(private val replay: Int) : SharedFlow<T> {
+public class MutableSharedFlow<T>(private val replay: Int) : SharedFlow<T>, FlowCollector<T> {
     private val buffer: MutableList<T> = mutableListOf()
+
+    init {
+        require(replay >= 0)
+    }
 
     override val replayCache: List<T>
         get() = buffer.toList()
@@ -40,8 +44,12 @@ public class MutableSharedFlow<T>(private val replay: Int) : SharedFlow<T> {
         return true
     }
 
-    public suspend fun emit(value: T) {
+    override suspend fun emit(value: T) {
         tryEmit(value)
+    }
+
+    public fun resetReplayCache() {
+        buffer.clear()
     }
 
     override suspend fun collect(collector: suspend (T) -> Unit) {

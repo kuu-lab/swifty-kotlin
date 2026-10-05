@@ -10,26 +10,45 @@
 
 - `RawSource` / `RawSink`（`RawSink` は upstream で `expect interface` だが、このコンパイラは単一
   ターゲットなので plain interface にした）
-- `Source` / `Sink`（upstream の `sealed` は外した。このインターフェースを網羅的に `when` する
-  コードは無く、後述するインターフェースメンバのデフォルト引数バグを避けるため、デフォルト値を
-  持つメンバ宣言も避けた）
+- `Source` / `Sink`（upstream と同じ sealed interface。
+  KUU-655 の修正により、ByteArray 入出力のデフォルト引数も復元した）
 - `Buffer`（`Source`/`Sink` を実装する具象クラス）
 - `IOException` / `EOFException`（upstream は `expect`/`actual` だが、single-target なので plain
   class にした）
 - `RealSource` / `RealSink`（`RawSource.buffered()` / `RawSink.buffered()` の内部実装）
 - `PeekSource`（`Source.peek()` の内部実装）
 - `Core.kt`（`buffered()` 拡張関数2つ、`discardingSink()`、`SystemLineSeparator`）
+- `Utf8.kt` / `internal/-Utf8.kt`（KUU-886 / KSP-1550）: pure Kotlin の UTF-8 codec、
+  `readString` / `writeString`（String と CharSequence）、`readCodePointValue` /
+  `writeCodePointValue`、`readLine` / `readLineStrict`。byte 検索は `Sources.kt` を共有。不正 UTF-8 は
+  U+FFFD、不正 UTF-16 サロゲートは `?` とする upstream 0.9.1 の消費規則に従う。
+- `Segment.kt` / `SegmentPool.kt`（upstream `core/common/src` を移植。`expect object SegmentPool`
+  は単一ターゲット前提で upstream の native actual と同じ no-op プール（`MAX_SIZE = 0`、
+  `take()` は常に新規割当、`recycle()` は no-op）に置き換え、`@JvmField`/`@JvmSynthetic` は除去。
+  `SegmentCopyTracker`/`AlwaysSharedCopyTracker` と `indexOf`/`indexOfBytesInbound`/
+  `indexOfBytesOutbound`/`isEmpty` の `Segment` 拡張も同ファイルに同梱。`Segment` 自体は
+  upstream 同様 `public` だが全メンバが `internal` なので public surface は変わらない）
+- `Sources.kt`（0.9.1 の Source 拡張一式：decimal/hex 読み込み、LE/unsigned/浮動小数点、
+  ByteArray 読み込み、byte 検索、`startsWith`。ByteString 検索・取得は
+  `ByteStrings.kt` の実装を共有）
 
-### 内部実装の簡略化：セグメント連結リストではなく単一 ByteArray
+`readUnsignedByte` 等ではなく upstream の `readUByte` / `readUShort` / `readUInt` / `readULong`
+を公開する。0.9.1 の `Sources.kt` には `select(OPTIONAL_*)` / `segmentedBytes` は存在しない。
 
-upstream の `Buffer` は、コピーを避けるためプールされた `Segment`（固定長 `ByteArray` チャンク）の
-双方向連結リストとしてバイト列を持つ。今回のポートでは `Segment` / `SegmentPool` /
-`unsafe.UnsafeBufferOperations` は実装せず、`Buffer` を単一の可変長 `ByteArray` ＋ `start`/`end`
-カーソルで実装した。外部から観測できる挙動（読み書きした値・例外・`size`）は upstream と一致する
-（後述の diff_cases で確認済み）。バッファ間のセグメント所有権移動によるゼロコピーのような内部最適化は
-無くなるが、正当性には影響しない。
+### Buffer のセグメント列（KSP-1547 / KSP-1548）
 
-**この簡略化により、新規 Runtime ABI（`@_cdecl kk_*`）は一切追加していない。** `ByteArray` の読み書きは
+`Buffer` は 8192 バイトの `Segment` を先頭と末尾を持つ双方向リストとして保持する。
+全セグメントの転送は所有権移動、`copy`/`copyTo` は読み取り範囲と配列の共有で実装し、
+共有済み領域を上書きしない。`size` は独立した `Long` カウンタで管理する。
+`unsafe.UnsafeBufferOperations` は同じセグメント列を使って直接読み書き・走査する。
+`Buffer.indexOf` は公開メンバとして維持し、検索が末尾に達した場合も未接続の次セグメントを参照しない。
+
+`readAtMostTo(ByteArray)` は upstream と同じく先頭セグメントだけを読み、
+`skip` が EOF に達した場合は残存バイトを消費してから例外を投げる。
+`PeekSource` は先頭セグメントの identity と位置で無効化を検出し、
+`RealSink.hintEmit` はサイズの倍数ではなく完全なセグメントを送出する。
+
+**新規 Runtime ABI（`@_cdecl kk_*`）は一切追加していない。** `ByteArray` の読み書きは
 既存の bundled stdlib プリミティブ（配列インデクシング、`toInt()`/`toLong()`/`toByte()`変換）だけで
 書けたため、`docs/spec.md` の Runtime ABI spec 登録（Doc J16 節）は今回は不要だった。
 
@@ -94,22 +113,37 @@ closeFnPtr, closeClosureRaw) -> streamRaw` を追加した。呼び出し側は
 ケースは upstream の closed 意味論（Buffer-backed は close 後も書き込みが流れる、
 RealSink-backed は `IOException("Underlying sink is closed.")`）の両枝を検証する。
 
+## ByteString 連携（KSP-1556 / KUU-892）
+
+Segment ベースの Buffer と UnsafeBufferOperations（KSP-1547）を土台に、
+`ByteStrings.kt` の `Sink.write(ByteString, startIndex, endIndex)`、
+`Source.readByteString()` / `readByteString(byteCount)`、`Source.indexOf(ByteString, startIndex)`、
+`Buffer.indexOf(ByteString, startIndex)` と `Buffers.kt` の `Buffer.snapshot()` を追加した。
+snapshot は `UnsafeBufferOperations.forEachSegment` / `SegmentReadContext.withData` で
+各セグメントの有効範囲だけをコピーし、Buffer を消費しない。`Buffer.copy()` / 内部 `seek`
+は KSP-1547 の実装を利用する。upstream 0.9.1 の snapshot は引数なしのみ。
+
+ByteString 読み出しは require / EOF 検証の後で Buffer から新規 ByteArray にコピーし、
+`UnsafeByteStringOperations.wrapUnsafe` で包む。
+新規 Runtime ABI は追加していない。差分ケース `kotlinx_io_bytestring_io_*.kt` は、
+ByteArray メンバとの write オーバーロード共存、部分書き込み、読み出し、非消費 snapshot、
+copy の独立性、セグメント間の検索、buffered Source/Sink、境界・EOF 例外を検証する。
+
+検索は private helper に分離し、ネストした inline lambda の capture 置換不具合
+（[KUU-985](https://linear.app/kuu/issue/KUU-985/nested-inline-lambdas-retain-unbound-captures-after-expansion-non)）
+を避けている。同名メンバが適用できない場合は、import scope からアクセス可能な bundled
+拡張を再解決する。`@OnlyInputTypes` を持つ拡張はこの再解決の対象外としている。
+
 ## 未対応（次PR以降）
 
-- `Segment` / `SegmentPool` / `kotlinx.io.unsafe.UnsafeBufferOperations`（低レベルなセグメント直接
-  操作。Ktor の `ktor-io` が一部使用しているため、`ktor_io` モジュールの残存エラーの一因）
 - `JvmCore.kt` の残り: `SystemLineSeparator` actual は `Core.kt` 側で実装済み。`SourcesJvm.kt` /
   `SinksJvm.kt` の残り（`readString`, `writeString`, `readAtMostTo`/`write` ByteBuffer,
   `asByteChannel`）は ByteBuffer/NIO 依存のため未対応
 - `Sink.asOutputStream()` の `close()` で `sink.close()` が投げる例外はランタイム側で
   握り潰される（upstream の OutputStream.close() は例外を伝播するが、
   `__kk_output_stream_close` に outThrown チャネルがない）
-- `Sources.kt` / `Sinks.kt` の拡張関数群（`readByteArray`, `readString`, `writeString`,
-  `readUByte`/`writeUShort`等の unsigned 変換, `readFloat`/`writeDouble`, `readDecimalLong`,
-  `readHexadecimalUnsignedLong`, `writeToInternalBuffer` 等）
-- `Buffers.kt` の `Buffer.snapshot()`（`ByteString` が必要）
-- `kotlinx.io.bytestring`（`ByteString`, `ByteStringBuilder`, `Base64`, `Hex`,
-  `UnsafeByteStringOperations`）— ユーザ依頼の「ByteString」PR に相当
+- `Sinks.kt` の拡張関数群（`writeUShort` 等の unsigned 変換、`writeDouble`、
+  `writeToInternalBuffer` 等）
 - `kotlinx.io.files`（`FileSystem`, `Path`）
 
 ## 計測：`Scripts/ktor_build.sh`
@@ -175,15 +209,15 @@ KSP-1553 では adapter が `java.io.IOException` を投げることで回避済
    `.get(0L)` のように明示的にメソッド呼び出しすれば正しい値が返る。`operator fun get(position: Int)`
    は bracket 記法でも正しく動く。`Buffer.get(position: Long): Byte`（upstream の実 API 形状）は
    このバグの影響を受けるため、diff_cases では `buf.get(0L)` の明示呼び出しに置き換えて検証した。
-2. **`open`/インターフェースメンバのデフォルト引数と virtual dispatch が噛み合っていない。**
+2. **旧制限（KUU-655 で修正済み）：`open`/インターフェースメンバのデフォルト引数。**
    抽象（インターフェース）メンバにデフォルト値を付けて省略呼び出しすると、`_fn$default` 相当の
    ブリッジが生成されず `Undefined symbols` でリンクエラーになる。`open class` の場合は
    ブリッジ自体は生成されるが、**デフォルト値で埋めた引数を使って呼び出す際に override 先の
    本体ではなく宣言元（base）の本体を呼んでしまう**（黒魔術的な正しさの静かな崩壊。
    `open fun f(x: Int, y: Int = 100)` を override した派生クラスを基底型経由で `d.f(5)` と呼ぶと、
    デフォルト値 `100` は正しく補われるが、実行されるのは base の本体）。このため `Source`/`Sink`
-   のインターフェースメンバには一切デフォルト値を付けず、代わりに拡張関数側にデフォルト値付きの
-   簡略形を用意する設計にした。
+   のインターフェースメンバのデフォルト値を当初は除外した。KSP-1548 ではデフォルト値を復元し、
+   Source/Sink 型経由および Buffer 型経由の省略呼び出しを回帰ケースで検証する。
 3. **同名で受信型だけ異なる2つの拡張関数を隣接して宣言すると、片方（またはそのユーザ実装先の
    サブクラス）から解決できなくなることがある。** `public fun RawSource.buffered(): Source = ...`
    と `public fun RawSink.buffered(): Sink = ...` を同じファイルに並べて宣言した場合、

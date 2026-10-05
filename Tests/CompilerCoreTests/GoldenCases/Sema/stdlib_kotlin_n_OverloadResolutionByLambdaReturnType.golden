@@ -10,5 +10,5 @@ file fstdlib_kotlin_n_OverloadResolutionByLambdaReturnType package=golden.sema
 expr e@9:34 int(1) type=Int
 expr e@11:40 string(s) type=String
 expr e@13:25 int(42) type=Int
-expr e@13:23 lambda params=[] body=e@13:25 label=foo type=() -> Any
+expr e@13:23 lambda params=[] body=e@13:25 label=foo type=() -> Any?
 expr e@13:19 call callee=e@13:19#1 args=[_:e@13:23] type=Int call=golden.sema.foo[kind=fun;params=fn{p=;ret=Int}]

@@ -297,6 +297,9 @@ func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> I
 /// by the interface's stable type ID instead of a fixed slot index.
 @_cdecl("kk_itable_lookup_dynamic")
 public func kk_itable_lookup_dynamic(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int {
+    if let nativeMethod = runtimeDispatcherInterceptorMethod(receiver, interfaceTypeID, methodSlot) {
+        return nativeMethod
+    }
     guard let ifaceSlot = runtimeRegisteredInterfaceSlot(objectRaw: receiver, interfaceTypeID: Int64(interfaceTypeID)) else {
         return 0
     }
@@ -316,7 +319,7 @@ func runtimeRangeBox(from rawValue: Int) -> RuntimeRangeBox? {
     return tryCast(pointer, to: RuntimeRangeBox.self)
 }
 
-private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
+func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
     }

@@ -37,6 +37,12 @@ public final class TypeSystem {
     /// Function types are subtypes of this source-backed common function interface.
     public internal(set) var functionInterfaceSymbol: SymbolID?
 
+    /// The symbols of the synthetic `kotlin.Function.FunctionN` interfaces,
+    /// keyed by arity. Populated by `registerSyntheticFunctionInterface` so
+    /// subtyping can treat a function type as a subtype of the matching-arity
+    /// `FunctionN` nominal and vice versa (KUU-1084).
+    public internal(set) var functionNInterfaceSymbols: [Int: SymbolID] = [:]
+
     /// The symbol ID of the synthetic `kotlin.reflect.KClass` interface.
     public internal(set) var kClassInterfaceSymbol: SymbolID?
 
@@ -310,29 +316,47 @@ public final class TypeSystem {
         return false
     }
 
+    @discardableResult
+    private func ensureImportedNominalMetadataLoaded(for symbol: SymbolID) -> Bool {
+        guard let symbolTable,
+              symbolTable.symbol(symbol)?.flags.contains(.importedLibrary) == true
+        else {
+            return false
+        }
+        _ = symbolTable.directSupertypes(for: symbol)
+        return true
+    }
+
     public func setNominalDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
-        let unique = Array(Set(supertypes)).sorted(by: { $0.rawValue < $1.rawValue })
+        let isImported = ensureImportedNominalMetadataLoaded(for: symbol)
+        let existing = isImported ? nominalDirectSupertypes[symbol] ?? [] : []
+        let unique = Array(Set(existing + supertypes)).sorted(by: { $0.rawValue < $1.rawValue })
         nominalDirectSupertypes[symbol] = unique
     }
 
     public func directNominalSupertypes(for symbol: SymbolID) -> [SymbolID] {
-        nominalDirectSupertypes[symbol] ?? []
+        ensureImportedNominalMetadataLoaded(for: symbol)
+        return nominalDirectSupertypes[symbol] ?? []
     }
 
     public func setNominalTypeParameterVariances(_ variances: [TypeVariance], for symbol: SymbolID) {
+        ensureImportedNominalMetadataLoaded(for: symbol)
         nominalTypeParameterVariancesMap[symbol] = variances
     }
 
     public func nominalTypeParameterVariances(for symbol: SymbolID) -> [TypeVariance] {
-        nominalTypeParameterVariancesMap[symbol] ?? []
+        ensureImportedNominalMetadataLoaded(for: symbol)
+        return nominalTypeParameterVariancesMap[symbol] ?? []
     }
 
     public func setNominalTypeParameterSymbols(_ symbols: [SymbolID], for nominal: SymbolID) {
+        ensureImportedNominalMetadataLoaded(for: nominal)
         nominalTypeParameterSymbolsMap[nominal] = symbols
     }
 
     public func nominalTypeParameterSymbols(for nominal: SymbolID) -> [SymbolID] {
-        nominalTypeParameterSymbolsMap[nominal] ?? []
+        ensureImportedNominalMetadataLoaded(for: nominal)
+        return nominalTypeParameterSymbolsMap[nominal] ?? []
     }
 
     /// Returns `true` when `type` structurally contains a reference to the
@@ -406,11 +430,13 @@ public final class TypeSystem {
     }
 
     public func setNominalSupertypeTypeArgs(_ args: [TypeArg], for child: SymbolID, supertype parent: SymbolID) {
+        ensureImportedNominalMetadataLoaded(for: child)
         nominalSupertypeTypeArgsMap[child, default: [:]][parent] = args
     }
 
     public func nominalSupertypeTypeArgs(for child: SymbolID, supertype parent: SymbolID) -> [TypeArg] {
-        nominalSupertypeTypeArgsMap[child]?[parent] ?? []
+        ensureImportedNominalMetadataLoaded(for: child)
+        return nominalSupertypeTypeArgsMap[child]?[parent] ?? []
     }
 
     /// Creates a `KClass<T>` type for the given argument type.

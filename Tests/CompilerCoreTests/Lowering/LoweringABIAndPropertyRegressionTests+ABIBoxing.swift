@@ -6,6 +6,82 @@ import Testing
 extension LoweringABIAndPropertyRegressionTests {
     // MARK: - ABI Boxing/Unboxing Tests
 
+    @Test(arguments: [PrimitiveType.int, .long, .uint, .ulong])
+    func testABILoweringUnboxesGenericPrimitiveReceiver(primitive: PrimitiveType) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let primitiveType = types.make(.primitive(primitive, .nonNull))
+        let typeParamSymbol = SymbolID(rawValue: 2900)
+        let genericType = types.make(.typeParam(TypeParamType(symbol: typeParamSymbol)))
+        symbols.setTypeParameterUpperBounds([primitiveType], for: typeParamSymbol)
+
+        let receiverTypes = [genericType, primitiveType]
+        let targetTypes = [primitiveType, genericType, types.makeNullable(primitiveType)]
+        for receiverType in receiverTypes {
+            for targetType in targetTypes {
+                let arena = KIRArena()
+                let receiverSymbol = SymbolID(rawValue: 2901)
+                let targetSymbol = SymbolID(rawValue: 2902)
+                let targetName = interner.intern("receiverCall")
+                symbols.setFunctionSignature(
+                    FunctionSignature(receiverType: targetType, parameterTypes: [types.intType], returnType: types.unitType),
+                    for: targetSymbol
+                )
+                let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
+                let argument = arena.appendExpr(.intLiteral(7), type: types.intType)
+                let callerID = arena.appendDecl(.function(KIRFunction(
+                    symbol: SymbolID(rawValue: 2903),
+                    name: interner.intern("caller"),
+                    params: [KIRParameter(symbol: receiverSymbol, type: receiverType)],
+                    returnType: types.unitType,
+                    body: [
+                        .call(symbol: targetSymbol, callee: targetName, arguments: [receiver, argument], result: nil, canThrow: false, thrownResult: nil),
+                        .returnUnit,
+                    ],
+                    isSuspend: false,
+                    isInline: false
+                )))
+                let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
+                let sema = makeSemaModule(symbols: symbols, types: types).ctx
+                try runLowering(module: module, interner: interner, moduleName: "ABIReceiver", sema: sema)
+
+                let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
+                let shouldUnbox = receiverType == genericType && targetType == primitiveType
+                let targetCallIndex = try #require(lowered.body.firstIndex { instruction in
+                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                        return callee == targetName
+                    }
+                    return false
+                })
+                guard case let .call(_, _, arguments, _, _, _, _, _) = lowered.body[targetCallIndex] else {
+                    Issue.record("Expected receiver call")
+                    continue
+                }
+                #expect(arguments[1] == argument, "Value parameter must not shift with receiver normalization")
+                if shouldUnbox {
+                    #expect(arguments[0] != receiver)
+                    #expect(arena.exprType(arguments[0]) == primitiveType)
+                    let unboxIndex = try #require(lowered.body.firstIndex { instruction in
+                        if case let .call(_, _, args, result, canThrow, thrownResult, _, _) = instruction {
+                            return args == [receiver] && result == arguments[0] && !canThrow && thrownResult == nil
+                        }
+                        return false
+                    })
+                    #expect(unboxIndex < targetCallIndex)
+                    let expectedUnbox = try #require(BoxingCalleeTable(interner: interner).unboxCallee(
+                        for: types.kind(of: primitiveType), requireNonNull: true, preferStaticPrimitive: true
+                    ))
+                    guard case let .call(_, callee, _, _, _, _, _, _) = lowered.body[unboxIndex] else { continue }
+                    #expect(callee == expectedUnbox)
+                } else {
+                    #expect(arguments[0] == receiver, "Raw, generic and nullable receivers must retain their representation")
+                    #expect(targetCallIndex == 0)
+                }
+            }
+        }
+    }
+
     @Test
     func testABILoweringBoxesIntArgumentForAnyParameter() throws {
         let interner = StringInterner()

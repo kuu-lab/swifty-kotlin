@@ -16,6 +16,36 @@
 /// expansion while routing its throws into an existing local exception
 /// slot via `InlineThrowRerouting`.
 extension InlineLoweringPass {
+    func lambdaCaptureArguments(
+        for callableExpr: KIRExprID,
+        symbol: SymbolID,
+        aliases: [KIRExprID: KIRExprID],
+        arena: KIRArena
+    ) -> [KIRExprID] {
+        let callable = InlineExprAliasing.resolveAlias(of: callableExpr, aliases: aliases)
+        let captures = lambdaCaptureArgsByExpr[callable]
+            ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
+        return captures.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+    }
+
+    func recordClonedLambdaCaptures(
+        source: KIRExprID,
+        cloned: KIRExprID,
+        value: KIRExprKind,
+        aliases: [KIRExprID: KIRExprID],
+        arena: KIRArena
+    ) {
+        guard case let .symbolRef(symbol) = value else { return }
+        // Captures belong to this reference, not to the shared lambda symbol:
+        // later rounds and snapshot clones must retain this expansion's slots.
+        let captures = lambdaCaptureArgsByExpr[source]
+            ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
+        guard !captures.isEmpty else { return }
+        lambdaCaptureArgsByExpr[cloned] = captures.map {
+            InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
+        }
+    }
+
     /// Resolve the lambda function for an argument expression. The argument
     /// expression may be a direct `symbolRef` pointing to a lambda KIR function,
     /// or it may be a temporary that was defined via a `constValue` instruction
@@ -61,8 +91,13 @@ extension InlineLoweringPass {
         module: KIRModule,
         allFunctionsBySymbol: [SymbolID: KIRFunction],
         ctx: KIRContext,
-        labels: inout InlineLabelAllocator
+        labels: inout InlineLabelAllocator,
+        expansionBudget: InlineExpansionBudget? = nil
     ) -> InlineExpansion? {
+        let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
+        guard budget.enter(lambdaFunction, arena: module.arena) else { return nil }
+        defer { budget.leave() }
+        guard budget.permitsAdditional(arguments.count, outputCount: 0, arena: module.arena) else { return nil }
         // Map lambda parameters to arguments. If the argument count does not
         // match the parameter count, skip capture parameters at the front and
         // map only the trailing value parameters.
@@ -92,7 +127,16 @@ extension InlineLoweringPass {
 
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var lowered = KIRLoweringEmitContext()
+        var callAncestries: [Int: [SymbolID]] = [:]
+        // Caller-supplied lambdas may legitimately call their enclosing inline function.
+        let lambdaAncestry = budget.ancestry.filter { !budget.inlineSymbols.contains($0) }
         lowered.instructions.reserveCapacity(lambdaFunction.body.count)
+        for param in lambdaFunction.params {
+            guard let argument = lambdaParamValues[param.symbol] else { continue }
+            lambdaParamValues[param.symbol] = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
+                argument, parameterType: param.type, module: module, ctx: ctx, into: &lowered
+            )
+        }
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
         var hasNormalReturn = false
@@ -142,6 +186,15 @@ extension InlineLoweringPass {
         }
 
         for instruction in lambdaFunction.body {
+            guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
+            let outputStart = lowered.instructions.count
+            defer {
+                for offset in outputStart ..< lowered.instructions.count {
+                    if case .call = lowered.instructions[offset], callAncestries[offset] == nil {
+                        callAncestries[offset] = lambdaAncestry
+                    }
+                }
+            }
             switch instruction {
             case .beginBlock, .endBlock:
                 continue
@@ -194,6 +247,10 @@ extension InlineLoweringPass {
                     continue
                 }
                 let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena)
+                recordClonedLambdaCaptures(
+                    source: result, cloned: loweredResult, value: value,
+                    aliases: localExprMap, arena: module.arena
+                )
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
@@ -208,8 +265,12 @@ extension InlineLoweringPass {
                 )
 
             case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+                guard budget.permitsAdditional(
+                    args.count + (result == nil ? 0 : 2) + (thrownResult == nil ? 0 : 1),
+                    outputCount: lowered.instructions.count, arena: module.arena
+                ) else { return nil }
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2"].contains(ctx.interner.resolve(callee)),
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"].contains(ctx.interner.resolve(callee)),
                    let callableExpr = resolvedArgs.first,
                    let nestedLambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
@@ -218,8 +279,10 @@ extension InlineLoweringPass {
                        callerBody: lambdaFunction.body
                    )
                 {
-                    let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[nestedLambdaFunction.symbol] ?? [])
-                        .map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
+                    let captureArgs = lambdaCaptureArguments(
+                        for: callableExpr, symbol: nestedLambdaFunction.symbol,
+                        aliases: localExprMap, arena: module.arena
+                    )
                     let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: nestedLambdaFunction,
@@ -227,7 +290,8 @@ extension InlineLoweringPass {
                         module: module,
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
-                        labels: &labels
+                        labels: &labels,
+                        expansionBudget: budget
                     ) {
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
@@ -235,6 +299,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            callAncestries: &callAncestries,
                             into: &lowered
                         )
                         if let result {
@@ -373,11 +438,13 @@ extension InlineLoweringPass {
             lowered.append(.label(exitLabel))
         }
 
+        guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
         return InlineExpansion(
             instructions: lowered.instructions,
             returnedExpr: returnedExpr,
             hasNonLocalReturn: hasNonLocalReturn,
-            hasNormalReturn: hasNormalReturn
+            hasNormalReturn: hasNormalReturn,
+            callAncestries: callAncestries
         )
     }
 
@@ -388,14 +455,19 @@ extension InlineLoweringPass {
         _ lambdaExpansion: InlineExpansion,
         callThrownResult: KIRExprID?,
         localExprMap: [KIRExprID: KIRExprID],
+        callAncestries: inout [Int: [SymbolID]],
         into lowered: inout KIRLoweringEmitContext
     ) {
         let routedSlot = callThrownResult.map {
             InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap)
         }
+        let outputStart = lowered.instructions.count
         lowered.append(contentsOf: InlineThrowRerouting.routeUnprotectedThrowsToSlot(
             in: lambdaExpansion.instructions,
             thrownSlot: routedSlot
         ))
+        for (offset, path) in lambdaExpansion.callAncestries {
+            callAncestries[outputStart + offset] = path
+        }
     }
 }

@@ -291,6 +291,24 @@ struct InlineExpansionIndexTests {
     // MARK: - Deterministic ordering
 
     @Test
+    func testNameCandidatesAreRefreshedAfterADeferredBodyFails() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let available = makeFunction("shared", symbol: 1, interner: interner, types: types, isInline: true)
+        let unavailable = SymbolID(rawValue: 2)
+        let store = ImportedInlineFunctionStore()
+        store.register(.init(path: "unavailable.kirbin", signature: nil, name: available.name), for: unavailable)
+        let index = InlineExpansionIndex(module: makeModule([available]), importedInlineFunctions: store)
+        let before = index.inlineFunctionsByName
+        #expect(before[available.name]?.count == 2)
+        #expect(index.inlineTarget(callSymbol: unavailable, callee: available.name, inlineFunctionsByName: before) == nil)
+        #expect(store.failedSymbols == [unavailable])
+        let after = index.inlineFunctionsByName
+        #expect(after[available.name] == [available.symbol])
+        #expect(index.inlineTarget(callSymbol: nil, callee: available.name, inlineFunctionsByName: after)?.symbol == available.symbol)
+    }
+
+    @Test
     func testPendingOrderIsIndependentOfDeclarationAndInsertionOrder() throws {
         let interner = StringInterner()
         let types = TypeSystem()

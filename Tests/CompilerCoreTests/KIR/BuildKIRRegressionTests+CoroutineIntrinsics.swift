@@ -3,6 +3,45 @@
 import Testing
 
 extension BuildKIRRegressionTests {
+    @Test
+    func coroutineLauncherFunctionValueAdapterPreservesCapturesAndReceiver() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        fun main() = runBlocking {
+            val bonus = 7
+            val block: suspend CoroutineScope.() -> Int = { bonus }
+            println(async(block = block).await())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+            let adapters = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+                guard case let .function(function) = declaration,
+                      ctx.interner.resolve(function.name).hasPrefix("kk_coroutine_block_adapter_")
+                else { return nil }
+                return function
+            }
+            #expect(adapters.count == 1)
+            let capturedAdapter = try #require(adapters.first { $0.params.count == 1 })
+            #expect(capturedAdapter.isSuspend)
+            let scopeCall = try #require(capturedAdapter.body.first { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return ctx.interner.resolve(callee) == "kk_coroutine_current_scope"
+            })
+            guard case let .call(_, _, _, scope, _, _, _, _) = scopeCall else { return }
+            let invocation = try #require(capturedAdapter.body.first { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return ctx.interner.resolve(callee).hasPrefix("kk_lambda_")
+            })
+            guard case let .call(_, _, arguments, _, _, _, _, _) = invocation else { return }
+            #expect(arguments.count == 2)
+            #expect(arguments.last == scope)
+        }
+    }
+
     @Test func testSuspendCoroutineUninterceptedOrReturnLoweringReturnsOnSuspendedToken() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()

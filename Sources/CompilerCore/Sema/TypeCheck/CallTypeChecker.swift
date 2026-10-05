@@ -84,6 +84,13 @@ final class CallTypeChecker {
                 return inferredType
             }
         }
+        if let builderType = inferReceiverBuilderCall(
+            id, calleeName: calleeName, args: args, range: range,
+            ctx: ctx, locals: &locals, expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return builderType
+        }
         if let customBuilderType = inferExperimentalBuilderCallExpr(
             id,
             calleeName: calleeName,
@@ -403,7 +410,7 @@ final class CallTypeChecker {
            args.count <= 2,
            locals[calleeName] == nil,
            let lastArgumentExprID = args.last?.expr,
-           isLambdaOrCallableRefArg(lastArgumentExprID, ast: ast)
+           isLambdaLiteralArg(lastArgumentExprID, ast: ast)
         {
             // KSP-1573: prefer the bundled `CoroutineScope.produce` extension
             // when it is visible; it composes channel + kk_coroutine_scope_launch
@@ -420,26 +427,23 @@ final class CallTypeChecker {
                 return boundProduceResult
             }
         }
+        // Function *values* (named `suspend ProducerScope<E>.() -> Unit`
+        // bindings, callable references, members) fall through to generic
+        // overload resolution: the send-scan element inference is only needed
+        // for literals, and a declared value already pins E for the solver.
+        // The same holds for `actor`, which is generic-only here.
         if let calleeName,
            calleeName == knownNames.produce,
            args.count == 1,
-           locals[calleeName] == nil
+           locals[calleeName] == nil,
+           let argumentExprID = args.first?.expr,
+           isValidBuilderLambdaArgument(argumentExprID, ast: ast)
         {
-            let argumentExprID = args[0].expr
             // See the coroutineLauncherLambdaExprIDs doc comment: produce{}'s
             // captures are forwarded via CoroutineLoweringPass+LauncherSupport's
             // launcher-continuation rewrite (BUG-049), not the generic
             // escaping-callable-value (kk_function_create_N) ABI.
             sema.bindings.markCoroutineLauncherLambdaExpr(argumentExprID)
-            guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
-                ctx.semaCtx.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
-                    "No viable overload found for call.",
-                    range: range
-                )
-                sema.bindings.bindExprType(id, type: sema.types.errorType)
-                return sema.types.errorType
-            }
 
             let channelType = produceBuilderChannelType(
                 lambdaExprID: argumentExprID,
@@ -1282,7 +1286,7 @@ final class CallTypeChecker {
             }
             let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [elementType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -1436,7 +1440,7 @@ final class CallTypeChecker {
             }
             let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [elementType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -1618,35 +1622,6 @@ final class CallTypeChecker {
         // KSP-678: `Channel()` / `Channel(capacity)` resolve through the bundled
         // Kotlin factory functions (Channels.kt) via normal overload resolution.
 
-        if let calleeName,
-           calleeName == knownNames.delay,
-           args.count == 1
-        {
-            let delayArgType = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: sema.types.longType
-            )
-            if delayArgType == sema.types.intType,
-               let argumentExpr = ast.arena.expr(args[0].expr),
-               case .intLiteral = argumentExpr
-            {
-                sema.bindings.bindExprType(args[0].expr, type: sema.types.longType)
-            } else {
-                driver.emitSubtypeConstraint(
-                    left: delayArgType,
-                    right: sema.types.longType,
-                    range: ast.arena.exprRange(args[0].expr) ?? range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
-                )
-            }
-            sema.bindings.bindExprType(id, type: sema.types.unitType)
-            return sema.types.unitType
-        }
-
         let isCoroutineLauncher = calleeName == knownNames.runBlocking
             || calleeName == knownNames.launch
             || calleeName == knownNames.async
@@ -1674,10 +1649,18 @@ final class CallTypeChecker {
            let lambdaIndex = coroutineLauncherLambdaArgIndex,
            lambdaIndex < args.count
         {
-            let lambdaReturnType: TypeID = calleeName == knownNames.launch
-                ? sema.types.unitType
-                : expectedType ?? sema.types.anyType
+            let lambdaReturnType: TypeID
+            if calleeName == knownNames.launch {
+                lambdaReturnType = sema.types.unitType
+            } else if calleeName == knownNames.async {
+                lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
+                    ?? sema.types.nullableAnyType
+            } else {
+                lambdaReturnType = expectedType ?? sema.types.anyType
+            }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
+                receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
+                    ? nil : coroutineScopeType(sema: sema, interner: interner),
                 params: [],
                 returnType: lambdaReturnType,
                 isSuspend: true,
@@ -1714,6 +1697,7 @@ final class CallTypeChecker {
                                                         case .lambdaLiteral = secondArgExpr
         {
             sema.types.make(.functionType(FunctionType(
+                receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
                 returnType: expectedType ?? sema.types.anyType,
                 isSuspend: true,
@@ -1755,6 +1739,20 @@ final class CallTypeChecker {
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
             callInvisible = invis
+            if locals[calleeName] == nil,
+               let receiverType = ctx.implicitReceiverType
+            {
+                let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName, receiverType: receiverType, sema: sema, interner: interner
+                )
+                let sourceMembers = memberCandidates.filter {
+                    sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
+                }
+                let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
+                if !visibleMembers.isEmpty {
+                    candidates = visibleMembers
+                }
+            }
             if candidates.isEmpty,
                locals[calleeName] == nil,
                let activeReceiverType = ctx.implicitReceiverType,
@@ -2066,7 +2064,7 @@ final class CallTypeChecker {
                     ?? (elementCandidates.isEmpty ? sema.types.anyType : sema.types.lub(elementCandidates))
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [elementType],
-                    returnType: sema.types.anyType,
+                    returnType: sema.types.nullableAnyType,
                     isSuspend: false,
                     nullability: .nonNull
                 )))
@@ -2136,6 +2134,28 @@ final class CallTypeChecker {
            )
         {
             return implicitReceiverResult
+        }
+
+        if let calleeName,
+           let local = locals[calleeName],
+           case .classType = sema.types.kind(of: sema.types.makeNonNullable(local.type))
+        {
+            let invokeName = interner.intern("invoke")
+            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: invokeName,
+                receiverType: local.type,
+                sema: sema,
+                interner: interner
+            ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
+            if !invokeCandidates.isEmpty {
+                let returnType = inferMemberCallExpr(
+                    id, receiverID: calleeID, calleeName: invokeName,
+                    args: args, range: range, ctx: ctx, locals: &locals,
+                    expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+                )
+                sema.bindings.markInvokeOperatorCall(id)
+                return returnType
+            }
         }
 
         var expectedTypeOverrides: [Int: TypeID] = [:]
@@ -2243,6 +2263,9 @@ final class CallTypeChecker {
             builderContext.isCoroutineBuilderLambdaScope = true
             if let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner) {
                 builderContext = builderContext.with(implicitReceiverType: coroutineScopeType)
+                if sema.bindings.isCoroutineLauncherLambdaExpr(args[launcherIndex].expr) {
+                    sema.bindings.bindCoroutineScopeLambdaReceiverType(args[launcherIndex].expr, type: coroutineScopeType)
+                }
             }
             lambdaContextOverrides[launcherIndex] = builderContext
         }
@@ -2736,34 +2759,25 @@ final class CallTypeChecker {
             }
         }
         if !candidates.isEmpty {
-            // STDLIB-CORO-BUG-02: withContext is registered with a hardcoded
-            // Any return type (see HeaderHelpers+SyntheticCoroutineRegistry.swift)
-            // rather than made generic over the block's return type, because a
-            // real type parameter there hangs the constraint solver. When the
-            // call site
-            // has a concrete expectedType (e.g. a declared function return
-            // type), Any fails the return-type-vs-expectedType compatibility
-            // check and every candidate is rejected ("no viable overload").
-            // Resolve with expectedType relaxed to nil instead -- the same path
-            // already picks the right overload correctly via argument matching
-            // when there is no expected type -- then restore expectedType as
-            // the call's result type below. The lambda body itself was already
-            // checked against expectedType via coroutineLauncherExpectedLambdaType
-            // / withContextExpectedLambdaType above.
-            //
-            // Matched by FQName + the synthetic flag (not just the short name)
-            // so a user-defined function that happens to also be named
-            // "withContext" doesn't get its return type silently overridden --
-            // registerSyntheticCoroutineTopLevelFunction doesn't set an
-            // externalLinkName for withContext (the runtime callee swap happens
-            // later, in CoroutineLoweringPass, purely by name), so externalLinkName
-            // isn't available here to disambiguate instead.
-            let coroutinesWithContextFQName = [
-                interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("withContext"),
+            // Synthetic builders erase their result type. Resolve arguments first,
+            // then recover the actual block result instead of constraining Any.
+            let coroutineBuilderNames: Set<String> = [
+                "runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull",
             ]
-            let isCoroutineBuilderWithHardcodedAnyReturn = !candidates.isEmpty && candidates.allSatisfy { candidate in
+            let isCoroutineBuilderCandidate: (SymbolID) -> Bool = { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-                return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
+                let externalLinkName = sema.symbols.externalLinkName(for: candidate)
+                return externalLinkName == "kk_coroutine_scope_async"
+                    || externalLinkName == "kk_with_timeout"
+                    || externalLinkName == "kk_with_timeout_or_null"
+                    || symbol.flags.contains(.synthetic)
+                    && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
+                    && coroutineBuilderNames.contains(interner.resolve(symbol.name))
+            }
+            let isCoroutineBuilderWithHardcodedAnyReturn = candidates.contains { candidate in
+                isCoroutineBuilderCandidate(candidate)
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout"
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null"
             }
             // Nested class member scopes are chained lexically, so a bare
             // member call can arrive here with a candidate owned by an outer
@@ -2781,7 +2795,7 @@ final class CallTypeChecker {
                 return candidates.contains { candidate in
                     sema.symbols.parentSymbol(for: candidate) == outerClass
                 }
-            }?.type ?? ctx.implicitReceiverType
+            }?.type ?? callImplicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2863,24 +2877,23 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            // Resolution may narrow a literal only after choosing a vararg
-            // element type. Persist that type for KIR lowering and codegen.
-            if let signature = sema.symbols.functionSignature(for: chosen) {
-                for (index, argument) in args.enumerated() where !argument.isSpread {
-                    guard let parameterIndex = resolved.parameterMapping[index],
-                          signature.valueParameterIsVararg.indices.contains(parameterIndex),
-                          signature.valueParameterIsVararg[parameterIndex],
-                          parameterIndex < signature.parameterTypes.count
-                    else { continue }
-                    let parameterType = signature.parameterTypes[parameterIndex]
-                    let literal = integerLiteralValues(argument.expr, ast: ast)
-                    guard literal.signed != nil || literal.unsigned != nil else { continue }
-                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+            if let externalLinkName = sema.symbols.externalLinkName(for: chosen),
+               externalLinkName == "kk_with_timeout" || externalLinkName == "kk_with_timeout_or_null",
+               let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner)
+            {
+                for argument in args {
+                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                        sema.bindings.markCoroutineLauncherLambdaExpr(argument.expr)
+                        sema.bindings.bindCoroutineScopeLambdaReceiverType(argument.expr, type: coroutineScopeType)
+                    }
                 }
             }
+            contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
-            // Mark the lambda only after overload resolution selects the bundled
+            // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern uses
+            // the same convention for its suspend TestScope receiver. Mark the
+            // lambda only after overload resolution selects the bundled
             // declaration, so a same-named user function keeps the regular ABI.
             if isSourceBackedProducerFlowBuilder(chosen, ctx: ctx)
             {
@@ -2905,29 +2918,28 @@ final class CallTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-            var adjustedReturnType: TypeID = if let calleeName,
-                let launcherIndex = coroutineLauncherLambdaArgIndex,
-                calleeName == knownNames.async || calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope,
-                args.indices.contains(launcherIndex)
+            if let calleeName, let receiverType = callImplicitReceiverType,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let receiverClass = resolveClassType(receiverType, sema: sema),
+               sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
+            {
+                sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+            }
+            let adjustedReturnType: TypeID = if let calleeName,
+                let blockArgument = args.first(where: { $0.label == interner.intern("block") }) ?? args.last,
+                isCoroutineBuilderCandidate(chosen)
+                    || calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
             {
                 coroutineBuilderNarrowedReturnType(
                     id: id,
                     launcherName: interner.resolve(calleeName),
-                    lambdaArgExpr: args[launcherIndex].expr,
+                    lambdaArgExpr: blockArgument.expr,
                     fallback: returnType,
                     ast: ast,
                     sema: sema
                 )
             } else {
                 returnType
-            }
-            // STDLIB-CORO-BUG-02: restore the real expectedType as the result
-            // of withContext calls -- see the matching comment above
-            // resolveCallRespectingLambdaReturnType.
-            if isCoroutineBuilderWithHardcodedAnyReturn,
-               let expectedType, expectedType != sema.types.errorType
-            {
-                adjustedReturnType = expectedType
             }
             if let implicitReceiverType = ctx.implicitReceiverType {
                 markCoroutineScopeImplicitReceiverCallIfNeeded(
@@ -3125,12 +3137,41 @@ final class CallTypeChecker {
             }
         }
 
-        if let builtinType = driver.helpers.kxMiniCoroutineBuiltinReturnType(
-            calleeName: calleeName,
-            argumentCount: args.count,
-            sema: sema,
-            interner: interner
-        ) {
+        // KUU-963: `emit` is also an ordinary member name (e.g. a user-defined
+        // `Sink.emit`). The Flow builtin fallback must not shadow a real
+        // member on an in-scope implicit receiver — when any receiver in the
+        // implicit-receiver tower declares `emit`, defer to the member
+        // resolution below so the call binds to the real declaration.
+        let emitMemberExistsOnImplicitReceiver: Bool = {
+            guard let calleeName,
+                  calleeName == knownNames.emit
+            else {
+                return false
+            }
+            var receiverTypes: [TypeID] = []
+            if let implicitReceiverType = ctx.implicitReceiverType {
+                receiverTypes.append(implicitReceiverType)
+            }
+            for outerReceiver in ctx.outerReceiverTypes {
+                receiverTypes.append(outerReceiver.type)
+            }
+            return receiverTypes.contains { receiverType in
+                !driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: sema.types.makeNonNullable(receiverType),
+                    sema: sema,
+                    interner: interner
+                ).isEmpty
+            }
+        }()
+        if !emitMemberExistsOnImplicitReceiver,
+           let builtinType = driver.helpers.kxMiniCoroutineBuiltinReturnType(
+               calleeName: calleeName,
+               argumentCount: args.count,
+               sema: sema,
+               interner: interner
+           )
+        {
             sema.bindings.bindExprType(id, type: builtinType)
             return builtinType
         }

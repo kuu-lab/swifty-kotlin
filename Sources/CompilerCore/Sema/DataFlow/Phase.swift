@@ -42,6 +42,12 @@ final class DataFlowSemaPhase: CompilerPhase {
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
         let (importedInlineFunctions, importDeferredWork) = loadImports(ctx: ctx, symbols: symbols, types: types)
         sema.importedInlineFunctions = importedInlineFunctions
+        sema.klibModules = importDeferredWork.klibModules
+        importDeferredWork.lazyLoaderState?.descriptorSink = { [weak sema] symbol, descriptor in
+            sema?.importedInlineFunctions.register(descriptor, for: symbol)
+        }
+        sema.resolveDemandedImportedInlineBodies =
+            importDeferredWork.lazyLoaderState?.resolveDemandedInlineBodies
 
         // KSP-706: when compiling against bundled stdlib source rather than a
         // prebuilt library artifact, forward-declare `kotlin.Pair`/`kotlin.Triple`
@@ -193,6 +199,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                 types: types,
                 interner: ctx.interner
             )
+            importDeferredWork.lazyLoaderState?.bundledIndex = bundledIndex
             // STDLIB-SHARED-002: SemaModule was created before imported symbols were
             // merged into the bundled index, so update it before any type-checker
             // queries rely on source-backed stdlib declarations.
@@ -406,6 +413,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         var importedStdlibKeys: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
             guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
+            // `memberKey` answers arity/receiver-owner from the compact
+            // `ImportedMemberIndexShape` when the symbol is an unmaterialized
+            // lazy shell, so this scan does not decode declaration bodies.
             guard let key = BundledDeclarationIndex.memberKey(
                 for: symbol, symbolID: symbol.id, symbols: symbols, types: types, interner: interner
             ) else { continue }
@@ -417,15 +427,32 @@ final class DataFlowSemaPhase: CompilerPhase {
             // parentSymbol == owner) can find them. Skip retained runtime-bridge
             // overlaps so synthetic ABI stubs keep routing through kk_* entries.
             guard symbol.kind == .function,
-                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
-                  let signature = symbols.functionSignature(for: symbol.id),
-                  let receiverType = signature.receiverType,
-                  let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
-                      for: receiverType,
-                      types: types
-                  )
+                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
             else { continue }
-            symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+            if let receiverFQName = symbols.importedMemberIndexShape(for: symbol.id)?.receiverOwnerFQName {
+                // Lazy shells carry the receiver's nominal FQ name in the
+                // compact index, so the parent edge is restored without
+                // materializing the callable signature.
+                if let receiverSymbol = symbols.lookupAll(fqName: receiverFQName).first(where: { candidate in
+                    guard let candidateSymbol = symbols.symbol(candidate) else { return false }
+                    switch candidateSymbol.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass:
+                        return true
+                    default:
+                        return false
+                    }
+                }) {
+                    symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+                }
+            } else if symbols.importedMemberIndexShape(for: symbol.id) == nil,
+                      let signature = symbols.functionSignature(for: symbol.id),
+                      let receiverType = signature.receiverType,
+                      let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
+                          for: receiverType,
+                          types: types
+                      ) {
+                symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+            }
         }
         var updatedIndex = bundledIndex
         updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)
@@ -467,9 +494,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
-        // Resolve kotlin.Number as early as possible. Number is a builtin type
-        // name (BuiltinTypeNames.number), so signatures that mention `Number`
-        // need types.numberClassSymbol set before they are resolved.
+        // Numeric subtype and least-upper-bound checks use the canonical kotlin.Number symbol.
         resolveNumberClassSymbol(
             symbols: symbols,
             types: types,
@@ -619,6 +644,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // vtable/itable layout (layout only keys off arity/suspend, not
         // default flags, so ordering relative to it doesn't matter).
         inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
+        inheritOperatorModifierForOverrides(symbols: symbols, types: types, sourceManager: ctx.sourceManager)
         synthesizeNominalLayouts(
             symbols: symbols, types: types,
             interner: ctx.interner, diagnostics: ctx.diagnostics

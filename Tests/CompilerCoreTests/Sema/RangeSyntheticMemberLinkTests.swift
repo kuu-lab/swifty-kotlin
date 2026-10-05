@@ -147,14 +147,38 @@ struct RangeSyntheticMemberLinkTests {
         #expect(companionInfo.declSite != nil)
         #expect(sema.symbols.isSourceBackedSymbol(companionSymbol))
 
-        // KSP-1301 keeps the existing runtime-backed member surface unchanged.
         for memberName in ["first", "last", "step"] {
             let memberFQName = intProgressionFQName + [interner.intern(memberName)]
-            let memberSymbols = sema.symbols.lookupAll(fqName: memberFQName)
-            #expect(
-                memberSymbols.contains { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true },
-                "IntProgression.\(memberName) remains synthetic until KSP-1301"
-            )
+            let properties = sema.symbols.lookupAll(fqName: memberFQName).filter {
+                sema.symbols.symbol($0)?.kind == .property
+            }
+            #expect(properties.count == 1)
+            let property = try #require(properties.first)
+            #expect(sema.symbols.symbol(property)?.flags.contains(.synthetic) == false)
+            #expect(sema.symbols.isSourceBackedSymbol(property))
+            #expect(sema.symbols.propertyType(for: property) == sema.types.intType)
+            #expect(sema.symbols.externalLinkName(for: property) == nil)
+        }
+
+        for memberName in ["equals", "hashCode", "toString", "iterator"] {
+            let memberFQName = intProgressionFQName + [interner.intern(memberName)]
+            let members = sema.symbols.lookupAll(fqName: memberFQName).filter {
+                sema.symbols.symbol($0)?.kind == .function
+                    && sema.symbols.parentSymbol(for: $0) == intProgressionSymbol
+            }
+            #expect(members.count == 1)
+            let member = try #require(members.first)
+            #expect(sema.symbols.symbol(member)?.flags.contains(.synthetic) == false)
+            #expect(sema.symbols.isSourceBackedSymbol(member))
+            #expect(sema.symbols.externalLinkName(for: member) == nil)
+            if memberName == "iterator" {
+                let returnType = try #require(sema.symbols.functionSignature(for: member)?.returnType)
+                let iteratorSymbol = try #require(sema.symbols.lookup(
+                    fqName: ["kotlin", "collections", "IntIterator"].map(interner.intern)
+                ))
+                #expect(resolveClassType(returnType, sema: sema)?.classSymbol == iteratorSymbol)
+                #expect(sema.symbols.symbol(member)?.flags.contains(.operatorFunction) == true)
+            }
         }
     }
 

@@ -16,7 +16,6 @@ struct BuiltinTypeNames {
     let byte: InternedString
     let short: InternedString
     let any: InternedString
-    let number: InternedString
     let unit: InternedString
     let nothing: InternedString
     let annotation: InternedString
@@ -43,7 +42,6 @@ struct BuiltinTypeNames {
         self.byte = interner.intern("Byte")
         self.short = interner.intern("Short")
         self.any = interner.intern("Any")
-        self.number = interner.intern("Number")
         self.unit = interner.intern("Unit")
         self.nothing = interner.intern("Nothing")
         self.annotation = interner.intern("Annotation")
@@ -80,12 +78,6 @@ struct BuiltinTypeNames {
             return types.withNullability(nullability, for: types.make(.primitive(prim, .nonNull)))
         }
         if name == any {
-            return nullability == .nullable ? types.nullableAnyType : types.anyType
-        }
-        if name == number {
-            if let numberSym = types.numberClassSymbol {
-                return types.make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: nullability)))
-            }
             return nullability == .nullable ? types.nullableAnyType : types.anyType
         }
         if name == unit { return types.unitType }
