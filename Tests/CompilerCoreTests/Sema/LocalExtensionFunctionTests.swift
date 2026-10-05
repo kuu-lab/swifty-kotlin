@@ -130,6 +130,34 @@ struct LocalExtensionFunctionTests {
     }
 
     @Test
+    func applicableMemberStillShadowsLocalExtension() throws {
+        let ctx = makeContextFromSource("""
+        class Choice { fun select(): Int = 30 }
+        fun probe(): Int {
+            fun Choice.select(): Int = 99
+            return Choice().select()
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let localID = try #require(ast.arena.exprs.indices.first {
+            if case .localFunDecl = ast.arena.exprs[$0] { return true }
+            return false
+        })
+        let local = try #require(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(localID))))
+        #expect(!sema.bindings.callBindings.values.contains { $0.chosenCallee == local })
+        #expect(sema.bindings.callBindings.values.contains {
+            guard let parent = sema.symbols.parentSymbol(for: $0.chosenCallee),
+                  let owner = sema.symbols.symbol(parent),
+                  let function = sema.symbols.symbol($0.chosenCallee)
+            else { return false }
+            return ctx.interner.resolve(owner.name) == "Choice" && ctx.interner.resolve(function.name) == "select"
+        })
+    }
+
+    @Test
     func localExtensionIsConsideredWhenMemberIsInapplicable() throws {
         let ctx = makeContextFromSource("""
         class Choice { fun select(text: String): Int = 40 }

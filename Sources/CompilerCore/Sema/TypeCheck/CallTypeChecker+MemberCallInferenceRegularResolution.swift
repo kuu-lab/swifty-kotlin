@@ -1587,7 +1587,8 @@ extension CallTypeChecker {
                callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
            ),
            !allCandidates.contains(where: {
-               sema.symbols.functionSignature(for: $0)?.receiverType == nil
+               ctx.cachedSymbol($0)?.flags.contains(.extensionMemberAlias) != true
+                   && !driver.helpers.declaresExtensionReceiver($0, sema: sema, interner: interner)
            })
         {
             allCandidates = [local.symbol]
