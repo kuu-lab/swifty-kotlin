@@ -431,14 +431,14 @@ extension InlineLoweringPass {
                     )
                 )
 
-            case let .nonLocalReturn(value):
+            case let .nonLocalReturn(value, target):
                 // Non-local return from a nested lambda. Preserve it so the
                 // caller's inlineTransform can convert it to a real return.
                 hasNonLocalReturn = true
                 if let value {
-                    lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)))
+                    lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap), target: target))
                 } else {
-                    lowered.append(.nonLocalReturn(nil))
+                    lowered.append(.nonLocalReturn(nil, target: target))
                 }
 
             case .beginFinallyGuard:
@@ -447,9 +447,9 @@ extension InlineLoweringPass {
             case .beginFinallyCleanup, .endFinallyCleanup:
                 lowered.append(instruction)
 
-            case let .beginNonLocalReturnScope(value, target):
+            case let .beginNonLocalReturnScope(value, target, function):
                 let slot = InlineExprCloning.cloneOrReuseExpr(value, localExprMap: &localExprMap, in: module.arena)
-                lowered.append(.beginNonLocalReturnScope(value: slot, target: labelRemap[target] ?? target))
+                lowered.append(.beginNonLocalReturnScope(value: slot, target: labelRemap[target] ?? target, function: function))
 
             case .endNonLocalReturnScope:
                 lowered.append(.endNonLocalReturnScope)
@@ -489,6 +489,9 @@ extension InlineLoweringPass {
     ) {
         let routedSlot = callThrownResult.map {
             InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap)
+        }
+        if let routedSlot {
+            lowered.append(.constValue(result: routedSlot, value: .null))
         }
         let outputStart = lowered.instructions.count
         lowered.append(contentsOf: InlineThrowRerouting.routeUnprotectedThrowsToSlot(

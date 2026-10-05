@@ -13,6 +13,8 @@ extension CoroutineLoweringPass {
     ) -> KIRLoweringEmitContext {
         var loweredBody = KIRLoweringEmitContext()
         loweredBody.instructions.reserveCapacity(originalBody.count)
+        let liveOutByInstruction = computeLiveOutByInstruction(originalBody)
+        var liveAfterCurrentInstruction: Set<KIRExprID> = []
 
         func appendIntConstantInBody(_ value: Int64) -> KIRExprID {
             let expr = module.arena.appendTemporary(type: ctx.sema?.types.intType ?? TypeID.invalid
@@ -88,7 +90,9 @@ extension CoroutineLoweringPass {
             if let count = remainingConsumes[sourceHandle.rawValue], count > 0 {
                 let nextCount = count - 1
                 remainingConsumes[sourceHandle.rawValue] = nextCount
-                return (sourceHandle, nextCount == 0 ? sourceHandle : nil)
+                // A lexical last consume can still repeat through a loop back-edge.
+                let canRelease = nextCount == 0 && !liveAfterCurrentInstruction.contains(sourceHandle)
+                return (sourceHandle, canRelease ? sourceHandle : nil)
             }
             return (sourceHandle, nil)
         }
@@ -163,6 +167,7 @@ extension CoroutineLoweringPass {
         }
 
         for (index, instruction) in originalBody.enumerated() {
+            liveAfterCurrentInstruction = liveOutByInstruction[index] ?? []
             loweredBody.currentSourceRange = index < originalLocations.count
                 ? originalLocations[index]
                 : nil

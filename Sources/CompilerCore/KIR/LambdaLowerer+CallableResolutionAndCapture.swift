@@ -481,7 +481,7 @@ extension LambdaLowerer {
             return check(lhs) || check(rhs)
         case let .callableRef(receiver, _, _):
             return receiver.map(check) ?? false
-        case let .localFunDecl(_, _, _, body, _, _):
+        case let .localFunDecl(_, _, _, _, body, _, _):
             return checkFunctionBody(body, check: check)
         case let .forExpr(_, iterable, body, _, _):
             return check(iterable) || check(body)
@@ -615,7 +615,8 @@ extension LambdaLowerer {
         // would add a closure parameter that its entry point does not accept.
         if let semanticSymbol = sema.symbols.symbol(symbol),
            semanticSymbol.kind == .local,
-           semanticSymbol.flags.contains(.mutable)
+           (semanticSymbol.flags.contains(.mutable)
+               || sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol))
         {
             if let existingCell = driver.ctx.mutableCaptureCell(for: symbol) {
                 return existingCell

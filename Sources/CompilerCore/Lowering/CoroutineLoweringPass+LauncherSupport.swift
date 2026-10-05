@@ -742,6 +742,11 @@ extension CoroutineLoweringPass {
         )
         if builderCallee == interner.intern("async") {
             switch startMode {
+            case "ATOMIC":
+                return (
+                    interner.intern("kk_kxmini_async_atomic"),
+                    interner.intern("kk_kxmini_async_atomic_with_cont")
+                )
             case "LAZY":
                 return (
                     interner.intern("kk_kxmini_async_lazy"),
@@ -753,7 +758,7 @@ extension CoroutineLoweringPass {
                     interner.intern("kk_kxmini_async_undispatched_with_cont")
                 )
             default:
-                // DEFAULT, ATOMIC, and anything unresolved: schedule immediately.
+                // DEFAULT and anything unresolved: schedule immediately.
                 return (
                     interner.intern("kk_kxmini_async"),
                     interner.intern("kk_kxmini_async_with_cont")
@@ -1375,11 +1380,9 @@ extension CoroutineLoweringPass {
     /// The value's env slot is materialized here because the value itself
     /// crosses `block` as a bare fnPtr: its captures live only in the
     /// callable info registered for the argument expression. With callable
-    /// info, env packs the captures exactly like
-    /// `CallLowerer.splitCallableLambdaArgument` (0 → `0`, one → the raw
-    /// capture, several → a `kk_object_new(2+N, classID: 0)` box). Without
-    /// it the runtime resolves the opaque value, preserving the closure
-    /// parameter of a boxed function even when its environment is zero.
+    /// info, env packs every non-empty capture list in a
+    /// `kk_object_new(2+N, classID: 0)` box, preserving zero and nested closures.
+    /// Without it, the runtime resolves the opaque value's boxed or raw ABI.
     func rewriteProduceLaunchFunctionValueCall(
         call: CallRewriteInput,
         channelExpr: KIRExprID,
@@ -1408,39 +1411,18 @@ extension CoroutineLoweringPass {
         if let callableInfo = arena.callableValueInfo(for: suspendArgExpr) {
             entryExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: rewrite.intType)
             instructions.append(.constValue(result: entryExpr, value: .symbolRef(callableInfo.symbol)))
-            if callableInfo.hasClosureParam {
-                let closureExpr: KIRExprID
-                if callableInfo.captureArguments.count >= 2 {
-                    closureExpr = emitPackedCaptureEnvironment(
-                        callableInfo.captureArguments, using: rewrite, into: &instructions
-                    )
-                } else if let capture = callableInfo.captureArguments.first {
-                    closureExpr = capture
-                } else {
-                    closureExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
-                    instructions.append(.constValue(result: closureExpr, value: .intLiteral(0)))
-                }
-                // Keep the closure slot, including zero or a packed capture object,
-                // intact rather than expanding it into the adapter's parameters.
-                envExpr = emitPackedCaptureEnvironment([closureExpr], using: rewrite, into: &instructions)
-            } else {
-                switch callableInfo.captureArguments.count {
-                case 0:
-                    envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
-                    instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
-                case 1:
-                    envExpr = callableInfo.captureArguments[0]
-                default:
-                    envExpr = emitPackedCaptureEnvironment(
-                        callableInfo.captureArguments,
-                        using: rewrite,
-                        into: &instructions
-                    )
-                }
+            switch callableInfo.captureArguments.count {
+            case 0:
+                envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+                instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
+            default:
+                envExpr = emitPackedCaptureEnvironment(
+                    callableInfo.captureArguments,
+                    using: rewrite,
+                    into: &instructions
+                )
             }
         } else {
-            // The runtime must distinguish a boxed closure from a raw entry point
-            // before deciding whether its environment can be expanded.
             entryExpr = suspendArgExpr
             envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
             instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))

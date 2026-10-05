@@ -104,7 +104,18 @@ extension CallTypeChecker {
                 if inferredNonLambdaArgTypes[index] != nil {
                     continue
                 }
-                inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals,
+                    expectedType: expectedTypeOverrides[index]
+                )
+            }
+        }
+
+        for (index, argument) in args.enumerated() {
+            if let type = inferredNonLambdaArgTypes[index] {
+                inferredNonLambdaArgTypes[index] = sourceLevelRangeArgumentType(
+                    argument.expr, inferredType: type, ctx: ctx
+                )
             }
         }
 
@@ -271,17 +282,12 @@ extension CallTypeChecker {
             } else {
                 argTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
             }
+            argTypes[index] = sourceLevelRangeArgumentType(
+                argument.expr, inferredType: argTypes[index], ctx: ctx
+            )
             inferredNonLambdaArgTypes[index] = argTypes[index]
         }
 
-        // An inline range literal (e.g. `1..3`) is bound with its element type
-        // (Int) plus a range-expr marker, so it does not match a range-class
-        // parameter (IntRange) by subtyping alone. When a candidate expects a
-        // range-like parameter at this position, report the argument as the
-        // corresponding range class type so source-backed overloads such as
-        // String.slice(IntRange) resolve. The same holds for a plain
-        // `Iterable<T>` parameter, which every range class implements
-        // (`fun f(x: Iterable<Int>)` called as `f(1..3)`).
         let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
             let type = argTypes[index]
             // A bare `ClassName` argument denotes the class's companion object.
@@ -292,34 +298,7 @@ extension CallTypeChecker {
             {
                 return companionType
             }
-            guard !lambdaLiteralIndices.contains(index),
-                  let rangeClassType = sourceLevelRangeMemberLookupType(
-                      receiverExpr: argument.expr,
-                      receiverType: type,
-                      sema: sema,
-                      interner: ctx.interner
-                  ),
-                  candidates.contains(where: { candidate in
-                      guard let signature = sema.symbols.functionSignature(for: candidate),
-                            let parameterType = parameterTypeForArgument(at: index, in: signature)
-                      else {
-                          return false
-                      }
-                      let nonNullParameterType = sema.types.makeNonNullable(parameterType)
-                      return driver.helpers.isRangeLikeType(
-                          nonNullParameterType,
-                          sema: sema,
-                          interner: ctx.interner
-                      ) || driver.helpers.isPlainIterableType(
-                          nonNullParameterType,
-                          sema: sema,
-                          interner: ctx.interner
-                      )
-                  })
-            else {
-                return type
-            }
-            return rangeClassType
+            return type
         }
 
         return PreparedCallArguments(
@@ -329,6 +308,30 @@ extension CallTypeChecker {
             blockedLambdaRefinement: blockedLambdaRefinement,
             hasUnresolvableImplicitLambdaParameter: hasUnresolvableImplicitLambdaParameter
         )
+    }
+
+    private func sourceLevelRangeArgumentType(
+        _ expr: ExprID,
+        inferredType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let sema = ctx.sema
+        // Preserve the scalar binding for range lowering, but use the nominal
+        // type for argument constraints, including generic upper bounds.
+        guard sema.bindings.isRangeExpr(expr),
+              case .primitive = sema.types.kind(of: sema.types.makeNonNullable(inferredType)),
+              let rangeType = sourceLevelRangeMemberLookupType(
+                  receiverExpr: expr,
+                  receiverType: inferredType,
+                  sema: sema,
+                  interner: ctx.interner
+              )
+        else {
+            return inferredType
+        }
+        return sema.types.nullability(of: inferredType) == .nullable
+            ? sema.types.makeNullable(rangeType)
+            : rangeType
     }
 
     func resolveCallRespectingLambdaReturnType(
@@ -740,8 +743,7 @@ extension CallTypeChecker {
             // candidates disagree on the lambda's shape and no expected type is
             // pushed into the body, leaving its parameters untyped.
             for (argIndex, argument) in args.enumerated() {
-                guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr),
-                      !lambdaParams.isEmpty
+                guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr)
                 else {
                     continue
                 }
@@ -754,9 +756,20 @@ extension CallTypeChecker {
                 ),
                       case let .functionType(functionType) = sema.types.kind(
                           of: sema.types.makeNonNullable(parameterType)
-                      ),
-                      functionType.params.count == lambdaParams.count
+                      )
                 else {
+                    if !lambdaParams.isEmpty {
+                        return false
+                    }
+                    continue
+                }
+                // Without a parameter list, only zero parameters or a single
+                // implicit `it` can be supplied, never two or more.
+                if lambdaParams.isEmpty {
+                    if functionType.params.count > 1 {
+                        return false
+                    }
+                } else if functionType.params.count != lambdaParams.count {
                     return false
                 }
             }

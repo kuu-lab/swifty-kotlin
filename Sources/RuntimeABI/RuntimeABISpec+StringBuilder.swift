@@ -2,6 +2,30 @@ public extension RuntimeABISpec {
     /// StringBuilder mutable-buffer bridge.
     static let stringBuilderFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_string_builder_capacity",
+            parameters: [RuntimeABIParameter(name: "sbRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "StringBuilder",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_builder_ensure_capacity",
+            parameters: [
+                RuntimeABIParameter(name: "sbRaw", type: .intptr),
+                RuntimeABIParameter(name: "minimumCapacity", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_builder_trim_to_size",
+            parameters: [RuntimeABIParameter(name: "sbRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "StringBuilder",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_string_builder_new",
             parameters: [],
             returnType: .intptr,

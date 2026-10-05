@@ -475,16 +475,14 @@ func durationFromDaysLong(_ value: Int) -> Int { kk_duration_toDuration_long(val
 func durationFromSecondsDouble(_ valueBits: Int) -> Int { kk_duration_toDuration_double(valueBits, 3) }
 func durationFromDaysDouble(_ valueBits: Int) -> Int { kk_duration_toDuration_double(valueBits, 6) }
 
-// kk_duration_inWholeMilliseconds/Microseconds/Seconds/Minutes/Hours/Days were
-// removed (now Kotlin-source extension properties built on inWholeNanoseconds,
-// which stays native). These helpers recompute the same scaling directly from
-// kk_duration_inWholeNanoseconds to preserve the original Runtime test assertions.
-func durationInWholeMilliseconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000_000 }
-func durationInWholeMicroseconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000 }
-func durationInWholeSeconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000_000_000 }
-func durationInWholeMinutes(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 60_000_000_000 }
-func durationInWholeHours(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 3_600_000_000_000 }
-func durationInWholeDays(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 86_400_000_000_000 }
+// Whole-unit properties live in Kotlin source. Decode the storage
+// unit directly so ms-backed durations are not truncated through a saturated ns value.
+func durationInWholeMilliseconds(_ handle: Int) -> Int { kk_duration_inWholeMilliseconds(handle) }
+func durationInWholeMicroseconds(_ handle: Int) -> Int { Int(runtimeDurationWholeValue(from: handle, unitScale: 1_000)) }
+func durationInWholeSeconds(_ handle: Int) -> Int { Int(runtimeDurationWholeValue(from: handle, unitScale: 1_000_000_000)) }
+func durationInWholeMinutes(_ handle: Int) -> Int { Int(runtimeDurationWholeValue(from: handle, unitScale: 60_000_000_000)) }
+func durationInWholeHours(_ handle: Int) -> Int { Int(runtimeDurationWholeValue(from: handle, unitScale: 3_600_000_000_000)) }
+func durationInWholeDays(_ handle: Int) -> Int { Int(runtimeDurationWholeValue(from: handle, unitScale: 86_400_000_000_000)) }
 
 // MARK: - TimeMark operation helpers (KSP-648)
 

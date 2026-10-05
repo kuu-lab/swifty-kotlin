@@ -445,13 +445,25 @@ extension CallTypeChecker {
     }
 
     func applyContractEffects(
+        id: ExprID,
         chosen: SymbolID,
         args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
-        applyContractCallsInPlaceEffects(chosen: chosen, args: args, ctx: ctx, locals: &locals)
+        applyContractCallsInPlaceEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         let sema = ctx.sema
+        let implications = sema.symbols.contractImplicationEffects(for: chosen)
+        if !implications.isEmpty {
+            if implications.contains(where: { $0.returnCondition == .normally }) {
+                let state = ctx.dataFlow.applyContractImplications(
+                    id, result: .normally, base: ctx.flowState, locals: locals,
+                    ast: ctx.ast, sema: sema, interner: ctx.interner, scope: ctx.scope
+                )
+                driver.exprChecker.applyFlowStateToLocals(state, locals: &locals, sema: sema)
+            }
+            return
+        }
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return
         }
@@ -477,7 +489,9 @@ extension CallTypeChecker {
         } else {
             return
         }
-        let conditionExpr = args[parameterIndex].expr
+        guard let argumentIndex = sema.bindings.callBinding(for: id)?.parameterMapping.first(where: { $0.value == parameterIndex })?.key,
+              args.indices.contains(argumentIndex) else { return }
+        let conditionExpr = args[argumentIndex].expr
         // Synthetic precondition effects describe a Boolean condition, while
         // source-backed contract effects point directly at the nullable
         // argument from a returns() implies clause.
@@ -485,7 +499,7 @@ extension CallTypeChecker {
         if signature.parameterTypes[parameterIndex] == sema.types.booleanType {
             let branch = ctx.dataFlow.branchOnCondition(
                 conditionExpr,
-                base: ctx.flowState,
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ctx.ast,
                 sema: sema,
@@ -496,7 +510,7 @@ extension CallTypeChecker {
         } else {
             narrowedState = ctx.dataFlow.narrowNonNull(
                 conditionExpr,
-                base: ctx.flowState,
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ctx.ast,
                 sema: sema,
@@ -520,6 +534,7 @@ extension CallTypeChecker {
     /// `AT_MOST_ONCE`/`UNKNOWN` do not guarantee the lambda runs at all, so they are
     /// skipped.
     private func applyContractCallsInPlaceEffects(
+        id: ExprID,
         chosen: SymbolID,
         args: [CallArgument],
         ctx: TypeInferenceContext,
@@ -535,12 +550,13 @@ extension CallTypeChecker {
         for effect in effects {
             guard effect.kind == .exactlyOnce || effect.kind == .atLeastOnce,
                   let parameterIndex = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
-                  args.indices.contains(parameterIndex)
+                  let argumentIndex = sema.bindings.callBinding(for: id)?.parameterMapping.first(where: { $0.value == parameterIndex })?.key,
+                  args.indices.contains(argumentIndex)
             else {
                 continue
             }
             let initializedSymbols = Set(
-                sema.bindings.contractCallsInPlaceInitializedSymbols(for: args[parameterIndex].expr)
+                sema.bindings.contractCallsInPlaceInitializedSymbols(for: args[argumentIndex].expr)
             )
             guard !initializedSymbols.isEmpty else { continue }
             for (name, local) in locals where !local.isInitialized && initializedSymbols.contains(local.symbol) {

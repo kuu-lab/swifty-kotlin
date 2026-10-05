@@ -10,6 +10,21 @@ private let advancedCoroTestState = AdvancedCoroutineTestState()
 /// File-level storage for the throwable raw value used in advcoro_fail_with_exc.
 private nonisolated(unsafe) var advCoroFailExcRaw: Int = 0
 
+@_cdecl("advcoro_produce_function_value")
+func advcoro_produce_function_value(_ closure: Int, _ channel: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let value = closure == 0 ? 0 : kk_array_get_inbounds(closure, 2)
+    _ = kk_channel_send(channel, value, 0)
+    return 0
+}
+
+@_cdecl("advcoro_produce_raw_function")
+func advcoro_produce_raw_function(_ channel: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    _ = kk_channel_send(channel, 7, 0)
+    return 0
+}
+
 /// Non-capturing C stub that writes `advCoroFailExcRaw` to outThrown.
 @_cdecl("advcoro_fail_with_exc")
 func advcoro_fail_with_exc(_ _: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -355,6 +370,45 @@ struct RuntimeCoroutineAdvancedTests {
         #expect(kk_coroutine_scope_is_active(scopeHandle) == 1, "Supervisor scope should be active on creation")
         #expect(kk_coroutine_scope_is_cancelled(scopeHandle) == 0, "Supervisor scope should not be cancelled on creation")
         #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
+    }
+
+    @Test(arguments: [false, true])
+    func testNestedScopeInstallsOwnJobAndRestoresEnclosingJob(isSupervisor: Bool) throws {
+        let previousKey = RuntimeCoroutineScopeTaskKey.installedKey
+        let key = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        defer {
+            RuntimeContinuationState.removeState(forTask: key)
+            RuntimeCoroutineScope.current = nil
+            RuntimeJobHandle.current = nil
+            RuntimeCoroutineScopeTaskKey.restoreKey(previousKey)
+        }
+        let outerScope = RuntimeCoroutineScope()
+        let outerJob = RuntimeJobHandle()
+        outerJob.markStarted()
+        let state = RuntimeContinuationState(functionID: 8829)
+        state.scope = outerScope
+        state.jobHandle = outerJob
+        RuntimeContinuationState.current = state
+        RuntimeCoroutineScope.current = outerScope
+        RuntimeJobHandle.current = outerJob
+
+        let scopeHandle = isSupervisor ? kk_supervisor_scope_new() : kk_coroutine_scope_new()
+        let scope = try #require(runtimeCoroutineScope(from: scopeHandle))
+        let scopeJob = try #require(scope.job)
+        #expect(state.scope === scope)
+        #expect(state.jobHandle === scopeJob)
+        #expect(RuntimeJobHandle.current === scopeJob)
+        #expect(scopeJob !== outerJob)
+        #expect(kk_context_get_job(kk_coroutine_current_context()) == scopeJob.identityHandle)
+
+        _ = kk_job_cancel(scopeJob.identityHandle)
+        let name = isSupervisor ? "SupervisorCoroutine" : "ScopeCoroutine"
+        #expect(scopeJob.cancellationMessageSnapshot() == "\(name) was cancelled")
+        #expect(kk_is_cancellation_exception(kk_coroutine_scope_wait(scopeHandle)) == 1)
+        #expect(state.scope === outerScope)
+        #expect(state.jobHandle === outerJob)
+        #expect(RuntimeJobHandle.current === outerJob)
+        #expect(outerJob.isActiveSnapshot())
     }
 
     // MARK: - Test 10: withTimeoutOrNull returns null when block exceeds timeout
@@ -718,6 +772,65 @@ struct RuntimeCoroutineAdvancedTests {
         let finalStatus = kk_channel_receive(channelHandle, 0, &value)
         #expect(kk_channel_is_closed_token(finalStatus) == 1, "Channel should close after the producer completes")
         #expect(kk_channel_is_closed_for_receive(channelHandle) == 1, "Channel should report closed-for-receive after draining")
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func testProduceFunctionValuePreservesClosureSlot(boxed: Bool, nestedClosure: Bool) {
+        let entry = unsafeBitCast(
+            advcoro_produce_function_value as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let closure: Int
+        if nestedClosure {
+            closure = kk_object_new(3, 0)
+            _ = kk_array_set(closure, 2, 42, nil)
+        } else {
+            closure = 0
+        }
+        let value: Int
+        let env: Int
+        if boxed {
+            value = kk_function_create_1(entry, closure, nil)
+            env = 0
+        } else {
+            value = entry
+            env = kk_object_new(3, 0)
+            _ = kk_array_set(env, 2, closure, nil)
+        }
+        let channel = kk_channel_create(1)
+        #expect(__kk_produce_launch(channel, value, env) == channel)
+        var received = -1
+        #expect(kk_channel_receive(channel, 0, &received) == kChannelResultSuccess)
+        #expect(received == (nestedClosure ? 42 : 0))
+        #expect(kk_channel_receive(channel, 0, &received) == kChannelResultClosed)
+    }
+
+    @Test func testProduceOpaqueRawFunctionUsesReceiverOnlyABI() {
+        let previousKey = RuntimeCoroutineScopeTaskKey.installedKey
+        let taskKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        defer {
+            RuntimeCoroutineScope.removeScope(forTask: taskKey)
+            RuntimeJobHandle.current = nil
+            RuntimeCoroutineScopeTaskKey.restoreKey(previousKey)
+        }
+        let callerScope = RuntimeCoroutineScope()
+        let callerJob = RuntimeJobHandle()
+        callerJob.markStarted()
+        RuntimeCoroutineScope.current = callerScope
+        RuntimeJobHandle.current = callerJob
+        let entry = unsafeBitCast(
+            advcoro_produce_raw_function as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let channel = kk_channel_create(1)
+        #expect(__kk_produce_launch(channel, entry, 0) == channel)
+        var received = 0
+        #expect(kk_channel_receive(channel, 0, &received) == kChannelResultSuccess)
+        #expect(received == 7)
+        #expect(kk_channel_receive(channel, 0, &received) == kChannelResultClosed)
+        #expect(RuntimeCoroutineScope.current === callerScope)
+        #expect(RuntimeJobHandle.current === callerJob)
+        #expect(callerJob.isActiveSnapshot())
     }
 
     // MARK: - Test 21: produce with continuation uses the existing continuation

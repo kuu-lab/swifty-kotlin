@@ -49,6 +49,50 @@ struct StdlibArtifactRegressionTests {
     }
 
     @Test(arguments: [false, true])
+    func testStringLengthPropertyReferencesPreserveGetterABI(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/callable_ref_string_length.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "StringLengthPropertyReferences",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            [1, 2]
+            3
+            [0, 6]
+            4
+            5
+            [0, 2, 2]
+            6
+            6
+            6
+            6
+            [[x], [yy]]
+            [z]
+
+            """)
+        }
+    }
+
+    @Test(arguments: [false, true])
     func testOutputStreamBulkWritesPreserveBytes(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
         let source = """
@@ -365,6 +409,49 @@ struct StdlibArtifactRegressionTests {
                 action failure
 
                 """)
+        }
+    }
+
+    @Test
+    func testFlowCollectSuspendConversionThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.flow.*
+        import kotlinx.coroutines.runBlocking
+        fun runCollect(source: Flow<Int>, action: (Int) -> Unit) = runBlocking {
+            source.collect(action)
+        }
+        fun runFailure(action: (Int) -> Unit) = runBlocking {
+            try { flowOf(1).collect(action) }
+            catch (e: IllegalArgumentException) { println(e.message) }
+        }
+        fun main() {
+            runCollect(flowOf(12, 13)) { println(it) }
+            var total = 10
+            val action: (Int) -> Unit = { total += it }
+            runCollect(flowOf(2, 3), action)
+            runCollect(flowOf(4), action)
+            println(total)
+            val failure: (Int) -> Unit = { throw IllegalArgumentException("converted") }
+            runFailure(failure)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "FlowCollectSuspendConversion",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: false, stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "12\n13\n19\nconverted\n")
         }
     }
 
@@ -1392,6 +1479,49 @@ struct StdlibArtifactRegressionTests {
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "s.isSuccess=true s.isFailure=false\nf.isSuccess=false f.isFailure=true\n")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testResultGetOrDefaultPreservesFallback(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        fun main() {
+            val failed = runCatching { throw IllegalStateException("x") }
+            val success = runCatching { 42 }
+            println(failed.getOrDefault(-2))
+            println(success.getOrDefault(-2))
+            println(failed.getOrDefault("fallback"))
+            println(runCatching { null }.getOrDefault(-2))
+            println(runCatching<Int> { throw IllegalStateException("typed") }.getOrDefault(-3))
+            val absent: Result<Nothing>? = null
+            val present: Result<Nothing>? = failed
+            println(absent?.getOrDefault(-4))
+            println(present?.getOrDefault(-4))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ResultGetOrDefault",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "-2\n42\nfallback\nnull\n-3\nnull\n-4\n")
         }
     }
 
