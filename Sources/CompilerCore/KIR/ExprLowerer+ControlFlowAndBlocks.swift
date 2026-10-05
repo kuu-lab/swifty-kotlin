@@ -1879,6 +1879,30 @@ extension ExprLowerer {
                     let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
                     instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
                     instructions.append(.copy(from: valueID, to: globalRef))
+                } else if let slotSymbol = driver.ctx.enumEntryStorageSlots[symbol] {
+                    // Inside an enum entry's construction (`init { x = ... }`),
+                    // including a `val` initialized there: write the slot.
+                    let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: propType)
+                    instructions.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
+                    instructions.append(.copy(from: valueID, to: slotRef))
+                } else if sema.symbols.symbol(symbol)?.kind == .property,
+                          !driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema),
+                          let setterCallee = driver.callLowerer.enumPropertySetterPlaceholder(
+                              for: symbol, sema: sema, interner: interner
+                          ),
+                          let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+                {
+                    // Enum stored `var` assigned by bare name inside the enum
+                    // body: per-entry storage behind the setter helper.
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: setterCallee,
+                        arguments: [receiverExprID, valueID],
+                        result: arena.appendTemporary(type: sema.types.unitType),
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
                 } else if storeMutableCaptureCellValue(
                     valueID,
                     for: symbol,
@@ -2685,6 +2709,47 @@ extension ExprLowerer {
                     // readLocalDelegateValue) rather than caching, so a
                     // vetoable-style delegate rejecting this write is
                     // observed correctly with no extra bookkeeping here.
+                } else if !driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema),
+                          !driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema),
+                          let getterCallee = driver.callLowerer.enumPropertyGetterPlaceholder(
+                              for: symbol, sema: sema, interner: interner
+                          ),
+                          let setterCallee = driver.callLowerer.enumPropertySetterPlaceholder(
+                              for: symbol, sema: sema, interner: interner
+                          ),
+                          let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+                {
+                    // Enum stored `var` (`hits += 1` inside the enum body):
+                    // read-modify-write through the enum property helpers.
+                    let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let loadedValue = arena.appendTemporary(type: propType)
+                    emitNonThrowingCall(callee: getterCallee, arg: receiverExprID, result: loadedValue, into: &instructions)
+                    func storeViaSetter(_ value: KIRExprID) {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: setterCallee,
+                            arguments: [receiverExprID, value],
+                            result: arena.appendTemporary(type: sema.types.unitType),
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    let rhsID = lowerRHS()
+                    if let callBinding = sema.bindings.callBindings[exprID],
+                       let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
+                        if signature.returnType == sema.types.unitType {
+                            _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
+                        } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
+                            storeViaSetter(resultID)
+                        }
+                    } else {
+                        storeViaSetter(appendBuiltinCompoundResult(
+                            lhs: loadedValue,
+                            lhsType: propType,
+                            rhs: rhsID,
+                            rhsType: arena.exprType(rhsID)
+                        ))
+                    }
                 } else if let symInfo = sema.symbols.symbol(symbol),
                           symInfo.kind == .property,
                           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),

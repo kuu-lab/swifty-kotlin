@@ -425,7 +425,8 @@ package final class MetadataEncoder {
                 // members even when the owning enum reuses a synthetic shell.
                 let keepAsEnumCtorPropHelper = !includeSynthetic
                     && symbol.kind == .function
-                    && interner.resolve(symbol.name).hasPrefix("$enumConstructorProperty$")
+                    && (interner.resolve(symbol.name).hasPrefix("$enumConstructorProperty$")
+                        || interner.resolve(symbol.name).hasPrefix("$enumPropertySetter$"))
                     && Self.isSourceBackedEnumClassMember(
                         symbol.id,
                         symbols: symbols,

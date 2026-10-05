@@ -397,6 +397,10 @@ extension KotlinParser {
             return arena.appendNode(kind: .block, range: range.value ?? invalidRange, children)
         }
 
+        // The first top-level `;` ends the entry list; anything after it is a
+        // class member. Without this, an identifier-like soft keyword such as
+        // `init` in `A, B; init { ... }` was parsed as a third enum entry.
+        var entryListEnded = false
         while !stream.atEOF() {
             let token = stream.peek()
             if case .symbol(.rBrace) = token.kind {
@@ -408,11 +412,16 @@ extension KotlinParser {
                 children.append(.node(parseDeclaration()))
                 continue
             }
-            if isIdentifierLike(token.kind) || enumEntryStartsAfterLeadingAnnotations() {
+            if !entryListEnded,
+               isIdentifierLike(token.kind) || enumEntryStartsAfterLeadingAnnotations()
+            {
                 children.append(.node(parseEnumEntryDeclaration()))
                 continue
             }
             if token.kind == .symbol(.comma) || token.kind == .symbol(.semicolon) {
+                if token.kind == .symbol(.semicolon) {
+                    entryListEnded = true
+                }
                 _ = consumeToken(into: &children, range: &range)
                 continue
             }
