@@ -716,6 +716,8 @@ extension DeclTypeChecker {
             implicitReceiverType: effectiveReceiverType,
             lambdaDepth: 0,
             enclosingFunctionReturnType: signature.returnType,
+            enclosingFunctionSymbol: symbol,
+            enclosingLambdaExprIDs: [],
             currentDeclSymbol: symbol
         )
         if !signature.contextReceiverTypes.isEmpty {

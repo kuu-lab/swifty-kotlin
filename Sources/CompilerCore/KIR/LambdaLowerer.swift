@@ -457,16 +457,18 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        let returnedBody = boxErasedReturnValue(
-            loweredBody,
-            returnType: substitutedReturnType,
-            returnsErasedGeneric: returnsErasedGeneric,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &lambdaBody
-        )
-        lambdaBody.append(.returnValue(returnedBody))
+        if !driver.controlFlowLowerer.isTerminatedExpr(loweredBody, arena: arena, sema: sema) {
+            let returnedBody = boxErasedReturnValue(
+                loweredBody,
+                returnType: substitutedReturnType,
+                returnsErasedGeneric: returnsErasedGeneric,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &lambdaBody
+            )
+            lambdaBody.append(.returnValue(returnedBody))
+        }
         lambdaBody.append(.endBlock)
 
         // Coroutine launcher lambdas with an explicit receiver use launcher slot 0
@@ -2437,16 +2439,18 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        let returnedBody = boxErasedReturnValue(
-            loweredBody,
-            returnType: substitutedReturnType,
-            returnsErasedGeneric: returnsErasedGeneric,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &lambdaBody
-        )
-        lambdaBody.append(.returnValue(returnedBody))
+        if !driver.controlFlowLowerer.isTerminatedExpr(loweredBody, arena: arena, sema: sema) {
+            let returnedBody = boxErasedReturnValue(
+                loweredBody,
+                returnType: substitutedReturnType,
+                returnsErasedGeneric: returnsErasedGeneric,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &lambdaBody
+            )
+            lambdaBody.append(.returnValue(returnedBody))
+        }
         lambdaBody.append(.endBlock)
 
         // See the matching comment in lowerLambdaLiteralExpr: the expected/
