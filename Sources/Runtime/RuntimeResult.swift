@@ -68,7 +68,7 @@ func runtimeResultExceptionOrNull(_ resultRaw: Int) -> Int {
 private func runtimeResultInvoke0(fnPtr: Int, closureRaw: Int) -> (result: Int, thrown: Int) {
     var thrown = 0
     let result: Int
-    if runtimeFunctionValueBox(from: fnPtr) != nil {
+    if runtimeFunctionValueBox(from: fnPtr) != nil || runtimeCallableObjectPair(from: fnPtr) != nil {
         result = kk_function_invoke_0(fnPtr, &thrown)
     } else {
         let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
@@ -127,7 +127,7 @@ private func runtimeResultInvoke1(
 ) -> Int {
     var thrown = 0
     let result: Int
-    if runtimeFunctionValueBox(from: fnPtr) != nil {
+    if runtimeFunctionValueBox(from: fnPtr) != nil || runtimeCallableObjectPair(from: fnPtr) != nil {
         result = kk_function_invoke(fnPtr, value, &thrown)
     } else {
         result = runtimeInvokeCollectionLambda1(
