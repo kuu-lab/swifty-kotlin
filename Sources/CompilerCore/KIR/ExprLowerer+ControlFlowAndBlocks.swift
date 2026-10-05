@@ -2115,6 +2115,11 @@ extension ExprLowerer {
 
         case let .returnExpr(value, label, _):
             let targetsFunction = sema.bindings.functionReturnLambdaPaths[exprID] != nil
+            let outerLambdaTarget: KIRReturnTarget? = {
+                guard let target = sema.bindings.lambdaReturnTargets[exprID],
+                      sema.bindings.lambdaReturnLambdaPaths[exprID]?.isEmpty == false else { return nil }
+                return .function(driver.ctx.syntheticLambdaSymbol(for: target))
+            }()
             // A labeled return targeting a lambda body inlined into a loop (e.g. `repeat`)
             // ends only that iteration: run the inner `finally` blocks, then jump.
             if !targetsFunction, let label, let iterationEnd = driver.ctx.continueLabel(for: label) {
@@ -2163,7 +2168,9 @@ extension ExprLowerer {
                 } else {
                     returnValue = lowered
                 }
-                if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                if let outerLambdaTarget {
+                    instructions.append(.nonLocalReturn(returnValue, target: outerLambdaTarget))
+                } else if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
                     instructions.append(.nonLocalReturn(returnValue, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
@@ -2174,7 +2181,9 @@ extension ExprLowerer {
                     instructions.append(.returnValue(returnValue))
                 }
             } else {
-                if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                if let outerLambdaTarget {
+                    instructions.append(.nonLocalReturn(nil, target: outerLambdaTarget))
+                } else if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
                     instructions.append(.nonLocalReturn(nil, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
