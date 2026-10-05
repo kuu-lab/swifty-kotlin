@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 // MARK: - Regex Runtime Types
 
@@ -158,7 +159,7 @@ private enum RegexNeverMatch {
 private func regexStringFromRaw(_ raw: Int) -> String? {
     if raw == runtimeNullSentinelInt { return nil }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return extractString(from: pointer)
+    return extractString(from: pointer).map(KotlinStringSurrogateEncoding.unicodeString)
 }
 
 private func regexStringFromFlat(
@@ -167,7 +168,7 @@ private func regexStringFromFlat(
     byteCount: Int,
     hash: Int
 ) -> String {
-    runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    KotlinStringSurrogateEncoding.unicodeString(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash))
 }
 
 private func regexMakeStringRaw(_ value: String) -> Int {

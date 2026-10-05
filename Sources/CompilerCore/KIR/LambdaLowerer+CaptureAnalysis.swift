@@ -6,6 +6,9 @@ extension LambdaLowerer {
         lambdaParamCount: Int,
         sema: SemaModule
     ) -> Bool {
+        if symbol == SyntheticSymbolScheme.lambdaReceiverSymbol(for: lambdaExprID) {
+            return false
+        }
         if (0 ..< lambdaParamCount).contains(where: { index in
             symbol == syntheticLambdaParamSymbol(lambdaExprID: lambdaExprID, paramIndex: index)
         }) {
@@ -383,11 +386,16 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: bodyExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
         case let .callableRef(receiverExpr, _, _):
+            if let symbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
             if let receiverExpr {
                 collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
 
-        case let .localFunDecl(_, _, _, functionBody, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 for nestedExpr in exprIDs {
@@ -686,7 +694,7 @@ extension LambdaLowerer {
             }
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
 
-        case let .localFunDecl(_, _, _, functionBody, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 return exprIDs.contains { containsImplicitReceiverReference(in: $0, ast: ast) }

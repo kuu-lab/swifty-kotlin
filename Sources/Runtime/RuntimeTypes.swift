@@ -415,6 +415,8 @@ final class RuntimeTripleBox {
 
 final class RuntimeIntBox {
     let value: Int
+    /// Kotlin type identity, independent of the shared payload/hash representation.
+    let primitiveTypeBase: Int64
 
     /// Static Any-fallback tag captured at the boxing boundary. UInt, UByte,
     /// and UShort share this physical box with Int, but their hashCode() must
@@ -436,11 +438,19 @@ final class RuntimeIntBox {
     init(
         _ value: Int,
         anyFallbackTag: Int32 = 1,
+        primitiveTypeBase: Int64? = nil,
         enumEntryName: String? = nil,
         enumClassID: Int64? = nil
     ) {
         self.value = value
         self.anyFallbackTag = anyFallbackTag
+        let defaultPrimitiveTypeBase: Int64 = switch anyFallbackTag {
+        case 9: RuntimeTypeTokenEncoding.uintBase
+        case 10: RuntimeTypeTokenEncoding.ubyteBase
+        case 11: RuntimeTypeTokenEncoding.ushortBase
+        default: RuntimeTypeTokenEncoding.intBase
+        }
+        self.primitiveTypeBase = primitiveTypeBase ?? defaultPrimitiveTypeBase
         self.enumEntryName = enumEntryName
         self.enumClassID = enumClassID
     }
@@ -514,6 +524,15 @@ struct RuntimeCallableRefMetadata {
     let arity: Int
     let kind: RuntimeCallableRefKind
     let isSuspend: Bool
+    var invoker: Int = 0
+    var environment: Int = 0
+    var parameters: Int = 0
+    var typeParameters: Int = 0
+    var flags: Int = 1
+    var visibility: Int = 0
+    var setterInvoker: Int = 0
+    var setterParameters: Int = 0
+    var property: Int = 0
 }
 
 final class RuntimeFunctionValueBox {
@@ -638,6 +657,7 @@ final class RuntimeListBox {
                 baseValues.replaceSubrange(slice.fromIndex..<slice.toIndex, with: newValue)
                 slice.toIndex = slice.fromIndex + newValue.count
                 slice.base.values = baseValues
+                slice.expectedModCount = slice.base.modCount
             case .mapValuesViewOf(let mapRaw):
                 // `MutableCollection<V>` exposes no positional replace for
                 // `.values`; only a full clear (matching `.clear()`) is a
@@ -667,6 +687,17 @@ final class RuntimeListBox {
             return slice.base.modCount
         case .mapValuesViewOf(let mapRaw):
             return runtimeMapBox(from: mapRaw)?.modCount ?? 0
+        }
+    }
+
+    var isValidView: Bool {
+        switch storage {
+        case .subList(let slice):
+            return slice.expectedModCount == slice.base.modCount && slice.base.isValidView
+        case .reversedViewOf(let base):
+            return base.isValidView
+        case .direct, .arrayViewOf, .mapValuesViewOf:
+            return true
         }
     }
 
@@ -832,11 +863,13 @@ private final class RuntimeListSlice {
     let base: RuntimeListBox
     let fromIndex: Int
     var toIndex: Int
+    var expectedModCount: Int
 
     init(base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
         self.base = base
         self.fromIndex = fromIndex
         self.toIndex = toIndex
+        expectedModCount = base.modCount
     }
 }
 
@@ -2717,6 +2750,9 @@ final class RuntimeKTypeProjectionBox {
 /// Runtime box for `kotlin.reflect.KParameter`.
 /// Represents a single parameter of a KFunction or KConstructor.
 final class RuntimeKParameterBox {
+    var typeToken: Int?
+    var callableOwner = 0
+    var boundArguments: [Int] = []
     /// Parameter index (0-based).
     let index: Int
     /// Parameter name as a KKString raw handle (0 if unnamed).

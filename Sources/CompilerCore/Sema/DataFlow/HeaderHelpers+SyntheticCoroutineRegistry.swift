@@ -141,7 +141,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         types.setNominalTypeParameterSymbols([kotlinResultTypeParamSymbol], for: kotlinResultSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: kotlinResultSymbol)
+        types.setNominalTypeParameterVariances([.out], for: kotlinResultSymbol)
         symbols.setPropertyType(kotlinResultType, for: kotlinResultSymbol)
 
         let continuationSymbol = ensureInterfaceSymbol(
@@ -220,7 +220,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         types.setNominalTypeParameterSymbols([continuationTypeParamSymbol], for: continuationSymbol)
-        types.setNominalTypeParameterVariances([], for: continuationSymbol)
+        types.setNominalTypeParameterVariances([.in], for: continuationSymbol)
         symbols.setPropertyType(continuationType, for: continuationSymbol)
         let continuationTypeParameterSymbol = continuationTypeParamSymbol
         let continuationInterceptorType = types.make(.classType(ClassType(
@@ -735,11 +735,8 @@ extension DataFlowSemaPhase {
             symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         }
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
-        // Preserve the declaration-site `in` variance once Continuation has
-        // been reused from bundled Kotlin source. The synthetic fallback
-        // remains invariant when no source declaration is available.
         if !symbols.isSourceBackedSymbol(continuationSymbol) {
-            types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+            types.setNominalTypeParameterVariances([.in], for: continuationSymbol)
         }
 
         // Runtime-backed members are only needed without bundled Flow declarations.
@@ -955,18 +952,6 @@ extension DataFlowSemaPhase {
         // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
         // first argument's type: CoroutineDispatcher goes to the dispatcher-
         // aware runtime, CoroutineStart goes to the lazy-start runtime.
-        registerSyntheticCoroutineExtensionFunction(
-            named: "intercepted",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: continuationType,
-            parameters: [],
-            returnType: continuationType,
-            externalLinkName: "kk_continuation_intercepted",
-            typeParameterSymbols: [continuationTypeParameterSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
         let publicStartCoroutineName = interner.intern("startCoroutine")
         let publicStartCoroutineReceiverTypeParameterName = interner.intern("R")
         let publicStartCoroutineReceiverTypeParameterSymbol = symbols.define(
@@ -1494,117 +1479,6 @@ extension DataFlowSemaPhase {
                     for: functionSymbol
                 )
                 symbols.setExternalLinkName("kk_context_get", for: functionSymbol)
-            }
-        }
-
-        // CoroutineContext.Element.getPolymorphicElement(key: Key<E>): E?
-        do {
-            let functionName = interner.intern("getPolymorphicElement")
-            let functionFQName = kotlinCoroutinesPkg + [functionName]
-            if symbols.lookup(fqName: functionFQName) == nil {
-                let functionSymbol = symbols.define(
-                    kind: .function,
-                    name: functionName,
-                    fqName: functionFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                if let packageSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
-                    symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-                }
-                let functionTypeParamName = interner.intern("E")
-                let functionTypeParamSymbol = symbols.define(
-                    kind: .typeParameter,
-                    name: functionTypeParamName,
-                    fqName: functionFQName + [interner.intern("$synthetic"), functionTypeParamName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                let functionTypeParamType = types.make(.typeParam(TypeParamType(
-                    symbol: functionTypeParamSymbol,
-                    nullability: .nonNull
-                )))
-                symbols.setTypeParameterUpperBounds([coroutineContextKeyTypeParamBound], for: functionTypeParamSymbol)
-
-                let keyType = types.make(.classType(ClassType(
-                    classSymbol: coroutineContextKeySymbol,
-                    args: [.invariant(functionTypeParamType)],
-                    nullability: .nonNull
-                )))
-                let keyParamName = interner.intern("key")
-                let keyParamSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: keyParamName,
-                    fqName: functionFQName + [keyParamName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(functionSymbol, for: keyParamSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: coroutineContextElementType,
-                        parameterTypes: [keyType],
-                        returnType: types.makeNullable(functionTypeParamType),
-                        valueParameterSymbols: [keyParamSymbol],
-                        valueParameterHasDefaultValues: [false],
-                        valueParameterIsVararg: [false],
-                        typeParameterSymbols: [functionTypeParamSymbol],
-                        typeParameterUpperBoundsList: [[coroutineContextKeyTypeParamBound]]
-                    ),
-                    for: functionSymbol
-                )
-                symbols.setExternalLinkName("kk_context_get", for: functionSymbol)
-                attachCoroutineExperimentalStdlibApiAnnotation(to: functionSymbol, symbols: symbols)
-            }
-        }
-
-        // CoroutineContext.Element.minusPolymorphicKey(key: Key<*>): CoroutineContext
-        do {
-            let functionName = interner.intern("minusPolymorphicKey")
-            let functionFQName = kotlinCoroutinesPkg + [functionName]
-            if symbols.lookup(fqName: functionFQName) == nil {
-                let functionSymbol = symbols.define(
-                    kind: .function,
-                    name: functionName,
-                    fqName: functionFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                if let packageSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
-                    symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-                }
-                let keyType = types.make(.classType(ClassType(
-                    classSymbol: coroutineContextKeySymbol,
-                    args: [.star],
-                    nullability: .nonNull
-                )))
-                let keyParamName = interner.intern("key")
-                let keyParamSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: keyParamName,
-                    fqName: functionFQName + [keyParamName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(functionSymbol, for: keyParamSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: coroutineContextElementType,
-                        parameterTypes: [keyType],
-                        returnType: coroutineContextType,
-                        valueParameterSymbols: [keyParamSymbol],
-                        valueParameterHasDefaultValues: [false],
-                        valueParameterIsVararg: [false]
-                    ),
-                    for: functionSymbol
-                )
-                symbols.setExternalLinkName("kk_context_minusKey", for: functionSymbol)
-                attachCoroutineExperimentalStdlibApiAnnotation(to: functionSymbol, symbols: symbols)
             }
         }
 

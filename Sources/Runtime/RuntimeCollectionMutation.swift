@@ -7,19 +7,20 @@ func runtimeThrowIfReadOnlyList(_ list: RuntimeListBox, _ outThrown: UnsafeMutab
     return true
 }
 
-private func runtimeThrowIfReadOnlyCollection(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Bool {
+private func runtimeCheckMutableCollection(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Bool {
     if let list = runtimeListBox(from: raw) {
-        return runtimeThrowIfReadOnlyList(list, outThrown)
+        return !runtimeThrowIfReadOnlyList(list, outThrown)
+            && runtimeCheckListView(list, outThrown: outThrown)
     }
-    guard runtimeSetBox(from: raw)?.isEffectivelyReadOnly == true else { return false }
+    guard runtimeSetBox(from: raw)?.isEffectivelyReadOnly == true else { return true }
     runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
-    return true
+    return false
 }
 
 @_cdecl("__kk_mutable_collection_add_checked")
 public func kk_mutable_collection_add_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil, runtimeSetBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,
@@ -35,7 +36,7 @@ public func kk_mutable_collection_add_checked(_ raw: Int, _ argument: Int, _ out
 @_cdecl("__kk_mutable_collection_addAll_checked")
 public func kk_mutable_collection_addAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil, runtimeSetBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,
@@ -51,7 +52,7 @@ public func kk_mutable_collection_addAll_checked(_ raw: Int, _ argument: Int, _ 
 @_cdecl("__kk_mutable_collection_clear_checked")
 public func kk_mutable_collection_clear_checked(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil, runtimeSetBox(from: raw) == nil {
         return runtimeSourceInterfaceCall0(
             raw,
@@ -67,7 +68,7 @@ public func kk_mutable_collection_clear_checked(_ raw: Int, _ outThrown: UnsafeM
 @_cdecl("__kk_mutable_collection_remove_checked")
 public func kk_mutable_collection_remove_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil, runtimeSetBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,
@@ -83,7 +84,7 @@ public func kk_mutable_collection_remove_checked(_ raw: Int, _ argument: Int, _ 
 @_cdecl("__kk_mutable_collection_removeAll_checked")
 public func kk_mutable_collection_removeAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil, runtimeSetBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,
@@ -99,7 +100,7 @@ public func kk_mutable_collection_removeAll_checked(_ raw: Int, _ argument: Int,
 @_cdecl("__kk_mutable_collection_retainAll_checked")
 public func kk_mutable_collection_retainAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil, runtimeSetBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,
@@ -115,7 +116,7 @@ public func kk_mutable_collection_retainAll_checked(_ raw: Int, _ argument: Int,
 @_cdecl("__kk_mutable_list_addAll_checked")
 public func kk_mutable_list_addAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,
@@ -131,7 +132,7 @@ public func kk_mutable_list_addAll_checked(_ raw: Int, _ argument: Int, _ outThr
 @_cdecl("__kk_mutable_list_remove_checked")
 public func kk_mutable_list_remove_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,
@@ -141,13 +142,13 @@ public func kk_mutable_list_remove_checked(_ raw: Int, _ argument: Int, _ outThr
             outThrown: outThrown
         ) ?? kk_box_bool(0)
     }
-    return kk_mutable_list_remove(raw, argument)
+    return kk_mutable_list_remove_dispatch(raw, argument, outThrown)
 }
 
 @_cdecl("__kk_mutable_list_clear_checked")
 public func kk_mutable_list_clear_checked(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil {
         return runtimeSourceInterfaceCall0(
             raw,
@@ -163,7 +164,7 @@ public func kk_mutable_list_clear_checked(_ raw: Int, _ outThrown: UnsafeMutable
 @_cdecl("__kk_mutable_list_removeAll_checked")
 public func kk_mutable_list_removeAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,
@@ -179,7 +180,7 @@ public func kk_mutable_list_removeAll_checked(_ raw: Int, _ argument: Int, _ out
 @_cdecl("__kk_mutable_list_retainAll_checked")
 public func kk_mutable_list_retainAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard !runtimeThrowIfReadOnlyCollection(raw, outThrown) else { return 0 }
+    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
     if runtimeListBox(from: raw) == nil {
         return runtimeSourceInterfaceCall1(
             raw, argument,

@@ -134,6 +134,57 @@ struct CodegenRuntimeObjectDiscoveryTests {
         }
     }
 
+    @Test
+    func testIncludesRuntimeABIDependencyObjects() throws {
+        try withScratchLayout { buildDirectory, scratchRoot in
+            let runtimeObject = buildDirectory.appendingPathComponent("RuntimeStringHelpers.swift.o")
+            try writeObject(runtimeObject)
+            let abiDirectory = buildDirectory.deletingLastPathComponent()
+                .appendingPathComponent("RuntimeABI.build", isDirectory: true)
+            try FileManager.default.createDirectory(at: abiDirectory, withIntermediateDirectories: true)
+            let abiObject = abiDirectory.appendingPathComponent("KotlinStringSurrogateEncoding.swift.o")
+            try writeObject(abiObject)
+            let discovered = CodegenRuntimeSupport.discoverRuntimeObjectPaths(
+                inScratchBuildDirectory: buildDirectory, scratchRootDirectory: scratchRoot
+            )
+            #expect(Set(discovered.map(canonicalPath)) == Set([runtimeObject.path, abiObject.path].map(canonicalPath)))
+        }
+    }
+
+    @Test
+    func testIncludesWholeModuleRuntimeABIDependency() throws {
+        try withScratchLayout { buildDirectory, scratchRoot in
+            let directory = buildDirectory.deletingLastPathComponent()
+            let runtimeObject = directory.appendingPathComponent("Runtime.o")
+            let abiObject = directory.appendingPathComponent("RuntimeABI.o")
+            try writeObject(runtimeObject)
+            try writeObject(abiObject)
+            let discovered = CodegenRuntimeSupport.discoverRuntimeObjectPaths(
+                inScratchBuildDirectory: buildDirectory, scratchRootDirectory: scratchRoot
+            )
+            #expect(Set(discovered.map(canonicalPath)) == Set([runtimeObject.path, abiObject.path].map(canonicalPath)))
+        }
+    }
+
+    @Test
+    func testIncludesRuntimeABIDependencyInSwiftBuildLayout() throws {
+        try withScratchLayout { buildDirectory, scratchRoot in
+            let directory = buildDirectory.deletingLastPathComponent()
+            let runtimeDirectory = directory.appendingPathComponent("Runtime-t.build/Objects-normal/arm64")
+            let abiDirectory = directory.appendingPathComponent("RuntimeABI-t.build/Objects-normal/arm64")
+            try FileManager.default.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: abiDirectory, withIntermediateDirectories: true)
+            let runtimeObject = runtimeDirectory.appendingPathComponent("Runtime.o")
+            let abiObject = abiDirectory.appendingPathComponent("RuntimeABI.o")
+            try writeObject(runtimeObject)
+            try writeObject(abiObject)
+            let discovered = CodegenRuntimeSupport.discoverRuntimeObjectPaths(
+                inScratchBuildDirectory: buildDirectory, scratchRootDirectory: scratchRoot
+            )
+            #expect(Set(discovered.map(canonicalPath)) == Set([runtimeObject.path, abiObject.path].map(canonicalPath)))
+        }
+    }
+
     // Per-file objects must win over the WMO fallback when both exist.
     @Test
     func testPrefersPerFileObjectsOverWholeModuleFallback() throws {

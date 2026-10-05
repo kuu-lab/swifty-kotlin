@@ -237,11 +237,16 @@ struct CaptureAnalyzer {
                 }
 
             case let .callableRef(receiver, _, _):
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 if let receiver {
                     visit(receiver)
                 }
 
-            case let .localFunDecl(_, _, _, body, _, _):
+            case let .localFunDecl(_, _, _, _, body, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
                 }

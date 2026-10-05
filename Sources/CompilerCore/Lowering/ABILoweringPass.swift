@@ -26,9 +26,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         let nonThrowingCalleeSet = nonThrowingCallees(interner: ctx.interner)
         let boxingCalleeTable = BoxingCalleeTable(interner: ctx.interner)
         let intNarrowingCallee = ctx.interner.intern("kk_int_narrow")
+        let listViewChecks = listViewCheckedArguments(interner: ctx.interner)
+        let listViewCheckCallee = ctx.interner.intern("__kk_list_check_modification")
 
         let types = ctx.sema?.types
         let symbols = ctx.sema?.symbols
+        let listViewMembers = listViewMemberSymbols(symbols: symbols, interner: ctx.interner)
 
         let inlineArithmeticCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_add"),
@@ -212,6 +215,13 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     : nil
                 let instruction = function.body[idx]
                 if case let .virtualCall(vcSymbol, vcCallee, vcReceiver, vcArguments, vcResult, _, vcThrownResult, vcDispatch) = instruction {
+                    if let vcSymbol, listViewMembers.contains(vcSymbol) {
+                        appendListViewChecks(
+                            arguments: [vcReceiver], checkedIndices: [0], thrownResult: vcThrownResult,
+                            followingInstructions: function.body[(idx + 1)...],
+                            checkCallee: listViewCheckCallee, newBody: &newBody
+                        )
+                    }
                     let vcIsClosureRelated = module.nonThrowingClosureCallees.contains(vcCallee)
                     let vcCanThrow = !vcIsClosureRelated
                         && !nonThrowingCalleeSet.contains(vcCallee)
@@ -435,6 +445,20 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                 }
                 let effectiveCallSymbol: SymbolID? = rewrittenCallee != nil ? nil : callSymbol
+                let runtimeLink = effectiveCallSymbol.flatMap { symbols?.externalLinkName(for: $0) }
+                    .map { ctx.interner.intern($0) } ?? effectiveCallee
+                let checkedIndices = listViewChecks[runtimeLink]
+                    ?? (effectiveCallSymbol.map { listViewMembers.contains($0) } == true ? [0] : nil)
+                if let checkedIndices {
+                    appendListViewChecks(
+                        arguments: arguments,
+                        checkedIndices: checkedIndices,
+                        thrownResult: thrownResult,
+                        followingInstructions: function.body[(idx + 1)...],
+                        checkCallee: listViewCheckCallee,
+                        newBody: &newBody
+                    )
+                }
                 // Stubs explicitly marked .throwingFunction must always emit the
                 // outThrown channel regardless of whether their callee name appears
                 // in nonThrowingCallees.

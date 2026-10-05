@@ -2,6 +2,29 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true])
+    func testTestSchedulerLongClockABI(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.ExperimentalCoroutinesApi
+            import kotlinx.coroutines.test.TestScope
+            import kotlinx.coroutines.test.advanceTimeBy
+            import kotlinx.coroutines.test.currentTime
+
+            @OptIn(ExperimentalCoroutinesApi::class)
+            fun main() {
+                val scope = TestScope()
+                println(scope.currentTime)
+                scope.testScheduler.advanceTimeBy(4294967296L)
+                println(scope.testScheduler.currentTime)
+                println(scope.currentTime)
+            }
+            """,
+            expectedOutput: "0\n4294967296\n4294967296\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [false, true])
     func testMainDispatcherNominalAndImmediate(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """

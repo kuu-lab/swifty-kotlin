@@ -92,10 +92,46 @@ struct RuntimeFrozenListMutationTests {
         #expect(thrown == 0)
         #expect(runtimeListBox(from: raw)?.elements == [3, 2, 4])
         _ = legacyRemove(raw, 4)
-        _ = kk_mutable_list_clear_checked(sub, &thrown)
+        let freshSub = kk_list_subList(raw, 0, 1, nil)
+        _ = kk_mutable_list_clear_checked(freshSub, &thrown)
         #expect(thrown == 0)
         #expect(runtimeListBox(from: raw)?.elements == [2])
         _ = legacyClear(raw)
         #expect(kk_list_size(raw) == 0)
+    }
+
+    @Test
+    func checkedBridgesRejectStructurallyInvalidViews() throws {
+        let mutations: [(Int, UnsafeMutablePointer<Int>?) -> Int] = [
+            { kk_mutable_collection_add_checked($0, 3, $1) },
+            { kk_mutable_collection_remove_checked($0, 1, $1) },
+            kk_mutable_collection_clear_checked,
+            { kk_mutable_collection_addAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_collection_removeAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_collection_retainAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_list_remove_checked($0, 1, $1) },
+            kk_mutable_list_clear_checked,
+            { kk_mutable_list_addAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_list_removeAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_list_retainAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_list_remove_dispatch($0, 1, $1) },
+        ]
+        for mutation in mutations {
+            let raw = __kk_builder_list_new(2)
+            _ = kk_mutable_list_add(raw, 1, nil)
+            _ = kk_mutable_list_add(raw, 2, nil)
+            let sub = kk_list_subList(raw, 0, 1, nil)
+            let reversed = kk_list_as_reversed(sub)
+            let nested = kk_list_subList(reversed, 0, 1, nil)
+            _ = kk_mutable_list_removeAt(raw, 0, nil)
+            _ = kk_mutable_list_removeAt(raw, 0, nil)
+            for view in [sub, reversed, nested] {
+                var thrown = 123
+                _ = mutation(view, &thrown)
+                let exception = try #require(runtimeThrowableBox(from: thrown))
+                #expect(runtimeThrowableBoxHasExactType(exception, RuntimeConcurrentModificationExceptionBox.self))
+                #expect(runtimeListBox(from: raw)?.elements == [])
+            }
+        }
     }
 }

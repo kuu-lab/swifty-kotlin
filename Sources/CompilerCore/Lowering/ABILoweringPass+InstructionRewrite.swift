@@ -16,6 +16,31 @@ extension ABILoweringPass {
         newBody: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         var boxedArguments = arguments
+        // Generic slots carry boxes even when their upper bound is primitive.
+        // A concrete primitive extension receiver requires the unboxed payload.
+        if receiverOffset == 1,
+           let receiver = arguments.first,
+           let receiverType = signature.receiverType,
+           case .primitive(_, .nonNull) = types.kind(of: receiverType),
+           let argType = intrinsicArgType(receiver, arena: module.arena, types: types),
+           case .typeParam = types.kind(of: argType),
+           let unboxCallee = unboxingCallee(
+               sourceKind: types.kind(of: argType),
+               targetKind: types.kind(of: receiverType),
+               boxingCalleeTable: boxingCalleeTable,
+               types: types,
+               symbols: symbols,
+               preferStaticPrimitive: true
+           )
+        {
+            boxedArguments[0] = emitNonThrowingCall(
+                callee: unboxCallee,
+                arg: receiver,
+                resultType: receiverType,
+                arena: module.arena,
+                into: &newBody
+            )
+        }
         // A statically called member whose receiver is an interface (an
         // interface default method, or a callable-reference dispatch thunk)
         // dispatches through `this`'s itable, so an enum receiver -- a raw

@@ -101,7 +101,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 arguments: arguments,
                 result: result,
                 canThrow: false,
-                thrownResult: nil
+                thrownResult: thrownResult
             ))
             return true
         }
@@ -145,7 +145,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     arguments: arguments,
                     result: result,
                     canThrow: false,
-                    thrownResult: nil
+                    thrownResult: thrownResult
                 ))
                 return true
             }
@@ -275,14 +275,33 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             // STDLIB-331/564: Rewrite kk_range_next on iterator builder → __kk_iterator_builder_next
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkIteratorBuilderNextName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                if callee == ctx.interner.intern("kk_iterator_next") {
+                    // kk_iterator_next accepts outThrown and already
+                    // dispatches RuntimeIteratorBuilderBox, raising
+                    // NoSuchElementException through the thrown channel.
+                    // Keep the callee so the thrown channel (and the rethrow
+                    // tail CallLowerer emits for it) stays defined — the
+                    // 1-arg __kk_iterator_builder_next cannot accept
+                    // outThrown, so rewriting to it orphaned the tail's reads
+                    // (KSWIFTK-KIR-0003) and downgraded exhaustion to a panic.
+                    loweredBody.append(.call(
+                        symbol: nil,
+                        callee: callee,
+                        arguments: arguments,
+                        result: result,
+                        canThrow: canThrow,
+                        thrownResult: thrownResult
+                    ))
+                } else {
+                    loweredBody.append(.call(
+                        symbol: nil,
+                        callee: lookup.kkIteratorBuilderNextName,
+                        arguments: arguments,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
                 return true
             }
         }
@@ -298,7 +317,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     arguments: [receiverID],
                     result: result,
                     canThrow: false,
-                    thrownResult: nil
+                    thrownResult: thrownResult
                 ))
                 return true
             }
@@ -315,7 +334,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     arguments: [receiverID],
                     result: result,
                     canThrow: false,
-                    thrownResult: nil
+                    thrownResult: thrownResult
                 ))
                 return true
             }
