@@ -104,7 +104,10 @@ extension CallTypeChecker {
                 if inferredNonLambdaArgTypes[index] != nil {
                     continue
                 }
-                inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals,
+                    expectedType: expectedTypeOverrides[index]
+                )
             }
         }
 
