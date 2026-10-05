@@ -1277,7 +1277,12 @@ extension ExprLowerer {
                 let localFunReturnType: TypeID
                 if let sig {
                     localFunValueParamList = zip(sig.valueParameterSymbols, sig.parameterTypes).map { pair in
-                        KIRParameter(symbol: pair.0, type: pair.1)
+                        // Sema records the body type for packed vararg parameters;
+                        // the signature still carries their individual element type.
+                        KIRParameter(
+                            symbol: pair.0,
+                            type: sema.symbols.propertyType(for: pair.0) ?? pair.1
+                        )
                     }
                     localFunReturnType = sig.returnType
                 } else {

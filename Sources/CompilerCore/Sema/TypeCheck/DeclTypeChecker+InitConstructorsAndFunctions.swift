@@ -2,7 +2,7 @@
 // Init block, secondary constructor, and function declaration type checking.
 
 extension DeclTypeChecker {
-    private func localTypeForParameter(
+    func localTypeForParameter(
         at index: Int,
         signature: FunctionSignature,
         sema: SemaModule,

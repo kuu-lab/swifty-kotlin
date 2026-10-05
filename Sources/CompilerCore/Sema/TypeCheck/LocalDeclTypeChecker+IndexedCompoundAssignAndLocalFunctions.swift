@@ -622,7 +622,20 @@ extension LocalDeclTypeChecker {
             bodyCtx = bodyCtx.withOuterReceiver(label: name, type: receiverType, symbol: receiverSymbol)
         }
         for (i, param) in valueParams.enumerated() {
-            bodyLocals[param.name] = (parameterTypes[i], paramSymbols[i], false, true)
+            // Keep element types in the call signature, but expose the packed
+            // parameter type inside the body, just as for non-local functions.
+            let localType = driver.declChecker.localTypeForParameter(
+                at: i, signature: signature, sema: sema, interner: interner
+            )
+            sema.symbols.setPropertyType(localType, for: paramSymbols[i])
+            bodyLocals[param.name] = (localType, paramSymbols[i], false, true)
+            if param.isVararg,
+               primitiveVarargArrayType(
+                   elementType: parameterTypes[i], sema: sema, interner: interner
+               ) == nil
+            {
+                sema.bindings.markCollectionSymbol(paramSymbols[i])
+            }
         }
         bodyLocals[name] = (funType, funSymbol, false, true)
         let inferredBodyType: TypeID
