@@ -330,9 +330,11 @@ extension CallTypeChecker {
         let sema = ctx.sema
         // Preserve the scalar binding for range lowering, but use the nominal
         // type for argument constraints, including generic upper bounds.
-        guard sema.bindings.isRangeExpr(expr),
+        guard sema.bindings.isRangeExpr(expr) || sema.bindings.isFloatingPointRangeExpr(expr),
               case .primitive = sema.types.kind(of: sema.types.makeNonNullable(inferredType)),
-              let rangeType = sourceLevelRangeMemberLookupType(
+              let rangeType = floatingPointRangeArgumentType(
+                  expr, ast: ctx.ast, sema: sema, interner: ctx.interner
+              ) ?? sourceLevelRangeMemberLookupType(
                   receiverExpr: expr,
                   receiverType: inferredType,
                   sema: sema,

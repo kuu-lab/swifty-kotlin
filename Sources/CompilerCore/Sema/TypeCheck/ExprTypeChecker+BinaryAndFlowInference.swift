@@ -565,7 +565,7 @@ extension ExprTypeChecker {
                 let elementType = lhs == sema.types.floatType || rhs == sema.types.floatType
                     ? sema.types.floatType
                     : sema.types.doubleType
-                sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id, endExclusive: op == .rangeUntil)
             }
             // Detect CharRange: if either operand is Char, mark as char range (STDLIB-290)
             if lhs == sema.types.charType || rhs == sema.types.charType {
