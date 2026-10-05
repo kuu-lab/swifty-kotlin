@@ -206,6 +206,22 @@ extension CallLowerer {
             return primitiveCompareResult
         }
 
+        // ── non-escaping Comparable<Char> local .compareTo → kk_char_compareTo ──
+        if let comparableCharResult = tryLowerComparableCharCompareTo(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return comparableCharResult
+        }
+
         // ── Number.toDouble/toFloat/toLong/toInt/toShort/toByte() on an erased
         //    receiver → kk_number_to_primitive(receiver, slot, kind) (KSP-1540) ──
         if let numberConversionResult = tryLowerNumberConversion(

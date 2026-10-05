@@ -1724,6 +1724,13 @@ public final class BindingTable {
     /// nested class (for example, `Outer.Inner()`): the type qualifier is not
     /// an instance receiver and must not be passed to the constructor ABI.
     public private(set) var typeQualifiedConstructorCallExprIDs: Set<ExprID> = []
+    /// KUU-1211: `Comparable<Char>` locals that `ComparableCharEscapeAnalyzer`
+    /// proved can keep kotlinc's unboxed `compareTo` semantics (normalized
+    /// -1/0/1 like `Intrinsics.compare` on a primitive `char`). Populated once
+    /// after body analysis; consumed by KIR lowering to swap the generic
+    /// `__kk_comparable_compareTo` dispatch for `kk_char_compareTo` on
+    /// `nameRef` receivers bound to these symbols.
+    public private(set) var nonEscapingComparableCharLocals: Set<SymbolID> = []
     /// Tracks lambda literals passed to a KIR-level coroutine launcher
     /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
     /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
@@ -1814,6 +1821,10 @@ public final class BindingTable {
 
     public func bindIdentifier(_ expr: ExprID, symbol: SymbolID) {
         identifierSymbols[expr] = symbol
+    }
+
+    public func setNonEscapingComparableCharLocals(_ symbols: Set<SymbolID>) {
+        nonEscapingComparableCharLocals = symbols
     }
 
     func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
