@@ -2080,7 +2080,7 @@ extension ExprLowerer {
                     returnValue = lowered
                 }
                 if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
-                    instructions.append(.nonLocalReturn(returnValue))
+                    instructions.append(.nonLocalReturn(returnValue, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
                         ast: ast, sema: sema, arena: arena, interner: interner,
@@ -2091,7 +2091,7 @@ extension ExprLowerer {
                 }
             } else {
                 if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
-                    instructions.append(.nonLocalReturn(nil))
+                    instructions.append(.nonLocalReturn(nil, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
                         ast: ast, sema: sema, arena: arena, interner: interner,
@@ -2250,7 +2250,11 @@ extension ExprLowerer {
             )
             let typeToken: KIRExprID = if let targetType = sema.bindings.isCheckTargetType(for: exprID) {
                 lowerTypeCheckTokenExpr(
-                    targetType: targetType,
+                    targetType: runtimeIsCheckTargetType(
+                        subjectType: sema.bindings.exprType(for: exprToCheck),
+                        targetType: targetType,
+                        sema: sema
+                    ),
                     sema: sema,
                     interner: interner,
                     arena: arena,

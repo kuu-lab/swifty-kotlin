@@ -4,14 +4,20 @@ import Testing
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeFrozenListMutationTests {
     @Test
-    func checkedBridgesRejectFrozenRootsAndViews() throws {
+    func checkedAndThrowingBridgesRejectFrozenRootsAndViews() throws {
         let mutations: [(Int, UnsafeMutablePointer<Int>?) -> Int] = [
             { kk_mutable_collection_add_checked($0, 3, $1) },
+            { kk_mutable_collection_add_throwing($0, 3, $1) },
             { kk_mutable_collection_remove_checked($0, 1, $1) },
+            { kk_mutable_collection_remove_throwing($0, 1, $1) },
             kk_mutable_collection_clear_checked,
+            kk_mutable_collection_clear_throwing,
             { kk_mutable_collection_addAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_collection_addAll_throwing($0, kk_emptyList(), $1) },
             { kk_mutable_collection_removeAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_collection_removeAll_throwing($0, kk_emptyList(), $1) },
             { kk_mutable_collection_retainAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_collection_retainAll_throwing($0, kk_emptyList(), $1) },
             { kk_mutable_list_add($0, 3, $1) },
             { kk_mutable_list_remove_checked($0, 99, $1) },
             kk_mutable_list_clear_checked,
@@ -101,14 +107,20 @@ struct RuntimeFrozenListMutationTests {
     }
 
     @Test
-    func checkedBridgesRejectStructurallyInvalidViews() throws {
+    func checkedAndThrowingBridgesRejectStructurallyInvalidViews() throws {
         let mutations: [(Int, UnsafeMutablePointer<Int>?) -> Int] = [
             { kk_mutable_collection_add_checked($0, 3, $1) },
+            { kk_mutable_collection_add_throwing($0, 3, $1) },
             { kk_mutable_collection_remove_checked($0, 1, $1) },
+            { kk_mutable_collection_remove_throwing($0, 1, $1) },
             kk_mutable_collection_clear_checked,
+            kk_mutable_collection_clear_throwing,
             { kk_mutable_collection_addAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_collection_addAll_throwing($0, kk_emptyList(), $1) },
             { kk_mutable_collection_removeAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_collection_removeAll_throwing($0, kk_emptyList(), $1) },
             { kk_mutable_collection_retainAll_checked($0, kk_emptyList(), $1) },
+            { kk_mutable_collection_retainAll_throwing($0, kk_emptyList(), $1) },
             { kk_mutable_list_remove_checked($0, 1, $1) },
             kk_mutable_list_clear_checked,
             { kk_mutable_list_addAll_checked($0, kk_emptyList(), $1) },
