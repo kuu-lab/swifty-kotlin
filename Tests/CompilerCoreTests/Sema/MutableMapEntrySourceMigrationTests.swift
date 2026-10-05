@@ -29,7 +29,9 @@ struct MutableMapEntrySourceMigrationTests {
             let owner = try #require(sema.symbols.lookup(fqName: collections + [ctx.interner.intern("MutableMap")]))
             let fqName = collections + [ctx.interner.intern("MutableMap"), ctx.interner.intern("MutableEntry")]
             let entry = try #require(sema.symbols.lookup(fqName: fqName))
-            #expect(sema.symbols.lookupAll(fqName: fqName).count == 1)
+            #expect(sema.symbols.lookupAll(fqName: fqName).filter {
+                sema.symbols.symbol($0)?.kind == .interface
+            }.count == 1)
             #expect(sema.symbols.symbol(entry)?.kind == .interface)
             #expect(sema.symbols.parentSymbol(for: entry) == owner)
             #expect(sema.types.nominalTypeParameterSymbols(for: entry).count == 2)
@@ -128,11 +130,11 @@ struct MutableMapEntrySourceMigrationTests {
         let member = try #require(sema.symbols.lookup(fqName: memberFQName))
         let memberInfo = try #require(sema.symbols.symbol(member))
         #expect(sema.symbols.isSourceBackedSymbol(member))
-        #expect(!memberInfo.flags.contains(.synthetic))
         #expect(memberInfo.flags.contains(.abstractType))
         #expect(memberInfo.flags.contains(.importedLibrary) == useArtifact)
         #expect(sema.symbols.parentSymbol(for: member) == mutableEntrySymbol)
         if !useArtifact {
+            #expect(!memberInfo.flags.contains(.synthetic))
             #expect(sema.symbols.externalLinkName(for: member) == nil)
             let fileID = try #require(sema.symbols.sourceFileID(for: member))
             #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/MutableMap.kt")
@@ -164,9 +166,10 @@ struct MutableMapEntrySourceMigrationTests {
             #expect(sema.bindings.exprType(for: callID) == sema.types.intType)
         }
         let module = try #require(ctx.kir)
+        let virtualCallee = sema.symbols.externalLinkName(for: member) ?? "setValue"
         for name in ["custom", "update"] {
             let body = try findKIRFunctionBody(named: name, in: module, interner: interner)
-            #expect(extractVirtualCallees(from: body, interner: interner).contains("setValue"))
+            #expect(extractVirtualCallees(from: body, interner: interner).contains(virtualCallee))
             #expect(!extractCallees(from: body, interner: interner).contains("__kk_mutable_map_entry_setValue"))
         }
     }

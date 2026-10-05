@@ -2757,25 +2757,17 @@ extension NativeEmitter {
                 let calleeName = interner.resolve(callee)
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
                 let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
-                // Property getter reads dispatched through a vtable/itable slot
-                // target a generated Kotlin accessor. A String-typed property
-                // returns its string aggregate (the source ABI's indirect
-                // result convention), not the raw pointer the generic fallback
-                // declaration assumes — without this the receiver lands in the
-                // callee's hidden result parameter and `this` reads garbage.
-                // Decide on the declared callee signature rather than the
-                // call-site result type: a generic `val value: T` accessed as
-                // `Lazy<String>.value` still erases to a raw pointer return.
-                // The KIR symbol is the synthetic getter accessor, so recover
-                // the declared property type via the accessor encoding.
+                // Use the declared signature, not the substituted call-site
+                // type: generic members returning T keep the raw handle ABI
+                // even when invoked as String. Getters may require recovering
+                // the property's type from the synthetic accessor symbol.
                 let virtualCallDeclaredAggregateResult: Bool? = {
-                    guard calleeName == "get",
-                          argumentValues.count == 1,
-                          typeLowering != nil
-                    else {
+                    guard typeLowering != nil else {
                         return nil
                     }
-                    if let symbol,
+                    if calleeName == "get",
+                       argumentValues.count == 1,
+                       let symbol,
                        let property = symbols?.propertySymbol(forAccessor: symbol)
                     {
                         return isStringAggregateType(symbols?.propertyType(for: property))

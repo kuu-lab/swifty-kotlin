@@ -20,6 +20,12 @@ class GenericEntry<K, V>(override val key: K, initial: V) : MutableMap.MutableEn
 
 private fun <K, V> replace(entry: MutableMap.MutableEntry<K, V>, value: V): V = entry.setValue(value)
 
+class ThrowingEntry : MutableMap.MutableEntry<String, Int> {
+    override val key: String = "throwing"
+    override val value: Int = 10
+    override fun setValue(newValue: Int): Int = throw IllegalArgumentException("cannot replace")
+}
+
 fun main() {
     val entry: MutableMap.MutableEntry<String, Int> = CustomEntry("custom", 1)
     println(entry.key)
@@ -45,4 +51,12 @@ fun main() {
     val readonly: Map.Entry<String, Int> = runtime
     println(readonly.key)
     println(readonly.value)
+    val throwing: MutableMap.MutableEntry<String, Int> = ThrowingEntry()
+    try {
+        replace(throwing, 11)
+        println("not thrown")
+    } catch (error: IllegalArgumentException) {
+        println("caught")
+    }
+    println(throwing.value)
 }
