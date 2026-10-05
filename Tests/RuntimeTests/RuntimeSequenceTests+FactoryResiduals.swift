@@ -149,7 +149,7 @@ extension RuntimeSequenceTests {
             let sequence = __kk_sequence_builder_build(unsafeBitCast(producer, to: Int.self), Int(bitPattern: pointer))
             var thrown = 0
             let chunks = kk_sequence_chunked_transform(sequence, 2, unsafeBitCast(transform, to: Int.self), 0, &thrown)
-            let limited = kk_sequence_take(chunks, 1, &thrown)
+            let limited = kk_sequence_take(chunks, 1)
             let iterator = kk_sequence_box_iterator(limited, &thrown)
             #expect(pointer.pointee == 0)
             #expect(kk_sequence_iterator_next(iterator, &thrown) == 2)

@@ -97,4 +97,34 @@ struct SequenceFactoryLifecycleTests {
             #expect(sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == false)
         }
     }
+
+    @Test(arguments: [
+        ("iterator = iterator<String?> { yield(null) }", "iterator"),
+        ("elements = listOf<String?>(null)", "elements"),
+        ("sequence = sequenceOf<String?>(null)", "sequence"),
+    ])
+    func nullableYieldAllUsesCanonicalScopeAndParameterNames(argument: String, parameter: String) throws {
+        let source = "fun probe() = sequence<String?> { yieldAll(\(argument)) }"
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "yieldAll"
+            })
+            let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
+            let info = try #require(sema.symbols.symbol(chosen))
+            #expect(info.fqName.map(ctx.interner.resolve) == ["kotlin", "sequences", "SequenceScope", "yieldAll"])
+            #expect(!info.flags.contains(.synthetic))
+            let file = try #require(sema.symbols.sourceFileID(for: chosen))
+            #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/sequences/SequenceScope/SequenceScope.kt")
+            let signature = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(signature.valueParameterSymbols.compactMap { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } } == [parameter])
+        }
+    }
 }
