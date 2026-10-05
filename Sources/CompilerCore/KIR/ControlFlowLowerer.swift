@@ -1717,6 +1717,16 @@ final class ControlFlowLowerer {
         let rethrowLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
 
+        let nonLocalReturnLabel = finallyExpr.map { _ in driver.ctx.makeLoopLabel() }
+        let nonLocalReturnValue = arena.appendTemporary(type: nil)
+        let returningNonLocally = arena.appendTemporary(type: boolType)
+        let notReturning = arena.appendExpr(.boolLiteral(false), type: boolType)
+        if let nonLocalReturnLabel {
+            instructions.append(.constValue(result: notReturning, value: .boolLiteral(false)))
+            instructions.append(.copy(from: notReturning, to: returningNonLocally))
+            instructions.append(.beginNonLocalReturnScope(value: nonLocalReturnValue, target: nonLocalReturnLabel))
+        }
+
         let catchBindings = catchClauses.map { resolveCatchClauseBinding($0, ast: ast, sema: sema, interner: interner) }
         let catchCheckLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
         let catchMissLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
@@ -2019,6 +2029,13 @@ final class ControlFlowLowerer {
             driver.ctx.popFinallyBlock()
         }
 
+        if let nonLocalReturnLabel {
+            instructions.append(.endNonLocalReturnScope)
+            instructions.append(.label(nonLocalReturnLabel))
+            instructions.append(.constValue(result: returningNonLocally, value: .boolLiteral(true)))
+            instructions.append(.jump(finallyLabel))
+        }
+
         instructions.append(.label(finallyLabel))
         if let finallyExpr {
             var finallyInstructions: [KIRInstruction] = []
@@ -2107,6 +2124,17 @@ final class ControlFlowLowerer {
         instructions.append(.rethrow(value: exceptionSlot))
 
         instructions.append(.label(endLabel))
+        if nonLocalReturnLabel != nil {
+            let afterReturnLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfEqual(lhs: returningNonLocally, rhs: notReturning, target: afterReturnLabel))
+            instructions.append(.resumeNonLocalReturn(nonLocalReturnValue))
+            instructions.append(.label(afterReturnLabel))
+        }
+        if boundType == sema.types.nothingType {
+            let terminated = arena.appendExpr(.unit, type: sema.types.nothingType)
+            instructions.append(.constValue(result: terminated, value: .unit))
+            return terminated
+        }
         return tryResult
     }
 

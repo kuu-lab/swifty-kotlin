@@ -38,17 +38,17 @@ func runtimeStringTrimWithPredicate(
     context: String
 ) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
+    let units = runtimeStringUTF16CodeUnits(strRaw)
     guard fnPtr != 0 else {
-        return runtimeMakeStringRaw(runtimeStringFromScalars(scalars))
+        return strRaw
     }
 
-    func shouldTrim(_ scalar: UnicodeScalar) -> Bool? {
+    func shouldTrim(_ unit: UInt16) -> Bool? {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
-            value: Int(scalar.value),
+            value: Int(unit),
             outThrown: &thrown
         )
         if thrown != 0 {
@@ -59,10 +59,10 @@ func runtimeStringTrimWithPredicate(
     }
 
     var start = 0
-    var end = scalars.count
+    var end = units.count
     if trimLeading {
         while start < end {
-            guard let matches = shouldTrim(scalars[start]) else {
+            guard let matches = shouldTrim(units[start]) else {
                 return runtimeMakeStringRaw("")
             }
             guard matches else { break }
@@ -71,14 +71,14 @@ func runtimeStringTrimWithPredicate(
     }
     if trimTrailing {
         while end > start {
-            guard let matches = shouldTrim(scalars[end - 1]) else {
+            guard let matches = shouldTrim(units[end - 1]) else {
                 return runtimeMakeStringRaw("")
             }
             guard matches else { break }
             end -= 1
         }
     }
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[start ..< end]))
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(Array(units[start ..< end])))
 }
 
 // MARK: - STDLIB-006/009/013 String Functions
@@ -327,7 +327,7 @@ func runtimeStringReplace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldValue, with: newValue))
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue))
 }
 
 // MARK: - STDLIB-TEXT-FN-055: String.replace overloads
@@ -336,23 +336,21 @@ func runtimeStringReplaceChar(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: In
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldStr = runtimeCharacterFromRaw(oldCharRaw)
     let newStr = runtimeCharacterFromRaw(newCharRaw)
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr))
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldStr, new: newStr))
 }
 
 func runtimeStringReplaceIgnoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
-    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldValue, with: newValue, options: options))
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue, ignoreCase: ignoreCaseRaw != 0))
 }
 
 func runtimeStringReplaceCharIgnoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldStr = runtimeCharacterFromRaw(oldCharRaw)
     let newStr = runtimeCharacterFromRaw(newCharRaw)
-    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr, options: options))
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldStr, new: newStr, ignoreCase: ignoreCaseRaw != 0))
 }
 
 // KSP-406: substring / subSequence / slice are bundled Kotlin source

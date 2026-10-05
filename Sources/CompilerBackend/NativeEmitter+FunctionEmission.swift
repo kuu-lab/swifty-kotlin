@@ -881,7 +881,9 @@ extension NativeEmitter {
             case .jump, .label, .jumpIfEqual, .jumpIfNotNull,
                  .storeGlobal, .rethrow, .returnIfEqual, .returnUnit, .returnValue,
                  .beginBlock, .endBlock, .nop, .nonLocalReturn,
-                 .beginFinallyGuard, .endFinallyGuard:
+                 .beginFinallyGuard, .endFinallyGuard,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope, .resumeNonLocalReturn,
+                 .beginFinallyCleanup, .endFinallyCleanup:
                 return []
             }
         }
@@ -1231,7 +1233,7 @@ extension NativeEmitter {
         }
 
         /// Raw scalar values use Int64.min as the nullable sentinel, so zero
-        /// remains a valid value for nullable primitives and enum ordinals.
+        /// remains a valid value for nullable primitives, enum ordinals, and Charset tags.
         /// Reference-like values still use zero as the null representation.
         func nullableRawScalarPreservesZero(_ type: TypeID?) -> Bool {
             guard let type, let typeSystem else { return false }
@@ -1239,7 +1241,9 @@ extension NativeEmitter {
             case .primitive(_, let nullability):
                 return nullability != .nonNull
             case let .classType(classType):
-                return symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+                guard let symbol = symbols?.symbol(classType.classSymbol) else { return false }
+                return symbol.kind == .enumClass
+                    || symbol.fqName.map(interner.resolve) == ["kotlin", "text", "Charset"]
             case .unit:
                 // Safe calls returning Unit use the Int64.min sentinel for
                 // null, while the valid Unit value is raw zero.
@@ -1831,6 +1835,41 @@ extension NativeEmitter {
                         appendThrownChannel: appendThrown
                     )
                 },
+                declareExternalSymbolFunction: { symbol in
+                    guard let signature = symbols?.functionSignature(for: symbol),
+                          let linkName = symbols?.externalLinkName(for: symbol),
+                          !linkName.isEmpty
+                    else {
+                        return nil
+                    }
+                    let runtimeSpec = Self.runtimeABIFunctionByName[linkName]
+                    let argumentCount = (signature.receiverType == nil ? 0 : 1)
+                        + signature.parameterTypes.count
+                    let appendThrown = runtimeSpec?.isThrowing ?? true
+                    // Runtime aliases retain their raw-handle declaration path.
+                    if runtimeSpec == nil,
+                       let sourceSignature = sourceExternalSignature(for: symbol, argumentCount: argumentCount)
+                    {
+                        var parameterTypes = loweredLLVMTypes(for: sourceSignature.parameters)
+                        if appendThrown {
+                            parameterTypes.append(outThrownPointerType)
+                        }
+                        return declareExternalFunction(
+                            named: linkName,
+                            parameterTypes: parameterTypes,
+                            returnType: loweredLLVMType(
+                                for: sourceSignature.returnType,
+                                lowering: typeLowering,
+                                defaultType: int64Type
+                            )
+                        )
+                    }
+                    return declareExternalFunction(
+                        named: linkName,
+                        argumentCount: argumentCount,
+                        appendThrownChannel: appendThrown
+                    )
+                },
                 interner: interner
             )
         }
@@ -2073,7 +2112,8 @@ extension NativeEmitter {
             }
 
             switch instruction {
-            case .nop, .beginBlock, .endBlock, .beginFinallyGuard, .endFinallyGuard:
+            case .nop, .beginBlock, .endBlock, .beginFinallyGuard, .endFinallyGuard,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup:
                 continue
 
             case let .label(id):
@@ -2308,7 +2348,8 @@ extension NativeEmitter {
                 let argumentTypes = arguments.map(module.arena.exprType)
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
-                    argumentCount: argumentValues.count
+                    argumentCount: argumentValues.count,
+                    resolvedSymbol: symbol
                 ) ?? calleeName
 
                 if emitFlatStringRuntimeCall(
@@ -2757,25 +2798,17 @@ extension NativeEmitter {
                 let calleeName = interner.resolve(callee)
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
                 let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
-                // Property getter reads dispatched through a vtable/itable slot
-                // target a generated Kotlin accessor. A String-typed property
-                // returns its string aggregate (the source ABI's indirect
-                // result convention), not the raw pointer the generic fallback
-                // declaration assumes — without this the receiver lands in the
-                // callee's hidden result parameter and `this` reads garbage.
-                // Decide on the declared callee signature rather than the
-                // call-site result type: a generic `val value: T` accessed as
-                // `Lazy<String>.value` still erases to a raw pointer return.
-                // The KIR symbol is the synthetic getter accessor, so recover
-                // the declared property type via the accessor encoding.
+                // Use the declared signature, not the substituted call-site
+                // type: generic members returning T keep the raw handle ABI
+                // even when invoked as String. Getters may require recovering
+                // the property's type from the synthetic accessor symbol.
                 let virtualCallDeclaredAggregateResult: Bool? = {
-                    guard calleeName == "get",
-                          argumentValues.count == 1,
-                          typeLowering != nil
-                    else {
+                    guard typeLowering != nil else {
                         return nil
                     }
-                    if let symbol,
+                    if calleeName == "get",
+                       argumentValues.count == 1,
+                       let symbol,
                        let property = symbols?.propertySymbol(forAccessor: symbol)
                     {
                         return isStringAggregateType(symbols?.propertyType(for: property))
@@ -2840,7 +2873,8 @@ extension NativeEmitter {
                 }()
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
-                    argumentCount: argumentValues.count
+                    argumentCount: argumentValues.count,
+                    resolvedSymbol: symbol
                 ) ?? calleeName
 
                 let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
@@ -3540,6 +3574,10 @@ extension NativeEmitter {
                 }
                 _ = bindings.buildRet(builder, value: returnValue)
 
+            case .resumeNonLocalReturn:
+                assertionFailure("resumeNonLocalReturn reached codegen -- InlineLoweringPass should have converted it")
+                continue
+
             case let .nonLocalReturn(value):
                 // Non-local returns should have been lowered by InlineLoweringPass.
                 // If one reaches codegen, it indicates a lowering bug. Emit a
@@ -3620,8 +3658,18 @@ extension NativeEmitter {
             || calleeName == "kk_string_struct_get_length"
     }
 
-    private static func runtimePrimitiveAlias(for calleeName: String, argumentCount: Int) -> String? {
-        switch calleeName {
+    private static func runtimePrimitiveAlias(
+        for calleeName: String,
+        argumentCount: Int,
+        resolvedSymbol: SymbolID?
+    ) -> String? {
+        if ["and", "or", "xor"].contains(calleeName),
+           let resolvedSymbol,
+           resolvedSymbol != .invalid
+        {
+            return nil
+        }
+        return switch calleeName {
         case "and": "kk_bitwise_and"
         case "or": "kk_bitwise_or"
         case "xor": "kk_bitwise_xor"

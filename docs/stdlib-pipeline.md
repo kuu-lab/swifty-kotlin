@@ -600,6 +600,28 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 
 #### (c) 残留（`__kk_` 降格のみ）— 118 関数
 
+##### `Continuation.intercepted` source owner と実行モデル（KUU-975）
+
+公開拡張 `fun <T> Continuation<T>.intercepted(): Continuation<T>` の唯一の owner は
+`kotlin/coroutines/intrinsics/IntrinsicsNative.kt`。synthetic 宣言を削除し、Kotlin 本体から
+private `@KsSymbolName("__kk_continuation_intercepted")` bridge を呼ぶ。
+理由コードは **GC・continuation / メモリ表現**: KSwiftK の生成 continuation は Swift 所有の
+`RuntimeContinuationState` であり、Kotlin/Native の `ContinuationImpl` ではない。
+Kotlin heap の通常の Continuation は Swift object として cast せず同一 handle を返す。
+既存の Swift `KKContinuation` の dispatcher adaptation は runtime に残す。
+`kk_*` → `__kk_*` は 1 対 1 の降格であり ABI 関数総数は増えない。
+`RuntimeABISpec.specVersion` は登録変更から自動再計算される。
+
+これは公開 API の source 化であり、Kotlin/Native の interception 機構全体の移植ではない。
+既存 `RuntimeContinuationState` には `ContinuationImpl` の context interceptor lookup・
+intercepted result cache・release lifecycle がなく、この移行でもその制約は維持する。
+Swift `KKContinuation` の dispatcher wrapper は wrapper 自身の再 interception は identity だが、
+元 continuation に対する複数回の呼び出しの cache は持たない。
+生成 continuation の custom `ContinuationInterceptor` 対応には state/context/lifecycle の整備が必要
+（再現・整備範囲: [KUU-1164](https://linear.app/kuu/issue/KUU-1164/生成-coroutine-の-intercepted-が-completion-context-の)）。
+通常の source Continuation の identity、context getter 非評価、空 context の生成 continuation、
+既存 native dispatcher の resume は Sema/source+artifact 実行テストと kotlinc diff で固定する。
+
 | 系統 | 代表シンボル | 数 | ファイル |
 |---|---|---:|---|
 | suspend 機構・continuation | `kk_suspend_coroutine`, `kk_coroutine_suspended`, `kk_coroutine_continuation_{context,factory,new,resume,resume_with,resume_with_exception}`, `kk_coroutine_state_{enter,exit,get_completion,get_spill,get_thrown_exception,set_completion,set_label,set_spill}`, `kk_create_coroutine_unintercepted`, `kk_start_coroutine_unintercepted_or_return`, `kk_continuation_intercepted`, `kk_continuation_interceptor_intercept_continuation`, `kk_exception_handler_{new,create,invoke}`, `kk_is_cancellation_exception` | 24 | Coroutine / Context |
@@ -825,6 +847,7 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
 |---|---|---|---|
+| `kotlinx/coroutines/selects/Select.kt` / `SelectClauses.kt`（KSP-1579） | 登録順に readiness を poll し、未成立なら `yield()`。`selectUnbiased` も同順序。句呼び出しはトップレベル拡張と登録中 builder の thread-local を使用。第一級 channel 句は要素型を `Any?` に消去し、`Deferred<T>.onAwait` 関数は型付きで、第一級 property は `Deferred<*>` / `Any?` に消去する。`Mutex.onLock` の owner は追跡しない。結果の明示型または期待型が必要 | `SelectBuilder<R>` 内の型付き member extension、atomic な句登録・選択、unbiased ordering と owner-aware mutex | issue で順次評価を許容。builder inference / member extension dispatch は [KUU-954](https://linear.app/kuu/issue/KUU-954/receiver-builder-内のコールバック結果から型引数を推論できないselectbuild-dsl) で追跡し、型付き property・owner-aware Mutex と coroutine scheduler の対応後に本家形へ戻す |
 | `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |
 | `kotlin/Throws.kt` | 解消済み（`public annotation class Throws(public vararg val exceptionClasses: KClass<out Throwable>)` へ復元、合成登録を撤廃） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証、解消済み）|
 | `uuid/Uuid.kt`（KSP-1502） | `generateV7()` の単調性カウンタを `AtomicLong` + CAS ループでなく plain `var`（`UuidV7MonotonicState`）で実装（スレッド安全性なし） | `private object UuidV7Generator` が `kotlin.concurrent.atomics.AtomicLong`（`@OptIn(ExperimentalAtomicApi::class)`）を CAS ループで使用 | `kotlin.concurrent.atomics.AtomicLong` の `load()`/`compareAndSet()` が実運用で動作検証され次第、本家形へ復元 |

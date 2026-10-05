@@ -194,6 +194,26 @@ public struct EnumEntryDispatchTarget: Hashable, Sendable {
     }
 }
 
+public enum ContractReturnCondition: String, Equatable, Sendable {
+    case normally, returnsTrue, returnsFalse, returnsNull, returnsNotNull
+}
+
+public enum ContractArgumentCondition: String, Equatable, Sendable {
+    case nonNull, booleanTrue, booleanFalse
+}
+
+public struct ContractImplicationEffect: Equatable, Sendable {
+    public let parameterIndex: Int
+    public let returnCondition: ContractReturnCondition
+    public let argumentCondition: ContractArgumentCondition
+
+    public init(parameterIndex: Int, returnCondition: ContractReturnCondition, argumentCondition: ContractArgumentCondition) {
+        self.parameterIndex = parameterIndex
+        self.returnCondition = returnCondition
+        self.argumentCondition = argumentCondition
+    }
+}
+
 public struct ContractNonNullEffect: Equatable, Sendable {
     public let parameterSymbol: SymbolID
     public let appliesOnAnyReturn: Bool
@@ -503,6 +523,7 @@ public final class SymbolTable {
     private var delegateHasProvideDelegate: Set<SymbolID> = []
     private var expectActualLinks: [SymbolID: SymbolID] = [:]
     private var contractNonNullEffects: [SymbolID: ContractNonNullEffect] = [:]
+    private var contractImplicationEffects: [SymbolID: [ContractImplicationEffect]] = [:]
     private var contractReturnsEffects: [SymbolID: ContractReturnsEffect] = [:]
     private var contractCallsInPlaceEffects: [SymbolID: [ContractCallsInPlaceEffect]] = [:]
     private var contractReturnsNotNullEffects: Set<SymbolID> = []
@@ -1477,6 +1498,16 @@ public final class SymbolTable {
         contractNonNullEffects[function] = effect
     }
 
+    public func addContractImplicationEffect(_ effect: ContractImplicationEffect, for function: SymbolID) {
+        var effects = contractImplicationEffects[function] ?? []
+        if !effects.contains(effect) { effects.append(effect) }
+        contractImplicationEffects[function] = effects
+    }
+
+    public func contractImplicationEffects(for function: SymbolID) -> [ContractImplicationEffect] {
+        contractImplicationEffects[function] ?? []
+    }
+
     public func contractNonNullEffect(for function: SymbolID) -> ContractNonNullEffect? {
         contractNonNullEffects[function]
     }
@@ -1801,6 +1832,7 @@ public final class BindingTable {
 
     public func bindContractCallsInPlaceInitializedSymbols(_ expr: ExprID, symbols: [SymbolID]) {
         contractCallsInPlaceInitializedSymbolsByExpr[expr] = symbols
+        cachedContractCallsInPlaceInitializedSymbolsUnion = nil
     }
 
     public func contractCallsInPlaceInitializedSymbols(for expr: ExprID) -> [SymbolID] {

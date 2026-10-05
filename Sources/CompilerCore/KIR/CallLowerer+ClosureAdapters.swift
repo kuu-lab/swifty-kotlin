@@ -467,7 +467,6 @@ extension CallLowerer {
         if functionType.isSuspend,
            !resolvedCallableInfo.hasClosureParam,
            sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
-               || (functionType.receiver == nil && !hasStringSignature)
         {
             return loweredArgID
         }
@@ -538,6 +537,14 @@ extension CallLowerer {
             callee: createCallee,
             arguments: [fnPtrExpr, closureRaw],
             result: materialized,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_function_copy_description"),
+            arguments: [loweredArgID, materialized],
+            result: nil,
             canThrow: false,
             thrownResult: nil
         ))
@@ -672,12 +679,13 @@ extension CallLowerer {
             default:
                 continue
             }
-            // A non-local return must be expanded into its caller. Wrapping
-            // that lambda in a Function object hides its body from imported
-            // inline expansion and turns the return into a runtime callback.
+            // Keep eligible inline arguments visible to imported expansion,
+            // including normal returns and nested non-local returns.
             if isInline,
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               arena.function(for: callable.symbol)?.isInlineOnly == true
+               (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                   || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                   || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
                 continue
             }

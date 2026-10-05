@@ -464,8 +464,10 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let supertypeArgs: [TypeArg] = [.out(types.unitType)]
-            + functionArgumentTypes.map { .in($0) }
+        // KUU-1084: FunctionN type params are declared in Kotlin order
+        // [P1..PN, R] — args carry the parameter types then the return type.
+        let supertypeArgs: [TypeArg] = functionArgumentTypes.map { .in($0) }
+            + [.out(types.unitType)]
         symbols.setSupertypeTypeArgs(supertypeArgs, for: ownerSymbol, supertype: functionSymbol)
         types.setNominalSupertypeTypeArgs(supertypeArgs, for: ownerSymbol, supertype: functionSymbol)
     }

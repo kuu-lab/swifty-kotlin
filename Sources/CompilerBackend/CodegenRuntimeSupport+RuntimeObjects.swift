@@ -269,7 +269,7 @@ extension CodegenRuntimeSupport {
     private static func discoverRuntimeObjectPaths(in searchRoot: URL) -> [String]? {
         var candidates = collectObjectPaths(in: searchRoot)
         if !candidates.isEmpty {
-            return candidates
+            return candidates + runtimeABIObjectPaths(near: searchRoot)
         }
 
         guard let enumerator = FileManager.default.enumerator(
@@ -286,7 +286,7 @@ extension CodegenRuntimeSupport {
             }
             candidates = collectObjectPathsRecursively(in: directoryURL)
             if !candidates.isEmpty {
-                return candidates
+                return candidates + runtimeABIObjectPaths(near: directoryURL)
             }
         }
         return nil
@@ -298,6 +298,18 @@ extension CodegenRuntimeSupport {
     // by default on newer toolchains; there, objects sit one level deeper
     // (Objects-normal/<arch>/*.o), hence the recursive collection below.
     private static let runtimeBuildProductsDirectoryNames: Set<String> = ["Runtime.build", "Runtime-t.build"]
+
+    private static func runtimeABIObjectPaths(near runtimeDirectory: URL) -> [String] {
+        let parent = runtimeDirectory.deletingLastPathComponent()
+        for name in ["RuntimeABI.build", "RuntimeABI-t.build"] {
+            let paths = collectObjectPathsRecursively(in: parent.appendingPathComponent(name, isDirectory: true))
+            if !paths.isEmpty { return paths }
+        }
+        return ["RuntimeABI.o", "RuntimeABI.swift.o"].compactMap { name in
+            let path = parent.appendingPathComponent(name).path
+            return FileManager.default.fileExists(atPath: path) ? path : nil
+        }
+    }
 
     private static func collectObjectPaths(in directory: URL) -> [String] {
         guard let entries = try? FileManager.default.contentsOfDirectory(
@@ -317,7 +329,7 @@ extension CodegenRuntimeSupport {
     // Only called once a directory is already confirmed to be a Runtime
     // build-products directory (see `runtimeBuildProductsDirectoryNames`),
     // so widening the walk to the whole subtree can't pull in objects
-    // belonging to other targets.
+    // belonging to unrelated targets.
     private static func collectObjectPathsRecursively(in directory: URL) -> [String] {
         guard let enumerator = FileManager.default.enumerator(
             at: directory,
@@ -338,7 +350,7 @@ extension CodegenRuntimeSupport {
     // File names a WMO build uses for the Runtime module's single
     // consolidated object. Scoped to exact names so the fallback never
     // grabs per-file `.swift.o` objects, another target's object (e.g.
-    // "RuntimeABI.o"), or the AST-wrapper debug object SwiftPM emits under
+    // "CompilerCore.o"), or the AST-wrapper debug object SwiftPM emits under
     // "Modules/Runtime.o" (which contains only "__Swift_AST", no code).
     private static let wholeModuleRuntimeObjectNames: Set<String> = ["Runtime.o", "Runtime.swift.o"]
 
@@ -356,10 +368,12 @@ extension CodegenRuntimeSupport {
             return []
         }
 
-        return entries
+        let runtimePaths = entries
             .filter { wholeModuleRuntimeObjectNames.contains($0.lastPathComponent) }
             .map(\.path)
             .sorted()
+        guard !runtimePaths.isEmpty else { return [] }
+        return runtimePaths + runtimeABIObjectPaths(near: buildDirectory)
     }
 
     static func runtimeBuildDirectory(
@@ -621,7 +635,7 @@ extension CodegenRuntimeSupport {
         target: TargetTriple,
         configuration: RuntimeBuildConfiguration
     ) throws -> String {
-        "runtime-nocov-v2-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint())"
+        "runtime-nocov-v3-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint())"
     }
 
     private static func runtimeSourceFingerprint() throws -> String {

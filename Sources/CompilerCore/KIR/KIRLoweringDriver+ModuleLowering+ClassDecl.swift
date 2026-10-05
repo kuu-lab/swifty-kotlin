@@ -680,7 +680,7 @@ extension KIRLoweringDriver {
                 guard sema.symbols.parentSymbol(for: candidate) == owner,
                       let propSymbol = sema.symbols.symbol(candidate),
                       propSymbol.kind == .property,
-                      !propSymbol.flags.contains(.synthetic)
+                      isClassDelegationDispatchMember(propSymbol, sema: sema)
                 else {
                     continue
                 }
@@ -811,7 +811,7 @@ extension KIRLoweringDriver {
             for candidate in sema.symbols.lookupAll(fqName: fqName) {
                 guard sema.symbols.parentSymbol(for: candidate) == owner,
                       let methodSymbol = sema.symbols.symbol(candidate),
-                      !methodSymbol.flags.contains(.synthetic),
+                      isClassDelegationDispatchMember(methodSymbol, sema: sema),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType != nil,
                       signature.parameterTypes == interfaceSignature.parameterTypes,
@@ -835,6 +835,11 @@ extension KIRLoweringDriver {
             return fallbackMatch
         }
         return classDelegationDefaultMethodSymbol(interfaceMethodSymbol: interfaceMethodSymbol, sema: sema)
+    }
+
+    private func isClassDelegationDispatchMember(_ member: SemanticSymbol, sema: SemaModule) -> Bool {
+        // Local nominal members are synthetic but still bind to source declarations.
+        !member.flags.contains(.synthetic) || sema.bindings.declSymbols.values.contains(member.id)
     }
 
     private func classDelegationDefaultMethodSymbol(
