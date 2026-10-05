@@ -170,4 +170,74 @@ struct RuntimeArrayTypeTests {
             oneGeneric, outerArray(of: genericInner)
         )) == 0)
     }
+    @Test(arguments: ["Byte", "Short", "Int", "Long"])
+    func signedAndUnsignedViewsKeepTheirKindsAndShareStorage(width: String) throws {
+        let toUnsigned: (Int) -> Int
+        let toSigned: (Int) -> Int
+        let unsignedMax: String
+        switch width {
+        case "Byte":
+            toUnsigned = kk_byteArray_asUByteArray
+            toSigned = kk_uByteArray_asByteArray
+            unsignedMax = "255"
+        case "Short":
+            toUnsigned = kk_shortArray_asUShortArray
+            toSigned = kk_uShortArray_asShortArray
+            unsignedMax = "65535"
+        case "Int":
+            toUnsigned = kk_intArray_asUIntArray
+            toSigned = kk_uIntArray_asIntArray
+            unsignedMax = "4294967295"
+        default:
+            toUnsigned = kk_longArray_asULongArray
+            toSigned = kk_uLongArray_asLongArray
+            unsignedMax = "18446744073709551615"
+        }
+        let unsignedWord = width == "Long" ? -1 : Int(unsignedMax)!
+        // Exercise both signed and zero-extended unsigned storage encodings.
+        for initiallyUnsigned in [false, true] {
+            let signedName = "kotlin.\(width)Array"
+            let unsignedName = "kotlin.U\(width)Array"
+            let originalElements = [initiallyUnsigned ? unsignedWord : -1, 1]
+            let original = taggedArray(initiallyUnsigned ? unsignedName : signedName, elements: originalElements)
+            let view = initiallyUnsigned ? toSigned(original) : toUnsigned(original)
+            let signed = initiallyUnsigned ? view : original
+            let unsigned = initiallyUnsigned ? original : view
+            #expect(view != original)
+            #expect(toSigned(unsigned) == signed)
+            #expect(toUnsigned(signed) == unsigned)
+            #expect(kk_op_is(signed, nominalTypeToken(for: signedName)) == 1)
+            #expect(kk_op_is(signed, nominalTypeToken(for: unsignedName)) == 0)
+            #expect(kk_op_is(unsigned, nominalTypeToken(for: unsignedName)) == 1)
+            #expect(kk_op_is(unsigned, nominalTypeToken(for: signedName)) == 0)
+
+            let signedOuter = outerArray(of: signed)
+            let unsignedOuter = outerArray(of: unsigned)
+            #expect(extractString(from: __kk_array_contentDeepToString(signedOuter)) == "[[-1, 1]]")
+            #expect(extractString(from: __kk_array_contentDeepToString(unsignedOuter))
+                == "[[\(unsignedMax), 1]]")
+            #expect(kk_unbox_bool(__kk_array_contentDeepEquals(signedOuter, unsignedOuter)) == 0)
+            let equalUnsigned = outerArray(of: taggedArray(unsignedName, elements: [unsignedWord, 1]))
+            let equalSigned = outerArray(of: taggedArray(signedName, elements: [-1, 1]))
+            #expect(kk_unbox_bool(__kk_array_contentDeepEquals(signedOuter, equalSigned)) == 1)
+            #expect(kk_unbox_bool(__kk_array_contentDeepEquals(unsignedOuter, equalUnsigned)) == 1)
+            #expect(__kk_array_contentDeepHashCode(unsignedOuter) == __kk_array_contentDeepHashCode(equalUnsigned))
+            #expect(__kk_array_contentDeepHashCode(signedOuter) == __kk_array_contentDeepHashCode(unsignedOuter))
+
+            let copy = __kk_array_copyOf(view)
+            #expect(kk_op_is(copy, nominalTypeToken(for: initiallyUnsigned ? signedName : unsignedName)) == 1)
+            let signedBox = try #require(runtimeArrayBox(from: signed))
+            let unsignedBox = try #require(runtimeArrayBox(from: unsigned))
+            signedBox[0] = 42
+            #expect(unsignedBox[0] == 42)
+            unsignedBox.setValue(RuntimeValue(raw: 7), at: 1)
+            #expect(signedBox[1] == 7)
+            unsignedBox.elements = [8, 9]
+            #expect(signedBox.elements == [8, 9])
+            signedBox.values = [RuntimeValue(raw: 10), RuntimeValue(raw: 11)]
+            #expect(unsignedBox.elements == [10, 11])
+            #expect(runtimeArrayBox(from: copy)?.elements == originalElements)
+        }
+    }
+
 }
