@@ -301,23 +301,34 @@ final class RuntimeTimeoutCancellationBox: RuntimeCancellationBox {
 }
 
 class RuntimeArrayBox {
-    private var storage: [RuntimeValue]
+    private final class Storage {
+        var values: [RuntimeValue]
+        // Canonical handles preserve identity when views are repeated or reversed.
+        var viewHandles: [Int64: Int] = [:]
+        let viewLock = NSLock()
+
+        init(length: Int) {
+            values = Array(repeating: RuntimeValue(raw: 0), count: max(0, length))
+        }
+    }
+
+    private let storage: Storage
 
     var values: [RuntimeValue] {
         get {
-            storage
+            storage.values
         }
         set {
-            storage = newValue
+            storage.values = newValue
         }
     }
 
     var elements: [Int] {
         get {
-            storage.map(\.legacyRawValue)
+            storage.values.map(\.legacyRawValue)
         }
         set {
-            storage = newValue.map { RuntimeValue(raw: $0) }
+            storage.values = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 
@@ -325,11 +336,11 @@ class RuntimeArrayBox {
     /// `elements` materializes the whole array on every get/set, making per-index
     /// loop access O(n) per iteration.
     subscript(index: Int) -> Int {
-        get { storage[index].legacyRawValue }
+        get { storage.values[index].legacyRawValue }
         set {
-            storage[index] = RuntimeValue(
+            storage.values[index] = RuntimeValue(
                 raw: newValue,
-                anyFallbackTag: storage[index].anyFallbackTag
+                anyFallbackTag: storage.values[index].anyFallbackTag
             )
         }
     }
@@ -337,19 +348,37 @@ class RuntimeArrayBox {
     /// Stores a raw field value together with the static tag needed by
     /// Any-erased operations such as `hashCode()`.
     func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
-        storage[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
+        storage.values[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
     }
 
     func setValue(_ value: RuntimeValue, at index: Int) {
-        storage[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage[index])
+        storage.values[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage.values[index])
     }
 
     var count: Int {
-        storage.count
+        storage.values.count
     }
 
     init(length: Int) {
-        storage = Array(repeating: RuntimeValue(raw: 0), count: max(0, length))
+        storage = Storage(length: length)
+    }
+
+    private init(sharingStorageOf array: RuntimeArrayBox) {
+        storage = array.storage
+    }
+
+    /// A distinct, correctly tagged box over the same mutable element storage.
+    func primitiveView(rawValue: Int, sourceTypeID: Int64, targetTypeID: Int64) -> Int {
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        storage.viewHandles[sourceTypeID] = rawValue
+        if let existing = storage.viewHandles[targetTypeID] {
+            return existing
+        }
+        let view = registerRuntimeObject(RuntimeArrayBox(sharingStorageOf: self))
+        runtimeRegisterArrayType(rawValue: view, typeID: targetTypeID)
+        storage.viewHandles[targetTypeID] = view
+        return view
     }
 }
 
