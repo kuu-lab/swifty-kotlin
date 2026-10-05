@@ -22,6 +22,15 @@ public extension RuntimeABISpec {
         ),
         // List
         RuntimeABIFunctionSpec(
+            name: "__kk_list_check_modification",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_list_of",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),

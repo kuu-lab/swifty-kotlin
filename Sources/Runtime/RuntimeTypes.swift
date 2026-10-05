@@ -624,6 +624,7 @@ final class RuntimeListBox {
                 baseValues.replaceSubrange(slice.fromIndex..<slice.toIndex, with: newValue)
                 slice.toIndex = slice.fromIndex + newValue.count
                 slice.base.values = baseValues
+                slice.expectedModCount = slice.base.modCount
             case .mapValuesViewOf(let mapRaw):
                 // `MutableCollection<V>` exposes no positional replace for
                 // `.values`; only a full clear (matching `.clear()`) is a
@@ -653,6 +654,17 @@ final class RuntimeListBox {
             return slice.base.modCount
         case .mapValuesViewOf(let mapRaw):
             return runtimeMapBox(from: mapRaw)?.modCount ?? 0
+        }
+    }
+
+    var isValidView: Bool {
+        switch storage {
+        case .subList(let slice):
+            return slice.expectedModCount == slice.base.modCount && slice.base.isValidView
+        case .reversedViewOf(let base):
+            return base.isValidView
+        case .direct, .arrayViewOf, .mapValuesViewOf:
+            return true
         }
     }
 
@@ -818,11 +830,13 @@ private final class RuntimeListSlice {
     let base: RuntimeListBox
     let fromIndex: Int
     var toIndex: Int
+    var expectedModCount: Int
 
     init(base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
         self.base = base
         self.fromIndex = fromIndex
         self.toIndex = toIndex
+        expectedModCount = base.modCount
     }
 }
 
