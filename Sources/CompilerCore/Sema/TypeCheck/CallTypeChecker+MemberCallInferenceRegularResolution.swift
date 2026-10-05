@@ -3,15 +3,6 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    func usesOnlyInputTypes(_ candidate: SymbolID, sema: SemaModule) -> Bool {
-        let annotatedSymbols = [candidate] + (sema.symbols.functionSignature(for: candidate)?.typeParameterSymbols ?? [])
-        return annotatedSymbols.contains { symbol in
-            sema.symbols.annotations(for: symbol).contains {
-                $0.annotationFQName.split(separator: ".").last == "OnlyInputTypes"
-            }
-        }
-    }
-
     /// Names of stdlib collection members backed by bundled Kotlin sources.
     /// Shared by member-call resolution paths that compare the resolved callee
     /// text; interned-String comparisons live on `KnownCompilerNames`.
@@ -2093,9 +2084,6 @@ extension CallTypeChecker {
                           let declaredReceiver = signature.receiverType,
                           !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
                     else { return false }
-                    // OnlyInputTypes needs argument-only inference; do not widen
-                    // collection element types just to make a failed member viable.
-                    guard !usesOnlyInputTypes(candidate, sema: sema) else { return false }
                     let isUser = symbol.declSite.map {
                         driver.sourceManager?.origin(of: $0.start.file) == .user
                     } ?? false
@@ -2113,10 +2101,15 @@ extension CallTypeChecker {
                     )
                 }
             }
-            // Innermost binding first so a user extension keeps shadowing a
-            // same-named one; merge the whole chain only if that finds nothing.
+            // Viable user extensions shadow outer bindings, not inapplicable ones.
             var extensionCandidates = receiverMatchingExtensions(ctx.scope.lookup(calleeName))
-            if extensionCandidates.isEmpty {
+            if extensionCandidates.isEmpty || ctx.resolver.probeCall(
+                candidates: extensionCandidates,
+                call: CallExpr(range: range, calleeName: calleeName, args: preparedArgs.argTypes.map { CallArg(type: $0) }),
+                expectedType: expectedType,
+                implicitReceiverType: receiverForExtensionLookup,
+                ctx: ctx.semaCtx
+            ).viableCandidates.isEmpty {
                 extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
@@ -2876,10 +2869,9 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner
         ).filter { candidate in
-            !usesOnlyInputTypes(candidate, sema: sema)
-                && (!sema.symbols.isSourceBackedSymbol(candidate)
-                    || scopedExtensionCandidates.contains(candidate)
-                    || allowsImportlessAtomicExtensions)
+            !sema.symbols.isSourceBackedSymbol(candidate)
+                || scopedExtensionCandidates.contains(candidate)
+                || allowsImportlessAtomicExtensions
         }
         guard !allCandidates.isEmpty else {
             return nil
