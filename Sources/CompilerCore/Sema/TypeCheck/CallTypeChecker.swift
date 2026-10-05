@@ -1998,9 +1998,17 @@ final class CallTypeChecker {
         {
             let firstType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let secondType = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals)
-            let comparatorArgType = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals)
+            let comparatorArgType: TypeID? = if args.count == 4,
+                                               !isLambdaOrCallableRefArg(args[2].expr, ast: ast)
+            {
+                driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals)
+            } else {
+                nil
+            }
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
-            if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+            if let comparatorArgType,
+               let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
+            {
                 let nonNullComparatorArgType = sema.types.makeNonNullable(comparatorArgType)
                 let inferredKeyType: TypeID? = if case let .classType(classType) = sema.types.kind(of: nonNullComparatorArgType),
                                                   classType.classSymbol == comparatorSymbol,

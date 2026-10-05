@@ -68,6 +68,61 @@ struct ComparisonsCompareValuesByFunctionTests {
 
     }
 
+    @Test func testImplicitSelectorsChooseCorrectOverloads() throws {
+        let sources = [
+            """
+            package implicitTwo
+            data class P(val n: String, val a: Int)
+            fun cmp(): Int = compareValuesBy(P("a", 1), P("a", 2), { it.n }, { it.a })
+            fun name(p: P): String = p.n
+            fun mixed(): Int = compareValuesBy(P("a", 1), P("a", 2), ::name, { it.a })
+            """,
+            """
+            package implicitThree
+            data class P(val n: String, val a: Int, val c: Int)
+            fun cmp(): Int = compareValuesBy(P("a", 1, 1), P("a", 1, 2), { it.n }, { it.a }, { it.c })
+            """,
+            """
+            package implicitVararg
+            data class P(val n: String, val a: Int, val c: Int, val d: Int)
+            fun cmp(): Int = compareValuesBy(P("a", 1, 1, 1), P("a", 1, 1, 2), { it.n }, { it.a }, { it.c }, { it.d })
+            """,
+            """
+            package explicitComparator
+            data class P(val n: String, val a: Int)
+            fun cmp(): Int = compareValuesBy(P("a", 1), P("a", 2), reverseOrder<Int>(), { it.a })
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Implicit selectors must resolve: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            for (index, path) in paths.enumerated() {
+                let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                    guard case let .call(callee, _, _, _) = expr,
+                          case let .nameRef(name, _) = ast.arena.expr(callee)
+                    else { return false }
+                    return ctx.interner.resolve(name) == "compareValuesBy"
+                })
+                let binding = try #require(sema.bindings.callBinding(for: call))
+                let chosen = try #require(binding.chosenCallee)
+                let signature = try #require(sema.symbols.functionSignature(for: chosen))
+                let symbol = try #require(sema.symbols.symbol(chosen))
+                #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "comparisons", "compareValuesBy"])
+                #expect(signature.typeParameterSymbols.count == (index == 3 ? 2 : 1))
+                #expect(signature.parameterTypes.count == [4, 5, 3, 4][index])
+                #expect(signature.valueParameterIsVararg.contains(true) == (index == 2))
+                if index == 2 {
+                    #expect(binding.parameterMapping == [0: 0, 1: 1, 2: 2, 3: 2, 4: 2, 5: 2])
+                }
+            }
+        }
+    }
+
     /// KSP-461: the 1-selector overload is bundled Kotlin source, so it must be
     /// registered without any runtime external link.
     @Test func testCompareValuesByOneSelectorIsSourceBacked() throws {
