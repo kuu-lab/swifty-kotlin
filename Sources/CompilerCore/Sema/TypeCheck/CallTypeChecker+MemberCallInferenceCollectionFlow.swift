@@ -209,6 +209,9 @@ extension CallTypeChecker {
             && args.isEmpty
             && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
         var activeCollectionHOFNames = Self.collectionHOFNames
+        // zip is source-backed. Regular overload resolution must validate the
+        // other collection/Sequence argument and respect user extensions.
+        activeCollectionHOFNames.remove("zip")
         if !isMutableListReceiver {
             activeCollectionHOFNames.subtract(Self.mutableListOnlyCollectionHOFNames)
         }
@@ -220,12 +223,12 @@ extension CallTypeChecker {
             {
                 activeCollectionHOFNames.remove("flatMapIndexed")
             }
-            // List.zip resolves through bundled Kotlin source. Only Sequence
-            // needs this generic fast path until KSP-308 removes its bridge.
-            activeCollectionHOFNames.remove("zip")
         } else {
             activeCollectionHOFNames.remove("mapIndexedNotNull")
             activeCollectionHOFNames.remove("dropLastWhile")
+            // These eager operations are unavailable on Kotlin Sequence.
+            activeCollectionHOFNames.remove("takeLastWhile")
+            activeCollectionHOFNames.remove("reversed")
             // Sequence.flatMapTo/flatMapIndexedTo have Iterable- and
             // Sequence-return overloads. Let regular overload resolution use
             // the lambda return type instead of the single-shape destination
@@ -2966,67 +2969,6 @@ extension CallTypeChecker {
                    ["filterTo", "filterNotTo", "mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo"].contains(calleeStr)
                 {
                     _ = bindBundledMapSourceFunction()
-                }
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-            if calleeStr == "zip", !args.isEmpty {
-                let otherType = sema.bindings.exprTypes[args[0].expr]
-                    ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-                let otherElementType: TypeID
-                if let otherClassType = resolveClassType(otherType, sema: sema),
-                   let firstArg = otherClassType.args.first
-                {
-                    otherElementType = switch firstArg {
-                    case let .invariant(t), let .out(t), let .in(t): t
-                    case .star: sema.types.anyType
-                    }
-                } else {
-                    otherElementType = sema.types.anyType
-                }
-
-                let resultElementType: TypeID
-                if args.count >= 2 {
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [collectionElementType, otherElementType],
-                        returnType: sema.types.nullableAnyType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
-                    }
-                    _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    resultElementType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
-                } else if let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first {
-                    resultElementType = sema.types.make(.classType(ClassType(
-                        classSymbol: pairSymbol,
-                        args: [.invariant(collectionElementType), .invariant(otherElementType)],
-                        nullability: .nonNull
-                    )))
-                } else {
-                    resultElementType = sema.types.anyType
-                }
-
-                if isSequenceReceiver {
-                    resultType = makeSyntheticSequenceType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: resultElementType
-                    )
-                } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
-                    resultType = sema.types.make(.classType(ClassType(
-                        classSymbol: listSymbol,
-                        args: [.invariant(resultElementType)],
-                        nullability: .nonNull
-                    )))
-                } else {
-                    resultType = sema.types.anyType
-                }
-                if isSequenceReceiver {
-                    _ = bindBundledSequenceSourceIfAvailable(resultType: resultType, otherElementType: otherElementType)
                 }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)

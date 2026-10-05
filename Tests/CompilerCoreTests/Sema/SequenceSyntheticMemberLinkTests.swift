@@ -11,10 +11,6 @@ struct SequenceSyntheticMemberLinkTests {
         return values.filter { value -> value % 2 == 0 }
         }
 
-        fun reversedValuesReversed(): Sequence<Int> {
-        return sequenceOf(1, 2, 3).reversed()
-        }
-
         fun runningTotalsRunningFold(): Sequence<Int> {
         return sequenceOf(1, 2, 3).runningFold(10) { acc, value -> acc + value }
         }
@@ -113,19 +109,9 @@ struct SequenceSyntheticMemberLinkTests {
         return values.randomOrNull()
         }
 
-        fun lastTwoTakeLast(): List<Int> {
-        val values = sequenceOf(1, 2, 3)
-        return values.takeLast(2)
-        }
-
         fun sortedValuesSortedBy(): Sequence<String> {
         val values = sequenceOf("cc", "a", "bbb")
         return values.sortedBy { value -> value.length }
-        }
-
-        fun trailingLargeTakeLastWhile(): List<Int> {
-        val values = sequenceOf(1, 3, 4, 2, 5, 6)
-        return values.takeLastWhile { value -> value > 2 }
         }
 
         fun leadingSmallTakeWhile(): Sequence<Int> {
@@ -489,18 +475,6 @@ struct SequenceSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
         // testSequenceFilterTypeChecksInCallExpressions -> no additional link assertion (source only)
 
-        do {
-            // testSequenceReversedResolvesInCallExpressions -> Sequence.reversed
-            let memberFQNameReversed = ["kotlin", "sequences", "Sequence", "reversed"].map { ctx.interner.intern($0) }
-            let linksReversed = Set(
-                sema.symbols.lookupAll(fqName: memberFQNameReversed).compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(
-                linksReversed.contains("kk_sequence_reversed"),
-                "Expected Sequence.reversed to link to kk_sequence_reversed, got \(linksReversed.sorted())"
-            )
-        }
-
         // testSequenceRunningFoldResolvesInCallExpressions -> no additional link assertion (source only)
 
         // testSequenceReduceIndexedResolvesInCallExpressions -> no additional link assertion (source only)
@@ -610,31 +584,7 @@ struct SequenceSyntheticMemberLinkTests {
             )
         }
 
-        do {
-            // testSequenceTakeLastResolvesInCallExpressions -> Sequence.takeLast
-            let memberFQNameTakeLast = ["kotlin", "sequences", "Sequence", "takeLast"].map { ctx.interner.intern($0) }
-            let linksTakeLast = Set(
-                sema.symbols.lookupAll(fqName: memberFQNameTakeLast).compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(
-                linksTakeLast.contains("kk_sequence_takeLast"),
-                "Expected Sequence.takeLast to link to kk_sequence_takeLast, got \(linksTakeLast.sorted())"
-            )
-        }
-
         // testSequenceSortedByResolvesInCallExpressions -> no additional link assertion (source only)
-
-        do {
-            // testSequenceTakeLastWhileResolvesInCallExpressions -> Sequence.takeLastWhile
-            let memberFQNameTakeLastWhile = ["kotlin", "sequences", "Sequence", "takeLastWhile"].map { ctx.interner.intern($0) }
-            let linksTakeLastWhile = Set(
-                sema.symbols.lookupAll(fqName: memberFQNameTakeLastWhile).compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(
-                linksTakeLastWhile.contains("kk_sequence_takeLastWhile"),
-                "Expected Sequence.takeLastWhile to link to kk_sequence_takeLastWhile, got \(linksTakeLastWhile.sorted())"
-            )
-        }
 
         // testSequenceTakeWhileResolvesInCallExpressions -> no additional link assertion (source only)
 

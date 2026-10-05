@@ -113,7 +113,6 @@ struct StdlibSurfaceSpecTests {
             sequence("onEach", 1),
             sequence("onEachIndexed", 1),
             sequence("mapIndexed", 1),
-            sequence("reversed", 0),
             sequence("filterIndexed", 1),
             sequence("filterNotNull", 0),
             sequence("requireNoNulls", 0),
@@ -143,7 +142,6 @@ struct StdlibSurfaceSpecTests {
                 // bundled Kotlin source as well.
                 // KSP-632 migrated Iterable.sumBy to bundled Kotlin source too.
                 (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reversed", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "randomOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),

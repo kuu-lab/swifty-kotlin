@@ -40,7 +40,6 @@ extension StdlibSurfaceSpec {
         sequence("onEachIndexed", 1, "kk_sequence_onEachIndexed", returnStrategy: .sequence, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .unit)),
         sequence("mapIndexed", 1, "kk_sequence_mapIndexed", returnStrategy: .sequence, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .any)),
         sequence("mapIndexedNotNull", 1, "kk_sequence_mapIndexedNotNull", returnStrategy: .sequence, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
-        sequence("reversed", 0, "kk_sequence_reversed", returnStrategy: .sequence, lambdaExpectation: .none),
         sequence("filterIndexed", 1, "kk_sequence_filterIndexed", returnStrategy: .sequence, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         sequence("filterNotNull", 0, "kk_sequence_filterNotNull", returnStrategy: .sequence, lambdaExpectation: .none),
         sequence("requireNoNulls", 0, "kk_sequence_requireNoNulls", returnStrategy: .sequence, lambdaExpectation: .none),
