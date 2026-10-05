@@ -17,6 +17,8 @@ extension LoweringABIAndPropertyRegressionTests {
         // because the source TypeKind's nullability is provably `.nonNull`:
         // see BoxingCalleeTable's nonNullOnlyBoxCalleeOverridesByPrimitive.
         let primitives: [(TypeKind, KIRExprKind, String)] = [
+            (.primitive(.byte, .nonNull), .intLiteral(-1), "kk_box_int_static"),
+            (.primitive(.short, .nonNull), .intLiteral(240), "kk_box_int_static"),
             (.primitive(.int, .nonNull), .intLiteral(1), "kk_box_int_static"),
             (.primitive(.boolean, .nonNull), .boolLiteral(true), "kk_box_bool_static"),
             (.primitive(.long, .nonNull), .longLiteral(1), "kk_box_long_nonnull_static"),

@@ -104,6 +104,8 @@ struct BoxingCalleeTable {
     /// box but use the tagged-handle fast path; ambiguous runtime values keep
     /// the legacy callees above.
     private static let staticPrimitiveBoxCalleeNamesByPrimitive: [PrimitiveType: String] = [
+        .byte: "kk_box_int_static",
+        .short: "kk_box_int_static",
         .int: "kk_box_int_static",
         .uint: "kk_box_uint_static",
         .ubyte: "kk_box_ubyte_static",
@@ -117,6 +119,8 @@ struct BoxingCalleeTable {
     ]
 
     private static let staticPrimitiveUnboxCalleeNamesByPrimitive: [PrimitiveType: String] = [
+        .byte: "kk_unbox_int_static",
+        .short: "kk_unbox_int_static",
         .int: "kk_unbox_int_static",
         .uint: "kk_unbox_int_static",
         .ubyte: "kk_unbox_int_static",

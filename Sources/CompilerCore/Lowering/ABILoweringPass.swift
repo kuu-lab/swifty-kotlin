@@ -104,6 +104,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // downstream uses of the element (arithmetic, comparisons, calls) see
         // the plain primitive value.
         let collectionElementAccessorCallees: Set<InternedString> = [
+            ctx.interner.intern("__kk_list_get"),
             ctx.interner.intern("kk_list_iterator_next"),
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
