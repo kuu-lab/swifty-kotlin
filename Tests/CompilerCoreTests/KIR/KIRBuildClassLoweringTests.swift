@@ -4,65 +4,35 @@ import Testing
 
 @Suite
 struct KIRBuildClassLoweringTests {
-    @Test(arguments: [false, true])
-    func testInheritedGenericMethodMatchesNestedProjectedTypeParameters(covariant: Bool) throws {
-        let source = """
-        class Payload<\(covariant ? "out " : "")K, V>
-        interface Sink<K, V> {
-            fun accept(payload: Payload<out K, V>)
+    @Test func testNestedGenericOverrideMatchingPreservesUnrelatedOverloads() throws {
+        let ctx = makeContextFromSource("""
+        class Box<T>
+        interface Input {
+            fun <T> evaluate(value: Box<Box<T>>): Int = 1
         }
-        open class BaseSink<K, V> : Sink<K, V> {
-            override fun accept(payload: Payload<\(covariant ? "" : "out ")K, V>) {}
+        class OverrideInput : Input {
+            fun evaluate(value: String): Int = 2
+            override fun <E> evaluate(value: Box<Box<E>>): Int = 3
         }
-        class StringSink : BaseSink<String, Int>()
-        """
-        let ctx = makeContextFromSource(source)
+        class DefaultInput : Input {
+            fun evaluate(value: String): Int = 4
+        }
+        """)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError)
         let sema = try #require(ctx.sema)
-        let interfaceMethod = try #require(sema.symbols.lookup(
-            fqName: ["Sink", "accept"].map(ctx.interner.intern)
-        ))
-        let inheritedMethod = try #require(sema.symbols.lookup(
-            fqName: ["BaseSink", "accept"].map(ctx.interner.intern)
-        ))
-        let nominalSymbol = try #require(sema.symbols.lookup(
-            fqName: [ctx.interner.intern("StringSink")]
-        ))
-        #expect(kirFindOverrideMethod(
-            for: interfaceMethod,
-            in: nominalSymbol,
-            sema: sema,
-            interner: ctx.interner
-        ) == inheritedMethod)
-    }
+        let method = ctx.interner.intern("evaluate")
+        let input = ctx.interner.intern("Input")
+        let interfaceMethod = try #require(sema.symbols.lookup(fqName: [input, method]))
+        let overrideInput = ctx.interner.intern("OverrideInput")
+        let overrideClass = try #require(sema.symbols.lookup(fqName: [overrideInput]))
+        let overrideMethod = try #require(sema.symbols.lookupAll(fqName: [overrideInput, method]).first {
+            sema.symbols.symbol($0)?.flags.contains(.overrideMember) == true
+        })
+        let defaultClass = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("DefaultInput")]))
 
-    @Test func testIncompatibleNestedGenericArgumentsDoNotMatch() throws {
-        let source = """
-        class Payload<T>
-        interface Sink {
-            fun accept(payload: Payload<String>)
-        }
-        class IntSink {
-            fun accept(payload: Payload<Int>) {}
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToKIR(ctx)
-        #expect(!ctx.diagnostics.hasError)
-        let sema = try #require(ctx.sema)
-        let interfaceMethod = try #require(sema.symbols.lookup(
-            fqName: ["Sink", "accept"].map(ctx.interner.intern)
-        ))
-        let nominalSymbol = try #require(sema.symbols.lookup(
-            fqName: [ctx.interner.intern("IntSink")]
-        ))
-        #expect(kirFindOverrideMethod(
-            for: interfaceMethod,
-            in: nominalSymbol,
-            sema: sema,
-            interner: ctx.interner
-        ) == nil)
+        #expect(kirFindOverrideMethod(for: interfaceMethod, in: overrideClass, sema: sema, interner: ctx.interner) == overrideMethod)
+        #expect(kirFindOverrideMethod(for: interfaceMethod, in: defaultClass, sema: sema, interner: ctx.interner) == interfaceMethod)
     }
 
     @Test func testObjectDelegatedPropertyAccessUsesSynthesizedAccessors() throws {
@@ -595,6 +565,67 @@ struct KIRBuildClassLoweringTests {
                 #expect(!targets.contains(forwardingAccessor))
             }
         }
+    }
+
+    @Test(arguments: [false, true])
+    func testInheritedGenericMethodMatchesNestedProjectedTypeParameters(covariant: Bool) throws {
+        let source = """
+        class Payload<\(covariant ? "out " : "")K, V>
+        interface Sink<K, V> {
+            fun accept(payload: Payload<out K, V>)
+        }
+        open class BaseSink<K, V> : Sink<K, V> {
+            override fun accept(payload: Payload<\(covariant ? "" : "out ")K, V>) {}
+        }
+        class StringSink : BaseSink<String, Int>()
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let interfaceMethod = try #require(sema.symbols.lookup(
+            fqName: ["Sink", "accept"].map(ctx.interner.intern)
+        ))
+        let inheritedMethod = try #require(sema.symbols.lookup(
+            fqName: ["BaseSink", "accept"].map(ctx.interner.intern)
+        ))
+        let nominalSymbol = try #require(sema.symbols.lookup(
+            fqName: [ctx.interner.intern("StringSink")]
+        ))
+        #expect(kirFindOverrideMethod(
+            for: interfaceMethod,
+            in: nominalSymbol,
+            sema: sema,
+            interner: ctx.interner
+        ) == inheritedMethod)
+    }
+
+    @Test func testIncompatibleNestedGenericArgumentsDoNotMatch() throws {
+        let source = """
+        class Payload<T>
+        interface Sink {
+            fun accept(payload: Payload<String>)
+        }
+        class IntSink {
+            fun accept(payload: Payload<Int>) {}
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let interfaceMethod = try #require(sema.symbols.lookup(
+            fqName: ["Sink", "accept"].map(ctx.interner.intern)
+        ))
+        let nominalSymbol = try #require(sema.symbols.lookup(
+            fqName: [ctx.interner.intern("IntSink")]
+        ))
+        #expect(kirFindOverrideMethod(
+            for: interfaceMethod,
+            in: nominalSymbol,
+            sema: sema,
+            interner: ctx.interner
+        ) == nil)
     }
 
     @Test func testMapInterfaceDelegationResolvesDirectMembersAndMapDispatch() throws {

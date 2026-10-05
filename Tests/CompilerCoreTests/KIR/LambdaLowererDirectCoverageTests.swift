@@ -4,6 +4,45 @@ import Testing
 
 @Suite
 struct LambdaLowererDirectCoverageTests {
+    @Test(arguments: [0, 1, 2, 6], [false, true])
+    func nonCapturingLambdaRegistersArityWithoutChangingCallableABI(
+        parameterCount: Int, hasReceiver: Bool
+    ) throws {
+        let fixture = makeKIRDirectLoweringFixture()
+        let range = makeRange()
+        let body = appendTypedExpr(.intLiteral(42, range), type: fixture.types.intType, fixture: fixture)
+        let functionType = fixture.types.make(.functionType(FunctionType(
+            receiver: hasReceiver ? fixture.types.intType : nil,
+            params: Array(repeating: fixture.types.intType, count: parameterCount),
+            returnType: fixture.types.intType
+        )))
+        let lambda = appendTypedExpr(
+            .lambdaLiteral(params: [], body: body, label: nil, range: range),
+            type: functionType, fixture: fixture
+        )
+        var instructions: [KIRInstruction] = []
+        let callable = fixture.driver.lambdaLowerer.lowerLambdaLiteralExpr(
+            lambda, params: [], bodyExpr: body,
+            ast: fixture.ast, sema: fixture.sema, arena: fixture.kirArena,
+            interner: fixture.interner, propertyConstantInitializers: [:],
+            instructions: &instructions
+        )
+        let tag = try #require(instructions.first {
+            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+            return fixture.interner.resolve(callee) == "kk_function_value_tag_arity"
+        })
+        guard case let .call(_, _, arguments, result, canThrow, _, _, _) = tag else { return }
+        #expect(arguments.first == callable)
+        #expect(fixture.kirArena.expr(arguments[1]) == .intLiteral(Int64(parameterCount + (hasReceiver ? 1 : 0))))
+        #expect(result == nil)
+        #expect(!canThrow)
+        #expect(fixture.driver.ctx.callableValueInfo(for: callable)?.captureArguments.isEmpty == true)
+        #expect(!instructions.contains {
+            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+            return fixture.interner.resolve(callee).hasPrefix("kk_function_create_")
+        })
+    }
+
     @Test(arguments: [false, true], [nil, false, true] as [Bool?])
     func capturingLambdaRespectsInlineParameters(
         allowsNonLocalReturn: Bool, importedParameterAllowsNonLocalReturn: Bool?

@@ -216,15 +216,15 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-331/564: Rewrite kk_range_hasNext on iterator builder → __kk_iterator_builder_hasNext
+            // Builder producers can throw from hasNext as well as next.
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkIteratorBuilderHasNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: canThrow,
+                    thrownResult: thrownResult
                 ))
                 return true
             }

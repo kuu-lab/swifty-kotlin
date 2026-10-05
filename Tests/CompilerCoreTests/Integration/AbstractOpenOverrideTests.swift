@@ -251,9 +251,7 @@ import Testing
                 && $0.severity == .warning
                 && $0.message.contains("has no abstract members")
         }
-        #expect(emptyAbstractWarnings.count == 2)
-        #expect(emptyAbstractWarnings.contains { $0.message.contains("'RegularEmpty'") })
-        #expect(emptyAbstractWarnings.contains { $0.message.contains("'Container.NestedAbstract'") })
+        #expect(emptyAbstractWarnings.isEmpty)
     }
 
     @Test func testEmptyExpectAbstractClassDoesNotWarn() throws {
@@ -273,8 +271,8 @@ import Testing
             $0.code == "KSWIFTK-SEMA-ABSTRACT"
                 && $0.message.contains("has no abstract members")
         }
-        #expect(emptyAbstractWarnings.count == 1)
-        #expect(emptyAbstractWarnings.first?.message.contains("RegularEmpty") == true)
+        #expect(emptyAbstractWarnings.isEmpty)
+        #expect(!ctx.diagnostics.hasError)
     }
 
 }

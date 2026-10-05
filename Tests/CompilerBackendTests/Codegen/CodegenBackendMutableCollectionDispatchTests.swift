@@ -97,7 +97,7 @@ struct CodegenBackendMutableCollectionDispatchTests {
             override fun retainAll(elements: Collection<Int>): Boolean { calls += "T"; return backing.retainAll(elements) }
             override fun clear() { calls += "c"; backing.clear() }
         }
-        
+
         fun main() {
             val concrete = TrackedCollection()
             val values: MutableCollection<Int> = concrete
