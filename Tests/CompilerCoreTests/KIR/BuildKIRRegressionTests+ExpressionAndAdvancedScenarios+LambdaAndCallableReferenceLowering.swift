@@ -50,6 +50,28 @@ extension BuildKIRRegressionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test(arguments: 0 ... 5)
+    func testBuildKIRRegistersAritySpecificNominalInvokeABI(arity: Int) throws {
+        let arguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
+        let parameters = (0 ..< arity).map { "p\($0)" }.joined(separator: ", ")
+        let arrow = arity == 0 ? "" : "\(parameters) -> "
+        let values = Array(repeating: "1", count: arity).joined(separator: ", ")
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val f: Function\(arity)<\(arguments)> = { \(arrow)7 }
+            println(f(\(values)))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let owner = try #require(sema.types.functionNInterfaceSymbols[arity])
+        let symbol = try #require(sema.symbols.symbol(owner))
+        let invoke = try #require(sema.symbols.lookup(fqName: symbol.fqName + [ctx.interner.intern("invoke")]))
+        let linkName = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
+        #expect(sema.symbols.externalLinkName(for: invoke) == linkName)
+    }
+
     @Test func testBuildKIRObjectLiteralArgumentIsNotLoweredToUnitPlaceholder() throws {
         let source = """
         interface I

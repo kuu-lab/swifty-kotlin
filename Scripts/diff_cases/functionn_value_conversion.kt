@@ -42,6 +42,16 @@ fun main() {
     println(widen(toStringRef)(23))
     val sumRef: Function2<Int, Int, Int> = Int::plus
     println(two(sumRef)(24, 25))
+    println(sumRef(26, 27))
+    val f0: Function0<Int> = { 7 }
+    val f3: Function3<Int, Int, Int, Int> = { a, b, c -> a + b + c }
+    val f4: Function4<Int, Int, Int, Int, Int> = { a, b, c, d -> a + b + c + d }
+    val f5: Function5<Int, Int, Int, Int, Int, Int> = { a, b, c, d, e -> a + b + c + d + e }
+    println(f0())
+    println(h(28))
+    println(f3(1, 2, 3))
+    println(f4.invoke(1, 2, 3, 4))
+    println(f5(1, 2, 3, 4, 5))
     println(generic<Int, String>(h)(17))
     println(ordinary(h, 19))
     println(generic<Int, Int> { it + offset }(5))
