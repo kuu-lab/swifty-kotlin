@@ -35,6 +35,21 @@ extension CallLowerer {
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
 
+        if sema.bindings.callableValueCalls[exprID]?.extensionCallableExpr != nil {
+            let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let result = tryLowerLexicalExtensionCallableInvocation(
+                exprID,
+                receiverExpr: receiverExpr,
+                loweredReceiverID: receiver,
+                calleeName: calleeName,
+                args: args,
+                shared: shared,
+                emit: &instructions
+            ) {
+                return result
+            }
+        }
+
         // BUG-274: whichever specialized lowering strategy below actually
         // handles this member call/access, it targets a real member of
         // `chosenCallee`'s (or, for a property-like access bound only via

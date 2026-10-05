@@ -734,6 +734,20 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        if let invokeResult = tryLowerLexicalExtensionCallableInvocation(
+            exprID,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            shared: shared,
+            emit: &instructions
+        ) {
+            instructions.append(.copy(from: invokeResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // Explicit `.invoke(...)` on a receiver whose own type is a function
         // type (e.g. `fs["dbl"]?.invoke(4)`). Mirrors the non-safe-call arm
         // in `lowerMemberCallExpr` and goes through `lowerResolvedCallBody`
