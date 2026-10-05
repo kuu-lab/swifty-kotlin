@@ -57,29 +57,21 @@ public fun Long.countTrailingZeroBits(): Int {
 
 // KSP-644: highest/lowest one-bit operations are source-backed extensions.
 
-public fun Int.highestOneBit(): Int {
+public fun Int.takeHighestOneBit(): Int {
     if (this == 0) return 0
     if (this < 0) return Int.MIN_VALUE
     return 1 shl (31 - countLeadingZeroBits())
 }
 
-public fun Int.lowestOneBit(): Int = this and (-this)
+public fun Int.takeLowestOneBit(): Int = this and (-this)
 
-public fun Int.takeHighestOneBit(): Int = highestOneBit()
-
-public fun Int.takeLowestOneBit(): Int = lowestOneBit()
-
-public fun Long.highestOneBit(): Long {
+public fun Long.takeHighestOneBit(): Long {
     if (this == 0L) return 0L
     if (this < 0L) return Long.MIN_VALUE
     return 1L shl (63 - countLeadingZeroBits())
 }
 
-public fun Long.lowestOneBit(): Long = this and (-this)
-
-public fun Long.takeHighestOneBit(): Long = highestOneBit()
-
-public fun Long.takeLowestOneBit(): Long = lowestOneBit()
+public fun Long.takeLowestOneBit(): Long = this and (-this)
 
 // KUU-1098: bit-count and one-bit extensions for the remaining integer types,
 // mirroring the real Kotlin stdlib formulas (operands masked to their width).
@@ -145,3 +137,12 @@ public fun UShort.countTrailingZeroBits(): Int = toShort().countTrailingZeroBits
 public fun UShort.takeHighestOneBit(): UShort = toInt().takeHighestOneBit().toUShort()
 
 public fun UShort.takeLowestOneBit(): UShort = toInt().takeLowestOneBit().toUShort()
+
+// KUU-1257: reuse signed rotations while preserving the unsigned bit pattern.
+public fun UInt.rotateLeft(bitCount: Int): UInt = toInt().rotateLeft(bitCount).toUInt()
+
+public fun UInt.rotateRight(bitCount: Int): UInt = toInt().rotateRight(bitCount).toUInt()
+
+public fun ULong.rotateLeft(bitCount: Int): ULong = toLong().rotateLeft(bitCount).toULong()
+
+public fun ULong.rotateRight(bitCount: Int): ULong = toLong().rotateRight(bitCount).toULong()
