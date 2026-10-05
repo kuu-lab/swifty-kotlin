@@ -1181,7 +1181,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "scopeHandle", type: .intptr),
             ],
-            returnType: .intptr,
+            returnType: .int64,
             section: "Coroutine",
             isThrowing: false
         ),
@@ -1197,7 +1197,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "schedulerHandle", type: .intptr),
             ],
-            returnType: .intptr,
+            returnType: .int64,
             section: "Coroutine",
             isThrowing: false
         ),
@@ -1205,7 +1205,7 @@ public extension RuntimeABISpec {
             name: "kk_test_scheduler_advance_time_by",
             parameters: [
                 RuntimeABIParameter(name: "schedulerHandle", type: .intptr),
-                RuntimeABIParameter(name: "delayTimeMillis", type: .intptr),
+                RuntimeABIParameter(name: "delayTimeMillis", type: .int64),
             ],
             returnType: .intptr,
             section: "Coroutine",
