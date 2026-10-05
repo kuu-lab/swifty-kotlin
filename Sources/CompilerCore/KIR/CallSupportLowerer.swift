@@ -787,22 +787,23 @@ final class CallSupportLowerer {
                 continue
             }
             if isVararg[paramIndex] {
+                let primitiveArrayType = primitiveVarargArrayType(
+                    elementType: signature.parameterTypes[paramIndex],
+                    sema: sema,
+                    interner: interner
+                )
                 let emptyArray = emitArrayNew(
                     count: 0,
                     arena: arena,
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.anyType,
-                    resultType: primitiveVarargArrayType(
-                        elementType: signature.parameterTypes[paramIndex],
-                        sema: sema,
-                        interner: interner
-                    ),
+                    resultType: primitiveArrayType,
                     instructions: &instructions
                 )
-                // Match the non-empty path: a vararg parameter is a List inside the
-                // callee unless the callee preserves raw array varargs.
-                normalized.append(preserveArrayVarargs
+                // Primitive varargs keep raw array storage, just like the
+                // non-empty path. Only reference varargs use the List bridge.
+                normalized.append(preserveArrayVarargs || primitiveArrayType != nil
                     ? emptyArray
                     : emitArrayToList(
                         emptyArray,

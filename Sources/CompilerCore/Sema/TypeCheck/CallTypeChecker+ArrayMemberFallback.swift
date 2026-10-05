@@ -122,6 +122,18 @@ extension CallTypeChecker {
         }
 
         let memberName = interner.resolve(calleeName)
+        // Kotlin hides FloatArray/DoubleArray.contains. Do not accept an
+        // unresolved member and leave a dangling call for the linker.
+        if memberName == "contains",
+           let receiverType = sema.bindings.exprTypes[receiverID],
+           let (_, receiverSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "FloatArray"]
+               || receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "DoubleArray"]
+        {
+            return nil
+        }
         guard isSupportedArrayMember(memberName),
               isValidArrayMemberArity(memberName, argCount: args.count)
         else {
