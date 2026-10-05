@@ -4,7 +4,6 @@ import Testing
 
 @Suite
 struct CallableRefTypeIdentityTests {
-
     @Test func testFunctionValueDescriptionsIncludeReferenceSignaturesAndLambdaIdentity() throws {
         let ctx = makeContextFromSource("""
         fun top(): Int = 7

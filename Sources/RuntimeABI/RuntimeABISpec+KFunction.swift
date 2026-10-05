@@ -221,6 +221,16 @@ public extension RuntimeABISpec {
     /// Callable reference type identity functions (REFL-003).
     static let callableRefFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_function_copy_description",
+            parameters: [
+                RuntimeABIParameter(name: "source", type: .intptr),
+                RuntimeABIParameter(name: "target", type: .intptr),
+            ],
+            returnType: .void,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_function_set_description",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),

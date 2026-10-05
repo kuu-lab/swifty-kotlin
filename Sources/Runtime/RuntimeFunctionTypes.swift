@@ -13,8 +13,24 @@ public func __kk_function_set_description(_ value: Int, _ descriptionRaw: Int, _
 }
 
 func runtimeFunctionDescription(_ value: Int) -> String? {
-    runtimeStorage.withDelegateLock { state in
+    if let description = runtimeStorage.withDelegateLock({ state in
         state.functionDescriptionsByValue[value]
+    }) {
+        return description
+    }
+    if let function = runtimeFunctionValueBox(from: value) {
+        return "kotlin.Function\(function.arity)@\(String(UInt(bitPattern: value), radix: 16))"
+    }
+    return nil
+}
+
+@_cdecl("__kk_function_copy_description")
+public func __kk_function_copy_description(_ source: Int, _ target: Int) {
+    guard let description = runtimeFunctionDescription(source) else {
+        return
+    }
+    runtimeStorage.withDelegateLock { state in
+        state.functionDescriptionsByValue[target] = description
     }
 }
 

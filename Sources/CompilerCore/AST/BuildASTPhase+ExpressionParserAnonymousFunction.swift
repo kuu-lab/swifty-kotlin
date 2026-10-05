@@ -67,23 +67,17 @@ extension BuildASTPhase.ExpressionParser {
         synthTokens.append(contentsOf: tokens[(startIndex + 1)..<(expressionBody == nil ? endIndex : headerEndIndex)])
 
         let phase = BuildASTPhase(diagnostics: diagnostics)
-        guard var localFunExprID = phase.parseLocalFunDeclExpr(
-            from: synthTokens, interner: interner, astArena: astArena
+        guard let localFunExprID = phase.parseLocalFunDeclExpr(
+            from: synthTokens, interner: interner, astArena: astArena,
+            bodyOverride: expressionBody.flatMap { body in
+                astArena.exprRange(body).map { .expr(body, $0) }
+            }
         ) else {
             index = startIndex
             return nil
         }
 
         let range = SourceRange(start: funToken.range.start, end: tokens[endIndex - 1].range.end)
-        if let expressionBody,
-           let bodyRange = astArena.exprRange(expressionBody),
-           case let .localFunDecl(name, params, returnType, _, isSuspend, _) = astArena.expr(localFunExprID)
-        {
-            localFunExprID = astArena.appendExpr(.localFunDecl(
-                name: name, valueParams: params, returnType: returnType,
-                body: .expr(expressionBody, bodyRange), isSuspend: isSuspend, range: range
-            ))
-        }
         let callableRefID = astArena.appendExpr(.callableRef(receiver: nil, member: syntheticName, range: range))
         return astArena.appendExpr(.blockExpr(statements: [localFunExprID], trailingExpr: callableRefID, range: range))
     }
