@@ -60,18 +60,8 @@ extension KotlinLexer {
                 continue
             }
 
-            if ch == 0x0A {
-                diagnostics.warning(
-                    "KSWIFTK-LEX-0004",
-                    "Unescaped line break in string literal.",
-                    range: makeRange(start: offset, end: offset + 1)
-                )
-                offset += 1
-                continue
-            }
-
-            if ch == 0x0D {
-                diagnostics.warning(
+            if ch == 0x0A || ch == 0x0D {
+                diagnostics.error(
                     "KSWIFTK-LEX-0004",
                     "Unescaped line break in string literal.",
                     range: makeRange(start: offset, end: offset + 1)
@@ -404,7 +394,7 @@ extension KotlinLexer {
             }
 
             if ch == 0x0A || ch == 0x0D {
-                diagnostics.warning(
+                diagnostics.error(
                     "KSWIFTK-LEX-0004",
                     "Unescaped line break in string literal.",
                     range: makeRange(start: offset, end: offset + 1)

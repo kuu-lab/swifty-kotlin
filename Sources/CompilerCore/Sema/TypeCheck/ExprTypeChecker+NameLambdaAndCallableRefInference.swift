@@ -1392,7 +1392,8 @@ extension ExprTypeChecker {
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
-            expectedType: bodyExpectedType
+            expectedType: bodyExpectedType,
+            isStatementContext: expectedFunctionType?.returnType == sema.types.unitType
         )
         // STDLIB-592 definite assignment: record which outer-scope locals this
         // lambda body unconditionally initializes, mirroring the blockExpr merge
@@ -2272,9 +2273,9 @@ extension ExprTypeChecker {
     }
 
     /// REFL-PRIMOP: `Int::plus` / `Int::times` (and the other primitive
-    /// numeric types where the homogeneous `(T, T) -> T` overload is
-    /// unambiguous -- Byte/Short/Char are excluded because their real
-    /// stdlib `plus`/`times` overloads promote the result to `Int`, unlike
+    /// numeric types where an expected function type selects the
+    /// homogeneous `(T, T) -> T` overload -- Byte/Short/Char are excluded
+    /// because their real stdlib `plus`/`times` overloads promote the result to `Int`, unlike
     /// Int/Long/UInt/ULong/Float/Double's own-type result) have no real
     /// `plus`/`times` member symbol to resolve: arithmetic on primitives is
     /// a table-driven type-inference special case
@@ -2312,6 +2313,15 @@ extension ExprTypeChecker {
         default:
             return nil
         }
+        guard let expectedType, case .functionType = sema.types.kind(of: expectedType) else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0003",
+                "Ambiguous overload resolution for '\(interner.resolve(receiverName))::\(interner.resolve(member))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         let operandType = sema.types.make(.primitive(primitive, .nonNull))
         let functionType = sema.types.make(.functionType(FunctionType(
             params: [operandType, operandType],
@@ -2319,28 +2329,18 @@ extension ExprTypeChecker {
             isSuspend: false,
             nullability: .nonNull
         )))
-        let resultType: TypeID
-        if let expectedType, case .functionType = sema.types.kind(of: expectedType) {
-            // Mirrors the symbol-backed branch below: an expected function
-            // type wins over the reference's own inferred type as long as
-            // it's compatible (`fold(0, Int::plus)`'s expected `(Int, Int)
-            // -> Int` accumulator type).
-            driver.emitSubtypeConstraint(
-                left: functionType,
-                right: expectedType,
-                range: range,
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
-            )
-            resultType = expectedType
-        } else {
-            resultType = functionType
-        }
+        driver.emitSubtypeConstraint(
+            left: functionType,
+            right: expectedType,
+            range: range,
+            solver: ConstraintSolver(),
+            sema: sema,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
         sema.bindings.bindPrimitiveOperatorCallableRef(id, op: op)
         sema.bindings.bindCallableRefKind(id, kind: .functionRef)
-        sema.bindings.bindExprType(id, type: resultType)
-        return resultType
+        sema.bindings.bindExprType(id, type: expectedType)
+        return expectedType
     }
 
     /// Binds an unbound `Type::property` (or, when `ownerType` is `nil`, a

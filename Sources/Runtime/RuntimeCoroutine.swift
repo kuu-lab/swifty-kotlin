@@ -306,6 +306,11 @@ final class RuntimeContinuationState: @unchecked Sendable {
     private var hasStartedUninterceptedCoroutine = false
     // Cancellation must wake the innermost call and let it unwind before its caller.
     private var suspendedCallChild: RuntimeContinuationState?
+    private let interceptionLock = NSRecursiveLock()
+    private var generatedContextRaw: Int?
+    private var interceptedContinuationRaw: Int?
+    private var continuationInterceptorRaw: Int = 0
+    private var interceptionReleased = false
     private let stateLock = NSLock()
     /// STDLIB-CORO-BUG-01: one-shot resume guard.
     /// Set to `true` atomically (under `stateLock`) by the first successful resume
@@ -424,6 +429,71 @@ final class RuntimeContinuationState: @unchecked Sendable {
         )
     }
 
+    func generatedCoroutineContext(outThrown: UnsafeMutablePointer<Int>?) -> Int? {
+        interceptionLock.lock()
+        defer { interceptionLock.unlock() }
+        guard uninterceptedCompletionContinuation != 0 else {
+            return nil
+        }
+        if let generatedContextRaw {
+            return generatedContextRaw
+        }
+        var thrown = 0
+        let context = __kk_coroutine_continuation_context(uninterceptedCompletionContinuation, &thrown)
+        outThrown?.pointee = thrown
+        if thrown == 0 {
+            generatedContextRaw = context
+        }
+        return context
+    }
+
+    func intercepted(continuationRaw: Int, interceptorKey: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        interceptionLock.lock()
+        defer { interceptionLock.unlock() }
+        if let interceptedContinuationRaw {
+            return interceptedContinuationRaw
+        }
+        if interceptionReleased {
+            return continuationRaw
+        }
+        var thrown = 0
+        let context = generatedCoroutineContext(outThrown: &thrown)
+            ?? runtimeRegisterObject(makeContinuationContext())
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return continuationRaw
+        }
+        let interceptor = runtimeContinuationInterceptor(context: context, key: interceptorKey, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return continuationRaw
+        }
+        let result = runtimeInterceptGeneratedContinuation(
+            interceptor: interceptor, continuation: continuationRaw, outThrown: &thrown
+        )
+        outThrown?.pointee = thrown
+        if thrown == 0 {
+            continuationInterceptorRaw = interceptor
+            interceptedContinuationRaw = result
+        }
+        return result
+    }
+
+    func releaseInterception(continuationRaw: Int) {
+        interceptionLock.lock()
+        guard !interceptionReleased else {
+            interceptionLock.unlock()
+            return
+        }
+        interceptionReleased = true
+        let intercepted = interceptedContinuationRaw ?? continuationRaw
+        let interceptor = continuationInterceptorRaw
+        interceptionLock.unlock()
+        if intercepted != continuationRaw, interceptor != 0 {
+            runtimeReleaseInterceptedContinuation(interceptor: interceptor, continuation: intercepted)
+        }
+    }
+
     deinit {
         RuntimeLiveHandles.unregister(self)
         let timers = releaseAllDelayTimers()
@@ -495,6 +565,17 @@ final class RuntimeContinuationState: @unchecked Sendable {
         }
         resumeContinuation = boxedContinuation
         stateLock.unlock()
+    }
+
+    func consumePendingExceptionalResume() -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard resumeSignalPending, thrownException != 0 else {
+            return false
+        }
+        resumeSignalPending = false
+        hasResumed = false
+        return true
     }
 
     func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
@@ -1112,11 +1193,11 @@ enum RuntimePendingLaunchQueue {
         return box
     }
 
-    /// Queue `workItem` for dispatch on this thread's next `flush()` -- unless
-    /// there's no active burst to flush it at (a direct, non-coroutine call),
-    /// in which case there's no race to close and it's dispatched right away.
+    /// Event-loop work joins the FIFO immediately; the loop cannot run it until
+    /// the caller yields. Only pool-bound work needs staging until `flush()` to
+    /// keep synchronous cancellation from racing with dispatch.
     static func enqueue(job: RuntimeJobHandle, workItem: DispatchWorkItem) {
-        guard RuntimeCoroutineBurstDepth.isActive else {
+        guard RuntimeEventLoop.current == nil, RuntimeCoroutineBurstDepth.isActive else {
             KxMiniRuntime.launch(workItem: workItem)
             return
         }
@@ -2333,8 +2414,15 @@ private func startCoroutineUninterceptedOrReturn(
         RuntimeJobHandle.current = outerJob
     }
 
+    let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
     var thrownValue = 0
-    let result = entryPoint(continuation, &thrownValue)
+    var result: Int
+    repeat {
+        thrownValue = 0
+        result = entryPoint(continuation, &thrownValue)
+        // Immediate child failures return the sentinel to reach the caller's catch label.
+        // Deliver that pending exception inline instead of manufacturing a suspension.
+    } while thrownValue == 0 && result == suspendedToken && state.consumePendingExceptionalResume()
     if thrownValue != 0 {
         outThrown?.pointee = thrownValue
         state.thrownException = thrownValue
@@ -2342,7 +2430,6 @@ private func startCoroutineUninterceptedOrReturn(
         return 0
     }
 
-    let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
     if result != suspendedToken {
         outThrown?.pointee = 0
         return result
@@ -2386,6 +2473,7 @@ public func kk_coroutine_state_set_label(_ continuation: Int, _ label: Int) -> I
 
 @_cdecl("kk_coroutine_state_exit")
 public func kk_coroutine_state_exit(_ continuation: Int, _ value: Int) -> Int {
+    runtimeContinuationState(from: continuation)?.releaseInterception(continuationRaw: continuation)
     _ = runtimeReleaseObject(continuation)
     return value
 }
@@ -2464,10 +2552,16 @@ public func __kk_coroutine_continuation_context(
     if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
         return Int(bitPattern: callbackContinuation.context)
     }
+    if isRegisteredRuntimeObjectPointer(continuation),
+       let nativeContinuation = Unmanaged<AnyObject>.fromOpaque(continuationPtr).takeUnretainedValue() as? KKContinuation
+    {
+        return Int(bitPattern: nativeContinuation.context)
+    }
     guard let state = runtimeContinuationState(from: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_context received invalid continuation handle")
     }
-    return runtimeRegisterObject(state.makeContinuationContext())
+    return state.generatedCoroutineContext(outThrown: outThrown)
+        ?? runtimeRegisterObject(state.makeContinuationContext())
 }
 
 @_cdecl("kk_coroutine_current_context")
@@ -2515,6 +2609,12 @@ public func __kk_coroutine_continuation_resume_with(
         callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw), outThrown: outThrown)
         return
     }
+    if isRegisteredRuntimeObjectPointer(continuation),
+       let nativeContinuation = Unmanaged<AnyObject>.fromOpaque(continuationPtr).takeUnretainedValue() as? KKContinuation
+    {
+        nativeContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
+        return
+    }
     guard let state = runtimeContinuationState(from: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_resume_with received invalid continuation handle")
     }
@@ -2525,6 +2625,7 @@ public func __kk_coroutine_continuation_resume_with(
            let resultBox = tryCast(resultPtr, to: RuntimeResultBox.self),
            !resultBox.isSuccess
         {
+            state.releaseInterception(continuationRaw: continuation)
             if start.completionContinuation != 0 {
                 __kk_coroutine_continuation_resume_with(
                     start.completionContinuation,
@@ -2532,6 +2633,7 @@ public func __kk_coroutine_continuation_resume_with(
                     outThrown
                 )
             }
+            _ = kk_coroutine_state_exit(continuation, 0)
             return
         }
         startUninterceptedCoroutineFromResume(

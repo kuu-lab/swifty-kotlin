@@ -361,7 +361,7 @@ extension ControlFlowTypeChecker {
                 }
 
                 branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType)
+                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(branchLocals)
             }
@@ -388,7 +388,7 @@ extension ControlFlowTypeChecker {
                     }
                 }
                 branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
+                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(elseLocals)
             }
@@ -399,6 +399,7 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: subjectType, branches: summary, sema: sema)
+            sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
             // A subject-ful `when` used as a statement (its value discarded) only
             // needs to be exhaustive when the subject is Boolean, enum, or sealed —
             // for any other subject type, Kotlin requires exhaustiveness only when
@@ -542,7 +543,7 @@ extension ControlFlowTypeChecker {
                 }
 
                 branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType)
+                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(branchLocals)
             }
@@ -552,7 +553,7 @@ extension ControlFlowTypeChecker {
                 let elseCtx = ctx.copying(flowState: cumulativeFalseState)
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &elseLocals, sema: sema)
                 branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
+                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(elseLocals)
             }
@@ -563,6 +564,7 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: boolType, branches: summary, sema: sema)
+            sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
             // A subject-less `when` used as a statement (its value discarded) does not
             // require exhaustiveness in Kotlin - only `when` used as an expression does.
             if !isExhaustive, !isStatementContext {

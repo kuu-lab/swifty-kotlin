@@ -197,6 +197,15 @@ extension CallTypeChecker {
         }
 
         if sema.bindings.isFloatingPointRangeExpr(receiverID),
+           args.isEmpty,
+           memberName == "start" || memberName == "endInclusive",
+           let elementType = sema.bindings.floatingPointRangeElementType(forExpr: receiverID)
+        {
+            let resultType = safeCall ? sema.types.makeNullable(elementType) : elementType
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
+        }
+        if sema.bindings.isFloatingPointRangeExpr(receiverID),
            let floatingPointResult = tryRangeMembershipFallback(
             memberName: memberName,
             args: args,
