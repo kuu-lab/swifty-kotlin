@@ -863,7 +863,10 @@ extension ExprTypeChecker {
             if sema.bindings.isFloatingPointRangeSymbol(local.symbol) {
                 sema.bindings.markFloatingPointRangeExpr(id)
                 if let elementType = sema.bindings.floatingPointRangeElementType(forSymbol: local.symbol) {
-                    sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                    sema.bindings.bindFloatingPointRangeElementType(
+                        elementType, forExpr: id,
+                        endExclusive: sema.bindings.isOpenFloatingPointRangeSymbol(local.symbol)
+                    )
                 }
             }
             if sema.bindings.isFlowSymbol(local.symbol) {
@@ -2272,6 +2275,7 @@ extension ExprTypeChecker {
                 params: [receiverParam],
                 returnType: sema.types.stringType,
                 isSuspend: false,
+                isCallableReference: true,
                 nullability: .nonNull
             )))
             let resultType: TypeID
@@ -2478,6 +2482,7 @@ extension ExprTypeChecker {
             params: [operandType, operandType],
             returnType: operandType,
             isSuspend: false,
+            isCallableReference: true,
             nullability: .nonNull
         )))
         driver.emitSubtypeConstraint(

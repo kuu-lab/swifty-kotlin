@@ -1508,17 +1508,22 @@ private func kirOverrideTypesMatch(_ candidate: TypeID, _ interface: TypeID, typ
         guard lhs.classSymbol == rhs.classSymbol, lhs.nullability == rhs.nullability,
               lhs.args.count == rhs.args.count
         else { return false }
-        return zip(lhs.args, rhs.args).allSatisfy { lhsArg, rhsArg in
-            switch (lhsArg, rhsArg) {
-            case let (.invariant(lhsType), .invariant(rhsType)),
-                 let (.out(lhsType), .out(rhsType)),
-                 let (.in(lhsType), .in(rhsType)):
-                kirOverrideTypesMatch(lhsType, rhsType, types: types)
-            case (.star, .star):
-                true
-            default:
-                false
+        return zip(lhs.args, rhs.args).allSatisfy { candidateArg, interfaceArg in
+            let candidateInner: TypeID
+            let interfaceInner: TypeID
+            switch candidateArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                candidateInner = type
+            case .star:
+                return interfaceArg == .star
             }
+            switch interfaceArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                interfaceInner = type
+            case .star:
+                return false
+            }
+            return kirOverrideTypesMatch(candidateInner, interfaceInner, types: types)
         }
     case let (.kClassType(lhs), .kClassType(rhs)):
         return lhs.nullability == rhs.nullability

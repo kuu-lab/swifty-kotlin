@@ -18,6 +18,7 @@ private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
 final class RuntimeCoroutineContext: @unchecked Sendable {
     var dispatcher: Int  // 0 means "inherit from parent"
     var name: String?
+    var nameHandleRaw: Int
     var exceptionHandler: RuntimeExceptionHandlerBox?
     var jobHandleRaw: Int
 
@@ -25,10 +26,13 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         dispatcher: Int = 0,
         name: String? = nil,
         exceptionHandler: RuntimeExceptionHandlerBox? = nil,
-        jobHandleRaw: Int = 0
+        jobHandleRaw: Int = 0,
+        nameHandleRaw: Int = 0
     ) {
         self.dispatcher = dispatcher
         self.name = name
+        self.nameHandleRaw = nameHandleRaw != 0 ? nameHandleRaw
+            : name.map { runtimeRegisterObject(RuntimeCoroutineNameBox(name: $0)) } ?? 0
         self.exceptionHandler = exceptionHandler
         self.jobHandleRaw = jobHandleRaw
     }
@@ -39,7 +43,8 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
             dispatcher: other.dispatcher != 0 ? other.dispatcher : self.dispatcher,
             name: other.name ?? self.name,
             exceptionHandler: other.exceptionHandler ?? self.exceptionHandler,
-            jobHandleRaw: other.jobHandleRaw != 0 ? other.jobHandleRaw : self.jobHandleRaw
+            jobHandleRaw: other.jobHandleRaw != 0 ? other.jobHandleRaw : self.jobHandleRaw,
+            nameHandleRaw: other.name != nil ? other.nameHandleRaw : self.nameHandleRaw
         )
     }
 }
@@ -49,6 +54,62 @@ final class RuntimeCoroutineNameBox: @unchecked Sendable {
     let name: String
     init(name: String) {
         self.name = name
+    }
+}
+
+private final class RuntimeCoroutineNameKey: @unchecked Sendable {}
+private let runtimeCoroutineNameKeyRaw = runtimeRegisterObject(RuntimeCoroutineNameKey())
+
+@_cdecl("kk_coroutine_name_key")
+public func kk_coroutine_name_key() -> Int {
+    runtimeCoroutineNameKeyRaw
+}
+
+@_cdecl("kk_coroutine_name_key_get")
+public func kk_coroutine_name_key_get(_ receiver: Int) -> Int {
+    runtimeCoroutineNameKeyRaw
+}
+
+func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
+    // Element declares get/fold/minusKey; its key getter follows those slots.
+    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")) else {
+        return nil
+    }
+    let ptr = isRegisteredRuntimeObjectPointer(receiver) ? UnsafeMutableRawPointer(bitPattern: receiver) : nil
+    let isName = ptr.flatMap { tryCast($0, to: RuntimeCoroutineNameBox.self) } != nil
+    let isDispatcher = isDispatcherTag(receiver) || ptr.flatMap { tryCast($0, to: RuntimeDispatcher.self) } != nil
+    guard isName || isDispatcher else {
+        return nil
+    }
+    switch methodSlot {
+    case 0:
+        let get: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, key, outThrown in
+            outThrown?.pointee = 0
+            let element = kk_context_get(receiver, key)
+            return element == 0 ? runtimeNullSentinelInt : element
+        }
+        return unsafeBitCast(get, to: Int.self)
+    case 1:
+        let fold: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+            receiver, initial, operation, closure, outThrown in
+            outThrown?.pointee = 0
+            return kk_context_fold(receiver, initial, operation, closure, outThrown)
+        }
+        return unsafeBitCast(fold, to: Int.self)
+    case 2:
+        let minusKey: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, key, outThrown in
+            outThrown?.pointee = 0
+            return kk_context_minusKey(receiver, key)
+        }
+        return unsafeBitCast(minusKey, to: Int.self)
+    case 3 where isName:
+        let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, outThrown in
+            outThrown?.pointee = 0
+            return kk_coroutine_name_key_get(receiver)
+        }
+        return unsafeBitCast(getter, to: Int.self)
+    default:
+        return nil
     }
 }
 
@@ -405,6 +466,9 @@ func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int,
 
 /// Return the raw handle for a known context element matching the supplied key.
 private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: RuntimeCoroutineContext) -> Int? {
+    if keyRaw == runtimeCoroutineNameKeyRaw {
+        return ctx.name != nil ? ctx.nameHandleRaw : nil
+    }
     if keyRaw != 0,
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
        let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self)
@@ -418,7 +482,7 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
        let nameBox = tryCast(ptr, to: RuntimeCoroutineNameBox.self)
     {
-        return ctx.name == nameBox.name ? runtimeRegisterObject(RuntimeCoroutineNameBox(name: nameBox.name)) : nil
+        return ctx.name == nameBox.name ? ctx.nameHandleRaw : nil
     }
     if keyRaw != 0,
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
@@ -439,8 +503,8 @@ private func runtimeCoroutineContextElementHandles(in ctx: RuntimeCoroutineConte
     if ctx.dispatcher != 0 {
         handles.append(ctx.dispatcher)
     }
-    if let name = ctx.name {
-        handles.append(runtimeRegisterObject(RuntimeCoroutineNameBox(name: name)))
+    if ctx.name != nil {
+        handles.append(ctx.nameHandleRaw)
     }
     if let handler = ctx.exceptionHandler {
         handles.append(Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(handler).toOpaque())))
@@ -457,8 +521,14 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
         dispatcher: ctx.dispatcher,
         name: ctx.name,
         exceptionHandler: ctx.exceptionHandler,
-        jobHandleRaw: ctx.jobHandleRaw
+        jobHandleRaw: ctx.jobHandleRaw,
+        nameHandleRaw: ctx.nameHandleRaw
     )
+    if keyRaw == runtimeCoroutineNameKeyRaw {
+        next.name = nil
+        next.nameHandleRaw = 0
+        return next
+    }
     if keyRaw != 0,
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
        let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self)
@@ -480,6 +550,7 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
     {
         if next.name == nameBox.name {
             next.name = nil
+            next.nameHandleRaw = 0
         }
         return next
     }
@@ -622,7 +693,7 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
         return ctx
     }
     if let nameBox = tryCast(ptr, to: RuntimeCoroutineNameBox.self) {
-        return RuntimeCoroutineContext(name: nameBox.name)
+        return RuntimeCoroutineContext(name: nameBox.name, nameHandleRaw: raw)
     }
     if let handler = tryCast(ptr, to: RuntimeExceptionHandlerBox.self) {
         return RuntimeCoroutineContext(exceptionHandler: handler)

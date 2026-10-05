@@ -20,7 +20,7 @@ extension CallLowerer {
                 .contains(interner.resolve(callee.name)),
               (callee.flags.contains(.synthetic)
                   && !callee.flags.contains(.importedLibrary))
-                || ["kk_with_timeout", "kk_with_timeout_or_null"].contains(
+                || ["kk_with_timeout", "kk_with_timeout_or_null_throwing"].contains(
                     sema.symbols.externalLinkName(for: chosenCallee)
                 ),
               let blockIndex = arguments.indices.first(where: { index in
@@ -695,7 +695,8 @@ extension CallLowerer {
                     receiver: concreteFunctionType.receiver.map { _ in sema.types.anyType },
                     params: concreteFunctionType.params.map { _ in sema.types.anyType },
                     returnType: sema.types.anyType,
-                    isSuspend: concreteFunctionType.isSuspend
+                    isSuspend: concreteFunctionType.isSuspend,
+                    isCallableReference: concreteFunctionType.isCallableReference
                 )
             default:
                 continue
@@ -1286,7 +1287,20 @@ extension CallLowerer {
         if externalLinkName == "__kk_deep_recursive_function_new",
            let loweredArgID = loweredArguments.last
         {
+            var blockID = loweredArgID
             var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+            if let unboxedSymbol = callableInfo?.unboxedSymbol,
+               let function = arena.function(for: unboxedSymbol)
+            {
+                blockID = arena.appendExpr(.symbolRef(unboxedSymbol), type: arena.exprType(loweredArgID))
+                instructions.append(.constValue(result: blockID, value: .symbolRef(unboxedSymbol)))
+                callableInfo = KIRCallableValueInfo(
+                    symbol: unboxedSymbol,
+                    callee: function.name,
+                    captureArguments: arena.lambdaCaptureArgsBySymbol[unboxedSymbol] ?? [],
+                    hasClosureParam: false
+                )
+            }
             if callableInfo == nil,
                case let .symbolRef(symbol)? = arena.expr(loweredArgID),
                let function = arena.function(for: symbol)
@@ -1305,7 +1319,7 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions
             )
-            return Array(loweredArguments.dropLast()) + [loweredArgID, closureRaw]
+            return Array(loweredArguments.dropLast()) + [blockID, closureRaw]
         }
 
         return loweredArguments

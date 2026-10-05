@@ -1008,6 +1008,15 @@ extension DataFlowSemaPhase {
                         ),
                         for: nestedPrimaryCtorSymbol
                     )
+                    registerAnnotations(
+                        nestedClass.primaryConstructorAnnotations,
+                        symbol: nestedPrimaryCtorSymbol,
+                        declRange: nestedClass.range,
+                        sourceFileID: sourceFileID,
+                        sourceManager: ctx.sourceManager,
+                        symbols: symbols,
+                        diagnostics: diagnostics
+                    )
                 }
             }
             for (ctorIndex, secondaryCtor) in nestedClass.secondaryConstructors.enumerated() {

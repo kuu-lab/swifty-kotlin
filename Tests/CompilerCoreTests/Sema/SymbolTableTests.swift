@@ -484,11 +484,10 @@ struct SymbolTableTests {
 
     /// The lazy `.kklib` loader re-enters the table (`lookupAll`, `define`,
     /// `setFunctionSignature`, ...) while applying an imported record, and an
-    /// ensured accessor can fire it from inside `define`'s critical section
-    /// (`canCoexistAsOverload` → `extensionPropertyReceiverType`). The table
+    /// accessor holds the table lock while materializing the shell. The table
     /// lock must be recursive; a plain NSLock self-deadlocks on this path.
     @Test
-    func testLazyMetadataLoaderReentryFromDefineDoesNotDeadlock() {
+    func testLazyMetadataLoaderReentryFromAccessorDoesNotDeadlock() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let name = interner.intern("shell")
@@ -504,20 +503,18 @@ struct SymbolTableTests {
         symbols.setLazyImportedMetadataLoader { _ in
             loaderRan = true
             _ = symbols.lookupAll(fqName: fqName)
+            let colliding = symbols.define(
+                kind: .property,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                isExtensionProperty: true
+            )
+            #expect(colliding == shell)
         }
 
-        // Defining a colliding extension property makes canCoexistAsOverload
-        // query extensionPropertyReceiverType on the unmaterialized shell,
-        // which fires the loader while `define` still holds the lock.
-        let colliding = symbols.define(
-            kind: .property,
-            name: name,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            isExtensionProperty: true
-        )
+        _ = symbols.extensionPropertyReceiverType(for: shell)
         #expect(loaderRan)
-        #expect(colliding == shell)
     }
 }

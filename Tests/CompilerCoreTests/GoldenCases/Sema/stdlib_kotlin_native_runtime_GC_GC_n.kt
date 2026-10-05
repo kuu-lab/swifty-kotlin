@@ -3,7 +3,7 @@
 
 import kotlin.native.runtime.GC
 import kotlin.native.runtime.GCInfo
-import kotlin.time.seconds
+import kotlin.time.Duration.Companion.seconds
 
 fun gcContract(): Boolean {
     GC.collect()

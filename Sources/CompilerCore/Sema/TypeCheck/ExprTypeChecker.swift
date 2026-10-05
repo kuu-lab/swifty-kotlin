@@ -166,7 +166,10 @@ final class ExprTypeChecker {
 
         case let .memberAssign(receiverExpr, calleeName, valueExpr, range):
             // Type-check the receiver and value, bind as unit-typed expression.
-            let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+            let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+            let receiverType = driver.helpers.retypeClassNameAsCompanionValue(
+                receiverExpr, currentType: inferredReceiverType, ast: ast, sema: sema
+            ) ?? inferredReceiverType
             let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
             // Bind the property symbol so KIR lowering can emit a direct field
             // store (kk_array_set) rather than falling back to a setter call.
@@ -512,6 +515,7 @@ final class ExprTypeChecker {
             return inferCallableRefExpr(id, receiver: receiver, member: member, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .blockExpr(statements, trailingExpr, _):
+            ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
             var blockLocals = locals
             var reachedNothing = false
             for stmt in statements {

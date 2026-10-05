@@ -4,6 +4,22 @@ struct KIRCallableValueInfo {
     let captureArguments: [KIRExprID]
     /// True when lambda has closure param for C HOF ABI (filter, map, etc.).
     let hasClosureParam: Bool
+    /// Raw entry for trampolines that must own the lambda's continuation frames.
+    let unboxedSymbol: SymbolID?
+
+    init(
+        symbol: SymbolID,
+        callee: InternedString,
+        captureArguments: [KIRExprID],
+        hasClosureParam: Bool,
+        unboxedSymbol: SymbolID? = nil
+    ) {
+        self.symbol = symbol
+        self.callee = callee
+        self.captureArguments = captureArguments
+        self.hasClosureParam = hasClosureParam
+        self.unboxedSymbol = unboxedSymbol
+    }
 }
 
 final class LambdaLowerer {
@@ -102,7 +118,7 @@ final class LambdaLowerer {
             "kk_suspend_function_invoke_5",
             "kk_suspend_coroutine",
             "kk_with_timeout",
-            "kk_with_timeout_or_null",
+            "kk_with_timeout_or_null_throwing",
             "kk_flow_collect",
             "__kk_flow_collectLatest",
             "kk_flow_emit",
@@ -648,8 +664,9 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        if functionType.receiver != nil, lambdaReturnType == functionType.returnType {
+        if functionType.receiver != nil, !functionType.isSuspend {
             // Generic receiver callbacks already use the callee's erased return ABI.
+            guard lambdaReturnType == functionType.returnType else { return nil }
             let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
             instructions.append(.constValue(result: callable, value: .symbolRef(lambdaSymbol)))
             driver.ctx.registerCallableValue(
@@ -669,12 +686,11 @@ final class LambdaLowerer {
                 instructions: &instructions
             )
         }
-        guard functionType.receiver == nil || functionType.isSuspend else {
-            return nil
-        }
-        let parameterTypes = functionType.receiver.map { [$0] + functionType.params } ?? functionType.params
+        // Suspend values count the receiver as the first invocation argument.
+        let invocationTypes = functionType.receiver.map { [$0] + functionType.params }
+            ?? functionType.params
         let createCallee: InternedString
-        switch parameterTypes.count {
+        switch invocationTypes.count {
         case 0:
             createCallee = interner.intern("kk_function_create_0")
         case 1:
@@ -697,7 +713,7 @@ final class LambdaLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        let valueParams: [KIRParameter] = parameterTypes.enumerated().map { index, type in
+        let valueParams: [KIRParameter] = invocationTypes.enumerated().map { index, type in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
                 type: type
@@ -834,7 +850,8 @@ final class LambdaLowerer {
             symbol: adapterSymbol,
             callee: adapterName,
             captureArguments: [closureObj],
-            hasClosureParam: false
+            hasClosureParam: false,
+            unboxedSymbol: lambdaSymbol
         )
         emitFunctionDescription(
             value: materializedExpr,

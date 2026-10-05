@@ -2124,7 +2124,8 @@ extension DataFlowSemaPhase {
         // source-shell treatment to the kotlin.concurrent atomic nominals
         // while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
-        if resolvedFQName == ["kotlin", "collections", "Iterator"]
+        if resolvedFQName == ["kotlinx", "coroutines", "CoroutineName"]
+            || resolvedFQName == ["kotlin", "collections", "Iterator"]
             || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
             || resolvedFQName == ["kotlin", "collections", "MutableMap", "MutableEntry"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]

@@ -1079,7 +1079,7 @@ private let runtimeListIteratorSetThunk: @convention(c) (Int, Int, UnsafeMutable
 
 private let runtimeListIteratorAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorAdd(raw, elem)
+    return runtimeListIteratorAdd(raw, elem, outThrown)
 }
 
 private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
@@ -2537,9 +2537,8 @@ func runtimeComparePrimitiveValues(_ lhs: Int, _ rhs: Int, kind: RuntimePrimitiv
 /// `RuntimePrimitiveCompareKind` ordering) selecting signed / unsigned / IEEE
 /// floating semantics. The result is the sign of the comparison (-1/0/1),
 /// matching `Integer.compare` / `Long.compare` / `Double.compare` — i.e.
-/// Kotlin's `Comparable<T>.compareTo` contract. (Char keeps its own
-/// `kk_char_compareTo` entry point, which returns the raw codepoint
-/// difference to mirror `Character.compare`.)
+/// Kotlin's primitive `compareTo` behavior. Char keeps its own
+/// `kk_char_compareTo` entry point with the same sign-normalized result.
 @_cdecl("kk_primitive_compareTo")
 public func kk_primitive_compareTo(_ lhsRaw: Int, _ rhsRaw: Int, _ kindRaw: Int32) -> Int {
     runtimeComparePrimitiveValues(lhsRaw, rhsRaw, kind: runtimePrimitiveCompareKind(from: kindRaw))

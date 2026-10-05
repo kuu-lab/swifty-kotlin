@@ -22,9 +22,8 @@ private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
     return tryCast(ptr, to: RuntimeDurationBox.self)
 }
 
-/// Reads both the boxed representation and Duration's source-backed
-/// value-class payload. Raw values are only treated as object handles when the
-/// runtime has registered the pointer, so ordinary small Long payloads are safe.
+/// Reads legacy Duration boxes, boxed Long payloads, and raw value-class payloads.
+/// The unbox helper checks registry membership before interpreting a handle.
 func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
     runtimeDurationWholeValue(runtimeDurationRawValue(from: raw), unitScale: 1)
 }
@@ -33,7 +32,7 @@ private func runtimeDurationRawValue(from raw: Int) -> Int64 {
     if let box = runtimeDurationBox(from: raw) {
         return box.rawValue
     }
-    return Int64(raw)
+    return Int64(kk_unbox_long_static(raw))
 }
 
 private let runtimeDurationMaxNanos: Int64 = 4_611_686_018_426_999_999
@@ -95,6 +94,14 @@ private func runtimeDurationFromLong(_ value: Int64, scale: Int64) -> Int64 {
 
 private func runtimeDurationHandle(fromNanoseconds nanoseconds: Int64) -> Int {
     Int(runtimeDurationOfNanos(nanoseconds))
+}
+
+private func runtimeDurationBoxHandle(fromRawValue rawValue: Int64) -> Int {
+    // Nullable value classes use nominally tagged boxes of their encoded payload.
+    let boxed = kk_box_long_nonnull_static(Int(rawValue))
+    return kk_tag_value_class_box(
+        boxed, Int(runtimeStableNominalTypeID(fqName: "kotlin.time.Duration"))
+    )
 }
 
 private func runtimeDurationNanoseconds(
@@ -725,7 +732,7 @@ public func kk_duration_parseOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return Int(nanoseconds)
+    return runtimeDurationBoxHandle(fromRawValue: nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoString")
@@ -750,7 +757,7 @@ public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return Int(nanoseconds)
+    return runtimeDurationBoxHandle(fromRawValue: nanoseconds)
 }
 
 // MARK: - Duration advanced operations (STDLIB-TIME-082)

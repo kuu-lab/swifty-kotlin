@@ -136,6 +136,7 @@ extension CallLowerer {
             ast: ast,
             sema: sema,
             arena: arena,
+            interner: interner,
             instructions: &instructions
         ) {
             return staticMemberValue
@@ -1288,13 +1289,20 @@ extension CallLowerer {
             // name-string fallback is no longer needed here.
         }
 
-        // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
+        // Char.code → unboxed UTF-16 code unit (STDLIB-305)
         // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
         // digitToInt / digitToIntOrNull, so no lowering special case is needed.
         if args.isEmpty, calleeNameStr == "code" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if sema.types.makeNonNullable(receiverType) == sema.types.charType {
-                instructions.append(.copy(from: loweredReceiverID, to: result))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_char_code"),
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
                 return result
             }
         }

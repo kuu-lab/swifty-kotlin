@@ -4,15 +4,13 @@ import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.internal.__valuesEqual
 
 // Float/Double maxOf uses these existing shared numeric helpers directly, the
-// same way Iterables.kt does, so NaN and signed-zero behavior stays identical
+// shared with Iterables.kt, so NaN and signed-zero behavior stays identical
 // to kotlin.comparisons.maxOf (calling that inline wrapper itself by
 // fully-qualified name from a non-inline caller left an unresolved "_maxOf"
 // symbol at link time in --stdlib-from-source mode). minOf uses the
 // comparisonMinOf import alias above instead of a local kk_min_float/double
 // redeclaration — a local redeclaration of kk_min_float produced wrong
 // results (returned the first operand unchanged) when called directly.
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
 
 // MIGRATION-SEQ-004
 // Sequence aggregate HOFs migrated to Kotlin source.
@@ -167,36 +165,6 @@ public fun <K, V, M : MutableMap<in K, in V>> Sequence<Pair<K, V>>.toMap(destina
     val mutableDestination = destination as MutableMap<K, V>
     for (pair in this) mutableDestination[pair.first] = pair.second
     return destination
-}
-
-// KSP-1340: Sequence associate-family decls carry the Kotlin 2.3.10 signatures —
-// Map<…> results and generic `M : MutableMap<in …>` destinations — matching the
-// Iterable counterparts in Iterables.kt.
-@Suppress("UNCHECKED_CAST")
-public inline fun <T, K, V> Sequence<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> {
-    val result = mutableMapOf<K, V>()
-    for (element in this) {
-        val pair = transform(element)
-        result[pair.first] = pair.second
-    }
-    return result as Map<K, V>
-}
-
-@Suppress("UNCHECKED_CAST")
-public inline fun <T, K> Sequence<T>.associateBy(keySelector: (T) -> K): Map<K, T> {
-    val result = mutableMapOf<K, T>()
-    for (element in this) result[keySelector(element)] = element
-    return result as Map<K, T>
-}
-
-@Suppress("UNCHECKED_CAST")
-public inline fun <T, K, V> Sequence<T>.associateBy(
-    keySelector: (T) -> K,
-    valueTransform: (T) -> V
-): Map<K, V> {
-    val result = mutableMapOf<K, V>()
-    for (element in this) result[keySelector(element)] = valueTransform(element)
-    return result as Map<K, V>
 }
 
 // KSP-1348: Sequence group-family decls carry the Kotlin 2.3.10 signatures —
@@ -641,55 +609,6 @@ public fun <T> Sequence<T>.sumOf(selector: (T) -> Double): Double {
         i += 1
     }
     return sum
-}
-
-@IgnorableReturnValue
-public inline fun <T, K, V, M : MutableMap<in K, in V>> Sequence<T>.associateTo(
-    destination: M,
-    transform: (T) -> Pair<K, V>
-): M {
-    for (element in this) {
-        val pair = transform(element)
-        destination.put(pair.first, pair.second)
-    }
-    return destination
-}
-
-@IgnorableReturnValue
-public inline fun <T, K, M : MutableMap<in K, in T>> Sequence<T>.associateByTo(
-    destination: M,
-    keySelector: (T) -> K
-): M {
-    for (element in this) destination.put(keySelector(element), element)
-    return destination
-}
-
-@IgnorableReturnValue
-public inline fun <T, K, V, M : MutableMap<in K, in V>> Sequence<T>.associateByTo(
-    destination: M,
-    keySelector: (T) -> K,
-    valueTransform: (T) -> V
-): M {
-    for (element in this) destination.put(keySelector(element), valueTransform(element))
-    return destination
-}
-
-@SinceKotlin("1.3")
-@Suppress("UNCHECKED_CAST")
-public inline fun <T, V> Sequence<T>.associateWith(valueTransform: (T) -> V): Map<T, V> {
-    val result = mutableMapOf<T, V>()
-    for (element in this) result[element] = valueTransform(element)
-    return result as Map<T, V>
-}
-
-@SinceKotlin("1.3")
-@IgnorableReturnValue
-public inline fun <T, V, M : MutableMap<in T, in V>> Sequence<T>.associateWithTo(
-    destination: M,
-    valueTransform: (T) -> V
-): M {
-    for (element in this) destination.put(element, valueTransform(element))
-    return destination
 }
 
 @IgnorableReturnValue

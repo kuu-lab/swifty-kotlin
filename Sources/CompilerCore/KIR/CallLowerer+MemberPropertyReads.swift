@@ -236,13 +236,28 @@ extension CallLowerer {
         // (BUG-265).
         if sema.symbols.propertyHasCustomGetter(for: propertySymbol)
             || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
+            || sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil
         {
-            let receiverID = loweredReceiverID ?? driver.lowerExpr(
-                receiverExpr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+            let receiverID: KIRExprID
+            if let loweredReceiverID {
+                receiverID = loweredReceiverID
+            } else if case .nameRef = ast.arena.expr(receiverExpr),
+                      sema.bindings.identifierSymbol(for: receiverExpr) == nil,
+                      let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+            {
+                let ownerType = sema.types.make(.classType(ClassType(
+                    classSymbol: ownerSymbol, args: [], nullability: .nonNull
+                )))
+                receiverID = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+                instructions.append(.constValue(result: receiverID, value: .symbolRef(ownerSymbol)))
+            } else {
+                receiverID = driver.lowerExpr(
+                    receiverExpr,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: resultType)
@@ -759,7 +774,8 @@ extension CallLowerer {
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
               ownerInfo.kind == .interface,
               (propertyInfo.declSite != nil
-                  || propertyInfo.flags.contains(.importedLibrary)),
+                  || propertyInfo.flags.contains(.importedLibrary)
+                  || ownerInfo.fqName == ["kotlin", "ranges", "ClosedFloatingPointRange"].map(interner.intern)),
               let methodSlot = kirInterfacePropertyGetterSlot(
                   interfaceProperty: propertySymbol,
                   interfaceSymbol: ownerSymbol,
@@ -785,6 +801,12 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+        let rangeEndLabel = emitRuntimeFloatingPointEndpointFastPath(
+            propertyInfo: propertyInfo, ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID, result: result,
+            resultType: resultType, sema: sema, arena: arena,
+            interner: interner, instructions: &instructions
+        )
         instructions.append(.virtualCall(
             symbol: getterSymbol,
             callee: interner.intern("get"),
@@ -798,7 +820,54 @@ extension CallLowerer {
         if let runtimeNameEndLabel {
             instructions.append(.label(runtimeNameEndLabel))
         }
+        if let rangeEndLabel {
+            instructions.append(.label(rangeEndLabel))
+        }
         return result
+    }
+
+    private func emitRuntimeFloatingPointEndpointFastPath(
+        propertyInfo: SemanticSymbol,
+        ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        resultType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Int32? {
+        let owner = ownerInfo.fqName.map(interner.resolve)
+        let member = interner.resolve(propertyInfo.name)
+        guard owner == ["kotlin", "ranges", "ClosedFloatingPointRange"]
+            || owner == ["kotlin", "ranges", "ClosedRange"],
+            member == "start" || member == "endInclusive"
+        else { return nil }
+
+        let endpoint = arena.appendExpr(.intLiteral(member == "start" ? 0 : 1), type: sema.types.intType)
+        instructions.append(.constValue(result: endpoint, value: .intLiteral(member == "start" ? 0 : 1)))
+        let boxed = arena.appendTemporary(type: sema.types.nullableAnyType)
+        instructions.append(.call(
+            symbol: nil, callee: interner.intern("__kk_floating_range_endpoint_or_null"),
+            arguments: [loweredReceiverID, endpoint], result: boxed,
+            canThrow: false, thrownResult: nil
+        ))
+        let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+        instructions.append(.constValue(result: null, value: .null))
+        let interfaceLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfEqual(lhs: boxed, rhs: null, target: interfaceLabel))
+        // Generic/nullable endpoints retain the box; concrete endpoints use raw IEEE bits.
+        switch sema.types.kind(of: resultType) {
+        case .primitive(.double, .nonNull), .primitive(.float, .nonNull):
+            let callee = resultType == sema.types.doubleType ? "kk_unbox_double" : "kk_unbox_float"
+            emitNonThrowingCall(callee: interner.intern(callee), arg: boxed, result: result, into: &instructions)
+        default:
+            instructions.append(.copy(from: boxed, to: result))
+        }
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(interfaceLabel))
+        return endLabel
     }
 
     /// Runtime reflection values (tagged callable references, delegate
@@ -1236,6 +1305,7 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
+        interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // The receiver may itself be a qualified member-access chain (e.g. the
@@ -1337,6 +1407,19 @@ extension CallLowerer {
             // initializers) never ran, silently keeping every inherited
             // property at its zeroed default.
             if valueSymbol.kind == .object {
+                if let linkName = sema.symbols.externalLinkName(for: valueSymbolID), !linkName.isEmpty {
+                    let resultType = sema.symbols.propertyType(for: valueSymbolID) ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: valueSymbolID,
+                        callee: interner.intern(linkName),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 driver.emitObjectLazyInitGuardIfNeeded(
                     objectSymbol: valueSymbolID, arena: arena, sema: sema, instructions: &instructions
                 )
