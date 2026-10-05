@@ -1946,7 +1946,9 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             ).isEmpty
-        let isSourceBackedMemberName = Self.sourceBackedCollectionMemberNames.contains(memberNameText)
+        let isSourceBackedMemberName = (calleeName == knownNames.zip
+            && isSequenceLikeType(lookupReceiverType, sema: sema, interner: interner))
+            || Self.sourceBackedCollectionMemberNames.contains(memberNameText)
             || (Self.sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
             || isArraySourceBackedMember
             || isMutableMapIteratorSource
@@ -3166,7 +3168,9 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             ).isEmpty
-        let isSourceBackedMemberName = Self.sourceBackedCollectionMemberNames.contains(memberNameText)
+        let isSourceBackedMemberName = (calleeName == knownNames.zip
+            && isSequenceLikeType(lookupReceiverType, sema: sema, interner: interner))
+            || Self.sourceBackedCollectionMemberNames.contains(memberNameText)
             || (Self.sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
             || isArraySourceBackedMember
             || isMutableMapIteratorSource
