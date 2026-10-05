@@ -15,6 +15,10 @@ class Delegated(f: (Any) -> String?) : Holder(f) {
     constructor() : this({ value -> calls += 1; value as? String })
 }
 
+open class TaggedHolder(val marker: Int = 8, val f: (Any) -> String?)
+object DefaultCast : TaggedHolder(f = { value -> calls += 1; value as? String })
+object ReorderedCast : TaggedHolder(f = { value -> calls += 1; value as? String }, marker = 9)
+
 fun main() {
     println(Cast.f("ok"))
     println(Cast.f(42))
@@ -24,5 +28,9 @@ fun main() {
     println(named.marker)
     println(Secondary().f("secondary"))
     println(Delegated().f("delegated"))
+    println(DefaultCast.f("default"))
+    println(DefaultCast.marker)
+    println(ReorderedCast.f("reordered"))
+    println(ReorderedCast.marker)
     println(calls)
 }
