@@ -153,7 +153,16 @@ struct IterableRangeNullableContainsTests {
                   let binding = sema.bindings.callBinding(for: id),
                   ctx.interner.resolve(sema.symbols.symbol(binding.chosenCallee)?.name ?? ctx.interner.intern("")) == "contains"
             else { continue }
-            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_range_contains")
+            let symbol = try #require(sema.symbols.symbol(binding.chosenCallee))
+            let owner = try #require(sema.symbols.parentSymbol(for: symbol.id))
+            let ownerName = try #require(sema.symbols.symbol(owner)).fqName.map(ctx.interner.resolve)
+            #expect(ownerName == ["kotlin", "ranges", "ClosedRange"] || ownerName == ["kotlin", "ranges", "OpenEndRange"])
+            #expect(sema.symbols.isSourceBackedSymbol(symbol.id))
+            #expect(symbol.flags.contains(.extensionMemberAlias) == false)
+            #expect(sema.symbols.functionSignature(for: symbol.id)?.classTypeParameterCount == 1)
+            if ownerName.last == "OpenEndRange" {
+                #expect(sema.symbols.externalLinkName(for: symbol.id) == "__kk_range_contains")
+            }
             memberCalls += 1
         }
         #expect(memberCalls == 4)

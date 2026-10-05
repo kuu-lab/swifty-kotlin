@@ -51,6 +51,7 @@ package struct MetadataRecord {
     /// from source, since `recordContractEffects` never runs against a decoded
     /// symbol's (nonexistent) AST body.
     package let valueParameterCallsInPlaceKinds: [InvocationKind?]
+    package let contractImplicationEffects: [ContractImplicationEffect]
     /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
     /// Whether the function/constructor is declared `throws`.
@@ -165,6 +166,7 @@ package struct MetadataRecord {
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
+        contractImplicationEffects: [ContractImplicationEffect] = [],
         canThrow: Bool = false,
         valueParameterNames: [String] = [],
         reifiedTypeParameterIndices: Set<Int> = [],
@@ -223,6 +225,7 @@ package struct MetadataRecord {
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
+        self.contractImplicationEffects = contractImplicationEffects
         self.canThrow = canThrow
         self.valueParameterNames = valueParameterNames
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
@@ -1275,6 +1278,7 @@ package final class MetadataEncoder {
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterCallsInPlaceKinds: valueParameterCallsInPlaceKinds,
+            contractImplicationEffects: symbols.contractImplicationEffects(for: symbol.id),
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
             reifiedTypeParameterIndices: reifiedTypeParameterIndices,
@@ -1501,6 +1505,12 @@ package final class MetadataEncoder {
                 }
                 if record.canThrow {
                     fields.append("canThrow=1")
+                }
+                if !record.contractImplicationEffects.isEmpty {
+                    let effects = record.contractImplicationEffects.map {
+                        "\($0.parameterIndex):\($0.returnCondition.rawValue):\($0.argumentCondition.rawValue)"
+                    }.joined(separator: ",")
+                    fields.append("contractImplies=\(effects)")
                 }
                 if !record.valueParameterNames.isEmpty {
                     fields.append("paramNames=\(record.valueParameterNames.joined(separator: ","))")
@@ -2021,6 +2031,7 @@ final class MetadataDecoder {
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
                 valueParameterCallsInPlaceKinds: rec.valueParameterCallsInPlaceKinds,
+                contractImplicationEffects: rec.contractImplicationEffects,
                 canThrow: rec.canThrow,
                 valueParameterNames: rec.valueParameterNames,
                 reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
@@ -2084,6 +2095,7 @@ final class MetadataDecoder {
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
+        var contractImplicationEffects: [ContractImplicationEffect] = []
         var canThrow: Bool = false
         var valueParameterNames: [String] = []
         var reifiedTypeParameterIndices: Set<Int> = []
@@ -2166,6 +2178,14 @@ final class MetadataDecoder {
                 case "U": .unknown
                 default: nil
                 }
+            }
+        case "contractImplies":
+            record.contractImplicationEffects = value.split(separator: ",").compactMap { item in
+                let parts = item.split(separator: ":")
+                guard parts.count == 3, let index = Int(parts[0]), index >= 0,
+                      let result = ContractReturnCondition(rawValue: String(parts[1])),
+                      let condition = ContractArgumentCondition(rawValue: String(parts[2])) else { return nil }
+                return ContractImplicationEffect(parameterIndex: index, returnCondition: result, argumentCondition: condition)
             }
         case "canThrow":
             record.canThrow = value == "1" || value == "true"

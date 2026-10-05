@@ -97,10 +97,9 @@ final class DeclTypeChecker {
             return driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .block(exprIDs, _):
-            var last = ctx.sema.types.unitType
-            var reachedNothing = false
+            var canComplete = true
             for exprID in exprIDs {
-                if reachedNothing {
+                if !canComplete {
                     if let stmtRange = ctx.ast.arena.exprRange(exprID) {
                         ctx.semaCtx.diagnostics.warning(
                             "KSWIFTK-SEMA-0096",
@@ -121,12 +120,10 @@ final class DeclTypeChecker {
                 } else {
                     nil
                 }
-                last = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: exprExpectedType, isStatementContext: true)
-                if last == ctx.sema.types.nothingType {
-                    reachedNothing = true
-                }
+                _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: exprExpectedType, isStatementContext: true)
+                canComplete = driver.controlFlowChecker.canCompleteNormally(exprID, ctx: ctx)
             }
-            if reachedNothing {
+            if !canComplete {
                 return ctx.sema.types.nothingType
             }
             return ctx.sema.types.unitType

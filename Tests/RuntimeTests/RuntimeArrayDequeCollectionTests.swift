@@ -88,6 +88,29 @@ struct RuntimeArrayDequeCollectionTests {
     }
 
     @Test
+    func subListValidityTracksDequeStructuralChanges() throws {
+        let raw = makeDeque([1, 2, 3])
+        var thrown = 0
+        let subRaw = kk_list_subList(raw, 0, 2, &thrown)
+        let sub = try #require(runtimeListBox(from: subRaw))
+        #expect(sub.isValidView)
+        _ = kk_mutable_list_set(raw, 0, 9, &thrown)
+        #expect(thrown == 0)
+        #expect(sub.isValidView)
+        #expect(sub.elements == [9, 2])
+        _ = kk_mutable_list_add(subRaw, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(sub.isValidView)
+        #expect(sub.elements == [9, 2, 4])
+        _ = __kk_arraydeque_addLast(raw, 5)
+        #expect(!sub.isValidView)
+        _ = kk_list_check_modification(subRaw, &thrown)
+        let pointer = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let exception = try #require(tryCast(pointer, to: RuntimeThrowableBox.self))
+        #expect(exception.exceptionFQName == "kotlin.ConcurrentModificationException")
+    }
+
+    @Test
     func subListRejectsReversedRangesWithIllegalArgumentException() throws {
         let raw = makeDeque([1, 2, 3])
         var thrown = 0

@@ -81,6 +81,19 @@ fun main() {
     default.addLast(7)
     throughAbstractList(default, 8)
 
+    val viewBase = ArrayDeque<Int>(listOf(1, 2, 3))
+    val view = viewBase.subList(0, 2)
+    viewBase[0] = 9
+    println(view.toList())
+    view.add(4)
+    println(viewBase)
+    viewBase.addLast(5)
+    try {
+        println(view[0])
+    } catch (e: ConcurrentModificationException) {
+        println("sublist concurrent modification")
+    }
+
     m.add(3)
     m.add(1, 9)
     println(m.set(0, 7))

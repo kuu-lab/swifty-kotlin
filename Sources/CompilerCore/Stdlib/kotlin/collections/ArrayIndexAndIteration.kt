@@ -16,6 +16,14 @@ public fun LongArray.lastIndex(): Int = this.size - 1
 
 public fun LongArray.indices(): IntRange = 0..this.lastIndex()
 
+public fun ByteArray.lastIndex(): Int = this.size - 1
+
+public fun ByteArray.indices(): IntRange = 0..this.lastIndex()
+
+public fun CharArray.lastIndex(): Int = this.size - 1
+
+public fun CharArray.indices(): IntRange = 0..this.lastIndex()
+
 public operator fun <T> Array<out T>.iterator(): Iterator<T> {
     val array = this
     return object : Iterator<T> {
