@@ -283,6 +283,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// CORO-003: The coroutine scope is carried in the continuation context instead
     /// of Thread Local Storage, so it survives suspend/resume across threads.
     var scope: RuntimeCoroutineScope?
+    var enclosingScopeJobs: [RuntimeJobHandle?] = []
     /// Flow collect context carried with the continuation so a flow emitter can
     /// continue delivering values after a suspend/resume on another thread.
     var flowCollectContext: RuntimeFlowCollectContext?
@@ -1147,6 +1148,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var failure: Int = 0
     private var cancelCause: Int = 0
     private var cancelMessage: String = "CancellationException"
+    var defaultCancellationMessage = "CancellationException"
     weak var continuationState: RuntimeContinuationState?
     var producerChannel: Int?
     private var childJobHandles: [Int] = []
@@ -1488,7 +1490,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     func cancel(cause: Int = 0) -> Bool {
-        cancel(message: "CancellationException", cause: cause)
+        cancel(message: defaultCancellationMessage, cause: cause)
     }
 
     @discardableResult
@@ -1790,6 +1792,8 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     func installJob() -> RuntimeJobHandle {
         let scopeJob = RuntimeJobHandle()
         scopeJob.isSupervisorMarker = isSupervisor
+        scopeJob.defaultCancellationMessage = isSupervisor
+            ? "SupervisorCoroutine was cancelled" : "ScopeCoroutine was cancelled"
         scopeJob.markStarted()
         job = scopeJob
         installJobCancellationLink(scopeJob)
@@ -2135,6 +2139,22 @@ public func kk_coroutine_call_direct_suspend(
         return outcome.result
     }
     return suspendedToken
+}
+
+/// Source suspend wrappers relay to an active caller instead of nesting a
+/// blocking event-loop drain. Ordinary callers retain the blocking bridge.
+@_cdecl("kk_coroutine_call_suspend_wrapper")
+public func kk_coroutine_call_suspend_wrapper(
+    _ entryPointRaw: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let caller = RuntimeContinuationState.current else {
+        return kk_kxmini_run_blocking_with_cont(entryPointRaw, continuation, outThrown)
+    }
+    outThrown?.pointee = 0
+    let callerRaw = Int(bitPattern: Unmanaged.passUnretained(caller).toOpaque())
+    return kk_coroutine_call_direct_suspend(entryPointRaw, continuation, callerRaw)
 }
 
 @_cdecl("kk_create_coroutine_unintercepted")
@@ -3603,9 +3623,20 @@ public func kk_kxmini_delay(_ milliseconds: Int, _ continuation: Int) -> Int {
 /// continuation (see `kk_coroutine_call_direct_suspend`), so binding the scope
 /// here is what lets children launched inside a Kotlin-level `coroutineScope { }`
 /// block register with the freshly created scope rather than the outer one.
-private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?) {
+private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?, restoringParent: Bool = false) {
+    if let state = RuntimeContinuationState.current {
+        if restoringParent {
+            if let enclosingJob = state.enclosingScopeJobs.popLast() {
+                state.jobHandle = enclosingJob
+            }
+        } else {
+            state.enclosingScopeJobs.append(state.jobHandle)
+            state.jobHandle = scope?.job
+        }
+        RuntimeJobHandle.current = state.jobHandle
+        state.scope = scope
+    }
     RuntimeCoroutineScope.current = scope
-    RuntimeContinuationState.current?.scope = scope
 }
 
 /// Creates a new coroutine scope and installs it as the current scope in the
@@ -3683,7 +3714,7 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
 
     // Pop: restore parent scope in the task-scope map (CORO-003) and on the
     // running continuation, mirroring enterScopeOnCurrentContinuation.
-    enterScopeOnCurrentContinuation(scope.parent)
+    enterScopeOnCurrentContinuation(scope.parent, restoringParent: true)
 
     // Release the scope
     _ = runtimeReleaseObject(scopeHandle)
@@ -5160,13 +5191,19 @@ public func kk_non_cancellable_instance() -> Int {
     return Int(bitPattern: ptr)
 }
 
-// KSP-1568: `awaitCancellation()` parks on the never-completing
-// `runtimeNonCancellableJob`: `kk_job_join` registers a resumer that can
-// never fire, so the suspend point only unwinds when the awaiting coroutine
-// itself is cancelled.
 @_cdecl("kk_await_cancellation")
 public func kk_await_cancellation(_ continuation: Int) -> Int {
-    return kk_job_join(kk_non_cancellable_instance(), continuation)
+    let parked = RuntimeCancellableContinuation(delegate: continuation)
+    parked.initParent()
+    var thrown = 0
+    let result = parked.getResult(&thrown)
+    if thrown != 0, let state = runtimeContinuationState(from: continuation) {
+        // This ABI has no outThrown slot; deliver already-pending cancellation
+        // through the same resume path as cancellation after suspension.
+        _ = state.resume(withException: thrown)
+        return Int(bitPattern: kk_coroutine_suspended())
+    }
+    return result
 }
 
 // MARK: - Suspend Entry Loop
@@ -5579,7 +5616,9 @@ public func kk_suspend_function_invoke_0(
     let result = kk_function_invoke_0(functionRaw, &thrown)
     // Publish the outcome on the caller's continuation so the suspend-invocation
     // lowering observes a thrown exception (and clears any stale one on success).
-    callerState?.thrownException = thrown
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        callerState?.thrownException = thrown
+    }
     outThrown?.pointee = thrown
     return result
 }
@@ -5607,7 +5646,9 @@ public func kk_suspend_function_invoke(
     let result = kk_function_invoke(functionRaw, arg, &thrown)
     // Publish the outcome on the caller's continuation so the suspend-invocation
     // lowering observes a thrown exception (and clears any stale one on success).
-    callerState?.thrownException = thrown
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        callerState?.thrownException = thrown
+    }
     outThrown?.pointee = thrown
     return result
 }
@@ -5628,7 +5669,9 @@ public func kk_suspend_function_invoke_2(
     let callerState = RuntimeContinuationState.current
     var thrown = 0
     let result = kk_function_invoke_2(functionRaw, arg1, arg2, &thrown)
-    callerState?.thrownException = thrown
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        callerState?.thrownException = thrown
+    }
     outThrown?.pointee = thrown
     return result
 }
@@ -5649,7 +5692,9 @@ public func kk_suspend_function_invoke_3(
     let callerState = RuntimeContinuationState.current
     var thrown = 0
     let result = kk_function_invoke_3(functionRaw, arg1, arg2, arg3, &thrown)
-    callerState?.thrownException = thrown
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        callerState?.thrownException = thrown
+    }
     outThrown?.pointee = thrown
     return result
 }
@@ -5671,7 +5716,9 @@ public func kk_suspend_function_invoke_4(
     let callerState = RuntimeContinuationState.current
     var thrown = 0
     let result = kk_function_invoke_4(functionRaw, arg1, arg2, arg3, arg4, &thrown)
-    callerState?.thrownException = thrown
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        callerState?.thrownException = thrown
+    }
     outThrown?.pointee = thrown
     return result
 }
@@ -5694,7 +5741,9 @@ public func kk_suspend_function_invoke_5(
     let callerState = RuntimeContinuationState.current
     var thrown = 0
     let result = kk_function_invoke_5(functionRaw, arg1, arg2, arg3, arg4, arg5, &thrown)
-    callerState?.thrownException = thrown
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        callerState?.thrownException = thrown
+    }
     outThrown?.pointee = thrown
     return result
 }
