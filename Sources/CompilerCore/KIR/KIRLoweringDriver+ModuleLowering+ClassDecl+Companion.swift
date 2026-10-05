@@ -102,6 +102,15 @@ extension KIRLoweringDriver {
                 interner: interner,
                 instructions: &body.instructions
             )
+            appendObjectItableMethodRegistrations(
+                objectValue: allocatedObject,
+                nominalSymbol: companionSymbol,
+                driver: self,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
         }
 
         body.append(.returnUnit)

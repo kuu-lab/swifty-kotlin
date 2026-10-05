@@ -1430,7 +1430,11 @@ final class KlibBodyLowerer {
         let operand = translateExpression(argument, into: &body)
         switch op {
         case .is, .notIs:
-            let token = typeCheckToken(typeIndex: operandType, into: &body)
+            let token = typeCheckToken(
+                typeIndex: operandType,
+                subjectType: decodeType(argument.typeIndex) ?? arena.exprType(operand),
+                into: &body
+            )
             let boolType = types.booleanType
             let isResult = arena.appendTemporary(type: boolType)
             body.append(.call(
@@ -1474,11 +1478,15 @@ final class KlibBodyLowerer {
 
     private func typeCheckToken(
         typeIndex: Int32,
+        subjectType: TypeID? = nil,
         into body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         if let targetType = decodeType(typeIndex) {
             return driver.exprLowerer.lowerTypeCheckTokenExpr(
-                targetType: targetType, sema: sema, interner: interner,
+                targetType: driver.exprLowerer.runtimeIsCheckTargetType(
+                    subjectType: subjectType, targetType: targetType, sema: sema
+                ),
+                sema: sema, interner: interner,
                 arena: arena, instructions: &body.instructions
             )
         }

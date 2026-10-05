@@ -193,7 +193,7 @@ struct KIRVerifier {
                 checkRead(rhs, index: index, definedExprs: definedExprs, module: module, report: report)
             case let .returnValue(value):
                 checkRead(value, index: index, definedExprs: definedExprs, module: module, report: report)
-            case let .nonLocalReturn(value):
+            case let .nonLocalReturn(value, _):
                 if let value {
                     checkRead(value, index: index, definedExprs: definedExprs, module: module, report: report)
                 }

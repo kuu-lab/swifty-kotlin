@@ -1150,6 +1150,34 @@ struct RuntimeCollectionHOFTests {
         #expect(setElements(setTarget) == [1, 2, 3])
     }
 
+    @Test(arguments: [true, false])
+    func testThrowingMutableCollectionBridgesPreserveBoxMutations(isSet: Bool) {
+        let target = isSet ? registerRuntimeObject(RuntimeSetBox(elements: [1, 2])) : makeList([1, 2])
+        var thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_add_throwing(target, 3, &thrown)) == 1)
+        #expect(thrown == 0)
+        thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_remove_throwing(target, 2, &thrown)) == 1)
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_remove_throwing(target, 99, &thrown)) == 0)
+        thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_addAll_throwing(target, makeList([4, 5]), &thrown)) == 1)
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_addAll_throwing(target, makeList([]), &thrown)) == 0)
+        thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll_throwing(target, makeList([1]), &thrown)) == 1)
+        #expect(thrown == 0)
+        thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, makeList([3, 4]), &thrown)) == 1)
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, makeList([3, 4]), &thrown)) == 0)
+        #expect(isSet ? setElements(target) == [3, 4] : listElements(target) == [3, 4])
+        thrown = 99
+        #expect(kk_mutable_collection_clear_throwing(target, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(isSet ? setElements(target).isEmpty : listElements(target).isEmpty)
+    }
+
     @Test
     func testMutableCollectionRemoveAndClearHandleListAndSetTargets() {
         let listTarget = makeList([1, 2, 3])

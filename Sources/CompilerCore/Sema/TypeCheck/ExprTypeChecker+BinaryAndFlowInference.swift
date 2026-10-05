@@ -14,6 +14,7 @@ extension ExprTypeChecker {
             }
             locals[name] = (narrowed, local.symbol, local.isMutable, local.isInitialized)
         }
+        locals.memberFlow = state.members
     }
 
     // MARK: - Binary Expression Inference
@@ -55,7 +56,7 @@ extension ExprTypeChecker {
             )
             let lhsBranch = ctx.dataFlow.branchOnCondition(
                 lhsID,
-                base: ctx.flowState,
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ast,
                 sema: sema,
