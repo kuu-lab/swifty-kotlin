@@ -962,6 +962,15 @@ hard error; the compiler does not fall back to injecting bundled sources.
 
 **注意**：この方式は Kotlin の inline / reified を跨モジュールで成立させるために必須。
 
+## J14.4 Kotlin/Native `.klib` の消費（実験的）
+
+`-I` のサーチパス上にある Kotlin/Native 形式 `.klib`（packed ZIP / unpacked ディレクトリ）も import・実行できる。`.kklib` とは別フォーマットで、protobuf 直列化された Kotlin IR を直接読み、`SymbolTable`/`TypeSystem`/`KIR` にマテリアライズする（パイプライン詳細は `docs/ARCHITECTURE.md` §13.1）。
+
+* 対象: `abi_version` 2.3.x（2.4.x は best-effort、`KSWIFTK-LIB-0027`）
+* manifest `depends` は検証され依存順でモジュール初期化が走る（欠落は `KSWIFTK-LIB-0030` 警告）
+* `.klib` はコンパイル済みオブジェクトを持たないため、body すべてが consumer 側の KIR に翻訳されて実行される。未対応 IR 形式は `KSWIFTK-LIB-0029` 警告 + abort
+* 制約: default 引数の `$default` stub 経由呼び出し、expect/actual、インラインの再 materialization は未対応
+
 ---
 
 # Doc J15: LLVM Backend 実装境界（`CompilerBackend`）

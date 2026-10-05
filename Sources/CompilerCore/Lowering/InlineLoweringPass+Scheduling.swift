@@ -180,6 +180,20 @@ extension InlineLoweringPass {
             }
         }
 
+        if !preserveNonLocalReturns {
+            if function.isInline, body.contains(where: {
+                if case .beginNonLocalReturnScope = $0 { return true }
+                return false
+            }) {
+                module.inlineBodiesBeforeFinallyLowering[function.symbol] = body
+            }
+            let resolved = resolveNonLocalReturnScopes(
+                body, locations: locations, arena: module.arena,
+                unitType: unitType, returnType: function.returnType
+            )
+            body = resolved.body
+            locations = resolved.locations
+        }
         updated.replaceBody(body, locations: locations)
         if updated.body.isEmpty {
             updated.replaceBody([.returnUnit], locations: [nil])

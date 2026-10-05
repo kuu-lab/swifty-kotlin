@@ -53,7 +53,7 @@ func runtimeCharsEqualIgnoringCase(_ lhs: UInt16, _ rhs: UInt16) -> Bool {
 /// so the result goes through the runtime's isolated-surrogate representation.
 private func charRuntimeIdentityStringForSurrogate(_ code: Int) -> Int? {
     guard code >= 0xD800, code <= 0xDFFF else { return nil }
-    return charRuntimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits([UInt16(code)]))
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits([UInt16(code)]))
 }
 
 private func charScalarIsIdentifierIgnorable(_ scalar: UnicodeScalar) -> Bool {

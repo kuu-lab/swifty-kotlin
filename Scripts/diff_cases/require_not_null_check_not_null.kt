@@ -29,4 +29,13 @@ fun main() {
     } catch (e: IllegalStateException) {
         println(e.message)
     }
+
+    // KUU-1091: `returns() implies (value != null)` narrows the argument itself.
+    val e: String? = "v"
+    requireNotNull(e)
+    println(e.length)
+
+    val g: String? = "y"
+    checkNotNull(g)
+    println(g.length)
 }

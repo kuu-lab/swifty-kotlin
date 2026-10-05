@@ -324,6 +324,16 @@ extension KotlinLexer {
             }
         }
 
+        if value > 0xFFFF {
+            diagnostics.error(
+                "KSWIFTK-LEX-0003",
+                "Character literal must contain exactly one UTF-16 code unit.",
+                range: makeRange(start: start, end: min(offset + 1, byteCount()))
+            )
+            value = 0
+            emittedContentError = true
+        }
+
         if offset >= byteCount() {
             diagnostics.error(
                 "KSWIFTK-LEX-0002",

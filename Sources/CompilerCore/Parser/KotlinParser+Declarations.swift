@@ -214,7 +214,7 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range)
+            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
         }
 
         return arena.appendNode(
@@ -261,7 +261,7 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range)
+            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
             // In Kotlin, `get()`/`set()` accessors and explicit backing field
             // declarations on the next line are part of the property declaration.
             // After parseTail stops at a newline, absorb trailing accessor and

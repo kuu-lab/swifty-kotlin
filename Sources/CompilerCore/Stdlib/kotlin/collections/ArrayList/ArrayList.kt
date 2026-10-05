@@ -51,7 +51,7 @@ private external fun <E> __kkArrayListClear(list: ArrayList<E>)
 @KsSymbolName("__kk_mutable_list_removeAt")
 private external fun <E> __kkArrayListRemoveAt(list: ArrayList<E>, index: Int): E
 
-@KsSymbolName("__kk_mutable_list_remove")
+@KsSymbolName("__kk_mutable_list_remove_dispatch")
 private external fun <E> __kkArrayListRemove(list: ArrayList<E>, element: E): Boolean
 
 @KsSymbolName("__kk_mutable_list_removeAll")

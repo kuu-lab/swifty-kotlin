@@ -141,7 +141,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         types.setNominalTypeParameterSymbols([kotlinResultTypeParamSymbol], for: kotlinResultSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: kotlinResultSymbol)
+        types.setNominalTypeParameterVariances([.out], for: kotlinResultSymbol)
         symbols.setPropertyType(kotlinResultType, for: kotlinResultSymbol)
 
         let continuationSymbol = ensureInterfaceSymbol(
@@ -220,7 +220,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         types.setNominalTypeParameterSymbols([continuationTypeParamSymbol], for: continuationSymbol)
-        types.setNominalTypeParameterVariances([], for: continuationSymbol)
+        types.setNominalTypeParameterVariances([.in], for: continuationSymbol)
         symbols.setPropertyType(continuationType, for: continuationSymbol)
         let continuationTypeParameterSymbol = continuationTypeParamSymbol
         let continuationInterceptorType = types.make(.classType(ClassType(
@@ -735,11 +735,8 @@ extension DataFlowSemaPhase {
             symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         }
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
-        // Preserve the declaration-site `in` variance once Continuation has
-        // been reused from bundled Kotlin source. The synthetic fallback
-        // remains invariant when no source declaration is available.
         if !symbols.isSourceBackedSymbol(continuationSymbol) {
-            types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+            types.setNominalTypeParameterVariances([.in], for: continuationSymbol)
         }
 
         // Runtime-backed members are only needed without bundled Flow declarations.
@@ -955,18 +952,6 @@ extension DataFlowSemaPhase {
         // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
         // first argument's type: CoroutineDispatcher goes to the dispatcher-
         // aware runtime, CoroutineStart goes to the lazy-start runtime.
-        registerSyntheticCoroutineExtensionFunction(
-            named: "intercepted",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: continuationType,
-            parameters: [],
-            returnType: continuationType,
-            externalLinkName: "kk_continuation_intercepted",
-            typeParameterSymbols: [continuationTypeParameterSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
         let publicStartCoroutineName = interner.intern("startCoroutine")
         let publicStartCoroutineReceiverTypeParameterName = interner.intern("R")
         let publicStartCoroutineReceiverTypeParameterSymbol = symbols.define(

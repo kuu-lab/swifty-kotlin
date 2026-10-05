@@ -51,11 +51,7 @@ private func runtimeStringBuilderBox(from raw: Int) -> RuntimeStringBuilderBox? 
 }
 
 private func sbMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
+    runtimeMakeStringRaw(value)
 }
 
 // MARK: - @_cdecl functions
