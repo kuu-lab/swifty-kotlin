@@ -437,6 +437,8 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             "kk_box_char": .char,
             "kk_box_bool": .boolean,
             "kk_box_int": .int,
+            "kk_box_byte": .byte,
+            "kk_box_short": .short,
             "kk_box_long": .long,
             "kk_box_long_nonnull": .long,
             "kk_box_ulong": .ulong,
