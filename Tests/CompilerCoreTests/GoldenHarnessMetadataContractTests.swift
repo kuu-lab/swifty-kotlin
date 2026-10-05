@@ -88,6 +88,8 @@ struct GoldenHarnessMetadataContractTests {
     /// `UPDATE_GOLDEN` — any new member of this set is either an intended
     /// diagnostic fixture (document it) or a regression to fix first.
     private static let errorDiagnosticCaseBasenames: Set<String> = [
+        // KUU-1252: Kotlin Char has no Unicode identifier predicate extension.
+        "char_unicode_identifier_part.kt",
         "collection_firstNotNullOfOrNull.kt",
         "deprecated_annotation.kt",
         // DeprecationLevel.HIDDEN fixture for KUU-855: intentional error
@@ -142,6 +144,8 @@ struct GoldenHarnessMetadataContractTests {
     /// Cases where an expression type rendered as `<error>` — the same
     /// mechanical-acceptance guard as the diagnostic inventory.
     private static let errorTypeCaseBasenames: Set<String> = [
+        // KUU-1252: the rejected Unicode identifier predicate has an error type.
+        "char_unicode_identifier_part.kt",
         "inner_class.kt",
         "primary_constructor_private_access.kt",
         "primary_constructor_protected_access.kt",

@@ -6,18 +6,13 @@ symbol fq=charIsSurrogate.$2.c[kind=vparam;origin=fixture] kind=valueParameter v
 symbol fq=charIsSurrogate[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Boolean
 symbol fq=charIsTitleCase.$3.c[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=charIsTitleCase[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Boolean
-symbol fq=charIsUnicodeIdentifierPart.$4.c[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
-symbol fq=charIsUnicodeIdentifierPart[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Boolean
 symbol fq=kotlin.text.category[kind=fun;recv=Char;params=;ret=kotlin.text.CharCategory;origin=unknown] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=kotlin.text.CharCategory
 symbol fq=kotlin.text.directionality[kind=fun;recv=Char;params=;ret=kotlin.text.CharDirectionality;origin=unknown] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=kotlin.text.CharDirectionality
-symbol fq=kotlin.text.isTitleCase[kind=fun;recv=Char;params=;ret=Boolean;origin=unknown] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
-symbol fq=kotlin.text.isUnicodeIdentifierPart[kind=fun;recv=Char;params=;ret=Boolean;origin=unknown] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
 file fchar_properties package=_
   decl charCategory[kind=fun;params=Char;ret=kotlin.text.CharCategory;names=[c];origin=fixture] fun charCategory sym=charCategory[kind=fun;params=Char;ret=kotlin.text.CharCategory;names=[c];origin=fixture]
   decl charDirectionality[kind=fun;params=Char;ret=kotlin.text.CharDirectionality;names=[c];origin=fixture] fun charDirectionality sym=charDirectionality[kind=fun;params=Char;ret=kotlin.text.CharDirectionality;names=[c];origin=fixture]
   decl charIsSurrogate[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture] fun charIsSurrogate sym=charIsSurrogate[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture]
   decl charIsTitleCase[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture] fun charIsTitleCase sym=charIsTitleCase[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture]
-  decl charIsUnicodeIdentifierPart[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture] fun charIsUnicodeIdentifierPart sym=charIsUnicodeIdentifierPart[kind=fun;params=Char;ret=Boolean;names=[c];origin=fixture]
 expr e@1:55 name(c) type=Char ref=charCategory.$0.c[kind=vparam;origin=fixture]
 expr e@1:55#1 memberCall recv=e@1:55 callee=category args=[] type=kotlin.text.CharCategory call=kotlin.text.category[kind=fun;recv=Char;params=;ret=kotlin.text.CharCategory;origin=unknown]
 expr e@2:67 name(c) type=Char ref=charDirectionality.$1.c[kind=vparam;origin=fixture]
@@ -25,6 +20,4 @@ expr e@2:67#1 memberCall recv=e@2:67 callee=directionality args=[] type=kotlin.t
 expr e@3:41 name(c) type=Char ref=charIsSurrogate.$2.c[kind=vparam;origin=fixture]
 expr e@3:41#1 memberCall recv=e@3:41 callee=isSurrogate args=[] type=Boolean call=kotlin.text.isSurrogate[kind=fun;recv=Char;params=;ret=Boolean]
 expr e@4:41 name(c) type=Char ref=charIsTitleCase.$3.c[kind=vparam;origin=fixture]
-expr e@4:41#1 memberCall recv=e@4:41 callee=isTitleCase args=[] type=Boolean call=kotlin.text.isTitleCase[kind=fun;recv=Char;params=;ret=Boolean;origin=unknown]
-expr e@5:53 name(c) type=Char ref=charIsUnicodeIdentifierPart.$4.c[kind=vparam;origin=fixture]
-expr e@5:53#1 memberCall recv=e@5:53 callee=isUnicodeIdentifierPart args=[] type=Boolean call=kotlin.text.isUnicodeIdentifierPart[kind=fun;recv=Char;params=;ret=Boolean;origin=unknown]
+expr e@4:41#1 memberCall recv=e@4:41 callee=isTitleCase args=[] type=Boolean call=kotlin.text.isTitleCase[kind=fun;recv=Char;params=;ret=Boolean]
