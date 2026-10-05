@@ -36,6 +36,13 @@ extension BuildASTPhase.ExpressionParser {
         return nil
     }
 
+    private func parseTrailingLambda(implicitLabel: InternedString?) -> ExprID? {
+        if matches(.symbol(.lBrace)) {
+            return parseLambdaLiteral(label: implicitLabel)
+        }
+        return parseLabeledTrailingLambda()
+    }
+
     func parsePostfixOrPrimary() -> ExprID? {
         guard var expr = parsePrimary() else {
             return nil
@@ -50,12 +57,9 @@ extension BuildASTPhase.ExpressionParser {
                         let close = consumeIf(.symbol(.rParen))
                         var callEndRange = close?.range ?? open.range
                         // Trailing lambda without parentheses: foo<T> { ... }.
-                        if matches(.symbol(.lBrace)),
-                           let braceToken = current(),
-                           let trailingLambda = parseLambdaLiteral(label: calleeNameForImplicitLabel(expr))
-                        {
+                        if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr)) {
                             args.append(CallArgument(expr: trailingLambda))
-                            callEndRange = astArena.exprRange(trailingLambda) ?? braceToken.range
+                            callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
                         }
                         let fallbackEnd = close?.range.end ?? open.range.end
                         let endRange = SourceRange(start: fallbackEnd, end: fallbackEnd)
@@ -64,11 +68,10 @@ extension BuildASTPhase.ExpressionParser {
                         continue
                     }
                     // Trailing lambda without parentheses: foo<T> { ... }.
-                    if matches(.symbol(.lBrace)),
-                       let braceToken = current(),
-                       let trailingLambda = parseLambdaLiteral(label: calleeNameForImplicitLabel(expr))
+                    if let trailingStart = current(),
+                       let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr))
                     {
-                        let trailingRange = astArena.exprRange(trailingLambda) ?? braceToken.range
+                        let trailingRange = astArena.exprRange(trailingLambda) ?? trailingStart.range
                         let range = mergeRanges(astArena.exprRange(expr), trailingRange, fallback: trailingRange)
                         expr = astArena.appendExpr(.call(
                             callee: expr,
@@ -88,13 +91,7 @@ extension BuildASTPhase.ExpressionParser {
                 let close = consumeIf(.symbol(.rParen))
                 var callEndRange = close?.range ?? open.range
                 // Trailing lambda after a parenthesized call: foo(...) { ... }.
-                if matches(.symbol(.lBrace)),
-                   let braceToken = current(),
-                   let trailingLambda = parseLambdaLiteral(label: calleeNameForImplicitLabel(expr))
-                {
-                    args.append(CallArgument(expr: trailingLambda))
-                    callEndRange = astArena.exprRange(trailingLambda) ?? braceToken.range
-                } else if let trailingLambda = parseLabeledTrailingLambda() {
+                if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr)) {
                     args.append(CallArgument(expr: trailingLambda))
                     callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
                 }
@@ -106,11 +103,10 @@ extension BuildASTPhase.ExpressionParser {
             }
 
             // Trailing lambda without parentheses: foo { ... }.
-            if matches(.symbol(.lBrace)),
-               let braceToken = current(),
-               let trailingLambda = parseLambdaLiteral(label: calleeNameForImplicitLabel(expr))
+            if let trailingStart = current(),
+               let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr))
             {
-                let trailingRange = astArena.exprRange(trailingLambda) ?? braceToken.range
+                let trailingRange = astArena.exprRange(trailingLambda) ?? trailingStart.range
                 let range = mergeRanges(astArena.exprRange(expr), trailingRange, fallback: trailingRange)
                 expr = astArena.appendExpr(.call(
                     callee: expr,
@@ -183,9 +179,7 @@ extension BuildASTPhase.ExpressionParser {
                 memberEndRange = close?.range ?? open.range
             }
             // Trailing lambda: attach `{ ... }` as the last argument (Kotlin grammar).
-            if matches(.symbol(.lBrace)),
-               let trailingLambda = parseLambdaLiteral(label: memberName)
-            {
+            if let trailingLambda = parseTrailingLambda(implicitLabel: memberName) {
                 args.append(CallArgument(expr: trailingLambda))
                 memberEndRange = astArena.exprRange(trailingLambda) ?? memberEndRange
             }
