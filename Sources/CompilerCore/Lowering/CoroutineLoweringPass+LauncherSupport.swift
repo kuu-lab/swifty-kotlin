@@ -1054,7 +1054,7 @@ extension CoroutineLoweringPass {
                 arguments: [thunkRefExpr, continuationExpr],
                 result: call.result,
                 canThrow: call.canThrow || structuredBlockingRuntimes.contains(runtimeWithContCallee),
-                thrownResult: nil
+                thrownResult: call.thrownResult
             )
         )
         return rewritten
