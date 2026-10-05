@@ -1,26 +1,25 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 /// Regression tests for four Sema typing gaps found together:
 /// enum `Comparable` bounds, common-supertype LUB, range literals as
 /// `Iterable` arguments, and companion objects used as their interface type.
 @Suite
 struct EnumLubRangeCompanionTypingTests {
-    private func semaErrors(_ source: String) throws -> [String] {
-        let ctx = makeContextFromSource(source)
+    private func semaErrors(_ source: String, allowDefaultStdlibLibrary: Bool = false) throws -> [String] {
+        if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
+        let ctx = makeContextFromSource(source, emit: .executable, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
+        if allowDefaultStdlibLibrary { #expect(ctx.options.stdlibLibraryPath != nil) }
         try runSema(ctx)
         return ctx.diagnostics.diagnostics
             .filter { $0.severity == .error }
             .map { "\($0.code): \($0.message)" }
     }
 
-    /// Note: this suite injects the stdlib from source, where `Enum<T> : Comparable<T>` was
-    /// already wired correctly. The bug this guards against lives in the precompiled `.kklib`
-    /// import path (metadata spelled `Enum`'s parameter as a synthetic `T<n>`), which is covered
-    /// by `Scripts/diff_cases/enum_comparable_bound.kt`.
-    @Test
-    func userEnumSatisfiesComparableUpperBound() throws {
+    @Test(arguments: [false, true])
+    func userEnumSatisfiesComparableUpperBound(allowDefaultStdlibLibrary: Bool) throws {
         let errors = try semaErrors("""
         enum class Color { RED, GREEN, BLUE }
         fun <T : Comparable<T>> biggest(a: T, b: T): T = if (a > b) a else b
@@ -31,7 +30,7 @@ struct EnumLubRangeCompanionTypingTests {
             println(maxOf(Color.RED, Color.BLUE))
             println(biggest(Color.RED, Color.BLUE))
         }
-        """)
+        """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         #expect(errors.isEmpty, "\(errors)")
     }
 

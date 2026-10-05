@@ -8,6 +8,37 @@ extension LoweringPassRegressionTests {
     // MARK: - BUG-209: source lambda returns
 
     @Test
+    func nestedInlineLambdaReturnKeepsLexicalFunctionTarget() throws {
+        let context = makeContextFromSource("""
+        inline fun around(block: () -> Unit) { block() }
+        inline fun value(): Int { around { around { return 42 } }; return -1 }
+        fun main() { println(value()); println("after") }
+        """)
+        try runToKIR(context)
+        let module = try #require(context.kir)
+        let valueSymbol = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            if case let .function(function) = declaration { return function }
+            return nil
+        }.first { context.interner.resolve($0.name) == "value" }?.symbol)
+        let targets = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            if case let .function(function) = declaration { return function }
+            return nil
+        }.flatMap(\.body).compactMap { instruction -> KIRReturnTarget? in
+            if case let .nonLocalReturn(_, target) = instruction { return target }
+            return nil
+        }
+        #expect(targets == [.function(valueSymbol)])
+        try LoweringPhase().run(context)
+        #expect(!context.diagnostics.hasError)
+        let main = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            if case let .function(function) = declaration { return function }
+            return nil
+        }.first { context.interner.resolve($0.name) == "main" })
+        #expect(!main.body.contains { if case .returnValue = $0 { return true }; return false })
+        #expect(!main.body.contains { if case .nonLocalReturn = $0 { return true }; return false })
+    }
+
+    @Test
     func testBug209LowersUnlabeledLambdaReturnAsNonLocalReturn() throws {
         let source = """
             inline fun myRepeat(times: Int, action: (Int) -> Unit) {
