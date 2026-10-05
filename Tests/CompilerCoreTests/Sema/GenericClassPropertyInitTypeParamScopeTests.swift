@@ -9,6 +9,45 @@ import Testing
 /// error type that poisoned every member using the property.
 @Suite
 struct GenericClassPropertyInitTypeParamScopeTests {
+    @Test func nullableReceiverFunctionPropertyWithExplicitClassTypeArgument() throws {
+        try withTemporaryFile(contents: """
+        fun <X> makeIt(x: X): X = x
+        class P<T : Any> {
+            private val instance = makeIt<T?.() -> Int>({ 1 })
+            fun read(value: T?): Int = instance(value)
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let property = try #require(memberProperty(named: "instance", ofClass: "P", in: ast, interner: ctx.interner))
+            let initializer = try #require(property.initializer)
+            let type = try #require(sema.bindings.exprType(for: initializer))
+            guard case let .functionType(function) = sema.types.kind(of: type) else {
+                Issue.record("Expected a function type, not Boolean")
+                return
+            }
+            #expect(function.receiver != nil)
+            #expect(function.returnType == sema.types.intType)
+        }
+    }
+
+    @Test func unresolvedNullableReceiverIsDiagnosedAsAType() throws {
+        try withTemporaryFile(contents: """
+        fun <X> makeIt(x: X): X = x
+        val instance = makeIt<Missing?.() -> Int>(null)
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0025" && $0.message.contains("Missing")
+            })
+            #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0022" })
+        }
+    }
+
     private func errorDiagnostics(_ source: String) -> [String] {
         let ctx = makeContextFromSource(source)
         do {
