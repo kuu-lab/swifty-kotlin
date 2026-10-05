@@ -2081,7 +2081,7 @@ extension ExprLowerer {
                     returnValue = lowered
                 }
                 if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
-                    instructions.append(.nonLocalReturn(returnValue))
+                    instructions.append(.nonLocalReturn(returnValue, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
                         ast: ast, sema: sema, arena: arena, interner: interner,
@@ -2092,7 +2092,7 @@ extension ExprLowerer {
                 }
             } else {
                 if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
-                    instructions.append(.nonLocalReturn(nil))
+                    instructions.append(.nonLocalReturn(nil, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
                         ast: ast, sema: sema, arena: arena, interner: interner,

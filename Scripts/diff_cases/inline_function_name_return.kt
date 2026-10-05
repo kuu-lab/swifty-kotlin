@@ -98,6 +98,21 @@ fun localExtensionReturn(): Int {
     return 6.local()
 }
 
+inline fun lexicalInlineReturn(): Int {
+    invokeBlock { invokeBlock { return@lexicalInlineReturn 53 } }
+    return -1
+}
+
+inline fun lexicalInlineUnitReturn() {
+    invokeBlock { return@lexicalInlineUnitReturn }
+    println("unreachable-inline-unit")
+}
+
+inline fun value(): Int {
+    invokeBlock { return@value 59 }
+    return -1
+}
+
 fun main() {
     unitReturn()
     println(valueReturn())
@@ -111,4 +126,8 @@ fun main() {
     println(localFunctionReturn())
     println(directReturn())
     println(localExtensionReturn())
+    println(lexicalInlineReturn())
+    lexicalInlineUnitReturn()
+    println(value())
+    println("after-inline-return")
 }

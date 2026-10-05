@@ -61,6 +61,20 @@ struct InlineNonLocalReturnTypeTests {
         #expect(ctx.sema?.bindings.functionReturnLambdaPaths.isEmpty == true)
     }
 
+    @Test(arguments: ["value", "out", "get"])
+    func softKeywordFunctionNameLabelsUseTheEnclosingReturnType(name: String) throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        fun \(name)(): Int {
+            invokeBlock { return@\(name) 9 }
+            return -1
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        #expect(ctx.sema?.bindings.functionReturnLambdaPaths.count == 1)
+    }
+
     @Test func wrongFunctionNameLabeledReturnTypeIsRejected() throws {
         let ctx = makeContextFromSource("""
         inline fun predicate(block: () -> Boolean): Boolean { return block() }
