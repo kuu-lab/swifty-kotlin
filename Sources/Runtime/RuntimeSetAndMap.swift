@@ -147,10 +147,7 @@ public func kk_set_to_string(_ setRaw: Int) -> UnsafeMutableRawPointer {
     }
     let parts = set.values.map(runtimeElementToString)
     let str = "[" + parts.joined(separator: ", ") + "]"
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
+    return runtimeMakeStringPointer(str)
 }
 
 @_cdecl("__kk_collection_toList")
@@ -914,8 +911,5 @@ public func kk_map_to_string(_ mapRaw: Int) -> UnsafeMutableRawPointer {
         return "\(keyStr)=\(valStr)"
     }
     let str = "{" + parts.joined(separator: ", ") + "}"
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
+    return runtimeMakeStringPointer(str)
 }

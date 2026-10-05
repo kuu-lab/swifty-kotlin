@@ -952,18 +952,6 @@ extension DataFlowSemaPhase {
         // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
         // first argument's type: CoroutineDispatcher goes to the dispatcher-
         // aware runtime, CoroutineStart goes to the lazy-start runtime.
-        registerSyntheticCoroutineExtensionFunction(
-            named: "intercepted",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            receiverType: continuationType,
-            parameters: [],
-            returnType: continuationType,
-            externalLinkName: "kk_continuation_intercepted",
-            typeParameterSymbols: [continuationTypeParameterSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
         let publicStartCoroutineName = interner.intern("startCoroutine")
         let publicStartCoroutineReceiverTypeParameterName = interner.intern("R")
         let publicStartCoroutineReceiverTypeParameterSymbol = symbols.define(

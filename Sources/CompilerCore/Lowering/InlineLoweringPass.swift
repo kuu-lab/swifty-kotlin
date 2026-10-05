@@ -30,7 +30,13 @@ final class InlineLoweringPass: LoweringPass {
         if let imported = ctx.sema?.importedInlineFunctions, !imported.isEmpty {
             return true
         }
-        return false
+        return module.arena.declarations.contains { declaration in
+            guard case let .function(function) = declaration else { return false }
+            return function.body.contains { instruction in
+                if case .beginNonLocalReturnScope = instruction { return true }
+                return false
+            }
+        }
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
@@ -344,6 +350,13 @@ final class InlineLoweringPass: LoweringPass {
                     // Skip unreachable instructions after a terminator until
                     // the next label starts a new block.
                     if afterTerminator {
+                        switch expandedInstruction {
+                        case .beginNonLocalReturnScope, .endNonLocalReturnScope,
+                             .beginFinallyCleanup, .endFinallyCleanup, .beginFinallyGuard, .endFinallyGuard:
+                            loweredBody.append(expandedInstruction)
+                        default:
+                            break
+                        }
                         if case .label = expandedInstruction {
                             afterTerminator = false
                             loweredBody.append(expandedInstruction)
@@ -353,16 +366,12 @@ final class InlineLoweringPass: LoweringPass {
 
                     switch expandedInstruction {
                     case let .nonLocalReturn(value):
-                        // Snapshots may later be spliced into another caller.
-                        if preserveNonLocalReturns {
-                            loweredBody.append(.nonLocalReturn(value.map {
-                                InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
-                            }))
-                        } else if let value {
-                            loweredBody.append(.returnValue(InlineExprAliasing.resolveAlias(of: value, aliases: aliases)))
-                        } else {
-                            loweredBody.append(.returnUnit)
-                        }
+                        loweredBody.append(.nonLocalReturn(value.map {
+                            InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
+                        }))
+                        afterTerminator = true
+                    case .resumeNonLocalReturn:
+                        loweredBody.append(expandedInstruction)
                         afterTerminator = true
                     case .label:
                         // A label starts a new block, so we are no longer after a terminator.

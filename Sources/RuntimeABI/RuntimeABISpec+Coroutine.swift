@@ -791,7 +791,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_continuation_intercepted",
+            name: "__kk_continuation_intercepted",
             parameters: [
                 RuntimeABIParameter(name: "continuationRaw", type: .intptr),
             ],

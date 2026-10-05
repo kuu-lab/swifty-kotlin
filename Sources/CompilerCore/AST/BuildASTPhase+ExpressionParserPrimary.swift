@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 extension BuildASTPhase.ExpressionParser {
     func parsePrimary() -> ExprID? {
@@ -353,7 +354,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if case let .stringSegment(segment) = token.kind {
                     let segmentText = interner.resolve(segment)
-                    pieces.append(shouldDecodeEscapes ? decodeEscapedStringSegment(segmentText) : segmentText)
+                    pieces.append(shouldDecodeEscapes ? decodeEscapedStringSegment(segmentText) : KotlinStringSurrogateEncoding.encode(segmentText))
                 }
                 end = token.range.end
                 _ = consume()
@@ -378,7 +379,7 @@ extension BuildASTPhase.ExpressionParser {
                 let effectiveSegment: InternedString = if shouldDecodeEscapes {
                     interner.intern(decodeEscapedStringSegment(interner.resolve(segment)))
                 } else {
-                    segment
+                    interner.intern(KotlinStringSurrogateEncoding.encode(interner.resolve(segment)))
                 }
                 parts.append(.literal(effectiveSegment))
                 end = token.range.end

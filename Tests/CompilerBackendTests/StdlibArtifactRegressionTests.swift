@@ -299,7 +299,7 @@ struct StdlibArtifactRegressionTests {
         import kotlinx.coroutines.*
         import kotlinx.coroutines.flow.*
 
-        fun runCollect(source: Flow<Int>, action: (Int) -> Unit) = runBlocking {
+        fun runCollect(source: Flow<Int>, action: suspend (Int) -> Unit) = runBlocking {
             source.collect(action)
         }
 
@@ -2171,9 +2171,9 @@ struct StdlibArtifactRegressionTests {
             """)
     }
 
-    @Test
-    func testFlowSharingSnapshotsAndLegacyOverloadsThroughSharedStdlibArtifact() throws {
-        let artifactPath = try Self.buildStdlibArtifact()
+    @Test(arguments: [false, true])
+    func testFlowSharingSnapshotsAndLegacyOverloadsThroughSharedStdlibArtifact(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
         let source = """
         import kotlinx.coroutines.*
         import kotlinx.coroutines.flow.*
@@ -2246,13 +2246,55 @@ struct StdlibArtifactRegressionTests {
             """)
     }
 
-    private func expectFlowSharingOutput(_ source: String, artifactPath: String, expected: String) throws {
+    @Test(arguments: [false, true])
+    func testLazyFlowSharingCapturedLauncher(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        try expectFlowSharingOutput("""
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                val shared = flowOf(1, 2).shareIn(this, SharingStarted.Lazily, 2)
+                println(shared.toList())
+            }
+            """, artifactPath: artifactPath, expected: "[1, 2]\n")
+    }
+
+    @Test(arguments: [false, true])
+    func testCoroutineLauncherPreservesGenericReceiverAndLocalCapture(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        try expectFlowSharingOutput("""
+            import kotlinx.coroutines.*
+
+            fun accept(scope: CoroutineScope) { println("scope") }
+
+            class Launcher<T>(val scope: CoroutineScope, var value: T) {
+                fun read(): T = value
+                fun start(): Job {
+                    val local = 2
+                    return scope.launch {
+                        accept(this)
+                        println(read())
+                        value = read()
+                        println(value)
+                        println(local)
+                    }
+                }
+            }
+
+            fun main() = runBlocking {
+                Launcher(this, 41).start().join()
+            }
+            """, artifactPath: artifactPath, expected: "scope\n41\n41\n2\n")
+    }
+
+    private func expectFlowSharingOutput(_ source: String, artifactPath: String?, expected: String) throws {
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
             let ctx = makeCompilationContext(
                 inputs: [userPath], moduleName: "TestModule", emit: .executable,
-                outputPath: outputBase, includeStdlib: false, stdlibLibraryPath: artifactPath
+                outputPath: outputBase, includeStdlib: artifactPath == nil, stdlibLibraryPath: artifactPath
             )
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
