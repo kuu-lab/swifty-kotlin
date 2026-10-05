@@ -24,6 +24,8 @@ final class CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
+        defer { recordFlowBuilderEmitAll(id, args: args, ctx: ctx) }
+
         let calleeExpr = ast.arena.expr(calleeID)
         let calleeName: InternedString? = if case let .nameRef(name, _) = calleeExpr {
             name
@@ -616,6 +618,10 @@ final class CallTypeChecker {
             }
             var flowBuilderCtx = ctx.with(implicitReceiverType: sema.types.anyType)
             flowBuilderCtx.isFlowBuilderLambdaScope = true
+            let flowInference = FlowBuilderInferenceSession(
+                expectedElementType: explicitTypeArgs.first ?? flowBuilderElementType(expectedType, ctx: ctx)
+            )
+            flowBuilderCtx.flowBuilderInference = flowInference
             let flowLambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [],
                 returnType: sema.types.unitType,
@@ -629,20 +635,8 @@ final class CallTypeChecker {
                 expectedType: flowLambdaExpectedType
             )
             sema.bindings.markFlowExpr(id)
-            if let explicitElementType = explicitTypeArgs.first {
-                sema.bindings.bindFlowElementType(explicitElementType, forExpr: id)
-            } else if let expectedType,
-                      case let .classType(classType) = sema.types.kind(of: expectedType),
-                      let firstArg = classType.args.first
-            {
-                switch firstArg {
-                case let .invariant(type), let .in(type), let .out(type):
-                    sema.bindings.bindFlowElementType(type, forExpr: id)
-                case .star:
-                    break
-                }
-            }
-            let flowElementType = sema.bindings.flowElementType(forExpr: id) ?? sema.types.anyType
+            let flowElementType = flowInference.elementType(types: sema.types)
+            sema.bindings.bindFlowElementType(flowElementType, forExpr: id)
             let flowExprType = driver.helpers.makeFlowType(
                 elementType: flowElementType, sema: sema, interner: interner
             ) ?? sema.types.anyType
@@ -665,9 +659,14 @@ final class CallTypeChecker {
            calleeName == knownNames.emit,
            args.count == 1,
            ctx.cachedScopeLookup(calleeName).isEmpty,
-           locals[calleeName] == nil
+           locals[calleeName] == nil,
+           !flowBuilderEmitHasReceiverMember(ctx: ctx)
         {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let emittedType = driver.inferExpr(
+                args[0].expr, ctx: ctx, locals: &locals,
+                expectedType: ctx.flowBuilderInference?.expectedElementType
+            )
+            recordFlowBuilderEmission(emittedType, range: ast.arena.exprRange(args[0].expr), ctx: ctx)
             sema.bindings.bindExprType(id, type: sema.types.unitType)
             return sema.types.unitType
         }
@@ -2801,7 +2800,17 @@ final class CallTypeChecker {
                 return candidates.contains { candidate in
                     sema.symbols.parentSymbol(for: candidate) == outerClass
                 }
-            }?.type ?? callImplicitReceiverType
+            }?.type ?? candidates.lazy.compactMap { candidate -> TypeID? in
+                guard let owner = sema.symbols.parentSymbol(for: candidate),
+                      let containingClass = sema.symbols.parentSymbol(for: owner),
+                      sema.symbols.companionObjectSymbol(for: containingClass) == owner,
+                      let receiverType = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                      resolveClassType(receiverType, sema: sema)?.classSymbol == owner
+                else {
+                    return nil
+                }
+                return receiverType
+            }.first ?? callImplicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,

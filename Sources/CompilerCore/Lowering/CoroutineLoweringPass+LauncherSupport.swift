@@ -742,6 +742,11 @@ extension CoroutineLoweringPass {
         )
         if builderCallee == interner.intern("async") {
             switch startMode {
+            case "ATOMIC":
+                return (
+                    interner.intern("kk_kxmini_async_atomic"),
+                    interner.intern("kk_kxmini_async_atomic_with_cont")
+                )
             case "LAZY":
                 return (
                     interner.intern("kk_kxmini_async_lazy"),
@@ -753,7 +758,7 @@ extension CoroutineLoweringPass {
                     interner.intern("kk_kxmini_async_undispatched_with_cont")
                 )
             default:
-                // DEFAULT, ATOMIC, and anything unresolved: schedule immediately.
+                // DEFAULT and anything unresolved: schedule immediately.
                 return (
                     interner.intern("kk_kxmini_async"),
                     interner.intern("kk_kxmini_async_with_cont")

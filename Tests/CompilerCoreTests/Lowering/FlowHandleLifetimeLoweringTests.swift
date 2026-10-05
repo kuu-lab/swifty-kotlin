@@ -1,0 +1,117 @@
+@testable import CompilerCore
+import Testing
+
+@Suite
+struct FlowHandleLifetimeLoweringTests {
+    @Test(arguments: [false, true])
+    func doesNotReleaseLoopCarriedFlow(conditionalBackEdge: Bool) throws {
+        let releases = try lowerFlowLifetime(conditionalBackEdge: conditionalBackEdge)
+        #expect(releases.isEmpty)
+    }
+
+    @Test
+    func releasesFlowAtFinalConsumeAfterLoop() throws {
+        let releases = try lowerFlowLifetime(finalConsume: true)
+        #expect(releases.count == 1)
+        #expect(releases.first?.afterLoop == true)
+    }
+
+    @Test
+    func releasesFlowRecreatedOnEachIteration() throws {
+        let releases = try lowerFlowLifetime(createInLoop: true)
+        #expect(releases.count == 1)
+        #expect(releases.first?.afterLoop == false)
+    }
+
+    private func lowerFlowLifetime(
+        conditionalBackEdge: Bool = false,
+        finalConsume: Bool = false,
+        createInLoop: Bool = false
+    ) throws -> [(afterLoop: Bool, handle: KIRExprID)] {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let handle = arena.appendTemporary()
+        let callback = arena.appendExpr(.intLiteral(0))
+        let condition = arena.appendExpr(.boolLiteral(false))
+        let thrown = arena.appendTemporary()
+        let create = KIRInstruction.call(
+            symbol: nil, callee: interner.intern("flow"), arguments: [callback],
+            result: handle, canThrow: false, thrownResult: nil
+        )
+        let collect = KIRInstruction.call(
+            symbol: nil, callee: interner.intern("collect"), arguments: [handle, callback],
+            result: nil, canThrow: true, thrownResult: thrown
+        )
+        var body: [KIRInstruction] = []
+        if !createInLoop { body.append(create) }
+        body.append(.label(10))
+        if createInLoop { body.append(create) }
+        body += [
+            collect,
+            .jumpIfNotNull(value: thrown, target: 20),
+            .jump(30),
+            .label(20),
+            .call(symbol: nil, callee: interner.intern("println"), arguments: [thrown],
+                  result: nil, canThrow: false, thrownResult: nil),
+            .label(30),
+        ]
+        if conditionalBackEdge {
+            body.append(.jumpIfEqual(lhs: condition, rhs: condition, target: 10))
+        } else {
+            body.append(.jumpIfEqual(lhs: condition, rhs: condition, target: 40))
+            body.append(.jump(10))
+        }
+        body.append(.label(40))
+        if finalConsume { body.append(collect) }
+        body.append(.returnUnit)
+        let functionID = arena.appendDecl(.function(KIRFunction(
+            symbol: SymbolID(rawValue: 1), name: interner.intern("test"), params: [],
+            returnType: TypeSystem().unitType, body: body, isSuspend: true, isInline: false
+        )))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [functionID])], arena: arena)
+        let function = try #require(arena.decl(functionID)?.function)
+        let names = FlowLoweringNames(
+            flow: interner.intern("flow"), emit: interner.intern("emit"),
+            collect: interner.intern("collect"), collectLatest: interner.intern("collectLatest"),
+            map: interner.intern("map"), filter: interner.intern("filter"),
+            take: interner.intern("take"), transform: interner.intern("transform"),
+            single: interner.intern("single"), takeWhile: interner.intern("takeWhile"),
+            dropWhile: interner.intern("dropWhile"), flatMapConcat: interner.intern("flatMapConcat"),
+            flatMapMerge: interner.intern("flatMapMerge"), flatMapLatest: interner.intern("flatMapLatest"),
+            combine: interner.intern("combine"), zip: interner.intern("zip"),
+            merge: interner.intern("merge"), buffer: interner.intern("buffer"),
+            conflate: interner.intern("conflate"), flowOn: interner.intern("flowOn"),
+            debounce: interner.intern("debounce"), sample: interner.intern("sample"),
+            delayEach: interner.intern("delayEach"), catchHandler: interner.intern("catch"),
+            retry: interner.intern("retry"), retryWhen: interner.intern("retryWhen"),
+            onErrorReturn: interner.intern("onErrorReturn"), onErrorResume: interner.intern("onErrorResume"),
+            toList: interner.intern("toList"), first: interner.intern("first"),
+            kkFlowCreate: interner.intern("kk_flow_create"), kkFlowEmit: interner.intern("kk_flow_emit"),
+            kkFlowCollect: interner.intern("kk_flow_collect"), kkFlowCollectLatest: interner.intern("__kk_flow_collectLatest"),
+            kkFlowRetain: interner.intern("__kk_flow_retain"), kkFlowRelease: interner.intern("__kk_flow_release"),
+            kkFlowToList: interner.intern("__kk_flow_to_list"), kkFlowFirst: interner.intern("__kk_flow_first"),
+            kkFlowSingle: interner.intern("__kk_flow_single"), kkFlowZip: interner.intern("__kk_flow_zip"),
+            kkFlowCombine: interner.intern("__kk_flow_combine"), kkFlowMerge: interner.intern("__kk_flow_merge"),
+            kkFlowFlatMapConcat: interner.intern("__kk_flow_flat_map_concat"),
+            kkFlowFlatMapMerge: interner.intern("__kk_flow_flat_map_merge"),
+            kkFlowFlatMapLatest: interner.intern("__kk_flow_flat_map_latest")
+        )
+        var flowExprIDs: Set<Int32> = []
+        var remainingConsumes = [handle.rawValue: finalConsume ? 2 : 1]
+        // Pin lexical consume releases separately from guarded scope-exit ownership cleanup.
+        let rewritten = CoroutineLoweringPass().rewriteFlowInstructions(
+            originalBody: function.body, originalLocations: function.instructionLocations,
+            module: module, ctx: makeKIRContext(interner: interner),
+            flowExprIDs: &flowExprIDs, remainingConsumes: &remainingConsumes,
+            symbolByExprRaw: [:], names: names, isFlowScopeFunction: false
+        )
+        var afterLoop = false
+        return rewritten.instructions.compactMap { instruction in
+            if case .label(40) = instruction { afterLoop = true }
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  interner.resolve(callee) == "__kk_flow_release"
+            else { return nil }
+            return (afterLoop, arguments[0])
+        }
+    }
+}

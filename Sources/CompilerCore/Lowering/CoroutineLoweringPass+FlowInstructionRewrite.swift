@@ -90,6 +90,7 @@ extension CoroutineLoweringPass {
             if let count = remainingConsumes[sourceHandle.rawValue], count > 0 {
                 let nextCount = count - 1
                 remainingConsumes[sourceHandle.rawValue] = nextCount
+                // A lexical last consume can still repeat through a loop back-edge.
                 let canRelease = nextCount == 0 && !liveAfterCurrentInstruction.contains(sourceHandle)
                 return (sourceHandle, canRelease ? sourceHandle : nil)
             }

@@ -63,19 +63,17 @@ struct AsyncStartModeLoweringTests {
         return callees
     }
 
-    /// The three launchers a start mode can select. `DEFAULT` and `ATOMIC`
-    /// share one: they differ only in whether a cancellation arriving before
-    /// the first suspension can still stop the body, which this runtime does
-    /// not model separately.
+    /// ATOMIC must not share DEFAULT's cancellable initial dispatch.
     private static let allLaunchers: Set<String> = [
         "kk_kxmini_async",
+        "kk_kxmini_async_atomic",
         "kk_kxmini_async_lazy",
         "kk_kxmini_async_undispatched",
     ]
 
     @Test(arguments: [
         ("DEFAULT", "kk_kxmini_async"),
-        ("ATOMIC", "kk_kxmini_async"),
+        ("ATOMIC", "kk_kxmini_async_atomic"),
         ("LAZY", "kk_kxmini_async_lazy"),
         ("UNDISPATCHED", "kk_kxmini_async_undispatched"),
     ])
@@ -99,7 +97,7 @@ struct AsyncStartModeLoweringTests {
     /// closes over an outer variable used to be the only way to reach these.
     @Test(arguments: [
         ("DEFAULT", "kk_kxmini_async_with_cont"),
-        ("ATOMIC", "kk_kxmini_async_with_cont"),
+        ("ATOMIC", "kk_kxmini_async_atomic_with_cont"),
         ("LAZY", "kk_kxmini_async_lazy_with_cont"),
         ("UNDISPATCHED", "kk_kxmini_async_undispatched_with_cont"),
     ])
