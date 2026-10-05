@@ -96,13 +96,20 @@ extension InlineLoweringPass {
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
         var hasNormalReturn = false
+        let ownsNonLocalReturn = nonLocalReturnTargets.contains(.function(inlineTarget.symbol)) || inlineTarget.body.contains {
+            if case let .nonLocalReturn(_, target) = $0 { return target == .function(inlineTarget.symbol) }
+            return false
+        }
         let inlineReturnCount = inlineTarget.body.reduce(0) { count, inst in
             switch inst {
-            case .returnUnit, .returnValue: return count + 1
+            case .returnUnit, .returnValue, .returnIfEqual: return count + 1
             default: return count
             }
         }
-        let needsInlineMergeLabel = inlineReturnCount > 1
+        let needsInlineMergeLabel = inlineReturnCount > 1 || ownsNonLocalReturn || inlineTarget.body.contains {
+            if case .returnIfEqual = $0 { return true }
+            return false
+        }
         let inlineExitLabel: Int32
         var inlineMergeResult: KIRExprID?
         if needsInlineMergeLabel {
@@ -111,8 +118,14 @@ extension InlineLoweringPass {
                 if case .returnValue = $0 { return true }
                 return false
             }
-            if hasValueReturn {
+            if hasValueReturn || ownsNonLocalReturn {
                 inlineMergeResult = module.arena.appendTemporary(type: substitutedInlineReturnType)
+            }
+            if ownsNonLocalReturn, let slot = inlineMergeResult {
+                returnedExpr = slot
+                lowered.append(.beginNonLocalReturnScope(
+                    value: slot, target: inlineExitLabel, function: .function(inlineTarget.symbol)
+                ))
             }
         } else {
             inlineExitLabel = -1
@@ -171,8 +184,9 @@ extension InlineLoweringPass {
             case .returnUnit:
                 hasNormalReturn = true
                 if needsInlineMergeLabel {
-                    if inlineMergeResult == nil {
-                        returnedExpr = nil
+                    if let dest = inlineMergeResult {
+                        let unit = module.arena.appendExpr(.unit, type: ctx.sema?.types.unitType)
+                        lowered.append(.copy(from: unit, to: dest))
                     }
                     lowered.append(.jump(inlineExitLabel))
                 } else {
@@ -196,15 +210,15 @@ extension InlineLoweringPass {
                     lowered.append(.returnValue(resolved))
                 }
 
-            case let .nonLocalReturn(value):
+            case let .nonLocalReturn(value, target):
                 // Non-local return from a lambda inside this inline function.
                 // Preserve it so the caller's inlineTransform can convert it
                 // to a real return from the enclosing function.
                 hasNonLocalReturn = true
                 if let value {
-                    lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)))
+                    lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap), target: target))
                 } else {
-                    lowered.append(.nonLocalReturn(nil))
+                    lowered.append(.nonLocalReturn(nil, target: target))
                 }
 
             case let .constValue(result, value):
@@ -536,10 +550,12 @@ extension InlineLoweringPass {
                 )
 
             case let .returnIfEqual(lhs, rhs):
+                hasNormalReturn = true
                 lowered.append(
-                    .returnIfEqual(
+                    .jumpIfEqual(
                         lhs: InlineExprAliasing.resolveAlias(of: lhs, aliases: localExprMap),
-                        rhs: InlineExprAliasing.resolveAlias(of: rhs, aliases: localExprMap)
+                        rhs: InlineExprAliasing.resolveAlias(of: rhs, aliases: localExprMap),
+                        target: inlineExitLabel
                     )
                 )
 
@@ -647,9 +663,12 @@ extension InlineLoweringPass {
             case .beginFinallyCleanup, .endFinallyCleanup:
                 lowered.append(instruction)
 
-            case let .beginNonLocalReturnScope(value, target):
+            case let .beginNonLocalReturnScope(value, target, function):
                 let slot = InlineExprCloning.cloneOrReuseExpr(value, localExprMap: &localExprMap, in: module.arena)
-                lowered.append(.beginNonLocalReturnScope(value: slot, target: labelRemap[target] ?? target))
+                if case let .function(symbol) = function, let type = ctx.sema?.symbols.functionSignature(for: symbol)?.returnType {
+                    module.arena.setExprType(substituteType(type) ?? type, for: slot)
+                }
+                lowered.append(.beginNonLocalReturnScope(value: slot, target: labelRemap[target] ?? target, function: function))
 
             case .endNonLocalReturnScope:
                 lowered.append(.endNonLocalReturnScope)
@@ -664,6 +683,7 @@ extension InlineLoweringPass {
         }
 
         if needsInlineMergeLabel {
+            if ownsNonLocalReturn { lowered.append(.endNonLocalReturnScope) }
             lowered.append(.label(inlineExitLabel))
         }
 

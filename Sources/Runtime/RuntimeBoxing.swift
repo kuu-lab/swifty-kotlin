@@ -57,12 +57,12 @@ private func runtimeBoxPrimitive<T: AnyObject>(
     }
 }
 
-private func runtimeBoxInt(_ value: Int, anyFallbackTag: Int32) -> Int {
+private func runtimeBoxInt(_ value: Int, anyFallbackTag: Int32, primitiveTypeBase: Int64? = nil) -> Int {
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo, or an already-boxed RuntimeIntBox), pass it
     // through without double-boxing.
     runtimeBoxPrimitive(value) {
-        RuntimeIntBox(value, anyFallbackTag: anyFallbackTag)
+        RuntimeIntBox(value, anyFallbackTag: anyFallbackTag, primitiveTypeBase: primitiveTypeBase)
     }
 }
 
@@ -131,6 +131,16 @@ private func runtimeStaticUnbox<T: AnyObject>(
 @_cdecl("kk_box_int")
 public func kk_box_int(_ value: Int) -> Int {
     runtimeBoxInt(value, anyFallbackTag: 1)
+}
+
+@_cdecl("kk_box_byte")
+public func kk_box_byte(_ value: Int) -> Int {
+    runtimeBoxInt(value, anyFallbackTag: 1, primitiveTypeBase: RuntimeTypeTokenEncoding.byteBase)
+}
+
+@_cdecl("kk_box_short")
+public func kk_box_short(_ value: Int) -> Int {
+    runtimeBoxInt(value, anyFallbackTag: 1, primitiveTypeBase: RuntimeTypeTokenEncoding.shortBase)
 }
 
 @_cdecl("kk_box_uint")
@@ -435,6 +445,20 @@ public func kk_unbox_char(_ obj: Int) -> Int {
 public func kk_box_int_static(_ value: Int) -> Int {
     runtimeStaticBox(value, preservesNullSentinel: true) {
         RuntimeIntBox(value, anyFallbackTag: 1)
+    }
+}
+
+@_cdecl("kk_box_byte_static")
+public func kk_box_byte_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeIntBox(value, primitiveTypeBase: RuntimeTypeTokenEncoding.byteBase)
+    }
+}
+
+@_cdecl("kk_box_short_static")
+public func kk_box_short_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeIntBox(value, primitiveTypeBase: RuntimeTypeTokenEncoding.shortBase)
     }
 }
 

@@ -22,6 +22,21 @@ private func scopeAsyncFailure(_ continuation: Int, _ thrown: UnsafeMutablePoint
 struct RuntimeCoroutineScopeAsyncTests {
     private typealias Entry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 
+    @Test
+    func testSchedulerClockUsesWordABIWithoutTruncatingLongValues() {
+        let currentTime: (Int) -> Int = kk_test_scheduler_current_time
+        let scopeTime: (Int) -> Int = kk_test_scope_current_time
+        let advanceTime: (Int, Int) -> Int = kk_test_scheduler_advance_time_by
+        let scope = kk_coroutine_scope_new_with_context(0)
+        let scheduler = kk_test_scope_scheduler(scope)
+
+        #expect(currentTime(scheduler) == 0)
+        #expect(scopeTime(scope) == 0)
+        _ = advanceTime(scheduler, 4_294_967_296)
+        #expect(currentTime(scheduler) == 4_294_967_296)
+        #expect(scopeTime(scope) == 4_294_967_296)
+    }
+
     @Test(arguments: [0, 1, 2, 3])
     func capturesReturnDeferredValues(start: Int) throws {
         let scope = kk_coroutine_scope_new_with_context(0)

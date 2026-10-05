@@ -915,8 +915,9 @@ extension KotlinParser {
         return startsGenuineDeclaration(at: 0)
     }
 
-    func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator) {
+    func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator, allowsDeclarationAssignment: Bool = false) {
         var progress = false
+        var sawAssignment = false
         var sawTryKeyword = false
         var sawIfKeyword = false
         var parenDepth = 0
@@ -925,6 +926,7 @@ extension KotlinParser {
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+            if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
                isGenuineDeclarationBoundary(token)
             {
@@ -986,7 +988,7 @@ extension KotlinParser {
             default:
                 break
             }
-            if case .symbol(.semicolon) = token.kind {
+            if case .symbol(.semicolon) = token.kind, atTopLevel {
                 break
             }
             if !inBlock, hasLeadingNewline(stream.peek()) {
@@ -1016,6 +1018,7 @@ extension KotlinParser {
                 // name (`a or\n    (b)`) or after an `if (...)` condition whose
                 // branch body starts on the next line.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
+                    || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
                     || endsWithPendingInfixOperator(children)
                     || endsWithControlFlowCondition(children)
                 {

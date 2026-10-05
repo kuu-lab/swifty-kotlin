@@ -2,12 +2,9 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-TYPE-005: Validates that `kotlin.text.Charsets` is registered
-/// as a synthetic object in the `kotlin.text` package and exposes the expected
+/// STDLIB-TEXT-TYPE-005: Validates that bundled `kotlin.text.Charsets` exposes the expected
 /// charset constants (UTF_8, UTF_16, US_ASCII, ISO_8859_1, UTF_16BE, UTF_16LE,
 /// UTF_32, UTF_32BE, UTF_32LE), each with type `kotlin.text.Charset`.
-/// See `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringStubs.swift`
-/// for the registration site.
 @Suite
 struct CharsetsSyntheticObjectTests {
 
@@ -34,6 +31,9 @@ struct CharsetsSyntheticObjectTests {
         fun utf32le(): Charset = Charsets.UTF_32LE
 
         fun encode(s: String) = s.toByteArray(Charsets.UTF_8)
+        fun name(charset: Charset): String = charset.name()
+        fun render(charset: Charset): String = charset.toString()
+        fun nullableName(charset: Charset?): String? = charset?.name()
         """
 
         let ctx = makeContextFromSource(source)
@@ -50,7 +50,7 @@ struct CharsetsSyntheticObjectTests {
         let objectFQ = ["kotlin", "text", "Charsets"].map { interner.intern($0) }
         let objectSymbol = try #require(
             sema.symbols.lookup(fqName: objectFQ),
-            "Expected kotlin.text.Charsets to be registered as a synthetic object"
+            "Expected kotlin.text.Charsets to be registered as a bundled object"
         )
         #expect(sema.symbols.symbol(objectSymbol)?.kind == .object)
         let classFQ = ["kotlin", "text", "Charset"].map { interner.intern($0) }
@@ -59,6 +59,13 @@ struct CharsetsSyntheticObjectTests {
             "Expected kotlin.text.Charset to be registered"
         )
         #expect(sema.symbols.symbol(classSymbol)?.kind == .class)
+        for name in ["name", "toString"] {
+            let member = try #require(sema.symbols.lookup(fqName: classFQ + [interner.intern(name)]))
+            let signature = try #require(sema.symbols.functionSignature(for: member))
+            #expect(signature.parameterTypes.isEmpty)
+            #expect(signature.returnType == sema.types.stringType)
+            #expect(sema.symbols.externalLinkName(for: member) == "__kk_charset_name")
+        }
         let charsetType = sema.types.make(.classType(ClassType(
             classSymbol: classSymbol,
             args: [],

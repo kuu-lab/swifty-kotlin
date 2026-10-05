@@ -87,6 +87,58 @@ struct IntegerNarrowingPassTests {
 
     // MARK: - Char / small-width arithmetic
 
+    @Test(arguments: [PrimitiveType.ubyte, .ushort, .uint, .ulong, .int, .long])
+    func testInvResultIsNarrowedToItsPrimitiveWidth(primitive: PrimitiveType) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+        let type = sema.types.make(.primitive(primitive, .nonNull))
+        let value = arena.appendTemporary(type: type)
+        let result = arena.appendTemporary(type: type)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_op_inv"), arguments: [value], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let pass = IntegerNarrowingPass()
+
+        #expect(pass.shouldRun(module: module, ctx: ctx))
+        try pass.run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        guard case let .call(_, invCallee, invArgs, rawResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the inv call to be preserved"); return
+        }
+        #expect(interner.resolve(invCallee) == "kk_op_inv")
+        #expect(invArgs == [value])
+        let expectedNarrowCallee: String? = switch primitive {
+        case .ubyte: "kk_int_to_ubyte"
+        case .ushort: "kk_int_to_ushort"
+        case .uint: "kk_uint_narrow"
+        case .int: "kk_int_narrow"
+        default: nil
+        }
+        guard let expectedNarrowCallee else {
+            #expect(lowered.count == 2)
+            #expect(rawResult == result)
+            return
+        }
+        #expect(lowered.count == 3)
+        #expect(rawResult != result)
+        guard case let .call(_, narrowCallee, narrowArgs, narrowResult, canThrow, _, _, _) = lowered[1] else {
+            Issue.record("Expected a narrowing call after inv"); return
+        }
+        #expect(interner.resolve(narrowCallee) == expectedNarrowCallee)
+        #expect(narrowArgs == [rawResult])
+        #expect(narrowResult == result)
+        #expect(arena.exprType(result) == type)
+        #expect(!canThrow)
+    }
+
     @Test(arguments: ["kk_op_add", "kk_op_sub"])
     func testCharPlusMinusIntResultIsWrappedToSixteenBits(calleeName: String) throws {
         let interner = StringInterner()
@@ -122,18 +174,16 @@ struct IntegerNarrowingPassTests {
         #expect(wrapResult == result)
     }
 
-    @Test
-    func testUByteAdditionResultIsNotWrappedByThePass() throws {
-        // Sema types `UByte + UByte` as UByte although Kotlin yields UInt, so the pass must
-        // leave small unsigned arithmetic alone; `++` / `--` wrap at their own lowering site.
+    @Test(arguments: [PrimitiveType.ubyte, .ushort])
+    func testSmallUnsignedAdditionResultIsWrappedToUInt(operandKind: PrimitiveType) throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let sema = Self.sharedSema
-        let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
+        let operandType = sema.types.make(.primitive(operandKind, .nonNull))
 
-        let lhs = arena.appendExpr(.temporary(0), type: ubyteType)
-        let rhs = arena.appendExpr(.temporary(1), type: ubyteType)
-        let result = arena.appendExpr(.temporary(2), type: ubyteType)
+        let lhs = arena.appendExpr(.temporary(0), type: operandType)
+        let rhs = arena.appendExpr(.temporary(1), type: operandType)
+        let result = arena.appendExpr(.temporary(2), type: sema.types.uintType)
         let (module, declID) = makeModule(
             body: [
                 .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
@@ -147,11 +197,18 @@ struct IntegerNarrowingPassTests {
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
         let lowered = bodyInDecl(declID, module: module)
-        #expect(lowered.count == 2)
-        guard case let .call(_, _, _, addResult, _, _, _, _) = lowered[0] else {
-            Issue.record("Expected the UByte add call to be preserved"); return
+        #expect(lowered.count == 3)
+        guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the small unsigned add call to be preserved"); return
         }
-        #expect(addResult == result)
+        #expect(interner.resolve(addCallee) == "kk_op_add")
+        #expect(addResult != result)
+        guard case let .call(_, narrowCallee, narrowArgs, narrowResult, _, _, _, _) = lowered[1] else {
+            Issue.record("Expected UInt narrowing after small unsigned arithmetic"); return
+        }
+        #expect(interner.resolve(narrowCallee) == "kk_uint_narrow")
+        #expect(narrowArgs == [addResult])
+        #expect(narrowResult == result)
     }
 
     // MARK: - Shift rewriting

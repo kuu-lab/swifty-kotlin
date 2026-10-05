@@ -137,6 +137,67 @@ struct MapHOFLoweringRoutingTests {
 
     // MARK: - the no-redirect contract
 
+    @Test
+    func mapForEachResolvesMatchingCallbackArity() throws {
+        let source = """
+        fun visit(key: String, value: Int) { println(key + value) }
+        fun main() {
+            val m = mapOf("a" to 1, "b" to 2)
+            m.forEach { key, value -> println(key.length + value) }
+            m.forEach { (key, value) -> println(key.length + value) }
+            m.forEach { entry -> println(entry.value) }
+            m.forEach { println(it.key) }
+            val action: (String, Int) -> Unit = { key, value -> println(key + value) }
+            m.forEach(action)
+            m.forEach(::visit)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "MapForEachArity", emit: .kirDump)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let sema = try #require(ctx.sema)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = Self.mapHOFCalls(in: body, interner: ctx.interner).filter { $0.name == "forEach" }
+            #expect(calls.count == 6)
+            var arities: [Int] = []
+            for call in calls {
+                let symbol = try #require(call.symbol)
+                #expect(sema.symbols.isSourceBackedSymbol(symbol))
+                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                let callback = try #require(signature.parameterTypes.first)
+                guard case let .functionType(functionType) = sema.types.kind(of: callback) else {
+                    Issue.record("forEach must take a function-typed callback")
+                    continue
+                }
+                arities.append(functionType.params.count)
+            }
+            #expect(arities == [2, 1, 1, 1, 2, 2])
+            #expect(Set(Self.allCallees(in: module, interner: ctx.interner))
+                .intersection(Self.legacyMapHOFRuntimeCallees).isEmpty)
+        }
+    }
+
+    @Test(arguments: [
+        "{ key, value, extra -> println(key) }",
+        "{ key: Int, value: String -> println(key) }",
+    ])
+    func mapForEachRejectsIncompatibleCallbacks(callback: String) throws {
+        let source = """
+        fun main() {
+            val m = mapOf("a" to 1)
+            m.forEach \(callback)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "MapForEachInvalid", emit: .kirDump)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError, "incompatible callback must not reach codegen")
+        }
+    }
+
     /// All 15 names survive `CollectionLiteralLoweringPass` as resolved
     /// source calls, and no legacy `kk_map_*` name reaches the lowered
     /// module.

@@ -285,7 +285,7 @@ extension DataFlowSemaPhase {
                 )
                 validateOverrideOpenness(
                     memberMeta: memberMeta,
-                    ownerSymbol: symbol,
+                    memberSymbol: memberSymbol,
                     ctx: ctx
                 )
                 validateVisibilityConstraints(
@@ -493,22 +493,12 @@ extension DataFlowSemaPhase {
 
     private func validateOverrideOpenness(
         memberMeta: MemberMeta,
-        ownerSymbol: SymbolID,
+        memberSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
         // STDLIB-INHERIT-018: Validate that override members follow Kotlin's openness rules
 
-        // Find the member symbol by looking in the owner's children
-        guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
-
-        let memberSymbol = ctx.symbols.children(ofFQName: ownerSym.fqName).first { childID in
-            guard let childSym = ctx.symbols.symbol(childID) else { return false }
-            return childSym.name == memberMeta.name &&
-                   (childSym.kind == .function || childSym.kind == .property)
-        }
-
-        guard let memberSymID = memberSymbol,
-              let memberSym = ctx.symbols.symbol(memberSymID) else { return }
+        guard let memberSym = ctx.symbols.symbol(memberSymbol) else { return }
 
         // Check if this is an override member
         if memberMeta.hasOverride {

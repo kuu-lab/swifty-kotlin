@@ -453,7 +453,7 @@ extension ASTModelsTests {
         let param = ValueParamDecl(name: interner.intern("a"), type: TypeRefID(rawValue: 0))
         let typeRefID = arena.appendTypeRef(.named(path: [interner.intern("Int")], args: [], nullable: false))
         let localFun = Expr.localFunDecl(name: interner.intern("helper"), valueParams: [param], returnType: typeRefID, body: .expr(bodyID, r), isSuspend: true, range: r)
-        if case let .localFunDecl(name, params, ret, body, isSuspend, _) = localFun {
+        if case let .localFunDecl(name, _, params, ret, body, isSuspend, _) = localFun {
             #expect(name == interner.intern("helper"))
             #expect(params.count == 1)
             #expect(ret == typeRefID)

@@ -5,6 +5,21 @@ public extension RuntimeABISpec {
     /// KParameter reflection runtime functions (STDLIB-REFLECT-063).
     static let kParameterFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_kparameter_create_typed",
+            parameters: [
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
+                RuntimeABIParameter(name: "typeRaw", type: .intptr),
+                RuntimeABIParameter(name: "isOptional", type: .intptr),
+                RuntimeABIParameter(name: "kind", type: .intptr),
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "callableOwner", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kparameter_create",
             parameters: [
                 RuntimeABIParameter(name: "index", type: .intptr),
@@ -66,6 +81,34 @@ public extension RuntimeABISpec {
 
     /// KFunction, KProperty, and KConstructor reflection runtime functions.
     static let kFunctionFunctions: [RuntimeABIFunctionSpec] = [
+        RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_register",
+            parameters: ["raw", "invoker", "environment", "parameters", "typeParameters", "flags", "visibility", "setterInvoker", "setterParameters"].map {
+                RuntimeABIParameter(name: $0, type: .intptr)
+            }, returnType: .intptr, section: "Reflection", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_is_runtime",
+            parameters: [RuntimeABIParameter(name: "raw", type: .intptr)],
+            returnType: .intptr, section: "Reflection", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_get_metadata",
+            parameters: [RuntimeABIParameter(name: "raw", type: .intptr), RuntimeABIParameter(name: "member", type: .intptr)],
+            returnType: .intptr, section: "Reflection", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_call",
+            parameters: [RuntimeABIParameter(name: "raw", type: .intptr), RuntimeABIParameter(name: "arguments", type: .intptr),
+                         RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)],
+            returnType: .intptr, section: "Reflection", isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_call_by",
+            parameters: [RuntimeABIParameter(name: "raw", type: .intptr), RuntimeABIParameter(name: "arguments", type: .intptr),
+                         RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)],
+            returnType: .intptr, section: "Reflection", isThrowing: true
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_kfunction_create",
             parameters: [
@@ -220,6 +263,27 @@ public extension RuntimeABISpec {
 
     /// Callable reference type identity functions (REFL-003).
     static let callableRefFunctions: [RuntimeABIFunctionSpec] = [
+        RuntimeABIFunctionSpec(
+            name: "__kk_function_copy_description",
+            parameters: [
+                RuntimeABIParameter(name: "source", type: .intptr),
+                RuntimeABIParameter(name: "target", type: .intptr),
+            ],
+            returnType: .void,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_function_set_description",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "descriptionRaw", type: .intptr),
+                RuntimeABIParameter(name: "identity", type: .intptr),
+            ],
+            returnType: .void,
+            section: "Reflection",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_callable_ref_tag_kfunction",
             parameters: [
