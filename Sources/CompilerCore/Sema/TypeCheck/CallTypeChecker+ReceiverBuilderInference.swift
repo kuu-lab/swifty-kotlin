@@ -39,6 +39,7 @@ extension CallTypeChecker {
               calleeName != launcherNames.async,
               calleeName != launcherNames.coroutineScope,
               calleeName != launcherNames.supervisorScope,
+              calleeName != launcherNames.suspendCoroutine,
               calleeName != launcherNames.sequenceFn
         else { return nil }
         let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
@@ -64,11 +65,14 @@ extension CallTypeChecker {
             guard case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr),
                   let parameter = mapping[index],
                   case let .functionType(function) = sema.types.kind(of: signature.parameterTypes[parameter]),
-                  function.returnType == sema.types.unitType,
-                  let receiver = function.receiver,
-                  resolveClassType(receiver, sema: sema) != nil
+                  function.returnType == sema.types.unitType
             else { return false }
-            return session.mentionsVariable(receiver, types: sema.types)
+            // Ordinary callback parameters carry postponed variables too:
+            // `(Continuation<T>) -> Unit` can infer T from uses in the body.
+            return ((function.receiver.map { [$0] } ?? []) + function.params).contains { input in
+                resolveClassType(input, sema: sema) != nil
+                    && session.mentionsVariable(input, types: sema.types)
+            }
         }
         guard lambdaIndices.count == 1, let lambdaIndex = lambdaIndices.first,
               let parameterIndex = mapping[lambdaIndex]
@@ -92,6 +96,19 @@ extension CallTypeChecker {
                 subtype: signature.returnType, supertype: expectedType,
                 typeVarBySymbol: variables, typeSystem: sema.types, blameRange: range
             ))
+        }
+        if case let .functionType(function) = sema.types.kind(of: signature.parameterTypes[parameterIndex]),
+           let annotations = driver.exprChecker.resolveLambdaParamAnnotations(
+               args[lambdaIndex].expr, ctx: ctx, paramCount: function.params.count
+           )
+        {
+            for (parameter, annotation) in zip(function.params, annotations) {
+                guard let annotation else { continue }
+                session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                    subtype: parameter, supertype: annotation,
+                    typeVarBySymbol: variables, typeSystem: sema.types, blameRange: range
+                ))
+            }
         }
         let seed = ctx.resolver.probeArgumentTypeSubstitution(
             signature: signature, typeVarBySymbol: variables,
@@ -160,5 +177,48 @@ extension CallTypeChecker {
         applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
+    }
+
+    func collectPostponedArgumentConstraints(
+        args: [CallArgument],
+        argTypes: [TypeID],
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> [TypeID] {
+        guard let session = ctx.builderInference,
+              candidates.count == 1,
+              let candidate = candidates.first,
+              let signature = ctx.sema.symbols.functionSignature(for: candidate),
+              signature.typeParameterSymbols.isEmpty,
+              let mapping = ctx.resolver.buildParameterMapping(
+                  signature: signature,
+                  callArgs: zip(args, argTypes).map {
+                      CallArg(label: $0.0.label, isSpread: $0.0.isSpread, type: $0.1)
+                  },
+                  symbols: ctx.sema.symbols, typeSystem: ctx.sema.types
+              )
+        else { return argTypes }
+        let sema = ctx.sema
+        for index in args.indices where session.mentionsVariable(argTypes[index], types: sema.types) {
+            guard let parameter = mapping[index] else { continue }
+            session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                subtype: argTypes[index], supertype: signature.parameterTypes[parameter],
+                typeVarBySymbol: session.typeVarBySymbol, typeSystem: sema.types,
+                blameRange: ctx.ast.arena.exprRange(args[index].expr)
+            ))
+        }
+        let solution = ConstraintSolver().solve(
+            vars: ctx.resolver.usedTypeVariables(from: session.constraints),
+            constraints: session.constraints, typeSystem: sema.types
+        )
+        guard solution.isSuccess else { return argTypes }
+        // Use the provisional solution for this inner call. The enclosing
+        // callback is checked again after all of its constraints are solved.
+        return argTypes.map {
+            sema.types.substituteTypeParameters(
+                in: $0, substitution: solution.substitution,
+                typeVarBySymbol: session.typeVarBySymbol
+            )
+        }
     }
 }
