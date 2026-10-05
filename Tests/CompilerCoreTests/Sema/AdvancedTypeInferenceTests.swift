@@ -14,6 +14,10 @@ struct AdvancedTypeInferenceTests {
         "sequence { for (value in 0 until 2) { for (value in 2 until 3) yield(value) } }",
         "iterator { for (value in 0 until 3) yield(value) }",
         "iterator<Int> { val value = 7; yield(value) }",
+        "sequence<Int> { }",
+        "sequence<Int> { throw IllegalArgumentException(\"before yield\") }",
+        "iterator<Int> { }",
+        "iterator<Int> { throw IllegalArgumentException(\"before yield\") }",
     ])
     func testSequenceBuilderBootstrapUsesLambdaScope(builder: String) throws {
         let source = """
