@@ -144,7 +144,7 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-LEX-0004",
             pass: "LEX",
             defaultSeverity: .error,
-            summary: "Invalid escape sequence in string."
+            summary: "Unescaped line break in string literal."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-LEX-0006",
@@ -223,6 +223,12 @@ enum DiagnosticRegistry {
             pass: "PARSE",
             defaultSeverity: .error,
             summary: "Structured syntax nesting exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0014",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected an identifier after '::'."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",

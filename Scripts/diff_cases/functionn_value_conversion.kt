@@ -41,6 +41,8 @@ fun main() {
     val toStringRef: Function1<Int, String> = Int::toString
     println(widen(toStringRef)(23))
     val sumRef: Function2<Int, Int, Int> = Int::plus
+    val productRef: Function2<Long, Long, Long> = Long::times
+    println(productRef(7L, 6L))
     println(two(sumRef)(24, 25))
     println(sumRef(26, 27))
     val f0: Function0<Int> = { 7 }

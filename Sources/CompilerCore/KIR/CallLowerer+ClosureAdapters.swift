@@ -565,6 +565,14 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_function_copy_description"),
+            arguments: [loweredArgID, materialized],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
         driver.ctx.registerCallableValue(
             materialized,
             symbol: resolvedCallableInfo.symbol,
@@ -583,7 +591,8 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction],
         arguments: inout [KIRExprID],
-        valueArgOffsetOverride: Int? = nil
+        valueArgOffsetOverride: Int? = nil,
+        parameterMapping: [Int: Int]? = nil
     ) {
         guard let chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
@@ -594,12 +603,6 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
-
-        // Source-backed inline functions are fully expanded in the same
-        // module, so lambda arguments can be consumed directly there.
-        if isInline, !isImported {
-            return
-        }
 
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
@@ -639,14 +642,29 @@ extension CallLowerer {
             && !sourceArgExprs.isEmpty
         for parameterIndex in signature.parameterTypes.indices {
             let finalArgIndex = valueArgOffset + parameterIndex
-            let sourceArgExprIndex = (hasTrailingLambdaGap && parameterIndex == lastParameterIndex)
-                ? sourceArgExprs.count - 1
-                : parameterIndex
+            let sourceArgExprIndex: Int
+            if let parameterMapping {
+                guard let argumentIndex = parameterMapping.first(where: { $0.value == parameterIndex })?.key else {
+                    continue
+                }
+                sourceArgExprIndex = argumentIndex
+            } else {
+                sourceArgExprIndex = (hasTrailingLambdaGap && parameterIndex == lastParameterIndex)
+                    ? sourceArgExprs.count - 1
+                    : parameterIndex
+            }
             guard finalArgIndex < arguments.count,
                   sourceArgExprs.indices.contains(sourceArgExprIndex),
                   !signature.valueParameterIsVararg.indices.contains(parameterIndex)
                     || !signature.valueParameterIsVararg[parameterIndex]
             else {
+                continue
+            }
+            // Same-module inline expansion can consume raw symbols directly,
+            // but tagged callable references still cross the erased invoke ABI.
+            if isInline, !isImported,
+               case .symbolRef? = arena.expr(arguments[finalArgIndex])
+            {
                 continue
             }
             let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])

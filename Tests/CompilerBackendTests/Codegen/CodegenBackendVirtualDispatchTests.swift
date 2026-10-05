@@ -8,6 +8,16 @@ import Testing
 struct CodegenBackendVirtualDispatchTests {
 
     @Test(arguments: [true, false])
+    func testCustomMutableEntrySetValueDispatchesThroughInterface(allowDefaultStdlibLibrary: Bool) throws {
+        try assertKotlinOutput(
+            try diffCaseSource("custom_mutable_map_entry_set_value.kt"),
+            moduleName: "CustomMutableEntrySetValue",
+            expected: "custom\n1\n1\n4\n4\n9\n2\n5\nnull\nbefore\nnull\nnull\nafter\n3\n8\n8\nruntime\n8\ncaught\n10\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testInterfaceBlockBodyMinimalReproducer(allowDefaultStdlibLibrary: Bool) throws {
         let source = """
         interface I {

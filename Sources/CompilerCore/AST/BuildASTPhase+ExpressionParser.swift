@@ -115,7 +115,22 @@ extension BuildASTPhase {
         }
 
         func parse() -> ExprID? {
-            parseAssignmentOrExpression()
+            let expression = parseAssignmentOrExpression()
+            if expression == nil, let first = tokens.first {
+                switch first.kind {
+                case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
+                     .symbol(.equalEqual), .symbol(.bangEqual), .symbol(.tripleEqual), .symbol(.notTripleEqual),
+                     .symbol(.lessThan), .symbol(.greaterThan), .symbol(.lessOrEqual), .symbol(.greaterOrEqual),
+                     .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign), .symbol(.starAssign),
+                     .symbol(.slashAssign), .symbol(.percentAssign), .symbol(.dotDot), .symbol(.dotDotLt),
+                     .symbol(.arrow), .symbol(.plusPlus), .symbol(.minusMinus), .symbol(.bang),
+                     .keyword(.in), .keyword(.is), .keyword(.as):
+                    diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: first.range)
+                default:
+                    break
+                }
+            }
+            return expression
         }
 
         private func parseAssignmentOrExpression() -> ExprID? {
@@ -148,7 +163,7 @@ extension BuildASTPhase {
             guard minPrecedence <= 85 else { return nil }
             _ = consume()
             if negated { _ = consume() }
-            guard let typeRef = parseTypeReference(token.range) else { return nil }
+            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else { return nil }
             let range = mergeRanges(astArena.exprRange(lhs), nil, fallback: token.range)
             return astArena.appendExpr(.isCheck(expr: lhs, type: typeRef, negated: negated, range: range))
         }

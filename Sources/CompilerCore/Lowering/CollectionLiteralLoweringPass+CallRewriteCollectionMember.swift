@@ -54,7 +54,7 @@ extension CollectionLiteralConstructionLoweringPass {
                         arguments: [receiverID],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil
+                        thrownResult: thrownResult
                     ))
                     return true
                 }
@@ -203,7 +203,7 @@ extension CollectionLiteralConstructionLoweringPass {
                         arguments: [receiverID],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil
+                        thrownResult: thrownResult
                     ))
                     return true
                 }

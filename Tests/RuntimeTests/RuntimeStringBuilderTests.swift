@@ -4,6 +4,126 @@ import Testing
 
 @Suite(.serialized)
 struct RuntimeStringBuilderTests {
+    @Test(arguments: [0, 1, 16, 100, 200])
+    func testCapacityConstructorReservesRequestedStorage(capacity: Int) {
+        var thrown = 123
+        let builder = __kk_string_builder_new_capacity_checked(capacity, &thrown)
+
+        #expect(thrown == 0)
+        #expect(__kk_string_builder_capacity(builder) == capacity)
+        #expect(__kk_string_builder_length_prop(builder) == 0)
+        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "")
+
+        let box = RuntimeStringBuilderBox(units: [], capacity: capacity)
+        #expect(box.units.capacity >= capacity)
+    }
+
+    @Test
+    func testNegativeCapacityStillThrows() {
+        var thrown = 0
+        #expect(__kk_string_builder_new_capacity_checked(-1, &thrown) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func testEnsureCapacityGrowsWithoutChangingContents() {
+        let builder = __kk_string_builder_new()
+        #expect(__kk_string_builder_capacity(builder) == 16)
+        _ = __kk_string_builder_append_obj(builder, makeRuntimeString("abc"))
+        _ = __kk_string_builder_ensure_capacity(builder, 200)
+        #expect(__kk_string_builder_capacity(builder) == 200)
+        for requested in [-1, 0, 100, 200] {
+            _ = __kk_string_builder_ensure_capacity(builder, requested)
+            #expect(__kk_string_builder_capacity(builder) == 200)
+        }
+        #expect(__kk_string_builder_length_prop(builder) == 3)
+        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "abc")
+
+        let box = RuntimeStringBuilderBox("abc")
+        box.ensureCapacity(200)
+        #expect(box.capacity == 200)
+        #expect(box.units.capacity >= 200)
+        #expect(box.stringValue == "abc")
+    }
+
+    @Test
+    func testGrowthAndTrimUseUTF16Capacity() {
+        let builder = __kk_string_builder_new()
+        _ = __kk_string_builder_append_obj(builder, makeRuntimeString(String(repeating: "a", count: 20)))
+        #expect(__kk_string_builder_capacity(builder) == 34)
+        _ = __kk_string_builder_clear(builder)
+        #expect(__kk_string_builder_capacity(builder) == 34)
+        _ = __kk_string_builder_append_obj(builder, makeRuntimeString("a😀b"))
+        _ = __kk_string_builder_trim_to_size(builder)
+        #expect(__kk_string_builder_capacity(builder) == 4)
+        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "a😀b")
+        _ = __kk_string_builder_append_char(builder, 99)
+        #expect(__kk_string_builder_capacity(builder) == 10)
+        _ = __kk_string_builder_clear(builder)
+        _ = __kk_string_builder_trim_to_size(builder)
+        #expect(__kk_string_builder_capacity(builder) == 0)
+        _ = __kk_string_builder_append_char(builder, 120)
+        #expect(__kk_string_builder_capacity(builder) == 2)
+    }
+
+    @Test
+    func testStringAndCharSequenceConstructorsIncludeUTF16Slack() {
+        let builder = makeBuilder("a😀b")
+        #expect(__kk_string_builder_capacity(builder) == 20)
+        let copied = __kk_string_builder_new_from_char_sequence(builder)
+        #expect(__kk_string_builder_capacity(copied) == 20)
+        #expect(runtimeStringValue(__kk_string_builder_toString(copied)) == "a😀b")
+    }
+
+    @Test
+    func testInsertAndSetLengthGrowAndRetainCapacity() {
+        var thrown = 0
+        let builder = __kk_string_builder_new_capacity_checked(2, &thrown)
+        _ = __kk_string_builder_append_obj(builder, makeRuntimeString("ab"))
+        _ = __kk_string_builder_insert_char_sequence(builder, 1, builder, &thrown)
+        #expect(thrown == 0)
+        #expect(__kk_string_builder_capacity(builder) == 6)
+        _ = __kk_string_builder_set_length(builder, 20, &thrown)
+        #expect(thrown == 0)
+        #expect(__kk_string_builder_capacity(builder) == 20)
+        #expect(__kk_string_builder_length_prop(builder) == 20)
+        _ = __kk_string_builder_set_length(builder, 1, &thrown)
+        #expect(__kk_string_builder_capacity(builder) == 20)
+    }
+
+    @Test
+    func testComparableUsesSeparateInterfaceSlotAndUTF16Ordering() {
+        let lhs = makeBuilder("ab")
+        let rhs = makeBuilder("az")
+        let comparableID = Int(runtimeStableNominalTypeID(fqName: "kotlin.Comparable"))
+        let method = kk_itable_lookup_dynamic(lhs, comparableID, 0)
+        #expect(method != 0)
+        let compare = unsafeBitCast(
+            method,
+            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var thrown = 1
+        #expect(compare(lhs, rhs, &thrown) == -24)
+        #expect(thrown == 0)
+        #expect(__kk_comparable_compareTo(lhs, rhs) == -24)
+        #expect(kk_compare_any(lhs, rhs) == -24)
+        #expect(__kk_comparable_compareTo(makeBuilder("ab"), makeBuilder("abcd")) == -2)
+        #expect(__kk_comparable_compareTo(makeBuilder(""), makeBuilder("abc")) == -3)
+        #expect(__kk_comparable_compareTo(makeBuilder("\u{10000}"), makeBuilder("\u{E800}")) == -4096)
+        let highSurrogate = runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(units: [0xD800])))
+        let lowSurrogate = runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(units: [0xDC00])))
+        #expect(__kk_comparable_compareTo(highSurrogate, lowSurrogate) == -1024)
+        #expect(__kk_comparable_compareTo(lhs, lhs) == 0)
+        _ = __kk_string_builder_append_obj(lhs, makeRuntimeString("zz"))
+        #expect(__kk_comparable_compareTo(lhs, makeBuilder("ab")) == 2)
+        #expect(runtimeIsAssignable(
+            sourceTypeID: runtimeObjectTypeID(rawValue: lhs)!,
+            targetTypeID: Int64(comparableID)
+        ))
+        let charSequenceID = Int(runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
+        #expect(kk_itable_lookup_dynamic(lhs, charSequenceID, 0) != method)
+    }
+
     @Test
     func testBridgeCreatesAppendsAndRendersStringBuilder() {
         let builder = __kk_string_builder_new()

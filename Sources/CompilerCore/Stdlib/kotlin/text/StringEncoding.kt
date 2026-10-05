@@ -2,7 +2,13 @@ package kotlin.text
 
 import kotlin.internal.KsSymbolName
 
-public class Charset internal constructor(internal val tag: Int)
+public class Charset internal constructor(internal val tag: Int) {
+    @KsSymbolName("__kk_charset_name")
+    public external fun name(): String
+
+    @KsSymbolName("__kk_charset_name")
+    public external override fun toString(): String
+}
 
 public object Charsets {
     @KsSymbolName("__kk_charset_utf_8")

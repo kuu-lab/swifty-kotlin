@@ -50,6 +50,21 @@ extension BuildKIRRegressionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func testBuildKIRMaterializesNominalPrimitiveOperatorReferences() throws {
+        let ctx = makeContextFromSource("""
+        fun apply(op: Function2<Int, Int, Int>): Int = op(2, 3)
+        fun main() {
+            val plus: Function2<Int, Int, Int> = Int::plus
+            val times: Function2<Long, Long, Long> = Long::times
+            println(plus(2, 3))
+            println(times(7L, 6L))
+            println(apply(Int::times))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: 0 ... 5)
     func testBuildKIRRegistersAritySpecificNominalInvokeABI(arity: Int) throws {
         let arguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
@@ -70,6 +85,47 @@ extension BuildKIRRegressionTests {
         let invoke = try #require(sema.symbols.lookup(fqName: symbol.fqName + [ctx.interner.intern("invoke")]))
         let linkName = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
         #expect(sema.symbols.externalLinkName(for: invoke) == linkName)
+    }
+
+    @Test func testBuildKIRInlineCallableReferencesUseErasedFunctionValueAdapters() throws {
+        let source = """
+        fun visit(key: String, value: Int) { println("$key$value") }
+        inline fun <K, V> visitPair(key: K, value: V, action: (K, V) -> Unit) {
+            action(key, value)
+        }
+        fun main() {
+            val stored = ::visit
+            visitPair("a", 1, ::visit)
+            visitPair("b", 2, stored)
+            visitPair("c", 3) { key, value -> println("$key$value") }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let materializedCallbacks = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_function_create_2"
+            else { return nil }
+            return result
+        }
+        let callbacks = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "visitPair"
+            else { return nil }
+            return arguments.last
+        }
+        #expect(materializedCallbacks.count == 2)
+        #expect(callbacks.count == 3)
+        #expect(Array(callbacks.prefix(2)) == materializedCallbacks)
+        let literalCallback = try #require(callbacks.last)
+        guard case .symbolRef? = module.arena.expr(literalCallback) else {
+            Issue.record("inline lambda literals must remain directly expandable")
+            return
+        }
     }
 
     @Test func testBuildKIRObjectLiteralArgumentIsNotLoweredToUnitPlaceholder() throws {

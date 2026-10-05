@@ -40,7 +40,7 @@ public extension RuntimeABISpec {
     ]
 
     /// Prefix of compiler-generated C link names for module functions
-    /// (`kk_fn_<name>_<symbolID>`, `s` marker for synthetic/negative symbols).
+    /// (`kk_fn_<name>_<symbolID>__<namespace>`, `s` marker for negative symbols).
     /// KIR calls may carry these names directly when a lowering pass rewrites
     /// a call to the target's link name; they resolve at final link time.
     static let compilerGeneratedLinkNamePrefix = "kk_fn_"

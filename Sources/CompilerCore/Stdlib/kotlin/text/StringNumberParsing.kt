@@ -167,6 +167,12 @@ public fun String.toShortOrNull(): Short? {
     return __kk_string_toShortOrNull(this)
 }
 
+public fun String.toShortOrNull(radix: Int): Short? {
+    val value = toIntOrNull(radix) ?: return null
+    if (value < -32768 || value > 32767) return null
+    return value.toShort()
+}
+
 public fun String.toByte(): Byte {
     return __kk_string_toByte(this)
 }
@@ -179,12 +185,34 @@ public fun String.toByteOrNull(): Byte? {
     return __kk_string_toByteOrNull(this)
 }
 
+public fun String.toByteOrNull(radix: Int): Byte? {
+    val value = toIntOrNull(radix) ?: return null
+    if (value < -128 || value > 127) return null
+    return value.toByte()
+}
+
+public fun String.toUByte(): UByte {
+    return toUByteOrNull() ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
+public fun String.toUByte(radix: Int): UByte {
+    return toUByteOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
 public fun String.toUByteOrNull(): UByte? {
     return __kk_string_toUByteOrNull(this)
 }
 
 public fun String.toUByteOrNull(radix: Int): UByte? {
     return __kk_string_toUByteOrNull_radix(this, radix)
+}
+
+public fun String.toUShort(): UShort {
+    return toUShortOrNull() ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
+public fun String.toUShort(radix: Int): UShort {
+    return toUShortOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
 }
 
 public fun String.toUShortOrNull(): UShort? {
@@ -195,12 +223,28 @@ public fun String.toUShortOrNull(radix: Int): UShort? {
     return __kk_string_toUShortOrNull_radix(this, radix)
 }
 
+public fun String.toUInt(): UInt {
+    return toUIntOrNull() ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
+public fun String.toUInt(radix: Int): UInt {
+    return toUIntOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
 public fun String.toUIntOrNull(): UInt? {
     return __kk_string_toUIntOrNull(this)
 }
 
 public fun String.toUIntOrNull(radix: Int): UInt? {
     return __kk_string_toUIntOrNull_radix(this, radix)
+}
+
+public fun String.toULong(): ULong {
+    return toULongOrNull() ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
+public fun String.toULong(radix: Int): ULong {
+    return toULongOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
 }
 
 public fun String.toULongOrNull(): ULong? {

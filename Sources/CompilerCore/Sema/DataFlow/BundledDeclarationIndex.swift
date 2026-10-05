@@ -514,20 +514,6 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
         }
-        if ownerFQName == ["kotlin", "collections", "MutableMap"] {
-            // Kotlin 2.3.10 keeps MutableMap.putAll(Map) and MutableMap.remove
-            // as members while also declaring source-backed overloads. The
-            // bundled index records arity but not parameter types, so these
-            // retained bridges are intentional overload collisions rather than
-            // missed KSP-002 skips. KSP-703 moved `remove`'s interface member
-            // itself to a source-backed @KsSymbolName override on
-            // MutableMap.kt (no synthetic `remove` registration exists to
-            // overlap-warn about any more) — this arm is now vestigial for
-            // `remove` specifically but harmless to leave, since `putAll`
-            // still needs it and both share this one arity-only check.
-            let name = interner.resolve(key.name)
-            return (name == "putAll" || name == "remove") && key.arity == 1
-        }
         if ownerFQName == ["kotlin", "collections", "MutableSet"] {
             // MutableSet.addAll(Collection) is now a source-backed default
             // (KSP-704), while the retained Array/Iterable/Sequence overloads
