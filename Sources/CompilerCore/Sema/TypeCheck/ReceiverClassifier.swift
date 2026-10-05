@@ -215,10 +215,16 @@ struct ReceiverClassifier {
 
     func isMapLikeCollectionType(_ type: TypeID) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+        if let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema),
+           knownNames.isMapLikeSymbol(symbol), classType.args.count == 2 {
+            return true
+        }
+        guard let map = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMapFQName) else {
             return false
         }
-        return knownNames.isMapLikeSymbol(symbol) && classType.args.count == 2
+        return classTypes(of: type).contains {
+            sema.types.isNominalSubtypeSymbol($0.classType.classSymbol, of: map)
+        }
     }
 
     func isMutableCollectionType(_ type: TypeID) -> Bool {

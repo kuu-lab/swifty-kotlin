@@ -27,6 +27,8 @@
 /// 64-bit `Long` variants (again with `shr` mapped to `lushr`), because Kotlin
 /// defines unsigned `shr` as a logical shift. Floating builtins are never
 /// matched.
+/// `UByte.inv()` / `UShort.inv()` mask their result to 8 / 16 bits using
+/// the existing unsigned conversion builtins.
 final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
     static let name = "IntegerNarrowing"
     static let requiredStage: KIRStage = .propertyLowered
@@ -91,6 +93,11 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
         let arena = module.arena
         let narrowCallee = interner.intern("kk_int_narrow")
         let unarrowCallee = interner.intern("kk_uint_narrow")
+        let invCallee = interner.intern("kk_op_inv")
+        let smallUnsignedInvNarrowCallees: [PrimitiveType: InternedString] = [
+            .ubyte: interner.intern("kk_int_to_ubyte"),
+            .ushort: interner.intern("kk_int_to_ushort"),
+        ]
         let charArithmeticAdd = interner.intern("kk_op_add")
         let charArithmeticSub = interner.intern("kk_op_sub")
         let charWrapCallee = interner.intern("kk_int_to_char")
@@ -131,6 +138,22 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                 }
 
                 let resultKind = resultPrimitive(result)
+
+                if callee == invCallee, let result, let resultKind,
+                   let narrowCallee = smallUnsignedInvNarrowCallees[resultKind]
+                {
+                    let rawResult = arena.appendTemporary(type: arena.exprType(result))
+                    newBody.append(.call(
+                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
+                        canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+                    ))
+                    newBody.append(.call(
+                        symbol: nil, callee: narrowCallee, arguments: [rawResult], result: result,
+                        canThrow: false, thrownResult: nil
+                    ))
+                    continue
+                }
 
                 // Shift operators: route shifts through width-aware variants that
                 // mask the shift distance (5 bits for Int/UInt, 6 bits for

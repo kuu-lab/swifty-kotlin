@@ -57,12 +57,12 @@ private func runtimeBoxPrimitive<T: AnyObject>(
     }
 }
 
-private func runtimeBoxInt(_ value: Int, anyFallbackTag: Int32) -> Int {
+private func runtimeBoxInt(_ value: Int, anyFallbackTag: Int32, primitiveTypeBase: Int64? = nil) -> Int {
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo, or an already-boxed RuntimeIntBox), pass it
     // through without double-boxing.
     runtimeBoxPrimitive(value) {
-        RuntimeIntBox(value, anyFallbackTag: anyFallbackTag)
+        RuntimeIntBox(value, anyFallbackTag: anyFallbackTag, primitiveTypeBase: primitiveTypeBase)
     }
 }
 
@@ -131,6 +131,16 @@ private func runtimeStaticUnbox<T: AnyObject>(
 @_cdecl("kk_box_int")
 public func kk_box_int(_ value: Int) -> Int {
     runtimeBoxInt(value, anyFallbackTag: 1)
+}
+
+@_cdecl("kk_box_byte")
+public func kk_box_byte(_ value: Int) -> Int {
+    runtimeBoxInt(value, anyFallbackTag: 1, primitiveTypeBase: RuntimeTypeTokenEncoding.byteBase)
+}
+
+@_cdecl("kk_box_short")
+public func kk_box_short(_ value: Int) -> Int {
+    runtimeBoxInt(value, anyFallbackTag: 1, primitiveTypeBase: RuntimeTypeTokenEncoding.shortBase)
 }
 
 @_cdecl("kk_box_uint")
@@ -397,6 +407,13 @@ public func kk_unbox_double(_ obj: Int) -> Int {
     return obj
 }
 
+/// Non-null Double words may contain -0.0, whose bits match the null sentinel.
+@_cdecl("kk_unbox_double_nonnull")
+public func kk_unbox_double_nonnull(_ obj: Int) -> Int {
+    if obj == runtimeNullSentinelInt { return obj }
+    return kk_unbox_double(obj)
+}
+
 @_cdecl("kk_box_char")
 public func kk_box_char(_ value: Int) -> Int {
     // If the value is already a registered runtime object, pass it through
@@ -435,6 +452,20 @@ public func kk_unbox_char(_ obj: Int) -> Int {
 public func kk_box_int_static(_ value: Int) -> Int {
     runtimeStaticBox(value, preservesNullSentinel: true) {
         RuntimeIntBox(value, anyFallbackTag: 1)
+    }
+}
+
+@_cdecl("kk_box_byte_static")
+public func kk_box_byte_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeIntBox(value, primitiveTypeBase: RuntimeTypeTokenEncoding.byteBase)
+    }
+}
+
+@_cdecl("kk_box_short_static")
+public func kk_box_short_static(_ value: Int) -> Int {
+    runtimeStaticBox(value, preservesNullSentinel: true) {
+        RuntimeIntBox(value, primitiveTypeBase: RuntimeTypeTokenEncoding.shortBase)
     }
 }
 
@@ -560,6 +591,12 @@ public func kk_unbox_double_static(_ value: Int) -> Int {
         as: RuntimeDoubleBox.self,
         extract: { Int(bitPattern: UInt(truncatingIfNeeded: $0.value.bitPattern)) }
     )
+}
+
+@_cdecl("kk_unbox_double_nonnull_static")
+public func kk_unbox_double_nonnull_static(_ value: Int) -> Int {
+    if value == runtimeNullSentinelInt { return value }
+    return kk_unbox_double_static(value)
 }
 
 @_cdecl("kk_unbox_char_static")

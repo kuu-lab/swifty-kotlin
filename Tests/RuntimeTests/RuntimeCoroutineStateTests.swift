@@ -273,9 +273,34 @@ struct RuntimeCoroutineStateTests {
         #expect(kk_coroutine_state_get_thrown_exception(callerContinuation) == 0)
     }
 
-    @Test func testDirectSuspendCallReturnsImmediateChildResult() {
+    @Test func testSchedulerWordABITracksLongClockValues() {
+        let scope = kk_coroutine_scope_new()
+        defer { _ = runtimeReleaseObject(scope) }
+        let scheduler = kk_test_scope_scheduler(scope)
+        let currentTime: (Int) -> Int = kk_test_scheduler_current_time
+        let scopeTime: (Int) -> Int = kk_test_scope_current_time
+        let advance: (Int, Int) -> Int = kk_test_scheduler_advance_time_by
+        #expect(currentTime(scheduler) == 0)
+        let delta = 4_294_967_296
+        _ = advance(scheduler, delta)
+        #expect(currentTime(scheduler) == delta)
+        #expect(scopeTime(scope) == delta)
+    }
+
+    @Test func testDirectSuspendCallReturnsImmediateChildResult() throws {
         let callerContinuation = kk_coroutine_continuation_new(9108)
         defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
+        let callerState = try #require(runtimeContinuationState(from: callerContinuation))
+        let taskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let previousState = RuntimeContinuationState.current
+        let previousJob = RuntimeJobHandle.current
+        defer {
+            RuntimeContinuationState.installState(previousState, forTask: taskKey)
+            RuntimeJobHandle.current = previousJob
+        }
+        let job = RuntimeJobHandle()
+        RuntimeContinuationState.current = callerState
+        RuntimeJobHandle.current = job
         let childContinuation = kk_coroutine_continuation_new(9109)
         let entryRaw = unsafeBitCast(
             runtime_test_direct_suspend_immediate as RuntimeTestSuspendEntry,
@@ -291,6 +316,9 @@ struct RuntimeCoroutineStateTests {
         #expect(result == 123)
         #expect(result != Int(bitPattern: kk_coroutine_suspended()))
         #expect(kk_coroutine_state_get_completion(callerContinuation) == 123)
+        #expect(RuntimeCoroutineScopeTaskKey.currentTaskKey == taskKey)
+        #expect(RuntimeContinuationState.current === callerState)
+        #expect(RuntimeJobHandle.current === job)
     }
 
     @Test func testLauncherArgSetAndGetRoundTrips() {
@@ -325,6 +353,158 @@ struct RuntimeCoroutineStateTests {
         )
         let result = kk_kxmini_run_blocking_with_cont(entryRaw, continuation, nil)
         #expect(result == 42)
+    }
+
+    @Test func testSuspendFunctionValuePreservesClosureReceiverAndArgument() throws {
+        let entry: RuntimeTestSuspendEntry = { continuation, outThrown in
+            outThrown?.pointee = 0
+            let closure = kk_coroutine_launcher_arg_get(continuation, 0)
+            let receiver = kk_coroutine_launcher_arg_get(continuation, 1)
+            let argument = kk_coroutine_launcher_arg_get(continuation, 2)
+            return kk_coroutine_state_exit(continuation, Int(closure + receiver + argument))
+        }
+        let entryRaw = unsafeBitCast(entry, to: Int.self)
+        let function = kk_suspend_function_create(0, 10, 2, entryRaw)
+        let caller = kk_coroutine_continuation_new(9210)
+        defer { _ = kk_coroutine_state_exit(caller, 0) }
+        let state = try #require(runtimeContinuationState(from: caller))
+        state.thrownException = runtimeAllocateThrowable(message: "stale")
+        var thrown = 0
+
+        #expect(kk_suspend_function_invoke_2(function, 20, 12, caller, &thrown) == 42)
+        #expect(thrown == 0)
+        #expect(state.thrownException == 0)
+        #expect(state.completion == 42)
+        #expect(kk_suspend_function_invoke_2(function, 20, 12, 0, &thrown) == 42)
+        #expect(thrown == 0)
+    }
+
+    @Test func testSuspendFunctionValueRelaysAsynchronousCompletion() throws {
+        let entry: RuntimeTestSuspendEntry = { continuation, outThrown in
+            if kk_coroutine_state_enter(continuation, 9211) == 0 {
+                _ = kk_coroutine_state_set_label(continuation, 1)
+                return kk_kxmini_delay(100, continuation)
+            }
+            outThrown?.pointee = 0
+            return kk_coroutine_state_exit(continuation, 42)
+        }
+        let entryRaw = unsafeBitCast(entry, to: Int.self)
+        let function = kk_suspend_function_create(0, 0, 0, entryRaw)
+        let caller = kk_coroutine_continuation_new(9211)
+        defer { _ = kk_coroutine_state_exit(caller, 0) }
+        let state = try #require(runtimeContinuationState(from: caller))
+        let resumed = DispatchSemaphore(value: 0)
+        let probe = ResumerProbe()
+        state.installResumeContinuation {
+            probe.record(result: Int(state.completion), thrown: state.thrownException)
+            resumed.signal()
+        }
+        var thrown = 0
+
+        #expect(kk_suspend_function_invoke_0(function, caller, &thrown) == Int(bitPattern: kk_coroutine_suspended()))
+        #expect(thrown == 0)
+        #expect(resumed.wait(timeout: .now() + 2) == .success)
+        #expect(probe.result == 42)
+        #expect(probe.thrown == 0)
+    }
+
+    @Test func testSuspendFunctionValueRejectsInvalidArityAndNull() {
+        let entryRaw = unsafeBitCast(runtime_test_direct_suspend_immediate as RuntimeTestSuspendEntry, to: Int.self)
+        let function = kk_suspend_function_create(0, 0, 2, entryRaw)
+        var thrown = 0
+        #expect(kk_suspend_function_invoke_0(function, 0, &thrown) == 0)
+        #expect(thrown != 0)
+        #expect(kk_suspend_function_invoke_0(0, 0, &thrown) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test func testSuspendFunctionValueSupportsLegacySynchronousBoxes() {
+        let body: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closure, value, thrown in
+            thrown?.pointee = 0
+            return closure + value
+        }
+        var thrown = 0
+        let function = kk_function_create_1(unsafeBitCast(body, to: Int.self), 10, &thrown)
+        #expect(kk_suspend_function_invoke(function, 32, 0, &thrown) == 42)
+        #expect(thrown == 0)
+    }
+
+    // A suspend function value reached through the plain `FunctionN.invoke` ABI
+    // (e.g. `deferreds.map { it.await() }`, where `await` arrives as a suspend
+    // box behind a non-suspend `(T) -> R` parameter) cannot hand
+    // COROUTINE_SUSPENDED to its caller — `map` would collect the sentinel as a
+    // list element. The invoke must drain the body and return its final value.
+    @Test func testPlainFunctionInvokeDrivesSuspendingBoxToCompletion() {
+        let entry: RuntimeTestSuspendEntry = { continuation, outThrown in
+            if kk_coroutine_state_enter(continuation, 9220) == 0 {
+                _ = kk_coroutine_state_set_label(continuation, 1)
+                return kk_kxmini_delay(1, continuation)
+            }
+            outThrown?.pointee = 0
+            let argument = kk_coroutine_launcher_arg_get(continuation, 1)
+            return kk_coroutine_state_exit(continuation, Int(argument) + 1)
+        }
+        let entryRaw = unsafeBitCast(entry, to: Int.self)
+        let function = kk_suspend_function_create(0, 0, 1, entryRaw)
+        var thrown = 0
+
+        let result = kk_function_invoke(function, 8, &thrown)
+
+        #expect(thrown == 0)
+        #expect(result == 9)
+        #expect(result != Int(bitPattern: kk_coroutine_suspended()))
+    }
+
+    @Test func testCoroutineScopeIgnoresIndependentlyCancelledChild() {
+        let scope = kk_coroutine_scope_new()
+        let job = RuntimeJobHandle()
+        job.markStarted()
+        let handle = runtimeRegisterObject(job)
+        _ = kk_coroutine_scope_register_child(scope, handle)
+        #expect(job.cancel())
+        #expect(job.completeExceptionally(with: runtimeAllocateCancellationException(message: "child cancelled")))
+        #expect(kk_coroutine_scope_wait(scope) == runtimeNullSentinelInt)
+    }
+
+    @Test func testDirectSuspendCallPreservesFlowCollectionContext() throws {
+        let caller = kk_coroutine_continuation_new(9212)
+        let child = kk_coroutine_continuation_new(9213)
+        defer { _ = kk_coroutine_state_exit(caller, 0) }
+        let callerState = try #require(runtimeContinuationState(from: caller))
+        let childState = try #require(runtimeContinuationState(from: child))
+        callerState.flowCollectContext = RuntimeFlowCollectContext()
+        let entryRaw = unsafeBitCast(runtime_test_direct_suspend_immediate as RuntimeTestSuspendEntry, to: Int.self)
+        #expect(kk_coroutine_call_direct_suspend(entryRaw, child, caller) == 123)
+        #expect(childState.flowCollectContext === callerState.flowCollectContext)
+    }
+
+    @Test func testNestedSuspendCallForwardsPendingAndCancellationWakeups() throws {
+        let caller = kk_coroutine_continuation_new(9214)
+        let child = kk_coroutine_continuation_new(9215)
+        defer {
+            _ = kk_coroutine_state_exit(caller, 0)
+            _ = kk_coroutine_state_exit(child, 0)
+        }
+        let callerState = try #require(runtimeContinuationState(from: caller))
+        let childState = try #require(runtimeContinuationState(from: child))
+        let childResumed = DispatchSemaphore(value: 0)
+        let callerResumed = DispatchSemaphore(value: 0)
+
+        callerState.signalResume()
+        callerState.bindSuspendedCallChild(childState)
+        callerState.installResumeContinuation { callerResumed.signal() }
+        childState.installResumeContinuation { childResumed.signal() }
+        #expect(childResumed.wait(timeout: .now() + 1) == .success)
+        #expect(callerResumed.wait(timeout: .now()) == .timedOut)
+
+        childState.installResumeContinuation { childResumed.signal() }
+        callerState.signalResume()
+        #expect(childResumed.wait(timeout: .now() + 1) == .success)
+        #expect(callerResumed.wait(timeout: .now()) == .timedOut)
+
+        callerState.unbindSuspendedCallChild(childState)
+        callerState.signalResume()
+        #expect(callerResumed.wait(timeout: .now() + 1) == .success)
     }
 
     @Test func testLaunchWithContRunsAsynchronously() {

@@ -27,6 +27,13 @@ final class PropertyLoweringPass: LoweringPass {
             return result
         }()
 
+        // Global reads can only become receiver-free accessor calls. Stored
+        // property getters used by itables retain a receiver parameter.
+        let emittedReceiverFreeGetterSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
+            guard case let .function(fn) = decl, fn.params.isEmpty else { return nil }
+            return fn.symbol
+        })
+
         // Build a set of getter-only computed property symbols (property kind,
         // no backing field, AND a getter accessor function exists in the module)
         // so that constValue(.symbolRef(propSym)) can be rewritten to a getter
@@ -44,7 +51,7 @@ final class PropertyLoweringPass: LoweringPass {
                 // emitted — this avoids over-matching regular stored properties
                 // that have no custom getter.
                 let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym.id)
-                guard emittedFunctionSymbols.contains(getterSymbol) else {
+                guard emittedReceiverFreeGetterSymbols.contains(getterSymbol) else {
                     continue
                 }
                 result.insert(sym.id)
@@ -76,7 +83,7 @@ final class PropertyLoweringPass: LoweringPass {
                 }
                 guard parentKind == nil || parentKind == .package || parentKind == .object else { continue }
                 let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym.id)
-                guard emittedFunctionSymbols.contains(getterSymbol) else { continue }
+                guard emittedReceiverFreeGetterSymbols.contains(getterSymbol) else { continue }
                 result.insert(sym.id)
             }
             return result

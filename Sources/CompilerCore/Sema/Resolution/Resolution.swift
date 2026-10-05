@@ -284,19 +284,26 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
-        // A nominal member has no extension receiver in its function
-        // signature, but its leading type parameters still belong to the
-        // declaring class/interface. Constrain those parameters from the
-        // actual receiver before argument inference. Otherwise an inherited
+        // A nominal member's leading type parameters belong to the declaring
+        // class/interface. Constrain them from the dispatch receiver, not an
+        // unrelated extension receiver. Otherwise an inherited
         // member such as OpenEndRange<T>.contains(T) can incorrectly infer T
         // from a Byte/Long argument instead of Int from IntRange, making an
         // inapplicable member steal the call from an exact user extension.
         if !isConstructor,
-           signature.receiverType == nil,
+           ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
            signature.classTypeParameterCount > 0,
            let implicitReceiverType,
            isNominalMemberFunction(candidate, typeSystem: ctx.types),
-           let owner = ctx.symbols.parentSymbol(for: candidate)
+           let owner = ctx.symbols.parentSymbol(for: candidate),
+           signature.receiverType == nil || {
+               guard case let .classType(receiverClass) = ctx.types.kind(
+                   of: ctx.types.makeNonNullable(implicitReceiverType)
+               ) else {
+                   return false
+               }
+               return ctx.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
+           }()
         {
             let ownerArguments: [TypeArg] = signature.typeParameterSymbols
                 .prefix(signature.classTypeParameterCount)
@@ -335,6 +342,25 @@ extension OverloadResolver {
                 typeSystem: ctx.types,
                 blameRange: call.range
             ))
+            if signature.receiverType != nil,
+               case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType),
+               receiverOwner.classSymbol == owner
+            {
+                for (parameter, argument) in zip(
+                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount),
+                    receiverOwner.args
+                ) {
+                    guard let variable = typeVarBySymbol[parameter] else { continue }
+                    let type: TypeID
+                    switch argument {
+                    case let .invariant(value), let .out(value), let .in(value): type = value
+                    case .star: continue
+                    }
+                    constraints.append(VariableConstraint(
+                        kind: .equal, left: .variable(variable), right: .type(type), blameRange: call.range
+                    ))
+                }
+            }
         }
 
         guard let parameterMapping = buildParameterMapping(
@@ -375,6 +401,7 @@ extension OverloadResolver {
                 )
             }
         }
+        var inputConstraints = constraints
 
         // Upper bounds can relate two function type parameters (for example
         // `where C : Collection<*>, C : R`). Add those relationships to the
@@ -418,6 +445,7 @@ extension OverloadResolver {
                 blameRange: call.range
             )
             constraints.append(contentsOf: returnDecomposed)
+            inputConstraints.append(contentsOf: returnDecomposed)
         }
 
         var solveResult = solveConstraints(
@@ -468,6 +496,16 @@ extension OverloadResolver {
         case let .constraintFailure(diagnostic):
             return .constraintFailure(diagnostic)
         case .rejected:
+            return .rejected
+        }
+
+        guard satisfiesOnlyInputTypes(
+            signature: signature,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol,
+            inputConstraints: inputConstraints,
+            ctx: ctx
+        ) else {
             return .rejected
         }
 
@@ -680,9 +718,12 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
-            let argType = !arg.isSpread
+            let inferredArgType = !arg.isSpread
                 ? (integerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
                 : arg.type
+            let argType = !arg.isSpread
+                ? (typeSystem.suspendConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
+                : inferredArgType
 
             // A spread argument contributes the element type of its array to
             // the vararg parameter. Recover that type when possible so
@@ -821,7 +862,9 @@ extension OverloadResolver {
     ) -> Bool {
         guard case let .functionType(argFunction) = typeSystem.kind(of: argType),
               case let .functionType(paramFunction) = typeSystem.kind(of: paramType),
-              argFunction.isSuspend == paramFunction.isSuspend,
+              // Non-suspend arguments satisfy suspend parameters
+              // (`() -> T <: suspend () -> T`), not the reverse.
+              paramFunction.isSuspend || !argFunction.isSuspend,
               argFunction.params.count == paramFunction.params.count
         else {
             return false

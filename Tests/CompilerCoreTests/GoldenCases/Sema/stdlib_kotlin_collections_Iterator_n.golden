@@ -1,7 +1,7 @@
-symbol fq=identity.$0.T[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=identity.$0.iterator[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=identity[kind=fun;params=kotlin.collections.Iterator<T0>;gen=1] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Iterator<identity.$0.T>] ret=kotlin.collections.Iterator<identity.$0.T>
+symbol fq=identity.$0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=identity.$0.iterator[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=identity[kind=fun;params=kotlin.collections.Iterator<T0>;ret=kotlin.collections.Iterator<T0>;gen=1;names=[iterator];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Iterator<identity.$0.T>] ret=kotlin.collections.Iterator<identity.$0.T>
 file fstdlib_kotlin_collections_Iterator_n package=_
-  decl identity[kind=fun;params=kotlin.collections.Iterator<T0>;gen=1] fun identity sym=identity[kind=fun;params=kotlin.collections.Iterator<T0>;gen=1]
-expr e@2:5 name(iterator) type=kotlin.collections.Iterator<identity.$0.T> ref=identity.$0.iterator[kind=vparam]
-expr e@2:5#1 memberCall recv=e@2:5 callee=iterator args=[] type=kotlin.collections.Iterator<identity.$0.T> call=kotlin.collections.iterator[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;gen=1] targs=[identity.$0.T]
+  decl identity[kind=fun;params=kotlin.collections.Iterator<T0>;ret=kotlin.collections.Iterator<T0>;gen=1;names=[iterator];origin=fixture] fun identity sym=identity[kind=fun;params=kotlin.collections.Iterator<T0>;ret=kotlin.collections.Iterator<T0>;gen=1;names=[iterator];origin=fixture]
+expr e@2:5 name(iterator) type=kotlin.collections.Iterator<identity.$0.T> ref=identity.$0.iterator[kind=vparam;origin=fixture]
+expr e@2:5#1 memberCall recv=e@2:5 callee=iterator args=[] type=kotlin.collections.Iterator<identity.$0.T> call=kotlin.collections.iterator[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;ret=kotlin.collections.Iterator<T0>;gen=1] targs=[identity.$0.T]

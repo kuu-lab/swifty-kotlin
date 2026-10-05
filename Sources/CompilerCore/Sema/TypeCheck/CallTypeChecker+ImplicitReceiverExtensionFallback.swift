@@ -325,38 +325,83 @@ extension CallTypeChecker {
                 interner: ctx.interner
             )
             guard !memberCandidates.isEmpty else { continue }
+            // Member extensions surface under the dispatch receiver type but
+            // resolve against the implicit receiver tower entry picked for
+            // their declared extension receiver.
+            var regularMemberCandidates: [SymbolID] = []
+            var memberExtensionGroups: [(
+                symbols: [SymbolID], receiverType: TypeID, symbol: SymbolID?
+            )] = []
+            for candidate in memberCandidates {
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                      let declaredReceiver = signature.receiverType
+                else {
+                    regularMemberCandidates.append(candidate)
+                    continue
+                }
+                guard let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                    sema.types.isSubtype(
+                        sema.types.makeNonNullable(entry.type),
+                        sema.types.makeNonNullable(declaredReceiver)
+                    )
+                })
+                else { continue }
+                if let groupIndex = memberExtensionGroups.firstIndex(where: {
+                    $0.receiverType == picked.type
+                }) {
+                    memberExtensionGroups[groupIndex].symbols.append(candidate)
+                } else {
+                    memberExtensionGroups.append(([candidate], picked.type, picked.symbol))
+                }
+            }
+            var orderedGroups: [(
+                symbols: [SymbolID], receiverType: TypeID, extensionSymbol: SymbolID?
+            )] = regularMemberCandidates.isEmpty
+                ? []
+                : [(regularMemberCandidates, receiver.type, nil)]
+            orderedGroups.append(
+                contentsOf: memberExtensionGroups.map {
+                    ($0.symbols, $0.receiverType, $0.symbol)
+                }
+            )
             let resolvedArgs = zip(args, argTypes).map { argument, type in
                 CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
             }
-            let resolved = ctx.resolver.resolveCall(
-                candidates: memberCandidates,
-                call: CallExpr(
-                    range: range,
-                    calleeName: calleeName,
-                    args: resolvedArgs,
-                    explicitTypeArgs: explicitTypeArgs
-                ),
-                expectedType: expectedType,
-                implicitReceiverType: receiver.type,
-                ctx: ctx.semaCtx
-            )
-            guard resolved.diagnostic == nil,
-                  let chosen = resolved.chosenCallee
-            else { continue }
+            for group in orderedGroups {
+                let resolved = ctx.resolver.resolveCall(
+                    candidates: group.symbols,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: calleeName,
+                        args: resolvedArgs,
+                        explicitTypeArgs: explicitTypeArgs
+                    ),
+                    expectedType: expectedType,
+                    implicitReceiverType: group.receiverType,
+                    ctx: ctx.semaCtx
+                )
+                guard resolved.diagnostic == nil,
+                      let chosen = resolved.chosenCallee
+                else { continue }
 
-            let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-            sema.bindings.markImplicitReceiverMember(id, name: calleeName)
-            if let receiverSymbol = receiver.symbol {
-                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+                let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+                sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                if let receiverSymbol = receiver.symbol {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+                }
+                if let extensionSymbol = group.extensionSymbol {
+                    sema.bindings.markImplicitExtensionReceiver(id, symbol: extensionSymbol)
+                }
+                markCoroutineScopeImplicitReceiverCallIfNeeded(
+                    id,
+                    chosenCallee: chosen,
+                    receiverType: receiver.type,
+                    ctx: ctx
+                )
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
             }
-            markCoroutineScopeImplicitReceiverCallIfNeeded(
-                id,
-                chosenCallee: chosen,
-                receiverType: receiver.type,
-                ctx: ctx
-            )
-            sema.bindings.bindExprType(id, type: resultType)
-            return resultType
         }
         return nil
     }

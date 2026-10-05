@@ -174,16 +174,15 @@ extension BuildASTPhase {
         guard let first = nextHead.first else {
             return false
         }
-        // `isBinaryOperatorToken` already covers `.`/`?.`, so a dot-continuation
-        // line (`.member()`) is a continuation via this check too.
-        // `::` is the exception among binary-operator tokens: Kotlin only
-        // continues `.`/`?.` onto a newline, so a newline-leading `::`
-        // always starts a new statement (`s\n::prop` parses as `s; ::prop`,
-        // never `s::prop`).
-        if (isBinaryOperatorToken(first.kind) && first.kind != .symbol(.doubleColon))
+        if ParserBoundaryPolicy.continuesExpressionBeforeNewline(first.kind)
             || first.kind == .symbol(.comma)
             || first.kind == .symbol(.rParen)
             || first.kind == .symbol(.rBracket)
+        {
+            return true
+        }
+        if first.kind == .symbol(.assign),
+           isDeclarationAssignmentContinuation(previousTail)
         {
             return true
         }
@@ -191,6 +190,24 @@ extension BuildASTPhase {
             return true
         }
         return false
+    }
+
+    private static func isDeclarationAssignmentContinuation<C: Collection>(_ tokens: C) -> Bool where C.Element == Token {
+        var depth = BracketDepth()
+        var sawDeclaration = false
+        for token in tokens {
+            if depth.isBracketBraceParenTopLevel {
+                if token.kind == .symbol(.assign) || token.kind == .symbol(.lBrace) { return false }
+                switch token.kind {
+                case .keyword(.fun), .keyword(.val), .keyword(.var):
+                    sawDeclaration = true
+                default:
+                    break
+                }
+            }
+            depth.track(token.kind)
+        }
+        return sawDeclaration
     }
 
     /// Filter out semicolons that are at the outermost brace level,

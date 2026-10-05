@@ -15,9 +15,9 @@ public interface Flow<out T>
 @KsSymbolName("kk_flow_collect")
 internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> Unit)
 
+@Suppress("UNCHECKED_CAST")
 public suspend fun <T> Flow<T>.collect(collector: suspend (T) -> Unit) {
     if (this is SharedFlow<*>) {
-        @Suppress("UNCHECKED_CAST")
         (this as SharedFlow<T>).collect(collector)
     } else {
         this.collectCold { value -> collector(value) }
@@ -55,15 +55,19 @@ public fun <T> Flow<T>.filter(predicate: suspend (T) -> Boolean): Flow<T> {
 }
 
 public fun <T> Flow<T>.take(count: Int): Flow<T> {
+    require(count > 0) { "Requested element count $count should be positive" }
     val source = this
     return flow {
-        if (count <= 0) return@flow
+        val collector = SendingCollector<T> { value -> emit(value) }
         var emitted = 0
-        source.collect { value ->
-            if (emitted < count) {
-                emit(value)
+        try {
+            source.collect { value ->
+                collector.emit(value)
                 emitted += 1
+                if (emitted == count) throw AbortFlowException(collector)
             }
+        } catch (e: AbortFlowException) {
+            if (e.owner !== collector) throw e
         }
     }
 }
@@ -79,11 +83,17 @@ public suspend fun <T> Flow<T>.first(): T {
     val source = this
     var found = false
     var result: Any? = null
-    source.collect { value ->
-        if (!found) {
-            result = value
-            found = true
+    val collector = SendingCollector<T> { value ->
+        result = value
+        found = true
+    }
+    try {
+        source.collect { value ->
+            collector.emit(value)
+            throw AbortFlowException(collector)
         }
+    } catch (e: AbortFlowException) {
+        if (e.owner !== collector) throw e
     }
     if (!found) throw NoSuchElementException("Flow is empty.")
     @Suppress("UNCHECKED_CAST")
@@ -229,89 +239,6 @@ public fun <T> Flow<T>.cancellable(): Flow<T> {
         source.collect { value ->
             ensureActive()
             emit(value)
-        }
-    }
-}
-
-// Stateful and error-handling operators are eager: they collect upstream at
-// suspend-function top level, where suspend-function-value calls are
-// well-formed, rather than inside a `flow { }` builder's collect callback
-// (nested suspend-lambda capture shapes miscompile — KUU-841).
-
-public suspend fun <T> Flow<T>.takeWhile(predicate: suspend (T) -> Boolean): Flow<T> {
-    val kept = mutableListOf<T>()
-    for (value in this.toList()) {
-        if (!predicate(value)) break
-        kept.add(value)
-    }
-    return kept.asFlow()
-}
-
-public suspend fun <T> Flow<T>.dropWhile(predicate: suspend (T) -> Boolean): Flow<T> {
-    val kept = mutableListOf<T>()
-    var dropping = true
-    for (value in this.toList()) {
-        if (dropping && predicate(value)) continue
-        dropping = false
-        kept.add(value)
-    }
-    return kept.asFlow()
-}
-
-public suspend fun <T> Flow<T>.onEach(action: suspend (T) -> Unit): Flow<T> {
-    val kept = mutableListOf<T>()
-    for (value in this.toList()) {
-        action(value)
-        kept.add(value)
-    }
-    return kept.asFlow()
-}
-
-public suspend fun <T> Flow<T>.catch(action: suspend (Throwable) -> Unit): Flow<T> {
-    return try {
-        this.toList().asFlow()
-    } catch (e: Throwable) {
-        action(e)
-        emptyFlow<T>()
-    }
-}
-
-public suspend fun <T> Flow<T>.onCompletion(action: suspend (cause: Throwable?) -> Unit): Flow<T> {
-    var failure: Throwable? = null
-    val items = try {
-        this.toList()
-    } catch (e: Throwable) {
-        failure = e
-        mutableListOf<T>()
-    }
-    action(failure)
-    val rethrow = failure
-    if (rethrow != null) throw rethrow
-    return items.asFlow()
-}
-
-public suspend fun <T> Flow<T>.retry(retries: Long): Flow<T> {
-    var remaining = retries
-    while (true) {
-        try {
-            return this.toList().asFlow()
-        } catch (e: Throwable) {
-            if (remaining <= 0L) throw e
-            remaining -= 1
-        }
-    }
-}
-
-public suspend fun <T> Flow<T>.retryWhen(
-    predicate: suspend (cause: Throwable, attempt: Long) -> Boolean
-): Flow<T> {
-    var attempt: Long = 0L
-    while (true) {
-        try {
-            return this.toList().asFlow()
-        } catch (e: Throwable) {
-            if (!predicate(e, attempt)) throw e
-            attempt += 1
         }
     }
 }

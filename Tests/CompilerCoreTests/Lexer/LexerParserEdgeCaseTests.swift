@@ -104,6 +104,54 @@ struct LexerParserEdgeCaseTests {
         #expect(!result.diagnostics.hasError)
     }
 
+    @Test(arguments: ["\n", "\r", "\r\n"], ["", "$$", "$$$"])
+    func testQuotedStringsRejectUnescapedLineBreaks(lineBreak: String, prefix: String) {
+        let start = "val text = \(prefix)\"  indented"
+        let result = lex(start + lineBreak + "  text\"\nval recovered = 1")
+        let diagnostics = result.diagnostics.diagnostics
+
+        #expect(result.diagnostics.hasError)
+        #expect(diagnostics.count == lineBreak.utf8.count)
+        for (index, diagnostic) in diagnostics.enumerated() {
+            #expect(diagnostic.code == "KSWIFTK-LEX-0004")
+            #expect(diagnostic.severity == .error)
+            #expect(diagnostic.primaryRange?.start.offset == start.utf8.count + index)
+            #expect(diagnostic.primaryRange?.end.offset == start.utf8.count + index + 1)
+        }
+        #expect(result.tokens.contains { $0.kind == .identifier(result.interner.intern("recovered")) })
+        #expect(result.tokens.last?.kind == .eof)
+    }
+
+    @Test(arguments: ["\n", "\r", "\r\n"], ["", "$$", "$$$"])
+    func testRawStringsAllowUnescapedLineBreaks(lineBreak: String, prefix: String) {
+        let result = lex("val text = \(prefix)\"\"\"  indented" + lineBreak + "  text\"\"\"")
+
+        #expect(result.diagnostics.diagnostics.isEmpty)
+        #expect(result.tokens.contains { $0.kind == .stringSegment(result.interner.intern("  indented" + lineBreak + "  text")) })
+        #expect(result.tokens.last?.kind == .eof)
+    }
+
+    @Test(arguments: ["", "$$", "$$$"])
+    func testQuotedStringsAllowEscapedLineBreaksAndMultilineTemplateExpressions(prefix: String) {
+        let templatePrefix = prefix.isEmpty ? "$" : prefix
+        let result = lex("val text = \(prefix)\"escaped\\n\\r \(templatePrefix){\n1 +\n2\n}\"")
+
+        #expect(result.diagnostics.diagnostics.isEmpty)
+        #expect(result.tokens.contains { $0.kind == .templateExprStart })
+        #expect(result.tokens.contains { $0.kind == .templateExprEnd })
+    }
+
+    @Test(arguments: ["", "$$"], ["\"", "\"\"\""])
+    func testNestedQuotedStringsRejectUnescapedLineBreaks(prefix: String, quote: String) {
+        let templatePrefix = prefix.isEmpty ? "$" : prefix
+        let result = lex("val text = \(prefix)\(quote)\(templatePrefix){\"nested\ntext\"}\(quote)")
+
+        #expect(result.diagnostics.hasError)
+        #expect(result.diagnostics.diagnostics.count == 1)
+        #expect(result.diagnostics.diagnostics.first?.code == "KSWIFTK-LEX-0004")
+        #expect(result.diagnostics.diagnostics.first?.severity == .error)
+    }
+
     @Test
     func testDoubleDollarPreservesLiteralDollarBeforeTemplate() {
         let source = """
@@ -132,6 +180,58 @@ struct LexerParserEdgeCaseTests {
             .eof,
         ])
         #expect(!result.diagnostics.hasError)
+    }
+
+    @Test
+    func testLexerLeadingDotNumericLiterals() {
+        let source = " .5 .5f .5F .25e2 .25E-2f .1_25 .5e+2F"
+        let result = lex(source)
+
+        #expect(result.tokens.map(\.kind) == [
+            .doubleLiteral(".5"),
+            .floatLiteral(".5f"),
+            .floatLiteral(".5F"),
+            .doubleLiteral(".25e2"),
+            .floatLiteral(".25E-2f"),
+            .doubleLiteral(".1_25"),
+            .floatLiteral(".5e+2F"),
+            .eof,
+        ])
+        #expect(!result.diagnostics.hasError)
+        #expect(result.tokens.first?.range.start.offset == 1)
+        #expect(result.tokens.first?.range.end.offset == 3)
+        #expect(result.tokens.first?.leadingTrivia == [.spaces(1)])
+    }
+
+    @Test
+    func testLexerLeadingDotLiteralsPreserveDotOperators() {
+        let result = lex("1..5 1..<5 .5..1.5 .5..<1.5 . .name ?.name . 5")
+        let name = result.interner.intern("name")
+
+        #expect(result.tokens.map(\.kind) == [
+            .intLiteral("1"), .symbol(.dotDot), .intLiteral("5"),
+            .intLiteral("1"), .symbol(.dotDotLt), .intLiteral("5"),
+            .doubleLiteral(".5"), .symbol(.dotDot), .doubleLiteral("1.5"),
+            .doubleLiteral(".5"), .symbol(.dotDotLt), .doubleLiteral("1.5"),
+            .symbol(.dot),
+            .symbol(.dot), .identifier(name),
+            .symbol(.questionDot), .identifier(name),
+            .symbol(.dot), .intLiteral("5"),
+            .eof,
+        ])
+        #expect(!result.diagnostics.hasError)
+    }
+
+    @Test
+    func testLexerLeadingDotLiteralsKeepNumericDiagnostics() {
+        for source in [".5_", ".5e_2", ".5e2_"] {
+            let result = lex(source)
+            assertHasDiagnostic("KSWIFTK-LEX-0006", in: result.diagnostics.diagnostics)
+        }
+        for source in [".5e", ".5e+", ".5L", ".5u", ".5D"] {
+            let result = lex(source)
+            assertHasDiagnostic("KSWIFTK-LEX-0003", in: result.diagnostics.diagnostics)
+        }
     }
 
     @Test

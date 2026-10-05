@@ -6,6 +6,47 @@ import TestStdlibCache
 
 @Suite
 struct LibMetadataSerializationTests {
+    @Test func memberExtensionFlagSurvivesMetadataRoundTrip() throws {
+        let record = MetadataRecord(
+            kind: .function, fqName: "demo.C.sum", isMemberExtension: true,
+            receiverOwnerFQName: "demo.C", typeSignature: "F1<Ldemo.C;,I>"
+        )
+        let encoder = MetadataEncoder()
+        for serialized in [encoder.serialize([record]), encoder.serializeIndexed([record])] {
+            let decoded = MetadataDecoder().decode(serialized)
+            #expect(try #require(decoded.first).isMemberExtension)
+        }
+        let file = try #require(IndexedMetadataFile(data: Data(encoder.serializeIndexed([record]).utf8)))
+        let entry = try #require(file.entries.first)
+        #expect(try #require(file.record(for: entry)).isMemberExtension)
+    }
+
+    @Test func testImportedCompletionHandlerKeepsNonLocalReturnMask() throws {
+        TestStdlibCache.shared.prepare()
+        try withTemporaryFiles(contents: [
+            """
+            import kotlinx.coroutines.*
+            fun register(job: Job) {
+                job.invokeOnCompletion { println(it) }
+                job.invokeOnCompletion(true, false) { println(it) }
+            }
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .executable, allowDefaultStdlibLibrary: true)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let functions = sema.symbols.allSymbols().filter {
+                $0.fqName.map(ctx.interner.resolve) == ["kotlinx", "coroutines", "invokeOnCompletion"]
+            }
+            #expect(functions.count == 2)
+            for function in functions {
+                let signature = try #require(sema.symbols.functionSignature(for: function.id))
+                #expect(signature.valueParameterAllowsNonLocalReturn == Array(repeating: false, count: signature.parameterTypes.count))
+            }
+        }
+    }
+
     @Test func testIndexedMetadataRoundTripUsesByteOffsets() throws {
         let records = [
             MetadataRecord(

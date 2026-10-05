@@ -23,15 +23,6 @@ func runtimeRegisterFlatStringResult(
     )
 }
 
-func runtimeStringScalarsFromFlat(
-    data: UnsafePointer<UInt8>?,
-    length: Int,
-    byteCount: Int,
-    hash: Int
-) -> [UnicodeScalar] {
-    Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
-}
-
 /// Single-index code-unit read for the flat string ABI. Runtime-registered
 /// strings share the cached unit array on their storage; other buffers decode
 /// scalars until the target index without materializing the whole array.
@@ -72,15 +63,15 @@ func runtimeFlatStringBoundaryCodeUnits(
         return (units.first, units.last, units.count > 1)
     }
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    func kotlinCodeUnit(_ unit: UInt16) -> UInt16 {
-        UInt16(KotlinStringSurrogateEncoding.codeUnitValue(for: UInt32(unit)) ?? UInt32(unit))
+    var iterator = KotlinStringSurrogateEncoding.UTF16CodeUnits(source).makeIterator()
+    let first = iterator.next()
+    var last = first
+    var hasMultipleUnits = false
+    while let unit = iterator.next() {
+        last = unit
+        hasMultipleUnits = true
     }
-    let units = source.utf16
-    return (
-        units.first.map(kotlinCodeUnit),
-        units.last.map(kotlinCodeUnit),
-        units.dropFirst().first != nil
-    )
+    return (first, last, hasMultipleUnits)
 }
 
 @_cdecl("kk_string_trim_flat")

@@ -102,33 +102,14 @@ func unimplementedAbstractMembers(
     overriddenNames: Set<InternedString>,
     delegatedInterfaces: [SymbolID],
     symbols: SymbolTable,
-    interner: StringInterner
+    interner _: StringInterner
 ) -> [SymbolID] {
     // A `by`-delegated interface covers members inherited through its
     // super-interfaces too: `class C : MutableMap<K,V> by m` must not owe an
     // implementation for `Map.values`, which is declared on MutableMap's
     // parent interface rather than on MutableMap itself (BUG-240).
-    // The synthesized forwarders only dispatch for the Map/MutableMap
-    // surfaces, whose `kk_map_*` / `kk_mutable_map_*` bridges and itable
-    // fallbacks handle source-defined receivers; delegating other collection
-    // interfaces keeps the previous single-level coverage so unsupported
-    // cases stay a compile-time error instead of a runtime crash (KUU-835:
-    // List/Set-family delegation).
-    let transitiveDelegationInterfaces: Set<[InternedString]> = [
-        [interner.intern("kotlin"), interner.intern("collections"), interner.intern("Map")],
-        [interner.intern("kotlin"), interner.intern("collections"), interner.intern("MutableMap")],
-    ]
     var delegatedNominals: Set<SymbolID> = []
-    var delegatedQueue: [SymbolID] = []
-    for interface in delegatedInterfaces {
-        if let interfaceSym = symbols.symbol(interface),
-           transitiveDelegationInterfaces.contains(interfaceSym.fqName)
-        {
-            delegatedQueue.append(interface)
-        } else {
-            delegatedNominals.insert(interface)
-        }
-    }
+    var delegatedQueue = delegatedInterfaces
     while let interface = delegatedQueue.popLast() {
         guard delegatedNominals.insert(interface).inserted else { continue }
         for supertype in symbols.directSupertypes(for: interface)

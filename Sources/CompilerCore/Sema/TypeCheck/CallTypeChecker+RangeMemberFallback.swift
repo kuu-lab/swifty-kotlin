@@ -197,6 +197,15 @@ extension CallTypeChecker {
         }
 
         if sema.bindings.isFloatingPointRangeExpr(receiverID),
+           args.isEmpty,
+           memberName == "start" || memberName == "endInclusive",
+           let elementType = sema.bindings.floatingPointRangeElementType(forExpr: receiverID)
+        {
+            let resultType = safeCall ? sema.types.makeNullable(elementType) : elementType
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
+        }
+        if sema.bindings.isFloatingPointRangeExpr(receiverID),
            let floatingPointResult = tryRangeMembershipFallback(
             memberName: memberName,
             args: args,
@@ -1400,7 +1409,7 @@ extension CallTypeChecker {
                 isLongRange: isLongRange,
                 isUIntRange: isUIntRange,
                 isULongRange: isULongRange,
-                isReversed: true
+                returnsProgression: true
             )
         case "step":
             return argCount == 0 ? sema.types.intType : rangeMemberRangeType(
@@ -1410,7 +1419,8 @@ extension CallTypeChecker {
                 interner: interner,
                 isLongRange: isLongRange,
                 isUIntRange: isUIntRange,
-                isULongRange: isULongRange
+                isULongRange: isULongRange,
+                returnsProgression: true
             )
         default:
             return sema.types.anyType
@@ -1464,9 +1474,11 @@ extension CallTypeChecker {
         isLongRange: Bool,
         isUIntRange: Bool,
         isULongRange: Bool,
-        isReversed: Bool = false
+        returnsProgression: Bool = false
     ) -> TypeID {
-        if isReversed,
+        // Both reversed() and step(Int) return IntProgression. Retaining
+        // IntRange here selects its range-only toString and HOF overloads.
+        if returnsProgression,
            elementType == sema.types.intType,
            !isLongRange,
            !isUIntRange,

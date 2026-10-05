@@ -255,6 +255,23 @@ extension CallLowerer {
                 return unit
             }
         }
+        // Enum `var` properties live in per-entry storage behind the enum's
+        // setter helper; the ordinal-backed receiver has no instance fields.
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let setterCallee = enumPropertySetterPlaceholder(for: propertySymbol, sema: sema, interner: interner)
+        {
+            instructions.append(.call(
+                symbol: nil,
+                callee: setterCallee,
+                arguments: [receiverID, valueID],
+                result: arena.appendTemporary(type: sema.types.unitType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
         // Use the call binding from sema if available (property setter).
         let callBinding = sema.bindings.callBindings[exprID]
         let chosenCallee = callBinding?.chosenCallee
@@ -398,6 +415,21 @@ extension CallLowerer {
                 || sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
         }()
 
+        // Enum stored properties: load/store through the enum property
+        // helpers (per-entry storage), never through field offsets.
+        let enumHelperCallees: (getter: InternedString, setter: InternedString)? = {
+            guard syntheticLinks == nil,
+                  !usesGetterAccessor,
+                  !usesSetterAccessor,
+                  let propertySymbol,
+                  let getter = enumPropertyGetterPlaceholder(for: propertySymbol, sema: sema, interner: interner),
+                  let setter = enumPropertySetterPlaceholder(for: propertySymbol, sema: sema, interner: interner)
+            else {
+                return nil
+            }
+            return (getter, setter)
+        }()
+
         // Direct field-offset storage for ordinary stored properties on
         // class/interface instances (and for a local `object`'s
         // object-literal instance fields).
@@ -495,6 +527,15 @@ extension CallLowerer {
                 thrownResult: nil,
                 dispatch: virtualGetterDispatch.dispatch
             ))
+            currentValue = result
+        } else if let enumHelperCallees {
+            let result = arena.appendTemporary(type: propType)
+            emitNonThrowingCall(
+                callee: enumHelperCallees.getter,
+                arg: receiverID,
+                result: result,
+                into: &instructions
+            )
             currentValue = result
         } else if usesGetterAccessor, let propertySymbol {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
@@ -725,6 +766,15 @@ extension CallLowerer {
                     thrownResult: nil,
                     dispatch: virtualSetterDispatch.dispatch
                 ))
+            } else if let enumHelperCallees {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: enumHelperCallees.setter,
+                    arguments: [receiverID, newValue],
+                    result: arena.appendTemporary(type: sema.types.unitType),
+                    canThrow: false,
+                    thrownResult: nil
+                ))
             } else if usesSetterAccessor, let propertySymbol {
                 let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                     ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
@@ -786,6 +836,51 @@ extension CallLowerer {
     /// when the property has a real, user-written `set(...) { ... }` body, in
     /// which case assignment must dispatch to the setter accessor instead of
     /// writing storage directly.
+    /// The setter placeholder for a stored member property of an enum class
+    /// (see `KIRLoweringDriver+EnumEntryStorage.swift`), or `nil` when the
+    /// property is not enum-owned or is written through its own accessor.
+    func enumPropertySetterPlaceholder(
+        for propertySymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let info = sema.symbols.symbol(propertySymbol),
+              info.kind == .property,
+              info.flags.contains(.mutable),
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+        else {
+            return nil
+        }
+        return EnumPropertyHelperNames.placeholder(
+            prefix: EnumPropertyHelperNames.setterPrefix,
+            ownerSymbol: ownerSymbol,
+            propertyName: info.name,
+            interner: interner
+        )
+    }
+
+    /// The getter placeholder counterpart of `enumPropertySetterPlaceholder`.
+    func enumPropertyGetterPlaceholder(
+        for propertySymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let info = sema.symbols.symbol(propertySymbol),
+              info.kind == .property,
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+        else {
+            return nil
+        }
+        return EnumPropertyHelperNames.placeholder(
+            prefix: EnumPropertyHelperNames.getterPrefix,
+            ownerSymbol: ownerSymbol,
+            propertyName: info.name,
+            interner: interner
+        )
+    }
+
     func memberPropertyUsesSetterAccessor(
         _ propertySymbol: SymbolID,
         ast: ASTModule,

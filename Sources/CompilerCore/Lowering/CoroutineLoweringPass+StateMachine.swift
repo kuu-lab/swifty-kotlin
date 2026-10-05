@@ -50,6 +50,12 @@ extension CoroutineLoweringPass {
         // CORO-004: runtime suspend callees that take the caller continuation as a
         // trailing argument so they can resume the awaiting coroutine without blocking.
         let continuationConsumingRuntimeCallees: Set<InternedString> = [
+            interner.intern("kk_suspend_function_invoke_0"),
+            interner.intern("kk_suspend_function_invoke"),
+            interner.intern("kk_suspend_function_invoke_2"),
+            interner.intern("kk_suspend_function_invoke_3"),
+            interner.intern("kk_suspend_function_invoke_4"),
+            interner.intern("kk_suspend_function_invoke_5"),
             // KSP-1566: bundled `delay` overloads are declared straight on the
             // `kk_kxmini_delay` bridge, whose external suspend call emits the
             // cdecl directly with the caller continuation appended.
@@ -286,6 +292,7 @@ extension CoroutineLoweringPass {
                     )
                     let loweredSuspendCallee: InternedString
                     var loweredSuspendArguments: [KIRExprID]
+                    var loweredSuspendSymbol: SymbolID? = suspendCallInfo.symbol
                     if suspendCallInfo.callee == suspendCoroutineUninterceptedOrReturnCallee ||
                         suspendCallInfo.callee == interner.intern("<suspendCoroutineUninterceptedOrReturn>") {
                         guard let blockExpr = suspendCallInfo.arguments.first else {
@@ -319,26 +326,36 @@ extension CoroutineLoweringPass {
                         loweredSuspendArguments = suspendCallInfo.arguments
                         // KSP-1566: `delay(duration)` binds the bundled Duration
                         // overload straight to `kk_kxmini_delay`; the argument
-                        // arrives unboxed as nanoseconds, so convert it to
-                        // milliseconds inline (`inWholeMilliseconds`).
+                        // arrives as a tagged payload, so convert it to the
+                        // runtime's millisecond ABI. KUU-1093: Duration is now
+                        // a boxed object (it implements Comparable<Duration>) —
+                        // kk_duration_inWholeMilliseconds accepts every
+                        // representation, boxed or tagged raw.
                         if suspendCallInfo.callee == runtimeDelayCallee,
                            let firstArg = loweredSuspendArguments.first,
                            let argType = module.arena.exprType(firstArg),
                            argType != longType, argType != intType, let longType
                         {
-                            let divisorExpr = module.arena.appendExpr(
-                                .intLiteral(1_000_000),
-                                type: longType
-                            )
                             let millisExpr = module.arena.appendTemporary(type: longType
                             )
-                            lowered.append(.binary(
-                                op: .divide,
-                                lhs: firstArg,
-                                rhs: divisorExpr,
-                                result: millisExpr
+                            lowered.append(.call(
+                                symbol: nil,
+                                callee: interner.intern("kk_duration_inWholeMilliseconds"),
+                                arguments: [firstArg],
+                                result: millisExpr,
+                                canThrow: false,
+                                thrownResult: nil,
+                                isSuperCall: false
                             ))
                             loweredSuspendArguments[0] = millisExpr
+                            // The emitted call targets the raw-milliseconds
+                            // kk_kxmini_delay bridge, not the Kotlin
+                            // `delay(duration)` declaration — keep the source
+                            // symbol off it so ABI boxing does not see the
+                            // stale Duration parameter and box the primitive
+                            // back into an object the bridge would
+                            // reinterpret as a millisecond count.
+                            loweredSuspendSymbol = nil
                         }
                         if isMillisDelayCall || continuationConsumingRuntimeCallees.contains(suspendCallInfo.callee) {
                             // CORO-004: append the caller continuation so await / join can
@@ -356,7 +373,7 @@ extension CoroutineLoweringPass {
                     {
                         lowered.append(
                             .virtualCall(
-                                symbol: suspendCallInfo.symbol,
+                                symbol: loweredSuspendSymbol,
                                 callee: loweredSuspendCallee,
                                 receiver: receiver,
                                 arguments: loweredSuspendArguments,
@@ -369,7 +386,7 @@ extension CoroutineLoweringPass {
                     } else {
                         lowered.append(
                             .call(
-                                symbol: suspendCallInfo.symbol,
+                                symbol: loweredSuspendSymbol,
                                 callee: loweredSuspendCallee,
                                 arguments: loweredSuspendArguments,
                                 result: suspendTokenResult,

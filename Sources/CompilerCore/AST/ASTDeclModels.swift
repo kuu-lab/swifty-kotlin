@@ -256,6 +256,7 @@ public struct ObjectDecl: Codable {
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
     public let superTypes: [TypeRefID]
+    public let superTypeEntries: [SuperTypeEntry]
     /// Arguments of the superclass constructor invocation in the object
     /// header (`object : Base(n) { ... }`).
     public let superTypeConstructorArgs: [CallArgument]
@@ -273,6 +274,7 @@ public struct ObjectDecl: Codable {
         modifiers: Modifiers,
         annotations: [AnnotationNode] = [],
         superTypes: [TypeRefID] = [],
+        superTypeEntries: [SuperTypeEntry] = [],
         superTypeConstructorArgs: [CallArgument] = [],
         nestedTypeAliases: [TypeAliasDecl] = [],
         initBlocks: [FunctionBody] = [],
@@ -287,6 +289,9 @@ public struct ObjectDecl: Codable {
         self.modifiers = modifiers
         self.annotations = annotations
         self.superTypes = superTypes
+        self.superTypeEntries = superTypeEntries.isEmpty
+            ? superTypes.map { SuperTypeEntry(typeRef: $0) }
+            : superTypeEntries
         self.superTypeConstructorArgs = superTypeConstructorArgs
         self.nestedTypeAliases = nestedTypeAliases
         self.initBlocks = initBlocks
@@ -528,19 +533,59 @@ public struct EnumEntryDecl: Codable {
     /// can synthesize ordinal-based dispatch for overrides without creating a
     /// second heap-backed representation for enum entries.
     public let memberFunctions: [DeclID]
+    /// Properties declared in an enum entry's anonymous class body (e.g.
+    /// `PLUS { override val sym = "+" }`). Like `memberFunctions`, they are
+    /// owned by the entry field symbol; their values live in the per-entry
+    /// side storage that the enum's lazy initializer fills.
+    public let memberProperties: [DeclID]
 
     public init(
         range: SourceRange,
         name: InternedString,
         annotations: [AnnotationNode] = [],
         constructorArgs: [CallArgument] = [],
-        memberFunctions: [DeclID] = []
+        memberFunctions: [DeclID] = [],
+        memberProperties: [DeclID] = []
     ) {
         self.range = range
         self.name = name
         self.annotations = annotations
         self.constructorArgs = constructorArgs
         self.memberFunctions = memberFunctions
+        self.memberProperties = memberProperties
+    }
+}
+
+public extension EnumEntryDecl {
+    /// Maps each primary-constructor parameter (by index) to the entry
+    /// argument bound to it: positional arguments fill parameters in order
+    /// until the first named argument, and named arguments bind by label.
+    /// `nil` means the parameter is not supplied and its default applies.
+    /// Arguments that match no parameter (too many positional arguments, or
+    /// an unknown label) are returned in `unmatched`.
+    func constructorArgumentMapping(
+        parameterNames: [InternedString]
+    ) -> (argumentIndexByParameter: [Int?], unmatched: [Int]) {
+        var mapping = [Int?](repeating: nil, count: parameterNames.count)
+        var unmatched: [Int] = []
+        var nextPositional = 0
+        for (argIndex, arg) in constructorArgs.enumerated() {
+            if let label = arg.label {
+                if let paramIndex = parameterNames.firstIndex(of: label), mapping[paramIndex] == nil {
+                    mapping[paramIndex] = argIndex
+                } else {
+                    unmatched.append(argIndex)
+                }
+                continue
+            }
+            if nextPositional < parameterNames.count {
+                mapping[nextPositional] = argIndex
+                nextPositional += 1
+            } else {
+                unmatched.append(argIndex)
+            }
+        }
+        return (mapping, unmatched)
     }
 }
 

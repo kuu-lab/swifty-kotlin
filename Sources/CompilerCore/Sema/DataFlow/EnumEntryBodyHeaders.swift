@@ -100,7 +100,7 @@ extension DataFlowSemaPhase {
         classTypeParameterSymbols: [SymbolID] = [],
         classLocalTypeParameters: [InternedString: SymbolID] = [:]
     ) {
-        for entry in entries where !entry.memberFunctions.isEmpty {
+        for entry in entries where !entry.memberFunctions.isEmpty || !entry.memberProperties.isEmpty {
             let entryFQName = ownerFQName + [entry.name]
             guard let entrySymbol = symbols.lookupAll(fqName: entryFQName).first(where: { symbolID in
                 symbols.symbol(symbolID)?.kind == .field
@@ -118,7 +118,7 @@ extension DataFlowSemaPhase {
             collectMemberHeaders(
                 members: MemberDeclarations(
                     functions: entry.memberFunctions,
-                    properties: [],
+                    properties: entry.memberProperties,
                     nestedClasses: [],
                     nestedObjects: []
                 ),

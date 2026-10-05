@@ -157,6 +157,7 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions: orderedTopLevelInitInstructions,
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
+        insertEnumLazyInitTriggers(arena: arena, sema: sema)
         let module = KIRModule(files: files, arena: arena)
         module.arena.callableValueInfoByExprID = ctx.callableValueInfoByExprID
         module.arena.receiverFirstLauncherLambdaSymbols = ctx.receiverFirstLauncherLambdaSymbols
@@ -177,7 +178,7 @@ extension KIRLoweringDriver {
         let ast = shared.ast
         let arena = shared.arena
         let interner = compilationCtx.interner
-        let prefix = "$enumConstructorProperty$"
+        let prefixes = [EnumPropertyHelperNames.getterPrefix, EnumPropertyHelperNames.setterPrefix]
 
         var neededOwnerIDs = Set<Int32>()
         for decl in arena.declarations {
@@ -185,7 +186,7 @@ extension KIRLoweringDriver {
             for instruction in function.body {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { continue }
                 let calleeName = interner.resolve(callee)
-                guard calleeName.hasPrefix(prefix) else { continue }
+                guard let prefix = prefixes.first(where: { calleeName.hasPrefix($0) }) else { continue }
                 let remainder = calleeName.dropFirst(prefix.count)
                 guard let separatorIndex = remainder.firstIndex(of: "$"),
                       let ownerID = Int32(remainder[..<separatorIndex])
@@ -376,9 +377,17 @@ extension KIRLoweringDriver {
             shared: shared,
             compilationCtx: compilationCtx
         )
-        let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
+        let forwardingDecls = synthesizeClassDelegationForwardingMethods(
+            classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+        ) + synthesizeClassDelegationForwardingPropertyAccessors(
+            classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+        )
+        let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+            symbol: symbol, memberDecls: directMembers + forwardingDecls
+        )))
         var declIDs = [kirID]
         declIDs.append(contentsOf: allDecls)
+        declIDs.append(contentsOf: forwardingDecls)
 
         // Every source-backed top-level object needs a global slot for its
         // singleton heap pointer. Without it, an object crossing an Any

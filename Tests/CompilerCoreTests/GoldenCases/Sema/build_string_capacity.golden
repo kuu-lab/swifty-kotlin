@@ -1,18 +1,18 @@
-symbol fq=golden.sema.useBuildStringWithCapacityPositional[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useBuildStringWithCapacity[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol fq=golden.sema.useBuildStringWithCapacityPositional[kind=fun;params=;ret=String;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol fq=golden.sema.useBuildStringWithCapacity[kind=fun;params=;ret=String;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 file fbuild_string_capacity package=golden.sema
-  decl golden.sema.useBuildStringWithCapacity[kind=fun;params=] fun useBuildStringWithCapacity sym=golden.sema.useBuildStringWithCapacity[kind=fun;params=]
-  decl golden.sema.useBuildStringWithCapacityPositional[kind=fun;params=] fun useBuildStringWithCapacityPositional sym=golden.sema.useBuildStringWithCapacityPositional[kind=fun;params=]
+  decl golden.sema.useBuildStringWithCapacity[kind=fun;params=;ret=String;origin=fixture] fun useBuildStringWithCapacity sym=golden.sema.useBuildStringWithCapacity[kind=fun;params=;ret=String;origin=fixture]
+  decl golden.sema.useBuildStringWithCapacityPositional[kind=fun;params=;ret=String;origin=fixture] fun useBuildStringWithCapacityPositional sym=golden.sema.useBuildStringWithCapacityPositional[kind=fun;params=;ret=String;origin=fixture]
 expr e@3:67 int(16) type=Int
 expr e@4:12 string(hello) type=String
-expr e@4:5 call callee=e@4:5#1 args=[_:e@4:12] type=kotlin.text.StringBuilder call=kotlin.text.append[kind=fun;recv=T0;params=*kotlin.CharSequence?;gen=1] targs=[kotlin.text.StringBuilder]
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:12] type=kotlin.text.StringBuilder call=kotlin.text.append[kind=fun;recv=T0;params=*kotlin.CharSequence?;ret=T0;gen=1;bounds=[kotlin.text.Appendable];vararg=[1];names=[value]] targs=[kotlin.text.StringBuilder]
 expr e@5:12 string( world) type=String
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:12] type=kotlin.text.StringBuilder call=kotlin.text.append[kind=fun;recv=T0;params=*kotlin.CharSequence?;gen=1] targs=[kotlin.text.StringBuilder]
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:12] type=kotlin.text.StringBuilder call=kotlin.text.append[kind=fun;recv=T0;params=*kotlin.CharSequence?;ret=T0;gen=1;bounds=[kotlin.text.Appendable];vararg=[1];names=[value]] targs=[kotlin.text.StringBuilder]
 expr e@4:5#2 blockExpr stmts=[e@4:5] trailing=e@5:5 type=kotlin.text.StringBuilder
 expr e@3:71 lambda params=[] body=e@4:5#2 label=buildString type=kotlin.text.StringBuilder.() -> Unit
-expr e@3:44 call callee=e@3:44#1 args=[capacity:e@3:67,_:e@3:71] type=String call=kotlin.text.buildString[kind=fun;params=Int,fn{r=kotlin.text.StringBuilder;p=;ret=Unit}]
+expr e@3:44 call callee=e@3:44#1 args=[capacity:e@3:67,_:e@3:71] type=String call=kotlin.text.buildString[kind=fun;params=Int,fn{r=kotlin.text.StringBuilder;p=;ret=Unit};ret=String;nonlocal=[0,0];names=[capacity,builderAction]]
 expr e@8:66 int(32) type=Int
 expr e@9:12 string(foo) type=String
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:12] type=kotlin.text.StringBuilder call=kotlin.text.append[kind=fun;recv=T0;params=*kotlin.CharSequence?;gen=1] targs=[kotlin.text.StringBuilder]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:12] type=kotlin.text.StringBuilder call=kotlin.text.append[kind=fun;recv=T0;params=*kotlin.CharSequence?;ret=T0;gen=1;bounds=[kotlin.text.Appendable];vararg=[1];names=[value]] targs=[kotlin.text.StringBuilder]
 expr e@8:70 lambda params=[] body=e@9:5 label=buildString type=kotlin.text.StringBuilder.() -> Unit
-expr e@8:54 call callee=e@8:54#1 args=[_:e@8:66,_:e@8:70] type=String call=kotlin.text.buildString[kind=fun;params=Int,fn{r=kotlin.text.StringBuilder;p=;ret=Unit}]
+expr e@8:54 call callee=e@8:54#1 args=[_:e@8:66,_:e@8:70] type=String call=kotlin.text.buildString[kind=fun;params=Int,fn{r=kotlin.text.StringBuilder;p=;ret=Unit};ret=String;nonlocal=[0,0];names=[capacity,builderAction]]

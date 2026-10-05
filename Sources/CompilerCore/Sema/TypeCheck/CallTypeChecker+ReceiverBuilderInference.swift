@@ -23,6 +23,24 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
         guard let calleeName, locals[calleeName] == nil else { return nil }
+        // Coroutine launcher and sequence builders (`produce { }`,
+        // `runBlocking { }`, `sequence { }`, ...) have dedicated handling
+        // below that derives their element/result type from `send`/`yield`
+        // calls inside the block and marks the lambda for the receiver-first
+        // launcher ABI (launcher slot 0 carries the produced channel/scope).
+        // Letting generic builder inference intercept them would lose both
+        // specializations -- `produceIn` lowered with captures bound to the
+        // wrong launcher slots, so `source.collect` crashed in
+        // `__kk_flow_retain` (KUU-962 / flow_scope_launch_produce).
+        let launcherNames = KnownCompilerNames(interner: ctx.interner)
+        guard calleeName != launcherNames.produce,
+              calleeName != launcherNames.runBlocking,
+              calleeName != launcherNames.launch,
+              calleeName != launcherNames.async,
+              calleeName != launcherNames.coroutineScope,
+              calleeName != launcherNames.supervisorScope,
+              calleeName != launcherNames.sequenceFn
+        else { return nil }
         let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         guard candidates.count == 1,
               let candidate = candidates.first,
@@ -96,12 +114,21 @@ extension CallTypeChecker {
             vars: ctx.resolver.usedTypeVariables(from: session.constraints),
             constraints: session.constraints, typeSystem: sema.types
         )
-        guard solution.isSuccess,
-              ctx.resolver.checkForUninferredTypeVariables(
-                  signature: signature, substitution: solution.substitution,
-                  typeVarBySymbol: variables, range: range, typeSystem: sema.types
-              ) == nil
-        else { return nil }
+        guard solution.isSuccess else { return nil }
+        if let diagnostic = ctx.resolver.checkForUninferredTypeVariables(
+            signature: signature, substitution: solution.substitution,
+            typeVarBySymbol: variables, range: range, typeSystem: sema.types
+        ) {
+            // Collection builders can still infer element/key/value types from
+            // mutations in the dedicated path when this callback session has
+            // no evidence. Preserve successful inference from other arguments
+            // or an expected type before falling back.
+            if hasGenericCollectionReceiverLambda(signature: signature, sema: sema, interner: ctx.interner) {
+                return nil
+            }
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
 
         let lambdaType = sema.types.substituteTypeParameters(
             in: signature.parameterTypes[parameterIndex],
@@ -129,8 +156,8 @@ extension CallTypeChecker {
             for: chosen, sema: sema, interner: ctx.interner, range: range, diagnostics: ctx.semaCtx.diagnostics
         )
         driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
-        applyContractEffects(chosen: chosen, args: args, ctx: ctx, locals: &locals)
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }

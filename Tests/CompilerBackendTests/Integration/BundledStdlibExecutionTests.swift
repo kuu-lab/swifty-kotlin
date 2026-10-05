@@ -8,6 +8,106 @@ import Testing
 /// kotlinc を使わない第二 oracle として機能する。
 @Suite
 struct BundledStdlibExecutionTests {
+    @Test(arguments: [true, false])
+    func testCoroutineContextSourceElementBaseDispatch(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.coroutines.CoroutineContext
+            import kotlin.coroutines.EmptyCoroutineContext
+            object Key : CoroutineContext.Key<CustomElement>
+            object OtherKey : CoroutineContext.Key<CustomElement>
+            open class CustomElement : CoroutineContext.Element {
+                override val key: CoroutineContext.Key<*> = Key
+            }
+            class Derived : CustomElement()
+            class ThrowingElement : CustomElement() {
+                override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? {
+                    throw IllegalStateException("get")
+                }
+                override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext {
+                    throw IllegalArgumentException("minusKey")
+                }
+            }
+            fun <T : CoroutineContext> probe(context: T, element: CustomElement) {
+                val indexed: CustomElement? = context[Key]
+                val explicit: CustomElement? = context.get(Key)
+                println(indexed === element)
+                println(explicit === element)
+                println(context[OtherKey] == null)
+                println(context.minusKey(Key) === EmptyCoroutineContext)
+                println(context.minusKey(OtherKey) === element)
+            }
+            fun main() {
+                val element = CustomElement()
+                val context: CoroutineContext = element
+                probe(context, element)
+                val derived = Derived()
+                probe(derived, derived)
+                val throwing: CoroutineContext = ThrowingElement()
+                try { throwing[Key] } catch (e: IllegalStateException) { println(e.message) }
+                try { throwing.get(Key) } catch (e: IllegalStateException) { println(e.message) }
+                try { throwing.minusKey(Key) } catch (e: IllegalArgumentException) { println(e.message) }
+            }
+            """,
+            expectedOutput: String(repeating: "true\n", count: 10) + "get\nget\nminusKey\n",
+            moduleName: "KUU977CoroutineContextDispatch",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testCoroutineContextObjectElementDispatch(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.coroutines.CoroutineContext
+            import kotlin.coroutines.EmptyCoroutineContext
+
+            object Key : CoroutineContext.Key<Element>
+            object OtherKey : CoroutineContext.Key<Element>
+
+            object Element : CoroutineContext.Element {
+                override val key: CoroutineContext.Key<*> = Key
+            }
+
+            interface MutableValue {
+                var value: Int
+            }
+
+            object Value : MutableValue {
+                override var value: Int = 7
+            }
+
+            fun <T : CoroutineContext> probe(context: T) {
+                println(context.get(Key) === Element)
+                println(context[Key] === Element)
+                println(context.get(OtherKey) == null)
+                println(context.minusKey(Key) === EmptyCoroutineContext)
+                println(context.minusKey(OtherKey) === Element)
+            }
+
+            fun main() {
+                val context: CoroutineContext = Element
+                println(context.get(Key) === Element)
+                println(context.minusKey(Key) === EmptyCoroutineContext)
+                probe(context)
+                val nullable: CoroutineContext? = Element
+                println(nullable?.get(Key) === Element)
+                println(nullable?.minusKey(Key) === EmptyCoroutineContext)
+                println(Element.key === Key)
+                val value: MutableValue = Value
+                println(value.value)
+                value.value = 9
+                println(Value.value)
+                Value.value = 11
+                println(value.value)
+            }
+            """,
+            expectedOutput: String(repeating: "true\n", count: 10) + "7\n9\n11\n",
+            moduleName: "KUU1253CoroutineContextObjectElement",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testAnyIntArrayCastPreservesRuntimeArrayType() throws {
         try compileAndRunKotlin(
@@ -720,6 +820,184 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-1098: the bit-count and one-bit extensions execute through bundled
+    /// Kotlin on the remaining integer receivers, including zero, all-ones,
+    /// sign/high-bit boundaries, and mixed values.
+    @Test
+    func testSmallAndUnsignedBitFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun printByteBits(value: Byte) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printShortBits(value: Short) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printUByteBits(value: UByte) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printUShortBits(value: UShort) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printUIntBits(value: UInt) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printULongBits(value: ULong) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun main() {
+                printByteBits(0.toByte())
+                printByteBits(1.toByte())
+                printByteBits((-1).toByte())
+                printByteBits(64.toByte())
+                printShortBits(0.toShort())
+                printShortBits((-1).toShort())
+                printShortBits(0x1234.toShort())
+                printUByteBits(0u.toUByte())
+                printUByteBits(255u.toUByte())
+                printUByteBits(64u.toUByte())
+                printUShortBits(0u.toUShort())
+                printUShortBits(0xFFFFu.toUShort())
+                printUShortBits(0x1234u.toUShort())
+                printUIntBits(0u)
+                printUIntBits(0xFFFFFFFFu)
+                printUIntBits(0x12345678u)
+                printULongBits(0uL)
+                printULongBits(0xFFFFFFFFFFFFFFFFuL)
+                printULongBits(0x123456789ABCDEFuL)
+            }
+            """,
+            expectedOutput: """
+            0
+            8
+            8
+            0
+            0
+            1
+            7
+            0
+            1
+            1
+            8
+            0
+            0
+            -128
+            1
+            1
+            1
+            6
+            64
+            64
+            0
+            16
+            16
+            0
+            0
+            16
+            0
+            0
+            -32768
+            1
+            5
+            3
+            2
+            4096
+            4
+            0
+            8
+            8
+            0
+            0
+            8
+            0
+            0
+            128
+            1
+            1
+            1
+            6
+            64
+            64
+            0
+            16
+            16
+            0
+            0
+            16
+            0
+            0
+            32768
+            1
+            5
+            3
+            2
+            4096
+            4
+            0
+            32
+            32
+            0
+            0
+            32
+            0
+            0
+            2147483648
+            1
+            13
+            3
+            3
+            268435456
+            8
+            0
+            64
+            64
+            0
+            0
+            64
+            0
+            0
+            9223372036854775808
+            1
+            32
+            7
+            0
+            72057594037927936
+            1
+
+            """
+        )
+    }
+
     /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
     /// implementations across overflow, NaN, and signed-zero edge cases.
     @Test
@@ -1293,6 +1571,92 @@ struct BundledStdlibExecutionTests {
             true
 
             """
+        )
+    }
+
+    @Test
+    func testCharClosedRangeCoercionClampsAndRejectsEmptyRanges() throws {
+        try compileAndRunKotlin(
+            """
+            class CharBounds(
+                override val start: Char,
+                override val endInclusive: Char
+            ) : ClosedRange<Char> {
+                override fun toString(): String = "$start..$endInclusive"
+            }
+
+            fun <T : Comparable<T>> clamp(value: T, range: ClosedRange<T>): T = value.coerceIn(range)
+
+            fun emptyRangeMessage(range: ClosedRange<Char>): String? {
+                return try {
+                    'c'.coerceIn(range)
+                    "did not throw"
+                } catch (e: IllegalArgumentException) {
+                    e.message
+                }
+            }
+
+            fun main() {
+                println('a'.coerceIn('b'..'d'))
+                println('z'.coerceIn('b'..'d'))
+                println('c'.coerceIn('b'..'d'))
+                println('a'.coerceIn('b', 'd'))
+                val range: ClosedRange<Char> = 'b'..'d'
+                println('a'.coerceIn(range))
+                println('z'.coerceIn(range))
+                println('b'.coerceIn(range))
+                println('d'.coerceIn(range))
+                println('a'.coerceIn('c'..'c'))
+                println('z'.coerceIn('c'..'c'))
+                println(clamp('a', range))
+                println(clamp('z', range))
+                val custom = CharBounds('b', 'd')
+                println('a'.coerceIn(custom))
+                println('z'.coerceIn(custom))
+                println('c'.coerceIn(custom))
+                println(emptyRangeMessage('d'..'b'))
+                println(emptyRangeMessage(CharBounds('d', 'b')))
+                println(0.toChar().coerceIn(32768.toChar()..65535.toChar()).code)
+                println(65535.toChar().coerceIn(0.toChar()..32768.toChar()).code)
+                val nullable: Char? = 'a'
+                val absent: Char? = null
+                println(nullable?.coerceIn(range))
+                println(absent?.coerceIn(range))
+                println(clamp("a", "b".."d"))
+                println(clamp("z", "b".."d"))
+                println(clamp(0, 1..3))
+                println(clamp(4, 1..3))
+            }
+            """,
+            expectedOutput: """
+            b
+            d
+            c
+            b
+            b
+            d
+            b
+            d
+            c
+            c
+            b
+            d
+            b
+            d
+            c
+            Cannot coerce value to an empty range: d..b.
+            Cannot coerce value to an empty range: d..b.
+            32768
+            32768
+            b
+            null
+            b
+            d
+            1
+            3
+
+            """,
+            allowDefaultStdlibLibrary: false
         )
     }
 

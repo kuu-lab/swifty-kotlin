@@ -265,6 +265,9 @@ extension TypeSystem {
             return true
 
         case let (.functionType(leftFunction), .functionType(rightFunction)):
+            if rightFunction.isCallableReference && !leftFunction.isCallableReference {
+                return false
+            }
             guard leftFunction.contextReceivers.count == rightFunction.contextReceivers.count else {
                 return false
             }
@@ -304,12 +307,25 @@ extension TypeSystem {
             return isSubtype(leftFunction.returnType, rightFunction.returnType)
 
         case let (.functionType(leftFunction), .classType(rightClass)):
-            // Function types are subtypes of the common `kotlin.Function<R>`
-            // interface as well as `kotlin.reflect.KFunction<R>`.
+            if leftFunction.isCallableReference, let kFunctionSymbol = kFunctionInterfaceSymbol {
+                let reflectiveType = make(.classType(ClassType(
+                    classSymbol: kFunctionSymbol,
+                    args: [.out(leftFunction.returnType)],
+                    nullability: leftFunction.nullability
+                )))
+                if isSubtype(reflectiveType, supertype) {
+                    return true
+                }
+            }
+            // Only callable references implement the reflective KFunction interface.
             guard rightClass.classSymbol == functionInterfaceSymbol
-                || rightClass.classSymbol == kFunctionInterfaceSymbol
+                || (leftFunction.isCallableReference
+                    && (rightClass.classSymbol == kFunctionInterfaceSymbol
+                        || rightClass.classSymbol == kCallableInterfaceSymbol))
             else {
-                return false
+                // KUU-1084: `(P1..PN) -> R` also conforms to the synthetic
+                // `kotlin.Function.FunctionN` interface of matching arity.
+                return functionTypeSubtypeOfFunctionN(leftFunction, rightClass)
             }
             guard nullabilitySubtype(leftFunction.nullability, rightClass.nullability) else {
                 return false
@@ -330,6 +346,22 @@ extension TypeSystem {
             // SAM: fun interface <: function type when the SAM method signature matches
             guard nullabilitySubtype(leftClass.nullability, rightFunction.nullability) else {
                 return false
+            }
+            // KUU-1084: `FunctionN<P1..PN, R>` IS `(P1..PN) -> R` in Kotlin —
+            // the nominal form is a subtype of the equivalent function type.
+            if functionNArity(of: leftClass.classSymbol) != nil {
+                return functionNSubtypeOfFunctionType(leftClass, rightFunction)
+            }
+            // KUU-1195: a nominal type that reaches `FunctionN` through
+            // inheritance (e.g. the bundled `KProperty0/1/2` interfaces, whose
+            // `() -> V` / `(T) -> V` / `(D, E) -> V` supertypes are bound to
+            // `Function0/1/2` during inheritance resolution) is likewise a
+            // subtype of the matching function type.
+            if let liftedFunctionN = inheritedFunctionNClassType(
+                of: leftClass,
+                arity: (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count
+            ), functionNSubtypeOfFunctionType(liftedFunctionN, rightFunction) {
+                return true
             }
             guard let symbols = symbolTable else { return false }
             guard let sym = symbols.symbol(leftClass.classSymbol),
@@ -870,6 +902,159 @@ extension TypeSystem {
         }
         let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
         return best.count == 1 ? best.first : nil
+    }
+
+    /// Arity of `kotlin.Function.FunctionN` when `classSymbol` is one of the
+    /// synthetic function interfaces registered by
+    /// `registerSyntheticFunctionInterface` (KUU-1084).
+    private func functionNArity(of classSymbol: SymbolID) -> Int? {
+        for (arity, symbolID) in functionNInterfaceSymbols where symbolID == classSymbol {
+            return arity
+        }
+        return nil
+    }
+
+    func nominalFunctionType(for type: TypeID) -> FunctionType? {
+        guard case let .classType(classType) = kind(of: type),
+              let arity = functionNArity(of: classType.classSymbol),
+              classType.args.count == arity + 1
+        else {
+            return nil
+        }
+        let arguments = classType.args.enumerated().compactMap { index, argument -> TypeID? in
+            switch argument {
+            case let .invariant(type):
+                return type
+            case let .in(type) where index < arity:
+                return type
+            case let .out(type) where index == arity:
+                return type
+            default:
+                return nil
+            }
+        }
+        guard arguments.count == arity + 1 else { return nil }
+        return FunctionType(
+            params: Array(arguments.prefix(arity)),
+            returnType: arguments[arity],
+            nullability: classType.nullability
+        )
+    }
+
+    /// Lifts a nominal class type to the `kotlin.Function.FunctionN`
+    /// interface of the given arity that it reaches through its nominal
+    /// supertype chain (e.g. `KProperty0<Int>` → `Function0<Int>` via the
+    /// `() -> V` supertype binding — KUU-1195), preserving the declared
+    /// projections and the subtype's nullability. `nil` when no `FunctionN`
+    /// ancestor of that arity exists. The walk mirrors
+    /// `isNominalSubtypeSymbol`: an explicit worklist with a visited set so a
+    /// cyclic `.kklib` supertype graph cannot loop.
+    func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
+        var visited: Set<SymbolID> = [classType.classSymbol]
+        var queue = directNominalSupertypes(for: classType.classSymbol)
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visited.insert(current).inserted else { continue }
+            if functionNArity(of: current) == arity,
+               let args = liftedNominalSupertypeArgs(
+                   from: classType.classSymbol,
+                   childArgs: classType.args,
+                   to: current
+               )
+            {
+                return ClassType(
+                    classSymbol: current,
+                    args: args,
+                    nullability: classType.nullability
+                )
+            }
+            queue.append(contentsOf: directNominalSupertypes(for: current))
+        }
+        return nil
+    }
+
+    /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>`: the receiver counts as the
+    /// leading parameter, arity must match, each `in` argument accepts the
+    /// parameter (`Ai <: Qi`), and the return type satisfies the `out` argument
+    /// (`S <: B`). `suspend` and context-receiver function types never conform
+    /// to the non-suspend `FunctionN` interfaces.
+    private func functionTypeSubtypeOfFunctionN(
+        _ function: FunctionType,
+        _ classType: ClassType
+    ) -> Bool {
+        guard let arity = functionNArity(of: classType.classSymbol),
+              function.contextReceivers.isEmpty,
+              !function.isSuspend,
+              nullabilitySubtype(function.nullability, classType.nullability)
+        else {
+            return false
+        }
+        let effectiveParams = (function.receiver.map { [$0] } ?? []) + function.params
+        guard effectiveParams.count == arity,
+              classType.args.count == arity + 1
+        else {
+            return false
+        }
+        for (index, param) in effectiveParams.enumerated() {
+            switch classType.args[index] {
+            case .star:
+                continue
+            case let .invariant(type), let .in(type):
+                guard isSubtype(type, param) else { return false }
+            case let .out(type):
+                // `out` projection on an `in` position bounds the impl's
+                // parameter above: accept only `Qi <: Ai`.
+                guard isSubtype(param, type) else { return false }
+            }
+        }
+        switch classType.args[arity] {
+        case .star:
+            return true
+        case let .invariant(type), let .out(type):
+            return isSubtype(function.returnType, type)
+        case let .in(type):
+            // `in` projection on the `out` position requires the impl's
+            // return type to be a supertype of the bound.
+            return isSubtype(type, function.returnType)
+        }
+    }
+
+    /// `FunctionN<A1..AN, B> <: (Q1..QN) -> S`: arity must match, each
+    /// parameter of the expected function type must be accepted by the
+    /// nominal `in` argument (`Qi <: Ai`), and the nominal `out` return must
+    /// fit the expected return (`B <: S`). Star or opposite-direction
+    /// projections cannot prove either bound, so they are rejected.
+    private func functionNSubtypeOfFunctionType(
+        _ classType: ClassType,
+        _ function: FunctionType
+    ) -> Bool {
+        guard let arity = functionNArity(of: classType.classSymbol),
+              function.contextReceivers.isEmpty,
+              !function.isSuspend,
+              nullabilitySubtype(classType.nullability, function.nullability)
+        else {
+            return false
+        }
+        let effectiveParams = (function.receiver.map { [$0] } ?? []) + function.params
+        guard effectiveParams.count == arity,
+              classType.args.count == arity + 1
+        else {
+            return false
+        }
+        for (index, param) in effectiveParams.enumerated() {
+            switch classType.args[index] {
+            case let .invariant(type), let .in(type):
+                guard isSubtype(param, type) else { return false }
+            case .star, .out:
+                return false
+            }
+        }
+        switch classType.args[arity] {
+        case let .invariant(type), let .out(type):
+            return isSubtype(type, function.returnType)
+        case .star, .in:
+            return false
+        }
     }
 
     private func isNumericPrimitiveType(_ type: TypeID) -> Bool {

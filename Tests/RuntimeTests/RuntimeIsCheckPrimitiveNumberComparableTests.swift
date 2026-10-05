@@ -29,7 +29,7 @@ struct RuntimeIsCheckPrimitiveNumberComparableTests {
         let boxedLong = kk_box_long_nonnull(3)
         let boxedInt = kk_box_int(3)
 
-        for boxed in [boxedDouble, boxedFloat, boxedLong, boxedInt] {
+        for boxed in [boxedDouble, boxedFloat, boxedLong, boxedInt, kk_box_byte(3), kk_box_short(3)] {
             #expect(kk_op_is(boxed, numberToken) == 1)
             #expect(kk_op_is(boxed, comparableToken) == 1)
         }

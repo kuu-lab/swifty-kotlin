@@ -7,6 +7,73 @@ import Testing
 @Suite
 struct CodegenBackendComparatorCompositionEdgeCasesTests {
 
+    @Test(arguments: [0, 2], [false, true])
+    func testCodegenCompareByDataClassDirectCompare(optimization: Int, stdlibFromSource: Bool) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_1209_compareby_data_class.kt"
+        ), encoding: .utf8)
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CompareByDataClassDirectCompare",
+            expected: "1\n-1\n1\n-1\n0\n1\n2:0\n1\n4:2\n-1\n-1\n0\n1\n-1\n1\n1\n0\n1\n-1\n0\n"
+                + "[1:1, 1:2, 1:2, 2:1]\n[2:1, 1:2, 1:2, 1:1]\n"
+                + "[1:1, 1:2, 1:2, 2:1]\n[1:1, 1:2, 1:2, 2:1]\n-1\n1\na,cc,bbb\n",
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            allowDefaultStdlibLibrary: !stdlibFromSource
+        )
+    }
+
+    @Test
+    func testCompareBySortsStringsWithInferredAndExplicitSelectorTypes() throws {
+        let source = """
+        fun main() {
+            val words = listOf("bb", "ccc", "a")
+            println(words.sortedWith(compareBy { it.length }))
+            println(words.sortedWith(compareBy<String> { it.length }))
+            val cmp = compareBy<String> { it.length }
+            println(cmp.compare("bb", "ccc"))
+            println(cmp.compare("ccc", "a"))
+            println(cmp.compare("bb", "zz"))
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "CompareByStringSelector",
+            expected: "[a, bb, ccc]\n[a, bb, ccc]\n-1\n1\n0\n"
+        )
+    }
+
+    @Test
+    func testCompareByPropagatesSelectorExceptionsThroughSamWrapper() throws {
+        let source = """
+        fun main() {
+            val message = "selector failed"
+            val cmp = compareBy<String> {
+                if (it == "bad") throw IllegalArgumentException(message)
+                it.length
+            }
+            try {
+                println(cmp.compare("bad", "a"))
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                println(cmp.compare("a", "bad"))
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            println(cmp.compare("bb", "a"))
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "CompareBySelectorExceptions",
+            expected: "selector failed\nselector failed\n1\n"
+        )
+    }
+
     @Test
     func testCodegenCompilesCompareByVarargSelectors() throws {
         let source = """

@@ -2,6 +2,57 @@
 
 /// Member-call argument normalization and instruction emission helpers.
 extension CallLowerer {
+    func memberExtensionOwnerSymbol(for callee: SymbolID, sema: SemaModule) -> SymbolID? {
+        sema.symbols.memberExtensionOwnerSymbol(for: callee)
+    }
+
+    func memberExtensionDispatchReceiver(
+        for callee: SymbolID,
+        callExprID: ExprID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let owner = memberExtensionOwnerSymbol(for: callee, sema: sema),
+              let ownerInfo = sema.symbols.symbol(owner)
+        else { return nil }
+        // A receiver found under an owner that merely *reaches* the dispatch
+        // owner (a subtype like `Derived` for `Base`, or an `inner class`
+        // instance that must hop through its `$outer` link) is not yet a
+        // value of the owner's type — chain it, and reject values that
+        // cannot reach `owner` at all instead of passing them as-is.
+        func resolveToOwner(_ exprID: KIRExprID?) -> KIRExprID? {
+            exprID.flatMap {
+                resolveOuterChainValue(
+                    from: $0,
+                    to: owner,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+        }
+        if let marked = callExprID
+            .flatMap({ sema.bindings.implicitReceiverOuterReceiver(for: $0) })
+            .flatMap({ driver.ctx.localValue(for: $0) }),
+           let resolved = resolveToOwner(marked)
+        {
+            return resolved
+        }
+        if let direct = driver.ctx.capturedOuterReceiverExprID(for: owner) {
+            return direct
+        }
+        if let reachingOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
+           let resolved = resolveToOwner(driver.ctx.capturedOuterReceiverExprID(for: reachingOwner))
+        {
+            return resolved
+        }
+        return resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
+            ?? resolveToOwner(driver.ctx.activeImplicitReceiverExprID())
+    }
+
     func sequenceBuilderRuntimeCalleeName(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
@@ -23,7 +74,7 @@ extension CallLowerer {
         case knownNames.yield:
             return interner.intern("__kk_sequence_builder_yield")
         case knownNames.yieldAll:
-            return interner.intern("__kk_sequence_builder_yieldAll")
+            return interner.intern("__kk_sequence_builder_yieldAll_checked")
         default:
             return nil
         }
@@ -224,10 +275,30 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: [KIRExprID],
         sourceArgExprs: [ExprID] = [],
-        sourceArgLabels: [InternedString?] = []
+        sourceArgLabels: [InternedString?] = [],
+        callExprID: ExprID? = nil
     ) {
         let knownNames = KnownCompilerNames(interner: interner)
         var finalArguments = arguments
+        let memberExtensionDispatchReceiver = chosenCallee.flatMap {
+            self.memberExtensionDispatchReceiver(
+                for: $0,
+                callExprID: callExprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        if let memberExtensionDispatchReceiver {
+            finalArguments.insert(memberExtensionDispatchReceiver, at: 0)
+        }
+        if let chosenCallee,
+           let localValue = driver.ctx.localValue(for: chosenCallee),
+           let callable = driver.ctx.callableValueInfo(for: localValue)
+        {
+            finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
+        }
         if let chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "kk_coroutine_scope_async",
            finalArguments.count == 4
@@ -351,6 +422,15 @@ extension CallLowerer {
         // either way), but silently dropping any captured values (`bonus`)
         // for one that does capture, since nothing ever threaded the actual
         // closure environment through.
+        // Member-extension calls carry TWO leading receiver slots here --
+        // [dispatch, extension, ...valueArgs] once the dispatch receiver was
+        // inserted above -- while the callee signature counts only the
+        // extension receiver. Without the override, value-parameter index 0
+        // (e.g. a `suspend (E) -> R` block) would be matched against the
+        // extension receiver slot, so its function value silently stayed a
+        // raw `symbolRef` and crossed the kklib boundary with an ABI the
+        // callee's kk_suspend_function_invoke cannot drive (aggregate
+        // params, KUU-962).
         adaptCoroutineLauncherBlock(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,
@@ -364,7 +444,8 @@ extension CallLowerer {
             arena: arena,
             interner: interner,
             instructions: &instructions,
-            arguments: &finalArguments
+            arguments: &finalArguments,
+            valueArgOffsetOverride: memberExtensionDispatchReceiver != nil ? 2 : nil
         )
         if normalized.defaultMask != 0,
            let chosenCallee,
@@ -879,7 +960,8 @@ extension CallLowerer {
             }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
-               receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
+               receiverExpr: memberExtensionDispatchReceiver == nil ? receiver.expr : nil,
+               loweredReceiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
                result: result, sema: sema, arena: arena, interner: interner
            )
@@ -888,7 +970,9 @@ extension CallLowerer {
             return
         }
         var callArguments = finalArguments
-        if loweredCalleeText == "__kk_system_currentTimeMillis"
+        if let chosenCallee, runtimeExternalOmitsObjectReceiver(chosenCallee, sema: sema) {
+            callArguments = Array(callArguments.dropFirst())
+        } else if loweredCalleeText == "__kk_system_currentTimeMillis"
             || loweredCalleeText == "__kk_system_nanoTime"
             || loweredCalleeText == "__kk_system_process_start_nanos"
             || loweredCalleeText == "__kk_system_gc"

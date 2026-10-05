@@ -303,6 +303,51 @@ struct InlineErasedLambdaABITests {
         #expect(callNames(in: body, interner: interner).last == "kk_unbox_float")
     }
 
+    @Test(arguments: [PrimitiveType.float, .double])
+    func unboxesSplicedLambdaResultsBeforeFloatingPointOperators(primitive: PrimitiveType) {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        let sema = makeSemaModule(
+            symbols: SymbolTable(),
+            types: types,
+            diagnostics: diagnostics
+        ).ctx
+        let ctx = makeKIRContext(
+            moduleName: "InlineErasedLambdaABI",
+            interner: interner,
+            sema: sema,
+            diagnostics: diagnostics
+        )
+        let module = KIRModule(files: [], arena: arena)
+        let primitiveType = types.make(.primitive(primitive, .nonNull))
+        let returned = arena.appendTemporary(type: primitiveType)
+        let erasedResult = arena.appendTemporary()
+        var body = KIRLoweringEmitContext()
+        let boxed = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
+            returnedExpr: returned,
+            result: erasedResult,
+            module: module,
+            ctx: ctx,
+            erasedCallConvention: true,
+            into: &body
+        )
+        #expect(boxed != returned)
+
+        let normalized = InlineErasedLambdaABI.unboxErasedArithmeticArgumentsIfNeeded(
+            callee: interner.intern(primitive == .float ? "kk_op_fadd" : "kk_op_dadd"),
+            arguments: [boxed, returned],
+            module: module,
+            ctx: ctx,
+            into: &body
+        )
+        #expect(normalized[0] != boxed)
+        #expect(arena.exprType(normalized[0]) == primitiveType)
+        #expect(normalized[1] == returned)
+        #expect(callNames(in: body, interner: interner).last == (primitive == .float ? "kk_unbox_float" : "kk_unbox_double"))
+    }
+
     private func callNames(in body: KIRLoweringEmitContext, interner: StringInterner) -> [String] {
         body.instructions.compactMap { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {

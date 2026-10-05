@@ -65,7 +65,7 @@ extension TypeCheckHelpers {
         case let .typeParam(tp):
             return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable)))
         case let .functionType(ft):
-            return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, nullability: .nullable)))
+            return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: .nullable)))
         case let .kClassType(kc):
             return types.make(.kClassType(KClassType(argument: kc.argument, nullability: .nullable)))
         case .any, .unit, .nothing:
@@ -324,11 +324,12 @@ extension TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner,
         scope: Scope? = nil,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        usageRange: SourceRange? = nil
     ) -> [TypeID] {
         guard !typeArgRefs.isEmpty else { return [] }
         return typeArgRefs.map { typeRefID in
-            resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+            resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
         }
     }
 
@@ -400,6 +401,10 @@ extension TypeCheckHelpers {
             return types.unitClassSymbol.map { [$0] } ?? []
         case let .classType(classType):
             return [classType.classSymbol]
+        case let .functionType(functionType):
+            return functionType.isCallableReference
+                ? types.kFunctionInterfaceSymbol.map { [$0] } ?? []
+                : []
         case let .primitive(primitive, _):
             // Primitive values use dedicated TypeIDs, but their synthetic class
             // symbols carry the compiler-owned Comparable conformance and source

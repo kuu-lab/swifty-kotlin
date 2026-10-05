@@ -24,11 +24,11 @@ fun main() {
     val sb3 = StringBuilder("hi")
     println(sb3.capacity() >= sb3.length)
 
-    // ensureCapacity() is a no-op but must not crash
+    // Reserving capacity must leave the contents unchanged.
     sb3.ensureCapacity(100)
     println(sb3.toString())
 
-    // trimToSize() is a no-op but must not crash
+    // Trimming storage must leave the contents unchanged.
     sb3.trimToSize()
     println(sb3.toString())
 }

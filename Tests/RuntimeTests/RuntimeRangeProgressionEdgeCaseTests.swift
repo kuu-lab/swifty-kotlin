@@ -56,7 +56,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     @Test func intBoundaryRange_minToMin() {
         let range = kk_op_rangeTo(Int.min, Int.min)
         #expect(kk_range_count(range) == 1)
-        #expect(kk_range_contains(range, Int.min) == 1)
+        #expect(kk_range_contains(range, registerRuntimeObject(RuntimeIntBox(Int.min))) == 1)
     }
 
     @Test func intBoundaryRange_maxToMax() {
@@ -867,9 +867,9 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     @Test func boundaryIterator_erasedNextThrowsAfterEndpoint() {
         let iter = kk_range_iterator(kk_op_rangeTo(Int.max - 1, Int.max), nil)
         var thrown = 0
-        #expect(kk_iterator_next(iter, &thrown) == Int.max - 1)
+        #expect(kk_unbox_int(kk_iterator_next(iter, &thrown)) == Int.max - 1)
         #expect(thrown == 0)
-        #expect(kk_iterator_next(iter, &thrown) == Int.max)
+        #expect(kk_unbox_int(kk_iterator_next(iter, &thrown)) == Int.max)
         #expect(thrown == 0)
         _ = kk_iterator_next(iter, &thrown)
         #expect(thrown != 0, "iterator past the inclusive endpoint must throw NoSuchElementException")
@@ -931,7 +931,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     @Test func boundaryContains_fullSpanDescendingRangeDoesNotTrap() {
         let range = __kk_op_step(__kk_op_downTo(Int.max, Int.min), 3, nil)
         #expect(kk_op_contains(range, Int.min) == 1)
-        #expect(kk_range_contains(range, Int.min) == 1)
+        #expect(kk_range_contains(range, registerRuntimeObject(RuntimeIntBox(Int.min))) == 1)
         #expect(kk_op_contains(range, Int.min + 1) == 0)
     }
 

@@ -6,13 +6,34 @@ final class RuntimeStringBuilderBox {
     /// (length/get/indexOf/insert/substring/...) work on this buffer directly;
     /// a Swift `String` is materialized only when a result needs one.
     var units: [UInt16]
+    // Swift's allocator may round up; expose the guaranteed UTF-16 capacity.
+    private(set) var capacity: Int
 
-    init(_ initial: String = "") {
-        self.units = runtimeKotlinStringUTF16CodeUnits(initial)
+    convenience init(_ initial: String = "") {
+        self.init(units: runtimeKotlinStringUTF16CodeUnits(initial))
     }
 
-    init(units: [UInt16]) {
+    init(units: [UInt16], capacity: Int? = nil) {
         self.units = units
+        self.capacity = capacity ?? (units.count + 16)
+        self.units.reserveCapacity(self.capacity)
+    }
+
+    func ensureCapacity(_ minimumCapacity: Int) {
+        guard minimumCapacity > capacity else { return }
+        let grown = capacity.multipliedReportingOverflow(by: 2)
+        let expanded = grown.partialValue.addingReportingOverflow(2)
+        capacity = max(minimumCapacity, grown.overflow || expanded.overflow ? Int.max : expanded.partialValue)
+        units.reserveCapacity(capacity)
+    }
+
+    func trimToSize() {
+        guard capacity > units.count else { return }
+        var trimmed: [UInt16] = []
+        trimmed.reserveCapacity(units.count)
+        trimmed.append(contentsOf: units)
+        units = trimmed
+        capacity = units.count
     }
 
     var stringValue: String {
@@ -30,12 +51,31 @@ final class RuntimeStringBuilderBox {
 private let stringBuilderTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.StringBuilder")
 private let stringBuilderCharSequenceSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
 private let stringBuilderAppendableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.Appendable")
+private let stringBuilderComparableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+private let stringBuilderCompareToMethod: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { lhs, rhs, outThrown in
+    outThrown?.pointee = 0
+    guard let lhsBuilder = runtimeStringBuilderBox(from: lhs),
+          let rhsBuilder = runtimeStringBuilderBox(from: rhs)
+    else {
+        runtimeStructuredPanic("StringBuilder.compareTo requires StringBuilder operands")
+    }
+    for (lhsUnit, rhsUnit) in zip(lhsBuilder.units, rhsBuilder.units) {
+        let difference = Int(lhsUnit) - Int(rhsUnit)
+        if difference != 0 {
+            return difference
+        }
+    }
+    return lhsBuilder.units.count - rhsBuilder.units.count
+}
 
 func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {
     runtimeRegisterObjectType(rawValue: raw, classID: stringBuilderTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderCharSequenceSuperTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderAppendableSuperTypeID)
+    runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderComparableSuperTypeID)
     runtimeRegisterCharSequenceItable(raw)
+    _ = kk_object_register_itable_iface(raw, Int(stringBuilderComparableSuperTypeID), 1)
+    _ = kk_object_register_itable_method(raw, 1, 0, unsafeBitCast(stringBuilderCompareToMethod, to: Int.self))
     return raw
 }
 
@@ -51,11 +91,7 @@ private func runtimeStringBuilderBox(from raw: Int) -> RuntimeStringBuilderBox? 
 }
 
 private func sbMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
+    runtimeMakeStringRaw(value)
 }
 
 // MARK: - @_cdecl functions
@@ -85,22 +121,20 @@ public func __kk_string_builder_new_from_char_sequence(_ valueRaw: Int) -> Int {
     return runtimeStringBuilderNew(initial: runtimeElementToString(valueRaw))
 }
 
-// BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body (see
-// StringBuilder.kt) — construction is entirely native. The capacity is only
-// ever used as a preallocation hint (this runtime doesn't preallocate string
-// storage), but real Kotlin/Java still rejects a negative capacity with
-// NegativeArraySizeException, so this must validate rather than silently
-// ignore it the way falling through to __kk_string_builder_new did before.
+// StringBuilder construction is entirely native, including capacity validation.
 @_cdecl("__kk_string_builder_new_capacity_checked")
 public func __kk_string_builder_new_capacity_checked(
     _ capacity: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    outThrown?.pointee = 0
     guard capacity >= 0 else {
         runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(capacity)"))
         return 0
     }
-    return runtimeStringBuilderNew(initial: "")
+    return runtimeRegisterStringBuilderType(
+        registerRuntimeObject(RuntimeStringBuilderBox(units: [], capacity: capacity))
+    )
 }
 
 private func runtimeStringBuilderNew(initial: String) -> Int {
@@ -213,6 +247,7 @@ public func __kk_string_builder_append_char_array(
         )
         return sbRaw
     }
+    sb.ensureCapacity(sb.units.count + endIndex - startIndex)
     sb.units.append(contentsOf: arrayUnits[startIndex ..< endIndex])
     return sbRaw
 }
@@ -235,6 +270,7 @@ public func __kk_string_builder_insert_obj(
     }
     let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
         ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+    sb.ensureCapacity(sb.units.count + inserted.count)
     sb.units.insert(contentsOf: inserted, at: index)
     return sbRaw
 }
@@ -259,11 +295,13 @@ public func __kk_string_builder_insert_char_sequence(
     guard let sourceBuilder = runtimeStringBuilderBox(from: valueRaw) else {
         let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
             ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+        sb.ensureCapacity(sb.units.count + inserted.count)
         sb.units.insert(contentsOf: inserted, at: index)
         return sbRaw
     }
 
     let sourceLength = sourceBuilder.units.count
+    sb.ensureCapacity(sb.units.count + sourceLength)
     if sourceBuilder === sb {
         // Java shifts the destination tail before reading a self-referential
         // CharSequence. Keep that overlap behavior by reading the working buffer
@@ -312,6 +350,7 @@ public func __kk_string_builder_insert_char_array(
         )
         return sbRaw
     }
+    sb.ensureCapacity(sb.units.count + endIndex - startIndex)
     sb.units.insert(contentsOf: arrayUnits[startIndex ..< endIndex], at: index)
     return sbRaw
 }
@@ -345,6 +384,7 @@ public func __kk_string_builder_set_length(
     if newLength < sb.units.count {
         sb.units.removeLast(sb.units.count - newLength)
     } else if newLength > sb.units.count {
+        sb.ensureCapacity(newLength)
         sb.units.append(contentsOf: repeatElement(0, count: newLength - sb.units.count))
     }
     return sbRaw
@@ -418,32 +458,6 @@ public func __kk_string_builder_length_utf16(_ sbRaw: Int) -> Int {
     return sb.units.count
 }
 
-@_cdecl("__kk_string_builder_append_range")
-public func __kk_string_builder_append_range(
-    _ sbRaw: Int,
-    _ valueRaw: Int,
-    _ startIndex: Int,
-    _ endIndex: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let stringRaw = valueRaw == runtimeNullSentinelInt ? runtimeMakeStringRaw("null") : valueRaw
-    guard let source = runtimeStringFromRaw(stringRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_builder_append_range received invalid string handle")
-    }
-    let utf16 = runtimeStringUTF16CodeUnits(stringRaw)
-    let length = utf16.count
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(length)"
-        )
-        return sbRaw
-    }
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.units.append(contentsOf: utf16[startIndex ..< endIndex])
-    return sbRaw
-}
-
 @_cdecl("__kk_string_builder_append_obj_flat")
 public func __kk_string_builder_append_obj_flat(
     _ sbRaw: Int,
@@ -460,6 +474,7 @@ public func __kk_string_builder_append_obj_flat(
 
 private func runtimeStringBuilderAppend(_ sbRaw: Int, value: String) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    sb.ensureCapacity(sb.units.count + value.utf16.count)
     runtimeAppendKotlinUTF16CodeUnits(of: value, to: &sb.units)
     return sbRaw
 }
@@ -501,6 +516,23 @@ public func __kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
 @_cdecl("__kk_string_builder_clear")
 public func __kk_string_builder_clear(_ sbRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.units.removeAll()
+    sb.units.removeAll(keepingCapacity: true)
     return sbRaw
+}
+
+@_cdecl("__kk_string_builder_capacity")
+public func __kk_string_builder_capacity(_ sbRaw: Int) -> Int {
+    runtimeStringBuilderBox(from: sbRaw)?.capacity ?? 0
+}
+
+@_cdecl("__kk_string_builder_ensure_capacity")
+public func __kk_string_builder_ensure_capacity(_ sbRaw: Int, _ minimumCapacity: Int) -> Int {
+    runtimeStringBuilderBox(from: sbRaw)?.ensureCapacity(minimumCapacity)
+    return 0
+}
+
+@_cdecl("__kk_string_builder_trim_to_size")
+public func __kk_string_builder_trim_to_size(_ sbRaw: Int) -> Int {
+    runtimeStringBuilderBox(from: sbRaw)?.trimToSize()
+    return 0
 }

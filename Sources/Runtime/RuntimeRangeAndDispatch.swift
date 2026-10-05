@@ -964,8 +964,8 @@ public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
 public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
     let object = resolveRuntimeObjectHandle(iterRaw)
-    if object is RuntimeIteratorBuilderBox {
-        return __kk_iterator_builder_hasNext(iterRaw)
+    if let builder = object as? RuntimeIteratorBuilderBox {
+        return builder.probeHasNext(outThrown: outThrown) ? 1 : 0
     }
     if let rangeIterator = object as? RuntimeRangeIteratorBox {
         return runtimeRangeIteratorHasNext(rangeIterator)
@@ -1009,11 +1009,8 @@ func runtimeRangeErasedElement(_ value: Int, kind: RuntimeRangeKind) -> Int {
 public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
     let object = resolveRuntimeObjectHandle(iterRaw)
-    if object is RuntimeIteratorBuilderBox {
-        if __kk_iterator_builder_hasNext(iterRaw) == 0 {
-            return runtimeThrowIteratorExhausted(outThrown)
-        }
-        return __kk_iterator_builder_next(iterRaw)
+    if let builder = object as? RuntimeIteratorBuilderBox {
+        return builder.consumeNext(outThrown: outThrown)
     }
     if let rangeIterator = object as? RuntimeRangeIteratorBox {
         if runtimeRangeIteratorHasNext(rangeIterator) == 0 {
@@ -1021,6 +1018,14 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
         }
         let value = rangeIterator.advance()
         // `Iterator<T>.next()` is an erased boundary.
+        switch rangeIterator.kind {
+        case .intRange, .intProgression:
+            return kk_box_int(value)
+        case .uintRange, .uintProgression:
+            return kk_box_uint(value)
+        default:
+            break
+        }
         return runtimeRangeErasedElement(value, kind: rangeIterator.kind)
     }
     if object is RuntimeListIteratorBox {

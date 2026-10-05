@@ -45,7 +45,7 @@ extension DataFlowSemaPhase {
     /// Describes the symbol a top-level declaration introduces, without touching
     /// the symbol table. Shared by the forward-declaration pass and `collectHeader`
     /// so both agree on kind/visibility/flags.
-    private func topLevelDeclarationDescriptor(
+    func topLevelDeclarationDescriptor(
         for decl: Decl,
         diagnostics: DiagnosticEngine?
     ) -> (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)? {
@@ -1537,6 +1537,19 @@ extension DataFlowSemaPhase {
                     localTypeParameters: classLocalTypeParameters
                 )
             }
+            if symbols.symbol(symbol)?.flags.contains(.valueType) == true {
+                // Collect after explicit members so an override suppresses synthesis.
+                collectSyntheticToString(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    ownerType: classType,
+                    requireDataTypeFlag: false,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
+            }
             // Process companion object: register as nested object and link to owner class
             if let companionDeclID = classDecl.companionObject {
                 collectCompanionObjectHeader(
@@ -2124,7 +2137,8 @@ extension DataFlowSemaPhase {
         // source-shell treatment to the kotlin.concurrent atomic nominals
         // while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
-        if resolvedFQName == ["kotlin", "collections", "Iterator"]
+        if resolvedFQName == ["kotlinx", "coroutines", "CoroutineName"]
+            || resolvedFQName == ["kotlin", "collections", "Iterator"]
             || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
             || resolvedFQName == ["kotlin", "collections", "MutableMap", "MutableEntry"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
@@ -2157,6 +2171,7 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "time", "TimedValue"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
+            || resolvedFQName == ["kotlin", "text", "CharDirectionality"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
             // KUU-876: the source-backed InvalidMutabilityException must keep
             // its bundled declSite when the synthetic anchor is reused.
@@ -2200,10 +2215,11 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        enclosingTypeParameters: [InternedString: SymbolID] = [:]
     ) -> (symbols: [SymbolID], localMap: [InternedString: SymbolID]) {
         var typeParamSymbols: [SymbolID] = []
-        var localTypeParameters: [InternedString: SymbolID] = [:]
+        var localTypeParameters = enclosingTypeParameters
 
         guard !typeParams.isEmpty else {
             return (symbols: typeParamSymbols, localMap: localTypeParameters)

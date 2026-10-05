@@ -646,6 +646,7 @@ extension NativeEmitter {
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
         nameCounter: GeneratedNameCounter,
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
+        declareExternalSymbolFunction: (SymbolID) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
         func nullStringAggregateIfExpected() -> LLVMCAPIBindings.LLVMValueRef? {
@@ -828,18 +829,9 @@ extension NativeEmitter {
             // but they may be referenced as function pointers (e.g. for vtable/itable
             // registration). Resolve them by their external link name.
             //
-            // Declarations are cached module-wide by name, so the thrown channel here must
-            // match the callee's real ABI; hardcoding `true` mis-sized non-throwing runtime
-            // callees (e.g. kk_list_iterator) for every other call site reached later.
-            if let symbols = self.symbols,
-               let signature = symbols.functionSignature(for: symbol),
-               let linkName = symbols.externalLinkName(for: symbol),
-               !linkName.isEmpty,
-               let externFn = declareExternalFunction(
-                   linkName,
-                   [signature.receiverType].compactMap { $0 }.count + signature.parameterTypes.count,
-                   Self.runtimeABIFunctionByName[linkName]?.isThrowing ?? true
-               ),
+            // Function addresses and direct calls share a module-wide declaration;
+            // both must use the imported signature, including aggregate String types.
+            if let externFn = declareExternalSymbolFunction(symbol),
                let functionPointer = bindings.buildPtrToInt(
                    state.builder,
                    value: externFn.value,

@@ -301,23 +301,34 @@ final class RuntimeTimeoutCancellationBox: RuntimeCancellationBox {
 }
 
 class RuntimeArrayBox {
-    private var storage: [RuntimeValue]
+    private final class Storage {
+        var values: [RuntimeValue]
+        // Canonical handles preserve identity when views are repeated or reversed.
+        var viewHandles: [Int64: Int] = [:]
+        let viewLock = NSLock()
+
+        init(length: Int) {
+            values = Array(repeating: RuntimeValue(raw: 0), count: max(0, length))
+        }
+    }
+
+    private let storage: Storage
 
     var values: [RuntimeValue] {
         get {
-            storage
+            storage.values
         }
         set {
-            storage = newValue
+            storage.values = newValue
         }
     }
 
     var elements: [Int] {
         get {
-            storage.map(\.legacyRawValue)
+            storage.values.map(\.legacyRawValue)
         }
         set {
-            storage = newValue.map { RuntimeValue(raw: $0) }
+            storage.values = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 
@@ -325,11 +336,11 @@ class RuntimeArrayBox {
     /// `elements` materializes the whole array on every get/set, making per-index
     /// loop access O(n) per iteration.
     subscript(index: Int) -> Int {
-        get { storage[index].legacyRawValue }
+        get { storage.values[index].legacyRawValue }
         set {
-            storage[index] = RuntimeValue(
+            storage.values[index] = RuntimeValue(
                 raw: newValue,
-                anyFallbackTag: storage[index].anyFallbackTag
+                anyFallbackTag: storage.values[index].anyFallbackTag
             )
         }
     }
@@ -337,19 +348,37 @@ class RuntimeArrayBox {
     /// Stores a raw field value together with the static tag needed by
     /// Any-erased operations such as `hashCode()`.
     func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
-        storage[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
+        storage.values[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
     }
 
     func setValue(_ value: RuntimeValue, at index: Int) {
-        storage[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage[index])
+        storage.values[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage.values[index])
     }
 
     var count: Int {
-        storage.count
+        storage.values.count
     }
 
     init(length: Int) {
-        storage = Array(repeating: RuntimeValue(raw: 0), count: max(0, length))
+        storage = Storage(length: length)
+    }
+
+    private init(sharingStorageOf array: RuntimeArrayBox) {
+        storage = array.storage
+    }
+
+    /// A distinct, correctly tagged box over the same mutable element storage.
+    func primitiveView(rawValue: Int, sourceTypeID: Int64, targetTypeID: Int64) -> Int {
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        storage.viewHandles[sourceTypeID] = rawValue
+        if let existing = storage.viewHandles[targetTypeID] {
+            return existing
+        }
+        let view = registerRuntimeObject(RuntimeArrayBox(sharingStorageOf: self))
+        runtimeRegisterArrayType(rawValue: view, typeID: targetTypeID)
+        storage.viewHandles[targetTypeID] = view
+        return view
     }
 }
 
@@ -415,6 +444,8 @@ final class RuntimeTripleBox {
 
 final class RuntimeIntBox {
     let value: Int
+    /// Kotlin type identity, independent of the shared payload/hash representation.
+    let primitiveTypeBase: Int64
 
     /// Static Any-fallback tag captured at the boxing boundary. UInt, UByte,
     /// and UShort share this physical box with Int, but their hashCode() must
@@ -436,11 +467,19 @@ final class RuntimeIntBox {
     init(
         _ value: Int,
         anyFallbackTag: Int32 = 1,
+        primitiveTypeBase: Int64? = nil,
         enumEntryName: String? = nil,
         enumClassID: Int64? = nil
     ) {
         self.value = value
         self.anyFallbackTag = anyFallbackTag
+        let defaultPrimitiveTypeBase: Int64 = switch anyFallbackTag {
+        case 9: RuntimeTypeTokenEncoding.uintBase
+        case 10: RuntimeTypeTokenEncoding.ubyteBase
+        case 11: RuntimeTypeTokenEncoding.ushortBase
+        default: RuntimeTypeTokenEncoding.intBase
+        }
+        self.primitiveTypeBase = primitiveTypeBase ?? defaultPrimitiveTypeBase
         self.enumEntryName = enumEntryName
         self.enumClassID = enumClassID
     }
@@ -514,17 +553,28 @@ struct RuntimeCallableRefMetadata {
     let arity: Int
     let kind: RuntimeCallableRefKind
     let isSuspend: Bool
+    var invoker: Int = 0
+    var environment: Int = 0
+    var parameters: Int = 0
+    var typeParameters: Int = 0
+    var flags: Int = 1
+    var visibility: Int = 0
+    var setterInvoker: Int = 0
+    var setterParameters: Int = 0
+    var property: Int = 0
 }
 
 final class RuntimeFunctionValueBox {
     let fnPtr: Int
     let closureRaw: Int
     let arity: Int
+    let suspendEntryPoint: Int
 
-    init(fnPtr: Int, closureRaw: Int, arity: Int) {
+    init(fnPtr: Int, closureRaw: Int, arity: Int, suspendEntryPoint: Int = 0) {
         self.fnPtr = fnPtr
         self.closureRaw = closureRaw
         self.arity = arity
+        self.suspendEntryPoint = suspendEntryPoint
     }
 }
 
@@ -549,6 +599,7 @@ final class RuntimeListBox {
         case direct(DirectStorage)
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
+        case dequeViewOf(RuntimeArrayDequeBox)
         case subList(RuntimeListSlice)
         /// Live view for `MutableMap.values`: reads the backing map's
         /// values on every access instead of a disconnected snapshot.
@@ -561,6 +612,20 @@ final class RuntimeListBox {
 
     private var storage: Storage
     private(set) var isReadOnly = false
+
+    var isEffectivelyReadOnly: Bool {
+        if isReadOnly { return true }
+        switch storage {
+        case .direct, .arrayViewOf, .dequeViewOf:
+            return false
+        case .reversedViewOf(let base):
+            return base.isEffectivelyReadOnly
+        case .subList(let slice):
+            return slice.base.isEffectivelyReadOnly
+        case .mapValuesViewOf(let mapRaw):
+            return runtimeMapBox(from: mapRaw)?.isEffectivelyReadOnly ?? false
+        }
+    }
 
     init(elements: [Int]) {
         storage = .direct(DirectStorage(values: elements.map { RuntimeValue(raw: $0) }))
@@ -584,6 +649,10 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base)
     }
 
+    init(dequeViewOf base: RuntimeArrayDequeBox) {
+        storage = .dequeViewOf(base)
+    }
+
     init(subListOf base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
         storage = .subList(RuntimeListSlice(base: base, fromIndex: fromIndex, toIndex: toIndex))
     }
@@ -601,6 +670,8 @@ final class RuntimeListBox {
                 return Array(base.values.reversed())
             case .arrayViewOf(let base):
                 return base.values
+            case .dequeViewOf(let base):
+                return base.values
             case .subList(let slice):
                 return Array(slice.base.values[slice.fromIndex..<slice.toIndex])
             case .mapValuesViewOf(let mapRaw):
@@ -608,7 +679,7 @@ final class RuntimeListBox {
             }
         }
         set {
-            guard !isReadOnly else { return }
+            guard !isEffectivelyReadOnly else { return }
             switch storage {
             case .direct(let direct):
                 if newValue.count != direct.values.count {
@@ -619,11 +690,14 @@ final class RuntimeListBox {
                 base.values = Array(newValue.reversed())
             case .arrayViewOf(let base):
                 base.values = newValue
+            case .dequeViewOf(let base):
+                base.values = newValue
             case .subList(let slice):
                 var baseValues = slice.base.values
                 baseValues.replaceSubrange(slice.fromIndex..<slice.toIndex, with: newValue)
                 slice.toIndex = slice.fromIndex + newValue.count
                 slice.base.values = baseValues
+                slice.expectedModCount = slice.base.modCount
             case .mapValuesViewOf(let mapRaw):
                 // `MutableCollection<V>` exposes no positional replace for
                 // `.values`; only a full clear (matching `.clear()`) is a
@@ -649,10 +723,23 @@ final class RuntimeListBox {
             return base.modCount
         case .arrayViewOf:
             return 0
+        case .dequeViewOf(let base):
+            return base.modCount
         case .subList(let slice):
             return slice.base.modCount
         case .mapValuesViewOf(let mapRaw):
             return runtimeMapBox(from: mapRaw)?.modCount ?? 0
+        }
+    }
+
+    var isValidView: Bool {
+        switch storage {
+        case .subList(let slice):
+            return slice.expectedModCount == slice.base.modCount && slice.base.isValidView
+        case .reversedViewOf(let base):
+            return base.isValidView
+        case .direct, .arrayViewOf, .dequeViewOf, .mapValuesViewOf:
+            return true
         }
     }
 
@@ -668,6 +755,8 @@ final class RuntimeListBox {
             return base.count
         case .arrayViewOf(let base):
             return base.count
+        case .dequeViewOf(let base):
+            return base.count
         case .subList(let slice):
             return slice.toIndex - slice.fromIndex
         case .mapValuesViewOf(let mapRaw):
@@ -679,26 +768,31 @@ final class RuntimeListBox {
         0..<count
     }
 
+    func value(at index: Int) -> RuntimeValue {
+        switch storage {
+        case .direct(let direct):
+            return direct.values[index]
+        case .reversedViewOf(let base):
+            return base.value(at: base.count - 1 - index)
+        case .arrayViewOf(let base):
+            return base.values[index]
+        case .dequeViewOf(let base):
+            return base.element(at: index)!
+        case .subList(let slice):
+            return slice.base.value(at: slice.fromIndex + index)
+        case .mapValuesViewOf(let mapRaw):
+            return runtimeMapBox(from: mapRaw)?.entryValues[index] ?? RuntimeValue(raw: 0)
+        }
+    }
+
     /// O(1) single-element access. Prefer this over `elements[index]` because
     /// `elements` materializes the whole list on every get/set.
     subscript(index: Int) -> Int {
         get {
-            switch storage {
-            case .direct(let direct):
-                return runtimeCollectionABIValue(direct.values[index])
-            case .reversedViewOf(let base):
-                return base[base.count - 1 - index]
-            case .arrayViewOf(let base):
-                return runtimeCollectionABIValue(base.values[index])
-            case .subList(let slice):
-                return slice.base[slice.fromIndex + index]
-            case .mapValuesViewOf(let mapRaw):
-                let value = runtimeMapBox(from: mapRaw)?.entryValues[index] ?? RuntimeValue(raw: 0)
-                return runtimeCollectionABIValue(value)
-            }
+            runtimeCollectionABIValue(value(at: index))
         }
         set {
-            guard !isReadOnly else { return }
+            guard !isEffectivelyReadOnly else { return }
             switch storage {
             case .direct(let direct):
                 direct.values[index] = RuntimeValue(
@@ -709,6 +803,9 @@ final class RuntimeListBox {
                 base[base.count - 1 - index] = newValue
             case .arrayViewOf(let base):
                 base[index] = newValue
+            case .dequeViewOf(let base):
+                let previous = base.element(at: index)!
+                base.setValue(RuntimeValue(raw: newValue, anyFallbackTag: previous.anyFallbackTag), at: index)
             case .subList(let slice):
                 slice.base[slice.fromIndex + index] = newValue
             case .mapValuesViewOf:
@@ -721,7 +818,7 @@ final class RuntimeListBox {
 
     /// Stores an already-tagged value without materializing the surrounding collection.
     func setValue(_ value: RuntimeValue, at index: Int) {
-        guard !isReadOnly else { return }
+        guard !isEffectivelyReadOnly else { return }
         switch storage {
         case .direct(let direct):
             direct.values[index] = runtimeValuePreservingAnyFallbackTag(
@@ -731,6 +828,8 @@ final class RuntimeListBox {
         case .reversedViewOf(let base):
             base.setValue(value, at: base.count - 1 - index)
         case .arrayViewOf(let base):
+            base.setValue(value, at: index)
+        case .dequeViewOf(let base):
             base.setValue(value, at: index)
         case .subList(let slice):
             slice.base.setValue(value, at: slice.fromIndex + index)
@@ -750,7 +849,7 @@ final class RuntimeListBox {
     /// the write-back.
     @discardableResult
     func withMutableValues<R>(_ body: (inout [RuntimeValue]) -> R) -> R {
-        guard !isReadOnly else {
+        guard !isEffectivelyReadOnly else {
             var values = values
             return body(&values)
         }
@@ -762,7 +861,7 @@ final class RuntimeListBox {
                 direct.modCount += 1
             }
             return result
-        case .reversedViewOf, .arrayViewOf, .subList:
+        case .reversedViewOf, .arrayViewOf, .dequeViewOf, .subList:
             var values = self.values
             let result = body(&values)
             self.values = values
@@ -818,11 +917,13 @@ private final class RuntimeListSlice {
     let base: RuntimeListBox
     let fromIndex: Int
     var toIndex: Int
+    var expectedModCount: Int
 
     init(base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
         self.base = base
         self.fromIndex = fromIndex
         self.toIndex = toIndex
+        expectedModCount = base.modCount
     }
 }
 
@@ -1377,6 +1478,7 @@ final class RuntimeArrayDequeBox {
     private var buffer: [RuntimeValue]
     private var head: Int
     private(set) var count: Int
+    private(set) var modCount: Int = 0
 
     private static let minimumCapacity = 8
 
@@ -1385,6 +1487,9 @@ final class RuntimeArrayDequeBox {
             (0 ..< count).map { buffer[slot(forOffset: $0)] }
         }
         set {
+            if newValue.count != count {
+                modCount += 1
+            }
             buffer = newValue
             head = 0
             count = newValue.count
@@ -1423,17 +1528,24 @@ final class RuntimeArrayDequeBox {
         return buffer[slot(forOffset: index)]
     }
 
+    func setValue(_ value: RuntimeValue, at index: Int) {
+        let slot = slot(forOffset: index)
+        buffer[slot] = runtimeValuePreservingAnyFallbackTag(value, existing: buffer[slot])
+    }
+
     func pushFirst(_ value: RuntimeValue) {
         growIfNeeded()
         head = slot(forOffset: buffer.count - 1)
         buffer[head] = value
         count += 1
+        modCount += 1
     }
 
     func pushLast(_ value: RuntimeValue) {
         growIfNeeded()
         buffer[slot(forOffset: count)] = value
         count += 1
+        modCount += 1
     }
 
     func popFirst() -> RuntimeValue? {
@@ -1442,6 +1554,7 @@ final class RuntimeArrayDequeBox {
         buffer[head] = RuntimeValue(raw: 0)
         head = slot(forOffset: 1)
         count -= 1
+        modCount += 1
         return value
     }
 
@@ -1451,6 +1564,7 @@ final class RuntimeArrayDequeBox {
         let value = buffer[tail]
         buffer[tail] = RuntimeValue(raw: 0)
         count -= 1
+        modCount += 1
         return value
     }
 
@@ -1520,10 +1634,12 @@ final class RuntimeListIteratorBox {
     let removeAction: ((Int) -> Void)?
     let setAction: ((Int, RuntimeValue) -> Void)?
     let addAction: ((Int, RuntimeValue) -> Void)?
+    let isBackingReadOnly: (() -> Bool)?
     /// Reads the live backing collection's structural-modification counter.
     /// `nil` for iterators with no live backing (plain `Array`, or the
     /// BUG-231 empty fallback) — comodification can never be detected there.
     let currentModCount: (() -> Int)?
+    let currentValue: ((Int) -> RuntimeValue)?
     /// The backing collection's `modCount` as of the last point this
     /// iterator observed it in sync (construction, or its own successful
     /// `remove()`/`add()`, which re-syncs after performing the mutation).
@@ -1534,7 +1650,9 @@ final class RuntimeListIteratorBox {
         removeAction: ((Int) -> Void)? = nil,
         setAction: ((Int, RuntimeValue) -> Void)? = nil,
         addAction: ((Int, RuntimeValue) -> Void)? = nil,
-        currentModCount: (() -> Int)? = nil
+        isBackingReadOnly: (() -> Bool)? = nil,
+        currentModCount: (() -> Int)? = nil,
+        currentValue: ((Int) -> RuntimeValue)? = nil
     ) {
         values = elements.map(runtimeValueFromCollectionABI)
         index = 0
@@ -1542,7 +1660,9 @@ final class RuntimeListIteratorBox {
         self.removeAction = removeAction
         self.setAction = setAction
         self.addAction = addAction
+        self.isBackingReadOnly = isBackingReadOnly
         self.currentModCount = currentModCount
+        self.currentValue = currentValue
         self.expectedModCount = currentModCount?() ?? 0
     }
 
@@ -1551,7 +1671,9 @@ final class RuntimeListIteratorBox {
         removeAction: ((Int) -> Void)? = nil,
         setAction: ((Int, RuntimeValue) -> Void)? = nil,
         addAction: ((Int, RuntimeValue) -> Void)? = nil,
-        currentModCount: (() -> Int)? = nil
+        isBackingReadOnly: (() -> Bool)? = nil,
+        currentModCount: (() -> Int)? = nil,
+        currentValue: ((Int) -> RuntimeValue)? = nil
     ) {
         self.values = values
         index = 0
@@ -1559,7 +1681,9 @@ final class RuntimeListIteratorBox {
         self.removeAction = removeAction
         self.setAction = setAction
         self.addAction = addAction
+        self.isBackingReadOnly = isBackingReadOnly
         self.currentModCount = currentModCount
+        self.currentValue = currentValue
         self.expectedModCount = currentModCount?() ?? 0
     }
 
@@ -1805,6 +1929,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 
     /// Whether the producer has finished (either completed or threw).
     private var finished = false
+    private var failure: Int = 0
 
     /// Whether the coroutine producer has been initialized.
     private var started = false
@@ -1832,9 +1957,17 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         self.usesCPSProducer = usesCPSProducer
     }
 
+    func freshIterator() -> RuntimeSequenceCoroutine {
+        RuntimeSequenceCoroutine(fnPtr: fnPtr, closureRaw: closureRaw, functionID: functionID, usesCPSProducer: usesCPSProducer)
+    }
+
     /// Called by the producer to yield a value.
     func yieldValue(_ value: Int) -> Int {
         stateLock.lock()
+        guard failure == 0 else {
+            stateLock.unlock()
+            return 0
+        }
         pendingYieldedValues.append(value)
         stateLock.unlock()
 
@@ -1847,11 +1980,20 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     }
 
     /// Called by the producer when it finishes (normally or via exception).
-    func markFinished() {
+    func markFinished(thrown: Int = 0) {
         stateLock.lock()
+        if failure == 0 { failure = thrown }
         finished = true
         stateLock.unlock()
         consumerGate.signal()
+    }
+
+    // The retained yieldAll ABI has no outThrown slot; keep its delegated
+    // failure until the legacy callback completes and the consumer receives it.
+    func recordFailure(_ thrown: Int) {
+        stateLock.lock()
+        if failure == 0 { failure = thrown }
+        stateLock.unlock()
     }
 
     private func consumePendingValueLocked() -> Int? {
@@ -1912,11 +2054,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         )
         _ = fn(closureRaw, builderHandle, &thrown)
 
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
-        }
-
-        markFinished()
+        markFinished(thrown: thrown)
     }
 
     /// Result type for `nextElement()`: either a value or end-of-sequence.
@@ -1935,8 +2073,13 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// elements have been consumed.
     private var consumptionIndex: Int = 0
 
-    func nextElement() -> NextResult {
+    func nextElement(outThrown: UnsafeMutablePointer<Int>? = nil) -> NextResult {
         stateLock.lock()
+        if failure != 0 {
+            outThrown?.pointee = failure
+            stateLock.unlock()
+            return .done
+        }
         if consumptionIndex < materializedElements.count {
             let elem = materializedElements[consumptionIndex]
             consumptionIndex += 1
@@ -1963,6 +2106,11 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         awaitProducerYield()
 
         stateLock.lock()
+        if failure != 0 {
+            outThrown?.pointee = failure
+            stateLock.unlock()
+            return .done
+        }
         if let value = consumePendingValueLocked() {
             materializedElements.append(value)
             consumptionIndex += 1
@@ -2111,10 +2259,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
                 entryPointRaw: fnPtr,
                 continuation: continuation,
                 onCompletion: { _, thrown in
-                    if thrown != 0 {
-                        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
-                    }
-                    coroutine.markFinished()
+                    coroutine.markFinished(thrown: thrown)
                 }
             )
             return
@@ -2221,6 +2366,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private var started = false
     private var cpsLoopStarted = false
     private var producerContinuationRaw: Int = 0
+    private var failure: Int = 0
+    private var failureReported = false
 
     /// The most recently yielded value, valid when `state == .hasValue`.
     private(set) var yieldedValue: Int = 0
@@ -2261,7 +2408,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         return 0
     }
 
-    func probeHasNext() -> Bool {
+    func probeHasNext(outThrown: UnsafeMutablePointer<Int>? = nil) -> Bool {
         stateLock.lock()
         let current = state
         stateLock.unlock()
@@ -2270,16 +2417,35 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case .hasValue:
             return true
         case .done:
+            stateLock.lock()
+            let thrown = failureForProbeLocked()
+            stateLock.unlock()
+            outThrown?.pointee = thrown
             return false
         case .initial:
             awaitProducerYield()
             stateLock.lock()
             defer { stateLock.unlock() }
+            let thrown = failureForProbeLocked()
+            outThrown?.pointee = thrown
             return state == .hasValue
         }
     }
 
-    func consumeNext() -> Int {
+    private func failureForProbeLocked() -> Int {
+        guard failure != 0 else { return 0 }
+        if failureReported {
+            return runtimeAllocateIllegalStateException(message: "Iterator has failed.")
+        }
+        failureReported = true
+        return failure
+    }
+
+    func consumeNext(outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+        guard probeHasNext(outThrown: outThrown) else {
+            if (outThrown?.pointee ?? 0) != 0 { return 0 }
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
         stateLock.lock()
         let current = state
         stateLock.unlock()
@@ -2353,11 +2519,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
             closureRaw: builderHandle,
             outThrown: &thrown
         )
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
-        }
-
         stateLock.lock()
+        failure = thrown
         state = .done
         stateLock.unlock()
         consumerGate.signal()
@@ -2386,10 +2549,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
                 entryPointRaw: fnPtr,
                 continuation: continuation,
                 onCompletion: { _, thrown in
-                    if thrown != 0 {
-                        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
-                    }
                     box.stateLock.lock()
+                    box.failure = thrown
                     box.state = .done
                     box.stateLock.unlock()
                     box.consumerGate.signal()
@@ -2444,6 +2605,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
 /// Populated from the binary metadata blob emitted by `RuntimeReflectionMetadataEmitter`.
 /// Each entry corresponds to a type or declaration that can be queried via `KClass` at runtime.
 struct RuntimeKClassMetadataEntry {
+    /// JVM binary name used only when rendering KClass handles.
+    var displayName: String? = nil
     let qualifiedName: String
     let simpleName: String
     let supertypeName: String?
@@ -2495,6 +2658,12 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return entries[typeToken]
+    }
+
+    func setDisplayName(typeToken: Int, displayName: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        entries[typeToken]?.displayName = displayName
     }
 
     func appendAnnotations(typeToken: Int, annotations: [RuntimeAnnotationRecord]) {
@@ -2698,6 +2867,9 @@ final class RuntimeKTypeProjectionBox {
 /// Runtime box for `kotlin.reflect.KParameter`.
 /// Represents a single parameter of a KFunction or KConstructor.
 final class RuntimeKParameterBox {
+    var typeToken: Int?
+    var callableOwner = 0
+    var boundArguments: [Int] = []
     /// Parameter index (0-based).
     let index: Int
     /// Parameter name as a KKString raw handle (0 if unnamed).

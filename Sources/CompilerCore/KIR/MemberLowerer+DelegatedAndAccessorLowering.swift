@@ -596,7 +596,16 @@ extension MemberLowerer {
     ) {
         guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
         let fieldKey = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-        guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey] else {
+        // Enum values are ordinal-backed and have no instance fields: their
+        // stored properties live in the per-entry storage read by the enum
+        // property helper, so the getter (registered into itables for
+        // interface-typed reads) forwards there.
+        // Abstract enum properties have no storage of their own (entry
+        // bodies implement them), so they keep no forwarding accessor.
+        let isEnumOwned = ownerSym.kind == .enumClass
+            && sema.symbols.symbol(propertySymbol)?.flags.contains(.abstractType) != true
+        let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey]
+        guard isEnumOwned || fieldOffset != nil else {
             return
         }
         let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
@@ -605,8 +614,12 @@ extension MemberLowerer {
             .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
         )
         let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
-        let params = [KIRParameter(symbol: receiverSymbol, type: ownerType)]
-        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+        // An itable/vtable-dispatched enum receiver arrives already boxed
+        // (`kk_enum_box_ordinal`); typing it as the enum would re-box the
+        // box pointer as if it were an ordinal.
+        let receiverKIRType = isEnumOwned ? sema.types.anyType : ownerType
+        let params = [KIRParameter(symbol: receiverSymbol, type: receiverKIRType)]
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverKIRType)
         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         sema.symbols.setFunctionSignature(
             FunctionSignature(receiverType: ownerType, parameterTypes: [], returnType: propType),
@@ -615,17 +628,37 @@ extension MemberLowerer {
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
-        let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
-        body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
         let result = arena.appendTemporary(type: propType)
-        body.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_array_get_inbounds"),
-            arguments: [receiverExpr, offsetExpr],
-            result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        if ownerSym.kind == .object {
+            // Named singleton properties use global storage, even when their
+            // getters retain a receiver parameter for interface dispatch.
+            body.append(.loadGlobal(result: result, symbol: fieldKey))
+        } else if let fieldOffset, !isEnumOwned {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiverExpr, offsetExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        } else {
+            body.append(.call(
+                symbol: nil,
+                callee: EnumPropertyHelperNames.placeholder(
+                    prefix: EnumPropertyHelperNames.getterPrefix,
+                    ownerSymbol: ownerSymbol,
+                    propertyName: sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""),
+                    interner: interner
+                ),
+                arguments: [receiverExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
         body.append(.returnValue(result))
         body.append(.endBlock)
 
@@ -663,7 +696,12 @@ extension MemberLowerer {
     ) {
         guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
         let fieldKey = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-        guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey] else {
+        // Abstract enum properties have no storage of their own (entry
+        // bodies implement them), so they keep no forwarding accessor.
+        let isEnumOwned = ownerSym.kind == .enumClass
+            && sema.symbols.symbol(propertySymbol)?.flags.contains(.abstractType) != true
+        let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey]
+        guard isEnumOwned || fieldOffset != nil else {
             return
         }
         let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
@@ -673,26 +711,45 @@ extension MemberLowerer {
         )
         let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
         let valueParamSymbol = SyntheticSymbolScheme.setterValueParameterSymbol(for: propertySymbol)
+        let receiverKIRType = isEnumOwned ? sema.types.anyType : ownerType
         let params = [
-            KIRParameter(symbol: receiverSymbol, type: ownerType),
+            KIRParameter(symbol: receiverSymbol, type: receiverKIRType),
             KIRParameter(symbol: valueParamSymbol, type: propType),
         ]
-        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverKIRType)
         let valueExpr = arena.appendExpr(.symbolRef(valueParamSymbol), type: propType)
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
         body.append(.constValue(result: valueExpr, value: .symbolRef(valueParamSymbol)))
-        let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
-        body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-        body.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_array_set"),
-            arguments: [receiverExpr, offsetExpr, valueExpr],
-            result: nil,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        if ownerSym.kind == .object {
+            body.append(.storeGlobal(value: valueExpr, symbol: fieldKey))
+        } else if let fieldOffset, !isEnumOwned {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [receiverExpr, offsetExpr, valueExpr],
+                result: nil,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        } else {
+            body.append(.call(
+                symbol: nil,
+                callee: EnumPropertyHelperNames.placeholder(
+                    prefix: EnumPropertyHelperNames.setterPrefix,
+                    ownerSymbol: ownerSymbol,
+                    propertyName: sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""),
+                    interner: interner
+                ),
+                arguments: [receiverExpr, valueExpr],
+                result: arena.appendTemporary(type: sema.types.unitType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
         body.append(.returnUnit)
         body.append(.endBlock)
 

@@ -1,42 +1,42 @@
-symbol fq=__local_0.v[kind=local] kind=local vis=private flags=_ type=Any?
-symbol fq=__local_1.x[kind=local] kind=local vis=private flags=_ type=kotlin.collections.List<out Any?>
-symbol fq=golden.sema.Container.$class0.T[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=golden.sema.Container.item[kind=prop] kind=property vis=public flags=_ type=golden.sema.Container.$class0.T
-symbol fq=golden.sema.Container[kind=class;gen=1] kind=class vis=public flags=_
-symbol fq=golden.sema.OutBox.$class1.T[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=golden.sema.OutBox.value[kind=prop] kind=property vis=public flags=_ type=golden.sema.OutBox.$class1.T
-symbol fq=golden.sema.OutBox[kind=class;gen=1] kind=class vis=public flags=_
-symbol fq=golden.sema.Wrapper.$class2.T[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=golden.sema.Wrapper.items[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.List<out golden.sema.Wrapper.$class2.T>
-symbol fq=golden.sema.Wrapper[kind=class;gen=1] kind=class vis=public flags=_
-symbol fq=golden.sema.acceptAny.$0.c[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.acceptAny[kind=fun;params=golden.sema.Container<*>] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Container<*>] ret=Unit
-symbol fq=golden.sema.eraseType.$1.list[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.eraseType[kind=fun;params=kotlin.collections.List<*>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<*>] ret=Int
-symbol fq=golden.sema.readContainer.$2.c[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.readContainer[kind=fun;params=golden.sema.Container<*>] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Container<*>] ret=Any?
-symbol fq=golden.sema.readOutBox.$3.b[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.readOutBox[kind=fun;params=golden.sema.OutBox<*>] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.OutBox<*>] ret=Any?
-symbol fq=golden.sema.readWrapper.$4.w[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.readWrapper[kind=fun;params=golden.sema.Wrapper<*>] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Wrapper<*>] ret=Unit
+symbol fq=__local_0.v[kind=local;type=Any?;origin=fixture] kind=local vis=private flags=_ type=Any?
+symbol fq=__local_1.x[kind=local;type=kotlin.collections.List<out Any?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<out Any?>
+symbol fq=golden.sema.Container.$class0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.Container.item[kind=prop;type=T0;origin=fixture] kind=property vis=public flags=_ type=golden.sema.Container.$class0.T
+symbol fq=golden.sema.Container[kind=class;gen=1;variance=[i];origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.OutBox.$class1.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.OutBox.value[kind=prop;type=T0;origin=fixture] kind=property vis=public flags=_ type=golden.sema.OutBox.$class1.T
+symbol fq=golden.sema.OutBox[kind=class;gen=1;variance=[o];origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.Wrapper.$class2.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.Wrapper.items[kind=prop;type=kotlin.collections.List<out T0>;origin=fixture] kind=property vis=public flags=_ type=kotlin.collections.List<out golden.sema.Wrapper.$class2.T>
+symbol fq=golden.sema.Wrapper[kind=class;gen=1;variance=[i];origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.acceptAny.$0.c[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptAny[kind=fun;params=golden.sema.Container<*>;ret=Unit;names=[c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Container<*>] ret=Unit
+symbol fq=golden.sema.eraseType.$1.list[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.eraseType[kind=fun;params=kotlin.collections.List<*>;ret=Int;names=[list];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<*>] ret=Int
+symbol fq=golden.sema.readContainer.$2.c[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readContainer[kind=fun;params=golden.sema.Container<*>;ret=Any?;names=[c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Container<*>] ret=Any?
+symbol fq=golden.sema.readOutBox.$3.b[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readOutBox[kind=fun;params=golden.sema.OutBox<*>;ret=Any?;names=[b];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.OutBox<*>] ret=Any?
+symbol fq=golden.sema.readWrapper.$4.w[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readWrapper[kind=fun;params=golden.sema.Wrapper<*>;ret=Unit;names=[w];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Wrapper<*>] ret=Unit
 file fstar_projection package=golden.sema
-  decl golden.sema.Container[kind=class;gen=1] class Container sym=golden.sema.Container[kind=class;gen=1]
-  decl golden.sema.readContainer[kind=fun;params=golden.sema.Container<*>] fun readContainer sym=golden.sema.readContainer[kind=fun;params=golden.sema.Container<*>]
-  decl golden.sema.eraseType[kind=fun;params=kotlin.collections.List<*>] fun eraseType sym=golden.sema.eraseType[kind=fun;params=kotlin.collections.List<*>]
-  decl golden.sema.acceptAny[kind=fun;params=golden.sema.Container<*>] fun acceptAny sym=golden.sema.acceptAny[kind=fun;params=golden.sema.Container<*>]
-  decl golden.sema.OutBox[kind=class;gen=1] class OutBox sym=golden.sema.OutBox[kind=class;gen=1]
-  decl golden.sema.readOutBox[kind=fun;params=golden.sema.OutBox<*>] fun readOutBox sym=golden.sema.readOutBox[kind=fun;params=golden.sema.OutBox<*>]
-  decl golden.sema.Wrapper[kind=class;gen=1] class Wrapper sym=golden.sema.Wrapper[kind=class;gen=1]
-  decl golden.sema.readWrapper[kind=fun;params=golden.sema.Wrapper<*>] fun readWrapper sym=golden.sema.readWrapper[kind=fun;params=golden.sema.Wrapper<*>]
-expr e@6:44 name(c) type=golden.sema.Container<*> ref=golden.sema.readContainer.$2.c[kind=vparam]
-expr e@6:44#1 memberCall recv=e@6:44 callee=item args=[] type=Any? ref=golden.sema.Container.item[kind=prop]
-expr e@9:37 name(list) type=kotlin.collections.List<*> ref=golden.sema.eraseType.$1.list[kind=vparam]
-expr e@9:37#1 memberCall recv=e@9:37 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
-expr e@13:13 name(c) type=golden.sema.Container<*> ref=golden.sema.acceptAny.$0.c[kind=vparam]
-expr e@13:13#1 memberCall recv=e@13:13 callee=item args=[] type=Any? ref=golden.sema.Container.item[kind=prop]
-expr e@13:5 localDecl v mutable=0 type=_ init=e@13:13#1 type=Unit ref=__local_0.v[kind=local]
-expr e@19:38 name(b) type=golden.sema.OutBox<*> ref=golden.sema.readOutBox.$3.b[kind=vparam]
-expr e@19:38#1 memberCall recv=e@19:38 callee=value args=[] type=Any? ref=golden.sema.OutBox.value[kind=prop]
-expr e@25:13 name(w) type=golden.sema.Wrapper<*> ref=golden.sema.readWrapper.$4.w[kind=vparam]
-expr e@25:13#1 memberCall recv=e@25:13 callee=items args=[] type=kotlin.collections.List<out Any?> ref=golden.sema.Wrapper.items[kind=prop]
-expr e@25:5 localDecl x mutable=0 type=_ init=e@25:13#1 type=Unit ref=__local_1.x[kind=local]
+  decl golden.sema.Container[kind=class;gen=1;variance=[i];origin=fixture] class Container sym=golden.sema.Container[kind=class;gen=1;variance=[i];origin=fixture]
+  decl golden.sema.readContainer[kind=fun;params=golden.sema.Container<*>;ret=Any?;names=[c];origin=fixture] fun readContainer sym=golden.sema.readContainer[kind=fun;params=golden.sema.Container<*>;ret=Any?;names=[c];origin=fixture]
+  decl golden.sema.eraseType[kind=fun;params=kotlin.collections.List<*>;ret=Int;names=[list];origin=fixture] fun eraseType sym=golden.sema.eraseType[kind=fun;params=kotlin.collections.List<*>;ret=Int;names=[list];origin=fixture]
+  decl golden.sema.acceptAny[kind=fun;params=golden.sema.Container<*>;ret=Unit;names=[c];origin=fixture] fun acceptAny sym=golden.sema.acceptAny[kind=fun;params=golden.sema.Container<*>;ret=Unit;names=[c];origin=fixture]
+  decl golden.sema.OutBox[kind=class;gen=1;variance=[o];origin=fixture] class OutBox sym=golden.sema.OutBox[kind=class;gen=1;variance=[o];origin=fixture]
+  decl golden.sema.readOutBox[kind=fun;params=golden.sema.OutBox<*>;ret=Any?;names=[b];origin=fixture] fun readOutBox sym=golden.sema.readOutBox[kind=fun;params=golden.sema.OutBox<*>;ret=Any?;names=[b];origin=fixture]
+  decl golden.sema.Wrapper[kind=class;gen=1;variance=[i];origin=fixture] class Wrapper sym=golden.sema.Wrapper[kind=class;gen=1;variance=[i];origin=fixture]
+  decl golden.sema.readWrapper[kind=fun;params=golden.sema.Wrapper<*>;ret=Unit;names=[w];origin=fixture] fun readWrapper sym=golden.sema.readWrapper[kind=fun;params=golden.sema.Wrapper<*>;ret=Unit;names=[w];origin=fixture]
+expr e@6:44 name(c) type=golden.sema.Container<*> ref=golden.sema.readContainer.$2.c[kind=vparam;origin=fixture]
+expr e@6:44#1 memberCall recv=e@6:44 callee=item args=[] type=Any? ref=golden.sema.Container.item[kind=prop;type=T0;origin=fixture]
+expr e@9:37 name(list) type=kotlin.collections.List<*> ref=golden.sema.eraseType.$1.list[kind=vparam;origin=fixture]
+expr e@9:37#1 memberCall recv=e@9:37 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop;type=Int]
+expr e@13:13 name(c) type=golden.sema.Container<*> ref=golden.sema.acceptAny.$0.c[kind=vparam;origin=fixture]
+expr e@13:13#1 memberCall recv=e@13:13 callee=item args=[] type=Any? ref=golden.sema.Container.item[kind=prop;type=T0;origin=fixture]
+expr e@13:5 localDecl v mutable=0 type=_ init=e@13:13#1 type=Unit ref=__local_0.v[kind=local;type=Any?;origin=fixture]
+expr e@19:38 name(b) type=golden.sema.OutBox<*> ref=golden.sema.readOutBox.$3.b[kind=vparam;origin=fixture]
+expr e@19:38#1 memberCall recv=e@19:38 callee=value args=[] type=Any? ref=golden.sema.OutBox.value[kind=prop;type=T0;origin=fixture]
+expr e@25:13 name(w) type=golden.sema.Wrapper<*> ref=golden.sema.readWrapper.$4.w[kind=vparam;origin=fixture]
+expr e@25:13#1 memberCall recv=e@25:13 callee=items args=[] type=kotlin.collections.List<out Any?> ref=golden.sema.Wrapper.items[kind=prop;type=kotlin.collections.List<out T0>;origin=fixture]
+expr e@25:5 localDecl x mutable=0 type=_ init=e@25:13#1 type=Unit ref=__local_1.x[kind=local;type=kotlin.collections.List<out Any?>;origin=fixture]

@@ -1,5 +1,6 @@
 package kotlin.sequences
 
+import kotlin.internal.KsNoInline
 import kotlin.internal.KsSymbolName
 
 // MIGRATION-SEQ-001 / KSP-651 / KSP-1338
@@ -29,12 +30,13 @@ private external fun <T : Any> __kkSequenceGenerateNoArg(
 
 public fun <T> emptySequence(): Sequence<T> = __kkEmptySequence()
 
-// Parameter is not named `iterator` so the object override does not recurse.
 @kotlin.internal.InlineOnly
-public inline fun <T> Sequence(crossinline iteratorProducer: () -> Iterator<T>): Sequence<T> =
-    object : Sequence<T> {
+public inline fun <T> Sequence(crossinline iterator: () -> Iterator<T>): Sequence<T> {
+    val iteratorProducer = { iterator() }
+    return object : Sequence<T> {
         override fun iterator(): Iterator<T> = iteratorProducer()
     }
+}
 
 public fun <T> sequenceOf(vararg elements: T): Sequence<T> = __kkSequenceOf(elements)
 
@@ -45,31 +47,43 @@ public fun <T> sequenceOf(element: T): Sequence<T> = __kkSequenceOfSingle(elemen
 @kotlin.internal.InlineOnly
 public inline fun <T> sequenceOf(): Sequence<T> = emptySequence()
 
+// Callbacks escape into the sequence; retain boxed function values and captures.
+@KsNoInline
 public fun <T : Any> generateSequence(seed: T?, nextFunction: (T) -> T?): Sequence<T> {
     val nonNullSeed = seed ?: return emptySequence<T>()
     return __kkSequenceGenerate(nonNullSeed, nextFunction)
 }
 
+@KsNoInline
 public fun <T : Any> generateSequence(
     seedFunction: () -> T?,
     nextFunction: (T) -> T?
 ): Sequence<T> {
     return object : Sequence<T> {
         override fun iterator(): Iterator<T> {
-            val seed = seedFunction()
-            val nonNullSeed = seed ?: return emptySequence<T>().iterator()
-            return __kkSequenceGenerate(nonNullSeed, nextFunction).iterator()
+            var nextItem: T? = null
+            var started = false
+            return __kkSequenceGenerateNoArg<T>({
+                val result = if (!started) {
+                    val seed = seedFunction()
+                    started = true
+                    seed
+                } else nextFunction(nextItem!!)
+                nextItem = result
+                result
+            }).iterator()
         }
     }
 }
 
+@KsNoInline
 public fun <T : Any> generateSequence(nextFunction: () -> T?): Sequence<T> =
     __kkSequenceGenerateNoArg(nextFunction).constrainOnce()
 
 // Preserve Kotlin's bottom-type inference for a producer that immediately
 // returns null. The generic overload cannot infer its non-null T from null.
 public fun generateSequence(nextFunction: () -> Nothing?): Sequence<Nothing> =
-    emptySequence()
+    __kkSequenceGenerateNoArg(nextFunction).constrainOnce()
 
 // KSP-1338: public sequence/iterator builders stay on the existing runtime
 // suspension bridges. Source declarations replace the synthetic stubs so the

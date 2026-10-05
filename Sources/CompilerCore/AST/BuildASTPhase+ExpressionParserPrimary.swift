@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 extension BuildASTPhase.ExpressionParser {
     func parsePrimary() -> ExprID? {
@@ -45,19 +46,13 @@ extension BuildASTPhase.ExpressionParser {
             return parsePrimaryThis(token)
         case .keyword(.object):
             return parseObjectLiteral()
-        case .keyword(.suspend) where peek(1)?.kind == .symbol(.lBrace):
-            // `suspend { ... }` is a suspend-modified lambda literal, not a
-            // call to a function named `suspend` — distinct from `suspend`
-            // used as a declaration modifier (`suspend fun f() {}`), which
-            // is never followed directly by `{`.
-            let suspendStart = token.range.start
-            _ = consume()
-            return parseLambdaLiteral(start: suspendStart)
         case .keyword(.fun) where peek(1)?.kind == .symbol(.lParen):
             // Anonymous function expression: `fun(params): RetType { body }`.
             // Distinct from `fun` as a declaration modifier/keyword, which is
             // never followed directly by `(` (a name always comes first).
             return parseAnonymousFunctionLiteral()
+        case .keyword(.in), .keyword(.is), .keyword(.as):
+            return nil
         case let .keyword(keyword):
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(keyword.rawValue), token.range))
@@ -67,7 +62,7 @@ extension BuildASTPhase.ExpressionParser {
         case .stringQuote, .rawStringQuote, .multiDollarStringQuote, .multiDollarRawStringQuote:
             return parseStringLiteral()
         case .symbol(.doubleColon):
-            return parseCallableReferenceWithoutReceiver()
+            return parseCallableReference()
         case .symbol(.lParen):
             _ = consume()
             let expr = parseExpression(minPrecedence: 0)
@@ -353,7 +348,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if case let .stringSegment(segment) = token.kind {
                     let segmentText = interner.resolve(segment)
-                    pieces.append(shouldDecodeEscapes ? decodeEscapedStringSegment(segmentText) : segmentText)
+                    pieces.append(shouldDecodeEscapes ? decodeEscapedStringSegment(segmentText) : KotlinStringSurrogateEncoding.encode(segmentText))
                 }
                 end = token.range.end
                 _ = consume()
@@ -378,7 +373,7 @@ extension BuildASTPhase.ExpressionParser {
                 let effectiveSegment: InternedString = if shouldDecodeEscapes {
                     interner.intern(decodeEscapedStringSegment(interner.resolve(segment)))
                 } else {
-                    segment
+                    interner.intern(KotlinStringSurrogateEncoding.encode(interner.resolve(segment)))
                 }
                 parts.append(.literal(effectiveSegment))
                 end = token.range.end

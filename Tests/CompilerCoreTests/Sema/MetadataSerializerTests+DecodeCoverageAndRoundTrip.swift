@@ -4,6 +4,20 @@ import Foundation
 import Testing
 
 extension MetadataSerializerTests {
+    @Test func testContractImplicationsRoundTrip() throws {
+        let effects = [
+            ContractImplicationEffect(parameterIndex: 2, returnCondition: .returnsFalse, argumentCondition: .isType,
+                                      targetTypeSignature: "Ltest_Pair<+Lkotlin_String;,-Lkotlin_String;>;"),
+            ContractImplicationEffect(parameterIndex: 0, returnCondition: .returnsTrue, argumentCondition: .nonNull),
+            ContractImplicationEffect(parameterIndex: 1, returnCondition: .returnsNotNull, argumentCondition: .booleanTrue),
+        ]
+        let record = MetadataRecord(kind: .function, fqName: "test.present", contractImplicationEffects: effects)
+        let decoded = try #require(MetadataDecoder().decode(MetadataEncoder().serialize([record])).first)
+        #expect(decoded.contractImplicationEffects == effects)
+        let legacy = try #require(MetadataDecoder().decode("symbols=1\nfunction _KK fq=test.legacy schema=v1\n").first)
+        #expect(legacy.contractImplicationEffects.isEmpty)
+    }
+
     @Test func testInputOnlyTypeParametersRoundTrip() throws {
         let record = MetadataRecord(
             kind: .function, mangledName: "_KK_contains", fqName: "test.contains",

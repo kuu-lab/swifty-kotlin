@@ -1137,6 +1137,7 @@ extension CallTypeChecker {
                     argTypes: argTypes,
                     range: range,
                     ctx: ctx,
+                    locals: &locals,
                     expectedType: expectedType
                 ) {
                     let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
@@ -1181,6 +1182,7 @@ extension CallTypeChecker {
                 if let chosen = resolved.chosenCallee {
                     let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
                     sema.bindings.markInvokeOperatorCall(id)
+                    sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
                     let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
@@ -1227,6 +1229,7 @@ extension CallTypeChecker {
                 argTypes: argTypes,
                 range: range,
                 ctx: ctx,
+                locals: &locals,
                 expectedType: expectedType
             ) {
                 let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
@@ -1554,33 +1557,14 @@ extension CallTypeChecker {
             return fallbackType
         }
 
-        // Receiver-lambda invocation: `receiver.localVar()` where localVar
-        // has a function-with-receiver type matching the receiver.
-        // e.g. `sb.action()` where action: StringBuilder.() -> Unit
+        if !isClassNameReceiver,
+           ast.arena.isExplicitCall(id),
+           let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals) {
+            return result
+        }
+
         if let local = locals[calleeName] {
             let localType = local.type
-            if case let .functionType(fnType) = sema.types.kind(of: localType),
-               fnType.receiver != nil
-            {
-                let argTypes = args.map { argument in
-                    driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
-                }
-                _ = argTypes // suppress unused warning
-                let resultType = fnType.returnType
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                // Mark as callable-value call so KIR emits an indirect call
-                // through the closure pointer with the receiver prepended.
-                sema.bindings.bindCallableValueCall(
-                    id,
-                    binding: CallableValueCallBinding(
-                        target: .localValue(local.symbol),
-                        functionType: localType,
-                        parameterMapping: [:]
-                    )
-                )
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
             // Support function values that were represented as a regular
             // function type where the first parameter is the receiver.
             // Example: `val f: StringBuilder.() -> Unit` may be encoded as

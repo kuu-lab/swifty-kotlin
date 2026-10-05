@@ -6,6 +6,44 @@
 
 // MARK: - Array Functions (STDLIB-001)
 
+/// Element interpretation of a primitive array, resolved from the nominal
+/// type IDs the compiler tags onto every array handle (`kk_array_tag_type`).
+/// Generic `Array` handles have no entry in this table: their elements are
+/// boxed values that already carry their own dispatch information.
+enum RuntimePrimitiveArrayElementKind: Int8 {
+    case boolean, byte, char, double, float, int, long, short
+    case uByte, uShort, uInt, uLong
+}
+
+private let runtimeArrayTypeNames: [(id: Int64, name: String, kind: RuntimePrimitiveArrayElementKind)] = [
+    ("BooleanArray", .boolean), ("ByteArray", .byte), ("CharArray", .char),
+    ("DoubleArray", .double), ("FloatArray", .float), ("IntArray", .int),
+    ("LongArray", .long), ("ShortArray", .short), ("UByteArray", .uByte),
+    ("UShortArray", .uShort), ("UIntArray", .uInt), ("ULongArray", .uLong),
+].map { name, kind in
+    let fqName = "kotlin.\(name)"
+    return (runtimeStableNominalTypeID(fqName: fqName), fqName, kind)
+}
+
+func runtimeArrayIdentityToString(_ raw: Int) -> String {
+    let typeIDs = runtimeArrayTypeIDs(rawValue: raw)
+    let typeName = runtimeArrayTypeNames.first { typeIDs.contains($0.id) }?.name ?? "kotlin.Array"
+    let hash = UInt32(truncatingIfNeeded: kk_any_hashCode(raw, 0))
+    return "\(typeName)@\(String(hash, radix: 16))"
+}
+
+/// The primitive element kind of a tagged array, or nil for generic
+/// `Array` / untagged handles. Deep array operations (`contentDeepToString`
+/// and friends) consult this to decide whether raw element words need
+/// value-aware rendering, hashing, and comparison: primitive array elements
+/// are stored as raw machine words (e.g. IEEE 754 bits for Double, the
+/// UTF-16 code unit for Char) rather than as tagged/boxed values.
+func runtimePrimitiveArrayElementKind(rawValue: Int) -> RuntimePrimitiveArrayElementKind? {
+    let typeIDs = runtimeArrayTypeIDs(rawValue: rawValue)
+    guard !typeIDs.isEmpty else { return nil }
+    return runtimeArrayTypeNames.first { typeIDs.contains($0.id) }?.kind
+}
+
 /// Creates a new array from existing elements (identity/tagging operation).
 /// The array is already allocated by `kk_array_new`; this function simply
 /// returns the handle so that the Swift runtime handles it consistently
@@ -242,7 +280,8 @@ public func kk_uIntArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_uIntArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let elements = array.elements.map { Int(UInt32(truncatingIfNeeded: $0)) }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
 /// ULongArray.toList(): List<ULong>
@@ -326,40 +365,53 @@ public func kk_uShortArray_toList(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
 }
 
+private func runtimePrimitiveArrayView(
+    _ arrayRaw: Int, sourceType: String, targetType: String, functionName: String
+) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
+    }
+    return array.primitiveView(
+        rawValue: arrayRaw,
+        sourceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.\(sourceType)"),
+        targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.\(targetType)")
+    )
+}
+
 /// ByteArray.asUByteArray(): UByteArray view
 @_cdecl("__kk_byteArray_asUByteArray")
 public func kk_byteArray_asUByteArray(_ arrayRaw: Int) -> Int {
-    guard runtimeArrayBox(from: arrayRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_byteArray_asUByteArray")
-    }
-    return arrayRaw
+    runtimePrimitiveArrayView(
+        arrayRaw, sourceType: "ByteArray", targetType: "UByteArray",
+        functionName: "kk_byteArray_asUByteArray"
+    )
 }
 
 /// ShortArray.asUShortArray(): UShortArray view
 @_cdecl("__kk_shortArray_asUShortArray")
 public func kk_shortArray_asUShortArray(_ arrayRaw: Int) -> Int {
-    guard runtimeArrayBox(from: arrayRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_shortArray_asUShortArray")
-    }
-    return arrayRaw
+    runtimePrimitiveArrayView(
+        arrayRaw, sourceType: "ShortArray", targetType: "UShortArray",
+        functionName: "kk_shortArray_asUShortArray"
+    )
 }
 
 /// IntArray.asUIntArray(): UIntArray view
 @_cdecl("__kk_intArray_asUIntArray")
 public func kk_intArray_asUIntArray(_ arrayRaw: Int) -> Int {
-    guard runtimeArrayBox(from: arrayRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_intArray_asUIntArray")
-    }
-    return arrayRaw
+    runtimePrimitiveArrayView(
+        arrayRaw, sourceType: "IntArray", targetType: "UIntArray",
+        functionName: "kk_intArray_asUIntArray"
+    )
 }
 
 /// LongArray.asULongArray(): ULongArray view
 @_cdecl("__kk_longArray_asULongArray")
 public func kk_longArray_asULongArray(_ arrayRaw: Int) -> Int {
-    guard runtimeArrayBox(from: arrayRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_longArray_asULongArray")
-    }
-    return arrayRaw
+    runtimePrimitiveArrayView(
+        arrayRaw, sourceType: "LongArray", targetType: "ULongArray",
+        functionName: "kk_longArray_asULongArray"
+    )
 }
 
 @inline(__always)
@@ -458,40 +510,43 @@ public func kk_uLongArray_asList(_ arrayRaw: Int) -> Int {
 
 // MARK: - Unsigned primitive array to signed primitive array views
 //
-// Kotlin `asByteArray` / `asShortArray` (and the other width-matched pairs below) are
-// *views* on the same storage: the signed and unsigned array types re-use the same
-// underlying runtime array; mutations are shared and bit patterns are not reencoded.
-
-@inline(__always)
-private func kk_unsignedArray_asSignedArrayView(_ arrayRaw: Int, functionName: String) -> Int {
-    guard runtimeArrayBox(from: arrayRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
-    }
-    return arrayRaw
-}
+// Width-matched signed and unsigned views share mutable storage while each
+// handle retains its own nominal array type. Element bit patterns are unchanged.
 
 /// UByteArray.asByteArray(): ByteArray
 @_cdecl("__kk_uByteArray_asByteArray")
 public func kk_uByteArray_asByteArray(_ arrayRaw: Int) -> Int {
-    kk_unsignedArray_asSignedArrayView(arrayRaw, functionName: "kk_uByteArray_asByteArray")
+    runtimePrimitiveArrayView(
+        arrayRaw, sourceType: "UByteArray", targetType: "ByteArray",
+        functionName: "kk_uByteArray_asByteArray"
+    )
 }
 
 /// UShortArray.asShortArray(): ShortArray
 @_cdecl("__kk_uShortArray_asShortArray")
 public func kk_uShortArray_asShortArray(_ arrayRaw: Int) -> Int {
-    kk_unsignedArray_asSignedArrayView(arrayRaw, functionName: "kk_uShortArray_asShortArray")
+    runtimePrimitiveArrayView(
+        arrayRaw, sourceType: "UShortArray", targetType: "ShortArray",
+        functionName: "kk_uShortArray_asShortArray"
+    )
 }
 
 /// UIntArray.asIntArray(): IntArray view
 @_cdecl("__kk_uIntArray_asIntArray")
 public func kk_uIntArray_asIntArray(_ arrayRaw: Int) -> Int {
-    kk_unsignedArray_asSignedArrayView(arrayRaw, functionName: "kk_uIntArray_asIntArray")
+    runtimePrimitiveArrayView(
+        arrayRaw, sourceType: "UIntArray", targetType: "IntArray",
+        functionName: "kk_uIntArray_asIntArray"
+    )
 }
 
 /// ULongArray.asLongArray(): LongArray view
 @_cdecl("__kk_uLongArray_asLongArray")
 public func kk_uLongArray_asLongArray(_ arrayRaw: Int) -> Int {
-    kk_unsignedArray_asSignedArrayView(arrayRaw, functionName: "kk_uLongArray_asLongArray")
+    runtimePrimitiveArrayView(
+        arrayRaw, sourceType: "ULongArray", targetType: "LongArray",
+        functionName: "kk_uLongArray_asLongArray"
+    )
 }
 
 // MARK: - Primitive array size property

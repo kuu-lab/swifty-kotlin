@@ -37,6 +37,17 @@ let arrayListRuntimeTypeID: Int64 = {
     return id
 }()
 
+let arrayDequeRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.ArrayDeque")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: abstractMutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: id,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableCollection")
+    )
+    return id
+}()
+
 let setRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
@@ -94,6 +105,10 @@ private let mapEntryRuntimeTypeID: Int64 = {
     let payload = Int64(bitPattern: hash) & payloadMask
     return payload == 0 ? 1 : payload
 }()
+
+private let mutableMapEntryRuntimeTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableMap.MutableEntry"
+)
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
@@ -612,6 +627,7 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
+    runtimeRegisterMutableMapEntryMethods(raw)
     return raw
 }
 
@@ -625,6 +641,7 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeVal
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
+    runtimeRegisterMutableMapEntryMethods(raw)
     return raw
 }
 
@@ -647,6 +664,16 @@ private func runtimeRegisterMapEntryGetters(_ raw: Int) {
     _ = kk_object_register_itable_method(raw, 0, 1, unsafeBitCast(runtimeMapEntryValueGetter, to: Int.self))
 }
 
+private let runtimeMutableMapEntrySetValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, value, outThrown in
+    kk_mutable_map_entry_setValue(raw, value, outThrown)
+}
+
+private func runtimeRegisterMutableMapEntryMethods(_ raw: Int) {
+    // MutableEntry owns setValue (slot 0); inherited getters stay on Map.Entry.
+    _ = kk_object_register_itable_iface(raw, Int(mutableMapEntryRuntimeTypeID), 1)
+    _ = kk_object_register_itable_method(raw, 1, 0, unsafeBitCast(runtimeMutableMapEntrySetValue, to: Int.self))
+}
+
 @inline(__always)
 func runtimeIsMapEntry(rawValue: Int) -> Bool {
     runtimeObjectTypeID(rawValue: rawValue) == mapEntryRuntimeTypeID
@@ -664,6 +691,9 @@ func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
     }
     if let box = tryCast(ptr, to: RuntimeListBox.self) {
         return box
+    }
+    if let deque = tryCast(ptr, to: RuntimeArrayDequeBox.self) {
+        return RuntimeListBox(dequeViewOf: deque)
     }
     if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self) {
         if let backingListBox = objectBox.backingListBox {
@@ -1063,7 +1093,7 @@ private let runtimeListIteratorSetThunk: @convention(c) (Int, Int, UnsafeMutable
 
 private let runtimeListIteratorAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorAdd(raw, elem)
+    return runtimeListIteratorAdd(raw, elem, outThrown)
 }
 
 private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
@@ -1140,7 +1170,12 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
     // reach the same runtime-backed iterator. `is` checks still consult the
     // nominal class hierarchy, so this does not make `List`/`Set` report as
     // `Sequence`.
-    if box is RuntimeListBox {
+    if box is RuntimeArrayDequeBox {
+        runtimeRegisterObjectType(rawValue: raw, classID: arrayDequeRuntimeTypeID)
+        registerIterableItable(raw: raw, ifaceSlot: 0)
+        registerSequenceItable(raw: raw, ifaceSlot: 1)
+        registerMutableIterableItable(raw: raw, ifaceSlot: 2)
+    } else if box is RuntimeListBox {
         runtimeRegisterObjectType(rawValue: raw, classID: listRuntimeTypeID)
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
@@ -1198,11 +1233,7 @@ private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutable
 }
 
 private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    if kk_range_hasNext(iterRaw) == 0 {
-        return runtimeThrowIteratorExhausted(outThrown)
-    }
-    return kk_range_next(iterRaw)
+    kk_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -1509,7 +1540,8 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             return lhsInt.enumClassID == rhsInt.enumClassID
                 && lhsInt.value == rhsInt.value
         }
-        return lhsInt.value == rhsInt.value
+        return lhsInt.primitiveTypeBase == rhsInt.primitiveTypeBase
+            && lhsInt.value == rhsInt.value
     }
     if let lhsBool = tryCast(lhsPtr, to: RuntimeBoolBox.self),
        let rhsBool = tryCast(rhsPtr, to: RuntimeBoolBox.self)
@@ -1547,7 +1579,7 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if let lhsDuration = tryCast(lhsPtr, to: RuntimeDurationBox.self),
        let rhsDuration = tryCast(rhsPtr, to: RuntimeDurationBox.self)
     {
-        return lhsDuration.nanoseconds == rhsDuration.nanoseconds
+        return lhsDuration.rawValue == rhsDuration.rawValue
     }
     if let lhsInstant = tryCast(lhsPtr, to: RuntimeInstantBox.self),
        let rhsInstant = tryCast(rhsPtr, to: RuntimeInstantBox.self)
@@ -1555,8 +1587,8 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         return lhsInstant.epochSeconds == rhsInstant.epochSeconds
             && lhsInstant.nanoOfSecond == rhsInstant.nanoOfSecond
     }
-    if let lhsList = tryCast(lhsPtr, to: RuntimeListBox.self),
-       let rhsList = tryCast(rhsPtr, to: RuntimeListBox.self)
+    if let lhsList = runtimeListBox(from: lhs),
+       let rhsList = runtimeListBox(from: rhs)
     {
         let lhsElems = lhsList.elements
         let rhsElems = rhsList.elements
@@ -1854,6 +1886,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if elem == runtimeNullSentinelInt {
         return "null"
     }
+    if let description = runtimeFunctionDescription(elem) {
+        return description
+    }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: elem) else {
         return "\(elem)"
     }
@@ -1896,7 +1931,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return runtimeFormatFloatingPoint(doubleBox.value)
     }
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-        return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+        return runtimeCharacterFromRaw(charBox.value)
     }
     if let override = runtimeAnyToStringOverrideText(elem) {
         return override
@@ -1907,7 +1942,10 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
-    if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
+    if let localeBox = tryCast(ptr, to: RuntimeLocaleBox.self) {
+        return runtimeLocaleToString(localeBox)
+    }
+    if let listBox = runtimeListBox(from: elem) {
         let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
     }
@@ -1960,8 +1998,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let parts = arrayBox.values.map { runtimeElementToString($0) }
-        return "[" + parts.joined(separator: ", ") + "]"
+        return runtimeFloatingPointArrayToString(elem, box: arrayBox) ?? runtimeArrayIdentityToString(elem)
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
@@ -1970,6 +2007,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     // current value, matching the JDK AtomicReference it is modelled on.
     if let atomicRefBox = tryCast(ptr, to: AtomicRefBox.self) {
         return runtimeElementToString(atomicRefBox.load())
+    }
+    if let kclassBox = tryCast(ptr, to: RuntimeKClassBox.self) {
+        return runtimeKClassToString(kclassBox)
     }
     if let ktypeProjectionBox = tryCast(ptr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)
@@ -2003,7 +2043,7 @@ func runtimeElementToString(_ value: RuntimeValue) -> String {
             hash: value.payload3
         )
     case RuntimeValue.charTag:
-        return UnicodeScalar(value.payload0).map(String.init) ?? "?"
+        return runtimeCharacterFromRaw(value.payload0)
     default:
         return runtimeElementToString(value.payload0)
     }
@@ -2042,8 +2082,13 @@ func runtimeInvokeCollectionLambda1(
     value: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
-    return fn(maybeUnbox(closureRaw), maybeUnbox(value), outThrown)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 1, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda1.self)
+    return fn(
+        maybeUnbox(pair.closureRaw),
+        pair.preservesBoxes ? value : maybeUnbox(value),
+        outThrown
+    )
 }
 
 /// Like `runtimeInvokeCollectionLambda1`, but tolerates `fnPtr` arriving as a
@@ -2098,8 +2143,9 @@ func runtimeInvokeCollectionLambda1PreservingBox(
     value: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
-    return fn(maybeUnbox(closureRaw), value, outThrown)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 1, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda1.self)
+    return fn(maybeUnbox(pair.closureRaw), value, outThrown)
 }
 
 @inline(__always)
@@ -2110,8 +2156,14 @@ func runtimeInvokeCollectionLambda2(
     rhs: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda2.self)
-    return fn(maybeUnbox(closureRaw), maybeUnbox(lhs), maybeUnbox(rhs), outThrown)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 2, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda2.self)
+    return fn(
+        maybeUnbox(pair.closureRaw),
+        pair.preservesBoxes ? lhs : maybeUnbox(lhs),
+        pair.preservesBoxes ? rhs : maybeUnbox(rhs),
+        outThrown
+    )
 }
 
 @inline(__always)
@@ -2123,12 +2175,13 @@ func runtimeInvokeCollectionLambda3(
     arg3: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda3.self)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 3, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda3.self)
     return fn(
-        maybeUnbox(closureRaw),
-        maybeUnbox(arg1),
-        maybeUnbox(arg2),
-        maybeUnbox(arg3),
+        maybeUnbox(pair.closureRaw),
+        pair.preservesBoxes ? arg1 : maybeUnbox(arg1),
+        pair.preservesBoxes ? arg2 : maybeUnbox(arg2),
+        pair.preservesBoxes ? arg3 : maybeUnbox(arg3),
         outThrown
     )
 }
@@ -2143,13 +2196,14 @@ func runtimeInvokeCollectionLambda4(
     arg4: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda4.self)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 4, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: RuntimeCollectionLambda4.self)
     return fn(
-        maybeUnbox(closureRaw),
-        maybeUnbox(arg1),
-        maybeUnbox(arg2),
-        maybeUnbox(arg3),
-        maybeUnbox(arg4),
+        maybeUnbox(pair.closureRaw),
+        pair.preservesBoxes ? arg1 : maybeUnbox(arg1),
+        pair.preservesBoxes ? arg2 : maybeUnbox(arg2),
+        pair.preservesBoxes ? arg3 : maybeUnbox(arg3),
+        pair.preservesBoxes ? arg4 : maybeUnbox(arg4),
         outThrown
     )
 }
@@ -2160,8 +2214,9 @@ func runtimeInvokeClosureThunk(
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: KKClosureThunkEntryPoint.self)
-    return fn(closureRaw, outThrown)
+    guard let pair = runtimeResolveClosureInvocation(fnPtr: fnPtr, closureRaw: closureRaw, arity: 0, outThrown: outThrown) else { return 0 }
+    let fn = unsafeBitCast(pair.fnPtr, to: KKClosureThunkEntryPoint.self)
+    return fn(pair.closureRaw, outThrown)
 }
 
 /// Like `runtimeInvokeClosureThunk`, but tolerates `fnPtr` arriving as a
@@ -2507,9 +2562,8 @@ func runtimeComparePrimitiveValues(_ lhs: Int, _ rhs: Int, kind: RuntimePrimitiv
 /// `RuntimePrimitiveCompareKind` ordering) selecting signed / unsigned / IEEE
 /// floating semantics. The result is the sign of the comparison (-1/0/1),
 /// matching `Integer.compare` / `Long.compare` / `Double.compare` — i.e.
-/// Kotlin's `Comparable<T>.compareTo` contract. (Char keeps its own
-/// `kk_char_compareTo` entry point, which returns the raw codepoint
-/// difference to mirror `Character.compare`.)
+/// Kotlin's primitive `compareTo` behavior. Char keeps its own
+/// `kk_char_compareTo` entry point with the same sign-normalized result.
 @_cdecl("kk_primitive_compareTo")
 public func kk_primitive_compareTo(_ lhsRaw: Int, _ rhsRaw: Int, _ kindRaw: Int32) -> Int {
     runtimeComparePrimitiveValues(lhsRaw, rhsRaw, kind: runtimePrimitiveCompareKind(from: kindRaw))

@@ -214,7 +214,7 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range)
+            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
         }
 
         return arena.appendNode(
@@ -261,7 +261,7 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range)
+            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
             // In Kotlin, `get()`/`set()` accessors and explicit backing field
             // declarations on the next line are part of the property declaration.
             // After parseTail stops at a newline, absorb trailing accessor and
@@ -397,6 +397,10 @@ extension KotlinParser {
             return arena.appendNode(kind: .block, range: range.value ?? invalidRange, children)
         }
 
+        // The first top-level `;` ends the entry list; anything after it is a
+        // class member. Without this, an identifier-like soft keyword such as
+        // `init` in `A, B; init { ... }` was parsed as a third enum entry.
+        var entryListEnded = false
         while !stream.atEOF() {
             let token = stream.peek()
             if case .symbol(.rBrace) = token.kind {
@@ -408,11 +412,16 @@ extension KotlinParser {
                 children.append(.node(parseDeclaration()))
                 continue
             }
-            if isIdentifierLike(token.kind) || enumEntryStartsAfterLeadingAnnotations() {
+            if !entryListEnded,
+               isIdentifierLike(token.kind) || enumEntryStartsAfterLeadingAnnotations()
+            {
                 children.append(.node(parseEnumEntryDeclaration()))
                 continue
             }
             if token.kind == .symbol(.comma) || token.kind == .symbol(.semicolon) {
+                if token.kind == .symbol(.semicolon) {
+                    entryListEnded = true
+                }
                 _ = consumeToken(into: &children, range: &range)
                 continue
             }
@@ -595,7 +604,7 @@ extension KotlinParser {
             if case .symbol(.rBrace) = token.kind, parenDepth == 0 { break }
             if case .symbol(.lBrace) = token.kind, parenDepth == 0 { break }
             if hasLeadingNewline(token), parenDepth == 0, !children.isEmpty, token.kind != .symbol(.colon), token.kind != .keyword(.this), token.kind != .keyword(.super) { break }
-            if case .symbol(.semicolon) = token.kind {
+            if case .symbol(.semicolon) = token.kind, parenDepth == 0 {
                 _ = consumeToken(into: &children, range: &range)
                 break
             }

@@ -86,6 +86,18 @@ private func floatBits(_ value: Float) -> Int {
     Int(Int32(bitPattern: value.bitPattern))
 }
 
+/// A boxed endpoint for native closed ranges, or null to preserve source-object dispatch.
+@_cdecl("__kk_floating_range_endpoint_or_null")
+public func __kk_floating_range_endpoint_or_null(_ rangeRaw: Int, _ endpoint: Int) -> Int {
+    if let range = runtimeDoubleRangeBox(from: rangeRaw), !range.endExclusive {
+        return kk_box_double_nonnull(doubleBits(endpoint == 0 ? range.first : range.last))
+    }
+    if let range = runtimeFloatRangeBox(from: rangeRaw), !range.endExclusive {
+        return kk_box_float(floatBits(endpoint == 0 ? range.first : range.last))
+    }
+    return runtimeNullSentinelInt
+}
+
 @_cdecl("__kk_double_rangeTo")
 public func __kk_double_rangeTo(_ lhsBits: Int, _ rhsBits: Int) -> Int {
     registerRuntimeObject(RuntimeDoubleRangeBox(
@@ -118,6 +130,38 @@ public func __kk_float_rangeUntil(_ lhsBits: Int, _ rhsBits: Int) -> Int {
         last: floatValue(from: rhsBits),
         endExclusive: true
     ))
+}
+
+@_cdecl("__kk_double_range_start")
+public func __kk_double_range_start(_ rangeRaw: Int) -> Int {
+    guard let range = runtimeDoubleRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_double_range_start")
+    }
+    return doubleBits(range.first)
+}
+
+@_cdecl("__kk_double_range_endInclusive")
+public func __kk_double_range_endInclusive(_ rangeRaw: Int) -> Int {
+    guard let range = runtimeDoubleRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_double_range_endInclusive")
+    }
+    return doubleBits(range.last)
+}
+
+@_cdecl("__kk_float_range_start")
+public func __kk_float_range_start(_ rangeRaw: Int) -> Int {
+    guard let range = runtimeFloatRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_float_range_start")
+    }
+    return floatBits(range.first)
+}
+
+@_cdecl("__kk_float_range_endInclusive")
+public func __kk_float_range_endInclusive(_ rangeRaw: Int) -> Int {
+    guard let range = runtimeFloatRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_float_range_endInclusive")
+    }
+    return floatBits(range.last)
 }
 
 @_cdecl("__kk_double_range_contains")

@@ -4,10 +4,6 @@
 import Foundation
 import RuntimeABI
 
-func runtimeStringScalars(_ raw: Int) -> [UnicodeScalar] {
-    Array(runtimeStringFromRawOrPanic(raw, caller: #function).unicodeScalars)
-}
-
 func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
     if let box = runtimeStringBox(fromRaw: raw) {
         return box.utf16CodeUnits
@@ -15,36 +11,17 @@ func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
     return runtimeKotlinStringUTF16CodeUnits(runtimeStringFromRawOrPanic(raw, caller: #function))
 }
 
-/// Appends `scalarValue`'s Kotlin UTF-16 code units, decoding the compiler's
-/// isolated surrogate markers back to their original values.
-private func runtimeAppendUTF16CodeUnit(of scalarValue: UInt32, to result: inout [UInt16]) {
-    if let codeUnitValue = KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) {
-        result.append(UInt16(codeUnitValue))
-    } else if scalarValue <= 0xFFFF {
-        result.append(UInt16(scalarValue))
-    } else {
-        let offset = scalarValue - 0x10000
-        result.append(UInt16(0xD800 + (offset >> 10)))
-        result.append(UInt16(0xDC00 + (offset & 0x03FF)))
-    }
-}
-
 /// Returns Kotlin's UTF-16 code units while decoding the compiler's isolated
 /// surrogate markers back to their original values.
 func runtimeKotlinStringUTF16CodeUnits(_ value: String) -> [UInt16] {
-    var result: [UInt16] = []
-    result.reserveCapacity(value.utf16.count)
-    runtimeAppendKotlinUTF16CodeUnits(of: value, to: &result)
-    return result
+    KotlinStringSurrogateEncoding.utf16CodeUnits(value)
 }
 
 /// Appends `value`'s Kotlin UTF-16 code units to `units` without building an
 /// intermediate array.
 func runtimeAppendKotlinUTF16CodeUnits(of value: String, to units: inout [UInt16]) {
     units.reserveCapacity(units.count + value.utf16.count)
-    for scalar in value.unicodeScalars {
-        runtimeAppendUTF16CodeUnit(of: scalar.value, to: &units)
-    }
+    units.append(contentsOf: KotlinStringSurrogateEncoding.UTF16CodeUnits(value))
 }
 
 /// The Kotlin UTF-16 code unit at `index`, scanning scalars only until the
@@ -53,70 +30,21 @@ func runtimeAppendKotlinUTF16CodeUnits(of value: String, to units: inout [UInt16
 /// `runtimeKotlinStringUTF16CodeUnits(value)[index]` for in-range indexes.
 func runtimeKotlinStringUTF16CodeUnit(_ value: String, at index: Int) -> UInt16? {
     guard index >= 0 else { return nil }
-    var offset = 0
-    for scalar in value.unicodeScalars {
-        let scalarValue = scalar.value
-        if let codeUnitValue = KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) {
-            if index == offset { return UInt16(codeUnitValue) }
-            offset += 1
-        } else if scalarValue <= 0xFFFF {
-            if index == offset { return UInt16(scalarValue) }
-            offset += 1
-        } else {
-            let shifted = scalarValue - 0x10000
-            if index == offset {
-                return UInt16(0xD800 + (shifted >> 10))
-            }
-            if index == offset + 1 {
-                return UInt16(0xDC00 + (shifted & 0x03FF))
-            }
-            offset += 2
-        }
+    for (offset, unit) in KotlinStringSurrogateEncoding.UTF16CodeUnits(value).enumerated() {
+        if offset == index { return unit }
     }
     return nil
 }
 
 /// UTF-16 code-unit count without allocating the unit array.
 func runtimeKotlinStringUTF16Length(_ value: String) -> Int {
-    var count = 0
-    for scalar in value.unicodeScalars {
-        let scalarValue = scalar.value
-        if KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) != nil || scalarValue <= 0xFFFF {
-            count += 1
-        } else {
-            count += 2
-        }
-    }
-    return count
+    KotlinStringSurrogateEncoding.UTF16CodeUnits(value).reduce(0) { count, _ in count + 1 }
 }
 
 /// Reconstructs a Swift String from Kotlin UTF-16 code units, preserving
 /// isolated surrogates through the compiler/runtime marker representation.
 func runtimeKotlinStringFromUTF16CodeUnits(_ units: [UInt16]) -> String {
-    var result = ""
-    result.reserveCapacity(units.count)
-    var index = 0
-    while index < units.count {
-        let codeUnit = UInt32(units[index])
-        if (0xD800 ... 0xDBFF).contains(codeUnit),
-           index + 1 < units.count,
-           (0xDC00 ... 0xDFFF).contains(UInt32(units[index + 1]))
-        {
-            let low = UInt32(units[index + 1])
-            let combined = 0x10000 + ((codeUnit - 0xD800) << 10) + (low - 0xDC00)
-            result.unicodeScalars.append(UnicodeScalar(combined)!)
-            index += 2
-        } else if let markerValue = KotlinStringSurrogateEncoding.markerValue(for: codeUnit),
-                  let marker = UnicodeScalar(markerValue)
-        {
-            result.unicodeScalars.append(marker)
-            index += 1
-        } else {
-            result.unicodeScalars.append(UnicodeScalar(codeUnit)!)
-            index += 1
-        }
-    }
-    return result
+    KotlinStringSurrogateEncoding.fromUTF16CodeUnits(units)
 }
 
 /// Kotlin String equality compares the underlying UTF-16 code-unit sequence.
@@ -124,11 +52,7 @@ func runtimeKotlinStringFromUTF16CodeUnits(_ units: [UInt16]) -> String {
 /// the default Kotlin String equality contract.
 @inline(__always)
 func runtimeStringsEqual(_ lhs: String, _ rhs: String) -> Bool {
-    lhs.utf16.elementsEqual(rhs.utf16)
-}
-
-func runtimeStringFromScalars(_ scalars: some Sequence<UnicodeScalar>) -> String {
-    String(String.UnicodeScalarView(scalars))
+    KotlinStringSurrogateEncoding.UTF16CodeUnits(lhs).elementsEqual(KotlinStringSurrogateEncoding.UTF16CodeUnits(rhs))
 }
 
 func runtimeStringFromRaw(_ raw: Int) -> String? {
@@ -169,7 +93,7 @@ func runtimeCharacterFromRaw(_ raw: Int) -> String {
         }
         return "?"
     }
-    return String(scalar)
+    return KotlinStringSurrogateEncoding.encode(String(scalar))
 }
 
 func runtimeUnicodeScalarFromRaw(_ raw: Int) -> UnicodeScalar? {
@@ -188,12 +112,9 @@ func runtimeIsObjectPointer(_ pointer: UnsafeMutableRawPointer) -> Bool {
     }
 }
 
+/// Boxes an internal escaped string. Foreign UTF-8 enters via kk_string_from_utf8.
 func runtimeMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
+    registerRuntimeObject(RuntimeStringBox(value))
 }
 
 func runtimeMakeListRaw(_ values: [Int]) -> Int {
@@ -282,7 +203,7 @@ func runtimeStringIndexOfFirstFromRaw(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeStringIndexOfFirst(
-        scalars: runtimeStringScalars(strRaw),
+        units: runtimeStringUTF16CodeUnits(strRaw),
         fnPtr: fnPtr,
         closureRaw: closureRaw,
         outThrown: outThrown
@@ -293,7 +214,7 @@ func runtimeStringIndexOfLastFromRaw(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeStringIndexOfLast(
-        scalars: runtimeStringScalars(strRaw),
+        units: runtimeStringUTF16CodeUnits(strRaw),
         fnPtr: fnPtr,
         closureRaw: closureRaw,
         outThrown: outThrown
@@ -301,7 +222,7 @@ func runtimeStringIndexOfLastFromRaw(
 }
 
 private func runtimeStringIndexOfFirst(
-    scalars: [UnicodeScalar],
+    units: [UInt16],
     fnPtr: Int,
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
@@ -309,8 +230,8 @@ private func runtimeStringIndexOfFirst(
     outThrown?.pointee = 0
     guard fnPtr != 0 else { return -1 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for (index, scalar) in scalars.enumerated() {
-        let charRaw = Int(scalar.value)
+    for (index, unit) in units.enumerated() {
+        let charRaw = Int(unit)
         var thrown = 0
         let result = lambda(closureRaw, charRaw, &thrown)
         if thrown != 0 {
@@ -325,7 +246,7 @@ private func runtimeStringIndexOfFirst(
 }
 
 private func runtimeStringIndexOfLast(
-    scalars: [UnicodeScalar],
+    units: [UInt16],
     fnPtr: Int,
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
@@ -334,8 +255,8 @@ private func runtimeStringIndexOfLast(
     guard fnPtr != 0 else { return -1 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var lastIdx = -1
-    for (index, scalar) in scalars.enumerated() {
-        let charRaw = Int(scalar.value)
+    for (index, unit) in units.enumerated() {
+        let charRaw = Int(unit)
         var thrown = 0
         let result = lambda(closureRaw, charRaw, &thrown)
         if thrown != 0 {
@@ -347,6 +268,43 @@ private func runtimeStringIndexOfLast(
         }
     }
     return lastIdx
+}
+
+/// Applies full case mapping only to valid Unicode runs. NUL and isolated
+/// surrogate units are uncased boundaries and must survive foreign string APIs.
+/// Decode before mapping and re-encode afterwards so literal private-use scalars
+/// cannot be confused with the runtime's escaped surrogate representation.
+func runtimeKotlinCaseMapped(_ source: String, mapping: (String) -> String) -> String {
+    let units = runtimeKotlinStringUTF16CodeUnits(source)
+    var result: [UInt16] = []
+    result.reserveCapacity(units.count)
+    var start = 0
+    var index = 0
+
+    func appendMappedRun(endingAt end: Int) {
+        guard start < end else { return }
+        let run = String(decoding: units[start ..< end], as: UTF16.self)
+        result.append(contentsOf: mapping(run).utf16)
+    }
+
+    while index < units.count {
+        let unit = units[index]
+        if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
+           (0xDC00 ... 0xDFFF).contains(units[index + 1])
+        {
+            // Keep valid pairs together for supplementary-plane case mappings.
+            index += 2
+            continue
+        }
+        if unit == 0 || (0xD800 ... 0xDFFF).contains(unit) {
+            appendMappedRun(endingAt: index)
+            result.append(unit)
+            start = index + 1
+        }
+        index += 1
+    }
+    appendMappedRun(endingAt: units.count)
+    return runtimeKotlinStringFromUTF16CodeUnits(result)
 }
 
 /// `String.lowercase()` with the unconditional Unicode mappings plus the
@@ -411,6 +369,31 @@ private func runtimeIndexOfCodeUnits(
     return nil
 }
 
+func runtimeReplacingStringCodeUnits(
+    _ source: String, old: String, new: String, ignoreCase: Bool = false, firstOnly: Bool = false
+) -> String {
+    let units = runtimeKotlinStringUTF16CodeUnits(source)
+    let needle = runtimeKotlinStringUTF16CodeUnits(old)
+    let replacement = runtimeKotlinStringUTF16CodeUnits(new)
+    var result: [UInt16] = []
+    var cursor = 0
+    while cursor <= units.count,
+          let match = runtimeIndexOfCodeUnits(needle, in: units, from: cursor, ignoreCase: ignoreCase)
+    {
+        result.append(contentsOf: units[cursor ..< match])
+        result.append(contentsOf: replacement)
+        cursor = match + needle.count
+        if firstOnly { break }
+        if needle.isEmpty {
+            if cursor == units.count { break }
+            result.append(units[cursor])
+            cursor += 1
+        }
+    }
+    result.append(contentsOf: units[cursor ..< units.count])
+    return runtimeKotlinStringFromUTF16CodeUnits(result)
+}
+
 func runtimeSplitStringLimit(
     _ source: String,
     delimiter: String,
@@ -424,13 +407,10 @@ func runtimeSplitStringLimit(
         return [""]
     }
 
-    // Swift's UTF-16 view keeps isolated-surrogate markers as single BMP units,
-    // so unit offsets line up with Kotlin's and every match boundary is a
-    // scalar boundary (UTF-16 pairs are self-synchronizing).
-    let units = Array(source.utf16)
-    let needle = Array(delimiter.utf16)
+    let units = runtimeKotlinStringUTF16CodeUnits(source)
+    let needle = runtimeKotlinStringUTF16CodeUnits(delimiter)
     func piece(_ range: Range<Int>) -> String {
-        String(decoding: units[range], as: UTF16.self)
+        runtimeKotlinStringFromUTF16CodeUnits(Array(units[range]))
     }
     var result: [String] = []
     var cursor = 0

@@ -175,18 +175,18 @@ extension CallLowerer {
         case "removeAt":
             return interner.intern("__kk_mutable_list_removeAt")
         case "remove":
-            return interner.intern("__kk_mutable_list_remove")
+            return interner.intern("__kk_mutable_list_remove_checked")
         case "listIterator":
             let arity = chosenCallee.flatMap {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes.count
             } ?? 0
             return interner.intern(arity == 0 ? "__kk_mutable_list_listIterator" : "kk_list_iterator_at")
         case "clear":
-            return interner.intern("__kk_mutable_list_clear")
+            return interner.intern("__kk_mutable_list_clear_checked")
         case "removeAll":
-            return interner.intern("__kk_mutable_list_removeAll")
+            return interner.intern("__kk_mutable_list_removeAll_checked")
         case "retainAll":
-            return interner.intern("__kk_mutable_list_retainAll")
+            return interner.intern("__kk_mutable_list_retainAll_checked")
         case "plusAssign", "minusAssign":
             return mutableListBulkMutationCallee(
                 memberName: memberName,
@@ -222,25 +222,24 @@ extension CallLowerer {
         case "Iterable":
             return interner.intern("__kk_mutable_list_\(operation)_iterable")
         case "Array", "Collection", "MutableCollection":
-            return interner.intern("__kk_mutable_list_\(operation)")
+            return interner.intern("__kk_mutable_list_\(operation)_checked")
         default:
             if memberName == "plusAssign" {
                 return interner.intern("__kk_mutable_list_add")
             }
             if memberName == "minusAssign" {
-                return interner.intern("__kk_mutable_list_remove")
+                return interner.intern("__kk_mutable_list_remove_checked")
             }
             return nil
         }
     }
 
     /// True when the receiver's static type is `kotlin.collections.MutableList`
-    /// — the only spelling a runtime list box (`mutableListOf`, `subList`
-    /// views) can satisfy. `AbstractMutableList` is deliberately excluded: it
-    /// is a class, so a MutableList interface receiver can never bind one, and
-    /// an `AbstractMutableList`-typed receiver is always a real Kotlin object
-    /// (user subclass or the bundled SubList) whose calls must keep virtual
-    /// dispatch. Runtime list boxes carry no Kotlin vtable/itable, so these
+    /// — the interface spelling used by runtime list boxes (`mutableListOf`,
+    /// `subList` views). `AbstractMutableList` is deliberately excluded: its
+    /// receivers use registered vtable dispatch, including runtime-backed
+    /// `ArrayDeque` objects and user-defined subclasses. Runtime list boxes
+    /// carry no Kotlin vtable/itable, so these
     /// members must lower to the `__kk_mutable_list_*` ABI entry points rather
     /// than dispatch dynamically (KSP-1503).
     private func isMutableListRuntimeFamilyType(
@@ -456,11 +455,11 @@ extension CallLowerer {
             case "addAll" where argumentCount == 2:
                 return interner.intern("__kk_mutable_list_addAll_at")
             case "addAll":
-                return interner.intern("__kk_mutable_list_addAll")
+                return interner.intern("__kk_mutable_list_addAll_checked")
             case "removeAll":
-                return interner.intern("__kk_mutable_list_removeAll")
+                return interner.intern("__kk_mutable_list_removeAll_checked")
             case "retainAll":
-                return interner.intern("__kk_mutable_list_retainAll")
+                return interner.intern("__kk_mutable_list_retainAll_checked")
             case "removeAt":
                 return interner.intern("__kk_mutable_list_removeAt")
             case "removeFirst":
@@ -474,11 +473,11 @@ extension CallLowerer {
             case "set":
                 return interner.intern("__kk_mutable_list_set")
             case "clear":
-                return interner.intern("__kk_mutable_list_clear")
+                return interner.intern("__kk_mutable_list_clear_checked")
             case "plusAssign":
                 return interner.intern("__kk_mutable_list_add")
             case "minusAssign":
-                return interner.intern("__kk_mutable_list_remove")
+                return interner.intern("__kk_mutable_list_remove_checked")
             default:
                 break
             }
@@ -1020,11 +1019,6 @@ extension CallLowerer {
         switch memberName {
         case "count":
             return argumentCount == 0 ? interner.intern("__kk_map_size") : nil
-        case "putAll":
-            guard knownNames.isMutableMapSymbol(symbol) else {
-                return nil
-            }
-            return interner.intern("__kk_mutable_map_putAll")
         default:
             return nil
         }

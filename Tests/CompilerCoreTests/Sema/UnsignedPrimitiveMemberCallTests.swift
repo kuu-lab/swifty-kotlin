@@ -4,6 +4,167 @@ import Testing
 @Suite
 struct UnsignedPrimitiveMemberCallTests {
 
+    @Test
+    func testUnsignedUnarySignsRequireAnOperator() throws {
+        let source = """
+        fun rejected(ub: UByte, us: UShort, ui: UInt, ul: ULong,
+                     nb: UByte?, ns: UShort?, ni: UInt?, nl: ULong?) {
+            -1u
+            -1uL
+            -4294967296u
+            -0xFFFFFFFFu
+            -(1u)
+            -1u.toUByte()
+            -1u.toUShort()
+            -ub
+            -us
+            -ui
+            -ul
+            -nb
+            -ns
+            -ni
+            -nl
+            +1u
+            +1uL
+            +ub
+            +us
+            +ui
+            +ul
+            val narrowByte: UByte = -1u
+            val narrowShort: UShort = -1u
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let diagnostics = diagnosticsForPath(path, in: ctx)
+            var checkedExpressions = 0
+            for (index, expr) in ast.arena.exprs.enumerated() {
+                guard case let .unaryExpr(_, _, range) = expr,
+                      ctx.sourceManager.path(of: range.start.file) == path
+                else { continue }
+                let id = ExprID(rawValue: Int32(index))
+                #expect(sema.bindings.exprType(for: id) == sema.types.errorType)
+                #expect(diagnostics.contains {
+                    $0.code == "KSWIFTK-SEMA-0002" && $0.severity == .error && $0.primaryRange == range
+                })
+                checkedExpressions += 1
+            }
+            #expect(checkedExpressions == 23)
+        }
+    }
+
+    @Test
+    func testUnsignedUnaryExtensionOperatorsResolve() throws {
+        let source = """
+        operator fun UByte.unaryMinus(): Int = 1
+        operator fun UShort.unaryMinus(): Int = 2
+        operator fun UInt.unaryMinus(): Int = 3
+        operator fun ULong.unaryMinus(): Int = 4
+        operator fun UInt.unaryPlus(): Int = 5
+        fun sample(ub: UByte, us: UShort, ui: UInt, ul: ULong) {
+            -ub
+            -us
+            -ui
+            -ul
+            -1u
+            -1uL
+            +ui
+            +1u
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            var checkedExpressions = 0
+            for (index, expr) in ast.arena.exprs.enumerated() {
+                guard case let .unaryExpr(op, _, _) = expr else { continue }
+                let id = ExprID(rawValue: Int32(index))
+                #expect(sema.bindings.exprType(for: id) == sema.types.intType)
+                let call = try #require(sema.bindings.callBindings[id])
+                let symbol = try #require(sema.symbols.symbol(call.chosenCallee))
+                #expect(ctx.interner.resolve(symbol.name) == op.kotlinFunctionName)
+                checkedExpressions += 1
+            }
+            #expect(checkedExpressions == 8)
+        }
+    }
+
+    @Test
+    func testUnsignedUnaryExtensionWithoutOperatorIsRejected() throws {
+        let source = """
+        fun UInt.unaryMinus(): Int = 1
+        fun rejected() { -1u }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0002" && $0.severity == .error
+            })
+        }
+    }
+
+    @Test
+    func testUnsignedArithmeticOperatorsMatchMemberCallPromotion() throws {
+        let operands = ["ub", "us", "ui", "ul"]
+        let operations = [("+", "plus"), ("-", "minus"), ("*", "times"), ("/", "div"), ("%", "rem")]
+        var statements: [String] = []
+        for lhs in operands {
+            for rhs in operands {
+                for (op, member) in operations {
+                    statements.append("\(lhs) \(op) \(rhs)")
+                    statements.append("\(lhs).\(member)(\(rhs))")
+                }
+            }
+        }
+        let source = """
+        fun sample(ub: UByte, us: UShort, ui: UInt, ul: ULong) {
+            \(statements.joined(separator: "\n"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let diagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!diagnostics.contains { $0.severity == .error }, "Unexpected diagnostics: \(diagnostics)")
+
+            var checkedExpressions = 0
+            for index in ast.arena.exprs.indices {
+                let id = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(id),
+                      let range = ast.arena.exprRange(id),
+                      ctx.sourceManager.path(of: range.start.file) == path
+                else { continue }
+                let lhs: ExprID
+                let rhs: ExprID
+                switch expr {
+                case let .binary(_, left, right, _):
+                    lhs = left
+                    rhs = right
+                case let .memberCall(receiver, _, _, args, _) where args.count == 1:
+                    lhs = receiver
+                    rhs = args[0].expr
+                default:
+                    continue
+                }
+                let hasULong = sema.bindings.exprTypes[lhs] == sema.types.ulongType
+                    || sema.bindings.exprTypes[rhs] == sema.types.ulongType
+                let expectedType = hasULong ? sema.types.ulongType : sema.types.uintType
+                #expect(sema.bindings.exprTypes[id] == expectedType, "Unsigned arithmetic must promote to UInt or ULong")
+                checkedExpressions += 1
+            }
+            #expect(checkedExpressions == operands.count * operands.count * operations.count * 2)
+        }
+    }
+
     private func nominalRangeType(
         named name: String,
         sema: SemaModule,

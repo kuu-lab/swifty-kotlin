@@ -1,4 +1,6 @@
 
+import RuntimeABI
+
 extension KIRLoweringDriver {
     func lowerTopLevelClassDecl(
         _ classDecl: ClassDecl,
@@ -146,10 +148,10 @@ extension KIRLoweringDriver {
     }
 
     /// CLASS-008: Synthesize forwarding method bodies for delegated interface methods.
-    private func synthesizeClassDelegationForwardingMethods(
+    func synthesizeClassDelegationForwardingMethods(
         classSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        compilationCtx _: CompilationContext?
     ) -> [KIRDeclID] {
         let sema = shared.sema
         let arena = shared.arena
@@ -297,12 +299,10 @@ extension KIRLoweringDriver {
                     isSuperCall: false
                 ))
             } else {
-                let nullOutThrown = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                body.append(.constValue(result: nullOutThrown, value: .null))
                 body.append(.call(
                     symbol: nil,
                     callee: shared.interner.intern("kk_abort_unreachable"),
-                    arguments: [nullOutThrown],
+                    arguments: [],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil,
@@ -345,10 +345,10 @@ extension KIRLoweringDriver {
     /// the delegate's runtime type the same way a forwarded method call does,
     /// and calls the matching concrete implementer's own getter/setter
     /// accessor — never the interface's null-returning abstract stub.
-    private func synthesizeClassDelegationForwardingPropertyAccessors(
+    func synthesizeClassDelegationForwardingPropertyAccessors(
         classSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        compilationCtx: CompilationContext?
     ) -> [KIRDeclID] {
         let sema = shared.sema
         var declIDs: [KIRDeclID] = []
@@ -390,11 +390,11 @@ extension KIRLoweringDriver {
         forwardingSymbol: SymbolID,
         info: (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID),
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        compilationCtx _: CompilationContext?
     ) -> [KIRDeclID] {
         let sema = shared.sema
         let arena = shared.arena
-        let interner = compilationCtx.interner
+        let interner = shared.interner
         let intType = sema.types.intType
 
         guard let ownerSym = sema.symbols.symbol(classSymbol) else { return [] }
@@ -524,6 +524,16 @@ extension KIRLoweringDriver {
                 thrownResult: nil,
                 isSuperCall: false
             ))
+        } else if let fallbackAccessorSymbol {
+            body.append(.call(
+                symbol: fallbackAccessorSymbol,
+                callee: accessorName,
+                arguments: callArgs,
+                result: resultExprID,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
         } else if accessorKind == .getter,
                   let methodSlot = kirInterfacePropertyGetterSlot(
                       interfaceProperty: info.interfacePropertySymbol,
@@ -554,23 +564,11 @@ extension KIRLoweringDriver {
                     methodSlot: methodSlot
                 )
             ))
-        } else if let fallbackAccessorSymbol {
-            body.append(.call(
-                symbol: fallbackAccessorSymbol,
-                callee: accessorName,
-                arguments: callArgs,
-                result: resultExprID,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ))
         } else {
-            let nullOutThrown = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-            body.append(.constValue(result: nullOutThrown, value: .null))
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_abort_unreachable"),
-                arguments: [nullOutThrown],
+                arguments: [],
                 result: nil,
                 canThrow: false,
                 thrownResult: nil,
@@ -680,7 +678,7 @@ extension KIRLoweringDriver {
                 guard sema.symbols.parentSymbol(for: candidate) == owner,
                       let propSymbol = sema.symbols.symbol(candidate),
                       propSymbol.kind == .property,
-                      !propSymbol.flags.contains(.synthetic)
+                      isClassDelegationDispatchMember(propSymbol, sema: sema)
                 else {
                     continue
                 }
@@ -724,6 +722,15 @@ extension KIRLoweringDriver {
         accessorKind: PropertyAccessorKind,
         sema: SemaModule
     ) -> SymbolID? {
+        let accessorSymbol = classDelegationPropertyAccessorSymbol(
+            for: interfacePropertySymbol, kind: accessorKind, sema: sema
+        )
+        // Imported runtime-backed properties keep the bridge on their accessor,
+        // even when the interface property itself is abstract.
+        if let link = sema.symbols.externalLinkName(for: accessorSymbol),
+           RuntimeABISpec.byName[link] != nil {
+            return accessorSymbol
+        }
         guard let interfaceProperty = sema.symbols.symbol(interfacePropertySymbol),
               !interfaceProperty.flags.contains(.abstractType),
               // A runtime-bridged property's synthetic accessor has no
@@ -732,7 +739,7 @@ extension KIRLoweringDriver {
         else {
             return nil
         }
-        return classDelegationPropertyAccessorSymbol(for: interfacePropertySymbol, kind: accessorKind, sema: sema)
+        return accessorSymbol
     }
 
     private struct ClassDelegationDispatchTarget {
@@ -811,7 +818,7 @@ extension KIRLoweringDriver {
             for candidate in sema.symbols.lookupAll(fqName: fqName) {
                 guard sema.symbols.parentSymbol(for: candidate) == owner,
                       let methodSymbol = sema.symbols.symbol(candidate),
-                      !methodSymbol.flags.contains(.synthetic),
+                      isClassDelegationDispatchMember(methodSymbol, sema: sema),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType != nil,
                       signature.parameterTypes == interfaceSignature.parameterTypes,
@@ -837,6 +844,11 @@ extension KIRLoweringDriver {
         return classDelegationDefaultMethodSymbol(interfaceMethodSymbol: interfaceMethodSymbol, sema: sema)
     }
 
+    private func isClassDelegationDispatchMember(_ member: SemanticSymbol, sema: SemaModule) -> Bool {
+        // Local nominal members are synthetic but still bind to source declarations.
+        !member.flags.contains(.synthetic) || sema.bindings.declSymbols.values.contains(member.id)
+    }
+
     private func classDelegationDefaultMethodSymbol(
         interfaceMethodSymbol: SymbolID,
         sema: SemaModule
@@ -849,7 +861,7 @@ extension KIRLoweringDriver {
         return interfaceMethodSymbol
     }
 
-    private func delegationDefaultValue(for type: TypeID, sema: SemaModule) -> KIRExprKind {
+    func delegationDefaultValue(for type: TypeID, sema: SemaModule) -> KIRExprKind {
         switch sema.types.kind(of: type) {
         case .unit:
             .unit
@@ -918,14 +930,17 @@ extension KIRLoweringDriver {
             // Any's compiler-provided constructor is allocation-only.
             return
         }
-        if delegation.kind == .super_,
-           let resolvedSymbol,
+        if let resolvedSymbol,
            let receiver = ctx.activeImplicitReceiverExprID(),
            let superclassSymbol = sema.symbols.parentSymbol(for: resolvedSymbol),
+           let throwableSymbol = sema.symbols.lookup(fqName: [
+               shared.interner.intern("kotlin"), shared.interner.intern("Throwable"),
+           ]),
+           sema.types.isNominalSubtypeSymbol(superclassSymbol, of: throwableSymbol),
            isRuntimeThrowableSuperConstructor(resolvedSymbol, sema: sema)
         {
-            // `constructor(msg: String) : super(msg)` on an Exception subclass:
-            // the factory's box would be dropped, so copy its state instead.
+            // Runtime-backed Throwable factories return a separate box for
+            // both `this(...)` and `super(...)`; copy its state onto `this`.
             emitRuntimeThrowableSuperInitialization(
                 superCtorSymbol: resolvedSymbol,
                 superclassSymbol: superclassSymbol,
@@ -944,6 +959,7 @@ extension KIRLoweringDriver {
             loweredArgs: loweredArgs,
             spreadFlags: delegation.args.map(\.isSpread),
             callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+            sourceArgExprs: delegation.args.map(\.expr),
             result: delegationResultID,
             shared: shared,
             body: &body
@@ -960,6 +976,7 @@ extension KIRLoweringDriver {
         loweredArgs: [KIRExprID],
         spreadFlags: [Bool],
         callBinding: CallBinding?,
+        sourceArgExprs: [ExprID],
         result: KIRExprID,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
@@ -985,6 +1002,17 @@ extension KIRLoweringDriver {
         } else {
             argIDs.append(contentsOf: loweredArgs)
         }
+        callLowerer.materializeSourceBackedFunctionValueArguments(
+            chosenCallee: target,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema,
+            arena: arena,
+            interner: shared.interner,
+            instructions: &body.instructions,
+            arguments: &argIDs,
+            valueArgOffsetOverride: receiver == nil ? 0 : 1,
+            parameterMapping: callBinding?.chosenCallee == target ? callBinding?.parameterMapping : nil
+        )
         if defaultMask != 0,
            let target,
            sema.symbols.externalLinkName(for: target)?.isEmpty ?? true,
@@ -1015,173 +1043,5 @@ extension KIRLoweringDriver {
             canThrow: false,
             thrownResult: nil
         ))
-    }
-
-    /// BUG-205: Synthesizes per-enum-class, per-constructor-property helper
-    /// functions (`$enumConstructorProperty$<propertyName>`) that switch
-    /// on the receiver's ordinal and return the corresponding constructor
-    /// argument. Without these helpers, reading `s.code` on an enum class
-    /// `Status(val code: Int)` is lowered as an unresolved zero-argument call.
-    ///
-    /// The helper name is intentionally free of the owner symbol's rawValue:
-    /// symbol IDs are re-assigned on .kklib import, so an ID-bearing name
-    /// would make the helper's fqName unresolvable for consumers. The enum's
-    /// fqName already scopes the helper, so the property name alone is unique.
-    func synthesizeEnumConstructorPropertyHelperFunctions(
-        classDecl: ClassDecl,
-        ownerSymbol: SymbolID,
-        shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
-    ) -> [KIRDeclID] {
-        let sema = shared.sema
-        let arena = shared.arena
-        let interner = shared.interner
-        guard let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .enumClass,
-              !classDecl.enumEntries.isEmpty
-        else {
-            return []
-        }
-
-        let anyType = sema.types.anyType
-        let intType = sema.types.intType
-        let nullableAnyType = sema.types.nullableAnyType
-        var declIDs: [KIRDeclID] = []
-
-        for (paramIndex, param) in classDecl.primaryConstructorParams.enumerated() where param.isProperty {
-            let propertyName = param.name
-            guard let propertySymbol = sema.symbols.lookupAll(fqName: ownerInfo.fqName + [propertyName])
-                .first(where: { sema.symbols.symbol($0)?.kind == .property })
-            else {
-                continue
-            }
-            let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? anyType
-            let helperName = interner.intern("$enumConstructorProperty$\(interner.resolve(propertyName))")
-            let helperFQName = ownerInfo.fqName + [helperName]
-
-            guard sema.symbols.lookupAll(fqName: helperFQName)
-                .first(where: { sema.symbols.symbol($0)?.kind == .function }) == nil
-            else {
-                continue
-            }
-
-            let helperSymbol = sema.symbols.define(
-                kind: .function,
-                name: helperName,
-                fqName: helperFQName,
-                declSite: classDecl.range,
-                visibility: .public,
-                flags: [.synthetic, .static]
-            )
-            // The parent link is what lets metadata export treat this helper
-            // as an enum-class member (and lets consumers resolve it).
-            sema.symbols.setParentSymbol(ownerSymbol, for: helperSymbol)
-
-            let receiverParamName = interner.intern("$receiver")
-            let receiverParamSymbol = sema.symbols.define(
-                kind: .valueParameter,
-                name: receiverParamName,
-                fqName: helperFQName + [receiverParamName],
-                declSite: classDecl.range,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            sema.symbols.setParentSymbol(helperSymbol, for: receiverParamSymbol)
-
-            let signature = FunctionSignature(
-                parameterTypes: [anyType],
-                returnType: propertyType,
-                isSuspend: false,
-                canThrow: false,
-                valueParameterSymbols: [receiverParamSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false]
-            )
-            sema.symbols.setFunctionSignature(signature, for: helperSymbol)
-
-            let helperBody = ctx.withNewScope { () -> [KIRInstruction] in
-                ctx.setCurrentFunctionSymbol(helperSymbol)
-                ctx.beginCallableLoweringScope()
-
-                let receiverRef = arena.appendExpr(.symbolRef(receiverParamSymbol), type: anyType)
-                var body: KIRLoweringEmitContext = [.beginBlock]
-                body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParamSymbol)))
-
-                let unboxedOrdinal = emitNonThrowingCall(
-                    callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
-                    arg: receiverRef,
-                    resultType: intType,
-                    arena: arena,
-                    into: &body.instructions
-                )
-
-                for (ordinal, entry) in classDecl.enumEntries.enumerated() {
-                    let ordinalExpr = arena.appendExpr(.intLiteral(Int64(ordinal)), type: intType)
-                    body.append(.constValue(result: ordinalExpr, value: .intLiteral(Int64(ordinal))))
-                    let matchLabel = ctx.makeLoopLabel()
-                    let nextLabel = ctx.makeLoopLabel()
-                    body.append(.jumpIfEqual(lhs: unboxedOrdinal, rhs: ordinalExpr, target: matchLabel))
-                    body.append(.jump(nextLabel))
-                    body.append(.label(matchLabel))
-
-                    let valueExpr: KIRExprID
-                    if paramIndex < entry.constructorArgs.count {
-                        valueExpr = lowerExpr(
-                            entry.constructorArgs[paramIndex].expr,
-                            shared: shared,
-                            emit: &body
-                        )
-                    } else if paramIndex < classDecl.primaryConstructorParams.count,
-                              let defaultExprID = classDecl.primaryConstructorParams[paramIndex].defaultValue
-                    {
-                        valueExpr = lowerExpr(
-                            defaultExprID,
-                            shared: shared,
-                            emit: &body
-                        )
-                    } else {
-                        let defaultValue = delegationDefaultValue(for: propertyType, sema: sema)
-                        valueExpr = arena.appendExpr(defaultValue, type: propertyType)
-                        body.append(.constValue(result: valueExpr, value: defaultValue))
-                    }
-
-                    body.append(.returnValue(valueExpr))
-                    body.append(.label(nextLabel))
-                }
-
-                let nullOutThrown = arena.appendExpr(.null, type: nullableAnyType)
-                body.append(.constValue(result: nullOutThrown, value: .null))
-                let fallbackResult = arena.appendTemporary(type: propertyType)
-                body.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_abort_unreachable"),
-                    arguments: [nullOutThrown],
-                    result: fallbackResult,
-                    canThrow: false,
-                    thrownResult: nil,
-                    isSuperCall: false
-                ))
-                body.append(.returnValue(fallbackResult))
-                body.append(.endBlock)
-
-                return body.instructions
-            }
-
-            let generatedDecls = ctx.drainGeneratedCallableDecls()
-            let kirFunction = KIRFunction(
-                symbol: helperSymbol,
-                name: helperName,
-                params: [KIRParameter(symbol: receiverParamSymbol, type: anyType)],
-                returnType: propertyType,
-                body: helperBody,
-                isSuspend: false,
-                isInline: false,
-                sourceRange: nil
-            )
-            declIDs.append(arena.appendDecl(.function(kirFunction)))
-            declIDs.append(contentsOf: generatedDecls)
-        }
-
-        return declIDs
     }
 }
