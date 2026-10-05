@@ -9,6 +9,46 @@ import Testing
 @Suite
 struct LLVMOptimizationRegressionTests {
     @Test(arguments: [0, 2])
+    func replaceFirstCharImportedBuilderAddressesUseDeclaredABI(optimization: Int) throws {
+        let source = """
+        fun main() {
+            println("hello".replaceFirstChar { it.uppercase() })
+            println("aBc".replaceFirstChar { it.lowercase() })
+            println("hello".replaceFirstChar { it.uppercaseChar() })
+            println("aBc".replaceFirstChar { it.lowercaseChar() })
+            println("ßeta".replaceFirstChar { it.uppercase() })
+            println("hello".replaceFirstChar(Char::titlecase))
+            val titlecase: (Char) -> String = Char::titlecase
+            println("ßeta".replaceFirstChar(titlecase))
+            println("x".replaceFirstChar { "YY" })
+            val replacement: CharSequence = "ZZ"
+            println("hello".replaceFirstChar { replacement })
+            val stringReplacement = "SS"
+            println("hello".replaceFirstChar { stringReplacement })
+            println("hello".replaceFirstChar { "" })
+            var calls = 0
+            println("".replaceFirstChar { calls++; it.uppercase() })
+            println("".replaceFirstChar { calls++; it.uppercaseChar() })
+            println(calls)
+            try {
+                "hello".replaceFirstChar {
+                    if (it == 'h') throw IllegalArgumentException("transform")
+                    it.uppercase()
+                }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationReplaceFirstChar",
+            expected: "Hello\naBc\nHello\naBc\nSSeta\nHello\nSseta\nYY\nZZello\nSSello\nello\n\n\n0\ntransform\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
     func arrayListMemberBridgesUseRuntimeThrowingABI(optimization: Int) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

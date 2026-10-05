@@ -1539,22 +1539,27 @@ private func kirOverrideParameterTypesMatch(
         else {
             return false
         }
-        return zip(candidateClass.args, interfaceClass.args).allSatisfy { candidateArg, interfaceArg in
-            let candidateInner: TypeID
-            let interfaceInner: TypeID
-            switch candidateArg {
-            case let .invariant(type), let .out(type), let .in(type):
-                candidateInner = type
-            case .star:
-                return interfaceArg == .star
-            }
-            switch interfaceArg {
-            case let .invariant(type), let .out(type), let .in(type):
-                interfaceInner = type
-            case .star:
+        let variances = types.normalizedNominalVariances(
+            for: candidateClass.classSymbol,
+            arity: candidateClass.args.count
+        )
+        return candidateClass.args.indices.allSatisfy { index in
+            let candidateArg = types.composedProjection(
+                declarationVariance: variances[index], useSite: candidateClass.args[index]
+            )
+            let interfaceArg = types.composedProjection(
+                declarationVariance: variances[index], useSite: interfaceClass.args[index]
+            )
+            switch (candidateArg, interfaceArg) {
+            case let (.invariant(candidate), .invariant(interface)),
+                 let (.out(candidate), .out(interface)),
+                 let (.in(candidate), .in(interface)):
+                return typeMatches(candidate, interface)
+            case (.star, .star):
+                return true
+            default:
                 return false
             }
-            return typeMatches(candidateInner, interfaceInner)
         }
     }
     return zip(candidateParameterTypes, interfaceParameterTypes).allSatisfy(typeMatches)

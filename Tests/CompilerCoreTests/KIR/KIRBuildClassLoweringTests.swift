@@ -567,6 +567,67 @@ struct KIRBuildClassLoweringTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testInheritedGenericMethodMatchesNestedProjectedTypeParameters(covariant: Bool) throws {
+        let source = """
+        class Payload<\(covariant ? "out " : "")K, V>
+        interface Sink<K, V> {
+            fun accept(payload: Payload<out K, V>)
+        }
+        open class BaseSink<K, V> : Sink<K, V> {
+            override fun accept(payload: Payload<\(covariant ? "" : "out ")K, V>) {}
+        }
+        class StringSink : BaseSink<String, Int>()
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let interfaceMethod = try #require(sema.symbols.lookup(
+            fqName: ["Sink", "accept"].map(ctx.interner.intern)
+        ))
+        let inheritedMethod = try #require(sema.symbols.lookup(
+            fqName: ["BaseSink", "accept"].map(ctx.interner.intern)
+        ))
+        let nominalSymbol = try #require(sema.symbols.lookup(
+            fqName: [ctx.interner.intern("StringSink")]
+        ))
+        #expect(kirFindOverrideMethod(
+            for: interfaceMethod,
+            in: nominalSymbol,
+            sema: sema,
+            interner: ctx.interner
+        ) == inheritedMethod)
+    }
+
+    @Test func testIncompatibleNestedGenericArgumentsDoNotMatch() throws {
+        let source = """
+        class Payload<T>
+        interface Sink {
+            fun accept(payload: Payload<String>)
+        }
+        class IntSink {
+            fun accept(payload: Payload<Int>) {}
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let interfaceMethod = try #require(sema.symbols.lookup(
+            fqName: ["Sink", "accept"].map(ctx.interner.intern)
+        ))
+        let nominalSymbol = try #require(sema.symbols.lookup(
+            fqName: [ctx.interner.intern("IntSink")]
+        ))
+        #expect(kirFindOverrideMethod(
+            for: interfaceMethod,
+            in: nominalSymbol,
+            sema: sema,
+            interner: ctx.interner
+        ) == nil)
+    }
+
     @Test func testMapInterfaceDelegationResolvesDirectMembersAndMapDispatch() throws {
         let source = """
         class CustomMap : Map<String, Int> by mapOf("k" to 1)
