@@ -794,9 +794,12 @@ public extension RuntimeABISpec {
             name: "__kk_continuation_intercepted",
             parameters: [
                 RuntimeABIParameter(name: "continuationRaw", type: .intptr),
+                RuntimeABIParameter(name: "interceptorKey", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_continuation_interceptor_intercept_continuation",
