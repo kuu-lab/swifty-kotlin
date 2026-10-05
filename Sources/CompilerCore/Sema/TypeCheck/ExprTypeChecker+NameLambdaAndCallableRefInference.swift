@@ -1065,6 +1065,9 @@ extension ExprTypeChecker {
         if sema.types.isSubtype(nonNullReceiver, sema.types.stringType), resolvedName == "length" {
             implicitMemberType = sema.types.intType
         }
+        if nonNullReceiver == sema.types.charType, resolvedName == "code" {
+            implicitMemberType = sema.types.intType
+        }
         if implicitMemberType == nil, name == knownNames.size || name == knownNames.isEmpty,
            let (_, symbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema),
            knownNames.collectionKind(of: symbol) != nil
