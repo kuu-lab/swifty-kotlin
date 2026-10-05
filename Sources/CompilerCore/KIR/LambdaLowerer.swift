@@ -326,6 +326,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
         for capture in functionCaptureBindings {
@@ -576,12 +577,14 @@ final class LambdaLowerer {
                 return materialized
             }
         }
-        emitFunctionDescription(
-            value: lambdaValueExpr,
-            description: "kotlin.Function\(lambdaParameterTypes.count)",
-            identity: true,
-            sema: sema, arena: arena, interner: interner, instructions: &instructions
-        )
+        if !hasNonLocalReturn {
+            emitFunctionDescription(
+                value: lambdaValueExpr,
+                description: "kotlin.Function\(lambdaParameterTypes.count)",
+                identity: true,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         return lambdaValueExpr
     }
 
@@ -645,6 +648,27 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        if functionType.receiver != nil, lambdaReturnType == functionType.returnType {
+            // Generic receiver callbacks already use the callee's erased return ABI.
+            let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
+            instructions.append(.constValue(result: callable, value: .symbolRef(lambdaSymbol)))
+            driver.ctx.registerCallableValue(
+                callable,
+                symbol: lambdaSymbol,
+                callee: syntheticLambdaName(for: exprID, interner: interner),
+                captureArguments: captureArguments,
+                hasClosureParam: false
+            )
+            return driver.callLowerer.materializeFunctionValueArgument(
+                loweredArgID: callable,
+                argExprID: exprID,
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         guard functionType.receiver == nil || functionType.isSuspend else {
             return nil
         }
@@ -2319,6 +2343,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 
@@ -2435,12 +2460,14 @@ final class LambdaLowerer {
         let lambdaValueExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: lambdaValueType)
         instructions.append(.constValue(result: lambdaValueExpr, value: .symbolRef(lambdaSymbol)))
 
-        emitFunctionDescription(
-            value: lambdaValueExpr,
-            description: "kotlin.Function\(lambdaParameterTypes.count)",
-            identity: true,
-            sema: sema, arena: arena, interner: interner, instructions: &instructions
-        )
+        if !hasNonLocalReturn {
+            emitFunctionDescription(
+                value: lambdaValueExpr,
+                description: "kotlin.Function\(lambdaParameterTypes.count)",
+                identity: true,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
 
         // Register with no capture arguments for optimization
         driver.ctx.registerCallableValue(

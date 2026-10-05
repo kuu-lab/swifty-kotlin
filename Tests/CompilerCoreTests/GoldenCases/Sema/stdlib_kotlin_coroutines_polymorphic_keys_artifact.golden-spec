@@ -1,0 +1,4 @@
+version=1
+stdlib-profile=artifact
+target=kotlin.coroutines.getPolymorphicElement
+target=kotlin.coroutines.minusPolymorphicKey
