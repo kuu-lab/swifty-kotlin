@@ -17,9 +17,14 @@ struct LLVMOptimizationRegressionTests {
             println("hello".replaceFirstChar { it.uppercaseChar() })
             println("aBc".replaceFirstChar { it.lowercaseChar() })
             println("ßeta".replaceFirstChar { it.uppercase() })
+            println("hello".replaceFirstChar(Char::titlecase))
+            val titlecase: (Char) -> String = Char::titlecase
+            println("ßeta".replaceFirstChar(titlecase))
             println("x".replaceFirstChar { "YY" })
             val replacement: CharSequence = "ZZ"
             println("hello".replaceFirstChar { replacement })
+            val stringReplacement = "SS"
+            println("hello".replaceFirstChar { stringReplacement })
             println("hello".replaceFirstChar { "" })
             var calls = 0
             println("".replaceFirstChar { calls++; it.uppercase() })
@@ -38,7 +43,7 @@ struct LLVMOptimizationRegressionTests {
         try assertOutput(
             source,
             moduleName: "LLVMOptimizationReplaceFirstChar",
-            expected: "Hello\naBc\nHello\naBc\nSSeta\nYY\nZZello\nello\n\n\n0\ntransform\n",
+            expected: "Hello\naBc\nHello\naBc\nSSeta\nHello\nSseta\nYY\nZZello\nSSello\nello\n\n\n0\ntransform\n",
             optimization: try #require(OptimizationLevel(rawValue: optimization))
         )
     }
