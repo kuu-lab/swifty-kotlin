@@ -17,6 +17,6 @@ expr e@11:17#1 memberCall recv=e@11:17 callee=markNow args=[] type=kotlin.time.C
 expr e@11:5 localDecl mark2 mutable=0 type=_ init=e@11:17#1 type=Unit ref=__local_2.mark2[kind=local;type=kotlin.time.ComparableTimeMark;origin=fixture]
 expr e@12:14 name(mark2) type=kotlin.time.ComparableTimeMark ref=__local_2.mark2[kind=local;type=kotlin.time.ComparableTimeMark;origin=fixture]
 expr e@12:22 name(mark1) type=kotlin.time.ComparableTimeMark ref=__local_1.mark1[kind=local;type=kotlin.time.ComparableTimeMark;origin=fixture]
-expr e@12:14#1 binary(subtract) lhs=e@12:14 rhs=e@12:22 type=kotlin.time.Duration call=kotlin.time.minus[kind=fun;recv=kotlin.time.ComparableTimeMark;params=kotlin.time.ComparableTimeMark;ret=kotlin.time.Duration;names=[other]]
+expr e@12:14#1 binary(subtract) lhs=e@12:14 rhs=e@12:22 type=kotlin.time.Duration call=kotlin.time.ComparableTimeMark.minus[kind=fun;recv=kotlin.time.ComparableTimeMark;params=kotlin.time.ComparableTimeMark;ret=kotlin.time.Duration;names=[other]]
 expr e@12:14#2 memberCall recv=e@12:14#1 callee=inWholeMilliseconds args=[] type=Long call=kotlin.time.inWholeMilliseconds.$get[kind=fun;recv=kotlin.time.Duration;params=;ret=Long]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:14#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

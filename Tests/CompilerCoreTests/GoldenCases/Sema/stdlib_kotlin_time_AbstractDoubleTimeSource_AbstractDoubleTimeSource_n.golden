@@ -17,7 +17,7 @@ expr e@17:13#1 memberCall recv=e@17:13 callee=sourceUnit args=[] type=kotlin.tim
 expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@18:13 name(probe) type=Probe ref=__local_0.probe[kind=local;type=Probe;origin=fixture]
 expr e@18:13#1 memberCall recv=e@18:13 callee=markNow args=[] type=kotlin.time.ComparableTimeMark call=kotlin.time.AbstractDoubleTimeSource.markNow[kind=fun;recv=kotlin.time.AbstractDoubleTimeSource;params=;ret=kotlin.time.ComparableTimeMark]
-expr e@18:13#2 memberCall recv=e@18:13#1 callee=elapsedNow args=[] type=kotlin.time.Duration call=kotlin.time.elapsedNow[kind=fun;recv=kotlin.time.ComparableTimeMark;params=;ret=kotlin.time.Duration]
+expr e@18:13#2 memberCall recv=e@18:13#1 callee=elapsedNow args=[] type=kotlin.time.Duration call=kotlin.time.TimeMark.elapsedNow[kind=fun;recv=kotlin.time.TimeMark;params=;ret=kotlin.time.Duration]
 expr e@18:13#3 memberCall recv=e@18:13#2 callee=inWholeMilliseconds args=[] type=Long call=kotlin.time.inWholeMilliseconds.$get[kind=fun;recv=kotlin.time.Duration;params=;ret=Long]
 expr e@18:65 long(0) type=Long
 expr e@18:13#4 binary(greaterOrEqual) lhs=e@18:13#3 rhs=e@18:65 type=Boolean

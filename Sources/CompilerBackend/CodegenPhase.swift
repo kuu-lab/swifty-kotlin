@@ -212,7 +212,8 @@ public final class CodegenPhase: CompilerPhase {
             target: ctx.options.target,
             optLevel: ctx.options.optLevel,
             debugInfo: ctx.options.debugInfo,
-            diagnostics: ctx.diagnostics
+            diagnostics: ctx.diagnostics,
+            moduleName: ctx.options.moduleName
         )
     }
 
@@ -239,6 +240,7 @@ public final class CodegenPhase: CompilerPhase {
             info.functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: ctx.interner,
+                moduleName: ctx.options.moduleName,
                 symbols: sema.symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )

@@ -104,6 +104,54 @@ struct LexerParserEdgeCaseTests {
         #expect(!result.diagnostics.hasError)
     }
 
+    @Test(arguments: ["\n", "\r", "\r\n"], ["", "$$", "$$$"])
+    func testQuotedStringsRejectUnescapedLineBreaks(lineBreak: String, prefix: String) {
+        let start = "val text = \(prefix)\"  indented"
+        let result = lex(start + lineBreak + "  text\"\nval recovered = 1")
+        let diagnostics = result.diagnostics.diagnostics
+
+        #expect(result.diagnostics.hasError)
+        #expect(diagnostics.count == lineBreak.utf8.count)
+        for (index, diagnostic) in diagnostics.enumerated() {
+            #expect(diagnostic.code == "KSWIFTK-LEX-0004")
+            #expect(diagnostic.severity == .error)
+            #expect(diagnostic.primaryRange?.start.offset == start.utf8.count + index)
+            #expect(diagnostic.primaryRange?.end.offset == start.utf8.count + index + 1)
+        }
+        #expect(result.tokens.contains { $0.kind == .identifier(result.interner.intern("recovered")) })
+        #expect(result.tokens.last?.kind == .eof)
+    }
+
+    @Test(arguments: ["\n", "\r", "\r\n"], ["", "$$", "$$$"])
+    func testRawStringsAllowUnescapedLineBreaks(lineBreak: String, prefix: String) {
+        let result = lex("val text = \(prefix)\"\"\"  indented" + lineBreak + "  text\"\"\"")
+
+        #expect(result.diagnostics.diagnostics.isEmpty)
+        #expect(result.tokens.contains { $0.kind == .stringSegment(result.interner.intern("  indented" + lineBreak + "  text")) })
+        #expect(result.tokens.last?.kind == .eof)
+    }
+
+    @Test(arguments: ["", "$$", "$$$"])
+    func testQuotedStringsAllowEscapedLineBreaksAndMultilineTemplateExpressions(prefix: String) {
+        let templatePrefix = prefix.isEmpty ? "$" : prefix
+        let result = lex("val text = \(prefix)\"escaped\\n\\r \(templatePrefix){\n1 +\n2\n}\"")
+
+        #expect(result.diagnostics.diagnostics.isEmpty)
+        #expect(result.tokens.contains { $0.kind == .templateExprStart })
+        #expect(result.tokens.contains { $0.kind == .templateExprEnd })
+    }
+
+    @Test(arguments: ["", "$$"], ["\"", "\"\"\""])
+    func testNestedQuotedStringsRejectUnescapedLineBreaks(prefix: String, quote: String) {
+        let templatePrefix = prefix.isEmpty ? "$" : prefix
+        let result = lex("val text = \(prefix)\(quote)\(templatePrefix){\"nested\ntext\"}\(quote)")
+
+        #expect(result.diagnostics.hasError)
+        #expect(result.diagnostics.diagnostics.count == 1)
+        #expect(result.diagnostics.diagnostics.first?.code == "KSWIFTK-LEX-0004")
+        #expect(result.diagnostics.diagnostics.first?.severity == .error)
+    }
+
     @Test
     func testDoubleDollarPreservesLiteralDollarBeforeTemplate() {
         let source = """
