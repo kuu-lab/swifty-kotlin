@@ -8,6 +8,91 @@ import Testing
 struct CodegenBackendPrimitiveArrayEdgeCasesTests {
 
     @Test
+    func testFloatingPointArrayToStringAcrossAnyContexts() throws {
+        let source = """
+        data class Arrays(val d: DoubleArray, val f: FloatArray)
+        data class NullableArrays(val d: DoubleArray?, val f: FloatArray?)
+        fun render(value: Any?): String = value.toString()
+        fun main() {
+            val d = doubleArrayOf(1.0, 2.5, -0.5)
+            val f = floatArrayOf(1.0f, 2.5f)
+            println(d.toString())
+            println(f.toString())
+            println(d)
+            println(f)
+            println("$d $f")
+            println(render(d))
+            println(render(f))
+            println(listOf(d, f))
+            println(setOf(d))
+            println(mapOf("f" to f))
+            println(arrayOf<Any>(d, f).contentToString())
+            println(Arrays(d, f).toString())
+            println(Arrays(d, f))
+            println(NullableArrays(d, f))
+            println(NullableArrays(null, null))
+            println(render(null))
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "FloatingPointArrayToString", expected: """
+        [1.0, 2.5, -0.5]
+        [1.0, 2.5]
+        [1.0, 2.5, -0.5]
+        [1.0, 2.5]
+        [1.0, 2.5, -0.5] [1.0, 2.5]
+        [1.0, 2.5, -0.5]
+        [1.0, 2.5]
+        [[1.0, 2.5, -0.5], [1.0, 2.5]]
+        [[1.0, 2.5, -0.5]]
+        {f=[1.0, 2.5]}
+        [[1.0, 2.5, -0.5], [1.0, 2.5]]
+        Arrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
+        Arrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
+        NullableArrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
+        NullableArrays(d=null, f=null)
+        null
+        """ + "\n")
+    }
+
+    @Test
+    func testFloatingPointArrayToStringSpecialValuesAndCopies() throws {
+        let source = """
+        fun main() {
+            val d = doubleArrayOf(0.0, -0.0, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.MIN_VALUE)
+            val f = floatArrayOf(0.0f, -0.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.MIN_VALUE)
+            println(d)
+            println(f)
+            println(d.copyOf())
+            println(f.copyOf())
+            println(DoubleArray(2))
+            println(FloatArray(2))
+            println(DoubleArray(2) { it + 0.5 })
+            println(FloatArray(2) { it.toFloat() + 0.5f })
+            println(doubleArrayOf())
+            println(floatArrayOf())
+            d[0] = 2.5
+            f[0] = 1.5f
+            println(d)
+            println(f)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "FloatingPointArrayToStringSpecialValues", expected: """
+        [0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]
+        [0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]
+        [0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]
+        [0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]
+        [0.0, 0.0]
+        [0.0, 0.0]
+        [0.5, 1.5]
+        [0.5, 1.5]
+        []
+        []
+        [2.5, -0.0, NaN, Infinity, -Infinity, 4.9E-324]
+        [1.5, -0.0, NaN, Infinity, -Infinity, 1.4E-45]
+        """ + "\n")
+    }
+
+    @Test
     func testArrayReceiverExtensionBareSizeMatchesExplicitReceiver() throws {
         let source = """
         fun CharArray.bareSize(): Int = size

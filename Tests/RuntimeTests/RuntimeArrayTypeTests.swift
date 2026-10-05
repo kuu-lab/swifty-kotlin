@@ -24,8 +24,9 @@ struct RuntimeArrayTypeTests {
         #expect(kk_op_is(copy, nominalTypeToken(for: "kotlin.IntArray")) == 1)
     }
 
+    // Floating-point arrays render contents under the KUU-1048 policy.
     @Test(arguments: [
-        "Array", "BooleanArray", "ByteArray", "CharArray", "DoubleArray", "FloatArray",
+        "Array", "BooleanArray", "ByteArray", "CharArray",
         "IntArray", "LongArray", "ShortArray", "UByteArray", "UShortArray", "UIntArray", "ULongArray",
     ])
     func arrayRenderingUsesStableIdentity(typeName: String) {

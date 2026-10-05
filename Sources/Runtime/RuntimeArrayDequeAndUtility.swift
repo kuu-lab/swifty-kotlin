@@ -96,6 +96,19 @@ public func __kk_arraydeque_size(_ dequeRaw: Int) -> Int {
 
 // MARK: - Array utility functions (STDLIB-089)
 
+func runtimeFloatingPointArrayToString(
+    _ raw: Int,
+    box: RuntimeArrayBox
+) -> String? {
+    guard let kind = runtimePrimitiveArrayElementKind(rawValue: raw),
+          kind == .double || kind == .float
+    else {
+        return nil
+    }
+    let parts = box.elements.map { runtimePrimitiveArrayElementToString($0, kind: kind) }
+    return "[\(parts.joined(separator: ", "))]"
+}
+
 @_cdecl("__kk_array_copyOf")
 public func __kk_array_copyOf(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
