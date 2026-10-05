@@ -109,6 +109,10 @@ extension CallTypeChecker {
                     nil
                 } else if receiverForCheck == charType && rawRhsType == intType {
                     charType
+                } else if receiverForCheck == charType && sema.types.isString(rawRhsType) {
+                    driver.exprChecker.collectScopedOperatorExtensionCandidates(
+                        names: [calleeName], receiverType: receiverForCheck, argumentType: rawRhsType, ctx: ctx
+                    ).isEmpty ? sema.types.stringType : nil
                 } else if receiverForCheck == doubleType || rhsType == doubleType {
                     doubleType
                 } else if receiverForCheck == floatType || rhsType == floatType {

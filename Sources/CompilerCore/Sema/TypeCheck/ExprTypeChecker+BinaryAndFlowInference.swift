@@ -228,21 +228,12 @@ extension ExprTypeChecker {
         {
             let rhsIsNumeric = if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(rhs)) { true } else { false }
             if !rhsIsNumeric || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
-                let extensionCandidates = operatorNames.flatMap { name in
-                    ctx.cachedScopeLookup(name).filter { candidate in
-                        guard let symbol = ctx.cachedSymbol(candidate),
-                              symbol.kind == .function,
-                              symbol.flags.contains(.operatorFunction),
-                              let signature = sema.symbols.functionSignature(for: candidate),
-                              let declaredReceiver = signature.receiverType
-                        else { return false }
-                        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: lhs,
-                            declaredReceiver: declaredReceiver,
-                            sema: sema
-                        )
-                    }
-                }
+                let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                    names: operatorNames,
+                    receiverType: lhs,
+                    argumentType: lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                    ctx: ctx
+                )
                 if !extensionCandidates.isEmpty {
                     operatorCandidates = extensionCandidates
                 }
@@ -253,7 +244,11 @@ extension ExprTypeChecker {
         // just because the RHS happens to be a String (e.g. `1 + "x"` is not valid
         // Kotlin, and `listOf("x") + "y"` must resolve via the List plus fallback
         // below, not collapse to `String`).
-        if op == .add, sema.types.isString(lhs) {
+        if op == .add,
+           sema.types.isString(lhs)
+            || (lhs == charType && sema.types.isString(rhs)
+                && sema.types.isDefinitelyNonNull(rhs) && operatorCandidates.isEmpty)
+        {
             sema.bindings.bindExprType(id, type: stringType)
             return stringType
         }
@@ -621,13 +616,40 @@ extension ExprTypeChecker {
         return type
     }
 
+    func collectScopedOperatorExtensionCandidates(
+        names: [InternedString],
+        receiverType: TypeID,
+        argumentType: TypeID? = nil,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        names.flatMap { name in
+            ctx.cachedScopeLookup(name).filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType
+                else { return false }
+                if let argumentType,
+                   (signature.parameterTypes.count != 1 || !ctx.sema.types.isSubtype(argumentType, signature.parameterTypes[0]))
+                {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: receiverType, declaredReceiver: declaredReceiver, sema: ctx.sema
+                )
+            }
+        }
+    }
+
     func hasInvalidBuiltinCharArithmetic(op: BinaryOp, lhs: TypeID, rhs: TypeID, sema: SemaModule) -> Bool {
         guard sema.types.makeNonNullable(lhs) == sema.types.charType
             || sema.types.makeNonNullable(rhs) == sema.types.charType
         else { return false }
         switch op {
         case .add:
-            return !(lhs == sema.types.charType && (rhs == sema.types.intType || sema.types.isString(rhs)))
+            return !(lhs == sema.types.charType
+                && (rhs == sema.types.intType || (sema.types.isString(rhs) && sema.types.isDefinitelyNonNull(rhs))))
                 && !sema.types.isString(lhs)
         case .subtract:
             return !(lhs == sema.types.charType && (rhs == sema.types.intType || rhs == sema.types.charType))
