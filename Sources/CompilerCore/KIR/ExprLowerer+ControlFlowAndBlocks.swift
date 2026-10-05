@@ -337,6 +337,16 @@ extension ExprLowerer {
                     }
                     return result
                 }
+                if memberStr == "code", nonNullReceiverType == sema.types.charType {
+                    emitNonThrowingCall(
+                        callee: interner.intern("kk_char_code"),
+                        arg: receiverExprID,
+                        result: result,
+                        into: &instructions
+                    )
+                    return result
+                }
+
                 // String properties
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     if memberStr == "length" {
