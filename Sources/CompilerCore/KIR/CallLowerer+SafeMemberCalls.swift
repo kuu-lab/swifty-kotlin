@@ -388,7 +388,7 @@ extension CallLowerer {
                 case "shr":
                     isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_shr") : nil
                 case "ushr":
-                    isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_ushr") : nil
+                    (nonNullReceiverType == intType || nonNullReceiverType == longType) && rawRhsType == intType ? interner.intern("kk_op_ushr") : nil
                 default:
                     nil
                 }
@@ -404,6 +404,10 @@ extension CallLowerer {
                     instructions.append(.copy(from: nullValue, to: nullableResult))
                     instructions.append(.jump(endLabel))
                     instructions.append(.label(nonNullLabel))
+                    // Give boxing lowering the non-null primitive type so it
+                    // unboxes the receiver before applying the intrinsic.
+                    let nonNullReceiver = arena.appendTemporary(type: nonNullReceiverType)
+                    instructions.append(.copy(from: loweredReceiverID, to: nonNullReceiver))
                     let nonNullResult = arena.appendTemporary(type: callResultType)
                     let loweredArgID = driver.lowerExpr(
                         args[0].expr,
@@ -413,7 +417,7 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: primitiveCallee,
-                        arguments: [loweredReceiverID, loweredArgID],
+                        arguments: [nonNullReceiver, loweredArgID],
                         result: nonNullResult,
                         canThrow: false,
                         thrownResult: nil
