@@ -39,6 +39,18 @@
       "source": "kswiftk",
       "message": "Cannot access 'SingletonLike': it is private.",
       "codeActions": [{ "title": "Change visibility to 'internal'", "kind": "quickfix" }]
+    },
+    {
+      "file": "error_visibility.kt",
+      "range": {
+        "start": { "line": 38, "character": 27 },
+        "end": { "line": 38, "character": 35 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0045",
+      "source": "kswiftk",
+      "message": "Public-API inline function cannot access non-public-API declaration 'helper'."
     }
   ]
 }

@@ -97,6 +97,25 @@ struct VisibilityChecker {
         }
     }
 
+    func isPublicAPI(_ symbol: SemanticSymbol, allowProtected: Bool = true) -> Bool {
+        switch symbol.visibility {
+        case .public:
+            break
+        case .protected:
+            guard allowProtected else { return false }
+        case .internal:
+            guard symbols.annotations(for: symbol.id).contains(where: {
+                KnownCompilerAnnotation.publishedApi.matches($0.annotationFQName)
+            }) else { return false }
+        case .private:
+            return false
+        }
+        guard let parent = symbols.parentSymbol(for: symbol.id),
+              let owner = symbols.symbol(parent)
+        else { return true }
+        return isPublicAPI(owner)
+    }
+
     private func isLocalOrParameter(_ kind: SymbolKind) -> Bool {
         kind == .local || kind == .valueParameter || kind == .label || kind == .typeParameter
     }
