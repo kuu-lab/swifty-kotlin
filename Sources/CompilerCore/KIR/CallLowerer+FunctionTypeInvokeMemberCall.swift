@@ -11,6 +11,44 @@
 /// same runtime ABI selection (`kk_function_invoke*`) and fast-path
 /// (`KIRCallableValueInfo`) lookup.
 extension CallLowerer {
+    func tryLowerLexicalExtensionCallableInvocation(
+        _ exprID: ExprID,
+        receiverExpr: ExprID,
+        loweredReceiverID: KIRExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        shared: KIRLoweringSharedContext,
+        emit instructions: inout KIRLoweringEmitContext
+    ) -> KIRExprID? {
+        let sema = shared.sema
+        guard let binding = sema.bindings.callableValueCalls[exprID],
+              let calleeExpr = binding.extensionCallableExpr
+        else {
+            return nil
+        }
+        let functionValue = driver.lowerExpr(calleeExpr, shared: shared, emit: &instructions)
+        let loweredArgs = args.map { driver.lowerExpr($0.expr, shared: shared, emit: &instructions) }
+        return lowerResolvedCallBody(
+            exprID,
+            args: [CallArgument(expr: receiverExpr)] + args,
+            loweredArgIDs: [loweredReceiverID] + loweredArgs,
+            chosen: nil,
+            callBinding: nil,
+            callableValueCallBinding: binding,
+            loweredCallable: driver.ctx.callableValueInfo(for: functionValue),
+            loweredCalleeExprID: functionValue,
+            sourceCalleeName: calleeName,
+            boundType: sema.bindings.exprTypes[exprID],
+            knownNames: KnownCompilerNames(interner: shared.interner),
+            ast: shared.ast,
+            sema: sema,
+            arena: shared.arena,
+            interner: shared.interner,
+            propertyConstantInitializers: shared.propertyConstantInitializers,
+            instructions: &instructions.instructions
+        )
+    }
+
     func tryLowerFunctionTypeInvokeMemberCall(
         _ exprID: ExprID,
         calleeName: InternedString,
