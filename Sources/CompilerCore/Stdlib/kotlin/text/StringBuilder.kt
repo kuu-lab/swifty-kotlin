@@ -418,13 +418,13 @@ public class StringBuilder : Appendable, CharSequence {
     }
 
     fun capacity(): Int =
-        currentLength() + 16
+        __kk_string_builder_capacity()
 
-    fun ensureCapacity(minimumCapacity: Int): Unit {
-    }
+    fun ensureCapacity(minimumCapacity: Int): Unit =
+        __kk_string_builder_ensure_capacity(minimumCapacity)
 
-    fun trimToSize(): Unit {
-    }
+    fun trimToSize(): Unit =
+        __kk_string_builder_trim_to_size()
 
     override fun toString(): String =
         __kk_string_builder_toString()
@@ -521,6 +521,15 @@ public class StringBuilder : Appendable, CharSequence {
 
     @KsSymbolName("__kk_string_builder_clear")
     private external fun __kk_string_builder_clear(): StringBuilder
+
+    @KsSymbolName("__kk_string_builder_capacity")
+    private external fun __kk_string_builder_capacity(): Int
+
+    @KsSymbolName("__kk_string_builder_ensure_capacity")
+    private external fun __kk_string_builder_ensure_capacity(minimumCapacity: Int): Unit
+
+    @KsSymbolName("__kk_string_builder_trim_to_size")
+    private external fun __kk_string_builder_trim_to_size(): Unit
 }
 
 public fun buildString(builderAction: StringBuilder.() -> Unit): String {

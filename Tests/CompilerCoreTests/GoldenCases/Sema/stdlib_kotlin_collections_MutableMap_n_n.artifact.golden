@@ -52,7 +52,7 @@ expr e@17:10 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String,
 expr e@17:5 call callee=e@17:5#1 args=[_:e@17:10] type=Unit call=show[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<String,Int>;ret=Unit;names=[entry];origin=fixture]
 expr e@18:13 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int> ref=__local_2.entry[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String,Int>;origin=fixture]
 expr e@18:28 int(42) type=Int
-expr e@18:13#1 memberCall recv=e@18:13 callee=setValue args=[_:e@18:28] type=Int call=kotlin.collections.setValue[kind=fun;recv=kotlin.collections.MutableMap.MutableEntry<T0,T1>;params=T1;ret=T1;gen=2;names=[newValue]] targs=[String,Int]
+expr e@18:13#1 memberCall recv=e@18:13 callee=setValue args=[_:e@18:28] type=Int call=kotlin.collections.MutableMap.MutableEntry.setValue[kind=fun;recv=kotlin.collections.MutableMap.MutableEntry<T0,T1>;params=T1;ret=T1;gen=2;classGen=2;names=[newValue]] targs=[String,Int]
 expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@19:13 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int> ref=__local_2.entry[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String,Int>;origin=fixture]
 expr e@19:13#1 memberCall recv=e@19:13 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
@@ -79,7 +79,7 @@ expr e@24:13#1 memberCall recv=e@24:13 callee=value args=[] type=Int? ref=kotlin
 expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@25:13 name(nullable) type=kotlin.collections.MutableMap.MutableEntry<String?, Int?> ref=__local_4.nullable[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String?,Int?>;origin=fixture]
 expr e@25:31 int(7) type=Int
-expr e@25:13#1 memberCall recv=e@25:13 callee=setValue args=[_:e@25:31] type=Int? call=kotlin.collections.setValue[kind=fun;recv=kotlin.collections.MutableMap.MutableEntry<T0,T1>;params=T1;ret=T1;gen=2;names=[newValue]] targs=[String?,Int?]
+expr e@25:13#1 memberCall recv=e@25:13 callee=setValue args=[_:e@25:31] type=Int? call=kotlin.collections.MutableMap.MutableEntry.setValue[kind=fun;recv=kotlin.collections.MutableMap.MutableEntry<T0,T1>;params=T1;ret=T1;gen=2;classGen=2;names=[newValue]] targs=[String?,Int?]
 expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@26:13 name(nullable) type=kotlin.collections.MutableMap.MutableEntry<String?, Int?> ref=__local_4.nullable[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String?,Int?>;origin=fixture]
 expr e@26:13#1 memberCall recv=e@26:13 callee=value args=[] type=Int? ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]

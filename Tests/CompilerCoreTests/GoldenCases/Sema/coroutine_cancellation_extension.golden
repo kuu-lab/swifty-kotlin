@@ -16,5 +16,5 @@ expr e@10:5#1 memberCall recv=e@10:5 callee=cancel args=[] type=Unit call=kotlin
 expr e@11:5 name(job) type=kotlinx.coroutines.Job ref=__local_0.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture]
 expr e@11:5#1 memberCall recv=e@11:5 callee=join args=[] type=Unit call=kotlinx.coroutines.Job.join[kind=fun;recv=kotlinx.coroutines.Job;params=;ret=Unit;susp]
 expr e@7:5#1 blockExpr stmts=[e@7:5,e@10:5#1] trailing=e@11:5#1 type=Unit
-expr e@6:26 lambda params=[] body=e@7:5#1 label=runBlocking type=suspend kotlinx.coroutines.CoroutineScope.() -> Any
+expr e@6:26 lambda params=[] body=e@7:5#1 label=runBlocking type=suspend kotlinx.coroutines.CoroutineScope.() -> Any?
 expr e@6:14 call callee=e@6:14#1 args=[_:e@6:26] type=Unit call=kotlinx.coroutines.runBlocking[kind=fun;params=fn{su;r=kotlinx.coroutines.CoroutineScope;p=;ret=Any?};ret=Any;names=[block];origin=unknown]

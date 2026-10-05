@@ -9,5 +9,5 @@ expr e@4:17#2 memberCall recv=e@4:17#1 callee=next args=[] type=kotlin.collectio
 expr e@4:5 localDecl entry mutable=0 type=_ init=e@4:17#2 type=Unit ref=__local_0.entry[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String,Int>;origin=fixture]
 expr e@5:12 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int> ref=__local_0.entry[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String,Int>;origin=fixture]
 expr e@5:27 int(42) type=Int
-expr e@5:12#1 memberCall recv=e@5:12 callee=setValue args=[_:e@5:27] type=Int call=kotlin.collections.setValue[kind=fun;recv=kotlin.collections.MutableMap.MutableEntry<T0,T1>;params=T1;ret=T1;gen=2;names=[newValue]] targs=[String,Int]
+expr e@5:12#1 memberCall recv=e@5:12 callee=setValue args=[_:e@5:27] type=Int call=kotlin.collections.MutableMap.MutableEntry.setValue[kind=fun;recv=kotlin.collections.MutableMap.MutableEntry<T0,T1>;params=T1;ret=T1;gen=2;classGen=2;names=[newValue]] targs=[String,Int]
 expr e@5:5 return value=e@5:12#1 type=Nothing
