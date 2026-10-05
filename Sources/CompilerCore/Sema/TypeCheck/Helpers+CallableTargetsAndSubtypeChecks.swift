@@ -44,7 +44,7 @@ extension TypeCheckHelpers {
     }
 
     /// `boundReceiver` carries the member symbol and the (possibly generic)
-    /// type of a bound `value::member` reference. The member's signature is
+    /// type of a `value::member` or `Type<Args>::member` reference. The member's signature is
     /// declared in terms of its owner's type parameters (`Transformer<A, B>.apply:
     /// (A) -> B`), so they are substituted with the receiver's type arguments
     /// (`Transformer<Int, Int>` -> `(Int) -> Int`) before the function type is built.
@@ -72,7 +72,7 @@ extension TypeCheckHelpers {
             returnType = specialize(returnType)
         }
         if !bindReceiver, let receiverType = signature.receiverType {
-            params.insert(receiverType, at: 0)
+            params.insert(boundReceiver?.receiverType ?? receiverType, at: 0)
         }
         return sema.types.make(.functionType(FunctionType(
             params: params,
