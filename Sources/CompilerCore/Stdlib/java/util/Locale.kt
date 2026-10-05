@@ -15,4 +15,9 @@ public class Locale {
 
     @KsSymbolName("__kk_locale_new_language_country_flat")
     public constructor(language: String, country: String)
+
+    @KsSymbolName("__kk_locale_toString_flat")
+    private external fun __localeToString(): String
+
+    public override fun toString(): String = __localeToString()
 }
