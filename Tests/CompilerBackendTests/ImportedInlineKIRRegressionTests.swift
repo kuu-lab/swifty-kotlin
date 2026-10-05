@@ -105,6 +105,23 @@ struct ImportedInlineKIRRegressionTests {
             let serialized = try artifacts.map { try String(contentsOf: $0, encoding: .utf8) }.joined()
             #expect(serialized.contains("targetB64="))
             #expect(serialized.contains("functionB64="))
+            // Lambdas carrying non-local returns are `isInlineOnly` and never
+            // reach an object file, so serializing their link name would leave
+            // a dangling extern reference in consumers (KUU-1207). Emitted
+            // functions legitimately keep extern refs, so check definedness
+            // rather than the symbol's name shape.
+            let externLinkNames = serialized
+                .split(whereSeparator: \.isWhitespace)
+                .compactMap { token -> String? in
+                    guard let range = token.range(of: "externB64:"),
+                          let data = Data(base64Encoded: String(token[range.upperBound...])),
+                          let name = String(data: data, encoding: .utf8)
+                    else { return nil }
+                    return name
+                }
+            let moduleExternNames = Set(externLinkNames.filter { $0.hasPrefix("kk_fn_") })
+            let definedObjectSymbols = try Self.definedObjectSymbols(in: libraryPath)
+            #expect(moduleExternNames.isSubset(of: definedObjectSymbols))
             let source = """
             import returntarget.value
             import returntarget.nested
@@ -292,5 +309,30 @@ struct ImportedInlineKIRRegressionTests {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "caught\n")
         }
+    }
+
+    /// Names of symbols defined in the library's emitted object files, taken
+    /// from `nm` output (`<addr> <type> <name>` lines; undefined references
+    /// print without an address). Darwin's leading-underscore decoration is
+    /// stripped.
+    private static func definedObjectSymbols(in libraryPath: String) throws -> Set<String> {
+        let objectsURL = URL(fileURLWithPath: libraryPath).appendingPathComponent("objects")
+        let objectFiles = try FileManager.default.contentsOfDirectory(atPath: objectsURL.path)
+            .filter { $0.hasSuffix(".o") }
+        var defined = Set<String>()
+        for objectFile in objectFiles {
+            let result = try CommandRunner.run(
+                executable: CommandRunner.resolveExecutable("nm", fallback: "/usr/bin/nm"),
+                arguments: [objectsURL.appendingPathComponent(objectFile).path]
+            )
+            for line in result.stdout.split(separator: "\n") {
+                let fields = line.split(separator: " ")
+                guard fields.count >= 3, fields[1].count == 1, fields[1] != "U" else { continue }
+                var name = fields[2]
+                if name.hasPrefix("_") { name = name.dropFirst() }
+                defined.insert(String(name))
+            }
+        }
+        return defined
     }
 }
