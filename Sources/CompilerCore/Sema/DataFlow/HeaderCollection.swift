@@ -2200,10 +2200,11 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        enclosingTypeParameters: [InternedString: SymbolID] = [:]
     ) -> (symbols: [SymbolID], localMap: [InternedString: SymbolID]) {
         var typeParamSymbols: [SymbolID] = []
-        var localTypeParameters: [InternedString: SymbolID] = [:]
+        var localTypeParameters = enclosingTypeParameters
 
         guard !typeParams.isEmpty else {
             return (symbols: typeParamSymbols, localMap: localTypeParameters)

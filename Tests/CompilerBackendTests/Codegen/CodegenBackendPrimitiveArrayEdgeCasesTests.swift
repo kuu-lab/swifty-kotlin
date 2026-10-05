@@ -250,6 +250,35 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
     }
 
     @Test
+    func testArrayInPlaceSortingAndDestructuring() throws {
+        let source = """
+        fun main() {
+            val a = intArrayOf(3, 1, 2)
+            a.sortDescending()
+            println(a.toList())
+            val b = intArrayOf(3, 1, 2)
+            b.sort(1, 3)
+            println(b.toList())
+            val c: Array<out String> = arrayOf("b", "a")
+            c.sort()
+            println(c.toList())
+            val (x, y, z) = intArrayOf(1, 2, 3)
+            println("$x$y$z")
+            b.sort(toIndex = 2)
+            println(b.toList())
+            b.sortDescending(0, 2)
+            println(b.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayInPlaceSortingAndDestructuring",
+            expected: "[3, 2, 1]\n[3, 1, 2]\n[a, b]\n123\n[1, 3, 2]\n[3, 1, 2]\n"
+        )
+    }
+
+    @Test
     func testArraySortedArrayOverloads() throws {
         let source = """
         fun main() {

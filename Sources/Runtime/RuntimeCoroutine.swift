@@ -3912,6 +3912,7 @@ public func kk_coroutine_scope_async(
     }
     let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
     let hasEnvironment = closureRaw != 0 || runtimeFunctionValueBox(from: entryPointRaw) != nil
+        || runtimeCallableObjectPair(from: entryPointRaw) != nil
     let function = resolveFunctionValuePair(fnPtr: entryPointRaw, closureRaw: closureRaw)
     return runtimeScopeAsync(scope: scope, context: context, start: start) { task in
         RuntimeCoroutineScope.current = scope

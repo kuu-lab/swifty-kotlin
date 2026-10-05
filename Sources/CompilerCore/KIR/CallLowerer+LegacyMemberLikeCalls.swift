@@ -846,11 +846,33 @@ extension CallLowerer {
             }
         }
 
+        let isSourceArithmeticExtension = explicitFloatingOrCharArithmeticOp(calleeNameStr) != nil
+            && chosenCalleeForArgumentAdaptation.map {
+                sema.symbols.isSourceBackedSymbol($0)
+                    && sema.symbols.functionSignature(for: $0)?.receiverType != nil
+            } == true
+        if !isSourceArithmeticExtension,
+           calleeNameStr == "plus", args.count == 1,
+           sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType) == sema.types.charType,
+           sema.bindings.exprTypes[args[0].expr] == sema.types.stringType
+        {
+            let receiverString = emitAnyToStringWithNullGuard(
+                valueID: loweredReceiverID, valueType: sema.types.charType,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("__kk_string_concat_flat"),
+                arguments: [receiverString, loweredArgIDs[0]], result: result,
+                canThrow: false, thrownResult: nil
+            ))
+            return result
+        }
+
         // Explicit `Char.plus/minus` and `Float`/`Double` arithmetic member calls
         // (`'A'.plus(2)`, `2.0.times(4)`) behave exactly like the operator syntax, so
         // emit the same `.binary` node and let the operator/narrowing passes type it.
         // The integer-receiver fast path below only knows `kk_op_*` on integral slots.
-        if args.count == 1,
+        if !isSourceArithmeticExtension, args.count == 1,
            let binaryOp = explicitFloatingOrCharArithmeticOp(calleeNameStr),
            isNumericPrimitiveOperand(args[0].expr, sema: sema),
            !(sema.bindings.isRangeExpr(receiverExpr) || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
@@ -871,7 +893,7 @@ extension CallLowerer {
         let isRangePlusMinusReceiver = ["plus", "minus"].contains(calleeNameStr)
             && (sema.bindings.isRangeExpr(receiverExpr)
                 || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
-        if args.count == 1,
+        if !isSourceArithmeticExtension, args.count == 1,
            !isRangePlusMinusReceiver,
            shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold),
            isNumericPrimitiveOperand(args[0].expr, sema: sema)

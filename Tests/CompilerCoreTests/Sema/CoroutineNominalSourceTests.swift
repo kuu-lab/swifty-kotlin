@@ -69,6 +69,18 @@ struct CoroutineNominalSourceTests {
         #expect(sema.types.nominalTypeParameterVariances(for: abstractCoroutine) == [.in])
         let jobSupport = try #require(sema.symbols.lookup(fqName: root + [ctx.interner.intern("JobSupport")]))
         #expect(sema.symbols.symbol(jobSupport)?.flags.contains(.abstractType) == true)
+        let ast = try #require(ctx.ast)
+        let jobSupportCalls = memberCallExprIDs(named: "completeExceptionally", in: ast, interner: ctx.interner).filter { call in
+            guard case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call),
+                  case let .superRef(qualifier?, _) = ast.arena.expr(receiver)
+            else { return false }
+            return ctx.interner.resolve(qualifier) == "JobSupport"
+        }
+        #expect(jobSupportCalls.count == 1)
+        for call in jobSupportCalls {
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            #expect(sema.symbols.parentSymbol(for: binding.chosenCallee) == jobSupport)
+        }
         for name in ["Job", "ChildJob", "ParentJob"] {
             let parent = try #require(sema.symbols.lookup(fqName: root + [ctx.interner.intern(name)]))
             #expect(sema.symbols.directSupertypes(for: jobSupport).contains(parent))

@@ -431,7 +431,7 @@ extension DataFlowSemaPhase {
 
             current.removeLast()
         }
-        return candidates
+        return candidates.filter { isNominalTypeSymbol($0.kind) }
     }
 
     private func resolveNominalCandidates(
@@ -551,7 +551,8 @@ extension DataFlowSemaPhase {
         var seenPaths: Set<[InternedString]> = []
         var result: [SemanticSymbol] = []
         for candidatePath in candidatePaths where seenPaths.insert(candidatePath).inserted {
-            result.append(contentsOf: symbols.lookupAll(fqName: candidatePath).compactMap { symbols.symbol($0) })
+            result.append(contentsOf: symbols.lookupAll(fqName: candidatePath).compactMap { symbols.symbol($0) }
+                .filter { isNominalTypeSymbol($0.kind) })
         }
         return result
     }
