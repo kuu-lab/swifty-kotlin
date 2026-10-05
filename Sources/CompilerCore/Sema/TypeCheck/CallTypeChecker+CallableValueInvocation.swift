@@ -152,6 +152,7 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         range: SourceRange,
         ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
         expectedType: TypeID?,
         arityPolicy: CallableValueArityPolicy = .receiverNeverExplicit,
         extensionCallableExpr: ExprID? = nil
@@ -182,9 +183,15 @@ extension CallTypeChecker {
             return sema.types.errorType
         }
         var parameterMapping: [Int: Int] = [:]
+        func contextualizedArgumentType(at index: Int, parameterType: TypeID) -> TypeID {
+            guard integerLiteralFitsParameter(args[index].expr, parameterType: parameterType, ctx: ctx) else {
+                return argTypes[index]
+            }
+            return driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+        }
         if receiverArgOffset == 1, let receiverType = functionType.receiver {
             driver.emitSubtypeConstraint(
-                left: argTypes[0],
+                left: contextualizedArgumentType(at: 0, parameterType: receiverType),
                 right: receiverType,
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 solver: ConstraintSolver(),
@@ -198,7 +205,7 @@ extension CallTypeChecker {
                 parameterMapping[argIndex] = paramIndex
             }
             driver.emitSubtypeConstraint(
-                left: argTypes[argIndex],
+                left: contextualizedArgumentType(at: argIndex, parameterType: functionType.params[paramIndex]),
                 right: functionType.params[paramIndex],
                 range: ast.arena.exprRange(args[argIndex].expr) ?? range,
                 solver: ConstraintSolver(),
@@ -301,6 +308,7 @@ extension CallTypeChecker {
             argTypes: [request.safeCall ? sema.types.makeNonNullable(receiverType) : receiverType] + argumentTypes,
             range: request.range,
             ctx: ctx,
+            locals: &locals,
             expectedType: request.expectedType,
             arityPolicy: .receiverRequiredExplicit,
             extensionCallableExpr: calleeExpr

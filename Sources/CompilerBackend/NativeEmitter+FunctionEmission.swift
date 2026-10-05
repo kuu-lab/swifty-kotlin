@@ -1727,6 +1727,22 @@ extension NativeEmitter {
             return internalSignatures[symbol]
         }
 
+        func sourceReceiverTypes(for symbol: SymbolID, signature: FunctionSignature) -> [TypeID] {
+            var receivers = [signature.receiverType].compactMap { $0 }
+            if let symbols, let typeSystem,
+               let owner = symbols.memberExtensionOwnerSymbol(for: symbol)
+            {
+                let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount)
+                    .map { .invariant(typeSystem.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                let ownerType = typeSystem.make(.classType(ClassType(
+                    classSymbol: owner, args: ownerArgs, nullability: .nonNull
+                )))
+                receivers.insert(ownerType, at: 0)
+            }
+            return receivers
+        }
+
         func sourceExternalSignature(
             for symbol: SymbolID?,
             argumentCount: Int
@@ -1742,9 +1758,8 @@ extension NativeEmitter {
             }
             let omitsRuntimeReceiver = Self.runtimeABIFunctionByName[externalLinkName] != nil
                 && argumentCount == signature.parameterTypes.count
-            let includesReceiver = signature.receiverType != nil && !omitsRuntimeReceiver
-            let parameters = (includesReceiver ? [signature.receiverType].compactMap { $0 } : [])
-                + signature.parameterTypes
+            let receivers = omitsRuntimeReceiver ? [] : sourceReceiverTypes(for: symbol, signature: signature)
+            let parameters = receivers + signature.parameterTypes
             guard parameters.count == argumentCount else {
                 return nil
             }
@@ -1761,7 +1776,7 @@ extension NativeEmitter {
             let resolvedParameters: [TypeID]
             let resolvedReturnType: TypeID
             func isVarargParameter(_ parameterIndex: Int) -> Bool {
-                let valueParameterIndex = parameterIndex - (includesReceiver ? 1 : 0)
+                let valueParameterIndex = parameterIndex - receivers.count
                 return signature.valueParameterIsVararg.indices.contains(valueParameterIndex)
                     && signature.valueParameterIsVararg[valueParameterIndex]
             }
@@ -1846,6 +1861,44 @@ extension NativeEmitter {
                 globalVariables: globalVariables,
                 nameCounter: nameCounter,
                 declareExternalFunction: { name, argCount, appendThrown in
+                    // Runtime calls use raw handles rather than Kotlin aggregate types.
+                    if let spec = Self.runtimeABIFunctionByName[name] {
+                        let valueParameters = spec.parameters.filter {
+                            !(spec.isThrowing && $0.name == "outThrown" && $0.type == .nullableIntptrPointer)
+                        }
+                        return declareExternalFunction(
+                            named: name,
+                            argumentCount: valueParameters.count,
+                            appendThrownChannel: spec.isThrowing
+                        )
+                    }
+                    // Source-backed addresses must use the same typed ABI as calls,
+                    // including aggregate Strings and the hidden thrown channel.
+                    if let symbol = externalFunctionSymbolsByLinkName[name],
+                       let signature = symbols?.functionSignature(for: symbol)
+                    {
+                        if let internalFunction = internalFunctions[symbol] {
+                            return internalFunction
+                        }
+                        let parameterCount = signature.parameterTypes.count
+                            + (signature.receiverType == nil ? 0 : 1)
+                        if let sourceSignature = sourceExternalSignature(
+                            for: symbol,
+                            argumentCount: parameterCount
+                        ) {
+                            var parameterTypes = loweredLLVMTypes(for: sourceSignature.parameters)
+                            parameterTypes.append(outThrownPointerType)
+                            return declareExternalFunction(
+                                named: name,
+                                parameterTypes: parameterTypes,
+                                returnType: loweredLLVMType(
+                                    for: sourceSignature.returnType,
+                                    lowering: typeLowering,
+                                    defaultType: int64Type
+                                )
+                            )
+                        }
+                    }
                     // Function-address constants use a conservative four-word
                     // prototype when no call-site signature is available. If
                     // this body also calls the symbol directly, prefer that
@@ -1867,7 +1920,7 @@ extension NativeEmitter {
                         return nil
                     }
                     let runtimeSpec = Self.runtimeABIFunctionByName[linkName]
-                    let argumentCount = (signature.receiverType == nil ? 0 : 1)
+                    let argumentCount = sourceReceiverTypes(for: symbol, signature: signature).count
                         + signature.parameterTypes.count
                     let appendThrown = runtimeSpec?.isThrowing ?? true
                     // Runtime aliases retain their raw-handle declaration path.
@@ -2614,12 +2667,9 @@ extension NativeEmitter {
                     symbols?.functionSignature(for: $0)?.valueParameterIsVararg
                 } ?? []
                 let callReceiverOffset: Int = effectiveSymbol.flatMap {
-                    guard let signature = symbols?.functionSignature(for: $0),
-                          signature.receiverType != nil
-                    else {
-                        return 0
-                    }
-                    return sourceExternalCallSignature?.parameters.count == signature.parameterTypes.count ? 0 : 1
+                    guard let signature = symbols?.functionSignature(for: $0) else { return nil }
+                    return sourceExternalCallSignature?.parameters.count == signature.parameterTypes.count
+                        ? 0 : sourceReceiverTypes(for: $0, signature: signature).count
                 } ?? 0
                 let isRuntimeCallbackRawABIInternalCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
@@ -2979,7 +3029,7 @@ extension NativeEmitter {
                     else {
                         return nil
                     }
-                    let parameters = [signature.receiverType].compactMap { $0 } + signature.parameterTypes
+                    let parameters = sourceReceiverTypes(for: effectiveSymbol, signature: signature) + signature.parameterTypes
                     guard parameters.count == argumentValues.count else {
                         return nil
                     }

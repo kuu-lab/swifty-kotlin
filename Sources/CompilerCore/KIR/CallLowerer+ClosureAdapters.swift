@@ -426,6 +426,31 @@ extension CallLowerer {
         return makeClosureRawArgument(callableInfo: callableInfo, sema: sema, arena: arena, instructions: &instructions)
     }
 
+    func materializeNominalFunctionValue(
+        _ loweredArgID: KIRExprID,
+        exprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard sema.bindings.nominalFunctionExpectedTypes[exprID] != nil,
+              let type = sema.bindings.exprTypes[exprID],
+              case let .functionType(functionType) = sema.types.kind(of: type)
+        else {
+            return loweredArgID
+        }
+        return materializeFunctionValueArgument(
+            loweredArgID: loweredArgID,
+            argExprID: exprID,
+            functionType: functionType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
     func materializeFunctionValueArgument(
         loweredArgID: KIRExprID,
         argExprID: ExprID,
@@ -612,7 +637,8 @@ extension CallLowerer {
         // constructors (KUU-548) allocate the object themselves and skip that
         // step entirely, so their caller passes `valueArgOffsetOverride: 0` to
         // keep `arguments` indexed by plain value-parameter position.
-        let valueArgOffset = valueArgOffsetOverride ?? (signature.receiverType == nil ? 0 : 1)
+        let valueArgOffset = valueArgOffsetOverride
+            ?? (memberExtensionOwnerSymbol(for: chosenCallee, sema: sema) != nil ? 2 : (signature.receiverType == nil ? 0 : 1))
         // A trailing lambda binds to the callee's LAST parameter regardless of
         // how many defaulted parameters sit before it (e.g. `windowed(3) { ...
         // }` skips `step`/`partialWindows` via their defaults) -- so
@@ -659,6 +685,11 @@ extension CallLowerer {
             switch sema.types.kind(of: parameterType) {
             case let .functionType(declaredFunctionType):
                 functionType = declaredFunctionType
+            case .classType:
+                guard let nominalFunctionType = sema.types.nominalFunctionType(for: parameterType) else {
+                    continue
+                }
+                functionType = nominalFunctionType
             case .typeParam:
                 // The callee's own declaration erases this parameter to a bare
                 // type parameter (e.g. Pair<A, B>'s `first: A`), so a function

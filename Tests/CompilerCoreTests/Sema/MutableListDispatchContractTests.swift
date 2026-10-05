@@ -29,6 +29,35 @@ struct MutableListDispatchContractTests {
     }
 
     @Test
+    func bulkOverridesMatchNestedGenericInterfaceParameters() throws {
+        let ctx = makeContextFromSource("""
+        abstract class BulkList : AbstractMutableList<Int>() {
+            override fun addAll(elements: Collection<Int>): Boolean = true
+            override fun addAll(index: Int, elements: Collection<Int>): Boolean = true
+            override fun removeAll(elements: Collection<Int>): Boolean = true
+            override fun retainAll(elements: Collection<Int>): Boolean = true
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let owner = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("BulkList")]))
+        let interfaceFQName = ["kotlin", "collections", "MutableList"].map(ctx.interner.intern)
+        for (name, arity) in [("addAll", 1), ("addAll", 2), ("removeAll", 1), ("retainAll", 1)] {
+            let interfaceMethod = try #require(sema.symbols.lookupAll(fqName: interfaceFQName + [ctx.interner.intern(name)]).first {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes.count == arity
+            })
+            let implementation = try #require(kirFindOverrideMethod(
+                for: interfaceMethod,
+                in: owner,
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.parentSymbol(for: implementation) == owner)
+        }
+    }
+
+    @Test
     func removeUsesOrdinaryMemberAndExtensionSelection() throws {
         let ctx = makeContextFromSource("""
         @file:Suppress("DEPRECATION_ERROR")

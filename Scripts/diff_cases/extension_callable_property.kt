@@ -12,6 +12,11 @@ class Converter<From, To>(private val convert: From.() -> To) {
     fun all(elements: List<From>): List<To> = elements.map { it.convert() }
 }
 
+class Reader<T> {
+    fun String.echo(value: T): T = value
+    fun read(text: String, value: T): T = text.echo(value)
+}
+
 class Owner(private val offset: Int) {
     private val action: Int.(Int) -> Int = { n -> this + n + offset }
     fun use(i: Int): Int = i.action(3)
@@ -34,6 +39,7 @@ fun main() {
     val generic = Converter<Int, String>({ "g=" + this.toString() })
     println(generic.one(8))
     println(generic.all(listOf(4, 5)))
+    println(Reader<Int>().read("receiver", 42))
     println(Owner(10).use(2))
     println(local { n -> this + n })
     val offset = 5

@@ -28,6 +28,22 @@ public enum SymbolKind: Hashable, Sendable {
     case label
 }
 
+extension SymbolTable {
+    /// Member extensions use [dispatch, extension, value arguments], while
+    /// their semantic signature stores only the extension receiver.
+    public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {
+        guard let signature = functionSignature(for: callee),
+              signature.receiverType != nil,
+              symbol(callee)?.flags.contains(.memberExtension) == true,
+              let owner = parentSymbol(for: callee),
+              let ownerInfo = symbol(owner),
+              [.class, .interface, .enumClass, .object].contains(ownerInfo.kind),
+              symbol(callee)?.flags.contains(.extensionMemberAlias) != true
+        else { return nil }
+        return owner
+    }
+}
+
 public struct SymbolFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
@@ -76,6 +92,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// (KUU-545).
     public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
     public static let localFunction = SymbolFlags(rawValue: 1 << 25)
+    public static let memberExtension = SymbolFlags(rawValue: 1 << 26)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -1723,6 +1740,9 @@ public final class BindingTable {
     /// call. Only source-declared expected types are authoritative enough to
     /// contradict an explicit lambda parameter annotation with `Any`.
     public private(set) var sourceDeclaredExpectedTypeExprIDs: Set<ExprID> = []
+    /// Callable literals checked against nominal FunctionN still infer a
+    /// function type, but must materialize their closure ABI before escaping.
+    public private(set) var nominalFunctionExpectedTypes: [ExprID: TypeID] = [:]
     /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     /// Maps stdlib special call expressions to their lowering kind.
@@ -2349,6 +2369,10 @@ public final class BindingTable {
     /// Whether the expression's expected type was written in source.
     public func hasSourceDeclaredExpectedType(_ expr: ExprID) -> Bool {
         sourceDeclaredExpectedTypeExprIDs.contains(expr)
+    }
+
+    public func bindNominalFunctionExpectedType(_ expr: ExprID, type: TypeID) {
+        nominalFunctionExpectedTypes[expr] = type
     }
 
     /// Mark a call expression as a stdlib special call requiring custom lowering.

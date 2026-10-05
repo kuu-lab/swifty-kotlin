@@ -22,11 +22,18 @@ public interface TimeMark {
 }
 
 private class AdjustedTimeMark(private val mark: TimeMark, private val adjustment: Duration) : TimeMark {
-    override fun elapsedNow(): Duration = this.mark.elapsedNow().__kk_duration_minus(this.adjustment)
+    override fun elapsedNow(): Duration = timeMarkDurationMinus(this.mark.elapsedNow(), this.adjustment)
 
     override fun plus(duration: Duration): TimeMark =
-        AdjustedTimeMark(this.mark, this.adjustment.__kk_duration_plus(duration))
+        AdjustedTimeMark(this.mark, timeMarkDurationPlus(this.adjustment, duration))
 }
+
+// Duration +/- must be evaluated at package scope: inside AdjustedTimeMark the
+// member names `plus`/`minus` shadow the kotlin.time extension operators during
+// operator resolution.
+private fun timeMarkDurationPlus(lhs: Duration, rhs: Duration): Duration = lhs + rhs
+
+private fun timeMarkDurationMinus(lhs: Duration, rhs: Duration): Duration = lhs - rhs
 
 @KsSymbolName("__kk_time_mark_now_reading_nanos")
 private external fun __kk_time_mark_now_reading_nanos(): Long

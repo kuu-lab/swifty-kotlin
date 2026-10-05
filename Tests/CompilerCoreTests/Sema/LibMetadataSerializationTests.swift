@@ -6,6 +6,21 @@ import TestStdlibCache
 
 @Suite
 struct LibMetadataSerializationTests {
+    @Test func memberExtensionFlagSurvivesMetadataRoundTrip() throws {
+        let record = MetadataRecord(
+            kind: .function, fqName: "demo.C.sum", isMemberExtension: true,
+            receiverOwnerFQName: "demo.C", typeSignature: "F1<Ldemo.C;,I>"
+        )
+        let encoder = MetadataEncoder()
+        for serialized in [encoder.serialize([record]), encoder.serializeIndexed([record])] {
+            let decoded = MetadataDecoder().decode(serialized)
+            #expect(try #require(decoded.first).isMemberExtension)
+        }
+        let file = try #require(IndexedMetadataFile(data: Data(encoder.serializeIndexed([record]).utf8)))
+        let entry = try #require(file.entries.first)
+        #expect(try #require(file.record(for: entry)).isMemberExtension)
+    }
+
     @Test func testImportedCompletionHandlerKeepsNonLocalReturnMask() throws {
         TestStdlibCache.shared.prepare()
         try withTemporaryFiles(contents: [

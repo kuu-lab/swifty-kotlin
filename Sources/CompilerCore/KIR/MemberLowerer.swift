@@ -517,12 +517,41 @@ final class MemberLowerer {
         var params: [KIRParameter] = []
         if let signature {
             if let receiverType = signature.receiverType {
+                if function.receiverType != nil,
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                   [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+                {
+                    let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                        .prefix(signature.classTypeParameterCount)
+                        .map { .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                    let dispatchReceiverType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol, args: ownerArgs, nullability: .nonNull
+                    )))
+                    let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+                    params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: dispatchReceiverType))
+                    let dispatchReceiverExpr = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: dispatchReceiverType)
+                    driver.ctx.setLocalValue(dispatchReceiverExpr, for: dispatchReceiverSymbol)
+                    driver.ctx.setLocalValue(dispatchReceiverExpr, for: ownerSymbol)
+                    driver.ctx.setLocalDeclaredType(dispatchReceiverType, for: ownerSymbol)
+                    driver.ctx.setQualifiedThisReceiver(dispatchReceiverExpr, for: ownerInfo.name)
+                    driver.ctx.setCapturedOuterReceiver(dispatchReceiverExpr, for: ownerSymbol)
+                }
                 let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: symbol)
                 params.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
+                driver.ctx.setLocalDeclaredType(receiverType, for: receiverSymbol)
                 driver.ctx.setImplicitReceiver(
                     symbol: receiverSymbol,
                     exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
                 )
+                if function.receiverType == nil,
+                   let owner = sema.symbols.parentSymbol(for: symbol),
+                   let receiver = driver.ctx.activeImplicitReceiverExprID()
+                {
+                    driver.ctx.setCapturedOuterReceiver(receiver, for: owner)
+                    driver.ctx.setLocalValue(receiver, for: owner)
+                    driver.ctx.setLocalDeclaredType(receiverType, for: owner)
+                }
             }
             let isVararg = driver.callSupportLowerer.normalizeBoolFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {

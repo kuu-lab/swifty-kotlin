@@ -160,7 +160,7 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         hasher.combine(instantBox.nanoOfSecond)
         return
     }
-    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+    if let listBox = runtimeListBox(from: value) {
         hasher.combine(4)
         let elements = listBox.elements
         hasher.combine(elements.count)
@@ -490,7 +490,8 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
                     list.withMutableValues { $0.insert(value, at: index) }
                 },
                 isBackingReadOnly: { list.isEffectivelyReadOnly },
-                currentModCount: { list.modCount }
+                currentModCount: { list.modCount },
+                currentValue: { list.value(at: $0) }
             )
         )
         registerListIteratorItable(raw: raw)
@@ -575,7 +576,8 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
             list.withMutableValues { $0.insert(value, at: addIndex) }
         },
         isBackingReadOnly: { list.isEffectivelyReadOnly },
-        currentModCount: { list.modCount }
+        currentModCount: { list.modCount },
+        currentValue: { list.value(at: $0) }
     )
     iter.index = index
     let raw = registerRuntimeObject(iter)
@@ -672,7 +674,7 @@ public func kk_list_iterator_next(
             message: "List iterator has no next element."
         )
     }
-    let value = iter.values[iter.index]
+    let value = iter.currentValue?(iter.index) ?? iter.values[iter.index]
     iter.lastReturnedIndex = iter.index
     iter.index += 1
     return runtimeCollectionABIValue(value)
@@ -752,7 +754,7 @@ public func kk_list_iterator_previous(_ iterRaw: Int) -> Int {
     // This matches the standard ListIterator behavior
     iter.index -= 1
     iter.lastReturnedIndex = iter.index
-    return runtimeCollectionABIValue(iter.values[iter.index])
+    return runtimeCollectionABIValue(iter.currentValue?(iter.index) ?? iter.values[iter.index])
 }
 
 @_cdecl("kk_list_iterator_nextIndex")

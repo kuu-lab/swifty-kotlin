@@ -143,6 +143,14 @@ struct RuntimeComparatorTests {
     }
 
     @Test
+    func testComparableCompareToPreservesNarrowBoxDifference() {
+        #expect(__kk_comparable_compareTo(kk_box_byte(-128), kk_box_byte(127)) == -255)
+        #expect(__kk_comparable_compareTo(kk_box_short(32767), kk_box_short(-32768)) == 65535)
+        #expect(__kk_comparable_compareTo(kk_box_byte(3), kk_box_byte(3)) == 0)
+        #expect(__kk_comparable_compareTo(kk_box_int(-128), kk_box_int(127)) == -1)
+    }
+
+    @Test
     func testComparableCharCompareToPreservesCodeUnitDifference() {
         let values = [0, 97, 122, 0x7FFF, 0x8000, 0xD800, 0xDC00, 0xFFFF]
         let boxedValues = values.map { kk_box_char($0) }

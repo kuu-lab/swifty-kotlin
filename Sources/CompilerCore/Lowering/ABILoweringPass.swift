@@ -237,7 +237,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         applyArgumentBoxing(
                             arguments: vcArguments,
                             signature: vcSignature,
-                            receiverOffset: 0,
+                            receiverOffset: vcSymbol.flatMap {
+                                symbols?.memberExtensionOwnerSymbol(for: $0)
+                            } != nil ? 1 : 0,
                             module: module,
                             types: types,
                             symbols: symbols,
@@ -518,6 +520,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     // argument against its neighbour's declared type.
                     let receiverOffset: Int = {
                         guard signature.receiverType != nil else { return 0 }
+                        if let symbol = effectiveCallSymbol, let symbols,
+                           symbols.memberExtensionOwnerSymbol(for: symbol) != nil
+                        {
+                            return 2
+                        }
                         if symbols?.symbol(effectiveCallSymbol ?? .invalid)?.kind == .constructor,
                            arguments.count == signature.parameterTypes.count
                         {

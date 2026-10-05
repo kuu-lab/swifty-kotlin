@@ -60,6 +60,24 @@ struct ExtensionCallablePropertyTests {
         """)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let memberExtensionCalls = sema.bindings.callBindings.filter { exprID, binding in
+            isUserSourceExpr(exprID, in: ctx)
+                && sema.symbols.symbol(binding.chosenCallee).map { ctx.interner.resolve($0.name) } == "convert"
+        }
+        #expect(memberExtensionCalls.count == 1)
+    }
+
+    @Test
+    func genericMemberExtensionDoesNotConstrainItsReceiverToTheOwner() throws {
+        let ctx = makeContextFromSource("""
+        class Reader<T> {
+            fun String.echo(value: T): T = value
+            fun read(text: String, value: T): T = text.echo(value)
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
     @Test
@@ -75,6 +93,22 @@ struct ExtensionCallablePropertyTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "Owner", in: module, interner: ctx.interner)
         #expect(extractCallees(from: body, interner: ctx.interner).contains("kk_function_create_2"))
+    }
+
+    @Test(arguments: [
+        ("Int", "2"),
+        ("Owner<T>", "this"),
+        ("Collection<T>", "listOf(value)")
+    ])
+    func genericMemberExtensionUsesExtensionReceiverConstraints(receiver: String, expression: String) throws {
+        let ctx = makeContextFromSource("""
+        class Owner<T>(private val value: T) {
+            fun \(receiver).read(): T = value
+            fun run(): T = \(expression).read()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
     @Test
