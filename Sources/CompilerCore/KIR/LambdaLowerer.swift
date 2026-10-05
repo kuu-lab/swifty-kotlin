@@ -4,6 +4,22 @@ struct KIRCallableValueInfo {
     let captureArguments: [KIRExprID]
     /// True when lambda has closure param for C HOF ABI (filter, map, etc.).
     let hasClosureParam: Bool
+    /// Raw entry for trampolines that must own the lambda's continuation frames.
+    let unboxedSymbol: SymbolID?
+
+    init(
+        symbol: SymbolID,
+        callee: InternedString,
+        captureArguments: [KIRExprID],
+        hasClosureParam: Bool,
+        unboxedSymbol: SymbolID? = nil
+    ) {
+        self.symbol = symbol
+        self.callee = callee
+        self.captureArguments = captureArguments
+        self.hasClosureParam = hasClosureParam
+        self.unboxedSymbol = unboxedSymbol
+    }
 }
 
 final class LambdaLowerer {
@@ -646,7 +662,7 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        if functionType.receiver != nil {
+        if functionType.receiver != nil, !functionType.isSuspend {
             // Generic receiver callbacks already use the callee's erased return ABI.
             guard lambdaReturnType == functionType.returnType else { return nil }
             let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
@@ -668,8 +684,11 @@ final class LambdaLowerer {
                 instructions: &instructions
             )
         }
+        // Suspend values count the receiver as the first invocation argument.
+        let invocationTypes = functionType.receiver.map { [$0] + functionType.params }
+            ?? functionType.params
         let createCallee: InternedString
-        switch functionType.params.count {
+        switch invocationTypes.count {
         case 0:
             createCallee = interner.intern("kk_function_create_0")
         case 1:
@@ -692,7 +711,7 @@ final class LambdaLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        let valueParams: [KIRParameter] = functionType.params.enumerated().map { index, type in
+        let valueParams: [KIRParameter] = invocationTypes.enumerated().map { index, type in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
                 type: type
@@ -829,7 +848,8 @@ final class LambdaLowerer {
             symbol: adapterSymbol,
             callee: adapterName,
             captureArguments: [closureObj],
-            hasClosureParam: false
+            hasClosureParam: false,
+            unboxedSymbol: lambdaSymbol
         )
         emitFunctionDescription(
             value: materializedExpr,
