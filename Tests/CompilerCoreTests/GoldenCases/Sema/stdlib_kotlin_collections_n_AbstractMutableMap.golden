@@ -27,7 +27,7 @@ expr e@16:24#1 indexedAccess receiver=e@16:24 indices=[e@16:33] type=Int? call=k
 expr e@16:5 localDecl missingValue mutable=0 type=_ init=e@16:24#1 type=Unit ref=__local_2.missingValue[kind=local;type=Int?;origin=fixture]
 expr e@17:5 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.mutable[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
 expr e@17:20 call callee=e@17:20#1 args=[] type=kotlin.collections.Map<String, out Int> call=kotlin.collections.emptyMap[kind=fun;params=;ret=kotlin.collections.Map<T0,T1>;gen=2] targs=[String,Int]
-expr e@17:5#1 memberCall recv=e@17:5 callee=putAll args=[_:e@17:20] type=Unit call=kotlin.collections.MutableMap.putAll[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=kotlin.collections.Map<out T0,out T1>;ret=Unit;gen=2;classGen=2]
+expr e@17:5#1 memberCall recv=e@17:5 callee=putAll args=[_:e@17:20] type=Unit call=kotlin.collections.MutableMap.putAll[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=kotlin.collections.Map<out T0,T1>;ret=Unit;gen=2;classGen=2;names=[from]] targs=[String,Int]
 expr e@18:5 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.mutable[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
 expr e@18:20 name(missing) type=String ref=golden.sema.inheritedMapSurface.$2.missing[kind=vparam;origin=fixture]
 expr e@18:5#1 memberCall recv=e@18:5 callee=remove args=[_:e@18:20] type=Int? call=kotlin.collections.MutableMap.remove[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0;ret=T1?;gen=2;classGen=2;names=[key]] targs=[String,Int]

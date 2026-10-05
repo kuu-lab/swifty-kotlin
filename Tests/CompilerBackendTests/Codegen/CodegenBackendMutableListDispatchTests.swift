@@ -6,6 +6,80 @@ import Testing
 @Suite
 struct CodegenBackendMutableListDispatchTests {
     @Test(arguments: [true, false])
+    func arrayListRemoveRejectsFrozenMissingAndPresentElements(artifact: Bool) throws {
+        try assertKotlinOutput(
+            """
+            @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+            fun element(): String {
+                println("evaluated")
+                return "missing"
+            }
+            fun main() {
+                val list = ArrayList<String>()
+                list.add("hello")
+                list.add("hello")
+                println(list.remove("missing"))
+                println(list.remove("hello"))
+                println(list)
+                val built = list.build()
+                try { list.remove(element()); println("accepted-missing") }
+                catch (e: IllegalArgumentException) { println("wrong-exception") }
+                catch (e: UnsupportedOperationException) { println("rejected-missing") }
+                finally { println("finally") }
+                try { list.remove("hello"); println("accepted-present") }
+                catch (e: UnsupportedOperationException) { println("rejected-present") }
+                val widened: MutableList<String> = list
+                try { widened.remove("missing"); println("accepted-widened") }
+                catch (e: UnsupportedOperationException) { println("rejected-widened") }
+                val nullable: ArrayList<String>? = list
+                try { nullable?.remove("missing"); println("accepted-safe") }
+                catch (e: UnsupportedOperationException) { println("rejected-safe") }
+                println(list)
+                println(built)
+                val empty = ArrayList<String>()
+                empty.build()
+                try { empty.remove("missing"); println("accepted-empty") }
+                catch (e: UnsupportedOperationException) { println("rejected-empty") }
+                println(empty.size)
+                val nulls = ArrayList<String?>()
+                nulls.add(null)
+                nulls.build()
+                try { nulls.remove(null); println("accepted-null") }
+                catch (e: UnsupportedOperationException) { println("rejected-null") }
+                println(nulls.size)
+            }
+            """,
+            moduleName: "ArrayListFrozenRemove",
+            expected: "false\ntrue\n[hello]\nevaluated\nrejected-missing\nfinally\nrejected-present\nrejected-widened\nrejected-safe\n[hello]\n[hello]\nrejected-empty\n0\nrejected-null\n1\n",
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func mutableListRemovePropagatesOverrideException(artifact: Bool) throws {
+        try assertKotlinOutput(
+            """
+            class RejectingList : AbstractMutableList<Int>() {
+                override val size: Int get() = 0
+                override fun get(index: Int): Int = throw IndexOutOfBoundsException()
+                override fun set(index: Int, element: Int): Int = throw IndexOutOfBoundsException()
+                override fun add(index: Int, element: Int) { throw IndexOutOfBoundsException() }
+                override fun removeAt(index: Int): Int = throw IndexOutOfBoundsException()
+                override fun remove(element: Int): Boolean { throw IllegalStateException("remove-override") }
+            }
+            fun main() {
+                val list: MutableList<Int> = RejectingList()
+                try { list.remove(1); println("accepted") }
+                catch (e: IllegalStateException) { println(e.message) }
+            }
+            """,
+            moduleName: "MutableListThrowingRemove",
+            expected: "remove-override\n",
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
     func mutationsDispatchThroughMutableList(artifact: Bool) throws {
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0 ..< 4 { root.deleteLastPathComponent() }
@@ -104,7 +178,7 @@ struct CodegenBackendMutableListDispatchTests {
             signature + " { throw IllegalStateException(\"arraylist-remove\") }"
         )
         let method = try #require(source.range(of: signature))
-        let annotation = "@KsSymbolName(\"__kk_mutable_list_remove\")"
+        let annotation = "@KsSymbolName(\"__kk_mutable_list_remove_dispatch\")"
         if let link = source[..<method.lowerBound].range(of: annotation, options: .backwards),
            source[link.upperBound ..< method.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {

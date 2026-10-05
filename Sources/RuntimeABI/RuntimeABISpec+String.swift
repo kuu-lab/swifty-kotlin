@@ -1338,6 +1338,13 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false,
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_charset_name",
+            parameters: [RuntimeABIParameter(name: "charsetTag", type: .intptr)],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
         // STDLIB-573: String.encodeToByteArray
         RuntimeABIFunctionSpec(
             name: "__kk_string_encodeToByteArray_flat",

@@ -12,7 +12,7 @@ import kotlin.internal.KsSymbolName
 
 // The canonical atomics.AtomicReference is a source-backed class shell
 // (KSP-1100); most receiver APIs keep their runtime-linked member stubs as
-// the source of truth: `value`, `load`, `store`, `exchange`, `getAndSet` and
+// the source of truth: `value`, `load`, `store`, `exchange` and
 // `toString` already resolve to members backed by `__kk_atomic_ref_*` links
 // whose T marshal is correct for every T. A source-backed extension would
 // only shadow them with a function-generic extern call whose T return
@@ -75,15 +75,3 @@ public fun <T> AtomicReference<T>.updateAndFetch(transform: (T) -> T): T {
         if (compareAndExchange(old, newValue) === old) return newValue
     }
 }
-
-// Compatibility names retained from the former
-// kotlin.concurrent.AtomicReference typealias surface.
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public fun <T> AtomicReference<T>.getAndUpdate(transform: (T) -> T): T =
-    fetchAndUpdate(transform)
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public fun <T> AtomicReference<T>.updateAndGet(transform: (T) -> T): T =
-    updateAndFetch(transform)
