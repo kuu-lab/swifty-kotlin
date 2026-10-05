@@ -576,6 +576,12 @@ final class LambdaLowerer {
                 return materialized
             }
         }
+        emitFunctionDescription(
+            value: lambdaValueExpr,
+            description: "kotlin.Function\(lambdaParameterTypes.count)",
+            identity: true,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
         return lambdaValueExpr
     }
 
@@ -808,6 +814,12 @@ final class LambdaLowerer {
             callee: adapterName,
             captureArguments: [closureObj],
             hasClosureParam: false
+        )
+        emitFunctionDescription(
+            value: materializedExpr,
+            description: "kotlin.Function\(functionType.params.count)",
+            identity: true,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
         return materializedExpr
     }
@@ -1919,6 +1931,7 @@ final class LambdaLowerer {
                 callableType: callableType,
                 refKind: refKind,
                 memberName: memberName,
+                targetSymbol: targetSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -2170,6 +2183,7 @@ final class LambdaLowerer {
         callableType: TypeID,
         refKind: CallableRefKind,
         memberName: InternedString,
+        targetSymbol: SymbolID? = nil,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -2244,6 +2258,18 @@ final class LambdaLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        if refKind == .functionRef {
+            let anonymous = interner.resolve(memberName).hasPrefix("__AnonymousFunction_")
+            emitFunctionDescription(
+                value: taggedExpr,
+                description: anonymous ? "kotlin.Function\(arity)" : functionReferenceDescription(
+                    name: memberName, type: callableType, targetSymbol: targetSymbol,
+                    sema: sema, interner: interner
+                ),
+                identity: anonymous,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         return taggedExpr
     }
 
@@ -2403,6 +2429,13 @@ final class LambdaLowerer {
             )
         let lambdaValueExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: lambdaValueType)
         instructions.append(.constValue(result: lambdaValueExpr, value: .symbolRef(lambdaSymbol)))
+
+        emitFunctionDescription(
+            value: lambdaValueExpr,
+            description: "kotlin.Function\(lambdaParameterTypes.count)",
+            identity: true,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
 
         // Register with no capture arguments for optimization
         driver.ctx.registerCallableValue(
