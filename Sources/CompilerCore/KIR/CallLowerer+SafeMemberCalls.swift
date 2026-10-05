@@ -662,6 +662,8 @@ extension CallLowerer {
             case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
             case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
             case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
+            case ("toUShort", byteType, ushortType): interner.intern("kk_int_to_ushort")
+            case ("toUShort", shortType, ushortType): interner.intern("kk_int_to_ushort")
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
@@ -671,14 +673,25 @@ extension CallLowerer {
             default: nil
             }
             if let callee = conversionCallee {
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
+                let nullValue = arena.appendExpr(.unit, type: resultType)
+                instructions.append(.constValue(result: nullValue, value: .null))
+                instructions.append(.copy(from: nullValue, to: result))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+                let nonNullResult = arena.appendTemporary(type: nonNullResultType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: callee,
                     arguments: [loweredReceiverID],
-                    result: result,
+                    result: nonNullResult,
                     canThrow: false,
                     thrownResult: nil
                 ))
+                instructions.append(.copy(from: nonNullResult, to: result))
+                instructions.append(.label(endLabel))
                 return result
             }
             let isRepresentationPreservingConversion =
