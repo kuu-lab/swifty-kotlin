@@ -151,7 +151,7 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     }
     if let durationBox = tryCast(pointer, to: RuntimeDurationBox.self) {
         hasher.combine(11)
-        hasher.combine(durationBox.nanoseconds)
+        hasher.combine(durationBox.rawValue)
         return
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
