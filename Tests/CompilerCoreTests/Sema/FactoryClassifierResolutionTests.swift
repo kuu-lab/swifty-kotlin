@@ -40,10 +40,10 @@ struct FactoryClassifierResolutionTests {
             """
             package pkg
             \(importLine)
-            fun use(value: \(typeName)): Int {
+            fun use(value: \(typeName), nestedValue: \(typeName).Nested): Int {
                 val typed: \(typeName) = value
                 val casted = value as \(typeName)
-                val nested: \(typeName).Nested = \(typeName).Nested()
+                val nested: \(typeName).Nested = nestedValue
                 return typed.marker() + casted.marker() + \(typeName)().marker()
             }
             fun nested(value: \(typeName).Nested): \(typeName).Nested = value

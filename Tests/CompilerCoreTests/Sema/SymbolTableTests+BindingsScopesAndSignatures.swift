@@ -170,7 +170,7 @@ struct ScopeTests {
         let isClassifier: (SymbolID) -> Bool = { symbols.symbol($0)?.kind == .interface }
         #expect(scope.lookup(name) == [factory])
         #expect(scope.lookup(name, matching: isClassifier) == [selected])
-        let local = symbols.define(kind: .interface, name: name, fqName: [interner.intern("pkg"), name], declSite: nil, visibility: .public)
+        let local = symbols.define(kind: .interface, name: name, fqName: [interner.intern("local"), name], declSite: nil, visibility: .public)
         package.insert(local)
         #expect(scope.lookup(name, matching: isClassifier) == [local])
     }
