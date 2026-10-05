@@ -612,7 +612,8 @@ extension CallLowerer {
         // constructors (KUU-548) allocate the object themselves and skip that
         // step entirely, so their caller passes `valueArgOffsetOverride: 0` to
         // keep `arguments` indexed by plain value-parameter position.
-        let valueArgOffset = valueArgOffsetOverride ?? (signature.receiverType == nil ? 0 : 1)
+        let valueArgOffset = valueArgOffsetOverride
+            ?? (memberExtensionOwnerSymbol(for: chosenCallee, sema: sema) != nil ? 2 : (signature.receiverType == nil ? 0 : 1))
         // A trailing lambda binds to the callee's LAST parameter regardless of
         // how many defaulted parameters sit before it (e.g. `windowed(3) { ...
         // }` skips `step`/`partialWindows` via their defaults) -- so

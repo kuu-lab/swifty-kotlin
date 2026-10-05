@@ -1078,6 +1078,19 @@ final class CallLowerer {
             // enclosing `this`, not the member's own implicit receiver.
             var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
                 .flatMap { driver.ctx.localValue(for: $0) }
+            if memberExtensionOwnerSymbol(for: chosen, sema: sema) == nil,
+               let owner = sema.symbols.parentSymbol(for: chosen)
+            {
+                if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                   let activeType = arena.exprType(activeReceiver),
+                   case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(activeType)),
+                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+                {
+                    implicitReceiver = activeReceiver
+                } else if let dispatchReceiver = driver.ctx.capturedOuterReceiverExprID(for: owner) {
+                    implicitReceiver = dispatchReceiver
+                }
+            }
             if implicitReceiver == nil {
                 implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
                 // A bare call inside an object literal can resolve to a member of
@@ -1140,14 +1153,18 @@ final class CallLowerer {
             {
                 implicitReceiver = ownerReceiver
             }
-            if let implicitReceiver {
-                finalArgIDs.insert(implicitReceiver, at: 0)
+            if let extensionReceiver = implicitReceiver {
+                finalArgIDs.insert(extensionReceiver, at: 0)
+                if let dispatchReceiver = memberExtensionDispatchReceiver(for: chosen, callExprID: exprID, sema: sema) {
+                    finalArgIDs.insert(dispatchReceiver, at: 0)
+                    implicitReceiver = dispatchReceiver
+                }
                 // Runtime-backed MutableSet values (including collection
                 // builder receivers) do not carry a Kotlin itable for the
                 // source-backed default mutation members. Resolve those
                 // implicit calls to their demoted ABI bridges before the
                 // generic virtual-dispatch path is selected.
-                let implicitReceiverType = arena.exprType(implicitReceiver)
+                let implicitReceiverType = arena.exprType(implicitReceiver ?? extensionReceiver)
                     ?? signature.receiverType
                     ?? sema.types.anyType
                 implicitReceiverRuntimeCallee = runtimeBackedSetMemberCallee(

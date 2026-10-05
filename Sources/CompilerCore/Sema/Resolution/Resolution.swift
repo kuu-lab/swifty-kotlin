@@ -291,6 +291,7 @@ extension OverloadResolver {
         // from a Byte/Long argument instead of Int from IntRange, making an
         // inapplicable member steal the call from an exact user extension.
         if !isConstructor,
+           ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
            signature.classTypeParameterCount > 0,
            let implicitReceiverType,
            isNominalMemberFunction(candidate, typeSystem: ctx.types),

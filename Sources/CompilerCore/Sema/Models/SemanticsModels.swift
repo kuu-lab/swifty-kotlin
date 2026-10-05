@@ -28,6 +28,22 @@ public enum SymbolKind: Hashable, Sendable {
     case label
 }
 
+extension SymbolTable {
+    /// Member extensions use [dispatch, extension, value arguments], while
+    /// their semantic signature stores only the extension receiver.
+    public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {
+        guard let signature = functionSignature(for: callee),
+              signature.receiverType != nil,
+              symbol(callee)?.flags.contains(.memberExtension) == true,
+              let owner = parentSymbol(for: callee),
+              let ownerInfo = symbol(owner),
+              [.class, .interface, .enumClass, .object].contains(ownerInfo.kind),
+              symbol(callee)?.flags.contains(.extensionMemberAlias) != true
+        else { return nil }
+        return owner
+    }
+}
+
 public struct SymbolFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
@@ -76,6 +92,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// (KUU-545).
     public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
     public static let localFunction = SymbolFlags(rawValue: 1 << 25)
+    public static let memberExtension = SymbolFlags(rawValue: 1 << 26)
 }
 
 public struct SemanticSymbol: Sendable {

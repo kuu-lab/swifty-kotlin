@@ -21,6 +21,7 @@ package struct MetadataRecord {
     package let isOperator: Bool
     /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
+    package let isMemberExtension: Bool
     /// Nominal owner of a callable/property receiver. The indexed metadata
     /// path keeps this compact routing key available without decoding the
     /// declaration body, so synthetic stdlib overlap guards can run eagerly.
@@ -157,6 +158,7 @@ package struct MetadataRecord {
         isInline: Bool = false,
         isOperator: Bool = false,
         isOverride: Bool = false,
+        isMemberExtension: Bool = false,
         receiverOwnerFQName: String? = nil,
         typeSignature: String? = nil,
         typeParameterUpperBoundsSignatures: [[String]] = [],
@@ -216,6 +218,7 @@ package struct MetadataRecord {
         self.isInline = isInline
         self.isOperator = isOperator
         self.isOverride = isOverride
+        self.isMemberExtension = isMemberExtension
         self.receiverOwnerFQName = receiverOwnerFQName
         self.typeSignature = typeSignature
         self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
@@ -1275,6 +1278,7 @@ package final class MetadataEncoder {
             isInline: isInline,
             isOperator: isOperator,
             isOverride: isOverride,
+            isMemberExtension: symbol.flags.contains(.memberExtension),
             receiverOwnerFQName: receiverOwnerFQName,
             typeSignature: typeSignature,
             typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
@@ -1485,6 +1489,7 @@ package final class MetadataEncoder {
                 if record.isOverride {
                     fields.append("override=1")
                 }
+                if record.isMemberExtension { fields.append("memberExtension=1") }
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
@@ -1720,6 +1725,7 @@ package final class MetadataEncoder {
             fields.append("inline=\(record.isInline ? 1 : 0)")
             fields.append("operator=\(record.isOperator ? 1 : 0)")
             if record.isOverride { fields.append("override=1") }
+            if record.isMemberExtension { fields.append("memberExtension=1") }
             if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                 fields.append("defaultLink=\(linkName)")
             }
@@ -2029,6 +2035,7 @@ final class MetadataDecoder {
                 isInline: rec.isInline,
                 isOperator: rec.isOperator,
                 isOverride: rec.isOverride,
+                isMemberExtension: rec.isMemberExtension,
                 receiverOwnerFQName: rec.receiverOwnerFQName,
                 typeSignature: rec.typeSignature,
                 typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
@@ -2094,6 +2101,7 @@ final class MetadataDecoder {
         var isInline: Bool = false
         var isOperator: Bool = false
         var isOverride: Bool = false
+        var isMemberExtension: Bool = false
         var receiverOwnerFQName: String?
         var typeSignature: String?
         var callableTypeParameterSignatures: [String] = []
@@ -2168,6 +2176,8 @@ final class MetadataDecoder {
             record.isOperator = value == "1" || value == "true"
         case "override":
             record.isOverride = value == "1" || value == "true"
+        case "memberExtension":
+            record.isMemberExtension = value == "1" || value == "true"
         case "receiverFq":
             record.receiverOwnerFQName = value.isEmpty ? nil : value
         case "vararg":

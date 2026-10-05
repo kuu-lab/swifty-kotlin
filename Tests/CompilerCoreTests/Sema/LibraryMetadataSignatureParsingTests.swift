@@ -6,6 +6,55 @@ import Testing
 @Suite
 struct LibraryMetadataSignatureParsingTests {
 
+    @Test func memberExtensionImportPreservesOwnerAndDefaultStubReceivers() throws {
+        let fm = FileManager.default
+        let libDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: libDir) }
+        let manifest = """
+        { "formatVersion": 1, "moduleName": "Receivers", "metadata": "metadata.bin" }
+        """
+        let metadata = """
+        symbols=4
+        class _ fq=receivers.Owner schema=v1
+        class _ fq=receivers.Other schema=v1
+        function _ fq=receivers.Owner.add schema=v1 arity=1 sig=F1<RI,I,I> memberExtension=1 default=1 defaultLink=owner_add_default link=owner_add
+        function _ fq=receivers.Owner.other schema=v1 arity=0 sig=F0<RLreceivers.Other;,I> memberExtension=1 link=owner_other
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "Consumer", emit: .kirDump, searchPaths: [libDir.path])
+            let symbols = SymbolTable()
+            let types = TypeSystem()
+            let diagnostics = DiagnosticEngine()
+            let interner = StringInterner()
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
+                options: ctx.options, symbols: symbols, types: types,
+                diagnostics: diagnostics, interner: interner,
+                importedInlineFunctions: ImportedInlineFunctionStore()
+            )
+            #expect(!diagnostics.hasError)
+            let owner = try #require(symbols.allSymbols().first { interner.resolve($0.name) == "Owner" })
+            let add = try #require(symbols.allSymbols().first { interner.resolve($0.name) == "add" })
+            let other = try #require(symbols.allSymbols().first { interner.resolve($0.name) == "other" })
+            #expect(symbols.memberExtensionOwnerSymbol(for: add.id) == owner.id)
+            #expect(symbols.memberExtensionOwnerSymbol(for: other.id) == owner.id)
+            let stub = SyntheticSymbolScheme.defaultStubSymbol(for: add.id)
+            let signature = try #require(symbols.functionSignature(for: stub))
+            #expect(signature.receiverType == nil)
+            #expect(signature.parameterTypes.count == 4)
+            let dispatchType = try #require(signature.parameterTypes.first)
+            if case let .classType(classType) = types.kind(of: dispatchType) {
+                #expect(classType.classSymbol == owner.id)
+            } else {
+                Issue.record("Expected the dispatch receiver before the extension receiver")
+            }
+            #expect(signature.parameterTypes.dropFirst().allSatisfy { $0 == types.intType })
+            #expect(symbols.externalLinkName(for: stub) == "owner_add_default")
+        }
+    }
+
     @Test(arguments: [false, true])
     func importedInlineParameterReturnPermissionsSurviveNormalization(indexed: Bool) throws {
         let fm = FileManager.default
