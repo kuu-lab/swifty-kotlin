@@ -1086,11 +1086,11 @@ enum RuntimePendingLaunchQueue {
         return box
     }
 
-    /// Queue `workItem` for dispatch on this thread's next `flush()` -- unless
-    /// there's no active burst to flush it at (a direct, non-coroutine call),
-    /// in which case there's no race to close and it's dispatched right away.
+    /// Event-loop work joins the FIFO immediately; the loop cannot run it until
+    /// the caller yields. Only pool-bound work needs staging until `flush()` to
+    /// keep synchronous cancellation from racing with dispatch.
     static func enqueue(job: RuntimeJobHandle, workItem: DispatchWorkItem) {
-        guard RuntimeCoroutineBurstDepth.isActive else {
+        guard RuntimeEventLoop.current == nil, RuntimeCoroutineBurstDepth.isActive else {
             KxMiniRuntime.launch(workItem: workItem)
             return
         }
