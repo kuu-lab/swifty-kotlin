@@ -299,7 +299,7 @@ struct StdlibArtifactRegressionTests {
         import kotlinx.coroutines.*
         import kotlinx.coroutines.flow.*
 
-        fun runCollect(source: Flow<Int>, action: suspend (Int) -> Unit) = runBlocking {
+        fun runCollect(source: Flow<Int>, action: (Int) -> Unit) = runBlocking {
             source.collect(action)
         }
 
@@ -323,6 +323,9 @@ struct StdlibArtifactRegressionTests {
             }
             collector.emitAll(flowOf(10, 11))
             runCollect(flowOf(12, 13)) { value -> println("forwarded:$value") }
+            var total = 10
+            runCollect(flowOf(2, 3)) { value -> total += value }
+            println("captured:$total")
             try {
                 emptyFlow<Int>().onEmpty { throw IllegalArgumentException("action") }.toList()
             } catch (e: IllegalArgumentException) {
@@ -362,6 +365,7 @@ struct StdlibArtifactRegressionTests {
                 collector:11
                 forwarded:12
                 forwarded:13
+                captured:15
                 action failure
 
                 """)

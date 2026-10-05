@@ -681,7 +681,18 @@ final class CallSupportLowerer {
                     )
                     normalized.append(packed)
                 } else if let argIndex = argIndices.first {
-                    normalized.append(providedArguments[argIndex])
+                    let argument = providedArguments[argIndex]
+                    if sourceArgExprs.indices.contains(argIndex) {
+                        normalized.append(driver.callLowerer.adaptSuspendFunctionValueArgument(
+                            argument,
+                            sourceExpr: sourceArgExprs[argIndex],
+                            parameterType: signature.parameterTypes[paramIndex],
+                            sema: sema, arena: arena, interner: interner,
+                            instructions: &instructions
+                        ))
+                    } else {
+                        normalized.append(argument)
+                    }
                 }
                 continue
             }
