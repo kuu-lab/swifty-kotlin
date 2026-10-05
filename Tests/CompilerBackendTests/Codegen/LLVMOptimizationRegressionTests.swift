@@ -9,6 +9,22 @@ import Testing
 @Suite
 struct LLVMOptimizationRegressionTests {
     @Test(arguments: [0, 2])
+    func arrayListMemberBridgesUseRuntimeThrowingABI(optimization: Int) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_989_arraylist_member_bridge.kt"
+        ), encoding: .utf8)
+        try assertOutput(
+            source,
+            moduleName: "ArrayListMemberBridgeABI",
+            expected: "[1]\n[1]\nfalse\ntrue\n[]\nout of bounds\n2\n[2]\ntrue\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
     func inheritedMapToStringUsesImportedABI(optimization: Int) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
