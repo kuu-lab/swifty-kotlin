@@ -2493,6 +2493,27 @@ extension ExprTypeChecker {
             _ = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
             return kClassType
         }
+        // KUU-1084: `FunctionN::class`. The synthetic `kotlin.Function.FunctionN`
+        // interfaces live outside ordinary scope lookup, but `FunctionN::class`
+        // is the classifier of every arity-N function type in Kotlin.
+        let receiverNameString = interner.resolve(receiverName)
+        if receiverNameString.hasPrefix("Function"),
+           let arity = Int(receiverNameString.dropFirst("Function".count)),
+           arity >= 0 {
+            let functionFQName = [
+                interner.intern("kotlin"), interner.intern("Function"), receiverName,
+            ]
+            if let functionSymbol = sema.symbols.lookupAll(fqName: functionFQName)
+                .compactMap({ sema.symbols.symbol($0) })
+                .first(where: { $0.kind == .interface })?.id {
+                let classType = sema.types.make(.classType(ClassType(classSymbol: functionSymbol)))
+                sema.bindings.bindClassRefTargetType(id, type: classType)
+                let kClassType = sema.types.makeKClassType(argument: classType)
+                sema.bindings.bindExprType(id, type: kClassType)
+                _ = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+                return kClassType
+            }
+        }
         return nil
     }
 

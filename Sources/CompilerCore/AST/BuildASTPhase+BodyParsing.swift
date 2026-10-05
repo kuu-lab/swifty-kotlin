@@ -176,7 +176,11 @@ extension BuildASTPhase {
         }
         // `isBinaryOperatorToken` already covers `.`/`?.`, so a dot-continuation
         // line (`.member()`) is a continuation via this check too.
-        if isBinaryOperatorToken(first.kind)
+        // `::` is the exception among binary-operator tokens: Kotlin only
+        // continues `.`/`?.` onto a newline, so a newline-leading `::`
+        // always starts a new statement (`s\n::prop` parses as `s; ::prop`,
+        // never `s::prop`).
+        if (isBinaryOperatorToken(first.kind) && first.kind != .symbol(.doubleColon))
             || first.kind == .symbol(.comma)
             || first.kind == .symbol(.rParen)
             || first.kind == .symbol(.rBracket)

@@ -126,9 +126,21 @@ extension ExprTypeChecker {
         let rhs = earlyElvisRhs ?? driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
-        // so they must bypass the operator-candidate resolution below entirely —
-        // any two types are comparable, and the result is always Boolean.
+        // so they must bypass the operator-candidate resolution below entirely.
         if op == .identityEqual || op == .notIdentityEqual {
+            let lhsType = equalityDeclaredType(lhsID, inferred: lhs, sema: sema)
+            let rhsType = equalityDeclaredType(rhsID, inferred: rhs, sema: sema)
+            if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema) {
+                let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
+                let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Identity equality for arguments of types '\(lhsName)' and '\(rhsName)' is prohibited.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
         }
@@ -766,6 +778,20 @@ extension ExprTypeChecker {
             return signature.parameterTypes[index]
         }
         return inferred
+    }
+
+    private func identityEqualityHasValueClassOperand(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        for type in [lhs, rhs] {
+            switch sema.types.kind(of: type) {
+            case .error, .nothing(.nullable):
+                return false
+            default:
+                break
+            }
+        }
+        return [lhs, rhs].contains { type in
+            resolveClassTypeSymbol(type, sema: sema)?.symbol.flags.contains(.valueType) == true
+        }
     }
 
     // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or

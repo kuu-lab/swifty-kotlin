@@ -18,6 +18,8 @@ struct InlineExpansion {
 }
 
 final class InlineLoweringPass: LoweringPass {
+    var lambdaCaptureArgsByExpr: [KIRExprID: [KIRExprID]] = [:]
+
     static let name = "InlineLowering"
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .propertyLowered
@@ -32,6 +34,7 @@ final class InlineLoweringPass: LoweringPass {
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
+        lambdaCaptureArgsByExpr.removeAll(keepingCapacity: true)
         let unitType = ctx.sema?.types.unitType
         // The expansion-target index snapshots every body the pass can
         // splice: module declarations (regular, `inline`, lambda bodies) and
@@ -162,8 +165,10 @@ final class InlineLoweringPass: LoweringPass {
                     retryInvoke = false
                     continue
                 }
-                let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
-                    .map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+                let captureArgs = lambdaCaptureArguments(
+                    for: callableExpr, symbol: lambdaFunction.symbol,
+                    aliases: aliases, arena: module.arena
+                )
                 guard budget.permitsAdditional(
                     captureArgs.count + resolvedArguments.count,
                     outputCount: loweredBody.instructions.count, arena: module.arena
