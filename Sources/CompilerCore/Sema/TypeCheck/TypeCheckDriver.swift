@@ -38,7 +38,6 @@ final class TypeCheckDriver {
     let helpers = TypeCheckHelpers()
     let scopeBuilder = TypeCheckScopeBuilder()
     let captureAnalyzer = CaptureAnalyzer()
-    private var diagnosedInlineAccessExpressions: Set<ExprID> = []
 
     init(
         ast: ASTModule,
@@ -95,7 +94,9 @@ final class TypeCheckDriver {
               let callee = sema.symbols.symbol(binding.chosenCallee),
               !ctx.visibilityChecker.isPublicAPI(callee, allowProtected: false),
               let range = ast.arena.exprRange(id),
-              diagnosedInlineAccessExpressions.insert(id).inserted
+              !diagnostics.diagnostics.contains(where: {
+                  $0.code == "KSWIFTK-SEMA-0045" && $0.primaryRange == range
+              })
         else { return }
         diagnostics.error(
             "KSWIFTK-SEMA-0045",

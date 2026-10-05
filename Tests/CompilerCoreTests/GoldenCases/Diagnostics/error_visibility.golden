@@ -43,14 +43,15 @@
     {
       "file": "error_visibility.kt",
       "range": {
-        "start": { "line": 38, "character": 27 },
-        "end": { "line": 38, "character": 35 }
+        "start": { "line": 38, "character": 28 },
+        "end": { "line": 38, "character": 36 }
       },
       "severity": 1,
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-0045",
       "source": "kswiftk",
-      "message": "Public-API inline function cannot access non-public-API declaration 'helper'."
+      "message": "Public-API inline function cannot access non-public-API declaration 'helper'.",
+      "codeActions": []
     }
   ]
 }
