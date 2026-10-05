@@ -278,7 +278,8 @@ extension CallTypeChecker {
                 case .class, .interface, .enumClass, .annotationClass:
                     return receiverSymbolID
                 default:
-                    break
+                    // A resolved value must not fall back to a same-named imported classifier.
+                    return nil
                 }
             }
             if case let .nameRef(receiverName, _) = ast.arena.expr(receiverID) {
