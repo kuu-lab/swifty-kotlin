@@ -147,6 +147,7 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.UninitializedPropertyAccessException", "UninitializedPropertyAccessException"),
     ("kotlin.IndexOutOfBoundsException", "IndexOutOfBoundsException"),
     ("kotlin.ArrayIndexOutOfBoundsException", "ArrayIndexOutOfBoundsException"),
+    ("java.lang.StringIndexOutOfBoundsException", "StringIndexOutOfBoundsException"),
     ("kotlin.KotlinNothingValueException", "KotlinNothingValueException"),
     ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
     ("kotlin.NotImplementedError", "NotImplementedError"),
