@@ -1,4 +1,4 @@
-// TEST-CHAR-019: Execution tests for isISOControl, Char.minus, String.get, and CharRange.forEach
+// TEST-CHAR-019: Execution tests for isISOControl, Char arithmetic, String.get, and CharRange.forEach
 #if canImport(Testing)
 @testable import Runtime
 import Testing
@@ -93,6 +93,34 @@ struct RuntimeCharArithmeticTests {
         let result = kk_char_minus(kk_box_char(Int(Unicode.Scalar("z").value)),
                                    kk_box_char(Int(Unicode.Scalar("a").value)))
         #expect(result == 25)
+    }
+
+    // MARK: - Char compareTo
+
+    @Test
+    func testCharCompareTo_normalizesRawAndBoxedValues() {
+        let values = [0, 1, 97, 122, 0x7FFF, 0x8000, 0xD7FF, 0xD800,
+                      0xDBFF, 0xDC00, 0xDFFF, 0xE000, 0xFFFF]
+        let boxedValues = values.map { kk_box_char($0) }
+        for (lhsIndex, lhs) in values.enumerated() {
+            for (rhsIndex, rhs) in values.enumerated() {
+                let expected = lhs == rhs ? 0 : (lhs < rhs ? -1 : 1)
+                let boxedLhs = boxedValues[lhsIndex]
+                let boxedRhs = boxedValues[rhsIndex]
+                #expect(kk_char_compareTo(lhs, rhs) == expected)
+                #expect(kk_char_compareTo(boxedLhs, boxedRhs) == expected)
+                #expect(kk_char_compareTo(lhs, boxedRhs) == expected)
+                #expect(kk_char_compareTo(boxedLhs, rhs) == expected)
+            }
+        }
+    }
+
+    @Test
+    func testCharMinusChar_preservesFullCodeDifference() {
+        #expect(kk_char_minus(122, 97) == 25)
+        #expect(kk_char_minus(97, 122) == -25)
+        #expect(kk_char_minus(0xFFFF, 0) == 65535)
+        #expect(kk_char_minus(kk_box_char(0), kk_box_char(0xFFFF)) == -65535)
     }
 
     // MARK: - String.get

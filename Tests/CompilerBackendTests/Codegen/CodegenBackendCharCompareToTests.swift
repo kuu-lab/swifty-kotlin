@@ -63,7 +63,33 @@ struct CodegenBackendCharCompareToTests {
             println('A'.compareTo('A'))
         }
         """
-        try assertKotlinOutput(source, moduleName: "CharCompareTo", expected: "25\n-25\n0\n")
+        try assertKotlinOutput(source, moduleName: "CharCompareTo", expected: "1\n-1\n0\n")
+    }
+
+    @Test
+    func testCodegenCharCompareToNormalizesUTF16Boundaries() throws {
+        let source = #"""
+        fun compareChars(lhs: Char, rhs: Char): Int = lhs.compareTo(rhs)
+
+        fun main() {
+            println(Char.MAX_VALUE.compareTo(Char.MIN_VALUE))
+            println(Char.MIN_VALUE.compareTo(Char.MAX_VALUE))
+            println(Char.MAX_VALUE.compareTo(Char.MAX_VALUE))
+            println(compareChars('\u7FFF', '\u8000'))
+            println(compareChars('\uD800', '\uDC00'))
+            println(compareChars('\uDFFF', '\uD800'))
+            println(compareChars('\uD800', '\uD800'))
+            println('z' - 'a')
+            println(Char.MAX_VALUE - Char.MIN_VALUE)
+            println('a' < 'z')
+            println(Char.MAX_VALUE > Char.MIN_VALUE)
+        }
+        """#
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharCompareToBoundaries",
+            expected: "1\n-1\n0\n-1\n-1\n1\n0\n25\n65535\ntrue\ntrue\n"
+        )
     }
 }
 #endif

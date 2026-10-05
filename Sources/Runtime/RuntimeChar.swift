@@ -209,7 +209,8 @@ public func kk_char_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
 public func kk_char_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = kk_unbox_char(lhsRaw)
     let rhs = kk_unbox_char(rhsRaw)
-    return lhs - rhs
+    if lhs == rhs { return 0 }
+    return lhs < rhs ? -1 : 1
 }
 
 // New numeric conversion functions
