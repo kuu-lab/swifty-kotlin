@@ -37,6 +37,25 @@ public abstract class AbstractCoroutineContextKey<B : Element, E : B>(
         key === this || topmostKey === key
 }
 
+@SinceKotlin("1.3")
+@ExperimentalStdlibApi
+@Suppress("UNCHECKED_CAST")
+public fun <E : Element> Element.getPolymorphicElement(key: Key<E>): E? {
+    if (key is AbstractCoroutineContextKey<*, *>) {
+        return if (key.isSubKey(this.key)) key.tryCast(this) as? E else null
+    }
+    return if (this.key === key) this as E else null
+}
+
+@SinceKotlin("1.3")
+@ExperimentalStdlibApi
+public fun Element.minusPolymorphicKey(key: Key<*>): CoroutineContext {
+    if (key is AbstractCoroutineContextKey<*, *>) {
+        return if (key.isSubKey(this.key) && key.tryCast(this) != null) EmptyCoroutineContext else this
+    }
+    return if (this.key === key) EmptyCoroutineContext else this
+}
+
 // KSP-1145: EmptyCoroutineContext's public behavior is pure Kotlin stdlib
 // semantics. The compiler/runtime context bridges remain responsible for
 // context values that contain runtime-owned elements.

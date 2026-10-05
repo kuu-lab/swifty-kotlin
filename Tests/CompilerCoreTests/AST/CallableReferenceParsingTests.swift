@@ -6,6 +6,60 @@ import Testing
 @Suite
 struct CallableReferenceParsingTests {
     @Test(arguments: [
+        "Box<String>::echo", "pkg.Box<String>::echo", "Outer.Box<List<String?>>::echo",
+        "Box<*>::echo", "Box<out String>::echo", "Box<(Int) -> String>::echo",
+    ])
+    func explicitTypeReceiverPreservesTypeArguments(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            diagnostics: lexed.diagnostics
+        )
+        let exprID = try #require(parser.parse())
+        guard case let .callableRef(receiver, member, range) = arena.expr(exprID) else {
+            Issue.record("Expected a callable reference, not a comparison.")
+            return
+        }
+        #expect(receiver != nil)
+        #expect(lexed.interner.resolve(member) == "echo")
+        #expect(range.start.offset == 0)
+        #expect(range.end.offset == source.utf8.count)
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+        #expect(parser.current() == nil)
+        let typeRef = try #require(arena.callableRefReceiverTypeRef(for: exprID))
+        guard case let .named(path, args, nullable) = arena.typeRef(typeRef) else {
+            Issue.record("Expected a named type receiver.")
+            return
+        }
+        #expect(lexed.interner.resolve(try #require(path.last)) == "Box")
+        #expect(args.count == 1)
+        #expect(!nullable)
+        let encoded = try JSONEncoder().encode(arena.snapshot())
+        let restored = ASTArena(snapshot: try JSONDecoder().decode(ASTArenaSnapshot.self, from: encoded))
+        #expect(restored.callableRefReceiverTypeRef(for: exprID) == typeRef)
+        #expect(restored.typeRef(typeRef) == arena.typeRef(typeRef))
+    }
+
+    @Test(arguments: ["a < b", "a > b", "a < b && c > d", "Box<String>()::echo", "box::echo"])
+    func ordinaryExpressionsDoNotAcquireTypeReceivers(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            diagnostics: lexed.diagnostics
+        )
+        _ = try #require(parser.parse())
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+        #expect(parser.current() == nil)
+        #expect(arena.snapshot().callableRefReceiverTypeRefs.isEmpty)
+    }
+
+    @Test(arguments: [
         "::", "x::", "println(\"d\")::",
         "(::)", "(x::)", "consume(::)", "consume(x::)",
         "consume(::, 1)", "consume(x::, 1)", "(:: + 1)", "(x:: + 1)",

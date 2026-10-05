@@ -45,7 +45,7 @@ struct SoftKeywordLocalDeclarationNameTests {
 
     private func localFunDeclNames(_ ast: ASTModule, _ ctx: CompilationContext) -> [String] {
         ast.arena.exprs.compactMap { expr in
-            guard case let .localFunDecl(name, _, _, _, _, _) = expr else { return nil }
+            guard case let .localFunDecl(name, _, _, _, _, _, _) = expr else { return nil }
             return ctx.interner.resolve(name)
         }
     }
@@ -131,6 +131,22 @@ struct SoftKeywordLocalDeclarationNameTests {
             localFunDeclNames(ast, ctx) == ["out"],
             "the local function must be named out, not its return type; got \(localFunDeclNames(ast, ctx))"
         )
+    }
+
+    @Test
+    func localExtensionNamedOutPreservesReceiver() throws {
+        let (ast, ctx) = try buildAST(from: """
+        fun f(): Int {
+            fun Int.out(): Int = this
+            return 7.out()
+        }
+        """)
+        let receivers = ast.arena.exprs.compactMap { expr -> TypeRefID? in
+            guard case let .localFunDecl(_, receiver, _, _, _, _, _) = expr else { return nil }
+            return receiver
+        }
+        #expect(localFunDeclNames(ast, ctx) == ["out"])
+        #expect(receivers.count == 1)
     }
 
     /// Declarations inside a block expression reach a third copy of the same

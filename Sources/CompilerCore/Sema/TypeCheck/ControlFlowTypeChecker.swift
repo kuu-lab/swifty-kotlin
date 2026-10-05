@@ -286,7 +286,8 @@ final class ControlFlowTypeChecker {
             bodyExpr,
             ctx: ctx.copying(loopDepth: ctx.loopDepth + 1, loopLabelStack: newLabelStack),
             locals: &bodyLocals,
-            expectedType: nil
+            expectedType: nil,
+            isStatementContext: true
         )
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
@@ -316,7 +317,7 @@ final class ControlFlowTypeChecker {
         )
         // Smart cast: apply condition branching to the while body (P5-66)
         let branch = ctx.dataFlow.branchOnCondition(
-            conditionExpr, base: ctx.flowState, locals: locals,
+            conditionExpr, base: ctx.flowState.includingMembers(from: locals), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
         )
         var bodyLocals = locals
@@ -328,7 +329,8 @@ final class ControlFlowTypeChecker {
             bodyExpr,
             ctx: bodyCtx,
             locals: &bodyLocals,
-            expectedType: nil
+            expectedType: nil,
+            isStatementContext: true
         )
         let resultType = if isConstantTrueCondition(conditionExpr, ast: ast) && !containsBreakTargetingCurrentLoop(bodyExpr, loopLabelStack: [label], ast: ast) {
             sema.types.nothingType
@@ -363,7 +365,8 @@ final class ControlFlowTypeChecker {
             bodyExpr,
             ctx: bodyCtx,
             locals: &bodyLocals,
-            expectedType: nil
+            expectedType: nil,
+            isStatementContext: true
         )
         let conditionType = driver.inferExpr(conditionExpr, ctx: ctx, locals: &bodyLocals, expectedType: boolType)
         driver.emitSubtypeConstraint(
@@ -577,7 +580,8 @@ final class ControlFlowTypeChecker {
         elseExpr: ExprID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        isStatementContext: Bool = false
     ) -> TypeID {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -595,19 +599,19 @@ final class ControlFlowTypeChecker {
             )
         }
         let branch = ctx.dataFlow.branchOnCondition(
-            condition, base: ctx.flowState, locals: locals,
+            condition, base: ctx.flowState.includingMembers(from: locals), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
         )
         var thenLocals = locals
         driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &thenLocals, sema: sema)
         let thenCtx = ctx.copying(flowState: branch.trueState)
-        let thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType)
+        let thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType, isStatementContext: isStatementContext || elseExpr == nil)
         let resolvedType: TypeID
         if let elseExpr {
             var elseLocals = locals
             driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &elseLocals, sema: sema)
             let elseCtx = ctx.copying(flowState: branch.falseState)
-            let elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
+            let elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
             resolvedType = sema.types.lub([thenType, elseType])
             // A branch typed `Nothing` (ends in `return`/`throw`/`break`/`continue`)
             // never completes normally, so it vacuously satisfies initialization:
@@ -645,7 +649,8 @@ final class ControlFlowTypeChecker {
         finallyExpr: ExprID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        isStatementContext: Bool = false
     ) -> TypeID {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -654,7 +659,7 @@ final class ControlFlowTypeChecker {
         var normalCompletionLocals: [LocalBindings] = []
 
         var tryBodyLocals = preTryLocals
-        let tryBodyType = driver.inferExpr(body, ctx: ctx, locals: &tryBodyLocals, expectedType: expectedType)
+        let tryBodyType = driver.inferExpr(body, ctx: ctx, locals: &tryBodyLocals, expectedType: expectedType, isStatementContext: isStatementContext)
         branchTypes.append(tryBodyType)
         if tryBodyType != sema.types.nothingType {
             normalCompletionLocals.append(tryBodyLocals)
@@ -687,7 +692,7 @@ final class ControlFlowTypeChecker {
                 clause.body,
                 binding: CatchClauseBinding(parameterSymbol: catchParamSymbol, parameterType: catchParamType)
             )
-            let catchType = driver.inferExpr(clause.body, ctx: ctx, locals: &catchLocals, expectedType: expectedType)
+            let catchType = driver.inferExpr(clause.body, ctx: ctx, locals: &catchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
             branchTypes.append(catchType)
             if catchType != sema.types.nothingType {
                 normalCompletionLocals.append(catchLocals)
@@ -697,7 +702,7 @@ final class ControlFlowTypeChecker {
         if let finallyExpr {
             // Finally is always checked for side effects, but it does not participate in try-expr type inference.
             var finallyLocals = locals
-            _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil)
+            _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
             locals = finallyLocals
         }
 

@@ -275,20 +275,20 @@ final class ExprTypeChecker {
             return sema.types.nothingType
 
         case let .ifExpr(condition, thenExpr, elseExpr, _):
-            return driver.controlFlowChecker.inferIfExpr(id, condition: condition, thenExpr: thenExpr, elseExpr: elseExpr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            return driver.controlFlowChecker.inferIfExpr(id, condition: condition, thenExpr: thenExpr, elseExpr: elseExpr, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
 
         case let .tryExpr(body, catchClauses, finallyExpr, _):
-            return driver.controlFlowChecker.inferTryExpr(id, body: body, catchClauses: catchClauses, finallyExpr: finallyExpr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            return driver.controlFlowChecker.inferTryExpr(id, body: body, catchClauses: catchClauses, finallyExpr: finallyExpr, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
 
         case let .binary(op, lhsID, rhsID, range):
             return inferBinaryExpr(id, op: op, lhsID: lhsID, rhsID: rhsID, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .call(calleeID, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics, usageRange: range)
             return driver.callChecker.inferCallExpr(id, calleeID: calleeID, args: args, range: range, ctx: ctx, locals: &locals, expectedType: expectedType, explicitTypeArgs: explicitTypeArgs)
 
         case let .memberCall(receiverID, calleeName, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics, usageRange: range)
             return driver.callChecker.inferMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
                 args: args, range: range, ctx: ctx, locals: &locals,
@@ -349,7 +349,7 @@ final class ExprTypeChecker {
             return type
 
         case let .isCheck(exprID, typeRefID, negated, range):
-            _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            let subjectType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
             // Resolve the target type and validate it (P5-101)
             let targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
@@ -361,6 +361,18 @@ final class ExprTypeChecker {
                 inferenceContext: ctx,
                 usageRange: range
             )
+            if case .functionType = sema.types.kind(of: targetType),
+               !sema.types.isSubtype(
+                   sema.types.makeNonNullable(subjectType),
+                   sema.types.makeNonNullable(targetType)
+               )
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-ERASED-TYPE",
+                    "Cannot check for instance of erased type '\(sema.types.renderType(targetType))': function parameter and return types are not available at runtime.",
+                    range: range
+                )
+            }
             if case let .typeParam(typeParam) = sema.types.kind(of: targetType),
                let typeParameterSymbol = sema.symbols.symbol(typeParam.symbol),
                !typeParameterSymbol.flags.contains(.reifiedTypeParameter)
@@ -464,7 +476,7 @@ final class ExprTypeChecker {
             return type
 
         case let .safeMemberCall(receiverID, calleeName, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics, usageRange: range)
             return driver.callChecker.inferSafeMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
                 args: args, range: range, ctx: ctx, locals: &locals,
@@ -553,8 +565,8 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
 
-        case let .localFunDecl(name, valueParams, returnTypeRef, body, isSuspend, range):
-            return driver.localDeclChecker.inferLocalFunDeclExpr(id, name: name, valueParams: valueParams, returnTypeRef: returnTypeRef, body: body, isSuspend: isSuspend, range: range, ctx: ctx, locals: &locals)
+        case let .localFunDecl(name, receiverTypeRef, valueParams, returnTypeRef, body, isSuspend, range):
+            return driver.localDeclChecker.inferLocalFunDeclExpr(id, name: name, receiverTypeRef: receiverTypeRef, valueParams: valueParams, returnTypeRef: returnTypeRef, body: body, isSuspend: isSuspend, range: range, ctx: ctx, locals: &locals)
 
         case let .localNominalDecl(declID, range):
             return inferLocalNominalDeclExpr(id, declID: declID, range: range, ctx: ctx, locals: &locals)
