@@ -256,6 +256,7 @@ public struct ObjectDecl: Codable {
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
     public let superTypes: [TypeRefID]
+    public let superTypeEntries: [SuperTypeEntry]
     /// Arguments of the superclass constructor invocation in the object
     /// header (`object : Base(n) { ... }`).
     public let superTypeConstructorArgs: [CallArgument]
@@ -273,6 +274,7 @@ public struct ObjectDecl: Codable {
         modifiers: Modifiers,
         annotations: [AnnotationNode] = [],
         superTypes: [TypeRefID] = [],
+        superTypeEntries: [SuperTypeEntry] = [],
         superTypeConstructorArgs: [CallArgument] = [],
         nestedTypeAliases: [TypeAliasDecl] = [],
         initBlocks: [FunctionBody] = [],
@@ -287,6 +289,9 @@ public struct ObjectDecl: Codable {
         self.modifiers = modifiers
         self.annotations = annotations
         self.superTypes = superTypes
+        self.superTypeEntries = superTypeEntries.isEmpty
+            ? superTypes.map { SuperTypeEntry(typeRef: $0) }
+            : superTypeEntries
         self.superTypeConstructorArgs = superTypeConstructorArgs
         self.nestedTypeAliases = nestedTypeAliases
         self.initBlocks = initBlocks
