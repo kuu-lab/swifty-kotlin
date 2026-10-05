@@ -35,6 +35,21 @@ extension CallLowerer {
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
 
+        if sema.bindings.callableValueCalls[exprID]?.extensionCallableExpr != nil {
+            let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let result = tryLowerLexicalExtensionCallableInvocation(
+                exprID,
+                receiverExpr: receiverExpr,
+                loweredReceiverID: receiver,
+                calleeName: calleeName,
+                args: args,
+                shared: shared,
+                emit: &instructions
+            ) {
+                return result
+            }
+        }
+
         if sema.bindings.isInvokeOperatorCall(exprID),
            let property = sema.bindings.identifierSymbol(for: exprID),
            sema.symbols.symbol(property)?.kind == .property,

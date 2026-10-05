@@ -28,6 +28,11 @@ final class CallSupportLowerer {
                 collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
             }
         }
+        for expr in ast.arena.snapshot().expressions {
+            if case let .localNominalDecl(declID, _) = expr {
+                collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
+            }
+        }
         return mapping
     }
 
@@ -203,6 +208,14 @@ final class CallSupportLowerer {
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
+
+        driver.objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: originalSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        )
 
         for capture in captures {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
