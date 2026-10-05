@@ -135,6 +135,15 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        if case let .functionType(functionType) = sema.types.kind(of: lookupReceiverType),
+           sema.bindings.callableRefKind(for: receiverID) != nil
+            || sema.bindings.identifierSymbol(for: receiverID).map({ sema.bindings.inferredCallableReferenceSymbols.contains($0) }) == true,
+           let result = inferCallableReferenceMember(
+               id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
+               args: args, safeCall: safeCall, ctx: ctx, locals: &locals
+           ) {
+            return result
+        }
         // `f.invoke(...)` where `f`'s own type is a function type
         // (`(Int) -> Int`, `Int.(Int) -> Int`, ...) has no nominal owner at
         // all -- `allNominalSymbolsImpl` (Helpers+TypeArgsAndMemberLookup.swift)
@@ -2058,6 +2067,13 @@ extension CallTypeChecker {
             hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
             ctx: ctx
         )
+        // Ambiguous applicable members retain precedence over extensions.
+        if let diagnostic = resolved.diagnostic,
+           diagnostic.code == "KSWIFTK-SEMA-0003"
+        {
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
         // A same-named member that cannot accept the call must not hide an
         // applicable extension. Only retried after ordinary resolution failed, so
         // a viable member (including range/lambda arguments whose provisional
@@ -2591,6 +2607,7 @@ extension CallTypeChecker {
         // through this path, so their `callsInPlace` contracts must be applied
         // here too (not just for the unqualified-call path in CallTypeChecker.swift).
         applyContractEffects(
+            id: id,
             chosen: chosen,
             args: args,
             ctx: ctx,
@@ -3333,6 +3350,7 @@ extension CallTypeChecker {
         contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(
+            id: id,
             chosen: chosen,
             args: args,
             ctx: ctx,

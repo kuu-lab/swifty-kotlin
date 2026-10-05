@@ -615,7 +615,8 @@ extension LambdaLowerer {
         // would add a closure parameter that its entry point does not accept.
         if let semanticSymbol = sema.symbols.symbol(symbol),
            semanticSymbol.kind == .local,
-           semanticSymbol.flags.contains(.mutable)
+           (semanticSymbol.flags.contains(.mutable)
+               || sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol))
         {
             if let existingCell = driver.ctx.mutableCaptureCell(for: symbol) {
                 return existingCell

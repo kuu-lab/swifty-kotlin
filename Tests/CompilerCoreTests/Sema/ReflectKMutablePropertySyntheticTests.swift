@@ -97,7 +97,7 @@ struct ReflectKMutablePropertySyntheticTests {
 
         let setterInfo = try #require(sema.symbols.symbol(setterSymbol))
         #expect(setterInfo.kind == .interface)
-        #expect(setterInfo.flags.contains(.synthetic))
+        #expect(!setterInfo.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: setterSymbol)
         #expect(typeParams.count == 1)
@@ -123,7 +123,8 @@ struct ReflectKMutablePropertySyntheticTests {
         ))
         let setterPropInfo = try #require(sema.symbols.symbol(setterPropSymbol))
         #expect(setterPropInfo.kind == .property)
-        #expect(setterPropInfo.flags.contains(.synthetic))
+        #expect(!setterPropInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(setterPropSymbol))
         #expect(sema.symbols.parentSymbol(for: setterPropSymbol) == kMutablePropertySymbol)
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kMutablePropertySymbol)

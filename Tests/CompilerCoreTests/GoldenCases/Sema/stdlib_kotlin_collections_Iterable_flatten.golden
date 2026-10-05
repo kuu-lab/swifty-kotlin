@@ -11,9 +11,9 @@ expr e@1:67 name(values) type=kotlin.collections.Iterable<kotlin.collections.Ite
 expr e@1:67#1 memberCall recv=e@1:67 callee=flatten args=[] type=kotlin.collections.List<Int> call=kotlin.collections.flatten[kind=fun;recv=kotlin.collections.Iterable<kotlin.collections.Iterable<T0>>;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
 expr e@4:49 int(1) type=Int
 expr e@4:52 int(2) type=Int
-expr e@4:42 call callee=e@4:42#1 args=[_:e@4:49,_:e@4:52] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@4:42 call callee=e@4:42#1 args=[_:e@4:49,_:e@4:52] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@4:63 int(3) type=Int
-expr e@4:56 call callee=e@4:56#1 args=[_:e@4:63] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@4:56 call callee=e@4:56#1 args=[_:e@4:63] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@4:35 call callee=e@4:35#1 args=[_:e@4:42,_:e@4:56] type=kotlin.collections.List<kotlin.collections.List<Int>> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[kotlin.collections.List<Int>]
 expr e@4:5 localDecl nested mutable=0 type=List<List<Int>> init=e@4:35 type=Unit ref=__local_0.nested[kind=local;type=kotlin.collections.List<kotlin.collections.List<Int>>;origin=fixture]
 expr e@5:45 name(nested) type=kotlin.collections.List<kotlin.collections.List<Int>> ref=__local_0.nested[kind=local;type=kotlin.collections.List<kotlin.collections.List<Int>>;origin=fixture]
@@ -21,7 +21,7 @@ expr e@5:5 localDecl iterable mutable=0 type=Iterable<Iterable<Int>> init=e@5:45
 expr e@6:50 call callee=e@6:50#1 args=[] type=kotlin.collections.List<out Int> call=kotlin.collections.emptyList[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
 expr e@6:75 int(4) type=Int
 expr e@6:78 int(5) type=Int
-expr e@6:68 call callee=e@6:68#1 args=[_:e@6:75,_:e@6:78] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@6:68 call callee=e@6:68#1 args=[_:e@6:75,_:e@6:78] type=kotlin.collections.Iterable<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@6:43 call callee=e@6:43#1 args=[_:e@6:50,_:e@6:68] type=kotlin.collections.List<kotlin.collections.Iterable<Int>> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[kotlin.collections.Iterable<Int>]
 expr e@6:5 localDecl typedInner mutable=0 type=List<Iterable<Int>> init=e@6:43 type=Unit ref=__local_2.typedInner[kind=local;type=kotlin.collections.List<kotlin.collections.Iterable<Int>>;origin=fixture]
 expr e@8:13 name(nested) type=kotlin.collections.List<kotlin.collections.List<Int>> ref=__local_0.nested[kind=local;type=kotlin.collections.List<kotlin.collections.List<Int>>;origin=fixture]

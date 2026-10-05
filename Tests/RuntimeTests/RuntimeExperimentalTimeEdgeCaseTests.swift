@@ -233,7 +233,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
 
     @Test func plusDurationSaturatesAtInt64Max() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let infiniteDuration = durationFromNanoseconds(Int(Int64.max))
+        let infiniteDuration = kk_duration_infinite()
         let saturatedMark = timeMarkPlusDuration(mark, infiniteDuration)
         // The result must be a valid handle (non-zero).
         #expect(saturatedMark != 0,
@@ -246,7 +246,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
 
     @Test func minusDurationSaturatesAtInt64Min() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let infiniteDuration = durationFromNanoseconds(Int(Int64.max))
+        let infiniteDuration = kk_duration_infinite()
         let saturatedMark = timeMarkMinusDuration(mark, infiniteDuration)
         #expect(saturatedMark != 0,
             "Saturated TimeMark from - Duration.INFINITE must yield a valid handle")
@@ -258,7 +258,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
 
     @Test func minusMarkOnSaturatedMarksDoesNotCrash() {
         let a = kk_time_source_monotonic_mark_now(0)
-        let inf = durationFromNanoseconds(Int(Int64.max))
+        let inf = kk_duration_infinite()
         let maxMark = timeMarkPlusDuration(a, inf)
         let minMark = timeMarkMinusDuration(a, inf)
         let diff = timeMarkMinusMark(maxMark, minMark)

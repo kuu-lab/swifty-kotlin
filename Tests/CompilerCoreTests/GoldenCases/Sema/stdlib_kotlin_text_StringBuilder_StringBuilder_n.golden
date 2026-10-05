@@ -43,7 +43,7 @@ expr e@10:20 name(byteValue) type=Byte ref=__local_3.byteValue[kind=local;type=B
 expr e@10:5#1 memberCall recv=e@10:5 callee=append args=[_:e@10:20] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append[kind=fun;recv=kotlin.text.StringBuilder;params=Byte;ret=kotlin.text.StringBuilder;names=[value]]
 expr e@11:5 name(builder) type=kotlin.text.StringBuilder ref=__local_0.builder[kind=local;type=kotlin.text.StringBuilder;origin=fixture]
 expr e@11:20 name(chars) type=kotlin.CharArray ref=__local_2.chars[kind=local;type=kotlin.CharArray;origin=fixture]
-expr e@11:5#1 memberCall recv=e@11:5 callee=append args=[_:e@11:20] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append[kind=fun;recv=kotlin.text.StringBuilder;params=kotlin.CharArray;ret=kotlin.text.StringBuilder;names=[value]]
+expr e@11:5#1 memberCall recv=e@11:5 callee=append args=[_:e@11:20] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append[kind=fun;recv=kotlin.text.StringBuilder;params=kotlin.CharArray?;ret=kotlin.text.StringBuilder;names=[value]]
 expr e@12:5 name(builder) type=kotlin.text.StringBuilder ref=__local_0.builder[kind=local;type=kotlin.text.StringBuilder;origin=fixture]
 expr e@12:20 name(shortValue) type=Short ref=__local_4.shortValue[kind=local;type=Short;origin=fixture]
 expr e@12:5#1 memberCall recv=e@12:5 callee=append args=[_:e@12:20] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append[kind=fun;recv=kotlin.text.StringBuilder;params=Short;ret=kotlin.text.StringBuilder;names=[value]]

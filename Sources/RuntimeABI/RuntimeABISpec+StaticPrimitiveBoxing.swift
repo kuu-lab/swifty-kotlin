@@ -4,6 +4,8 @@ public extension RuntimeABISpec {
     /// box while using the tagged-handle fast path.
     static let staticPrimitiveBoxingFunctions: [RuntimeABIFunctionSpec] = [
         "kk_box_int_static",
+        "kk_box_byte_static",
+        "kk_box_short_static",
         "kk_box_uint_static",
         "kk_box_ubyte_static",
         "kk_box_ushort_static",
