@@ -896,11 +896,15 @@ extension TypeSystem {
         else {
             return nil
         }
-        let arguments = classType.args.compactMap { argument -> TypeID? in
+        let arguments = classType.args.enumerated().compactMap { index, argument -> TypeID? in
             switch argument {
-            case let .invariant(type), let .in(type), let .out(type):
+            case let .invariant(type):
                 return type
-            case .star:
+            case let .in(type) where index < arity:
+                return type
+            case let .out(type) where index == arity:
+                return type
+            default:
                 return nil
             }
         }

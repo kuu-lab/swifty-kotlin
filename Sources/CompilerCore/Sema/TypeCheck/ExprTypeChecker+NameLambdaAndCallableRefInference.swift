@@ -1196,6 +1196,7 @@ extension ExprTypeChecker {
         } else if let expectedType, let functionType = sema.types.nominalFunctionType(for: expectedType) {
             expectedFunctionType = functionType
             samConversion = false
+            sema.bindings.bindNominalFunctionExpectedType(id, type: expectedType)
         } else if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
             expectedFunctionType = samFT
             samConversion = true
@@ -1435,7 +1436,7 @@ extension ExprTypeChecker {
             return expectedType
         }
 
-        if let expectedType, let expectedFunctionType {
+        if let expectedFunctionType {
             if let session = ctx.builderInference,
                expectedFunctionType.returnType != sema.types.unitType,
                session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
@@ -1559,6 +1560,10 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let outerSymbols = Set(locals.values.map(\.symbol))
+
+        if let expectedType, sema.types.nominalFunctionType(for: expectedType) != nil {
+            sema.bindings.bindNominalFunctionExpectedType(id, type: expectedType)
+        }
 
         // ── T::class  — reified type-parameter class reference ──────────
         if member == KnownCompilerNames(interner: interner).className,
@@ -2077,7 +2082,7 @@ extension ExprTypeChecker {
                     sema: sema,
                     diagnostics: ctx.semaCtx.diagnostics
                 )
-                resultType = expectedType ?? expectedFunctionType
+                resultType = expectedSamInterfaceType ?? expectedFunctionType
             }
             sema.bindings.bindAnyToStringCallableRef(id)
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)

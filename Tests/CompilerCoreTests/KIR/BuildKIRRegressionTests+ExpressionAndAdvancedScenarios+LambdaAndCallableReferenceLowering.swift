@@ -34,6 +34,22 @@ extension BuildKIRRegressionTests {
         #expect(widenArguments.allSatisfy(boxedValues.contains))
     }
 
+    @Test func testBuildKIRInfersGenericNominalFunctionArguments() throws {
+        let source = """
+        fun <T, R> nominal(f: Function1<T, R>): (T) -> R = f
+        fun <T> ordinary(f: (T) -> String, value: T): String = f(value)
+        fun main() {
+            val offset = 20
+            println(nominal<Int, Int> { it + offset }(5))
+            val h: Function1<Int, String> = { it.toString() }
+            println(ordinary(h, 6))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testBuildKIRObjectLiteralArgumentIsNotLoweredToUnitPlaceholder() throws {
         let source = """
         interface I

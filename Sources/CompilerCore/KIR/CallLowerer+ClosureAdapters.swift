@@ -427,6 +427,31 @@ extension CallLowerer {
         return makeClosureRawArgument(callableInfo: callableInfo, sema: sema, arena: arena, instructions: &instructions)
     }
 
+    func materializeNominalFunctionValue(
+        _ loweredArgID: KIRExprID,
+        exprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard sema.bindings.nominalFunctionExpectedTypes[exprID] != nil,
+              let type = sema.bindings.exprTypes[exprID],
+              case let .functionType(functionType) = sema.types.kind(of: type)
+        else {
+            return loweredArgID
+        }
+        return materializeFunctionValueArgument(
+            loweredArgID: loweredArgID,
+            argExprID: exprID,
+            functionType: functionType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
     func materializeFunctionValueArgument(
         loweredArgID: KIRExprID,
         argExprID: ExprID,

@@ -3036,7 +3036,7 @@ extension ExprLowerer {
         case let .lambdaLiteral(params, bodyExpr, _, _):
             let allowsNonLocalReturn = driver.ctx.pendingLambdaNonLocalReturnAllowance
             driver.ctx.pendingLambdaNonLocalReturnAllowance = false
-            return driver.lambdaLowerer.lowerLambdaLiteralExpr(
+            let value = driver.lambdaLowerer.lowerLambdaLiteralExpr(
                 exprID,
                 params: params,
                 bodyExpr: bodyExpr,
@@ -3046,6 +3046,14 @@ extension ExprLowerer {
                 arena: arena,
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            return driver.callLowerer.materializeNominalFunctionValue(
+                value,
+                exprID: exprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
                 instructions: &instructions
             )
 
@@ -3120,7 +3128,7 @@ extension ExprLowerer {
                 )
                 return result
             }
-            return driver.lambdaLowerer.lowerCallableRefExpr(
+            let value = driver.lambdaLowerer.lowerCallableRefExpr(
                 exprID,
                 receiverExpr: receiverExpr,
                 memberName: memberName,
@@ -3129,6 +3137,14 @@ extension ExprLowerer {
                 arena: arena,
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            return driver.callLowerer.materializeNominalFunctionValue(
+                value,
+                exprID: exprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
                 instructions: &instructions
             )
 

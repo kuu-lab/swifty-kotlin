@@ -6,6 +6,7 @@ fun assign(f: Function1<Int, String>): String {
 fun forward(f: Function1<Int, String>): String = widen(f)(12)
 fun narrow(f: (Int) -> String): Function1<Int, String> = f
 fun <T, R> generic(f: Function1<T, R>): (T) -> R = f
+fun <T> ordinary(f: (T) -> String, value: T): String = f(value)
 fun zero(f: Function0<Int>): () -> Int = f
 fun two(f: Function2<Int, Int, Int>): (Int, Int) -> Int = f
 fun three(f: Function3<Int, Int, Int, Int>): (Int, Int, Int) -> Int = f
@@ -13,6 +14,8 @@ fun four(f: Function4<Int, Int, Int, Int, Int>): (Int, Int, Int, Int) -> Int = f
 fun five(f: Function5<Int, Int, Int, Int, Int, Int>): (Int, Int, Int, Int, Int) -> Int = f
 fun nullable(f: Function1<Int, String>?): ((Int) -> String)? = f
 fun nullableResult(f: Function1<Int, String?>): (Int) -> String? = f
+fun makeNominal(): Function1<Int, String> = { "return:" + it }
+fun makeReference(): Function1<Int, String> = ::text
 fun text(x: Int): String = "ref:" + x
 
 fun main() {
@@ -33,7 +36,14 @@ fun main() {
     val ref: Function1<Int, String> = ::text
     println(widen(ref)(15))
     println(widen(::text)(16))
+    println(widen(makeNominal())(21))
+    println(widen(makeReference())(22))
+    val toStringRef: Function1<Int, String> = Int::toString
+    println(widen(toStringRef)(23))
+    val sumRef: Function2<Int, Int, Int> = Int::plus
+    println(two(sumRef)(24, 25))
     println(generic<Int, String>(h)(17))
+    println(ordinary(h, 19))
     println(generic<Int, Int> { it + offset }(5))
     println(zero { offset }())
     println(two { a, b -> a * 10 + b }(1, 2))
