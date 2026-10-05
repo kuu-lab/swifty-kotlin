@@ -285,6 +285,23 @@ extension CoroutineLoweringPass {
         return sema.bindings.isCoroutineLauncherLambdaExpr(ExprID(rawValue: exprRaw))
     }
 
+    /// Returns true when `symbol` is a `kk_function_value_adapter_*` — the
+    /// materialization `LambdaLowerer.materializeFunctionValueArgument`
+    /// synthesizes for a suspend function *value*. Adapter thunks take
+    /// `(closureEnv, receiver, outThrown)` where captures ride inside the
+    /// closure env box, so they must not be routed through the
+    /// per-capture launcherArgs convention.
+    func isFunctionValueAdapterSymbol(
+        _ symbol: SymbolID,
+        using rewrite: SuspendRewriteContext
+    ) -> Bool {
+        guard let function = rewrite.module.arena.function(for: symbol) else {
+            return false
+        }
+        return rewrite.ctx.interner.resolve(function.name)
+            .hasPrefix("kk_function_value_adapter_")
+    }
+
     /// STDLIB-CORO-001: Detect whether an expression has the synthetic
     /// `kotlinx.coroutines.CoroutineStart` enum type, used to disambiguate
     /// `launch(start = CoroutineStart.LAZY)` from `launch(Dispatchers.Default)`.
@@ -1444,8 +1461,8 @@ extension CoroutineLoweringPass {
     /// Emits `kk_object_new(2+N, classID: 0)` with `captures` stored at
     /// slots 2... — the packed-environment shape
     /// `CallLowerer.splitCallableLambdaArgument` produces and
-    /// `__kk_produce_launch` expands.
-    private func emitPackedCaptureEnvironment(
+    /// `__kk_produce_launch` / `kk_coroutine_scope_async` expand.
+    func emitPackedCaptureEnvironment(
         _ captures: [KIRExprID],
         using rewrite: SuspendRewriteContext,
         into instructions: inout [KIRInstruction]

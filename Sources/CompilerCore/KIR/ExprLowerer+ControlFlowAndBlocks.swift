@@ -1047,6 +1047,37 @@ extension ExprLowerer {
                     ))
                     return result
                 }
+                // Direct imports of singleton extension properties (such as
+                // Int.Companion.MAX_VALUE) bind to a package-owned property.
+                // Its storage is the getter, not a global slot; supply the
+                // declared singleton receiver when no implicit receiver matched.
+                if sema.symbols.symbol(symbol)?.kind == .property,
+                   let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+                   case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+                   sema.symbols.symbol(receiverClass.classSymbol)?.kind == .object,
+                   let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                {
+                    let receiverSymbol = receiverClass.classSymbol
+                    driver.emitObjectLazyInitGuardIfNeeded(
+                        objectSymbol: receiverSymbol, arena: arena, sema: sema,
+                        instructions: &instructions
+                    )
+                    let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
+                    instructions.append(.constValue(result: receiver, value: .symbolRef(receiverSymbol)))
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiver],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 // For top-level or object-member property symbols, emit loadGlobal so the
                 // backend reads the current value from the global slot.
                 if let sym = sema.symbols.symbol(symbol),
@@ -2084,6 +2115,11 @@ extension ExprLowerer {
 
         case let .returnExpr(value, label, _):
             let targetsFunction = sema.bindings.functionReturnLambdaPaths[exprID] != nil
+            let outerLambdaTarget: KIRReturnTarget? = {
+                guard let target = sema.bindings.lambdaReturnTargets[exprID],
+                      sema.bindings.lambdaReturnLambdaPaths[exprID]?.isEmpty == false else { return nil }
+                return .function(driver.ctx.syntheticLambdaSymbol(for: target))
+            }()
             // A labeled return targeting a lambda body inlined into a loop (e.g. `repeat`)
             // ends only that iteration: run the inner `finally` blocks, then jump.
             if !targetsFunction, let label, let iterationEnd = driver.ctx.continueLabel(for: label) {
@@ -2132,7 +2168,9 @@ extension ExprLowerer {
                 } else {
                     returnValue = lowered
                 }
-                if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                if let outerLambdaTarget {
+                    instructions.append(.nonLocalReturn(returnValue, target: outerLambdaTarget))
+                } else if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
                     instructions.append(.nonLocalReturn(returnValue, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
@@ -2143,7 +2181,9 @@ extension ExprLowerer {
                     instructions.append(.returnValue(returnValue))
                 }
             } else {
-                if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                if let outerLambdaTarget {
+                    instructions.append(.nonLocalReturn(nil, target: outerLambdaTarget))
+                } else if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
                     instructions.append(.nonLocalReturn(nil, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(

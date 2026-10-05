@@ -205,7 +205,8 @@ extension InlineLoweringPass {
             default: return count
             }
         }
-        let needsMergeLabel = returnCount > 1
+        let ownsNonLocalReturn = nonLocalReturnTargets.contains(.function(lambdaFunction.symbol))
+        let needsMergeLabel = returnCount > 1 || ownsNonLocalReturn
         let exitLabel: Int32
         var mergeResult: KIRExprID?
         if needsMergeLabel {
@@ -216,7 +217,7 @@ extension InlineLoweringPass {
                 if case .returnValue = $0 { return true }
                 return false
             }
-            if hasValueReturn {
+            if hasValueReturn || ownsNonLocalReturn {
                 // Allocate a fresh merge temporary for the returned value.
                 // Uses the lambda's declared return type so later passes see
                 // a properly typed merge expression.
@@ -224,6 +225,12 @@ extension InlineLoweringPass {
                 let mergeID = module.arena.appendTemporary(type: returnType
                 )
                 mergeResult = mergeID
+                if ownsNonLocalReturn {
+                    returnedExpr = mergeID
+                    lowered.append(.beginNonLocalReturnScope(
+                        value: mergeID, target: exitLabel, function: .function(lambdaFunction.symbol)
+                    ))
+                }
             }
         } else {
             exitLabel = -1
@@ -504,6 +511,7 @@ extension InlineLoweringPass {
         // Emit merge label so all branches converge after the inlined body.
         if needsMergeLabel {
             lowered.append(.label(exitLabel))
+            if ownsNonLocalReturn { lowered.append(.endNonLocalReturnScope) }
         }
 
         guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }

@@ -141,6 +141,7 @@ extension CallTypeChecker {
         // accumulator type is only pinned down by the first lambda's return type.
         var argTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
         for (index, argument) in args.enumerated() {
+            defer { ctx.dataFlow.localStability.inPlaceLambdaScopes.remove(argument.expr) }
             if let override = expectedTypeOverrides[index] {
                 contextualArgExpectedTypes[index] = override
             } else if let argumentExpr = ast.arena.expr(argument.expr) {
@@ -187,6 +188,20 @@ extension CallTypeChecker {
                         sema: sema
                     )
                 case let .lambdaLiteral(lambdaParams, _, _, _):
+                    // Prove non-escaping invocation before checking the lambda body.
+                    if !expectedTypeCandidates.isEmpty, expectedTypeCandidates.allSatisfy({ candidate in
+                        guard let signature = sema.symbols.functionSignature(for: candidate),
+                              argument.label != nil || signature.parameterTypes.count == args.count,
+                              let parameterIndex = parameterIndexForCallArgument(
+                                  at: index, label: argument.label, in: signature, sema: sema
+                              )
+                        else { return false }
+                        return ctx.dataFlow.localStability.isInPlaceParameter(
+                            parameterIndex, function: candidate, sema: sema
+                        )
+                    }) {
+                        ctx.dataFlow.localStability.inPlaceLambdaScopes.insert(argument.expr)
+                    }
                     let expectation = lambdaLiteralExpectedType(
                         at: index,
                         argumentCount: args.count,

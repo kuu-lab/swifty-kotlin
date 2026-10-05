@@ -632,6 +632,7 @@ final class ObjectLiteralLowerer {
         }
         if let owner = sema.symbols.parentSymbol(for: symbol),
            let receiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
+               ?? driver.ctx.capturedOuterReceiverExprID(reaching: owner, sema: sema)
         {
             return receiver
         }
@@ -804,6 +805,10 @@ final class ObjectLiteralLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        emitKClassDisplayNameRegistration(
+            symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
 
         // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(

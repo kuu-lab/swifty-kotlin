@@ -1009,8 +1009,8 @@ struct ABIMismatchTests {
     func kkSuspendFunctionInvokeThreeAritySignature() throws {
         let spec = try requireSpec("kk_suspend_function_invoke_3")
         #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "arg3", "outThrown"])
-        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
+        #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "arg3", "continuation", "outThrown"])
+        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
     }
 
     @Test

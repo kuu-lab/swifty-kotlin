@@ -102,12 +102,16 @@ extension LambdaLowerer {
         }
         let memberSymbol = sema.bindings.callBinding(for: exprID)?.chosenCallee
             ?? sema.bindings.identifierSymbols[exprID]
+        // An inherited member's declared owner (e.g. `Base`) has no captured
+        // receiver of its own inside a member extension; the dispatch receiver
+        // is registered under the enclosing class (`Derived`), so record the
+        // owner that actually reaches it or the lambda loses the receiver.
         if let memberSymbol,
            let owner = sema.symbols.parentSymbol(for: memberSymbol),
-           driver.ctx.capturedOuterReceiverExprID(for: owner) != nil,
-           seen.insert(owner).inserted
+           let receiverOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
+           seen.insert(receiverOwner).inserted
         {
-            referenced.append(owner)
+            referenced.append(receiverOwner)
         }
         if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
            seen.insert(symbol).inserted
@@ -302,6 +306,14 @@ extension LambdaLowerer {
             {
                 referenced.append(symbol)
             }
+            // A member-extension call whose extension receiver Sema picked
+            // from an outer tower entry reads that receiver value; a nested
+            // lambda must capture it the same way.
+            if let symbol = sema.bindings.implicitExtensionReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
             collectBoundIdentifierSymbols(in: calleeExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             for argument in args {
                 collectBoundIdentifierSymbols(in: argument.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
@@ -411,6 +423,11 @@ extension LambdaLowerer {
 
         case let .callableRef(receiverExpr, _, _):
             if let symbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
+            if let symbol = sema.bindings.implicitExtensionReceiver(for: exprID),
                seen.insert(symbol).inserted
             {
                 referenced.append(symbol)

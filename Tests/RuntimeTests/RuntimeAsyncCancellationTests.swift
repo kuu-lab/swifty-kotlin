@@ -56,7 +56,7 @@ struct RuntimeAsyncCancellationTests {
             handle = withContinuation ? kk_kxmini_async_atomic_with_cont(entry, continuation) : kk_kxmini_async_atomic(entry, 9700)
         default:
             let start = mode == "scopeLazy" ? 1 : (mode == "scopeAtomic" ? 2 : 0)
-            handle = kk_coroutine_scope_async_with_cont(scope, 0, start, entry, continuation)
+            handle = kk_coroutine_scope_async_with_cont(scope, 0, start, entry, continuation, 0)
         }
         let task = try #require(runtimeAsyncTask(from: handle))
         // Exercise cancellation after a LAZY start has enqueued work, too.

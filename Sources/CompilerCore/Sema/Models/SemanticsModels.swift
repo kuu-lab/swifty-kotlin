@@ -234,7 +234,7 @@ public enum ContractReturnCondition: String, Equatable, Sendable {
 }
 
 public enum ContractArgumentCondition: String, Equatable, Sendable {
-    case nonNull, booleanTrue, booleanFalse
+    case nonNull, booleanTrue, booleanFalse, isType
 }
 
 public struct ContractImplicationEffect: Equatable, Sendable {
@@ -242,10 +242,15 @@ public struct ContractImplicationEffect: Equatable, Sendable {
     public let returnCondition: ContractReturnCondition
     public let argumentCondition: ContractArgumentCondition
 
-    public init(parameterIndex: Int, returnCondition: ContractReturnCondition, argumentCondition: ContractArgumentCondition) {
+    public let targetType: TypeID?
+    public let targetTypeSignature: String?
+
+    public init(parameterIndex: Int, returnCondition: ContractReturnCondition, argumentCondition: ContractArgumentCondition, targetType: TypeID? = nil, targetTypeSignature: String? = nil) {
         self.parameterIndex = parameterIndex
         self.returnCondition = returnCondition
         self.argumentCondition = argumentCondition
+        self.targetType = targetType
+        self.targetTypeSignature = targetTypeSignature
     }
 }
 
@@ -767,6 +772,12 @@ public final class SymbolTable {
                 if isExtensionProperty { declaredExtensionProperties.insert(id) }
                 return id
             }
+            // When a classifier coexists with a factory, a duplicate classifier
+            // must reuse the classifier rather than the first (possibly callable) entry.
+            if isNominalType(kind) || kind == .typeAlias,
+               let matching = existingSymbols.first(where: { $0.kind == kind }) {
+                return matching.id
+            }
             return existing[0]
         }
         let id = appendNewSymbol(
@@ -881,6 +892,10 @@ public final class SymbolTable {
             return existingNonPackageKinds.allSatisfy {
                 isCallableLike($0) || isNominalType($0) || $0 == .typeAlias || $0 == .property
             }
+        }
+        // Classifiers and factory functions must coexist in either registration order.
+        if isNominalType(kind) || kind == .typeAlias {
+            return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
         }
         guard isOverloadable(kind) else {
             return false
@@ -1628,8 +1643,11 @@ public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
-    /// Lambda boundaries crossed by a return targeting an enclosing named function.
+    /// Actual lambda destination and the boundaries crossed to reach it.
     /// Validated after overload resolution has bound the containing calls.
+    public private(set) var lambdaReturnTargets: [ExprID: ExprID] = [:]
+    public private(set) var lambdaReturnLambdaPaths: [ExprID: [ExprID]] = [:]
+    /// Lambda boundaries crossed by a return targeting an enclosing named function.
     public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
@@ -1780,6 +1798,14 @@ public final class BindingTable {
     /// lowering reads the receiver through the captured value of that symbol
     /// instead of the innermost implicit receiver.
     public private(set) var implicitReceiverOuterReceiverSymbols: [ExprID: SymbolID] = [:]
+    /// For implicit member-extension calls, the receiver-tower entry whose
+    /// value supplies the declared extension receiver argument: e.g. `bump()`
+    /// inside `with("s") { ... }` nested in `fun Int.gapProbe()` picks the
+    /// enclosing `Int` receiver parameter, which capture analysis then routes
+    /// into the lambda so KIR lowering reads the real Int value rather than
+    /// the lambda's own `String` receiver. `implicitReceiverOuterReceiver`
+    /// names the *dispatch* side; this names the *extension* side.
+    public private(set) var implicitExtensionReceiverSymbols: [ExprID: SymbolID] = [:]
     /// Calls resolved through the ambient CoroutineScope of a coroutine builder
     /// need a runtime receiver even though the builder lambda keeps a no-receiver
     /// function ABI.
@@ -1847,6 +1873,11 @@ public final class BindingTable {
     func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
         identifierSymbols[expr] = symbol
         functionReturnLambdaPaths[expr] = lambdaPath
+    }
+
+    func bindLambdaReturn(_ expr: ExprID, target: ExprID, lambdaPath: [ExprID]) {
+        lambdaReturnTargets[expr] = target
+        lambdaReturnLambdaPaths[expr] = lambdaPath
     }
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {
@@ -2429,6 +2460,19 @@ public final class BindingTable {
     /// on, if any. See `implicitReceiverOuterReceiverSymbols`.
     public func implicitReceiverOuterReceiver(for expr: ExprID) -> SymbolID? {
         implicitReceiverOuterReceiverSymbols[expr]
+    }
+
+    /// Record which receiver-tower entry supplies a member extension's
+    /// extension receiver argument. See `implicitExtensionReceiverSymbols`.
+    public func markImplicitExtensionReceiver(_ expr: ExprID, symbol: SymbolID) {
+        implicitExtensionReceiverSymbols[expr] = symbol
+    }
+
+    /// The receiver-tower symbol supplying a member extension's extension
+    /// receiver argument, if Sema recorded one. See
+    /// `implicitExtensionReceiverSymbols`.
+    public func implicitExtensionReceiver(for expr: ExprID) -> SymbolID? {
+        implicitExtensionReceiverSymbols[expr]
     }
 
     public func markCoroutineScopeImplicitReceiverCall(_ expr: ExprID) {

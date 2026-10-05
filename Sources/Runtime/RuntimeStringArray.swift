@@ -1262,6 +1262,17 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        // Raw callable references and adapted closure boxes retain reflection
+        // identity in callable metadata rather than an object allocation tag.
+        let isFunctionReference = runtimeStorage.withDelegateLock { state in
+            state.callableRefMetadataByValue[value]?.kind == .function
+        }
+        if isFunctionReference {
+            registerReflectionRuntimeTypeMetadata()
+            if runtimeIsAssignable(sourceTypeID: kFunctionRuntimeTypeID, targetTypeID: payload) {
+                return 1
+            }
+        }
         if runtimeArrayHasType(rawValue: value, typeID: payload) {
             return 1
         }
@@ -1816,6 +1827,15 @@ public func __kk_kclass_register_metadata_v2(
         isFunInterface: (flags & (1 << 12)) != 0
     )
     runtimeKClassMetadataRegistry.register(typeToken: typeToken, entry: entry)
+    return 0
+}
+
+/// Registers a compiler-derived JVM binary name without changing qualifiedName.
+@_cdecl("__kk_kclass_register_display_name")
+public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw: Int) -> Int {
+    if let displayName = extractString(from: UnsafeMutableRawPointer(bitPattern: displayNameRaw)) {
+        runtimeKClassMetadataRegistry.setDisplayName(typeToken: typeToken, displayName: displayName)
+    }
     return 0
 }
 
@@ -2757,6 +2777,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let instantBox = tryCast(raw, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
+    if let localeBox = tryCast(raw, to: RuntimeLocaleBox.self) {
+        return runtimeLocaleToString(localeBox)
+    }
     if let listBox = runtimeListBox(from: value) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
@@ -2803,6 +2826,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
+    }
+    if let kclassBox = tryCast(raw, to: RuntimeKClassBox.self) {
+        return runtimeKClassToString(kclassBox)
     }
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)

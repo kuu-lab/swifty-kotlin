@@ -166,3 +166,53 @@ public operator fun DoubleArray.component3(): Double = this[2]
 public operator fun DoubleArray.component4(): Double = this[3]
 
 public operator fun DoubleArray.component5(): Double = this[4]
+
+public operator fun <T> Array<out T>.component1(): T = this[0]
+
+public operator fun <T> Array<out T>.component2(): T = this[1]
+
+public operator fun <T> Array<out T>.component3(): T = this[2]
+
+public operator fun <T> Array<out T>.component4(): T = this[3]
+
+public operator fun <T> Array<out T>.component5(): T = this[4]
+
+public operator fun UIntArray.component1(): UInt = this[0]
+
+public operator fun UIntArray.component2(): UInt = this[1]
+
+public operator fun UIntArray.component3(): UInt = this[2]
+
+public operator fun UIntArray.component4(): UInt = this[3]
+
+public operator fun UIntArray.component5(): UInt = this[4]
+
+public operator fun ULongArray.component1(): ULong = this[0]
+
+public operator fun ULongArray.component2(): ULong = this[1]
+
+public operator fun ULongArray.component3(): ULong = this[2]
+
+public operator fun ULongArray.component4(): ULong = this[3]
+
+public operator fun ULongArray.component5(): ULong = this[4]
+
+public operator fun UShortArray.component1(): UShort = this[0]
+
+public operator fun UShortArray.component2(): UShort = this[1]
+
+public operator fun UShortArray.component3(): UShort = this[2]
+
+public operator fun UShortArray.component4(): UShort = this[3]
+
+public operator fun UShortArray.component5(): UShort = this[4]
+
+public operator fun UByteArray.component1(): UByte = this[0]
+
+public operator fun UByteArray.component2(): UByte = this[1]
+
+public operator fun UByteArray.component3(): UByte = this[2]
+
+public operator fun UByteArray.component4(): UByte = this[3]
+
+public operator fun UByteArray.component5(): UByte = this[4]

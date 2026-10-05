@@ -4,6 +4,54 @@ import Testing
 
 @Suite
 struct CompanionClassScopeTests {
+    @Test(arguments: ["", "Factory"])
+    func privateCompanionHelpersResolveFromOwner(companionName: String) throws {
+        let ctx = makeContextFromSource("""
+        class M {
+            fun put(k: String): Int = helper(k)
+            private companion object \(companionName) {
+                private fun helper(s: String): Int = s.length
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let owner = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("M")]))
+        let companion = try #require(sema.symbols.companionObjectSymbol(for: owner))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "put", in: module, interner: ctx.interner)
+        let receivers = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                  let symbol,
+                  sema.symbols.symbol(symbol)?.name == ctx.interner.intern("helper")
+            else { return nil }
+            #expect(sema.symbols.parentSymbol(for: symbol) == companion)
+            return arguments.first
+        }
+        #expect(receivers.count == 1)
+        let receiver = try #require(receivers.first)
+        #expect(module.arena.expr(receiver) == .symbolRef(companion))
+    }
+
+    @Test(arguments: ["", "Factory"])
+    func privateCompanionHelpersRemainInaccessibleOutsideOwner(companionName: String) throws {
+        let ctx = makeContextFromSource("""
+        class M {
+            fun put(k: String): Int = helper(k)
+            private companion object \(companionName) {
+                private fun helper(s: String): Int = s.length
+            }
+        }
+        fun outside(): Int = M.helper("blocked")
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0040" })
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
+    }
+
     @Test func inferredCompanionMembersResolveFromInstanceBodies() throws {
         let ctx = makeContextFromSource("""
         class A {

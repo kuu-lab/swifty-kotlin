@@ -37,43 +37,12 @@ func normalizeLocaleIdentifier(_ identifier: String) -> String {
     identifier.replacingOccurrences(of: "_", with: "-")
 }
 
-private func parseLocaleComponents(_ identifier: String) -> (language: String, country: String, variant: String) {
-    let normalized = normalizeLocaleIdentifier(identifier)
-    let separators = CharacterSet(charactersIn: "-@")
-    let rawParts = normalized
-        .components(separatedBy: separators)
-        .flatMap { $0.components(separatedBy: "_") }
-        .filter { !$0.isEmpty }
-
-    let language = rawParts.indices.contains(0) ? rawParts[0].lowercased() : ""
-    let country = rawParts.indices.contains(1) ? rawParts[1].uppercased() : ""
-    let variant = rawParts.count > 2 ? rawParts.dropFirst(2).joined(separator: "_") : ""
-    return (language, country, variant)
-}
-
 private func localeIdentifier(language: String, country: String, variant: String) -> String {
     var parts: [String] = []
     if !language.isEmpty { parts.append(language.lowercased()) }
     if !country.isEmpty { parts.append(country.uppercased()) }
     if !variant.isEmpty { parts.append(variant) }
     return parts.joined(separator: "-")
-}
-
-private func makeRuntimeLocaleBox(identifier: String) -> RuntimeLocaleBox {
-    let components = parseLocaleComponents(identifier)
-    let canonicalIdentifier = localeIdentifier(
-        language: components.language,
-        country: components.country,
-        variant: components.variant
-    )
-    let foundationIdentifier = canonicalIdentifier.isEmpty ? normalizeLocaleIdentifier(identifier) : canonicalIdentifier
-    return RuntimeLocaleBox(
-        identifier: canonicalIdentifier.isEmpty ? foundationIdentifier : canonicalIdentifier,
-        language: components.language,
-        country: components.country,
-        variant: components.variant,
-        locale: Locale(identifier: foundationIdentifier)
-    )
 }
 
 private func makeRuntimeLocaleBox(languageOnly rawLanguage: String) -> RuntimeLocaleBox {
@@ -88,7 +57,45 @@ private func makeRuntimeLocaleBox(languageOnly rawLanguage: String) -> RuntimeLo
 }
 
 private func makeRuntimeLocaleBox(language: String, country: String) -> RuntimeLocaleBox {
-    makeRuntimeLocaleBox(identifier: localeIdentifier(language: language, country: country, variant: ""))
+    let identifier = localeIdentifier(language: language, country: country, variant: "")
+    // Preserve the constructor fields, including an empty language and literal separators.
+    return RuntimeLocaleBox(
+        identifier: identifier,
+        language: language.lowercased(),
+        country: country.uppercased(),
+        variant: "",
+        locale: Locale(identifier: identifier)
+    )
+}
+
+func runtimeLocaleToString(_ box: RuntimeLocaleBox) -> String {
+    var result = box.language
+    if !box.country.isEmpty || (!box.language.isEmpty && !box.variant.isEmpty) {
+        result += "_" + box.country
+    }
+    if !box.variant.isEmpty && (!box.language.isEmpty || !box.country.isEmpty) {
+        result += "_" + box.variant
+    }
+    return result
+}
+
+// Memory representation bridge: Locale's fields live in a runtime-owned box.
+@_cdecl("__kk_locale_toString_flat")
+public func __kk_locale_toString_flat(
+    _ localeRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    guard let box = runtimeLocaleBox(from: localeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_locale_toString_flat received invalid Locale handle")
+    }
+    return runtimeRegisterFlatString(
+        runtimeLocaleToString(box),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 @_cdecl("__kk_locale_new_flat")

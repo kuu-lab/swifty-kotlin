@@ -1,6 +1,25 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
+    @Test(arguments: [true, false])
+    func functionReferenceNameAndCall(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            fun topFn(a: Int) = a + 1
+            fun main() {
+                val f = ::topFn
+                println(f.name)
+                println(f.call(3))
+                println(f(3))
+                println(f.invoke(3))
+            }
+            """,
+            expectedOutput: "topFn\n4\n4\n4\n",
+            moduleName: "KUU1231FunctionReference",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test func callableReferencesExposeGenericTypeParameters() throws {
         try compileAndRunKotlin(
             """
