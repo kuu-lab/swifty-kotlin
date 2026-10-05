@@ -828,7 +828,7 @@ struct TypeCheckHelpers {
                 // internal ID, since the short-name fallback below has no
                 // notion of scope.
                 let scopeCandidates: [SymbolID] = if path.count == 1, let scope {
-                    scope.lookup(shortName).filter(isTypeLikeSymbol).sorted(by: { $0.rawValue < $1.rawValue })
+                    scope.lookup(shortName, matching: isTypeLikeSymbol).sorted(by: { $0.rawValue < $1.rawValue })
                 } else {
                     []
                 }
@@ -838,8 +838,7 @@ struct TypeCheckHelpers {
                 // imported outer symbol before falling back to short-name lookup.
                 let qualifiedScopeCandidates: [SymbolID] = {
                     guard path.count > 1, let scope else { return [] }
-                    var current = scope.lookup(path[0])
-                        .filter(isTypeLikeSymbol)
+                    var current = scope.lookup(path[0], matching: isTypeLikeSymbol)
                         .sorted(by: { $0.rawValue < $1.rawValue })
                     for component in path.dropFirst() {
                         current = current.flatMap { ownerID -> [SymbolID] in
@@ -864,7 +863,7 @@ struct TypeCheckHelpers {
                     guard path.count > 1, let scope else {
                         return []
                     }
-                    let rootCandidates = scope.lookup(path[0]).filter(isTypeLikeSymbol)
+                    let rootCandidates = scope.lookup(path[0], matching: isTypeLikeSymbol)
                     return rootCandidates.flatMap { rootSymbol -> [SymbolID] in
                         guard let rootInfo = sema.symbols.symbol(rootSymbol) else {
                             return []

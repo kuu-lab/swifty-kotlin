@@ -153,6 +153,29 @@ struct BindingTableTests {
 @Suite
 struct ScopeTests {
     @Test
+    func testFilteredLookupSkipsOtherNamespacesWithoutMergingClassifierScopes() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let outer = ImportScope(parent: nil, symbols: symbols)
+        let imported = ImportScope(parent: outer, symbols: symbols)
+        let package = PackageScope(parent: imported, symbols: symbols)
+        let name = interner.intern("Sink")
+        let fallback = symbols.define(kind: .interface, name: name, fqName: [interner.intern("fallback"), name], declSite: nil, visibility: .public)
+        let selected = symbols.define(kind: .interface, name: name, fqName: [interner.intern("selected"), name], declSite: nil, visibility: .public)
+        let factory = symbols.define(kind: .function, name: name, fqName: [interner.intern("pkg"), name], declSite: nil, visibility: .public)
+        outer.insert(fallback)
+        imported.insert(selected)
+        package.insert(factory)
+        let scope: Scope = package
+        let isClassifier: (SymbolID) -> Bool = { symbols.symbol($0)?.kind == .interface }
+        #expect(scope.lookup(name) == [factory])
+        #expect(scope.lookup(name, matching: isClassifier) == [selected])
+        let local = symbols.define(kind: .interface, name: name, fqName: [interner.intern("pkg"), name], declSite: nil, visibility: .public)
+        package.insert(local)
+        #expect(scope.lookup(name, matching: isClassifier) == [local])
+    }
+
+    @Test
     func testBaseScopeLookupReturnsLocalSymbol() {
         let interner = StringInterner()
         let symbols = SymbolTable()
