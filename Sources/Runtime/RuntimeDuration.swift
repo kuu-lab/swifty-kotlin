@@ -18,12 +18,24 @@ private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
     return tryCast(ptr, to: RuntimeDurationBox.self)
 }
 
-/// Reads both the legacy boxed representation and Duration's source-backed
-/// value-class payload. Raw values are only treated as object handles when the
-/// runtime has registered the pointer, so ordinary small Long payloads are safe.
+private let durationRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.Duration")
+
+/// Reads the legacy boxed representation, Duration's source-backed value-class
+/// payload, and — since KUU-1093, when Duration became a `Comparable<Duration>`
+/// implementation and therefore a real boxed object — a nominal Kotlin object
+/// handle: `rawValue` is the single `Long` field stored at slot 2 after the
+/// two-slot object header (the same layout ValueTimeMark relies on in
+/// `__kk_time_mark_reading_nanos`). Raw values are only treated as object
+/// handles when the runtime has registered the pointer, so ordinary small
+/// Long payloads are safe.
 func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
     if let box = runtimeDurationBox(from: raw) {
         return box.nanoseconds
+    }
+    if runtimeObjectTypeID(rawValue: raw) == durationRuntimeTypeID,
+       let objectBox = runtimeArrayBox(from: raw), objectBox.count == 3
+    {
+        return Int64(objectBox[2])
     }
     return Int64(bitPattern: UInt64(bitPattern: Int64(raw)))
 }
@@ -660,12 +672,15 @@ public func kk_duration_parse(_ valueRaw: Int, _ outThrown: UnsafeMutablePointer
 
 @_cdecl("kk_duration_parseOrNull")
 public func kk_duration_parseOrNull(_ valueRaw: Int) -> Int {
+    // KUU-1093: Duration is boxed (Comparable<Duration>), so this bridge
+    // returns the raw nanosecond payload as `Long?` (sentinel for null);
+    // the Kotlin caller wraps it in `Duration(...)`.
     guard let value = runtimeDurationString(from: valueRaw),
           let nanoseconds = runtimeDurationParse(value)
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationBoxHandle(fromNanoseconds: nanoseconds)
+    return runtimeDurationHandle(fromNanoseconds: nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoString")
@@ -685,12 +700,14 @@ public func kk_duration_parseIsoString(_ valueRaw: Int, _ outThrown: UnsafeMutab
 
 @_cdecl("kk_duration_parseIsoStringOrNull")
 public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
+    // KUU-1093: see kk_duration_parseOrNull — returns `Long?` nanoseconds,
+    // wrapped into `Duration(...)` by the Kotlin caller.
     guard let value = runtimeDurationString(from: valueRaw),
           let nanoseconds = runtimeDurationParseISO(value)
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationBoxHandle(fromNanoseconds: nanoseconds)
+    return runtimeDurationHandle(fromNanoseconds: nanoseconds)
 }
 
 // MARK: - Duration advanced operations (STDLIB-TIME-082)

@@ -15,21 +15,21 @@ private fun timeSourceDurationFromDouble(value: Double, unit: DurationUnit): Dur
 }
 
 private fun timeSourceDurationIsInfinite(duration: Duration): Boolean =
-    duration.__kk_duration_isInfinite()
+    duration.isInfinite()
 
 private fun timeSourceDurationIsNegative(duration: Duration): Boolean =
-    duration.__kk_duration_isNegative()
+    duration.isNegative()
 
 private fun timeSourceDurationPlus(lhs: Duration, rhs: Duration): Duration =
-    lhs.__kk_duration_plus(rhs)
+    lhs + rhs
 
 private fun timeSourceDurationMinus(lhs: Duration, rhs: Duration): Duration =
-    lhs.__kk_duration_minus(rhs)
+    lhs - rhs
 
 private fun timeSourceDurationCompare(lhs: Duration, rhs: Duration): Int =
-    lhs.__kk_duration_compareTo(rhs)
+    lhs.compareTo(rhs)
 
-private fun timeSourceDurationZero(): Duration = __kk_duration_zero()
+private fun timeSourceDurationZero(): Duration = Duration(0L)
 
 private fun timeSourceUnitScale(unit: DurationUnit): Long = when (unit) {
     DurationUnit.NANOSECONDS -> 1L

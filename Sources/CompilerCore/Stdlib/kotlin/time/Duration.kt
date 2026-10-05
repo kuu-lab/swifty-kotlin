@@ -12,9 +12,12 @@ import kotlin.math.roundToLong
 // signed nanosecond count used by those bridges.
 
 @JvmInline
-public value class Duration internal constructor(internal val rawValue: Long) {
+public value class Duration internal constructor(internal val rawValue: Long) : Comparable<Duration> {
     public val inWholeNanoseconds: Long
         get() = rawValue
+
+    public override fun compareTo(other: Duration): Int =
+        rawValue.compareTo(other.rawValue)
 
     public override fun equals(other: Any?): Boolean {
         if (other !is Duration) return false
@@ -305,9 +308,6 @@ public operator fun Duration.unaryMinus(): Duration =
         else -> -rawValue
     })
 
-public operator fun Duration.compareTo(other: Duration): Int =
-    rawValue.compareTo(other.rawValue)
-
 public val Duration.absoluteValue: Duration
     get() = Duration(if (rawValue < 0L) -rawValue else rawValue)
 
@@ -503,15 +503,22 @@ public fun Double.toDuration(unit: DurationUnit): Duration =
 // Companion-scoped constants and parsing entry points. These use the Companion
 // short-form dispatch fallback (CallTypeChecker+MemberCallInferenceRegularResolution)
 // so both `Duration.ZERO` and `Duration.Companion.ZERO` resolve. The __kk_duration_*
-// bridges are receiver-less package-scope functions, called without `this.`.
+// parse bridges are receiver-less package-scope functions returning the parsed
+// nanosecond payload as a raw `Long` (`Long?` for the OrNull variants); the Kotlin
+// layer wraps them in `Duration(...)` so every `Duration` value stays a real
+// boxed object, as `Comparable<Duration>` requires (KUU-1093).
 public val Duration.Companion.ZERO: Duration get() = Duration(0L)
 
 public val Duration.Companion.INFINITE: Duration get() = Duration(Long.MAX_VALUE)
 
-public fun Duration.Companion.parse(value: String): Duration = __kk_duration_parse(value)
+public fun Duration.Companion.parse(value: String): Duration =
+    Duration(__kk_duration_parse(value))
 
-public fun Duration.Companion.parseOrNull(value: String): Duration? = __kk_duration_parseOrNull(value)
+public fun Duration.Companion.parseOrNull(value: String): Duration? =
+    __kk_duration_parseOrNull(value)?.let { Duration(it) }
 
-public fun Duration.Companion.parseIsoString(value: String): Duration = __kk_duration_parseIsoString(value)
+public fun Duration.Companion.parseIsoString(value: String): Duration =
+    Duration(__kk_duration_parseIsoString(value))
 
-public fun Duration.Companion.parseIsoStringOrNull(value: String): Duration? = __kk_duration_parseIsoStringOrNull(value)
+public fun Duration.Companion.parseIsoStringOrNull(value: String): Duration? =
+    __kk_duration_parseIsoStringOrNull(value)?.let { Duration(it) }
