@@ -261,6 +261,7 @@ extension KIRLoweringDriver {
             loweredArgs: loweredSuperArgs,
             spreadFlags: superArgs.map(\.isSpread),
             callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+            sourceArgExprs: superArgs.map(\.expr),
             result: resultID,
             shared: shared,
             body: &body
@@ -616,7 +617,7 @@ extension KIRLoweringDriver {
         if let explicitField = prop.explicitBackingField {
             let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
             let backingFieldType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
-            let initValue = lowerExpr(
+            let initValue = lowerPropertyInitializerValue(
                 explicitField.initializer,
                 shared: shared, emit: &body
             )
@@ -628,7 +629,7 @@ extension KIRLoweringDriver {
             // Also initialize the property itself if it has a regular initializer.
             if let initExpr = prop.initializer {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
-                let propInitValue = lowerExpr(initExpr, shared: shared, emit: &body)
+                let propInitValue = lowerPropertyInitializerValue(initExpr, shared: shared, emit: &body)
                 emitFieldStore(
                     propSymbol: propSymbol, targetSymbol: targetSymbol,
                     value: propInitValue, valueType: propType,
@@ -643,7 +644,7 @@ extension KIRLoweringDriver {
         guard let initExpr = prop.initializer else { return }
         let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
         let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
-        let initValue = lowerExpr(
+        let initValue = lowerPropertyInitializerValue(
             initExpr,
             shared: shared, emit: &body
         )
@@ -651,6 +652,28 @@ extension KIRLoweringDriver {
             propSymbol: propSymbol, targetSymbol: targetSymbol,
             value: initValue, valueType: propType,
             shared: shared, body: &body
+        )
+    }
+
+    private func lowerPropertyInitializerValue(
+        _ exprID: ExprID,
+        shared: KIRLoweringSharedContext,
+        emit body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let value = lowerExpr(exprID, shared: shared, emit: &body)
+        guard let type = shared.sema.bindings.exprTypes[exprID],
+              case let .functionType(functionType) = shared.sema.types.kind(of: shared.sema.types.makeNonNullable(type))
+        else {
+            return value
+        }
+        return callLowerer.materializeFunctionValueArgument(
+            loweredArgID: value,
+            argExprID: exprID,
+            functionType: functionType,
+            sema: shared.sema,
+            arena: shared.arena,
+            interner: shared.interner,
+            instructions: &body.instructions
         )
     }
 

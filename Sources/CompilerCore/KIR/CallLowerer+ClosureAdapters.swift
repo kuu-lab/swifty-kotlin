@@ -566,7 +566,8 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction],
         arguments: inout [KIRExprID],
-        valueArgOffsetOverride: Int? = nil
+        valueArgOffsetOverride: Int? = nil,
+        parameterMapping: [Int: Int]? = nil
     ) {
         guard let chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
@@ -616,9 +617,17 @@ extension CallLowerer {
             && !sourceArgExprs.isEmpty
         for parameterIndex in signature.parameterTypes.indices {
             let finalArgIndex = valueArgOffset + parameterIndex
-            let sourceArgExprIndex = (hasTrailingLambdaGap && parameterIndex == lastParameterIndex)
-                ? sourceArgExprs.count - 1
-                : parameterIndex
+            let sourceArgExprIndex: Int
+            if let parameterMapping {
+                guard let argumentIndex = parameterMapping.first(where: { $0.value == parameterIndex })?.key else {
+                    continue
+                }
+                sourceArgExprIndex = argumentIndex
+            } else {
+                sourceArgExprIndex = (hasTrailingLambdaGap && parameterIndex == lastParameterIndex)
+                    ? sourceArgExprs.count - 1
+                    : parameterIndex
+            }
             guard finalArgIndex < arguments.count,
                   sourceArgExprs.indices.contains(sourceArgExprIndex),
                   !signature.valueParameterIsVararg.indices.contains(parameterIndex)
