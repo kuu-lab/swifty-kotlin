@@ -823,33 +823,43 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> Int32? {
-        guard interner.resolve(propertyInfo.name) == "name",
-              ownerInfo.fqName.map(interner.resolve) == ["kotlin", "reflect", "KCallable"]
+        let member = interner.resolve(propertyInfo.name)
+        let owner = ownerInfo.fqName.map(interner.resolve)
+        let metadataMembers = ["parameters", "typeParameters", "visibility", "isFinal", "isOpen", "isAbstract", "isSuspend",
+                               "isConst", "isLateinit", "getter", "setter", "property"]
+        guard owner.starts(with: ["kotlin", "reflect"]),
+              owner.count >= 3,
+              ["KCallable", "KProperty", "KMutableProperty", "KProperty0", "KProperty1", "KProperty2", "KMutableProperty0", "KMutableProperty1", "KMutableProperty2"].contains(owner[2]),
+              member == "name" || member == "returnType" || metadataMembers.contains(member)
         else {
             return nil
         }
-        let getNameCallee = interner.intern("__kk_kcallable_get_name")
+        let getNameCallee = interner.intern(member == "name" ? "__kk_kcallable_get_name" : "__kk_kcallable_get_return_type")
         let runtimeName = emitNonThrowingCall(
-            callee: getNameCallee,
+            callee: interner.intern("__kk_kcallable_is_runtime"),
             arg: loweredReceiverID,
-            resultType: sema.types.nullableAnyType,
+            resultType: sema.types.intType,
             arena: arena,
             into: &instructions
         )
         let runtimeLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
         let interfaceLabel = driver.ctx.makeLoopLabel()
-        instructions.append(.jumpIfNotNull(value: runtimeName, target: runtimeLabel))
+        let one = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
+        instructions.append(.constValue(result: one, value: .intLiteral(1)))
+        instructions.append(.jumpIfEqual(lhs: runtimeName, rhs: one, target: runtimeLabel))
         instructions.append(.jump(interfaceLabel))
         instructions.append(.label(runtimeLabel))
         // Re-read with the String result type so the backend bridges the raw
         // handle into the caller's String representation.
-        emitNonThrowingCall(
-            callee: getNameCallee,
-            arg: loweredReceiverID,
-            result: result,
-            into: &instructions
-        )
+        if let index = metadataMembers.firstIndex(of: member) {
+            let ordinal = arena.appendExpr(.intLiteral(Int64(index)), type: sema.types.intType)
+            instructions.append(.constValue(result: ordinal, value: .intLiteral(Int64(index))))
+            instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_get_metadata"),
+                                      arguments: [loweredReceiverID, ordinal], result: result, canThrow: false, thrownResult: nil))
+        } else {
+            emitNonThrowingCall(callee: getNameCallee, arg: loweredReceiverID, result: result, into: &instructions)
+        }
         instructions.append(.jump(endLabel))
         instructions.append(.label(interfaceLabel))
         return endLabel

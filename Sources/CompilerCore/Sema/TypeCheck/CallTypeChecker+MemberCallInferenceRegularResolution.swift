@@ -135,6 +135,15 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        if case let .functionType(functionType) = sema.types.kind(of: lookupReceiverType),
+           sema.bindings.callableRefKind(for: receiverID) != nil
+            || sema.bindings.identifierSymbol(for: receiverID).map({ sema.bindings.inferredCallableReferenceSymbols.contains($0) }) == true,
+           let result = inferCallableReferenceMember(
+               id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
+               args: args, safeCall: safeCall, ctx: ctx, locals: &locals
+           ) {
+            return result
+        }
         // `f.invoke(...)` where `f`'s own type is a function type
         // (`(Int) -> Int`, `Int.(Int) -> Int`, ...) has no nominal owner at
         // all -- `allNominalSymbolsImpl` (Helpers+TypeArgsAndMemberLookup.swift)
