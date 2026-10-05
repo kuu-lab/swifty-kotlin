@@ -485,9 +485,12 @@ extension DataFlowSemaPhase {
                 // stdlib class found by the short-name fallback can replace the
                 // imported class in a function signature (KUU-916).
                 if let shortName = path.first {
+                    // Package-only paths (and `a.b.*` wildcards) contribute
+                    // members; a path that also resolves to a declaration is
+                    // a declaration import and must not leak its neighbours
+                    // (KUU-1205).
                     for importDecl in imports where importDecl.alias == nil {
-                        let imported = symbols.lookupAll(fqName: importDecl.path)
-                        if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                        if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                             paths.append(importDecl.path + [shortName])
                         }
                     }
@@ -534,8 +537,7 @@ extension DataFlowSemaPhase {
                 }
             }
             for importDecl in imports where importDecl.alias == nil {
-                let imported = symbols.lookupAll(fqName: importDecl.path)
-                if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                     candidatePaths.append(importDecl.path + path)
                 }
             }
