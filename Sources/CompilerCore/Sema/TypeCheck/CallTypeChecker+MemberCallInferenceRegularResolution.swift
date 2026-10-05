@@ -161,6 +161,7 @@ extension CallTypeChecker {
                argTypes: argTypes,
                range: range,
                ctx: ctx,
+               locals: &locals,
                expectedType: expectedType,
                arityPolicy: .receiverRequiredExplicit
            )
@@ -1304,6 +1305,10 @@ extension CallTypeChecker {
             var seenMemberCandidates: Set<SymbolID> = []
             let memberCandidates = (sourceBackedOverloads + standardMemberCandidates).filter {
                 seenMemberCandidates.insert($0).inserted
+                    && primitiveCompareToCandidateMatches(
+                        $0, calleeName: calleeName, receiverType: memberLookupType,
+                        argTypes: argTypes, sema: sema
+                    )
             }
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we

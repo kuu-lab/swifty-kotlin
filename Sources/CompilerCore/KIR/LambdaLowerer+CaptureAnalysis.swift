@@ -100,6 +100,15 @@ extension LambdaLowerer {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
         }
+        let memberSymbol = sema.bindings.callBinding(for: exprID)?.chosenCallee
+            ?? sema.bindings.identifierSymbols[exprID]
+        if let memberSymbol,
+           let owner = sema.symbols.parentSymbol(for: memberSymbol),
+           driver.ctx.capturedOuterReceiverExprID(for: owner) != nil,
+           seen.insert(owner).inserted
+        {
+            referenced.append(owner)
+        }
         if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
            seen.insert(symbol).inserted
         {

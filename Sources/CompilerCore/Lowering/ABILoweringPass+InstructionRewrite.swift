@@ -18,8 +18,9 @@ extension ABILoweringPass {
         var boxedArguments = arguments
         // Generic slots carry boxes even when their upper bound is primitive.
         // A concrete primitive extension receiver requires the unboxed payload.
-        if receiverOffset == 1,
-           let receiver = arguments.first,
+        let receiverIndex = receiverOffset - 1
+        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+           case let receiver = arguments[receiverIndex],
            let receiverType = signature.receiverType,
            case .primitive(_, .nonNull) = types.kind(of: receiverType),
            let argType = intrinsicArgType(receiver, arena: module.arena, types: types),
@@ -33,7 +34,7 @@ extension ABILoweringPass {
                preferStaticPrimitive: true
            )
         {
-            boxedArguments[0] = emitNonThrowingCall(
+            boxedArguments[receiverIndex] = emitNonThrowingCall(
                 callee: unboxCallee,
                 arg: receiver,
                 resultType: receiverType,
@@ -46,8 +47,8 @@ extension ABILoweringPass {
         // dispatches through `this`'s itable, so an enum receiver -- a raw
         // ordinal until something widens it -- must arrive as its box, the
         // same way an enum value argument for an interface parameter does.
-        if receiverOffset == 1,
-           let receiver = arguments.first,
+        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+           case let receiver = arguments[receiverIndex],
            let receiverType = signature.receiverType,
            let argType = intrinsicArgType(receiver, arena: module.arena, types: types),
            case let .classType(argClass) = types.kind(of: argType),
@@ -58,7 +59,7 @@ extension ABILoweringPass {
            case let .classType(receiverClass) = types.kind(of: receiverType),
            symbols?.symbol(receiverClass.classSymbol)?.kind == .interface
         {
-            boxedArguments[0] = boxValueForAnySlot(
+            boxedArguments[receiverIndex] = boxValueForAnySlot(
                 receiver,
                 sourceType: argType,
                 types: types,
@@ -208,12 +209,15 @@ extension ABILoweringPass {
         }
 
         var actualTypes: [(formal: TypeID, actual: TypeID)] = []
-        let receiverArgumentCount = signature.receiverType != nil && arguments.count == signature.parameterTypes.count + 1
-            ? 1
-            : 0
+        let isMemberExtension = symbols.memberExtensionOwnerSymbol(for: callSymbol) != nil
+        let receiverArgumentCount = signature.receiverType == nil ? 0 : (
+            isMemberExtension ? (receiver == nil ? 2 : 1)
+                : (arguments.count == signature.parameterTypes.count + 1 ? 1 : 0)
+        )
         if let formalReceiverType = signature.receiverType {
-            if receiverArgumentCount == 1,
-               let actualReceiverType = module.arena.exprType(arguments[0])
+            if receiverArgumentCount > 0,
+               arguments.indices.contains(receiverArgumentCount - 1),
+               let actualReceiverType = module.arena.exprType(arguments[receiverArgumentCount - 1])
             {
                 actualTypes.append((formalReceiverType, actualReceiverType))
             } else if let receiver,

@@ -12,9 +12,17 @@ import kotlin.math.roundToLong
 // signed count shifted left by one, with a low-bit tag (0 = ns, 1 = ms).
 
 @JvmInline
-public value class Duration internal constructor(internal val rawValue: Long) {
+public value class Duration internal constructor(internal val rawValue: Long) : Comparable<Duration> {
     public val inWholeNanoseconds: Long
         get() = toLong(DurationUnit.NANOSECONDS)
+
+    public override fun compareTo(other: Duration): Int {
+        if ((rawValue < 0L) != (other.rawValue < 0L) || durationIsMillis(rawValue) == durationIsMillis(other.rawValue)) {
+            return rawValue.compareTo(other.rawValue)
+        }
+        val result = if (durationIsMillis(rawValue)) 1 else -1
+        return if (rawValue < 0L) -result else result
+    }
 
     public override fun equals(other: Any?): Boolean {
         if (other !is Duration) return false
@@ -314,14 +322,6 @@ public operator fun Duration.div(other: Duration): Double {
 public operator fun Duration.unaryMinus(): Duration =
     Duration((-durationValue(rawValue) shl 1) + (rawValue and 1L))
 
-public operator fun Duration.compareTo(other: Duration): Int {
-    if ((rawValue < 0L) != (other.rawValue < 0L) || durationIsMillis(rawValue) == durationIsMillis(other.rawValue)) {
-        return rawValue.compareTo(other.rawValue)
-    }
-    val result = if (durationIsMillis(rawValue)) 1 else -1
-    return if (rawValue < 0L) -result else result
-}
-
 public val Duration.absoluteValue: Duration
     get() = if (rawValue < 0L) -this else this
 
@@ -481,10 +481,10 @@ public val Duration.Companion.ZERO: Duration get() = Duration(0L)
 
 public val Duration.Companion.INFINITE: Duration get() = Duration(Long.MAX_VALUE)
 
-public fun Duration.Companion.parse(value: String): Duration = __kk_duration_parse(value)
+public fun Duration.Companion.parse(value: String): Duration = Duration(__kk_duration_parse(value))
 
-public fun Duration.Companion.parseOrNull(value: String): Duration? = __kk_duration_parseOrNull(value)
+public fun Duration.Companion.parseOrNull(value: String): Duration? = __kk_duration_parseOrNull(value)?.let { Duration(it) }
 
-public fun Duration.Companion.parseIsoString(value: String): Duration = __kk_duration_parseIsoString(value)
+public fun Duration.Companion.parseIsoString(value: String): Duration = Duration(__kk_duration_parseIsoString(value))
 
-public fun Duration.Companion.parseIsoStringOrNull(value: String): Duration? = __kk_duration_parseIsoStringOrNull(value)
+public fun Duration.Companion.parseIsoStringOrNull(value: String): Duration? = __kk_duration_parseIsoStringOrNull(value)?.let { Duration(it) }

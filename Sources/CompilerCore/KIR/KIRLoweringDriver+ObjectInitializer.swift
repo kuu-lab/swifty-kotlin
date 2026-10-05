@@ -473,9 +473,8 @@ extension KIRLoweringDriver {
     /// in `VtableOverrideMatching.swift`). Falls back to the first candidate
     /// when nothing narrows cleanly (e.g. a defaulted trailing parameter
     /// omitted at the call site) rather than emitting no super call at all.
-    /// Named objects prefer the Sema call binding and only reach this
-    /// heuristic when none was recorded; object literals still rely on it
-    /// and do not expand omitted default arguments.
+    /// Objects prefer the Sema call binding and only reach this heuristic
+    /// when none was recorded.
     func resolveObjectSuperConstructor(
         candidates: [SymbolID],
         argExprs: [ExprID],

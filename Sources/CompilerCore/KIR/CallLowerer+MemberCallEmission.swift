@@ -2,6 +2,22 @@
 
 /// Member-call argument normalization and instruction emission helpers.
 extension CallLowerer {
+    func memberExtensionOwnerSymbol(for callee: SymbolID, sema: SemaModule) -> SymbolID? {
+        sema.symbols.memberExtensionOwnerSymbol(for: callee)
+    }
+
+    func memberExtensionDispatchReceiver(for callee: SymbolID, callExprID: ExprID?, sema: SemaModule) -> KIRExprID? {
+        guard let owner = memberExtensionOwnerSymbol(for: callee, sema: sema),
+              let ownerInfo = sema.symbols.symbol(owner)
+        else { return nil }
+        return callExprID
+            .flatMap { sema.bindings.implicitReceiverOuterReceiver(for: $0) }
+            .flatMap { driver.ctx.localValue(for: $0) }
+            ?? driver.ctx.capturedOuterReceiverExprID(for: owner)
+            ?? driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name)
+            ?? driver.ctx.activeImplicitReceiverExprID()
+    }
+
     func sequenceBuilderRuntimeCalleeName(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
@@ -224,10 +240,17 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: [KIRExprID],
         sourceArgExprs: [ExprID] = [],
-        sourceArgLabels: [InternedString?] = []
+        sourceArgLabels: [InternedString?] = [],
+        callExprID: ExprID? = nil
     ) {
         let knownNames = KnownCompilerNames(interner: interner)
         var finalArguments = arguments
+        let memberExtensionDispatchReceiver = chosenCallee.flatMap {
+            self.memberExtensionDispatchReceiver(for: $0, callExprID: callExprID, sema: sema)
+        }
+        if let memberExtensionDispatchReceiver {
+            finalArguments.insert(memberExtensionDispatchReceiver, at: 0)
+        }
         if let chosenCallee,
            let localValue = driver.ctx.localValue(for: chosenCallee),
            let callable = driver.ctx.callableValueInfo(for: localValue)
@@ -370,7 +393,8 @@ extension CallLowerer {
             arena: arena,
             interner: interner,
             instructions: &instructions,
-            arguments: &finalArguments
+            arguments: &finalArguments,
+            valueArgOffsetOverride: memberExtensionDispatchReceiver != nil ? 2 : nil
         )
         if normalized.defaultMask != 0,
            let chosenCallee,
@@ -885,7 +909,8 @@ extension CallLowerer {
             }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
-               receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
+               receiverExpr: memberExtensionDispatchReceiver == nil ? receiver.expr : nil,
+               loweredReceiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
                result: result, sema: sema, arena: arena, interner: interner
            )

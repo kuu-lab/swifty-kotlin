@@ -40,19 +40,34 @@ extension CallLowerer {
             return nil
         }
         let argumentKind = primitiveCompareABIKind(for: argType, sema: sema)
-        let isFloatingReceiver = receiverKind == .float || receiverKind == .double
-        let isNumericArgument: Bool = switch sema.types.kind(of: sema.types.makeNonNullable(argType)) {
-        case .primitive(.byte, _), .primitive(.short, _), .primitive(.int, _),
-             .primitive(.long, _), .primitive(.float, _), .primitive(.double, _):
-            true
-        default:
-            false
+        func isSignedNumeric(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+            case .primitive(.byte, _), .primitive(.short, _), .primitive(.int, _),
+                 .primitive(.long, _), .primitive(.float, _), .primitive(.double, _):
+                true
+            default:
+                false
+            }
         }
-        guard argumentKind == receiverKind || (isFloatingReceiver && isNumericArgument) else {
+        let isNumericComparison = isSignedNumeric(receiverType) && isSignedNumeric(argType)
+        guard argumentKind == receiverKind || isNumericComparison else {
             return nil
         }
 
-        let kind: PrimitiveCompareABIKind = isFloatingReceiver && argumentKind == .double ? .double : receiverKind
+        let kind: PrimitiveCompareABIKind
+        if isNumericComparison {
+            if receiverKind == .double || argumentKind == .double {
+                kind = .double
+            } else if receiverKind == .float || argumentKind == .float {
+                kind = .float
+            } else if receiverKind == .long || argumentKind == .long {
+                kind = .long
+            } else {
+                kind = .int
+            }
+        } else {
+            kind = receiverKind
+        }
         var lhsID = precomputedReceiver ?? driver.lowerExpr(
             receiverExpr,
             ast: ast,
@@ -77,9 +92,10 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        if isFloatingReceiver {
+        if kind == .float || kind == .double {
             lhsID = widenIntegerOperandToFloatingPoint(
-                lhsID, operandTypeID: nonNullReceiverType, isFloatingPoint: true, toDouble: kind == .double,
+                lhsID, operandTypeID: nonNullReceiverType,
+                isFloatingPoint: receiverKind == .float || receiverKind == .double, toDouble: kind == .double,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
             rhsID = widenIntegerOperandToFloatingPoint(

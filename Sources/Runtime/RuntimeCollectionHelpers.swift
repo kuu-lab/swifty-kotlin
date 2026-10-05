@@ -37,6 +37,17 @@ let arrayListRuntimeTypeID: Int64 = {
     return id
 }()
 
+let arrayDequeRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.ArrayDeque")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: abstractMutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: id,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableCollection")
+    )
+    return id
+}()
+
 let setRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
@@ -681,6 +692,9 @@ func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
     if let box = tryCast(ptr, to: RuntimeListBox.self) {
         return box
     }
+    if let deque = tryCast(ptr, to: RuntimeArrayDequeBox.self) {
+        return RuntimeListBox(dequeViewOf: deque)
+    }
     if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self) {
         if let backingListBox = objectBox.backingListBox {
             return backingListBox
@@ -1156,7 +1170,12 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
     // reach the same runtime-backed iterator. `is` checks still consult the
     // nominal class hierarchy, so this does not make `List`/`Set` report as
     // `Sequence`.
-    if box is RuntimeListBox {
+    if box is RuntimeArrayDequeBox {
+        runtimeRegisterObjectType(rawValue: raw, classID: arrayDequeRuntimeTypeID)
+        registerIterableItable(raw: raw, ifaceSlot: 0)
+        registerSequenceItable(raw: raw, ifaceSlot: 1)
+        registerMutableIterableItable(raw: raw, ifaceSlot: 2)
+    } else if box is RuntimeListBox {
         runtimeRegisterObjectType(rawValue: raw, classID: listRuntimeTypeID)
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
@@ -1568,8 +1587,8 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         return lhsInstant.epochSeconds == rhsInstant.epochSeconds
             && lhsInstant.nanoOfSecond == rhsInstant.nanoOfSecond
     }
-    if let lhsList = tryCast(lhsPtr, to: RuntimeListBox.self),
-       let rhsList = tryCast(rhsPtr, to: RuntimeListBox.self)
+    if let lhsList = runtimeListBox(from: lhs),
+       let rhsList = runtimeListBox(from: rhs)
     {
         let lhsElems = lhsList.elements
         let rhsElems = rhsList.elements
@@ -1923,7 +1942,7 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
-    if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
+    if let listBox = runtimeListBox(from: elem) {
         let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
     }
