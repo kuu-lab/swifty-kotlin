@@ -540,6 +540,14 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_function_copy_description"),
+            arguments: [loweredArgID, materialized],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
         driver.ctx.registerCallableValue(
             materialized,
             symbol: resolvedCallableInfo.symbol,

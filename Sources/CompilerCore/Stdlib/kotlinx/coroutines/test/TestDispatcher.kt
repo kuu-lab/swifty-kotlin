@@ -37,13 +37,13 @@ public abstract class TestDispatcher {
     public override fun toString(): String = name ?: "TestDispatcher"
 }
 
-@Suppress("KSWIFTK-SEMA-OPT-IN")
+@OptIn(ExperimentalCoroutinesApi::class)
 private class StandardTestDispatcherImpl(
     override val scheduler: TestCoroutineScheduler,
     override val name: String?
 ) : TestDispatcher()
 
-@Suppress("KSWIFTK-SEMA-OPT-IN")
+@OptIn(ExperimentalCoroutinesApi::class)
 private class UnconfinedTestDispatcherImpl(
     override val scheduler: TestCoroutineScheduler,
     override val name: String?

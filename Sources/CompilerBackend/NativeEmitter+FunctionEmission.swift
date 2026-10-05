@@ -2348,7 +2348,8 @@ extension NativeEmitter {
                 let argumentTypes = arguments.map(module.arena.exprType)
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
-                    argumentCount: argumentValues.count
+                    argumentCount: argumentValues.count,
+                    resolvedSymbol: symbol
                 ) ?? calleeName
 
                 if emitFlatStringRuntimeCall(
@@ -2797,25 +2798,17 @@ extension NativeEmitter {
                 let calleeName = interner.resolve(callee)
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
                 let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
-                // Property getter reads dispatched through a vtable/itable slot
-                // target a generated Kotlin accessor. A String-typed property
-                // returns its string aggregate (the source ABI's indirect
-                // result convention), not the raw pointer the generic fallback
-                // declaration assumes — without this the receiver lands in the
-                // callee's hidden result parameter and `this` reads garbage.
-                // Decide on the declared callee signature rather than the
-                // call-site result type: a generic `val value: T` accessed as
-                // `Lazy<String>.value` still erases to a raw pointer return.
-                // The KIR symbol is the synthetic getter accessor, so recover
-                // the declared property type via the accessor encoding.
+                // Use the declared signature, not the substituted call-site
+                // type: generic members returning T keep the raw handle ABI
+                // even when invoked as String. Getters may require recovering
+                // the property's type from the synthetic accessor symbol.
                 let virtualCallDeclaredAggregateResult: Bool? = {
-                    guard calleeName == "get",
-                          argumentValues.count == 1,
-                          typeLowering != nil
-                    else {
+                    guard typeLowering != nil else {
                         return nil
                     }
-                    if let symbol,
+                    if calleeName == "get",
+                       argumentValues.count == 1,
+                       let symbol,
                        let property = symbols?.propertySymbol(forAccessor: symbol)
                     {
                         return isStringAggregateType(symbols?.propertyType(for: property))
@@ -2880,7 +2873,8 @@ extension NativeEmitter {
                 }()
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
-                    argumentCount: argumentValues.count
+                    argumentCount: argumentValues.count,
+                    resolvedSymbol: symbol
                 ) ?? calleeName
 
                 let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
@@ -3664,8 +3658,18 @@ extension NativeEmitter {
             || calleeName == "kk_string_struct_get_length"
     }
 
-    private static func runtimePrimitiveAlias(for calleeName: String, argumentCount: Int) -> String? {
-        switch calleeName {
+    private static func runtimePrimitiveAlias(
+        for calleeName: String,
+        argumentCount: Int,
+        resolvedSymbol: SymbolID?
+    ) -> String? {
+        if ["and", "or", "xor"].contains(calleeName),
+           let resolvedSymbol,
+           resolvedSymbol != .invalid
+        {
+            return nil
+        }
+        return switch calleeName {
         case "and": "kk_bitwise_and"
         case "or": "kk_bitwise_or"
         case "xor": "kk_bitwise_xor"

@@ -337,6 +337,110 @@ struct KIRBuildClassLoweringTests {
         )
     }
 
+    @Test(arguments: [false, true])
+    func testClassDelegationDispatchIncludesAnonymousOverrides(hasDefault: Bool) throws {
+        let source = """
+        interface Input {
+            fun evaluate(value: Int): Int \(hasDefault ? "= 1" : "")
+        }
+        class Box(delegate: Input) : Input by delegate
+        fun main(): Int {
+            val offset = 7
+            val input = object : Input {
+                fun evaluate(value: String): Int = 0
+                override fun evaluate(value: Int): Int = offset + value
+            }
+            return Box(input).evaluate(2)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let boxSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Box")]))
+        let forwardingSymbol = try #require(
+            sema.symbols.classDelegationForwardingMethodSymbols(forClass: boxSymbol).first
+        )
+        let forwarder = try #require(findAllKIRFunctions(in: module).first { $0.symbol == forwardingSymbol })
+        let declaredMembers = sema.bindings.declSymbols.values.compactMap { sema.symbols.symbol($0) }.filter {
+            $0.kind == .function && $0.flags.contains(.synthetic)
+                && ctx.interner.resolve($0.name) == "evaluate"
+        }
+        let override = try #require(declaredMembers.first { $0.flags.contains(.overrideMember) })
+        let overload = try #require(declaredMembers.first { !$0.flags.contains(.overrideMember) })
+        let targets = delegationTargetSymbols(in: forwarder.body, interner: ctx.interner)
+
+        #expect(targets.contains(override.id))
+        #expect(!targets.contains(overload.id))
+        #expect(!targets.contains(forwardingSymbol))
+    }
+
+    @Test func testClassDelegationDispatchIncludesAnonymousPropertyAccessors() throws {
+        let source = """
+        interface Input {
+            val answer: Int get() = 1
+            var count: Int
+        }
+        class Box(delegate: Input) : Input by delegate
+        fun main(): Int {
+            val input = object : Input {
+                override val answer: Int get() = 7
+                override var count: Int = 2
+            }
+            val box = Box(input)
+            box.count = 9
+            return box.answer + box.count
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let boxSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Box")]))
+        let forwardingProperties = sema.symbols.classDelegationForwardingPropertySymbols(forClass: boxSymbol)
+        let inputSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Input")]))
+        let declaredProperties = sema.bindings.declSymbols.values.filter {
+            guard sema.bindings.isObjectLiteralPropertySymbol($0),
+                  let owner = sema.symbols.parentSymbol(for: $0)
+            else {
+                return false
+            }
+            return sema.symbols.directSupertypes(for: owner).contains(inputSymbol)
+        }
+        #expect(declaredProperties.count == 2)
+
+        for property in declaredProperties {
+            let propertySymbol = try #require(sema.symbols.symbol(property))
+            let forwardingProperty = try #require(forwardingProperties.first {
+                sema.symbols.symbol($0)?.name == propertySymbol.name
+            })
+            var accessorPairs = [(
+                SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: forwardingProperty),
+                SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
+            )]
+            if propertySymbol.flags.contains(.mutable) {
+                accessorPairs.append((
+                    SyntheticSymbolScheme.propertySetterAccessorSymbol(for: forwardingProperty),
+                    SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property)
+                ))
+            }
+            for (forwardingAccessor, declaredAccessor) in accessorPairs {
+                let forwarder = try #require(findAllKIRFunctions(in: module).first {
+                    $0.symbol == forwardingAccessor
+                })
+                let targets = delegationTargetSymbols(in: forwarder.body, interner: ctx.interner)
+                #expect(targets.contains(declaredAccessor))
+                #expect(!targets.contains(forwardingAccessor))
+            }
+        }
+    }
+
     @Test func testMapInterfaceDelegationResolvesDirectMembersAndMapDispatch() throws {
         let source = """
         class CustomMap : Map<String, Int> by mapOf("k" to 1)
