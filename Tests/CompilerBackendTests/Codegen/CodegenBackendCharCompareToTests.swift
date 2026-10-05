@@ -123,5 +123,47 @@ struct CodegenBackendCharCompareToTests {
             expected: "1\n25\nz\n25\n25\n-25\n65535\n-65535\n0\n25\n1\n"
         )
     }
+
+    // KUU-1211: a `Comparable<Char>` local that never escapes keeps kotlinc's
+    // unboxed `char` slot, so `compareTo` reports normalized -1/0/1 like
+    // `Intrinsics.compare`; once it escapes to `Any`, reads are boxed and
+    // `Comparable.compareTo` reports the raw UTF-16 code-unit difference.
+    @Test
+    func testCodegenComparableCharLocalEscapeAnalysis() throws {
+        let source = """
+        fun compareComparable(value: Comparable<Char>): Int = value.compareTo('a')
+
+        fun unescaped() {
+            val value: Comparable<Char> = 'z'
+            println(value.compareTo('a'))
+            println(value.compareTo('z'))
+            println(value.compareTo('x'))
+        }
+
+        fun escaped() {
+            val value: Comparable<Char> = 'z'
+            println(value.compareTo('a'))
+            println(value)
+            println(compareComparable(value))
+        }
+
+        fun main() {
+            unescaped()
+            escaped()
+            val nullable: Comparable<Char>? = 'z'
+            println(nullable?.compareTo('a'))
+            val copySource: Comparable<Char> = 'z'
+            val copyTarget = copySource
+            println(copySource.compareTo('a'))
+            println(copyTarget.compareTo('a'))
+            println(copyTarget)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "ComparableCharLocalEscape",
+            expected: "1\n0\n1\n25\nz\n25\n1\n25\n25\nz\n"
+        )
+    }
 }
 #endif

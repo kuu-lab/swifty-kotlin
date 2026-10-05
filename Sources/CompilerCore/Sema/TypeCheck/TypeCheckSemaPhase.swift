@@ -120,6 +120,20 @@ final class TypeCheckSemaPhase: CompilerPhase {
                 range: declRange
             )
         }
+
+        // KUU-1211: escape-analyze `Comparable<Char>` locals now that body
+        // type checking has populated bindings; KIR lowering reads the result
+        // to dispatch their `compareTo` receivers through `kk_char_compareTo`
+        // like kotlinc's unboxed `Intrinsics.compare` on a primitive `char`.
+        sema.bindings.setNonEscapingComparableCharLocals(
+            ComparableCharEscapeAnalyzer(
+                ast: ast,
+                symbols: sema.symbols,
+                types: sema.types,
+                bindings: sema.bindings,
+                interner: ctx.interner
+            ).analyze()
+        )
     }
 
     private func validateFunctionReturnLambdaPaths(ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine) {

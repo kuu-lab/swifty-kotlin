@@ -99,6 +99,22 @@ extension CallLowerer {
             receiverExpr,
             shared: shared, emit: &instructions
         )
+
+        // Non-escaping Comparable<Char> local: `v?.compareTo(x)` → kk_char_compareTo
+        // behind the same null guard the generic path would build (KUU-1211).
+        if let comparableCharResult = tryLowerComparableCharCompareToSafeCall(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            loweredReceiverID: loweredReceiverID,
+            boundType: boundType,
+            shared: shared,
+            emit: &instructions
+        ) {
+            return comparableCharResult
+        }
+
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let safeReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullSafeReceiverType = sema.types.makeNonNullable(safeReceiverType)
