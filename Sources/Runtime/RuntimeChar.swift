@@ -167,6 +167,12 @@ public func __kk_char_titlecase_code(_ code: Int) -> Int {
 
 @_cdecl("__kk_char_uppercase_locale")
 public func __kk_char_uppercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
+    if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
+    // NUL has no case mapping; Foundation's locale-aware mapping treats it as
+    // a C-string terminator and returns an empty string.
+    if code == 0 {
+        return charRuntimeMakeStringRaw("\0")
+    }
     guard let scalar = runtimeUnicodeScalar(code) else {
         return charRuntimeMakeStringRaw("\u{FFFD}")
     }
@@ -178,6 +184,10 @@ public func __kk_char_uppercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
 
 @_cdecl("__kk_char_lowercase_locale")
 public func __kk_char_lowercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
+    if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
+    if code == 0 {
+        return charRuntimeMakeStringRaw("\0")
+    }
     guard let scalar = runtimeUnicodeScalar(code) else {
         return charRuntimeMakeStringRaw("\u{FFFD}")
     }
