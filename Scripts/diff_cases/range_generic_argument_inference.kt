@@ -1,7 +1,6 @@
 fun <R> accept(range: R): Boolean where R : ClosedRange<Int>, R : Iterable<Int> = true
 
-fun <T, R> inspect(range: R, value: T): Boolean
-    where T : Comparable<T>, R : ClosedRange<T>, R : Iterable<T> {
+fun <T, R> inspect(range: R, value: T): Boolean where T : Comparable<T>, R : ClosedRange<T>, R : Iterable<T> {
     return range.start <= value && value <= range.endInclusive && range.contains(value)
 }
 

@@ -85,7 +85,10 @@ struct RangeGenericArgumentInferenceTests {
     @Test(arguments: [
         "fun <R> accept(range: R) where R : ClosedRange<Long>, R : Iterable<Long> {}\nfun test() { accept(1..3) }",
         "fun accept(value: Int) {}\nfun test() { accept(1..3) }",
-        "fun <R> accept(range: R) where R : ClosedRange<Int>, R : Iterable<Int> {}\nfun test() { accept(3) }"
+        "fun <R> accept(range: R) where R : ClosedRange<Int>, R : Iterable<Int> {}\nfun test() { accept(3) }",
+        "fun <R> accept(range: R) where R : ClosedRange<Int>, R : Iterable<Int> {}\nfun test() { accept(3 downTo 1) }",
+        "fun <R> accept(range: R) where R : ClosedRange<Int>, R : Iterable<Int> {}\nfun test() { val p = 1..3 step 2; accept(p) }",
+        "fun <R> accept(range: R) where R : ClosedRange<Int>, R : Iterable<Int> {}\nfun test(range: IntRange?) { accept(range) }"
     ])
     func incompatibleBoundsAndScalarArgumentsRemainRejected(source: String) throws {
         let ctx = makeContextFromSource(source)
