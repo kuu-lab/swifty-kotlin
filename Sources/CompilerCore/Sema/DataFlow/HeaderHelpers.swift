@@ -1125,7 +1125,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         isInline: Bool,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        enclosingTypeParameters: [InternedString: SymbolID] = [:]
     ) -> (typeParameterSymbols: [SymbolID], localTypeParameters: [InternedString: SymbolID], reifiedIndices: Set<Int>) {
         var typeParameterSymbols: [SymbolID] = []
         var localTypeParameters: [InternedString: SymbolID] = [:]
@@ -1150,6 +1151,7 @@ extension DataFlowSemaPhase {
                 reifiedIndices.insert(index)
             }
         }
+        let boundTypeParameters = enclosingTypeParameters.merging(localTypeParameters) { _, local in local }
         for typeParam in typeParams {
             guard let typeParamSym = localTypeParameters[typeParam.name] else {
                 continue
@@ -1161,7 +1163,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    localTypeParameters: localTypeParameters,
+                    localTypeParameters: boundTypeParameters,
                     usageRange: declSite
                 )
             }
