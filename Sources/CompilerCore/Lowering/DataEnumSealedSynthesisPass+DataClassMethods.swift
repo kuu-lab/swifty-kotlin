@@ -825,7 +825,11 @@ extension DataEnumSealedSynthesisPass {
             let propValue = module.arena.appendTemporary(type: propType
             )
             let backingField = sema.symbols.backingFieldSymbol(for: property.id) ?? property.id
-            if let layout,
+            if sema.symbols.effectiveValueClassUnderlyingType(for: owner.id) != nil {
+                // This body is synthesized after ValueClassUnboxingPass, so read
+                // the underlying field from the raw receiver without a heap load.
+                body.append(.copy(from: receiverRef, to: propValue))
+            } else if let layout,
                let fieldOffset = layout.fieldOffsets[backingField] ?? layout.fieldOffsets[property.id]
             {
                 let offsetExpr = module.arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)

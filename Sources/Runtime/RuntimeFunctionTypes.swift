@@ -237,6 +237,25 @@ private func runtimeCreateFunctionValue(
     return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: arity))
 }
 
+/// A suspend function value reached through the non-suspend `FunctionN.invoke`
+/// ABI (e.g. a suspend lambda stored in a plain `transform: (T) -> R` parameter
+/// such as `map`'s) cannot relay `COROUTINE_SUSPENDED` to its immediate caller:
+/// that frame is an ordinary function, not a state machine. Drive the value
+/// synchronously through the suspend-value path with no caller continuation,
+/// which drains the body on the event loop and returns the final result.
+private func runtimeInvokeSuspendBoxIfNeeded(
+    _ functionRaw: Int,
+    arguments: [Int],
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    guard let box = runtimeFunctionValueBox(from: functionRaw), box.suspendEntryPoint != 0 else {
+        return nil
+    }
+    return runtimeInvokeSuspendFunction(
+        functionRaw, arguments: arguments, continuation: 0, outThrown: outThrown
+    )
+}
+
 @_cdecl("kk_function_invoke")
 public func kk_function_invoke(
     _ functionRaw: Int,
@@ -244,6 +263,9 @@ public func kk_function_invoke(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     if runtimeFunctionNeedsDispatch(functionRaw) {
+        if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg], outThrown: outThrown) {
+            return driven
+        }
         guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 1, outThrown: outThrown) else { return 0 }
         let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint1.self)
         return function(pair.closureRaw, arg, outThrown)
@@ -258,6 +280,9 @@ public func kk_function_invoke_0(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     if runtimeFunctionNeedsDispatch(functionRaw) {
+        if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [], outThrown: outThrown) {
+            return driven
+        }
         guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 0, outThrown: outThrown) else { return 0 }
         let function = unsafeBitCast(pair.fnPtr, to: KKClosureThunkEntryPoint.self)
         return function(pair.closureRaw, outThrown)
@@ -274,6 +299,9 @@ public func kk_function_invoke_2(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     if runtimeFunctionNeedsDispatch(functionRaw) {
+        if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg1, arg2], outThrown: outThrown) {
+            return driven
+        }
         guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 2, outThrown: outThrown) else { return 0 }
         let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint2.self)
         return function(pair.closureRaw, arg1, arg2, outThrown)
@@ -291,6 +319,9 @@ public func kk_function_invoke_3(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     if runtimeFunctionNeedsDispatch(functionRaw) {
+        if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg1, arg2, arg3], outThrown: outThrown) {
+            return driven
+        }
         guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 3, outThrown: outThrown) else { return 0 }
         let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint3.self)
         return function(pair.closureRaw, arg1, arg2, arg3, outThrown)
@@ -309,6 +340,11 @@ public func kk_function_invoke_4(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     if runtimeFunctionNeedsDispatch(functionRaw) {
+        if let driven = runtimeInvokeSuspendBoxIfNeeded(
+            functionRaw, arguments: [arg1, arg2, arg3, arg4], outThrown: outThrown
+        ) {
+            return driven
+        }
         guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 4, outThrown: outThrown) else { return 0 }
         let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint4.self)
         return function(pair.closureRaw, arg1, arg2, arg3, arg4, outThrown)
@@ -328,6 +364,11 @@ public func kk_function_invoke_5(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     if runtimeFunctionNeedsDispatch(functionRaw) {
+        if let driven = runtimeInvokeSuspendBoxIfNeeded(
+            functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5], outThrown: outThrown
+        ) {
+            return driven
+        }
         guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 5, outThrown: outThrown) else { return 0 }
         let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint5.self)
         return function(pair.closureRaw, arg1, arg2, arg3, arg4, arg5, outThrown)

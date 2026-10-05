@@ -21,47 +21,47 @@ struct RuntimeUnsignedArrayAsListTests {
     @Test func unsignedPrimitiveArraySignedViewsShareBackingStorage() {
         let ubyteRaw = makeRuntimeArray([1, 2])
         let byteRaw = kk_uByteArray_asByteArray(ubyteRaw)
-        #expect(byteRaw == ubyteRaw)
+        #expect(byteRaw != ubyteRaw)
         runtimeArrayBox(from: byteRaw)?.elements[1] = 127
         #expect(arrayElements(from: ubyteRaw) == [1, 127])
 
         let ushortRaw = makeRuntimeArray([10, 20])
         let shortRaw = kk_uShortArray_asShortArray(ushortRaw)
-        #expect(shortRaw == ushortRaw)
+        #expect(shortRaw != ushortRaw)
         runtimeArrayBox(from: shortRaw)?.elements[0] = 32_767
         #expect(arrayElements(from: ushortRaw) == [32_767, 20])
 
         let uintRaw = makeRuntimeArray([100, 200])
         let intRaw = kk_uIntArray_asIntArray(uintRaw)
-        #expect(intRaw == uintRaw)
+        #expect(intRaw != uintRaw)
         runtimeArrayBox(from: intRaw)?.elements[1] = 900
         #expect(arrayElements(from: uintRaw) == [100, 900])
 
         let ulongRaw = makeRuntimeArray([1000, 2000])
         let longRaw = kk_uLongArray_asLongArray(ulongRaw)
-        #expect(longRaw == ulongRaw)
+        #expect(longRaw != ulongRaw)
         runtimeArrayBox(from: longRaw)?.elements[0] = 9_000
         #expect(arrayElements(from: ulongRaw) == [9_000, 2000])
     }
 
-    @Test func signedPrimitiveArrayUnsignedViewConversionsReturnSameArray() {
+    @Test func signedPrimitiveArrayUnsignedViewsShareBackingStorage() {
         let byteRaw = makeRuntimeArray([1, 2, 3])
         let ubyteRaw = kk_byteArray_asUByteArray(byteRaw)
-        #expect(ubyteRaw == byteRaw)
+        #expect(ubyteRaw != byteRaw)
         runtimeArrayBox(from: byteRaw)?.elements[1] = 9
         #expect(arrayElements(from: ubyteRaw) == [1, 9, 3])
 
         let shortRaw = makeRuntimeArray([10, 20, 30])
         let ushortRaw = kk_shortArray_asUShortArray(shortRaw)
-        #expect(ushortRaw == shortRaw)
+        #expect(ushortRaw != shortRaw)
 
         let intRaw = makeRuntimeArray([100, 200])
         let uintRaw = kk_intArray_asUIntArray(intRaw)
-        #expect(uintRaw == intRaw)
+        #expect(uintRaw != intRaw)
 
         let longRaw = makeRuntimeArray([1000, 2000])
         let ulongRaw = kk_longArray_asULongArray(longRaw)
-        #expect(ulongRaw == longRaw)
+        #expect(ulongRaw != longRaw)
     }
 
     @Test func uIntArrayToListNormalizesSignedBackingAndCopiesElements() {

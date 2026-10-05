@@ -4,6 +4,40 @@ final class LocalVariableStabilityAnalyzer {
     private var analyzedRoots: Set<ExprID> = []
     private var declarations: Set<ExprID> = []
     private var reassigned: Set<ExprID> = []
+    var inPlaceLambdaScopes: Set<ExprID> = []
+    private var mutationScopes: [ExprID: Set<ExprID>] = [:]
+    private var closureScopes: [ExprID] = []
+    private var lambdaCalls: [ExprID: (call: ExprID, argument: Int)] = [:]
+    // Only writes from a deeper deferred scope invalidate local smart casts.
+    private var declarationDepths: [ExprID: Int] = [:]
+
+    func isMutatedInClosure(_ declaration: ExprID, sema: SemaModule) -> Bool {
+        (mutationScopes[declaration] ?? []).contains { scope in
+            if inPlaceLambdaScopes.contains(scope) { return false }
+            guard let site = lambdaCalls[scope],
+                  let binding = sema.bindings.callBinding(for: site.call),
+                  let parameterIndex = binding.parameterMapping[site.argument],
+                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                  signature.valueParameterSymbols.indices.contains(parameterIndex)
+            else { return true }
+            return !isInPlaceParameter(parameterIndex, function: binding.chosenCallee, sema: sema)
+        }
+    }
+
+    func isInPlaceParameter(_ index: Int, function: SymbolID, sema: SemaModule) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: function),
+              signature.valueParameterSymbols.indices.contains(index)
+        else { return false }
+        if sema.symbols.symbol(function)?.flags.contains(.inlineFunction) == true,
+           signature.valueParameterAllowsNonLocalReturn.indices.contains(index),
+           signature.valueParameterAllowsNonLocalReturn[index]
+        {
+            return true
+        }
+        let parameter = signature.valueParameterSymbols[index]
+        return sema.symbols.contractCallsInPlaceEffects(for: function)
+            .contains { $0.parameterSymbol == parameter }
+    }
 
     func isNeverReassigned(_ declaration: ExprID) -> Bool {
         declarations.contains(declaration) && !reassigned.contains(declaration)
@@ -53,13 +87,20 @@ final class LocalVariableStabilityAnalyzer {
         case let .localDecl(name, _, _, initializer, _, _):
             if let initializer { children([initializer]) }
             declarations.insert(id)
+            declarationDepths[id] = closureScopes.count
             locals[name] = id
         case let .destructuringDecl(names, _, initializer, _):
             children([initializer])
             declarations.insert(id)
+            declarationDepths[id] = closureScopes.count
             for name in names.compactMap({ $0 }) { locals[name] = id }
         case let .localAssign(name, value, _), let .compoundAssign(_, name, value, _):
-            if let declaration = locals[name] { reassigned.insert(declaration) }
+            if let declaration = locals[name] {
+                reassigned.insert(declaration)
+                if let depth = declarationDepths[declaration], depth < closureScopes.count {
+                    mutationScopes[declaration, default: []].formUnion(closureScopes.dropFirst(depth))
+                }
+            }
             children([value])
         case let .blockExpr(statements, trailing, _):
             var scope = locals
@@ -67,8 +108,11 @@ final class LocalVariableStabilityAnalyzer {
                 visit(child, ast: ast, locals: &scope)
             }
         case let .lambdaLiteral(params, body, _, _):
+            closureScopes.append(id)
             scoped(body, hiding: params)
+            closureScopes.removeLast()
         case let .localFunDecl(name, _, params, _, body, _, _):
+            closureScopes.append(id)
             var scope = locals
             for param in params {
                 if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }
@@ -76,6 +120,7 @@ final class LocalVariableStabilityAnalyzer {
             }
             scope.removeValue(forKey: name)
             visitBody(body, ast: ast, locals: scope)
+            closureScopes.removeLast()
             locals.removeValue(forKey: name)
         case let .forExpr(variable, iterable, body, _, _):
             children([iterable])
@@ -108,8 +153,18 @@ final class LocalVariableStabilityAnalyzer {
             for clause in catches { scoped(clause.body, hiding: clause.paramName.map { [$0] } ?? []) }
             if let finallyBody { scoped(finallyBody) }
         case let .call(callee, _, args, _):
+            for (index, argument) in args.enumerated() {
+                if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                    lambdaCalls[argument.expr] = (id, index)
+                }
+            }
             children([callee] + args.map(\.expr))
         case let .memberCall(receiver, _, _, args, _), let .safeMemberCall(receiver, _, _, args, _):
+            for (index, argument) in args.enumerated() {
+                if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                    lambdaCalls[argument.expr] = (id, index)
+                }
+            }
             children([receiver] + args.map(\.expr))
         case let .memberAssign(receiver, _, value, _), let .memberCompoundAssign(_, receiver, _, value, _):
             children([receiver, value])
@@ -129,9 +184,13 @@ final class LocalVariableStabilityAnalyzer {
                 if case let .expression(value) = part { children([value]) }
             }
         case let .objectLiteral(_, declaration, _):
+            closureScopes.append(id)
             if let declaration { visitNominal(declaration, ast: ast, locals: locals) }
+            closureScopes.removeLast()
         case let .localNominalDecl(declaration, _):
+            closureScopes.append(id)
             visitNominal(declaration, ast: ast, locals: locals)
+            closureScopes.removeLast()
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
              .charLiteral, .boolLiteral, .stringLiteral, .nameRef, .breakExpr, .continueExpr, .superRef, .thisRef:
             break

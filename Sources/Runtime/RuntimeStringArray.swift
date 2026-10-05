@@ -1841,6 +1841,15 @@ public func __kk_kclass_register_metadata_v2(
     return 0
 }
 
+/// Registers a compiler-derived JVM binary name without changing qualifiedName.
+@_cdecl("__kk_kclass_register_display_name")
+public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw: Int) -> Int {
+    if let displayName = extractString(from: UnsafeMutableRawPointer(bitPattern: displayNameRaw)) {
+        runtimeKClassMetadataRegistry.setDisplayName(typeToken: typeToken, displayName: displayName)
+    }
+    return 0
+}
+
 /// Returns 1 if the KClass represents a data class, 0 otherwise.
 @_cdecl("__kk_kclass_is_data")
 public func __kk_kclass_is_data(_ kclassRaw: Int) -> Int {
@@ -2779,6 +2788,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let instantBox = tryCast(raw, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
+    if let localeBox = tryCast(raw, to: RuntimeLocaleBox.self) {
+        return runtimeLocaleToString(localeBox)
+    }
     if let listBox = runtimeListBox(from: value) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
@@ -2825,6 +2837,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
+    }
+    if let kclassBox = tryCast(raw, to: RuntimeKClassBox.self) {
+        return runtimeKClassToString(kclassBox)
     }
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)

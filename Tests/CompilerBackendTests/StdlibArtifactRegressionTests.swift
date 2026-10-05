@@ -1004,6 +1004,52 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-1040: primary constructor properties can override the open message
+    /// and cause properties through the bundled exception hierarchy in both modes.
+    @Test(arguments: [false, true])
+    func testThrowableConstructorPropertyOverrides(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/throwable_constructor_property_override.kt"
+        ), encoding: .utf8)
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ThrowableConstructorPropertyOverrides",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            invalid input
+            true
+            invalid input
+            root
+            invalid input
+            true
+            missing field
+            true
+            invalid input
+            root
+
+            """)
+        }
+    }
+
     /// KUU-594: user-defined Throwable subclasses must initialize the object
     /// allocated by the consumer module when their superclass constructor is
     /// imported from the precompiled stdlib artifact. Runtime factory
@@ -1825,10 +1871,8 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-016: imported synthetic enum entries for
-    /// `CharDirectionality` must round-trip as compile-time ordinals so the
-    /// shared stdlib `Char.directionality` extension can compare directionality
-    /// values by ordinal.
+    /// STDLIB-ARTIFACT-016: source-backed CharDirectionality entries must
+    /// preserve ordinal comparisons through the shared stdlib artifact.
     @Test
     func testCharDirectionalityConstantsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()

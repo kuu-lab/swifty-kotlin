@@ -1942,6 +1942,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
+    if let localeBox = tryCast(ptr, to: RuntimeLocaleBox.self) {
+        return runtimeLocaleToString(localeBox)
+    }
     if let listBox = runtimeListBox(from: elem) {
         let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
@@ -2004,6 +2007,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     // current value, matching the JDK AtomicReference it is modelled on.
     if let atomicRefBox = tryCast(ptr, to: AtomicRefBox.self) {
         return runtimeElementToString(atomicRefBox.load())
+    }
+    if let kclassBox = tryCast(ptr, to: RuntimeKClassBox.self) {
+        return runtimeKClassToString(kclassBox)
     }
     if let ktypeProjectionBox = tryCast(ptr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)

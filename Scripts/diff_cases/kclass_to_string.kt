@@ -1,10 +1,13 @@
 // KUU-1264: KClass rendering must use the represented type's qualified name.
+// KUU-1080: Class handles must render through both typed and erased boundaries.
 package kuu1264
 
 import kotlin.reflect.KClass
 import kotlin.reflect.typeOf
 
 class Sample
+
+class Annotated
 
 fun renderClass(klass: KClass<*>): String = klass.toString()
 
@@ -27,4 +30,13 @@ fun main() {
     println(String::class == String::class)
     println(String::class.hashCode() == String::class.hashCode())
     println(typeOf<List<String>>())
+    println(Annotated::class)
+    println(Annotated::class.toString())
+    val annotated = Annotated::class
+    println(annotated.toString())
+    val erasedAnnotated: Any = annotated
+    println(erasedAnnotated)
+    println(erasedAnnotated.toString())
+    println("annotated=$annotated")
+    println(listOf(annotated))
 }
