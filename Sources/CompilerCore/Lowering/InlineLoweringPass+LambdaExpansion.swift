@@ -16,6 +16,36 @@
 /// expansion while routing its throws into an existing local exception
 /// slot via `InlineThrowRerouting`.
 extension InlineLoweringPass {
+    func lambdaCaptureArguments(
+        for callableExpr: KIRExprID,
+        symbol: SymbolID,
+        aliases: [KIRExprID: KIRExprID],
+        arena: KIRArena
+    ) -> [KIRExprID] {
+        let callable = InlineExprAliasing.resolveAlias(of: callableExpr, aliases: aliases)
+        let captures = lambdaCaptureArgsByExpr[callable]
+            ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
+        return captures.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+    }
+
+    func recordClonedLambdaCaptures(
+        source: KIRExprID,
+        cloned: KIRExprID,
+        value: KIRExprKind,
+        aliases: [KIRExprID: KIRExprID],
+        arena: KIRArena
+    ) {
+        guard case let .symbolRef(symbol) = value else { return }
+        // Captures belong to this reference, not to the shared lambda symbol:
+        // later rounds and snapshot clones must retain this expansion's slots.
+        let captures = lambdaCaptureArgsByExpr[source]
+            ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
+        guard !captures.isEmpty else { return }
+        lambdaCaptureArgsByExpr[cloned] = captures.map {
+            InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
+        }
+    }
+
     /// Resolve the lambda function for an argument expression. The argument
     /// expression may be a direct `symbolRef` pointing to a lambda KIR function,
     /// or it may be a temporary that was defined via a `constValue` instruction
@@ -217,6 +247,10 @@ extension InlineLoweringPass {
                     continue
                 }
                 let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena)
+                recordClonedLambdaCaptures(
+                    source: result, cloned: loweredResult, value: value,
+                    aliases: localExprMap, arena: module.arena
+                )
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
@@ -245,8 +279,10 @@ extension InlineLoweringPass {
                        callerBody: lambdaFunction.body
                    )
                 {
-                    let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[nestedLambdaFunction.symbol] ?? [])
-                        .map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
+                    let captureArgs = lambdaCaptureArguments(
+                        for: callableExpr, symbol: nestedLambdaFunction.symbol,
+                        aliases: localExprMap, arena: module.arena
+                    )
                     let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: nestedLambdaFunction,

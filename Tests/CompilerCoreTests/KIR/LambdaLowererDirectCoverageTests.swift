@@ -4,6 +4,69 @@ import Testing
 
 @Suite
 struct LambdaLowererDirectCoverageTests {
+    @Test(arguments: [false, true], [false, true])
+    func capturingLambdaRespectsInlineParameters(
+        allowsNonLocalReturn: Bool, importedParameterAllowsNonLocalReturn: Bool
+    ) {
+        let fixture = makeKIRDirectLoweringFixture()
+        let range = makeRange()
+        let capturedSymbol = defineSemanticSymbol(
+            in: fixture, kind: .valueParameter, fqName: ["pkg", "captured"]
+        )
+        let captured = fixture.kirArena.appendExpr(.intLiteral(7), type: fixture.types.intType)
+        fixture.driver.ctx.setLocalValue(captured, for: capturedSymbol)
+        let body = appendTypedExpr(
+            .nameRef(fixture.interner.intern("captured"), range),
+            type: fixture.types.intType, fixture: fixture
+        )
+        fixture.bindings.bindIdentifier(body, symbol: capturedSymbol)
+        let functionType = fixture.types.make(.functionType(FunctionType(
+            params: [], returnType: fixture.types.intType,
+            isSuspend: false, nullability: .nonNull
+        )))
+        let lambda = appendTypedExpr(
+            .lambdaLiteral(params: [], body: body, label: nil, range: range),
+            type: functionType, fixture: fixture
+        )
+        var instructions: [KIRInstruction] = []
+        let callable = fixture.driver.lambdaLowerer.lowerLambdaLiteralExpr(
+            lambda, params: [], bodyExpr: body, allowsNonLocalReturn: allowsNonLocalReturn,
+            ast: fixture.ast, sema: fixture.sema, arena: fixture.kirArena,
+            interner: fixture.interner, propertyConstantInitializers: [:],
+            instructions: &instructions
+        )
+        let createsFunctionObject = instructions.contains {
+            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+            return fixture.interner.resolve(callee).hasPrefix("kk_function_create_")
+        }
+        #expect(createsFunctionObject == !allowsNonLocalReturn)
+        if allowsNonLocalReturn {
+            #expect(fixture.driver.ctx.callableValueInfo(for: callable)?.captureArguments == [captured])
+            let importedInline = defineSemanticSymbol(
+                in: fixture, kind: .function, fqName: ["pkg", "importedInline"],
+                flags: [.inlineFunction, .importedLibrary]
+            )
+            fixture.symbols.setFunctionSignature(FunctionSignature(
+                parameterTypes: [functionType], returnType: fixture.types.intType,
+                valueParameterAllowsNonLocalReturn: [importedParameterAllowsNonLocalReturn]
+            ), for: importedInline)
+            var arguments = [callable]
+            let instructionCount = instructions.count
+            fixture.driver.callLowerer.materializeSourceBackedFunctionValueArguments(
+                chosenCallee: importedInline, sourceArgExprs: [lambda],
+                sema: fixture.sema, arena: fixture.kirArena, interner: fixture.interner,
+                instructions: &instructions, arguments: &arguments
+            )
+            if importedParameterAllowsNonLocalReturn {
+                #expect(arguments == [callable])
+                #expect(instructions.count == instructionCount)
+            } else {
+                #expect(arguments != [callable])
+                #expect(instructions.count > instructionCount)
+            }
+        }
+    }
+
     @Test func testLambdaLowererTraversesNestedExpressionsAndDetectsImplicitReceiver() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
