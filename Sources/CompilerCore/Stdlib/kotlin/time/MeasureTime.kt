@@ -1,6 +1,6 @@
 package kotlin.time
 
-import kotlin.time.nanoseconds
+import kotlin.time.Duration.Companion.nanoseconds
 
 // KSP-472
 // measureTime / measureTimedValue.

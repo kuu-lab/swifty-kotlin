@@ -1478,39 +1478,37 @@ private func kirOverrideParameterTypesMatch(
     types: TypeSystem
 ) -> Bool {
     guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
-    for (candidateType, interfaceType) in zip(candidateParameterTypes, interfaceParameterTypes) {
-        if case .typeParam = types.kind(of: candidateType) { continue }
-        if case .typeParam = types.kind(of: interfaceType) { continue }
-        if case let .classType(candidate) = types.kind(of: candidateType),
-           case let .classType(interface) = types.kind(of: interfaceType),
-           candidate.classSymbol == interface.classSymbol,
-           candidate.nullability == interface.nullability,
-           candidate.args.count == interface.args.count
-        {
-            for (candidateArg, interfaceArg) in zip(candidate.args, interface.args) {
-                let candidateArgType: TypeID
-                let interfaceArgType: TypeID
-                switch (candidateArg, interfaceArg) {
-                case (.star, .star): continue
-                case let (.invariant(lhs), .invariant(rhs)),
-                     let (.invariant(lhs), .out(rhs)), let (.invariant(lhs), .in(rhs)),
-                     let (.out(lhs), .invariant(rhs)), let (.out(lhs), .out(rhs)), let (.out(lhs), .in(rhs)),
-                     let (.in(lhs), .invariant(rhs)), let (.in(lhs), .out(rhs)), let (.in(lhs), .in(rhs)):
-                    candidateArgType = lhs
-                    interfaceArgType = rhs
-                default: return false
-                }
-                guard kirOverrideParameterTypesMatch(
-                    candidateParameterTypes: [candidateArgType],
-                    interfaceParameterTypes: [interfaceArgType],
-                    types: types
-                ) else { return false }
-            }
-            continue
+    func typeMatches(_ candidateType: TypeID, _ interfaceType: TypeID) -> Bool {
+        if candidateType == interfaceType { return true }
+        if case .typeParam = types.kind(of: candidateType) { return true }
+        if case .typeParam = types.kind(of: interfaceType) { return true }
+        guard case let .classType(candidateClass) = types.kind(of: candidateType),
+              case let .classType(interfaceClass) = types.kind(of: interfaceType),
+              candidateClass.classSymbol == interfaceClass.classSymbol,
+              candidateClass.nullability == interfaceClass.nullability,
+              candidateClass.args.count == interfaceClass.args.count
+        else {
+            return false
         }
-        if candidateType != interfaceType { return false }
+        return zip(candidateClass.args, interfaceClass.args).allSatisfy { candidateArg, interfaceArg in
+            let candidateInner: TypeID
+            let interfaceInner: TypeID
+            switch candidateArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                candidateInner = type
+            case .star:
+                return interfaceArg == .star
+            }
+            switch interfaceArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                interfaceInner = type
+            case .star:
+                return false
+            }
+            return typeMatches(candidateInner, interfaceInner)
+        }
     }
-    return true
+    return zip(candidateParameterTypes, interfaceParameterTypes).allSatisfy(typeMatches)
 }
 
 func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {

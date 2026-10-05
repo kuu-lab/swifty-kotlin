@@ -4,6 +4,53 @@ import Testing
 
 extension BuildKIRRegressionTests {
     @Test
+    func suspendReceiverFunctionValueForwardedThroughHelperPreservesEnvironment() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        fun runValue(block: suspend CoroutineScope.() -> Int): Int = runBlocking(block = block)
+        fun main() {
+            val bonus = 7
+            val block: suspend CoroutineScope.() -> Int = { bonus + 23 }
+            println(runValue(block))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+            let functions = module.arena.declarations.compactMap { $0.function }
+            let adapters = functions.filter {
+                ctx.interner.resolve($0.name).hasPrefix("kk_coroutine_block_adapter_")
+            }
+            #expect(adapters.count == 1)
+            let adapter = try #require(adapters.first)
+            #expect(adapter.isSuspend)
+            #expect(adapter.params.count == 1)
+            #expect(extractCallees(from: adapter.body, interner: ctx.interner)
+                .contains("kk_suspend_function_invoke"))
+
+            let helper = try #require(functions.first { ctx.interner.resolve($0.name) == "runValue" })
+            #expect(!extractCallees(from: helper.body, interner: ctx.interner)
+                .contains(where: { $0.hasPrefix("kk_function_create_") }))
+            let launcherCall = try #require(helper.body.first { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return ctx.interner.resolve(callee) == "runBlocking"
+            })
+            guard case let .call(_, _, arguments, _, _, _, _, _) = launcherCall else { return }
+            #expect(arguments.count == 2)
+            #expect(module.arena.expr(arguments[0]) == .symbolRef(adapter.symbol))
+            #expect(module.arena.expr(arguments[1]) == .symbolRef(helper.params[0].symbol))
+
+            let main = try #require(functions.first { ctx.interner.resolve($0.name) == "main" })
+            #expect(extractCallees(from: main.body, interner: ctx.interner).contains("kk_function_create_1"))
+
+            try LoweringPhase().run(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func suspendLambdaFunctionValueRetainsTypeAndDelayBridge() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -102,8 +149,10 @@ extension BuildKIRRegressionTests {
             })
             guard case let .call(_, _, _, scope, _, _, _, _) = scopeCall else { return }
             let invocation = try #require(capturedAdapter.body.first { instruction in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                return ctx.interner.resolve(callee).hasPrefix("kk_lambda_")
+                guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return false }
+                return module.arena.declarations.contains {
+                    $0.function?.symbol == symbol && $0.function?.isSuspend == true
+                }
             })
             guard case let .call(_, _, arguments, _, _, _, _, _) = invocation else { return }
             #expect(arguments.count == 2)

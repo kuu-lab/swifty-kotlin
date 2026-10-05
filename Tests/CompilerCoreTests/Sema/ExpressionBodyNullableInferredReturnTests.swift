@@ -52,6 +52,30 @@ struct ExpressionBodyNullableInferredReturnTests {
     }
 
     @Test
+    func testNullableExplicitTypeArgumentsPreserveInferredReturnTypes() throws {
+        let (returnType, sema, ctx) = try inferredReturnType(of: "f", in: """
+        fun <X> makeIt(x: X): X = x
+        fun f() = makeIt<Int?>(null)
+        fun inferred() = makeIt(null)
+        class P<T : Any> {
+            fun g() = makeIt<T?>(null)
+        }
+        """)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        #expect(returnType == sema.types.makeNullable(sema.types.intType))
+
+        let inferred = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("inferred")]))
+        #expect(sema.symbols.functionSignature(for: inferred)?.returnType == sema.types.nullableNothingType)
+
+        let owner = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("P")]))
+        let typeParameter = try #require(sema.types.nominalTypeParameterSymbols(for: owner).first)
+        let member = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("P"), ctx.interner.intern("g")]))
+        #expect(sema.symbols.functionSignature(for: member)?.returnType == sema.types.make(.typeParam(
+            TypeParamType(symbol: typeParameter, nullability: .nullable)
+        )))
+    }
+
+    @Test
     func testExplicitNonNullReturnStillRejectsNullableBody() throws {
         let ctx = makeContextFromSource("""
         fun f(): Any? = null

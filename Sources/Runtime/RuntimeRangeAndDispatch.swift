@@ -1021,6 +1021,14 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
         }
         let value = rangeIterator.advance()
         // `Iterator<T>.next()` is an erased boundary.
+        switch rangeIterator.kind {
+        case .intRange, .intProgression:
+            return kk_box_int(value)
+        case .uintRange, .uintProgression:
+            return kk_box_uint(value)
+        default:
+            break
+        }
         return runtimeRangeErasedElement(value, kind: rangeIterator.kind)
     }
     if object is RuntimeListIteratorBox {

@@ -72,7 +72,7 @@ struct RuntimeListBoundsTests {
     func rangeIteratorNextPastEndSetsNoSuchElementException() throws {
         let iterator = kk_range_iterator(kk_op_rangeTo(7, 7), nil)
         var thrown = 0
-        #expect(kk_iterator_next(iterator, &thrown) == 7)
+        #expect(kk_unbox_int(kk_iterator_next(iterator, &thrown)) == 7)
         #expect(thrown == 0)
 
         #expect(kk_iterator_next(iterator, &thrown) == 0)
@@ -84,7 +84,7 @@ struct RuntimeListBoundsTests {
     func rangeIteratorNextZeroElementThenPastEndThrows() throws {
         let iterator = kk_range_iterator(kk_op_rangeTo(0, 0), nil)
         var thrown = 0
-        #expect(kk_iterator_next(iterator, &thrown) == 0)
+        #expect(kk_unbox_int(kk_iterator_next(iterator, &thrown)) == 0)
         #expect(thrown == 0)
 
         #expect(kk_iterator_next(iterator, &thrown) == 0)

@@ -175,18 +175,18 @@ extension CallLowerer {
         case "removeAt":
             return interner.intern("__kk_mutable_list_removeAt")
         case "remove":
-            return interner.intern("__kk_mutable_list_remove_dispatch")
+            return interner.intern("__kk_mutable_list_remove_checked")
         case "listIterator":
             let arity = chosenCallee.flatMap {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes.count
             } ?? 0
             return interner.intern(arity == 0 ? "__kk_mutable_list_listIterator" : "kk_list_iterator_at")
         case "clear":
-            return interner.intern("__kk_mutable_list_clear")
+            return interner.intern("__kk_mutable_list_clear_checked")
         case "removeAll":
-            return interner.intern("__kk_mutable_list_removeAll")
+            return interner.intern("__kk_mutable_list_removeAll_checked")
         case "retainAll":
-            return interner.intern("__kk_mutable_list_retainAll")
+            return interner.intern("__kk_mutable_list_retainAll_checked")
         case "plusAssign", "minusAssign":
             return mutableListBulkMutationCallee(
                 memberName: memberName,
@@ -222,13 +222,13 @@ extension CallLowerer {
         case "Iterable":
             return interner.intern("__kk_mutable_list_\(operation)_iterable")
         case "Array", "Collection", "MutableCollection":
-            return interner.intern("__kk_mutable_list_\(operation)")
+            return interner.intern("__kk_mutable_list_\(operation)_checked")
         default:
             if memberName == "plusAssign" {
                 return interner.intern("__kk_mutable_list_add")
             }
             if memberName == "minusAssign" {
-                return interner.intern("__kk_mutable_list_remove_dispatch")
+                return interner.intern("__kk_mutable_list_remove_checked")
             }
             return nil
         }
@@ -455,11 +455,11 @@ extension CallLowerer {
             case "addAll" where argumentCount == 2:
                 return interner.intern("__kk_mutable_list_addAll_at")
             case "addAll":
-                return interner.intern("__kk_mutable_list_addAll")
+                return interner.intern("__kk_mutable_list_addAll_checked")
             case "removeAll":
-                return interner.intern("__kk_mutable_list_removeAll")
+                return interner.intern("__kk_mutable_list_removeAll_checked")
             case "retainAll":
-                return interner.intern("__kk_mutable_list_retainAll")
+                return interner.intern("__kk_mutable_list_retainAll_checked")
             case "removeAt":
                 return interner.intern("__kk_mutable_list_removeAt")
             case "removeFirst":
@@ -473,11 +473,11 @@ extension CallLowerer {
             case "set":
                 return interner.intern("__kk_mutable_list_set")
             case "clear":
-                return interner.intern("__kk_mutable_list_clear")
+                return interner.intern("__kk_mutable_list_clear_checked")
             case "plusAssign":
                 return interner.intern("__kk_mutable_list_add")
             case "minusAssign":
-                return interner.intern("__kk_mutable_list_remove_dispatch")
+                return interner.intern("__kk_mutable_list_remove_checked")
             default:
                 break
             }

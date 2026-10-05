@@ -41,8 +41,24 @@ extension InlineLoweringPass {
         let captures = lambdaCaptureArgsByExpr[source]
             ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
         guard !captures.isEmpty else { return }
-        lambdaCaptureArgsByExpr[cloned] = captures.map {
+        let clonedCaptures = captures.map {
             InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
+        }
+        lambdaCaptureArgsByExpr[cloned] = clonedCaptures
+        if let info = arena.callableValueInfo(for: source) {
+            arena.callableValueInfoByExprID[cloned] = KIRCallableValueInfo(
+                symbol: symbol,
+                callee: info.callee,
+                captureArguments: clonedCaptures,
+                hasClosureParam: info.hasClosureParam
+            )
+        } else if let function = arena.function(for: symbol) {
+            arena.callableValueInfoByExprID[cloned] = KIRCallableValueInfo(
+                symbol: symbol,
+                callee: function.name,
+                captureArguments: clonedCaptures,
+                hasClosureParam: false
+            )
         }
     }
 

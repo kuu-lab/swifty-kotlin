@@ -582,6 +582,20 @@ final class RuntimeListBox {
     private var storage: Storage
     private(set) var isReadOnly = false
 
+    var isEffectivelyReadOnly: Bool {
+        if isReadOnly { return true }
+        switch storage {
+        case .direct, .arrayViewOf, .dequeViewOf:
+            return false
+        case .reversedViewOf(let base):
+            return base.isEffectivelyReadOnly
+        case .subList(let slice):
+            return slice.base.isEffectivelyReadOnly
+        case .mapValuesViewOf(let mapRaw):
+            return runtimeMapBox(from: mapRaw)?.isEffectivelyReadOnly ?? false
+        }
+    }
+
     init(elements: [Int]) {
         storage = .direct(DirectStorage(values: elements.map { RuntimeValue(raw: $0) }))
     }
@@ -634,7 +648,7 @@ final class RuntimeListBox {
             }
         }
         set {
-            guard !isReadOnly else { return }
+            guard !isEffectivelyReadOnly else { return }
             switch storage {
             case .direct(let direct):
                 if newValue.count != direct.values.count {
@@ -747,7 +761,7 @@ final class RuntimeListBox {
             runtimeCollectionABIValue(value(at: index))
         }
         set {
-            guard !isReadOnly else { return }
+            guard !isEffectivelyReadOnly else { return }
             switch storage {
             case .direct(let direct):
                 direct.values[index] = RuntimeValue(
@@ -773,7 +787,7 @@ final class RuntimeListBox {
 
     /// Stores an already-tagged value without materializing the surrounding collection.
     func setValue(_ value: RuntimeValue, at index: Int) {
-        guard !isReadOnly else { return }
+        guard !isEffectivelyReadOnly else { return }
         switch storage {
         case .direct(let direct):
             direct.values[index] = runtimeValuePreservingAnyFallbackTag(
@@ -804,7 +818,7 @@ final class RuntimeListBox {
     /// the write-back.
     @discardableResult
     func withMutableValues<R>(_ body: (inout [RuntimeValue]) -> R) -> R {
-        guard !isReadOnly else {
+        guard !isEffectivelyReadOnly else {
             var values = values
             return body(&values)
         }
@@ -1589,6 +1603,7 @@ final class RuntimeListIteratorBox {
     let removeAction: ((Int) -> Void)?
     let setAction: ((Int, RuntimeValue) -> Void)?
     let addAction: ((Int, RuntimeValue) -> Void)?
+    let isBackingReadOnly: (() -> Bool)?
     /// Reads the live backing collection's structural-modification counter.
     /// `nil` for iterators with no live backing (plain `Array`, or the
     /// BUG-231 empty fallback) — comodification can never be detected there.
@@ -1604,6 +1619,7 @@ final class RuntimeListIteratorBox {
         removeAction: ((Int) -> Void)? = nil,
         setAction: ((Int, RuntimeValue) -> Void)? = nil,
         addAction: ((Int, RuntimeValue) -> Void)? = nil,
+        isBackingReadOnly: (() -> Bool)? = nil,
         currentModCount: (() -> Int)? = nil,
         currentValue: ((Int) -> RuntimeValue)? = nil
     ) {
@@ -1613,6 +1629,7 @@ final class RuntimeListIteratorBox {
         self.removeAction = removeAction
         self.setAction = setAction
         self.addAction = addAction
+        self.isBackingReadOnly = isBackingReadOnly
         self.currentModCount = currentModCount
         self.currentValue = currentValue
         self.expectedModCount = currentModCount?() ?? 0
@@ -1623,6 +1640,7 @@ final class RuntimeListIteratorBox {
         removeAction: ((Int) -> Void)? = nil,
         setAction: ((Int, RuntimeValue) -> Void)? = nil,
         addAction: ((Int, RuntimeValue) -> Void)? = nil,
+        isBackingReadOnly: (() -> Bool)? = nil,
         currentModCount: (() -> Int)? = nil,
         currentValue: ((Int) -> RuntimeValue)? = nil
     ) {
@@ -1632,6 +1650,7 @@ final class RuntimeListIteratorBox {
         self.removeAction = removeAction
         self.setAction = setAction
         self.addAction = addAction
+        self.isBackingReadOnly = isBackingReadOnly
         self.currentModCount = currentModCount
         self.currentValue = currentValue
         self.expectedModCount = currentModCount?() ?? 0

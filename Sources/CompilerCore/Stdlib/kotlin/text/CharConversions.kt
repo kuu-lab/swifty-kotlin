@@ -41,6 +41,7 @@ internal external fun __charLowercaseLocale(code: Int, locale: java.util.Locale)
 
 /// Builds a Char from a code point by reusing the existing Int.toChar() conversion.
 @KsSymbolName("kk_int_to_char")
+@PublishedApi
 internal external fun __charFromCode(code: Int): Char
 
 private const val CHAR_CODE_ZERO = 48 // '0'
