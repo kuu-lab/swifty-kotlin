@@ -834,8 +834,8 @@ extension LoweringPassRegressionTests {
 
     // MARK: - produce/actor Function-Value Block Tests
 
-    @Test
-    func testProduceLaunchFunctionValuePacksCapturesIntoEnvArg() throws {
+    @Test(arguments: [false, true])
+    func testProduceLaunchFunctionValuePacksCapturesIntoEnvArg(hasClosureParam: Bool) throws {
         // Simulates KUU-951: `produce(block = f)` where `f` is a stored
         // suspend function value capturing `x`. The value's thunk is
         // capture-first, so `__kk_produce_launch` must be invoked with the
@@ -893,7 +893,7 @@ extension LoweringPassRegressionTests {
             symbol: suspendSymbol,
             callee: interner.intern("named_suspend_block"),
             captureArguments: [captureExpr],
-            hasClosureParam: false
+            hasClosureParam: hasClosureParam
         )
 
         let mainID = arena.appendDecl(.function(mainFn))
@@ -914,8 +914,19 @@ extension LoweringPassRegressionTests {
         }
         let launchArgs = try #require(launchCalls.first)
         #expect(launchArgs.count == 3)
-        // With one capture the env slot is the raw capture value itself.
-        #expect(launchArgs[2] == captureExpr)
+        if hasClosureParam {
+            #expect(launchArgs[2] != captureExpr)
+            let envStores = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      interner.resolve(callee) == "kk_array_set"
+                else { return nil }
+                return arguments
+            }
+            #expect(envStores.contains { $0[0] == launchArgs[2] && $0[2] == captureExpr })
+        } else {
+            #expect(launchArgs[2] == captureExpr)
+        }
+        #expect(arena.expr(launchArgs[1]) == .symbolRef(suspendSymbol))
 
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
         #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
@@ -923,11 +934,8 @@ extension LoweringPassRegressionTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
-    @Test
-    func testProduceLaunchOpaqueFunctionValueUsesRuntimeAccessors() throws {
-        // Same call shape but with no callable info recorded for the value:
-        // (fnPtr, env) must be recovered at runtime through the
-        // `kk_function_value_*` accessors.
+    @Test(arguments: [false, true])
+    func testProduceLaunchOpaqueFunctionValuePreservesBox(hasEnvironment: Bool) throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -937,7 +945,8 @@ extension LoweringPassRegressionTests {
         let suspendParamSymbol = SymbolID(rawValue: 842)
 
         let channelExpr = arena.appendExpr(.intLiteral(7))
-        let suspendRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
+        let suspendRefExpr = arena.appendTemporary(type: types.anyType)
+        let environmentExpr = arena.appendExpr(.intLiteral(42), type: types.intType)
         let produceResult = arena.appendExpr(.temporary(3))
 
         let mainFn = KIRFunction(
@@ -951,7 +960,9 @@ extension LoweringPassRegressionTests {
                 .call(
                     symbol: nil,
                     callee: interner.intern("__kk_produce_launch"),
-                    arguments: [channelExpr, suspendRefExpr],
+                    arguments: hasEnvironment
+                        ? [channelExpr, suspendRefExpr, environmentExpr]
+                        : [channelExpr, suspendRefExpr],
                     result: produceResult,
                     canThrow: false,
                     thrownResult: nil
@@ -982,8 +993,8 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_function_value_fn_ptr"))
-        #expect(mainCallees.contains("kk_function_value_closure_raw"))
+        #expect(!mainCallees.contains("kk_function_value_fn_ptr"))
+        #expect(!mainCallees.contains("kk_function_value_closure_raw"))
         #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
 
         let launchCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
@@ -993,6 +1004,10 @@ extension LoweringPassRegressionTests {
             return arguments
         }
         #expect(launchCalls.first?.count == 3)
+        #expect(launchCalls.first?[1] == suspendRefExpr)
+        if hasEnvironment {
+            #expect(launchCalls.first?[2] == environmentExpr)
+        }
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 

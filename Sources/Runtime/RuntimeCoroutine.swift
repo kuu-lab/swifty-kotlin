@@ -4252,15 +4252,22 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     // Expand the env slot into the thunk's positional captures: 0 → none, a
     // packed env object (kk_object_new(2+N, classID: 0), captures at slots
     // 2..) → N captures, anything else → a single raw capture.
+    let entryPoint: Int
     let captures: [Int]
-    if envRaw == 0 {
+    if let box = runtimeFunctionValueBox(from: entryPointRaw) {
+        entryPoint = box.fnPtr
+        captures = [box.closureRaw]
+    } else if envRaw == 0 {
+        entryPoint = entryPointRaw
         captures = []
     } else if let envBox = resolveRuntimeHandle(envRaw, as: RuntimeObjectBox.self),
               envBox.classID == 0,
               envBox.elements.count > 2
     {
+        entryPoint = entryPointRaw
         captures = Array(envBox.elements.dropFirst(2))
     } else {
+        entryPoint = entryPointRaw
         captures = [envRaw]
     }
 
@@ -4274,7 +4281,7 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
         RuntimeJobHandle.current = job
         var thrown = 0
         let result = runtimeInvokeSuspendLauncherThunk(
-            entryPointRaw: entryPointRaw,
+            entryPointRaw: entryPoint,
             receiver: channelHandle,
             captures: captures,
             outThrown: &thrown

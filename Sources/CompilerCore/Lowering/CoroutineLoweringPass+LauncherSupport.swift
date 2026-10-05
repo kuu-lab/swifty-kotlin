@@ -1157,7 +1157,12 @@ extension CoroutineLoweringPass {
               let loweredTarget = rewrite.loweredBySymbol[suspendSymbol],
               let thunk = rewrite.launcherThunkByOriginalSymbol[suspendSymbol]
         else {
-            return nil
+            return rewriteProduceLaunchFunctionValueCall(
+                call: call,
+                channelExpr: channelExpr,
+                suspendArgExpr: suspendArgExpr,
+                using: rewrite
+            )
         }
 
         guard isCoroutineLauncherMarkedBlock(suspendSymbol, using: rewrite) else {
@@ -1169,13 +1174,12 @@ extension CoroutineLoweringPass {
             )
         }
 
-        // Captures either arrive flattened as trailing call args or ride
-        // inside the suspend value's callable info — use whichever form the
-        // emitter produced.
+        // The trailing argument may be the function-value environment, not
+        // flattened captures. Prefer the lambda reference's capture metadata.
         let trailingCaptures = Array(call.arguments.dropFirst(2))
-        let captures: [KIRExprID] = trailingCaptures.isEmpty
-            ? (rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments ?? [])
-            : trailingCaptures
+        let captures = rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments
+            ?? rewrite.module.arena.lambdaCaptureArgsBySymbol[suspendSymbol]
+            ?? trailingCaptures
 
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
@@ -1374,8 +1378,8 @@ extension CoroutineLoweringPass {
     /// info, env packs the captures exactly like
     /// `CallLowerer.splitCallableLambdaArgument` (0 → `0`, one → the raw
     /// capture, several → a `kk_object_new(2+N, classID: 0)` box). Without
-    /// it the argument is an opaque (possibly boxed) value and the pair is
-    /// recovered at runtime via the `kk_function_value_*` accessors.
+    /// it the runtime resolves the opaque value, preserving the closure
+    /// parameter of a boxed function even when its environment is zero.
     func rewriteProduceLaunchFunctionValueCall(
         call: CallRewriteInput,
         channelExpr: KIRExprID,
@@ -1383,47 +1387,63 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction] {
         let arena = rewrite.module.arena
-        let interner = rewrite.ctx.interner
         var instructions: [KIRInstruction] = []
+
+        // Imported calls may already carry the raw entry point and environment.
+        // Reconstructing them from the entry point would discard their captures.
+        if call.arguments.count == 3 {
+            return [.call(
+                symbol: call.symbol,
+                callee: call.callee,
+                arguments: call.arguments,
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult,
+                isSuperCall: call.isSuperCall
+            )]
+        }
 
         let entryExpr: KIRExprID
         let envExpr: KIRExprID
         if let callableInfo = arena.callableValueInfo(for: suspendArgExpr) {
-            entryExpr = suspendArgExpr
-            switch callableInfo.captureArguments.count {
-            case 0:
-                envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
-                instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
-            case 1:
-                envExpr = callableInfo.captureArguments[0]
-            default:
-                envExpr = emitPackedCaptureEnvironment(
-                    callableInfo.captureArguments,
-                    using: rewrite,
-                    into: &instructions
-                )
+            entryExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: rewrite.intType)
+            instructions.append(.constValue(result: entryExpr, value: .symbolRef(callableInfo.symbol)))
+            if callableInfo.hasClosureParam {
+                let closureExpr: KIRExprID
+                if callableInfo.captureArguments.count >= 2 {
+                    closureExpr = emitPackedCaptureEnvironment(
+                        callableInfo.captureArguments, using: rewrite, into: &instructions
+                    )
+                } else if let capture = callableInfo.captureArguments.first {
+                    closureExpr = capture
+                } else {
+                    closureExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+                    instructions.append(.constValue(result: closureExpr, value: .intLiteral(0)))
+                }
+                // Keep the closure slot, including zero or a packed capture object,
+                // intact rather than expanding it into the adapter's parameters.
+                envExpr = emitPackedCaptureEnvironment([closureExpr], using: rewrite, into: &instructions)
+            } else {
+                switch callableInfo.captureArguments.count {
+                case 0:
+                    envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+                    instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
+                case 1:
+                    envExpr = callableInfo.captureArguments[0]
+                default:
+                    envExpr = emitPackedCaptureEnvironment(
+                        callableInfo.captureArguments,
+                        using: rewrite,
+                        into: &instructions
+                    )
+                }
             }
         } else {
-            let fnPtrExpr = arena.appendTemporary(type: rewrite.intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_function_value_fn_ptr"),
-                arguments: [suspendArgExpr],
-                result: fnPtrExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            entryExpr = fnPtrExpr
-            let closureExpr = arena.appendTemporary(type: rewrite.intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_function_value_closure_raw"),
-                arguments: [suspendArgExpr],
-                result: closureExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            envExpr = closureExpr
+            // The runtime must distinguish a boxed closure from a raw entry point
+            // before deciding whether its environment can be expanded.
+            entryExpr = suspendArgExpr
+            envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+            instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
         }
 
         instructions.append(
