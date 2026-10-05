@@ -576,7 +576,36 @@ final class LambdaLowerer {
                 return materialized
             }
         }
+        if let functionType {
+            emitRawFunctionArityTag(
+                lambdaValueExpr, functionType: functionType, sema: sema,
+                arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         return lambdaValueExpr
+    }
+
+    private func emitRawFunctionArityTag(
+        _ callableExpr: KIRExprID,
+        functionType: FunctionType,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let arity = Int64(functionType.contextReceivers.count
+            + (functionType.receiver == nil ? 0 : 1) + functionType.params.count)
+        let arityExpr = arena.appendExpr(.intLiteral(arity), type: sema.types.intType)
+        instructions.append(.constValue(result: arityExpr, value: .intLiteral(arity)))
+        // Preserve the raw symbol and capture ABI for inline/HOF/coroutine lowering.
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_function_value_tag_arity"),
+            arguments: [callableExpr, arityExpr],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
     }
 
     /// Re-establishes one captured symbol's value inside a lambda body's
@@ -1866,6 +1895,14 @@ final class LambdaLowerer {
         // Returning a tagged callable reference here would pass the reflection wrapper
         // object to runtime HOF entry points instead of the generated thunk symbol.
         if needsHOFWrapper {
+            if sema.bindings.callableRefKind(for: exprID) == .functionRef,
+               case let .functionType(functionType) = sema.types.kind(of: callableType)
+            {
+                emitRawFunctionArityTag(
+                    callableExpr, functionType: functionType, sema: sema,
+                    arena: arena, interner: interner, instructions: &instructions
+                )
+            }
             return callableExpr
         }
 
@@ -2167,7 +2204,8 @@ final class LambdaLowerer {
         let arity: Int64
         let isSuspendFlag: Int64
         if case let .functionType(functionType) = sema.types.kind(of: callableType) {
-            arity = Int64(functionType.params.count)
+            arity = Int64(functionType.contextReceivers.count
+                + (functionType.receiver == nil ? 0 : 1) + functionType.params.count)
             isSuspendFlag = functionType.isSuspend ? 1 : 0
         } else {
             // Property references have arity 0 (no value params, just a getter).
@@ -2401,6 +2439,12 @@ final class LambdaLowerer {
             hasClosureParam: false
         )
 
+        if let functionType {
+            emitRawFunctionArityTag(
+                lambdaValueExpr, functionType: functionType, sema: sema,
+                arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         return lambdaValueExpr
     }
 }

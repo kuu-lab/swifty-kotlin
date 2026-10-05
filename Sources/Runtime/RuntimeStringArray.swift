@@ -1148,6 +1148,19 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // KUU-1084: function-type tokens encode the FunctionN arity in the
         // low payload byte; a value matches when it is a function value of
         // the same arity (the suspend bit does not change `is` semantics).
+        let (arity, _) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+        let rawArity = runtimeStorage.withDelegateLock { state -> Int? in
+            if let registeredArity = state.functionArityByPointer[value] {
+                return registeredArity
+            }
+            if let metadata = state.callableRefMetadataByValue[value], metadata.kind == .function {
+                return metadata.arity
+            }
+            return nil
+        }
+        if let rawArity {
+            return rawArity == arity ? 1 : 0
+        }
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
               runtimeStorage.withGCLock({ state in
                   state.objectPointers.contains(UInt(bitPattern: ptr))
@@ -1155,7 +1168,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         else {
             return 0
         }
-        let (arity, _) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
         if let fnBox = tryCast(ptr, to: RuntimeFunctionValueBox.self) {
             return fnBox.arity == arity ? 1 : 0
         }
