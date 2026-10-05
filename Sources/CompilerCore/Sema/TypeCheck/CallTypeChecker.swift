@@ -1261,11 +1261,31 @@ final class CallTypeChecker {
             return sema.types.unitType
         }
 
+        let compareBySelectorArguments: [Bool]
+        if let calleeName,
+           calleeName == knownNames.compareBy || calleeName == knownNames.compareByDescending,
+           args.count == 2 || args.count == 3,
+           locals[calleeName] == nil
+        {
+            compareBySelectorArguments = args.map { argument -> Bool in
+                if isLambdaOrCallableRefArg(argument.expr, ast: ast) {
+                    return true
+                }
+                let argumentType = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                guard case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(argumentType)) else {
+                    return false
+                }
+                return functionType.params.count == 1
+            }
+        } else {
+            compareBySelectorArguments = []
+        }
+
         // --- compareBy(selector1, selector2, ...) multi-selector overloads (STDLIB-613) ---
         if let calleeName,
            args.count == 2 || args.count == 3,
            calleeName == knownNames.compareBy,
-           args.allSatisfy({ isLambdaOrCallableRefArg($0.expr, ast: ast) }),
+           compareBySelectorArguments.allSatisfy({ $0 }),
            locals[calleeName] == nil,
            sourceOrSyntheticStdlibFunctionSymbol(
                calleeName,
@@ -1337,7 +1357,7 @@ final class CallTypeChecker {
         if let calleeName,
            args.count == 2,
            calleeName == knownNames.compareBy || calleeName == knownNames.compareByDescending,
-           !isLambdaOrCallableRefArg(args[0].expr, ast: ast),
+           compareBySelectorArguments.first == false,
            locals[calleeName] == nil,
            sourceOrSyntheticStdlibFunctionSymbol(
                calleeName,

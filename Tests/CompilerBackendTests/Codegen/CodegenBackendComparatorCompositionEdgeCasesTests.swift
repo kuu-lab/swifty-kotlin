@@ -7,6 +7,26 @@ import Testing
 @Suite
 struct CodegenBackendComparatorCompositionEdgeCasesTests {
 
+    @Test(arguments: [0, 2], [false, true])
+    func testCodegenCompareByDataClassDirectCompare(optimization: Int, stdlibFromSource: Bool) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_1209_compareby_data_class.kt"
+        ), encoding: .utf8)
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CompareByDataClassDirectCompare",
+            expected: "1\n-1\n1\n-1\n0\n1\n2:0\n1\n4:2\n-1\n-1\n0\n1\n-1\n1\n1\n0\n1\n-1\n0\n"
+                + "[1:1, 1:2, 1:2, 2:1]\n[2:1, 1:2, 1:2, 1:1]\n"
+                + "[1:1, 1:2, 1:2, 2:1]\n[1:1, 1:2, 1:2, 2:1]\n-1\n1\na,cc,bbb\n",
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            allowDefaultStdlibLibrary: !stdlibFromSource
+        )
+    }
+
     @Test
     func testCompareBySortsStringsWithInferredAndExplicitSelectorTypes() throws {
         let source = """
