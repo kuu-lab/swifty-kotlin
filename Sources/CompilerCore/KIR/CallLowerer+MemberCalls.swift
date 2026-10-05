@@ -252,8 +252,7 @@ extension CallLowerer {
             }
             return sema.bundledIndex.contains(
                 ownerFQName: ownerSymbol.fqName,
-                name: calleeName,
-                arity: args.count
+                name: calleeName
             )
         }()
         if isFlowReceiver, !hasBundledFlowDeclaration {

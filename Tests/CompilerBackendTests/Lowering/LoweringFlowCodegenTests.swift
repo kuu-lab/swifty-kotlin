@@ -126,7 +126,9 @@ struct LoweringFlowCodegenTests {
                 emit(8)
                 emitAll(flowOf(9))
             }.toList())
+            var fallbackCalls = 0
             val fallback = emptyFlow<Int>().onEmpty {
+                fallbackCalls += 1
                 emit(1)
                 emitAll(emptyFlow<Int>())
                 emit(2)
@@ -135,8 +137,10 @@ struct LoweringFlowCodegenTests {
                 emitAll(flowOf(6))
                 emit(7)
             }
+            println("fallbackCalls:$fallbackCalls")
             println(fallback.toList())
             println(fallback.toList())
+            println("fallbackCalls:$fallbackCalls")
             println(emptyFlow<Int?>().onEmpty {
                 emit(null)
                 emitAll(flowOf(8, null))
@@ -174,8 +178,10 @@ struct LoweringFlowCodegenTests {
             [7, 8, 9]
             [8, 9, 7]
             [7, 8, 9]
+            fallbackCalls:0
             [1, 2, 3, 4, 5, 6, 7]
             [1, 2, 3, 4, 5, 6, 7]
+            fallbackCalls:2
             [null, 8, null, 9]
             [10]
             calls:0
@@ -218,6 +224,29 @@ struct LoweringFlowCodegenTests {
 
             #expect(allCallees.contains("kk_suspend_function_invoke_\(arity)"))
             #expect(!allCallees.contains("operation"))
+        }
+    }
+
+    @Test
+    func testCapturedSuspendReceiverFunctionUsesThreeArgumentInvokeABI() throws {
+        let source = """
+        interface Collector
+
+        suspend fun callPredicate(
+            collector: Collector,
+            predicate: suspend Collector.(Throwable, Long) -> Boolean
+        ): Boolean = predicate(collector, IllegalStateException("retry"), 0L)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendReceiverPredicate", emit: .kirDump)
+            try runToLowering(ctx)
+            let module = try #require(ctx.kir)
+            let callees = findAllKIRFunctions(in: module).flatMap {
+                extractCallees(from: $0.body, interner: ctx.interner)
+            }
+            #expect(callees.contains("kk_suspend_function_invoke_3"))
+            #expect(!callees.contains("predicate"))
         }
     }
 
@@ -265,6 +294,189 @@ struct LoweringFlowCodegenTests {
             moduleName: "SuspendFunctionValueFlowEnvironment",
             expectedStdout: "predicate\nfilter done\n2\n1\ncompletion\n"
         )
+    }
+
+    @Test
+    func testSuspendReceiverCallbackDispatchesImportedCollectorMember() throws {
+        try assertFlowExecutableOutput(
+            source: """
+            import kotlinx.coroutines.flow.*
+
+            class Printer : FlowCollector<Int> {
+                override suspend fun emit(value: Int) { println(value) }
+            }
+
+            suspend fun send(collector: FlowCollector<Int>) { collector.emit(9) }
+
+            suspend fun action(collector: FlowCollector<Int>, block: suspend FlowCollector<Int>.() -> Unit) {
+                block(collector)
+            }
+
+            fun main() {
+                runBlocking {
+                    Printer().emit(8)
+                    send(Printer())
+                    val captured = 7
+                    action(Printer()) { emit(captured) }
+                }
+            }
+            """,
+            moduleName: "SuspendReceiverCollectorDispatch",
+            expectedStdout: "8\n9\n7\n"
+        )
+    }
+
+    @Test
+    func testDefaultFlowRetryUsesBundledSourceValidation() throws {
+        try assertFlowExecutableOutput(
+            source: """
+            import kotlinx.coroutines.flow.*
+
+            fun main() {
+                try {
+                    flowOf(1).retry(0)
+                } catch (e: IllegalArgumentException) {
+                    println("zero retry")
+                }
+                try {
+                    flowOf(1).retry(-1)
+                } catch (e: IllegalArgumentException) {
+                    println("negative retry")
+                }
+            }
+            """,
+            moduleName: "DefaultFlowRetry",
+            expectedStdout: "zero retry\nnegative retry\n"
+        )
+    }
+
+    @Test
+    func testSharedFlowOnSubscriptionRunsBeforeReplay() throws {
+        try assertFlowExecutableOutput(
+            source: """
+            import kotlinx.coroutines.flow.*
+
+            fun main() {
+                runBlocking {
+                    val shared = MutableSharedFlow<Int>(2)
+                    shared.tryEmit(1)
+                    shared.tryEmit(2)
+                    val subscribed = shared.onSubscription { emit(0) }
+                    println(subscribed.replayCache)
+                    subscribed.collect { println(it) }
+                    subscribed.collect { println(it) }
+                }
+            }
+            """,
+            moduleName: "SharedFlowOnSubscription",
+            expectedStdout: "[1, 2]\n0\n1\n2\n0\n1\n2\n"
+        )
+    }
+
+    @Test
+    func testTransformLatestPreservesColdStreamingAndDownstreamFailures() throws {
+        try assertFlowExecutableOutput(
+            source: """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                val transformed = flow<Int> {
+                    println("start")
+                    emit(1)
+                    println("unreachable")
+                    emit(2)
+                }.transformLatest<Int, String> { value ->
+                    emit("value=$value")
+                    println("unreachable transform")
+                }
+                println("constructed")
+                try {
+                    transformed.collect { value ->
+                        println(value)
+                        throw IllegalStateException("downstream")
+                    }
+                } catch (e: IllegalStateException) {
+                    println(e.message)
+                }
+                try {
+                    transformed.collect { value ->
+                        println(value)
+                        throw IllegalStateException("downstream")
+                    }
+                } catch (e: IllegalStateException) {
+                    println(e.message)
+                }
+            }
+            """,
+            moduleName: "TransformLatestStreaming",
+            expectedStdout: "constructed\nstart\nvalue=1\ndownstream\nstart\nvalue=1\ndownstream\n"
+        )
+    }
+
+    @Test
+    func testBundledFlowLoweringPreservesSourceBackedOperators() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() {
+            runBlocking {
+                flow<Int> {
+                    emit(1)
+                    emit(2)
+                }.transform<Int, Int> {
+                    emit(it * 2)
+                    emit(it * 2 + 1)
+                }
+                    .collect { println(it) }
+                val only = flow<Int> {
+                    emit(7)
+                }.single()
+                println(only)
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump
+            )
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir, "KIR module not produced after lowering.")
+            let allCallees = findAllKIRFunctions(in: module).filter { !$0.isInlineOnly }
+                .flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
+            let sema = try #require(ctx.sema)
+
+            #expect(allCallees.contains("kk_flow_create"))
+            #expect(allCallees.contains("kk_flow_emit"))
+            #expect(allCallees.contains("collect"))
+            #expect(allCallees.contains("single"))
+            #expect(allCallees.contains("transform"))
+            #expect(!allCallees.contains("flow"))
+            #expect(!allCallees.contains("__kk_flow_single"))
+
+            // Operators stay source-backed; only cold-flow primitives use runtime links.
+            for function in findAllKIRFunctions(in: module) where !function.isInlineOnly {
+                for instruction in function.body {
+                    guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                          ["transform", "emit", "collect"].contains(ctx.interner.resolve(callee))
+                    else { continue }
+                    let chosenSymbol = try #require(symbol, "Unresolved Flow call remains after lowering")
+                    #expect(sema.symbols.isSourceBackedSymbol(chosenSymbol))
+                    let declaration = try #require(sema.symbols.symbol(chosenSymbol))
+                    let fqName = declaration.fqName.map(ctx.interner.resolve).joined(separator: ".")
+                    #expect(fqName.hasPrefix("kotlinx.coroutines.flow."))
+                }
+            }
+
+            try assertFlowExecutableOutput(
+                source: source,
+                moduleName: "FlowLoweringRewriteExecutable",
+                expectedStdout: "2\n3\n4\n5\n7\n"
+            )
+        }
     }
 
     @Test
@@ -621,7 +833,7 @@ struct LoweringFlowCodegenTests {
         try withTemporaryFile(contents: source) { path in
             // Exercise intrinsic lowering without bundled Flow declarations.
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump,
+                inputs: [path], moduleName: "FlowIntrinsicLoweringRewrite", emit: .kirDump,
                 includeStdlib: false, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
@@ -642,16 +854,16 @@ struct LoweringFlowCodegenTests {
         }
     }
 
-    @Test
-    func testCoroutineLoweringFlowCollectInjectsSuspendCollectorFunctionID() throws {
+    @Test(arguments: [true, false])
+    func testCoroutineLoweringFlowCollectInjectsSuspendCollectorFunctionID(includeStdlib: Bool) throws {
         let source = """
-        fun println(value: Any?) {}
+        \(includeStdlib ? "import kotlinx.coroutines.flow.*" : "fun println(value: Any?) {}")
 
         fun main() {
             runBlocking {
                 flow {
                     emit(1)
-                }.collect {
+                }.\(includeStdlib ? "collectCold" : "collect") {
                     delay(1)
                     println(it)
                 }
@@ -662,7 +874,7 @@ struct LoweringFlowCodegenTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
                 inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump,
-                includeStdlib: false, allowDefaultStdlibLibrary: false
+                includeStdlib: includeStdlib, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
             try assertNoDiagnosticErrors(ctx)
@@ -716,8 +928,8 @@ struct LoweringFlowCodegenTests {
         }
     }
 
-    @Test
-    func testFlowMapCollectExecutablePrintsExpectedOutput() throws {
+    @Test(arguments: [false, true])
+    func testFlowMapCollectExecutablePrintsExpectedOutput(useSourceStdlib: Bool) throws {
         let source = """
         suspend fun runFlowCollectExecutable() {
             flow {
@@ -735,12 +947,13 @@ struct LoweringFlowCodegenTests {
         try assertFlowExecutableOutput(
             source: source,
             moduleName: "FlowExecutable",
-            expectedStdout: "2\n4\n"
+            expectedStdout: "2\n4\n",
+            useSourceStdlib: useSourceStdlib
         )
     }
 
-    @Test
-    func testNestedFlowCollectorsDoNotReenterTheInnerCollector() throws {
+    @Test(arguments: [false, true])
+    func testNestedFlowCollectorsDoNotReenterTheInnerCollector(useSourceStdlib: Bool) throws {
         let source = """
         fun main() {
             runBlocking {
@@ -759,14 +972,15 @@ struct LoweringFlowCodegenTests {
         try assertFlowExecutableOutput(
             source: source,
             moduleName: "FlowNestedCollectorOwnership",
-            expectedStdout: "2\n4\n[20, 30]\n"
+            expectedStdout: "2\n4\n[20, 30]\n",
+            useSourceStdlib: useSourceStdlib
         )
     }
 
-    @Test
-    func testFlowCollectTwiceLowersBothCollectCalls() throws {
+    @Test(arguments: [true, false])
+    func testFlowCollectTwiceLowersBothCollectCalls(includeStdlib: Bool) throws {
         let source = """
-        fun println(value: Any?) {}
+        \(includeStdlib ? "import kotlinx.coroutines.flow.*" : "fun println(value: Any?) {}")
 
         suspend fun runFlowCollectTwice() {
             val stream = flow {
@@ -785,15 +999,17 @@ struct LoweringFlowCodegenTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
                 inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump,
-                includeStdlib: false, allowDefaultStdlibLibrary: false
+                includeStdlib: includeStdlib, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
             try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
-            let collectCalls = findAllKIRFunctions(in: module).compactMap { function -> Int? in
+            let collectCalls = findAllKIRFunctions(in: module).filter {
+                ctx.interner.resolve($0.name).contains("runFlowCollectTwice")
+            }.compactMap { function -> Int? in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
-                let collectCount = callees.filter { $0 == "kk_flow_collect" }.count
+                let collectCount = callees.filter { $0 == (includeStdlib ? "collect" : "kk_flow_collect") }.count
                 return collectCount == 0 ? nil : collectCount
             }.reduce(0, +)
 
@@ -943,6 +1159,41 @@ struct LoweringFlowCodegenTests {
             source: source,
             moduleName: "FlowCaptureExecutable",
             expectedStdout: "1001\n1002\n1003\n"
+        )
+    }
+
+    @Test(arguments: [false, true])
+    func testColdFlowPredicatesAwaitSuspendedCallbacks(useSourceStdlib: Bool) throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            val limit = 30
+            println(flowOf(10, 20, 30, 40).filter { delay(1); it <= limit }.toList())
+            println(flowOf(10, 20, 30, 40).filterNot { delay(1); it <= limit }.toList())
+            println(flowOf(10, 20, 30, 40).dropWhile { delay(1); it < 20 }.toList())
+            println(flowOf(10, 20, 30, 40).takeWhile { delay(1); it <= limit }.toList())
+            try {
+                flowOf(1, 2, 3).filter { delay(1); true }.collect {
+                    delay(1)
+                    println(it)
+                    if (it == 2) throw IllegalStateException("collector")
+                }
+            } catch (e: IllegalStateException) {
+                println(e.message)
+            }
+            withContext(Dispatchers.Default) {
+                println(flowOf(10, 20, 30).filter { delay(1); it <= 20 }.toList())
+                println(flowOf(10, 20, 30).dropWhile { delay(1); it < 20 }.toList())
+            }
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "ColdFlowSuspendPredicates",
+            expectedStdout: "[10, 20, 30]\n[40]\n[20, 30, 40]\n[10, 20, 30]\n1\n2\ncollector\n[10, 20]\n[20, 30]\n",
+            useSourceStdlib: useSourceStdlib
         )
     }
 

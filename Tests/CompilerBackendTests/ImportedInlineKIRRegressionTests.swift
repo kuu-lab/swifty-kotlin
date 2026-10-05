@@ -92,6 +92,11 @@ struct ImportedInlineKIRRegressionTests {
             inline fun nested(): Int {
                 try { return value() + 1 } finally { println("nested-finally") }
             }
+            inline fun capturing(): Int {
+                var answer = 53
+                around { answer += 1; return answer }
+                return -1
+            }
             """,
             moduleName: "InlineReturnTarget"
         ) { libraryPath in
@@ -104,6 +109,7 @@ struct ImportedInlineKIRRegressionTests {
             import returntarget.value
             import returntarget.nested
             import returntarget.exposed
+            import returntarget.capturing
             fun main() {
                 println("before")
                 try {
@@ -115,6 +121,8 @@ struct ImportedInlineKIRRegressionTests {
                 println("after")
                 println(exposed())
                 println("after-hidden")
+                println(capturing())
+                println("after-capture")
             }
             """
             try withTemporaryFile(contents: source) { path in
@@ -130,7 +138,7 @@ struct ImportedInlineKIRRegressionTests {
                 try LinkPhase().run(context)
                 let result = try CommandRunner.run(executable: output, arguments: [])
                 #expect(result.exitCode == 0)
-                #expect(result.stdout == "before\nvalue-finally\n42\nvalue-finally\n42\nvalue-finally\nnested-finally\n43\nafter-value\nmain-finally\nafter\nhidden-finally\n55\nafter-hidden\n")
+                #expect(result.stdout == "before\nvalue-finally\n42\nvalue-finally\n42\nvalue-finally\nnested-finally\n43\nafter-value\nmain-finally\nafter\nhidden-finally\n55\nafter-hidden\n54\nafter-capture\n")
             }
         }
     }

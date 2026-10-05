@@ -5,6 +5,18 @@ import Testing
 @Suite
 struct BundledDeclarationIndexTests {
     @Test
+    func nameLookupRecognizesDefaultArgumentCallArities() {
+        let interner = StringInterner()
+        let owner = intern(["kotlinx", "coroutines", "flow", "Flow"], interner)
+        let retry = interner.intern("retry")
+        let index = BundledDeclarationIndex(keys: [BundledMemberKey(ownerFQName: owner, name: retry, arity: 2)])
+        #expect(index.contains(ownerFQName: owner, name: retry))
+        #expect(!index.contains(ownerFQName: owner, name: retry, arity: 1))
+        #expect(!index.contains(ownerFQName: owner, name: interner.intern("missing")))
+        #expect(!index.contains(ownerFQName: intern(["other"], interner), name: retry))
+    }
+
+    @Test
     func astBuildQualifiesSamePackageNestedReceiverPaths() throws {
         let (ast, ctx) = try buildBundledAST(
             """

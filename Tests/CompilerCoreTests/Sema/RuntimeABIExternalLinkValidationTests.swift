@@ -723,10 +723,16 @@ struct RuntimeABIExternalLinkValidationTests {
     /// value arguments, the part the signature check compares a throwing spec on.
     private let rewrittenSuspendBridgeParameterCounts: [String: Int] = [
         "kk_with_timeout": 4,
+        "kk_with_timeout_or_null": 3,
         "kk_with_timeout_or_null_throwing": 4,
     ]
     private let rewrittenSuspendBridgeParameterTypes: [String: [String]] = [
         "kk_with_timeout": [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+        "kk_with_timeout_or_null": [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
@@ -806,7 +812,7 @@ struct RuntimeABIExternalLinkValidationTests {
 
     private func usesCoroutineBlockEntryPoint(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
         declaration.isSuspend
-            && ["kk_with_timeout", "kk_with_timeout_or_null_throwing"].contains(declaration.linkName)
+            && ["kk_with_timeout", "kk_with_timeout_or_null", "kk_with_timeout_or_null_throwing"].contains(declaration.linkName)
             && declaration.valueParameterTypes.count == 2
             && isFunctionType(declaration.valueParameterTypes[1])
     }
