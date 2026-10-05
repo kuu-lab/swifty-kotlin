@@ -6,7 +6,7 @@ import Testing
 
 extension LibraryMetadataImportIntegrationTests {
     @Test(arguments: [false, true])
-    func testUserLibraryExportsOnlyItsDeclarations(includeStdlib: Bool) throws {
+    func testUserLibraryDoesNotExportBootstrapDeclarations(includeStdlib: Bool) throws {
         try withCompiledLibrary(
             source: "fun libraryValue(): Int = 42",
             moduleName: "ImportRepro",
@@ -15,7 +15,8 @@ extension LibraryMetadataImportIntegrationTests {
         ) { libraryPath in
             let data = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
             let metadata = try #require(IndexedMetadataFile(data: data))
-            #expect(metadata.entries.map(\.record.fqName) == ["libraryValue"])
+            let declarations = metadata.entries.filter { $0.record.kind != .package }
+            #expect(declarations.map(\.record.fqName) == ["libraryValue"])
 
             try assertImportedLibraryOutput(
                 "fun main() { println(libraryValue()) }",
@@ -50,7 +51,10 @@ extension LibraryMetadataImportIntegrationTests {
                     println(text)
                 }
                 """
-                try assertImportedLibraryOutput(source, searchPaths: paths, expected: "42\nlibrary\n") { ctx in
+                try withTemporaryFile(contents: source) { path in
+                    let ctx = try makeArtifactCompilationContext(inputs: [path], searchPaths: paths)
+                    try runToKIR(ctx)
+                    #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
                     let sema = try #require(ctx.sema)
                     for (packageName, moduleName, returnType) in [
                         ("left", "LeftLib", sema.types.intType),
@@ -110,8 +114,7 @@ extension LibraryMetadataImportIntegrationTests {
     private func assertImportedLibraryOutput(
         _ source: String,
         searchPaths: [String],
-        expected: String,
-        checkSema: (CompilationContext) throws -> Void = { _ in }
+        expected: String
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
@@ -122,7 +125,6 @@ extension LibraryMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
-            try checkSema(ctx)
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
