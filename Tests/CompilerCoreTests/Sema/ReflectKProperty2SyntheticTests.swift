@@ -101,7 +101,7 @@ struct ReflectKProperty2SyntheticTests {
         )
         #expect(sema.symbols.directSupertypes(for: kProperty2Symbol).contains(function2Symbol))
         #expect(
-            sema.symbols.supertypeTypeArgs(for: kProperty2Symbol, supertype: function2Symbol) == [.out(vType), .in(dType), .in(eType)]
+            sema.symbols.supertypeTypeArgs(for: kProperty2Symbol, supertype: function2Symbol) == [.in(dType), .in(eType), .out(vType)]
         )
 
         let getSymbol = try #require(sema.symbols.lookup(

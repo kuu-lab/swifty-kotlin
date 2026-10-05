@@ -1,48 +1,48 @@
-symbol fq=golden.sema.testAtan2[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Double
-symbol fq=golden.sema.testCoerceAtLeast.$0.x[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testCoerceAtLeast[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
-symbol fq=golden.sema.testCoerceAtMost.$1.x[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testCoerceAtMost[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
-symbol fq=golden.sema.testCoerceIn.$2.x[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testCoerceIn[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
-symbol fq=golden.sema.testHypot[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Double
-symbol fq=golden.sema.testMaxOf3.$3.a[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMaxOf3.$3.b[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMaxOf3.$3.c[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMaxOf3[kind=fun;params=Int,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=golden.sema.testMinOf3.$4.a[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMinOf3.$4.b[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMinOf3.$4.c[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMinOf3[kind=fun;params=Int,Int,Int] kind=function vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int
+symbol fq=golden.sema.testAtan2[kind=fun;params=;ret=Double;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Double
+symbol fq=golden.sema.testCoerceAtLeast.$0.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testCoerceAtLeast[kind=fun;params=Int;ret=Int;names=[x];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
+symbol fq=golden.sema.testCoerceAtMost.$1.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testCoerceAtMost[kind=fun;params=Int;ret=Int;names=[x];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
+symbol fq=golden.sema.testCoerceIn.$2.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testCoerceIn[kind=fun;params=Int;ret=Int;names=[x];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
+symbol fq=golden.sema.testHypot[kind=fun;params=;ret=Double;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Double
+symbol fq=golden.sema.testMaxOf3.$3.a[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMaxOf3.$3.b[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMaxOf3.$3.c[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMaxOf3[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int
+symbol fq=golden.sema.testMinOf3.$4.a[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMinOf3.$4.b[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMinOf3.$4.c[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMinOf3[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int
 file fmath_advanced package=golden.sema
-  decl golden.sema.testAtan2[kind=fun;params=] fun testAtan2 sym=golden.sema.testAtan2[kind=fun;params=]
-  decl golden.sema.testHypot[kind=fun;params=] fun testHypot sym=golden.sema.testHypot[kind=fun;params=]
-  decl golden.sema.testCoerceIn[kind=fun;params=Int] fun testCoerceIn sym=golden.sema.testCoerceIn[kind=fun;params=Int]
-  decl golden.sema.testCoerceAtLeast[kind=fun;params=Int] fun testCoerceAtLeast sym=golden.sema.testCoerceAtLeast[kind=fun;params=Int]
-  decl golden.sema.testCoerceAtMost[kind=fun;params=Int] fun testCoerceAtMost sym=golden.sema.testCoerceAtMost[kind=fun;params=Int]
-  decl golden.sema.testMaxOf3[kind=fun;params=Int,Int,Int] fun testMaxOf3 sym=golden.sema.testMaxOf3[kind=fun;params=Int,Int,Int]
-  decl golden.sema.testMinOf3[kind=fun;params=Int,Int,Int] fun testMinOf3 sym=golden.sema.testMinOf3[kind=fun;params=Int,Int,Int]
+  decl golden.sema.testAtan2[kind=fun;params=;ret=Double;origin=fixture] fun testAtan2 sym=golden.sema.testAtan2[kind=fun;params=;ret=Double;origin=fixture]
+  decl golden.sema.testHypot[kind=fun;params=;ret=Double;origin=fixture] fun testHypot sym=golden.sema.testHypot[kind=fun;params=;ret=Double;origin=fixture]
+  decl golden.sema.testCoerceIn[kind=fun;params=Int;ret=Int;names=[x];origin=fixture] fun testCoerceIn sym=golden.sema.testCoerceIn[kind=fun;params=Int;ret=Int;names=[x];origin=fixture]
+  decl golden.sema.testCoerceAtLeast[kind=fun;params=Int;ret=Int;names=[x];origin=fixture] fun testCoerceAtLeast sym=golden.sema.testCoerceAtLeast[kind=fun;params=Int;ret=Int;names=[x];origin=fixture]
+  decl golden.sema.testCoerceAtMost[kind=fun;params=Int;ret=Int;names=[x];origin=fixture] fun testCoerceAtMost sym=golden.sema.testCoerceAtMost[kind=fun;params=Int;ret=Int;names=[x];origin=fixture]
+  decl golden.sema.testMaxOf3[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture] fun testMaxOf3 sym=golden.sema.testMaxOf3[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture]
+  decl golden.sema.testMinOf3[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture] fun testMinOf3 sym=golden.sema.testMinOf3[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c];origin=fixture]
 expr e@5:33 double(1.0) type=Double
 expr e@5:38 double(1.0) type=Double
-expr e@5:27 call callee=e@5:27#1 args=[_:e@5:33,_:e@5:38] type=Double call=kotlin.math.atan2[kind=fun;params=Double,Double]
+expr e@5:27 call callee=e@5:27#1 args=[_:e@5:33,_:e@5:38] type=Double call=kotlin.math.atan2[kind=fun;params=Double,Double;ret=Double;names=[y,x]]
 expr e@6:33 double(3.0) type=Double
 expr e@6:38 double(4.0) type=Double
-expr e@6:27 call callee=e@6:27#1 args=[_:e@6:33,_:e@6:38] type=Double call=kotlin.math.hypot[kind=fun;params=Double,Double]
-expr e@8:33 name(x) type=Int ref=golden.sema.testCoerceIn.$2.x[kind=vparam]
+expr e@6:27 call callee=e@6:27#1 args=[_:e@6:33,_:e@6:38] type=Double call=kotlin.math.hypot[kind=fun;params=Double,Double;ret=Double;names=[x,y]]
+expr e@8:33 name(x) type=Int ref=golden.sema.testCoerceIn.$2.x[kind=vparam;origin=fixture]
 expr e@8:44 int(1) type=Int
 expr e@8:47 int(10) type=Int
-expr e@8:33#1 memberCall recv=e@8:33 callee=coerceIn args=[_:e@8:44,_:e@8:47] type=Int call=kotlin.ranges.coerceIn[kind=fun;recv=Int;params=Int,Int]
-expr e@9:38 name(x) type=Int ref=golden.sema.testCoerceAtLeast.$0.x[kind=vparam]
+expr e@8:33#1 memberCall recv=e@8:33 callee=coerceIn args=[_:e@8:44,_:e@8:47] type=Int call=kotlin.ranges.coerceIn[kind=fun;recv=Int;params=Int,Int;ret=Int;names=[minimumValue,maximumValue]]
+expr e@9:38 name(x) type=Int ref=golden.sema.testCoerceAtLeast.$0.x[kind=vparam;origin=fixture]
 expr e@9:54 int(0) type=Int
-expr e@9:38#1 memberCall recv=e@9:38 callee=coerceAtLeast args=[_:e@9:54] type=Int call=kotlin.ranges.coerceAtLeast[kind=fun;recv=Int;params=Int]
-expr e@10:37 name(x) type=Int ref=golden.sema.testCoerceAtMost.$1.x[kind=vparam]
+expr e@9:38#1 memberCall recv=e@9:38 callee=coerceAtLeast args=[_:e@9:54] type=Int call=kotlin.ranges.coerceAtLeast[kind=fun;recv=Int;params=Int;ret=Int;names=[minimumValue]]
+expr e@10:37 name(x) type=Int ref=golden.sema.testCoerceAtMost.$1.x[kind=vparam;origin=fixture]
 expr e@10:52 int(100) type=Int
-expr e@10:37#1 memberCall recv=e@10:37 callee=coerceAtMost args=[_:e@10:52] type=Int call=kotlin.ranges.coerceAtMost[kind=fun;recv=Int;params=Int]
-expr e@12:53 name(a) type=Int ref=golden.sema.testMaxOf3.$3.a[kind=vparam]
-expr e@12:56 name(b) type=Int ref=golden.sema.testMaxOf3.$3.b[kind=vparam]
-expr e@12:59 name(c) type=Int ref=golden.sema.testMaxOf3.$3.c[kind=vparam]
-expr e@12:47 call callee=e@12:47#1 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf[kind=fun;params=Int,Int,Int]
-expr e@13:53 name(a) type=Int ref=golden.sema.testMinOf3.$4.a[kind=vparam]
-expr e@13:56 name(b) type=Int ref=golden.sema.testMinOf3.$4.b[kind=vparam]
-expr e@13:59 name(c) type=Int ref=golden.sema.testMinOf3.$4.c[kind=vparam]
-expr e@13:47 call callee=e@13:47#1 args=[_:e@13:53,_:e@13:56,_:e@13:59] type=Int call=kotlin.comparisons.minOf[kind=fun;params=Int,Int,Int]
+expr e@10:37#1 memberCall recv=e@10:37 callee=coerceAtMost args=[_:e@10:52] type=Int call=kotlin.ranges.coerceAtMost[kind=fun;recv=Int;params=Int;ret=Int;names=[maximumValue]]
+expr e@12:53 name(a) type=Int ref=golden.sema.testMaxOf3.$3.a[kind=vparam;origin=fixture]
+expr e@12:56 name(b) type=Int ref=golden.sema.testMaxOf3.$3.b[kind=vparam;origin=fixture]
+expr e@12:59 name(c) type=Int ref=golden.sema.testMaxOf3.$3.c[kind=vparam;origin=fixture]
+expr e@12:47 call callee=e@12:47#1 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c]]
+expr e@13:53 name(a) type=Int ref=golden.sema.testMinOf3.$4.a[kind=vparam;origin=fixture]
+expr e@13:56 name(b) type=Int ref=golden.sema.testMinOf3.$4.b[kind=vparam;origin=fixture]
+expr e@13:59 name(c) type=Int ref=golden.sema.testMinOf3.$4.c[kind=vparam;origin=fixture]
+expr e@13:47 call callee=e@13:47#1 args=[_:e@13:53,_:e@13:56,_:e@13:59] type=Int call=kotlin.comparisons.minOf[kind=fun;params=Int,Int,Int;ret=Int;names=[a,b,c]]

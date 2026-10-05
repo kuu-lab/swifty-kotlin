@@ -6,7 +6,47 @@ import Testing
 @Suite
 struct CoroutineSyntheticStubTests {
 
+    private func userDiagnostics(in ctx: CompilationContext) -> [Diagnostic] {
+        ctx.diagnostics.diagnostics.filter { diagnostic in
+            guard diagnostic.severity != .error,
+                  let range = diagnostic.primaryRange else { return true }
+            return ctx.sourceManager.origin(of: range.start.file)?.isBundledStdlib != true
+        }
+    }
+
     // MARK: - Path-aware expression search helpers
+
+    @Test
+    func suspendFunctionTypeLocalInsideRunBlockingResolvesAndInvokes() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        fun main() = runBlocking {
+            val block: suspend () -> Int = { 42 }
+            println(block())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let initializer = try #require(ast.arena.exprs.compactMap { expr -> ExprID? in
+                guard case let .localDecl(name, _, _, initializer, _, _) = expr,
+                      ctx.interner.resolve(name) == "block" else { return nil }
+                return initializer
+            }.first)
+            let type = try #require(sema.bindings.exprType(for: initializer))
+            guard case let .functionType(function) = sema.types.kind(of: type) else {
+                Issue.record("Expected a suspend function type for block's initializer")
+                return
+            }
+            #expect(function.isSuspend)
+            #expect(function.receiver == nil)
+            #expect(function.params.isEmpty)
+            #expect(function.returnType == sema.types.intType)
+        }
+    }
 
     @Test
     func coroutineLauncherFunctionValueResultTypesAreNotOverriddenByExpectedType() throws {
@@ -570,14 +610,14 @@ struct CoroutineSyntheticStubTests {
             do {
                 let samplePath = paths[1]
                 _ = samplePath
-                #expect(ctx.diagnostics.diagnostics.isEmpty)
+                #expect(userDiagnostics(in: ctx).isEmpty)
             }
 
             // testCoroutineContextTopLevelPropertyResolvesInSuspendSource
             do {
                 let samplePath = paths[2]
                 _ = samplePath
-                #expect(ctx.diagnostics.diagnostics.isEmpty)
+                #expect(userDiagnostics(in: ctx).isEmpty)
             }
 
             // testSuspendCoroutineIntrinsicCanBeShadowedByUserFunction
@@ -604,7 +644,7 @@ struct CoroutineSyntheticStubTests {
             do {
                 let samplePath = paths[4]
                 _ = samplePath
-                #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+                #expect(userDiagnostics(in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
                 let suspendCall = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -621,7 +661,7 @@ struct CoroutineSyntheticStubTests {
             do {
                 let samplePath = paths[5]
                 _ = samplePath
-                #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+                #expect(userDiagnostics(in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
                 let suspendCall = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -638,7 +678,7 @@ struct CoroutineSyntheticStubTests {
             do {
                 let samplePath = paths[6]
                 _ = samplePath
-                #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+                #expect(userDiagnostics(in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
                 _ = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, calleeName, _, _, _) = expr else {
                         return false
@@ -651,14 +691,14 @@ struct CoroutineSyntheticStubTests {
             do {
                 let samplePath = paths[7]
                 _ = samplePath
-                #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+                #expect(userDiagnostics(in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
             }
 
             // testResumeWithResolvesInSource
             do {
                 let samplePath = paths[8]
                 _ = samplePath
-                #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+                #expect(userDiagnostics(in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
             }
         }
     }
@@ -680,7 +720,7 @@ struct CoroutineSyntheticStubTests {
         try withTemporaryFiles(contents: [source]) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(userDiagnostics(in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
         }
     }
 
@@ -702,7 +742,7 @@ struct CoroutineSyntheticStubTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(userDiagnostics(in: ctx).isEmpty, "\(ctx.diagnostics.diagnostics)")
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner

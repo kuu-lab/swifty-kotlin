@@ -16,6 +16,52 @@
 /// expansion while routing its throws into an existing local exception
 /// slot via `InlineThrowRerouting`.
 extension InlineLoweringPass {
+    func lambdaCaptureArguments(
+        for callableExpr: KIRExprID,
+        symbol: SymbolID,
+        aliases: [KIRExprID: KIRExprID],
+        arena: KIRArena
+    ) -> [KIRExprID] {
+        let callable = InlineExprAliasing.resolveAlias(of: callableExpr, aliases: aliases)
+        let captures = lambdaCaptureArgsByExpr[callable]
+            ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
+        return captures.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+    }
+
+    func recordClonedLambdaCaptures(
+        source: KIRExprID,
+        cloned: KIRExprID,
+        value: KIRExprKind,
+        aliases: [KIRExprID: KIRExprID],
+        arena: KIRArena
+    ) {
+        guard case let .symbolRef(symbol) = value else { return }
+        // Captures belong to this reference, not to the shared lambda symbol:
+        // later rounds and snapshot clones must retain this expansion's slots.
+        let captures = lambdaCaptureArgsByExpr[source]
+            ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
+        guard !captures.isEmpty else { return }
+        let clonedCaptures = captures.map {
+            InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
+        }
+        lambdaCaptureArgsByExpr[cloned] = clonedCaptures
+        if let info = arena.callableValueInfo(for: source) {
+            arena.callableValueInfoByExprID[cloned] = KIRCallableValueInfo(
+                symbol: symbol,
+                callee: info.callee,
+                captureArguments: clonedCaptures,
+                hasClosureParam: info.hasClosureParam
+            )
+        } else if let function = arena.function(for: symbol) {
+            arena.callableValueInfoByExprID[cloned] = KIRCallableValueInfo(
+                symbol: symbol,
+                callee: function.name,
+                captureArguments: clonedCaptures,
+                hasClosureParam: false
+            )
+        }
+    }
+
     /// Resolve the lambda function for an argument expression. The argument
     /// expression may be a direct `symbolRef` pointing to a lambda KIR function,
     /// or it may be a temporary that was defined via a `constValue` instruction
@@ -217,6 +263,10 @@ extension InlineLoweringPass {
                     continue
                 }
                 let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena)
+                recordClonedLambdaCaptures(
+                    source: result, cloned: loweredResult, value: value,
+                    aliases: localExprMap, arena: module.arena
+                )
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
@@ -245,8 +295,10 @@ extension InlineLoweringPass {
                        callerBody: lambdaFunction.body
                    )
                 {
-                    let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[nestedLambdaFunction.symbol] ?? [])
-                        .map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
+                    let captureArgs = lambdaCaptureArguments(
+                        for: callableExpr, symbol: nestedLambdaFunction.symbol,
+                        aliases: localExprMap, arena: module.arena
+                    )
                     let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: nestedLambdaFunction,
@@ -379,18 +431,31 @@ extension InlineLoweringPass {
                     )
                 )
 
-            case let .nonLocalReturn(value):
+            case let .nonLocalReturn(value, target):
                 // Non-local return from a nested lambda. Preserve it so the
                 // caller's inlineTransform can convert it to a real return.
                 hasNonLocalReturn = true
                 if let value {
-                    lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)))
+                    lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap), target: target))
                 } else {
-                    lowered.append(.nonLocalReturn(nil))
+                    lowered.append(.nonLocalReturn(nil, target: target))
                 }
 
             case .beginFinallyGuard:
                 lowered.append(.beginFinallyGuard)
+
+            case .beginFinallyCleanup, .endFinallyCleanup:
+                lowered.append(instruction)
+
+            case let .beginNonLocalReturnScope(value, target, function):
+                let slot = InlineExprCloning.cloneOrReuseExpr(value, localExprMap: &localExprMap, in: module.arena)
+                lowered.append(.beginNonLocalReturnScope(value: slot, target: labelRemap[target] ?? target, function: function))
+
+            case .endNonLocalReturnScope:
+                lowered.append(.endNonLocalReturnScope)
+
+            case let .resumeNonLocalReturn(value):
+                lowered.append(.resumeNonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)))
 
             case .endFinallyGuard:
                 lowered.append(.endFinallyGuard)
@@ -424,6 +489,9 @@ extension InlineLoweringPass {
     ) {
         let routedSlot = callThrownResult.map {
             InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap)
+        }
+        if let routedSlot {
+            lowered.append(.constValue(result: routedSlot, value: .null))
         }
         let outputStart = lowered.instructions.count
         lowered.append(contentsOf: InlineThrowRerouting.routeUnprotectedThrowsToSlot(

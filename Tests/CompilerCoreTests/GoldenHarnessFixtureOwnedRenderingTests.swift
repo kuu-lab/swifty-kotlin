@@ -66,6 +66,25 @@ struct GoldenHarnessFixtureOwnedRenderingTests {
             .map(String.init)
     }
 
+    @Test
+    func nonLocalReturnMaskOnlyDescribesInlineFunctions() throws {
+        let dump = try renderSema("""
+        package sample
+
+        fun plain(block: () -> Unit) { block() }
+        inline fun restricted(crossinline block: () -> Unit) { block() }
+        fun main() {
+            plain {}
+            restricted {}
+        }
+        """)
+        let calls = dump.split(separator: "\n").filter { $0.hasPrefix("expr ") && $0.contains("call=sample.") }
+        let plain = try #require(calls.first { $0.contains("call=sample.plain[") })
+        let restricted = try #require(calls.first { $0.contains("call=sample.restricted[") })
+        #expect(!plain.contains("nonlocal="))
+        #expect(restricted.contains("nonlocal=[0]"))
+    }
+
     /// Fixture exercising data-class synthetics, enum members, accessors,
     /// object literals, a generic bound, a stdlib call with `targs=` and an
     /// `is` check — everything the contract must preserve in one dump.

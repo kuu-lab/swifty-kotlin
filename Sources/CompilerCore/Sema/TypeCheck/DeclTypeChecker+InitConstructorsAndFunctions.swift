@@ -54,10 +54,11 @@ extension DeclTypeChecker {
         signature: FunctionSignature,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
-        var locals: LocalBindings = [:]
+        var locals = baseLocals
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
             guard let param = sema.symbols.symbol(paramSymbol) else { continue }
             let type = localTypeForParameter(
@@ -85,7 +86,8 @@ extension DeclTypeChecker {
         _ classDecl: ClassDecl,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         guard classDecl.primaryConstructorParams.contains(where: { $0.defaultValue != nil }) else {
             return
@@ -104,7 +106,8 @@ extension DeclTypeChecker {
             signature: signature,
             ctx: ctx,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            baseLocals: baseLocals
         )
     }
 
@@ -127,6 +130,8 @@ extension DeclTypeChecker {
         extraLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
+        // Enum's name/ordinal superclass arguments are synthesized during lowering.
+        guard sema.symbols.symbol(symbol)?.kind != .enumClass else { return }
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
               let superclassInfo = sema.symbols.symbol(superclassSymbol),
               let primaryCtorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
@@ -157,12 +162,6 @@ extension DeclTypeChecker {
             delegationCtx = ctx.copying(scope: ctorScope)
         }
 
-        var callArgs: [CallArg] = []
-        for arg in args {
-            let argType = driver.inferExpr(arg.expr, ctx: delegationCtx, locals: &locals, expectedType: nil)
-            callArgs.append(CallArg(label: arg.label, isSpread: arg.isSpread, type: argType))
-        }
-
         let candidates = sema.symbols
             .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
             .filter { candidate in
@@ -171,16 +170,15 @@ extension DeclTypeChecker {
             }
         guard !candidates.isEmpty else { return }
 
-        let callExpr = CallExpr(
-            range: classDecl.range,
-            calleeName: ctx.interner.intern("<init>"),
-            args: callArgs
-        )
-        let resolved = ctx.resolver.resolveCall(
+        let resolved = inferConstructorDelegationArguments(
+            args,
             candidates: candidates,
-            call: callExpr,
-            expectedType: nil,
-            ctx: sema
+            range: classDecl.range,
+            targetType: constructorSuperclassType(
+                ownerSymbol: symbol, superclassSymbol: superclassSymbol, ctx: ctx
+            ),
+            ctx: delegationCtx,
+            locals: &locals
         )
         if let chosenCallee = resolved.chosenCallee {
             sema.bindings.bindConstructorDelegationCall(
@@ -194,6 +192,74 @@ extension DeclTypeChecker {
                 )
             )
         }
+    }
+
+    func inferConstructorDelegationArguments(
+        _ args: [CallArgument],
+        candidates: [SymbolID],
+        range: SourceRange,
+        targetType: TypeID?,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> ResolvedCall {
+        let typeArguments: [TypeID]
+        if let targetType, case let .classType(classType) = ctx.sema.types.kind(of: targetType) {
+            typeArguments = classType.args.map { arg in
+                switch arg {
+                case let .invariant(type), let .in(type), let .out(type): type
+                case .star: ctx.sema.types.anyType
+                }
+            }
+        } else {
+            typeArguments = []
+        }
+        let prepared = driver.callChecker.prepareCallArguments(
+            args: args,
+            candidates: candidates,
+            explicitTypeArgs: typeArguments,
+            ctx: ctx,
+            locals: &locals
+        )
+        func resolveArguments(_ argTypes: [TypeID]) -> ResolvedCall {
+            driver.callChecker.resolveCallRespectingLambdaReturnType(
+                candidates: candidates,
+                args: args,
+                argTypes: argTypes,
+                range: range,
+                calleeName: ctx.interner.intern("<init>"),
+                explicitTypeArgs: typeArguments,
+                expectedType: targetType,
+                implicitReceiverType: nil,
+                lambdaLiteralIndices: prepared.lambdaLiteralIndices,
+                inputOnlyLambdaIndices: prepared.inputOnlyLambdaIndices,
+                blockedLambdaRefinement: prepared.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter,
+                ctx: ctx
+            )
+        }
+        var resolved = resolveArguments(prepared.argTypes)
+        var callArgs = zip(args, prepared.argTypes).map { argument, type in
+            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+        }
+        if resolved.diagnostic != nil,
+           reinferConstructorDelegationArguments(
+               args: args,
+               candidates: candidates,
+               expectedType: targetType,
+               argTypes: &callArgs,
+               ctx: ctx,
+               locals: &locals
+           )
+        {
+            resolved = resolveArguments(callArgs.map(\.type))
+        }
+        if let diagnostic = resolved.diagnostic {
+            ctx.sema.diagnostics.emit(diagnostic)
+        }
+        driver.callChecker.contextualizeResolvedIntegerArguments(
+            args: args, resolved: resolved, ctx: ctx, locals: &locals
+        )
+        return resolved
     }
 
     /// The single class-kind supertype of `symbol`, if any.
@@ -310,11 +376,12 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         ownerSymbol: SymbolID? = nil,
         hasPrimaryConstructor: Bool = true,
-        explicitSuperclassSymbol: SymbolID? = nil
+        explicitSuperclassSymbol: SymbolID? = nil,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
         for ctor in constructors {
-            var locals: LocalBindings = [:]
+            var locals = baseLocals
             let ctorSymbols = sema.symbols.symbols(atDeclSite: ctor.range)
                 .compactMap { sema.symbols.symbol($0) }
                 .filter { $0.kind == .constructor }
@@ -355,7 +422,8 @@ extension DeclTypeChecker {
                         signature: signature,
                         ctx: constructorCtx,
                         solver: solver,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        baseLocals: baseLocals
                     )
                 }
             }
@@ -392,12 +460,6 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         guard let delegation = ctor.delegationCall else { return }
 
-        var argTypes: [CallArg] = []
-        for arg in delegation.args {
-            let argType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: nil)
-            argTypes.append(CallArg(label: arg.label, isSpread: arg.isSpread, type: argType))
-        }
-
         let delegationTargetFQName = resolveDelegationTarget(
             delegation: delegation,
             ownerSymbol: ownerSymbol,
@@ -415,42 +477,117 @@ extension DeclTypeChecker {
             if candidates.isEmpty {
                 emitUnresolvedDelegation(delegation: delegation, sema: sema)
             } else {
-                let callExpr = CallExpr(
-                    range: delegation.range,
-                    calleeName: ctx.interner.intern("<init>"),
-                    args: argTypes
-                )
-                let resolved = ctx.resolver.resolveCall(
+                let resolved = inferConstructorDelegationArguments(
+                    delegation.args,
                     candidates: candidates,
-                    call: callExpr,
-                    expectedType: delegation.kind == .this
+                    range: delegation.range,
+                    targetType: delegation.kind == .this
                         ? constructorOwnerType(ownerSymbol, ctx: ctx)
                         : constructorSuperclassType(
                             ownerSymbol: ownerSymbol,
                             superclassSymbol: explicitSuperclassSymbol,
                             ctx: ctx
                         ),
-                    ctx: sema
+                    ctx: ctx,
+                    locals: &locals
                 )
-                if let diagnostic = resolved.diagnostic {
-                    sema.diagnostics.emit(diagnostic)
-                }
                 if let chosenCallee = resolved.chosenCallee, let currentCtorSymbolID {
                     sema.bindings.bindConstructorDelegationCall(
-                currentCtorSymbolID,
-                binding: CallBinding(
-                    chosenCallee: chosenCallee,
-                    substitutedTypeArguments: resolved.substitutedTypeArguments
-                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                        .map(\.value),
-                    parameterMapping: resolved.parameterMapping
-                )
-            )
+                        currentCtorSymbolID,
+                        binding: CallBinding(
+                            chosenCallee: chosenCallee,
+                            substitutedTypeArguments: resolved.substitutedTypeArguments
+                                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                .map(\.value),
+                            parameterMapping: resolved.parameterMapping
+                        )
+                    )
                 }
             }
         } else if ownerSymbol != nil {
             emitUnresolvedDelegation(delegation: delegation, sema: sema)
         }
+    }
+
+    private func reinferConstructorDelegationArguments(
+        args: [CallArgument],
+        candidates: [SymbolID],
+        expectedType: TypeID?,
+        argTypes: inout [CallArg],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let expectedType,
+              case let .classType(ownerType) = sema.types.kind(of: expectedType)
+        else { return false }
+        let ownerParameters = sema.types.nominalTypeParameterSymbols(for: ownerType.classSymbol)
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(ownerParameters)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (parameter, argument) in zip(ownerParameters, ownerType.args) {
+            guard let variable = typeVarBySymbol[parameter] else { continue }
+            switch argument {
+            case let .invariant(type), let .in(type), let .out(type):
+                substitution[variable] = type
+            case .star:
+                continue
+            }
+        }
+        let candidateParameterTypes = candidates.compactMap { candidate -> [Int: TypeID]? in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let mapping = ctx.resolver.buildParameterMapping(
+                      signature: signature,
+                      callArgs: argTypes,
+                      symbols: sema.symbols,
+                      typeSystem: sema.types
+                  )
+            else { return nil }
+            let parameterTypes = mapping.mapValues { parameterIndex in
+                sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[parameterIndex],
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+            }
+            for (index, argument) in args.enumerated() {
+                let originalType = argTypes[index].type
+                guard !argument.isSpread,
+                      driver.callChecker.isInferableNestedCallExpr(argument.expr, ast: ctx.ast),
+                      driver.callChecker.typeContainsNothingType(originalType, sema: sema),
+                      let parameterType = parameterTypes[index]
+                else { continue }
+                if !sema.types.isSubtype(originalType, parameterType),
+                   driver.callChecker.concreteNestedCallExpectedType(
+                       originalArgumentType: originalType,
+                       boundType: parameterType,
+                       sema: sema
+                   ) == nil
+                {
+                    return nil
+                }
+            }
+            return parameterTypes
+        }
+        guard let firstCandidate = candidateParameterTypes.first else { return false }
+
+        var didReinfer = false
+        for (index, argument) in args.enumerated() {
+            let originalType = argTypes[index].type
+            guard driver.callChecker.isInferableNestedCallExpr(argument.expr, ast: ctx.ast),
+                  driver.callChecker.typeContainsNothingType(originalType, sema: sema),
+                  let parameterType = firstCandidate[index],
+                  candidateParameterTypes.allSatisfy({ $0[index] == parameterType }),
+                  let argumentExpectedType = driver.callChecker.concreteNestedCallExpectedType(
+                      originalArgumentType: originalType,
+                      boundType: parameterType,
+                      sema: sema
+                  )
+            else { continue }
+            let type = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: argumentExpectedType)
+            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            didReinfer = true
+        }
+        return didReinfer
     }
 
     private func constructorOwnerType(
@@ -471,7 +608,7 @@ extension DeclTypeChecker {
     /// A secondary `super(...)` delegates to the instantiated superclass in
     /// the class header. Its type arguments are known even when none of the
     /// constructor arguments mention them.
-    private func constructorSuperclassType(
+    func constructorSuperclassType(
         ownerSymbol: SymbolID?,
         superclassSymbol: SymbolID?,
         ctx: TypeInferenceContext
@@ -611,6 +748,8 @@ extension DeclTypeChecker {
             implicitReceiverType: effectiveReceiverType,
             lambdaDepth: 0,
             enclosingFunctionReturnType: signature.returnType,
+            enclosingFunctionSymbol: symbol,
+            enclosingLambdaExprIDs: [],
             currentDeclSymbol: symbol
         )
         if !signature.contextReceiverTypes.isEmpty {
@@ -636,7 +775,11 @@ extension DeclTypeChecker {
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
         // extension receiver from inside a lambda with its own receiver.
         if let extensionReceiverType = signature.receiverType {
-            functionCtx = functionCtx.withOuterReceiver(label: function.name, type: extensionReceiverType)
+            functionCtx = functionCtx.withOuterReceiver(
+                label: function.name,
+                type: extensionReceiverType,
+                symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            )
         }
         // Propagate suppression flag so that individual `return` statements inside
         // functions with inferred return types also skip the platform-type warning.
@@ -647,7 +790,8 @@ extension DeclTypeChecker {
             signature: signature,
             ctx: functionCtx,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            baseLocals: baseLocals
         )
 
         // Bodyless declarations use .unit as their sentinel. Abstract and expect
@@ -915,13 +1059,18 @@ extension DeclTypeChecker {
            case let .call(returnsCalleeExprID, _, returnsArgs, _) = receiverExpr,
            let returnsCalleeExpr = ast.arena.expr(returnsCalleeExprID),
            case let .nameRef(returnsName, _) = returnsCalleeExpr,
-           interner.resolve(returnsName) == "returns"
+           ["returns", "returnsNotNull"].contains(interner.resolve(returnsName))
         {
             // Determine the returns constraint: nil = any return,
             // true/false = when the function returns that specific Boolean.
             let returnsValue: Bool?
-            if returnsArgs.isEmpty {
+            let returnCondition: ContractReturnCondition
+            if interner.resolve(returnsName) == "returnsNotNull", returnsArgs.isEmpty {
                 returnsValue = nil
+                returnCondition = .returnsNotNull
+            } else if interner.resolve(returnsName) == "returns", returnsArgs.isEmpty {
+                returnsValue = nil
+                returnCondition = .normally
                 // Also record the bare returns() effect for the function.
                 if sema.symbols.contractReturnsEffect(for: symbol) == nil {
                     sema.symbols.setContractReturnsEffect(
@@ -933,12 +1082,19 @@ extension DeclTypeChecker {
                       let boolValue = extractBooleanLiteral(returnsArgs[0].expr, ast: ast, interner: interner)
             {
                 returnsValue = boolValue
+                returnCondition = boolValue ? .returnsTrue : .returnsFalse
+            } else if returnsArgs.count == 1,
+                      isNullLiteralExpr(returnsArgs[0].expr, ast: ast, interner: interner)
+            {
+                returnsValue = nil
+                returnCondition = .returnsNull
             } else {
                 return
             }
             recordReturnsImpliesEffect(
                 impliesArgs: impliesArgs,
                 returnsValue: returnsValue,
+                returnCondition: returnCondition,
                 function: function,
                 symbol: symbol,
                 signature: signature,
@@ -999,7 +1155,7 @@ extension DeclTypeChecker {
            let firstArgExpr = ast.arena.expr(callArgs[0].expr),
            case let .nameRef(lambdaParamName, _) = firstArgExpr
         {
-            var invocationKind: InvocationKind = .exactlyOnce
+            var invocationKind: InvocationKind = .unknown
             if callArgs.count == 2 {
                 invocationKind = resolveInvocationKindArg(
                     callArgs[1].expr, ast: ast, interner: interner
@@ -1046,6 +1202,7 @@ extension DeclTypeChecker {
     private func recordReturnsImpliesEffect(
         impliesArgs: [CallArgument],
         returnsValue: Bool?,
+        returnCondition: ContractReturnCondition,
         function: FunDecl,
         symbol: SymbolID,
         signature: FunctionSignature,
@@ -1080,7 +1237,11 @@ extension DeclTypeChecker {
             }
             // For bare `returns() implies (param != null)`, also record the legacy
             // ContractNonNullEffect for backward compatibility.
-            if returnsValue == nil {
+            sema.symbols.addContractImplicationEffect(
+                ContractImplicationEffect(parameterIndex: parameterIndex, returnCondition: returnCondition, argumentCondition: .nonNull),
+                for: symbol
+            )
+            if returnCondition == .normally {
                 sema.symbols.setContractNonNullEffect(
                     ContractNonNullEffect(
                         parameterSymbol: signature.valueParameterSymbols[parameterIndex],
@@ -1100,6 +1261,11 @@ extension DeclTypeChecker {
            parameterIndex < signature.parameterTypes.count,
            signature.parameterTypes[parameterIndex] == sema.types.booleanType
         {
+            sema.symbols.addContractImplicationEffect(
+                ContractImplicationEffect(parameterIndex: parameterIndex, returnCondition: returnCondition, argumentCondition: .booleanTrue),
+                for: symbol
+            )
+            guard returnCondition != .returnsNotNull, returnCondition != .returnsNull else { return }
             sema.symbols.setContractConditionEffect(
                 ContractConditionEffect(
                     conditionParameterIndex: parameterIndex,

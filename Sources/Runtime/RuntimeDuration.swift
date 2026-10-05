@@ -3,10 +3,14 @@ import Foundation
 
 // MARK: - kotlin.time.Duration Runtime (STDLIB-230/231)
 
-/// Duration is stored as nanoseconds internally.
+/// Mirrors the Kotlin value-class payload: signed count plus a low-bit ms tag.
 final class RuntimeDurationBox {
-    let nanoseconds: Int64
-    init(nanoseconds: Int64) { self.nanoseconds = nanoseconds }
+    let rawValue: Int64
+    var nanoseconds: Int64 { runtimeDurationWholeValue(rawValue, unitScale: 1) }
+    init(rawValue: Int64) { self.rawValue = rawValue }
+    convenience init(nanoseconds: Int64) {
+        self.init(rawValue: runtimeDurationOfNanos(nanoseconds))
+    }
 }
 
 private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
@@ -18,53 +22,110 @@ private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
     return tryCast(ptr, to: RuntimeDurationBox.self)
 }
 
-/// Reads both the legacy boxed representation and Duration's source-backed
-/// value-class payload. Raw values are only treated as object handles when the
-/// runtime has registered the pointer, so ordinary small Long payloads are safe.
+private let durationRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.Duration")
+
+/// Reads legacy Duration boxes, boxed Long payloads, boxed value-class objects,
+/// and raw value-class payloads. The unbox helper checks registry membership
+/// before interpreting a handle.
 func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
-    if let box = runtimeDurationBox(from: raw) {
-        return box.nanoseconds
-    }
-    return Int64(bitPattern: UInt64(bitPattern: Int64(raw)))
+    runtimeDurationWholeValue(runtimeDurationRawValue(from: raw), unitScale: 1)
 }
 
-private func runtimeDurationIsInfinite(_ nanoseconds: Int64) -> Bool {
-    nanoseconds == Int64.max || nanoseconds == Int64.min
+private func runtimeDurationRawValue(from raw: Int) -> Int64 {
+    if let box = runtimeDurationBox(from: raw) {
+        return box.rawValue
+    }
+    // KUU-1093: Duration implements Comparable<Duration>, so it is a real
+    // boxed object — its single Long field (the tagged rawValue) sits at
+    // slot 2 after the two-slot object header. Tagged nullable-Duration
+    // boxes (RuntimeLongBox + nominal tag) carry the same type ID but are
+    // not RuntimeArrayBox, so they fall through to the unbox path below.
+    if runtimeObjectTypeID(rawValue: raw) == durationRuntimeTypeID,
+       let objectBox = runtimeArrayBox(from: raw), objectBox.count == 3
+    {
+        return Int64(objectBox[2])
+    }
+    return Int64(kk_unbox_long_static(raw))
+}
+
+private let runtimeDurationMaxNanos: Int64 = 4_611_686_018_426_999_999
+private let runtimeDurationMaxMillis: Int64 = Int64.max / 2
+private let runtimeDurationMaxNanosInMillis = runtimeDurationMaxNanos / 1_000_000
+private let runtimeDurationNegativeInfinity = -Int64.max + 2
+
+private func runtimeDurationIsInfinite(_ rawValue: Int64) -> Bool {
+    rawValue == Int64.max || rawValue == runtimeDurationNegativeInfinity
+}
+
+private func runtimeDurationStorageScale(_ rawValue: Int64) -> Int64 {
+    rawValue & 1 == 0 ? 1 : 1_000_000
+}
+
+private func runtimeDurationOfNanos(_ nanoseconds: Int64) -> Int64 {
+    if (-runtimeDurationMaxNanos ... runtimeDurationMaxNanos).contains(nanoseconds) {
+        return nanoseconds << 1
+    }
+    return ((nanoseconds / 1_000_000) << 1) + 1
+}
+
+private func runtimeDurationOfMillis(_ milliseconds: Int64) -> Int64 {
+    if (-runtimeDurationMaxNanosInMillis ... runtimeDurationMaxNanosInMillis).contains(milliseconds) {
+        return runtimeDurationOfNanos(milliseconds * 1_000_000)
+    }
+    let clamped = max(-runtimeDurationMaxMillis, min(runtimeDurationMaxMillis, milliseconds))
+    return (clamped << 1) + 1
+}
+
+func runtimeDurationWholeValue(from raw: Int, unitScale: Int64) -> Int64 {
+    runtimeDurationWholeValue(runtimeDurationRawValue(from: raw), unitScale: unitScale)
+}
+
+func runtimeDurationNanosecondsComponent(from raw: Int) -> Int64 {
+    let value = runtimeDurationRawValue(from: raw)
+    if runtimeDurationIsInfinite(value) { return 0 }
+    let scale = runtimeDurationStorageScale(value)
+    return ((value >> 1) % (1_000_000_000 / scale)) * scale
+}
+
+private func runtimeDurationWholeValue(_ rawValue: Int64, unitScale: Int64) -> Int64 {
+    if runtimeDurationIsInfinite(rawValue) {
+        return rawValue < 0 ? Int64.min : Int64.max
+    }
+    let scale = runtimeDurationStorageScale(rawValue)
+    let value = rawValue >> 1
+    return scale <= unitScale ? value / (unitScale / scale) : saturatingMultiply(value, scale / unitScale)
+}
+
+private func runtimeDurationFromLong(_ value: Int64, scale: Int64) -> Int64 {
+    let maxNanosInUnit = runtimeDurationMaxNanos / scale
+    if (-maxNanosInUnit ... maxNanosInUnit).contains(value) {
+        return runtimeDurationOfNanos(value * scale)
+    }
+    let millis = scale < 1_000_000 ? value / (1_000_000 / scale) : saturatingMultiply(value, scale / 1_000_000)
+    return runtimeDurationOfMillis(millis)
 }
 
 private func runtimeDurationHandle(fromNanoseconds nanoseconds: Int64) -> Int {
-    Int(truncatingIfNeeded: nanoseconds)
-}
-
-private func runtimeDurationBoxHandle(fromNanoseconds nanoseconds: Int64) -> Int {
-    registerRuntimeObject(RuntimeDurationBox(nanoseconds: nanoseconds))
+    Int(runtimeDurationOfNanos(nanoseconds))
 }
 
 private func runtimeDurationNanoseconds(
     fromDoubleBits valueBits: Int,
     scale: Double
 ) -> Int64 {
-    let value = kk_bits_to_double(valueBits)
-    guard value.isFinite else {
-        if value.isNaN {
-            return 0
-        }
-        return value.sign == .minus ? Int64.min : Int64.max
-    }
+    runtimeDurationFromDouble(kk_bits_to_double(valueBits), scale: scale)
+}
 
-    let scaled = value * scale
-    guard scaled.isFinite else {
-        return scaled.sign == .minus ? Int64.min : Int64.max
+private func runtimeDurationFromDouble(_ value: Double, scale: Double) -> Int64 {
+    if value.isNaN { return 0 }
+    let nanos = (value * scale).rounded(.toNearestOrAwayFromZero)
+    if nanos >= -Double(runtimeDurationMaxNanos), nanos < Double(runtimeDurationMaxNanos) {
+        return runtimeDurationOfNanos(Int64(nanos))
     }
-
-    let rounded = scaled.rounded()
-    if rounded >= Double(Int64.max) {
-        return Int64.max
-    }
-    if rounded <= Double(Int64.min) {
-        return Int64.min
-    }
-    return Int64(rounded)
+    let millis = (value * (scale / 1_000_000)).rounded(.toNearestOrAwayFromZero)
+    if millis >= Double(runtimeDurationMaxMillis) { return Int64.max }
+    if millis <= -Double(runtimeDurationMaxMillis) { return runtimeDurationNegativeInfinity }
+    return runtimeDurationOfMillis(Int64(millis))
 }
 
 /// Formats `whole.fraction<unit>` following kotlin-stdlib's `Duration.toString()`
@@ -156,36 +217,52 @@ private func runtimeDurationSaturatingAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
     return result
 }
 
-private func runtimeDurationSaturatingNegate(_ value: Int64) -> Int64 {
-    value == Int64.min ? Int64.max : -value
-}
-
 private func runtimeDurationApplySign(_ value: Int64, sign: Int) -> Int64 {
-    if sign >= 0 {
-        return value
-    }
-    if value == Int64.max {
-        return Int64.min
-    }
-    return runtimeDurationSaturatingNegate(value)
+    sign >= 0 ? value : (-(value >> 1) << 1) + (value & 1)
 }
 
-private func runtimeDurationNanoseconds(from value: Double, scale: Int64) -> Int64? {
-    guard value.isFinite else {
-        return nil
+private func runtimeDurationAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
+    if runtimeDurationIsInfinite(lhs) { return lhs }
+    if runtimeDurationIsInfinite(rhs) { return rhs }
+    let left = lhs >> 1
+    let right = rhs >> 1
+    if lhs & 1 == rhs & 1 {
+        return lhs & 1 == 0 ? runtimeDurationOfNanos(left + right) : runtimeDurationOfMillis(left + right)
     }
-    let scaled = value * Double(scale)
-    guard scaled.isFinite else {
-        return scaled.sign == .minus ? Int64.min : Int64.max
+    let millis = lhs & 1 == 1 ? left : right
+    let nanos = lhs & 1 == 0 ? left : right
+    let sumMillis = millis + nanos / 1_000_000
+    if (-runtimeDurationMaxNanosInMillis ... runtimeDurationMaxNanosInMillis).contains(sumMillis) {
+        return runtimeDurationOfNanos(sumMillis * 1_000_000 + nanos % 1_000_000)
     }
-    let rounded = scaled.rounded()
-    if rounded >= Double(Int64.max) {
-        return Int64.max
+    return runtimeDurationOfMillis(sumMillis)
+}
+
+private func runtimeDurationMultiply(_ rawValue: Int64, _ scale: Int64) -> Int64 {
+    if runtimeDurationIsInfinite(rawValue) {
+        return scale == 0 ? 0 : runtimeDurationApplySign(rawValue, sign: scale < 0 ? -1 : 1)
     }
-    if rounded <= Double(Int64.min) {
-        return Int64.min
+    let value = rawValue >> 1
+    let result = saturatingMultiply(value, scale)
+    if rawValue & 1 == 1 { return runtimeDurationOfMillis(result) }
+    if result != Int64.max, result != Int64.min { return runtimeDurationOfNanos(result) }
+    let millis = saturatingMultiply(value / 1_000_000, scale)
+    let remainder = saturatingMultiply(value % 1_000_000, scale) / 1_000_000
+    return runtimeDurationOfMillis(runtimeDurationSaturatingAdd(millis, remainder))
+}
+
+private func runtimeDurationDivide(_ rawValue: Int64, _ scale: Int64) -> Int64 {
+    if scale == 0 { return rawValue < 0 ? runtimeDurationNegativeInfinity : Int64.max }
+    if runtimeDurationIsInfinite(rawValue) {
+        return runtimeDurationApplySign(rawValue, sign: scale < 0 ? -1 : 1)
     }
-    return Int64(rounded)
+    let value = rawValue >> 1
+    let result = value / scale
+    if rawValue & 1 == 0 { return runtimeDurationOfNanos(result) }
+    if (-runtimeDurationMaxNanosInMillis ... runtimeDurationMaxNanosInMillis).contains(result) {
+        return runtimeDurationOfNanos(result * 1_000_000 + (value % scale) * 1_000_000 / scale)
+    }
+    return runtimeDurationOfMillis(result)
 }
 
 /// kotlin-stdlib `Duration.parse` / `parseIsoString` grammar (2.3.10).
@@ -320,13 +397,9 @@ private func runtimeDurationNanoseconds(
     from number: RuntimeDurationParsedNumber,
     scale: Int64
 ) -> Int64? {
-    guard let unsigned = runtimeDurationNanoseconds(
-        from: Double(number.whole) + number.fraction,
-        scale: scale
-    ) else {
-        return nil
-    }
-    return runtimeDurationApplySign(unsigned, sign: number.sign)
+    let whole = runtimeDurationFromLong(number.whole, scale: scale)
+    let fraction = runtimeDurationFromDouble(number.fraction, scale: Double(scale))
+    return runtimeDurationApplySign(runtimeDurationAdd(whole, fraction), sign: number.sign)
 }
 
 private func runtimeDurationParseDefaultUnit(
@@ -407,7 +480,7 @@ private func runtimeDurationParseISOFormat(_ chars: [Character], startIndex: Int
         guard let component = runtimeDurationNanoseconds(from: number, scale: unit.scale) else {
             return nil
         }
-        total = runtimeDurationSaturatingAdd(total, component)
+        total = runtimeDurationAdd(total, component)
     }
 
     guard prevOrder != nil else { return nil }
@@ -460,7 +533,7 @@ private func runtimeDurationParseDefaultFormat(
         guard let component = runtimeDurationNanoseconds(from: number, scale: unit.scale) else {
             return nil
         }
-        total = runtimeDurationSaturatingAdd(total, component)
+        total = runtimeDurationAdd(total, component)
     }
 
     return total
@@ -514,34 +587,33 @@ public func kk_duration_zero() -> Int {
 
 @_cdecl("kk_duration_infinite")
 public func kk_duration_infinite() -> Int {
-    runtimeDurationHandle(fromNanoseconds: Int64.max)
+    Int(Int64.max)
 }
 
 @_cdecl("kk_duration_toDuration_int")
 public func kk_duration_toDuration_int(_ value: Int, _ unitOrdinal: Int) -> Int {
-    runtimeDurationHandle(
-        fromNanoseconds: saturatingMultiply(Int64(value), runtimeDurationUnitScale(fromOrdinal: unitOrdinal))
-    )
+    Int(runtimeDurationFromLong(Int64(value), scale: runtimeDurationUnitScale(fromOrdinal: unitOrdinal)))
 }
 
 @_cdecl("kk_duration_toDuration_long")
 public func kk_duration_toDuration_long(_ value: Int, _ unitOrdinal: Int) -> Int {
-    runtimeDurationHandle(
-        fromNanoseconds: saturatingMultiply(Int64(value), runtimeDurationUnitScale(fromOrdinal: unitOrdinal))
-    )
+    Int(runtimeDurationFromLong(Int64(value), scale: runtimeDurationUnitScale(fromOrdinal: unitOrdinal)))
 }
 
 @_cdecl("kk_duration_toDuration_double")
 public func kk_duration_toDuration_double(_ valueBits: Int, _ unitOrdinal: Int) -> Int {
-    runtimeDurationHandle(
-        fromNanoseconds: runtimeDurationNanoseconds(
+    Int(runtimeDurationNanoseconds(
             fromDoubleBits: valueBits,
             scale: Double(runtimeDurationUnitScale(fromOrdinal: unitOrdinal))
-        )
-    )
+        ))
 }
 
 // MARK: - Duration properties
+
+@_cdecl("kk_duration_inWholeMilliseconds")
+public func kk_duration_inWholeMilliseconds(_ durationRaw: Int) -> Int {
+    Int(runtimeDurationWholeValue(from: durationRaw, unitScale: 1_000_000))
+}
 
 @_cdecl("kk_duration_inWholeNanoseconds")
 public func kk_duration_inWholeNanoseconds(_ durationRaw: Int) -> Int {
@@ -553,36 +625,36 @@ public func kk_duration_inWholeNanoseconds(_ durationRaw: Int) -> Int {
 
 @_cdecl("kk_duration_toString")
 public func kk_duration_toString(_ durationRaw: Int) -> Int {
-    guard let ns = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_toString received invalid Duration handle")
-    }
+    let rawValue = runtimeDurationRawValue(from: durationRaw)
+    let ns = rawValue >> 1
 
     if ns == 0 {
         return runtimeDurationMakeString("0s")
     }
-    if ns == Int64.max {
+    if rawValue == Int64.max {
         return runtimeDurationMakeString("Infinity")
     }
-    if ns == Int64.min {
+    if rawValue == runtimeDurationNegativeInfinity {
         return runtimeDurationMakeString("-Infinity")
     }
 
     let isNegative = ns < 0
     let absNs = isNegative ? -ns : ns
+    let scale = runtimeDurationStorageScale(rawValue)
 
     // Decompose into days/hours/minutes/seconds/nanoseconds, matching
     // kotlin-stdlib's Duration.toString() component breakdown (values > 24h
     // roll up into days, e.g. 25h -> "1d 1h").
     let components = runtimeDurationComponents(
         absNs,
-        topUnit: runtimeDurationNanosPerDay,
-        lowerUnits: [runtimeDurationNanosPerHour, runtimeDurationNanosPerMinute, runtimeDurationNanosPerSecond, 1]
+        topUnit: runtimeDurationNanosPerDay / scale,
+        lowerUnits: [runtimeDurationNanosPerHour / scale, runtimeDurationNanosPerMinute / scale, runtimeDurationNanosPerSecond / scale, 1]
     )
     let days = components.top
     let hours = components.lower[0]
     let minutes = components.lower[1]
     let seconds = components.lower[2]
-    let subsecondNanos = components.lower[3]
+    let subsecondNanos = components.lower[3] * Int(scale)
 
     let hasDays = days != 0
     let hasHours = hours != 0
@@ -655,7 +727,7 @@ public func kk_duration_parse(_ valueRaw: Int, _ outThrown: UnsafeMutablePointer
         )
         return runtimeNullSentinelInt
     }
-    return runtimeDurationHandle(fromNanoseconds: nanoseconds)
+    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseOrNull")
@@ -665,7 +737,7 @@ public func kk_duration_parseOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationBoxHandle(fromNanoseconds: nanoseconds)
+    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoString")
@@ -680,7 +752,7 @@ public func kk_duration_parseIsoString(_ valueRaw: Int, _ outThrown: UnsafeMutab
         )
         return runtimeNullSentinelInt
     }
-    return runtimeDurationHandle(fromNanoseconds: nanoseconds)
+    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoStringOrNull")
@@ -690,18 +762,15 @@ public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationBoxHandle(fromNanoseconds: nanoseconds)
+    return Int(nanoseconds)
 }
 
 // MARK: - Duration advanced operations (STDLIB-TIME-082)
 
 @_cdecl("kk_duration_absoluteValue")
 public func kk_duration_absoluteValue(_ durationRaw: Int) -> Int {
-    guard let ns = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_absoluteValue received invalid Duration handle")
-    }
-    let absNs = ns == Int64.min ? Int64.max : (ns < 0 ? -ns : ns)
-    return runtimeDurationHandle(fromNanoseconds: absNs)
+    let raw = runtimeDurationRawValue(from: durationRaw)
+    return Int(runtimeDurationApplySign(raw, sign: raw < 0 ? -1 : 1))
 }
 
 @_cdecl("kk_duration_isNegative")
@@ -722,89 +791,55 @@ public func kk_duration_isPositive(_ durationRaw: Int) -> Int {
 
 @_cdecl("kk_duration_isInfinite")
 public func kk_duration_isInfinite(_ durationRaw: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_isInfinite received invalid Duration handle")
-    }
-    return (nanoseconds == Int64.max || nanoseconds == Int64.min) ? 1 : 0
+    runtimeDurationIsInfinite(runtimeDurationRawValue(from: durationRaw)) ? 1 : 0
 }
 
 @_cdecl("kk_duration_plus")
 public func kk_duration_plus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
-          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_plus received invalid Duration handle")
-    }
-    return runtimeDurationHandle(fromNanoseconds: runtimeDurationSaturatingAdd(lhs, rhs))
+    Int(runtimeDurationAdd(runtimeDurationRawValue(from: lhsRaw), runtimeDurationRawValue(from: rhsRaw)))
 }
 
 @_cdecl("kk_duration_minus")
 public func kk_duration_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
-          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_minus received invalid Duration handle")
-    }
-    return runtimeDurationHandle(fromNanoseconds: runtimeDurationSaturatingAdd(lhs, -rhs))
+    Int(runtimeDurationAdd(runtimeDurationRawValue(from: lhsRaw), runtimeDurationApplySign(runtimeDurationRawValue(from: rhsRaw), sign: -1)))
 }
 
 @_cdecl("kk_duration_times_int")
 public func kk_duration_times_int(_ durationRaw: Int, _ scale: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_times_int received invalid Duration handle")
-    }
-    return runtimeDurationHandle(fromNanoseconds: saturatingMultiply(nanoseconds, Int64(scale)))
+    Int(runtimeDurationMultiply(runtimeDurationRawValue(from: durationRaw), Int64(scale)))
 }
 
 @_cdecl("kk_duration_div_int")
 public func kk_duration_div_int(_ durationRaw: Int, _ scale: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_div_int received invalid Duration handle")
-    }
-    guard scale != 0 else {
-        let ns: Int64 = nanoseconds >= 0 ? Int64.max : Int64.min
-        return runtimeDurationHandle(fromNanoseconds: ns)
-    }
-    if nanoseconds == Int64.min, scale == -1 {
-        return runtimeDurationHandle(fromNanoseconds: Int64.max)
-    }
-    return runtimeDurationHandle(fromNanoseconds: nanoseconds / Int64(scale))
+    Int(runtimeDurationDivide(runtimeDurationRawValue(from: durationRaw), Int64(scale)))
 }
 
 @_cdecl("kk_duration_div_duration")
 public func kk_duration_div_duration(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
-          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_div_duration received invalid Duration handle")
-    }
+    let lhs = runtimeDurationRawValue(from: lhsRaw)
+    let rhs = runtimeDurationRawValue(from: rhsRaw)
+    let coarserScale = max(runtimeDurationStorageScale(lhs), runtimeDurationStorageScale(rhs))
     let lhsValue = runtimeDurationIsInfinite(lhs)
         ? (lhs > 0 ? Double.infinity : -Double.infinity)
-        : Double(lhs)
+        : Double(lhs >> 1) * Double(runtimeDurationStorageScale(lhs)) / Double(coarserScale)
     let rhsValue = runtimeDurationIsInfinite(rhs)
         ? (rhs > 0 ? Double.infinity : -Double.infinity)
-        : Double(rhs)
+        : Double(rhs >> 1) * Double(runtimeDurationStorageScale(rhs)) / Double(coarserScale)
     return kk_double_to_bits(lhsValue / rhsValue)
 }
 
 @_cdecl("kk_duration_unary_minus")
 public func kk_duration_unary_minus(_ durationRaw: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_unary_minus received invalid Duration handle")
-    }
-    let ns: Int64
-    if nanoseconds == Int64.min {
-        ns = Int64.max
-    } else if nanoseconds == Int64.max {
-        ns = Int64.min
-    } else {
-        ns = -nanoseconds
-    }
-    return runtimeDurationHandle(fromNanoseconds: ns)
+    Int(runtimeDurationApplySign(runtimeDurationRawValue(from: durationRaw), sign: -1))
 }
 
 @_cdecl("kk_duration_compareTo")
 public func kk_duration_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
-          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_compareTo received invalid Duration handle")
+    let lhs = runtimeDurationRawValue(from: lhsRaw)
+    let rhs = runtimeDurationRawValue(from: rhsRaw)
+    if (lhs < 0) == (rhs < 0), lhs & 1 != rhs & 1 {
+        let result = lhs & 1 == 1 ? 1 : -1
+        return lhs < 0 ? -result : result
     }
     if lhs < rhs { return -1 }
     if lhs > rhs { return 1 }

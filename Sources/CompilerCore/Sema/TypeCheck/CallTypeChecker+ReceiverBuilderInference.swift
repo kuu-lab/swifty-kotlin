@@ -114,12 +114,14 @@ extension CallTypeChecker {
             vars: ctx.resolver.usedTypeVariables(from: session.constraints),
             constraints: session.constraints, typeSystem: sema.types
         )
-        guard solution.isSuccess,
-              ctx.resolver.checkForUninferredTypeVariables(
-                  signature: signature, substitution: solution.substitution,
-                  typeVarBySymbol: variables, range: range, typeSystem: sema.types
-              ) == nil
-        else { return nil }
+        guard solution.isSuccess else { return nil }
+        if let diagnostic = ctx.resolver.checkForUninferredTypeVariables(
+            signature: signature, substitution: solution.substitution,
+            typeVarBySymbol: variables, range: range, typeSystem: sema.types
+        ) {
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
 
         let lambdaType = sema.types.substituteTypeParameters(
             in: signature.parameterTypes[parameterIndex],
@@ -147,8 +149,8 @@ extension CallTypeChecker {
             for: chosen, sema: sema, interner: ctx.interner, range: range, diagnostics: ctx.semaCtx.diagnostics
         )
         driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
-        applyContractEffects(chosen: chosen, args: args, ctx: ctx, locals: &locals)
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }

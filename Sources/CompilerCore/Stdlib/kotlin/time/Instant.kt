@@ -45,12 +45,14 @@ public operator fun Instant.compareTo(other: Instant): Int =
 
 // Real kotlin.time.Instant has no until(); the duration between two instants
 // is obtained via this minus operator overload (t2 - t1), matching the real
-// stdlib's `operator fun minus(other: Instant): Duration`.
+// stdlib's `operator fun minus(other: Instant): Duration`. __kk_instant_until
+// returns the nanosecond payload as a raw Long, wrapped in Duration(...) here
+// so every Duration value stays a boxed object (KUU-1093).
 public operator fun Instant.minus(other: Instant): Duration =
-    other.__kk_instant_until(this)
+    Duration(other.__kk_instant_until(this))
 
 public fun Instant.elapsed(): Duration =
-    this.__kk_instant_until(Instant.now())
+    Duration(this.__kk_instant_until(Instant.now()))
 
 // KSP-1489: value semantics, epoch conversion, and ISO formatting.
 

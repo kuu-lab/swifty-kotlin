@@ -35,6 +35,50 @@ extension CallLowerer {
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
 
+        if sema.bindings.callableValueCalls[exprID]?.extensionCallableExpr != nil {
+            let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let result = tryLowerLexicalExtensionCallableInvocation(
+                exprID,
+                receiverExpr: receiverExpr,
+                loweredReceiverID: receiver,
+                calleeName: calleeName,
+                args: args,
+                shared: shared,
+                emit: &instructions
+            ) {
+                return result
+            }
+        }
+
+        if sema.bindings.isInvokeOperatorCall(exprID),
+           let property = sema.bindings.identifierSymbol(for: exprID),
+           sema.symbols.symbol(property)?.kind == .property,
+           let propertyType = sema.symbols.propertyType(for: property),
+           let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
+           let signature = sema.symbols.functionSignature(for: chosen),
+           signature.parameterTypes.count <= 5,
+           sema.symbols.externalLinkName(for: chosen)?.hasPrefix("kk_function_invoke") == true {
+            let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let function = lowerStoredMemberPropertyReadValue(
+                propertySymbol: property, receiverExpr: receiverExpr, loweredReceiverID: receiver,
+                resultType: propertyType, ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions.instructions
+            ) {
+                let values = args.map { argument in
+                    let value = driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
+                    return boxValueForAnySlot(value, sourceType: arena.exprType(value) ?? sema.types.anyType,
+                        types: sema.types, symbols: sema.symbols, interner: interner, arena: arena,
+                        requireNonNull: true, into: &instructions.instructions)
+                }
+                let callee = signature.parameterTypes.count == 1 ? "kk_function_invoke"
+                    : "kk_function_invoke_\(signature.parameterTypes.count)"
+                let result = arena.appendTemporary(type: sema.bindings.exprType(for: exprID))
+                instructions.instructions.append(.call(symbol: nil, callee: interner.intern(callee),
+                    arguments: [function] + values, result: result, canThrow: true, thrownResult: nil))
+                return result
+            }
+        }
+
         // BUG-274: whichever specialized lowering strategy below actually
         // handles this member call/access, it targets a real member of
         // `chosenCallee`'s (or, for a property-like access bound only via
@@ -208,8 +252,7 @@ extension CallLowerer {
             }
             return sema.bundledIndex.contains(
                 ownerFQName: ownerSymbol.fqName,
-                name: calleeName,
-                arity: args.count
+                name: calleeName
             )
         }()
         if isFlowReceiver, !hasBundledFlowDeclaration {
@@ -314,6 +357,7 @@ extension CallLowerer {
         // CallLowerer.kclassMembers for why.
         if case let .callableRef(_, refMember, _) = ast.arena.expr(receiverExpr),
            refMember == KnownCompilerNames(interner: interner).className,
+           !sema.bindings.boundClassRefExprs.contains(receiverExpr),
            let classRefTargetType = sema.bindings.classRefTargetType(for: receiverExpr)
         {
             let callee = interner.resolve(calleeName)

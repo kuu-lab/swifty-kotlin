@@ -2,6 +2,22 @@
 
 /// Member-call argument normalization and instruction emission helpers.
 extension CallLowerer {
+    func memberExtensionOwnerSymbol(for callee: SymbolID, sema: SemaModule) -> SymbolID? {
+        sema.symbols.memberExtensionOwnerSymbol(for: callee)
+    }
+
+    func memberExtensionDispatchReceiver(for callee: SymbolID, callExprID: ExprID?, sema: SemaModule) -> KIRExprID? {
+        guard let owner = memberExtensionOwnerSymbol(for: callee, sema: sema),
+              let ownerInfo = sema.symbols.symbol(owner)
+        else { return nil }
+        return callExprID
+            .flatMap { sema.bindings.implicitReceiverOuterReceiver(for: $0) }
+            .flatMap { driver.ctx.localValue(for: $0) }
+            ?? driver.ctx.capturedOuterReceiverExprID(for: owner)
+            ?? driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name)
+            ?? driver.ctx.activeImplicitReceiverExprID()
+    }
+
     func sequenceBuilderRuntimeCalleeName(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
@@ -229,25 +245,17 @@ extension CallLowerer {
     ) {
         let knownNames = KnownCompilerNames(interner: interner)
         var finalArguments = arguments
-        // Member extensions (`fun T.m(...)` declared inside a class or
-        // interface) take a dispatch receiver (`this@Owner`) ahead of the
-        // extension receiver the call-site receiver already supplies at
-        // argument slot 0. Thread the enclosing receiver through so the
-        // body sees [dispatch, extension, args].
-        var memberExtensionDispatchReceiver: KIRExprID?
+        let memberExtensionDispatchReceiver = chosenCallee.flatMap {
+            self.memberExtensionDispatchReceiver(for: $0, callExprID: callExprID, sema: sema)
+        }
+        if let memberExtensionDispatchReceiver {
+            finalArguments.insert(memberExtensionDispatchReceiver, at: 0)
+        }
         if let chosenCallee,
-           let memberExtOwner = memberExtensionOwnerSymbol(for: chosenCallee, sema: sema),
-           let ownerInfo = sema.symbols.symbol(memberExtOwner)
+           let localValue = driver.ctx.localValue(for: chosenCallee),
+           let callable = driver.ctx.callableValueInfo(for: localValue)
         {
-            let dispatchReceiver = callExprID
-                .flatMap { sema.bindings.implicitReceiverOuterReceiver(for: $0) }
-                .flatMap { driver.ctx.localValue(for: $0) }
-                ?? driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name)
-                ?? driver.ctx.activeImplicitReceiverExprID()
-            if let dispatchReceiver {
-                memberExtensionDispatchReceiver = dispatchReceiver
-                finalArguments.insert(dispatchReceiver, at: 0)
-            }
+            finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
         }
         if let chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "kk_coroutine_scope_async",
@@ -920,7 +928,9 @@ extension CallLowerer {
             return
         }
         var callArguments = finalArguments
-        if loweredCalleeText == "__kk_system_currentTimeMillis"
+        if let chosenCallee, runtimeExternalOmitsObjectReceiver(chosenCallee, sema: sema) {
+            callArguments = Array(callArguments.dropFirst())
+        } else if loweredCalleeText == "__kk_system_currentTimeMillis"
             || loweredCalleeText == "__kk_system_nanoTime"
             || loweredCalleeText == "__kk_system_process_start_nanos"
             || loweredCalleeText == "__kk_system_gc"
@@ -1232,28 +1242,5 @@ extension CallLowerer {
             envPtrExpr = closureRawResult
         }
         return (fnPtrExpr, envPtrExpr)
-    }
-}
-
-extension CallLowerer {
-    /// The enclosing class/interface of a member extension (`fun T.m(...)`
-    /// declared inside a type). Member extensions carry a dispatch receiver
-    /// (`this@Owner`) ahead of the call-site extension receiver, so callers
-    /// and declarations must agree on the [dispatch, extension, args] shape.
-    /// A plain member's signature receiver is the owner type itself and is
-    /// excluded, as is a top-level extension (which has no owner type).
-    func memberExtensionOwnerSymbol(for callee: SymbolID, sema: SemaModule) -> SymbolID? {
-        guard let signature = sema.symbols.functionSignature(for: callee),
-              let receiverType = signature.receiverType,
-              let owner = sema.symbols.parentSymbol(for: callee),
-              let ownerInfo = sema.symbols.symbol(owner),
-              [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
-        else { return nil }
-        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-           classType.classSymbol == owner
-        {
-            return nil
-        }
-        return owner
     }
 }

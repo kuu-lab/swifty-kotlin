@@ -6,6 +6,111 @@ import Testing
 /// be used as the expected type for the returned value.
 @Suite
 struct InlineNonLocalReturnTypeTests {
+    @Test func functionNameLabelsUseTheEnclosingReturnType() throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        inline fun String.tryIt(block: () -> Unit) { block() }
+        inline fun predicate(block: () -> Boolean): Boolean { return block() }
+        fun h() { invokeBlock { return@h } }
+        fun f(s: String) { s.tryIt { return@f } }
+        fun typed(): String {
+            predicate { return@typed "outer" }
+            return "fallback"
+        }
+        fun nested(): Int {
+            invokeBlock { invokeBlock { return@nested 7 } }
+            return -1
+        }
+        fun direct(): Int { return@direct 3 }
+        fun withLocal(): String {
+            fun local(): Int {
+                invokeBlock { return@local 9 }
+                return 0
+            }
+            local()
+            return "ok"
+        }
+        fun withLocalExtension(): Int {
+            fun Int.local(): Int {
+                invokeBlock { return@local this + 1 }
+                return -1
+            }
+            return 2.local()
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        #expect(ctx.sema?.bindings.functionReturnLambdaPaths.count == 7)
+    }
+
+    @Test func lambdaLabelsShadowFunctionNameLabels() throws {
+        let ctx = makeContextFromSource("""
+        inline fun predicate(block: () -> Boolean): Boolean { return block() }
+        inline fun same(block: () -> Boolean): Boolean { return block() }
+        fun explicit(): String {
+            predicate explicit@ { return@explicit true }
+            return "ok"
+        }
+        fun same(): String {
+            same { return@same true }
+            return "ok"
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        #expect(ctx.sema?.bindings.functionReturnLambdaPaths.isEmpty == true)
+    }
+
+    @Test(arguments: ["value", "out", "get"])
+    func softKeywordFunctionNameLabelsUseTheEnclosingReturnType(name: String) throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        fun \(name)(): Int {
+            invokeBlock { return@\(name) 9 }
+            return -1
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        #expect(ctx.sema?.bindings.functionReturnLambdaPaths.count == 1)
+    }
+
+    @Test func wrongFunctionNameLabeledReturnTypeIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        inline fun predicate(block: () -> Boolean): Boolean { return block() }
+        fun wrong(): String {
+            predicate { return@wrong true }
+            return "fallback"
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+    }
+
+    @Test(arguments: [
+        "plain { return@outer }",
+        "cross { return@outer }",
+        "no { return@outer }",
+        "val block = { return@outer }",
+        "inlineBlock { plain { return@outer } }",
+        "plain { inlineBlock { return@outer } }",
+        "cross { inlineBlock { return@outer } }",
+        "fun local() { inlineBlock { return@outer } }; local()",
+        "inlineBlock(fun() { return@outer })",
+        "inlineBlock { return@missing }",
+    ])
+    func illegalFunctionNameReturnIsRejected(statement: String) throws {
+        let ctx = makeContextFromSource("""
+        fun plain(block: () -> Unit) { block() }
+        inline fun inlineBlock(block: () -> Unit) { block() }
+        inline fun cross(crossinline block: () -> Unit) { block() }
+        inline fun no(noinline block: () -> Unit) { block() }
+        fun outer() { \(statement) }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
+    }
+
     @Test func nonLocalReturnsUseTheEnclosingFunctionType() throws {
         let ctx = makeContextFromSource("""
         fun firstNonLocal(source: CharSequence): Char {

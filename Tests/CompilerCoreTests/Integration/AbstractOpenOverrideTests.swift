@@ -223,6 +223,37 @@ import Testing
         #expect(!ctx.diagnostics.hasError)
     }
 
+    @Test func testSealedClassesWithoutAbstractMembersDoNotWarn() throws {
+        let source = """
+        sealed class Grammar
+        class A : Grammar()
+
+        sealed class PartData {
+            fun dispose() {}
+        }
+
+        abstract sealed class ExplicitAbstract
+
+        sealed class Container {
+            sealed class NestedSealed
+            abstract class NestedAbstract
+        }
+
+        sealed interface SealedInterface
+        abstract class RegularEmpty
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+        let emptyAbstractWarnings = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT"
+                && $0.severity == .warning
+                && $0.message.contains("has no abstract members")
+        }
+        #expect(emptyAbstractWarnings.isEmpty)
+    }
+
     @Test func testEmptyExpectAbstractClassDoesNotWarn() throws {
         let source = """
         expect abstract class CharsetEncoder
@@ -240,8 +271,8 @@ import Testing
             $0.code == "KSWIFTK-SEMA-ABSTRACT"
                 && $0.message.contains("has no abstract members")
         }
-        #expect(emptyAbstractWarnings.count == 1)
-        #expect(emptyAbstractWarnings.first?.message.contains("RegularEmpty") == true)
+        #expect(emptyAbstractWarnings.isEmpty)
+        #expect(!ctx.diagnostics.hasError)
     }
 
 }

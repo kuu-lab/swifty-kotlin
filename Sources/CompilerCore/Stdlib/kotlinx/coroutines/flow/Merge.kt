@@ -7,24 +7,10 @@
 
 package kotlinx.coroutines.flow
 
-private class BufferedFlowCollector<T>(val values: MutableList<T>) : FlowCollector<T> {
-    override suspend fun emit(value: T) {
-        values.add(value)
-    }
-}
-
 // Latest operators finish each transform sequentially, like flatMapLatest.
 public fun <T, R> Flow<T>.mapLatest(transform: suspend (T) -> R): Flow<R> = map(transform)
 
-public fun <T, R> Flow<T>.transformLatest(transform: suspend FlowCollector<R>.(value: T) -> Unit): Flow<R> {
-    val source = this
-    return flow {
-        val values = mutableListOf<R>()
-        val collector = BufferedFlowCollector<R>(values)
-        for (value in source.toList()) {
-            transform(collector, value)
-            for (result in values) emit(result)
-            values.clear()
-        }
-    }
-}
+// KUU-955: callbacks cannot cancel an in-flight transform yet. Keep collection
+// streaming so downstream failures and early termination still reach upstream.
+public fun <T, R> Flow<T>.transformLatest(transform: suspend FlowCollector<R>.(value: T) -> Unit): Flow<R> =
+    this.transform(transform)

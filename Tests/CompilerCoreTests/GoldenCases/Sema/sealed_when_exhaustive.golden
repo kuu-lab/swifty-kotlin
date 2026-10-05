@@ -1,16 +1,16 @@
-symbol fq=Circle[kind=class] kind=class vis=public flags=_
-symbol fq=Rectangle[kind=class] kind=class vis=public flags=_
-symbol fq=Shape[kind=class] kind=class vis=public flags=sealedType|abstractType|openType
-symbol fq=Triangle[kind=class] kind=class vis=public flags=_
-symbol fq=describeShape.$0.s[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=describeShape[kind=fun;params=Shape] kind=function vis=public flags=_ sig=recv=_ params=[Shape] ret=String
+symbol fq=Circle[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=Rectangle[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=Shape[kind=class;origin=fixture] kind=class vis=public flags=sealedType|abstractType|openType
+symbol fq=Triangle[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=describeShape.$0.s[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=describeShape[kind=fun;params=Shape;ret=String;names=[s];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Shape] ret=String
 file fsealed_when_exhaustive package=_
-  decl Shape[kind=class] class Shape sym=Shape[kind=class]
-  decl Circle[kind=class] class Circle sym=Circle[kind=class]
-  decl Rectangle[kind=class] class Rectangle sym=Rectangle[kind=class]
-  decl Triangle[kind=class] class Triangle sym=Triangle[kind=class]
-  decl describeShape[kind=fun;params=Shape] fun describeShape sym=describeShape[kind=fun;params=Shape]
-expr e@7:18 name(s) type=Shape ref=describeShape.$0.s[kind=vparam]
+  decl Shape[kind=class;origin=fixture] class Shape sym=Shape[kind=class;origin=fixture]
+  decl Circle[kind=class;origin=fixture] class Circle sym=Circle[kind=class;origin=fixture]
+  decl Rectangle[kind=class;origin=fixture] class Rectangle sym=Rectangle[kind=class;origin=fixture]
+  decl Triangle[kind=class;origin=fixture] class Triangle sym=Triangle[kind=class;origin=fixture]
+  decl describeShape[kind=fun;params=Shape;ret=String;names=[s];origin=fixture] fun describeShape sym=describeShape[kind=fun;params=Shape;ret=String;names=[s];origin=fixture]
+expr e@7:18 name(s) type=Shape ref=describeShape.$0.s[kind=vparam;origin=fixture]
 expr e@7:18#1 isCheck expr=e@7:18 type=Circle type=Boolean
 expr e@8:22 string(circle) type=String
 expr e@7:18#2 isCheck expr=e@7:18 type=Rectangle type=Boolean

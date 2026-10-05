@@ -1413,7 +1413,8 @@ private func kirFindMatchingMethod(
         return nil
     }
 
-    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes
+    let interfaceSignature = sema.symbols.functionSignature(for: interfaceMethod)
+    let interfaceParameterTypes = interfaceSignature?.parameterTypes
     let interfaceParamCount = interfaceParameterTypes?.count
     let children = sema.symbols.children(ofFQName: ownerSym.fqName)
     var firstCandidate: SymbolID?
@@ -1433,32 +1434,83 @@ private func kirFindMatchingMethod(
         {
             continue
         }
-        if firstCandidate == nil {
-            firstCandidate = candidate
+        let candidateSignature = sema.symbols.functionSignature(for: candidate)
+        let candidateParameterTypes = candidateSignature?.parameterTypes
+        let alignedInterfaceParameterTypes = if let interfaceSignature, let candidateSignature {
+            kirAlignedOverrideParameterTypes(
+                interfaceSignature: interfaceSignature,
+                candidateSignature: candidateSignature,
+                interfaceOwner: sema.symbols.parentSymbol(for: interfaceMethod),
+                candidateOwner: nominal,
+                types: sema.types
+            )
+        } else {
+            interfaceParameterTypes
         }
-        let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
         // Prefer a full parameter-type match so same-arity overloads
         // (e.g. StringBuilder.append(Char) vs append(String)) land in
         // the correct itable slot. Type parameters are wildcards.
-        if let interfaceParameterTypes,
+        if let alignedInterfaceParameterTypes, let candidateParameterTypes,
            kirOverrideParameterTypesMatch(
-               candidateParameterTypes: candidateParams,
-               interfaceParameterTypes: interfaceParameterTypes,
+               candidateParameterTypes: candidateParameterTypes,
+               interfaceParameterTypes: alignedInterfaceParameterTypes,
                types: sema.types
            )
         {
             return candidate
         }
-        // BUG-166: fall back to arity matching when type IDs don't
-        // line up (e.g. untracked signatures), then to first name match.
+        // A known, incompatible overload must not replace an inherited default.
+        if interfaceParameterTypes != nil, candidateParameterTypes != nil {
+            continue
+        }
+        if firstCandidate == nil {
+            firstCandidate = candidate
+        }
+        // BUG-166: retain arity/name fallback only for untracked signatures.
         if arityMatch == nil,
            let interfaceParamCount,
-           candidateParams.count == interfaceParamCount
+           candidateParameterTypes?.count == interfaceParamCount
         {
             arityMatch = candidate
         }
     }
     return arityMatch ?? firstCandidate
+}
+
+private func kirAlignedOverrideParameterTypes(
+    interfaceSignature: FunctionSignature,
+    candidateSignature: FunctionSignature,
+    interfaceOwner: SymbolID?,
+    candidateOwner: SymbolID,
+    types: TypeSystem
+) -> [TypeID] {
+    var parameterTypes = interfaceSignature.parameterTypes
+    if let interfaceOwner, interfaceSignature.classTypeParameterCount > 0 {
+        let candidateArgs = types.nominalTypeParameterSymbols(for: candidateOwner).map {
+            TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+        }
+        if let ownerArgs = types.liftedNominalSupertypeArgs(from: candidateOwner, childArgs: candidateArgs, to: interfaceOwner) {
+            parameterTypes = parameterTypes.map {
+                types.substituteNominalTypeParameters(in: $0, owner: interfaceOwner, ownerArgs: ownerArgs)
+            }
+        }
+    }
+    let interfaceMethodParameters = interfaceSignature.typeParameterSymbols.dropFirst(interfaceSignature.classTypeParameterCount)
+    let candidateMethodParameters = candidateSignature.typeParameterSymbols.dropFirst(candidateSignature.classTypeParameterCount)
+    guard !interfaceMethodParameters.isEmpty,
+          interfaceMethodParameters.count == candidateMethodParameters.count
+    else {
+        return parameterTypes
+    }
+    let typeVarBySymbol = types.makeTypeVarBySymbol(Array(interfaceMethodParameters))
+    var substitution: [TypeVarID: TypeID] = [:]
+    for (interfaceParameter, candidateParameter) in zip(interfaceMethodParameters, candidateMethodParameters) {
+        guard let typeVar = typeVarBySymbol[interfaceParameter] else { continue }
+        substitution[typeVar] = types.make(.typeParam(TypeParamType(symbol: candidateParameter, nullability: .nonNull)))
+    }
+    return parameterTypes.map {
+        types.substituteTypeParameters(in: $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+    }
 }
 
 /// A class implementing an interface can declare several overloads sharing
@@ -1475,12 +1527,64 @@ private func kirOverrideParameterTypesMatch(
     types: TypeSystem
 ) -> Bool {
     guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
-    for (candidateType, interfaceType) in zip(candidateParameterTypes, interfaceParameterTypes) {
-        if case .typeParam = types.kind(of: candidateType) { continue }
-        if case .typeParam = types.kind(of: interfaceType) { continue }
-        if candidateType != interfaceType { return false }
+    return zip(candidateParameterTypes, interfaceParameterTypes).allSatisfy {
+        kirOverrideTypesMatch($0, $1, types: types)
     }
-    return true
+}
+
+private func kirOverrideTypesMatch(_ candidate: TypeID, _ interface: TypeID, types: TypeSystem) -> Bool {
+    if candidate == interface { return true }
+    if case .typeParam = types.kind(of: candidate) { return true }
+    if case .typeParam = types.kind(of: interface) { return true }
+    switch (types.kind(of: candidate), types.kind(of: interface)) {
+    case let (.functionType(lhs), .functionType(rhs)):
+        guard lhs.isSuspend == rhs.isSuspend, lhs.nullability == rhs.nullability,
+              (lhs.receiver == nil) == (rhs.receiver == nil)
+        else { return false }
+        return kirOverrideParameterTypesMatch(
+            candidateParameterTypes: lhs.contextReceivers,
+            interfaceParameterTypes: rhs.contextReceivers, types: types
+        ) && kirOverrideParameterTypesMatch(
+            candidateParameterTypes: lhs.receiver.map { [$0] } ?? [],
+            interfaceParameterTypes: rhs.receiver.map { [$0] } ?? [], types: types
+        ) && kirOverrideParameterTypesMatch(
+            candidateParameterTypes: lhs.params, interfaceParameterTypes: rhs.params, types: types
+        ) && kirOverrideTypesMatch(lhs.returnType, rhs.returnType, types: types)
+            && kirOverrideParameterTypesMatch(
+                candidateParameterTypes: lhs.throws, interfaceParameterTypes: rhs.throws, types: types
+            )
+    case let (.classType(lhs), .classType(rhs)):
+        guard lhs.classSymbol == rhs.classSymbol, lhs.nullability == rhs.nullability,
+              lhs.args.count == rhs.args.count
+        else { return false }
+        let variances = types.normalizedNominalVariances(
+            for: lhs.classSymbol,
+            arity: lhs.args.count
+        )
+        return lhs.args.indices.allSatisfy { index in
+            let candidateArg = types.composedProjection(
+                declarationVariance: variances[index], useSite: lhs.args[index]
+            )
+            let interfaceArg = types.composedProjection(
+                declarationVariance: variances[index], useSite: rhs.args[index]
+            )
+            switch (candidateArg, interfaceArg) {
+            case let (.invariant(candidate), .invariant(interface)),
+                 let (.out(candidate), .out(interface)),
+                 let (.in(candidate), .in(interface)):
+                return kirOverrideTypesMatch(candidate, interface, types: types)
+            case (.star, .star):
+                return true
+            default:
+                return false
+            }
+        }
+    case let (.kClassType(lhs), .kClassType(rhs)):
+        return lhs.nullability == rhs.nullability
+            && kirOverrideTypesMatch(lhs.argument, rhs.argument, types: types)
+    default:
+        return false
+    }
 }
 
 func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {

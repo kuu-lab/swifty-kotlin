@@ -33,6 +33,11 @@ private fun checkBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
 
 // --- Array<T> sorted* ---------------------------------------------------------
 
+@Suppress("UNCHECKED_CAST")
+public fun <T : Comparable<T>> Array<out T>.sort() {
+    (this as Array<T>).stableSortWith(naturalOrder<T>())
+}
+
 public fun <T : Comparable<T>> Array<T>.sortedArray(): Array<T> {
     return sortedArrayWith(naturalOrder<T>())
 }
@@ -109,6 +114,30 @@ public fun IntArray.sortedArrayDescending(): IntArray {
 
 public fun IntArray.sort() {
     this.stableSortImpl(false)
+}
+
+public fun IntArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun IntArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun IntArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun IntArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
 }
 
 public fun IntArray.binarySearch(element: Int, fromIndex: Int = 0, toIndex: Int = this.size): Int {
@@ -368,6 +397,8 @@ public fun UShortArray.binarySearch(element: UShort, fromIndex: Int = 0, toIndex
     }
     return -(low + 1)
 }
+
+public fun UIntArray.sorted(): List<UInt> = sortedArray().toList()
 
 public fun UIntArray.sortedArray(): UIntArray {
     val result = this.copyOf()

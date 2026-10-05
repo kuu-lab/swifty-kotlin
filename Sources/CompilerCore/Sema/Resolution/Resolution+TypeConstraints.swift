@@ -480,6 +480,29 @@ extension OverloadResolver {
             )
         }
 
+        if containsTypeVariable(subtype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+            || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+        {
+            if case .functionType = typeSystem.kind(of: subtype),
+               let function = typeSystem.nominalFunctionType(for: supertype)
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: subtype, supertype: typeSystem.make(.functionType(function)),
+                    typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                    blameRange: blameRange, depth: depth + 1
+                )
+            }
+            if case .functionType = supertypeKind,
+               let function = typeSystem.nominalFunctionType(for: subtype)
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: typeSystem.make(.functionType(function)), supertype: supertype,
+                    typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                    blameRange: blameRange, depth: depth + 1
+                )
+            }
+        }
+
         // Case 2: supertype is a generic class type with inferable variables or
         // use-site projections. Projections such as `Comparator<in Char>` are
         // otherwise left to the nominal subtype check, which cannot distinguish

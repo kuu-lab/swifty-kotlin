@@ -112,6 +112,7 @@ extension DataFlowSemaPhase {
             if record.isOperator, record.kind == .function {
                 flags.insert(.operatorFunction)
             }
+            if record.isMemberExtension { flags.insert(.memberExtension) }
             // Overrides must stay marked so member lookup can shadow the
             // supertype declaration instead of reporting an ambiguity.
             if record.isOverride,
@@ -1224,6 +1225,7 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: signature.valueParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
+                    valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     typeParameterSymbols: normalizedTypeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: normalizedUpperBoundsList,
@@ -1519,6 +1521,7 @@ extension DataFlowSemaPhase {
         let isInline: Bool
         let isOperator: Bool
         let isOverride: Bool
+        let isMemberExtension: Bool
         let receiverOwnerFQName: [InternedString]?
         let valueParameterIsVararg: [Bool]
         let valueParameterAllowsNonLocalReturn: [Bool]
@@ -1526,6 +1529,7 @@ extension DataFlowSemaPhase {
         /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect
         /// decoded from metadata, `nil` where the parameter has none.
         let valueParameterCallsInPlaceKinds: [InvocationKind?]
+        let contractImplicationEffects: [ContractImplicationEffect]
         let canThrow: Bool
         let valueParameterNames: [String]
         let reifiedTypeParameterIndices: Set<Int>
@@ -1592,11 +1596,13 @@ extension DataFlowSemaPhase {
             isInline: Bool = false,
             isOperator: Bool = false,
             isOverride: Bool = false,
+            isMemberExtension: Bool = false,
             receiverOwnerFQName: [InternedString]? = nil,
             valueParameterIsVararg: [Bool] = [],
             valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
+            contractImplicationEffects: [ContractImplicationEffect] = [],
             canThrow: Bool = false,
             valueParameterNames: [String] = [],
             reifiedTypeParameterIndices: Set<Int> = [],
@@ -1652,11 +1658,13 @@ extension DataFlowSemaPhase {
             self.isInline = isInline
             self.isOperator = isOperator
             self.isOverride = isOverride
+            self.isMemberExtension = isMemberExtension
             self.receiverOwnerFQName = receiverOwnerFQName
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
+            self.contractImplicationEffects = contractImplicationEffects
             self.canThrow = canThrow
             self.valueParameterNames = valueParameterNames
             self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
@@ -1952,21 +1960,11 @@ extension DataFlowSemaPhase {
             // ownership from the decoded receiver type so imported stdlib
             // extensions (for example Sequence.chunked/windowed) follow the
             // same resolution path as bundled source declarations.
-            //
-            // Member extensions (`fun T.m(...)` declared inside a nominal
-            // type) already carry their declaring owner in the metadata FQ
-            // name and were parented there by restoreImportedParentSymbol —
-            // re-parenting them to the extension receiver would erase the
-            // dispatch-receiver owner that member-extension calls need.
-            let declaringOwnerSymbol = symbols.lookupAll(fqName: Array(record.fqName.dropLast()))
-                .compactMap { symbols.symbol($0) }
-                .first { isNominalLayoutTargetSymbol($0.kind) }
-            let declaringOwnerIsNominal = declaringOwnerSymbol != nil
-            if let receiverType = signature.receiverType,
+            if !record.isMemberExtension,
+               let receiverType = signature.receiverType,
                case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
                let receiverSymbol = symbols.symbol(receiverClassType.classSymbol),
-               isNominalLayoutTargetSymbol(receiverSymbol.kind),
-               !declaringOwnerIsNominal
+               isNominalLayoutTargetSymbol(receiverSymbol.kind)
             {
                 symbols.setParentSymbol(receiverSymbol.id, for: symbol)
             }
@@ -1977,47 +1975,22 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(defaultStubLink, for: stubSymbol)
                 let intType = types.intType
                 let reifiedCount = signature.reifiedTypeParameterIndices.count
-                // Member extensions (`fun T.m(...)` inside a nominal type)
-                // add an implicit leading dispatch-receiver parameter ahead
-                // of the extension receiver, matching the emitted stub's
-                // [dispatch, extension, params..., mask] ABI — model it as
-                // the stub signature's receiver + leading parameter so
-                // sourceExternalSignature matches the call-site arity.
-                var isMemberExtension = false
-                if let receiverType = signature.receiverType,
-                   let declaringOwnerSymbol,
-                   case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
-                   receiverClassType.classSymbol != declaringOwnerSymbol.id
-                {
-                    isMemberExtension = true
-                }
-                let stubReceiverType: TypeID?
-                var stubParameterTypes = signature.parameterTypes
-                    + Array(repeating: intType, count: reifiedCount) + [intType]
-                var stubVarargFlags = signature.valueParameterIsVararg
-                    + Array(repeating: false, count: reifiedCount + 1)
-                if isMemberExtension,
-                   let declaringOwnerSymbol,
-                   let extensionReceiverType = signature.receiverType
+                var stubReceiverType = signature.receiverType
+                var stubLeadingParameters: [TypeID] = []
+                if record.isMemberExtension,
+                   let owner = symbols.parentSymbol(for: symbol)
                 {
                     let ownerArgs: [TypeArg] = signature.typeParameterSymbols
                         .prefix(signature.classTypeParameterCount)
-                        .map {
-                            .invariant(types.make(.typeParam(TypeParamType(
-                                symbol: $0,
-                                nullability: .nonNull
-                            ))))
-                        }
-                    stubReceiverType = types.make(.classType(ClassType(
-                        classSymbol: declaringOwnerSymbol.id,
-                        args: ownerArgs,
-                        nullability: .nonNull
-                    )))
-                    stubParameterTypes.insert(extensionReceiverType, at: 0)
-                    stubVarargFlags.insert(false, at: 0)
-                } else {
-                    stubReceiverType = signature.receiverType
+                        .map { .invariant(types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                    stubLeadingParameters.append(types.make(.classType(ClassType(
+                        classSymbol: owner, args: ownerArgs, nullability: .nonNull
+                    ))))
+                    stubLeadingParameters.append(contentsOf: [signature.receiverType].compactMap { $0 })
+                    stubReceiverType = nil
                 }
+                let stubParameterTypes = stubLeadingParameters + signature.parameterTypes
+                    + Array(repeating: intType, count: reifiedCount) + [intType]
                 symbols.setFunctionSignature(
                     FunctionSignature(
                         receiverType: stubReceiverType,
@@ -2026,7 +1999,9 @@ extension DataFlowSemaPhase {
                         isSuspend: false,
                         canThrow: signature.canThrow,
                         valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: stubVarargFlags,
+                        valueParameterIsVararg: Array(repeating: false, count: stubLeadingParameters.count)
+                            + signature.valueParameterIsVararg
+                            + Array(repeating: false, count: reifiedCount + 1),
                         typeParameterSymbols: signature.typeParameterSymbols,
                         reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices
                     ),

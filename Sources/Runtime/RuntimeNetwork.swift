@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -463,7 +464,7 @@ private func networkString(from raw: Int, caller: StaticString) -> String {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid string handle")
     }
-    return str
+    return KotlinStringSurrogateEncoding.unicodeString(str)
 }
 
 private func networkStringRaw(_ value: String) -> Int {

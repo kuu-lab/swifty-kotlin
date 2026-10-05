@@ -5,6 +5,48 @@ import Testing
 @Suite
 struct RangeSyntheticInterfaceTests {
 
+    @Test(arguments: ["Double", "Float"])
+    func floatingPointRangeArgumentsInferNominalAndGenericTypes(element: String) throws {
+        let suffix = element == "Float" ? "f" : ""
+        let ctx = makeContextFromSource("""
+        fun inspect(r: ClosedFloatingPointRange<\(element)>) {}
+        fun inspectOpen(r: OpenEndRange<\(element)>) {}
+        fun <T : Comparable<T>> forward(r: ClosedFloatingPointRange<T>): ClosedFloatingPointRange<T> = r
+        fun <T : Comparable<T>> inspectClosed(r: ClosedRange<T>) {}
+        fun main() {
+            inspect(0.0\(suffix)..1.0\(suffix))
+            inspectClosed(forward(0.0\(suffix)..1.0\(suffix)))
+            val open = 0.0\(suffix)..<1.0\(suffix)
+            inspectOpen(open)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
+    @Test(arguments: ["0.0..1.0", "0.0", "1..2"])
+    func floatingPointRangeArgumentsRejectWrongElementTypes(argument: String) throws {
+        let ctx = makeContextFromSource("""
+        fun inspect(r: ClosedFloatingPointRange<Float>) {}
+        fun main() { inspect(\(argument)) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
+    @Test(arguments: ["0.0..<1.0", "open"])
+    func floatingPointRangeArgumentsRejectOpenEndRanges(argument: String) throws {
+        let ctx = makeContextFromSource("""
+        fun inspect(r: ClosedFloatingPointRange<Double>) {}
+        fun main() {
+            val open = 0.0..<1.0
+            inspect(\(argument))
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
     // MARK: - Shared Sema context
 
     private static let sharedSources: [String] = [

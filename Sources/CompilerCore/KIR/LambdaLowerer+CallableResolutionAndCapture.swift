@@ -307,7 +307,8 @@ extension LambdaLowerer {
         lambdaBodyExprID: ExprID,
         ast: ASTModule,
         sema: SemaModule,
-        hasExplicitReceiver: Bool = false
+        arena: KIRArena,
+        receiverType: TypeID? = nil
     ) -> [SymbolID] {
         let lexicalCaptures = lexicalCaptureSymbolsForLambda(
             lambdaExprID: lambdaExprID,
@@ -326,19 +327,22 @@ extension LambdaLowerer {
                     sema: sema
                 )
             }
-            // A receiver-bearing lambda receives its own receiver explicitly;
-            // do not also forward the enclosing receiver unless the body has
-            // an explicit qualified-this binding to that outer receiver.
-            if hasExplicitReceiver,
+            // The lambda's receiver replaces unqualified `this`, but not a
+            // different enclosing instance whose members its body references.
+            let capturesOuterReceiver = containsImplicitReceiverMemberAccess(
+                in: lambdaBodyExprID, ast: ast, sema: sema, excludingReceiverType: receiverType,
+                outerReceiverType: driver.ctx.activeImplicitReceiverExprID().flatMap { arena.exprType($0) }
+            )
+            if receiverType != nil,
                let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
-               !boundCaptures.contains(receiverSymbol)
+               !boundCaptures.contains(receiverSymbol),
+               !capturesOuterReceiver
             {
                 captures.removeAll { $0 == receiverSymbol }
             }
-            if !hasExplicitReceiver,
-               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
-               containsImplicitReceiverReference(in: lambdaBodyExprID, ast: ast)
-               || containsImplicitReceiverMemberAccess(in: lambdaBodyExprID, ast: ast, sema: sema),
+            if let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+               (receiverType == nil && containsImplicitReceiverReference(in: lambdaBodyExprID, ast: ast))
+               || capturesOuterReceiver,
                canCaptureSymbolForLambda(
                    receiverSymbol,
                    lambdaExprID: lambdaExprID,
@@ -397,7 +401,10 @@ extension LambdaLowerer {
     /// STDLIB-004: Check if an expression tree contains any implicit receiver
     /// member accesses (bare name references resolved through implicitReceiverType).
     /// Mirrors `containsImplicitReceiverReference` for all AST node types.
-    func containsImplicitReceiverMemberAccess(in exprID: ExprID, ast: ASTModule, sema: SemaModule) -> Bool {
+    func containsImplicitReceiverMemberAccess(
+        in exprID: ExprID, ast: ASTModule, sema: SemaModule,
+        excludingReceiverType: TypeID? = nil, outerReceiverType: TypeID? = nil
+    ) -> Bool {
         if let symbolID = sema.bindings.identifierSymbols[exprID],
            let symbol = sema.symbols.symbol(symbolID),
            symbol.kind == .property || symbol.kind == .field,
@@ -405,22 +412,37 @@ extension LambdaLowerer {
            let parent = sema.symbols.symbol(parentID),
            parent.kind == .class || parent.kind == .object || parent.kind == .interface
         {
-            return true
+            if excludingReceiverType == nil || memberNeedsOuterReceiver(
+                owner: parentID, excluding: excludingReceiverType, outerReceiverType: outerReceiverType, sema: sema
+            ) {
+                return true
+            }
         }
-        if sema.bindings.implicitReceiverMemberNames[exprID] != nil {
+        if excludingReceiverType == nil, sema.bindings.implicitReceiverMemberNames[exprID] != nil {
             return true
         }
         guard let expr = ast.arena.expr(exprID) else {
             return false
         }
         let check = { (id: ExprID) -> Bool in
-            self.containsImplicitReceiverMemberAccess(in: id, ast: ast, sema: sema)
+            self.containsImplicitReceiverMemberAccess(
+                in: id, ast: ast, sema: sema,
+                excludingReceiverType: excludingReceiverType, outerReceiverType: outerReceiverType
+            )
         }
         switch expr {
         case let .blockExpr(stmts, trailing, _):
             return stmts.contains(where: check) || trailing.map(check) ?? false
         case let .call(callee, _, args, _):
-            if callResolvesToImplicitReceiverMember(exprID, sema: sema) {
+            if callResolvesToImplicitReceiverMember(exprID, sema: sema),
+               excludingReceiverType == nil
+                || sema.bindings.callBinding(for: exprID).map({
+                    guard let owner = sema.symbols.parentSymbol(for: $0.chosenCallee) else { return false }
+                    return memberNeedsOuterReceiver(
+                        owner: owner, excluding: excludingReceiverType, outerReceiverType: outerReceiverType, sema: sema
+                    )
+                }) == true
+            {
                 return true
             }
             return check(callee) || args.contains { check($0.expr) }
@@ -459,7 +481,7 @@ extension LambdaLowerer {
             return check(lhs) || check(rhs)
         case let .callableRef(receiver, _, _):
             return receiver.map(check) ?? false
-        case let .localFunDecl(_, _, _, body, _, _):
+        case let .localFunDecl(_, _, _, _, body, _, _):
             return checkFunctionBody(body, check: check)
         case let .forExpr(_, iterable, body, _, _):
             return check(iterable) || check(body)
@@ -486,6 +508,28 @@ extension LambdaLowerer {
         default:
             return false
         }
+    }
+
+    private func memberNeedsOuterReceiver(
+        owner: SymbolID, excluding receiverType: TypeID?, outerReceiverType: TypeID?, sema: SemaModule
+    ) -> Bool {
+        guard let receiverType,
+              let outerReceiverType
+        else { return false }
+        return receiverHasOwner(outerReceiverType, owner: owner, sema: sema)
+            && !receiverHasOwner(receiverType, owner: owner, sema: sema)
+    }
+
+    private func receiverHasOwner(_ type: TypeID, owner: SymbolID, sema: SemaModule) -> Bool {
+        guard let symbol = nominalSymbol(for: type, types: sema.types) else { return false }
+        var pending = [symbol]
+        var visited: Set<SymbolID> = []
+        while let current = pending.popLast() {
+            guard visited.insert(current).inserted else { continue }
+            if current == owner { return true }
+            pending.append(contentsOf: sema.symbols.directSupertypes(for: current))
+        }
+        return false
     }
 
     /// An unqualified `compute()` whose callee is a member function is `this.compute()`,
@@ -571,7 +615,8 @@ extension LambdaLowerer {
         // would add a closure parameter that its entry point does not accept.
         if let semanticSymbol = sema.symbols.symbol(symbol),
            semanticSymbol.kind == .local,
-           semanticSymbol.flags.contains(.mutable)
+           (semanticSymbol.flags.contains(.mutable)
+               || sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol))
         {
             if let existingCell = driver.ctx.mutableCaptureCell(for: symbol) {
                 return existingCell
@@ -644,6 +689,9 @@ extension LambdaLowerer {
         if let localValue = driver.ctx.localValue(for: symbol) {
             return localValue
         }
+        if let receiver = driver.ctx.capturedOuterReceiverExprID(for: symbol) {
+            return receiver
+        }
         // KSP-491: a delegated local (`val x by lazy { ... }`/`by Prop()`) has
         // no `localValue` -- its storage is the delegate instance, tracked
         // separately (see ExprLowerer's `.localDecl` case) so getValue can be
@@ -709,7 +757,7 @@ extension LambdaLowerer {
            !sema.symbols.propertyHasCustomGetter(for: symbol),
            let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
            sema.symbols.symbol(ownerSymbol)?.kind == .class,
-           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(forProperty: symbol, sema: sema),
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
            ]

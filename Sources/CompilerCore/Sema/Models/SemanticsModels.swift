@@ -28,6 +28,22 @@ public enum SymbolKind: Hashable, Sendable {
     case label
 }
 
+extension SymbolTable {
+    /// Member extensions use [dispatch, extension, value arguments], while
+    /// their semantic signature stores only the extension receiver.
+    public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {
+        guard let signature = functionSignature(for: callee),
+              signature.receiverType != nil,
+              symbol(callee)?.flags.contains(.memberExtension) == true,
+              let owner = parentSymbol(for: callee),
+              let ownerInfo = symbol(owner),
+              [.class, .interface, .enumClass, .object].contains(ownerInfo.kind),
+              symbol(callee)?.flags.contains(.extensionMemberAlias) != true
+        else { return nil }
+        return owner
+    }
+}
+
 public struct SymbolFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
@@ -75,6 +91,8 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// vtable/itable slot or be treated as a real member of the nominal
     /// (KUU-545).
     public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
+    public static let localFunction = SymbolFlags(rawValue: 1 << 25)
+    public static let memberExtension = SymbolFlags(rawValue: 1 << 26)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -191,6 +209,26 @@ public struct EnumEntryDispatchTarget: Hashable, Sendable {
     public init(entrySymbol: SymbolID, functionSymbol: SymbolID) {
         self.entrySymbol = entrySymbol
         self.functionSymbol = functionSymbol
+    }
+}
+
+public enum ContractReturnCondition: String, Equatable, Sendable {
+    case normally, returnsTrue, returnsFalse, returnsNull, returnsNotNull
+}
+
+public enum ContractArgumentCondition: String, Equatable, Sendable {
+    case nonNull, booleanTrue, booleanFalse
+}
+
+public struct ContractImplicationEffect: Equatable, Sendable {
+    public let parameterIndex: Int
+    public let returnCondition: ContractReturnCondition
+    public let argumentCondition: ContractArgumentCondition
+
+    public init(parameterIndex: Int, returnCondition: ContractReturnCondition, argumentCondition: ContractArgumentCondition) {
+        self.parameterIndex = parameterIndex
+        self.returnCondition = returnCondition
+        self.argumentCondition = argumentCondition
     }
 }
 
@@ -343,6 +381,9 @@ public struct NominalLayoutHint: Equatable, Sendable {
 
 public protocol Scope: AnyObject {
     func lookup(_ name: InternedString) -> [SymbolID]
+    /// Stops at the innermost scope containing matching bindings, so declarations
+    /// in a different namespace do not shadow the requested candidates.
+    func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID]
     /// Like `lookup`, but merges bindings from every scope in the parent chain
     /// instead of stopping at the innermost scope that binds `name`. Used as a
     /// resolution fallback to recover candidates that ordinary (shadowing)
@@ -367,6 +408,14 @@ open class BaseScope: Scope {
             return local
         }
         return parent?.lookup(name) ?? []
+    }
+
+    open func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
+        let local = (locals[name] ?? []).filter(predicate)
+        if !local.isEmpty {
+            return local
+        }
+        return parent?.lookup(name, matching: predicate) ?? []
     }
 
     open func lookupMergingChain(_ name: InternedString) -> [SymbolID] {
@@ -503,6 +552,7 @@ public final class SymbolTable {
     private var delegateHasProvideDelegate: Set<SymbolID> = []
     private var expectActualLinks: [SymbolID: SymbolID] = [:]
     private var contractNonNullEffects: [SymbolID: ContractNonNullEffect] = [:]
+    private var contractImplicationEffects: [SymbolID: [ContractImplicationEffect]] = [:]
     private var contractReturnsEffects: [SymbolID: ContractReturnsEffect] = [:]
     private var contractCallsInPlaceEffects: [SymbolID: [ContractCallsInPlaceEffect]] = [:]
     private var contractReturnsNotNullEffects: Set<SymbolID> = []
@@ -1477,6 +1527,16 @@ public final class SymbolTable {
         contractNonNullEffects[function] = effect
     }
 
+    public func addContractImplicationEffect(_ effect: ContractImplicationEffect, for function: SymbolID) {
+        var effects = contractImplicationEffects[function] ?? []
+        if !effects.contains(effect) { effects.append(effect) }
+        contractImplicationEffects[function] = effects
+    }
+
+    public func contractImplicationEffects(for function: SymbolID) -> [ContractImplicationEffect] {
+        contractImplicationEffects[function] ?? []
+    }
+
     public func contractNonNullEffect(for function: SymbolID) -> ContractNonNullEffect? {
         contractNonNullEffects[function]
     }
@@ -1549,7 +1609,11 @@ public final class SymbolTable {
 
 public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
+    /// Lambda boundaries crossed by a return targeting an enclosing named function.
+    /// Validated after overload resolution has bound the containing calls.
+    public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
     public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
@@ -1603,6 +1667,8 @@ public final class BindingTable {
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var floatingPointRangeElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var floatingPointRangeElementTypesBySymbol: [SymbolID: TypeID] = [:]
+    private var openFloatingPointRangeExprIDs: Set<ExprID> = []
+    private var openFloatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
     /// Tracks the real element type produced by an `async { ... }` call, keyed by
@@ -1618,6 +1684,7 @@ public final class BindingTable {
     /// `T` refers to.  Used by KIR lowering to emit the correct type token
     /// and name hint for `T::class.simpleName` / `.qualifiedName`.
     public private(set) var classRefTargetTypes: [ExprID: TypeID] = [:]
+    public private(set) var boundClassRefExprs: Set<ExprID> = []
     /// Maps expression IDs to their compile-time constant values when the
     /// expression references a `const val` property.  This allows downstream
     /// passes (KIR lowering, codegen) to fold constant references without
@@ -1663,6 +1730,8 @@ public final class BindingTable {
     /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
     /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
+    /// Runtime trampolines require a raw suspend entry, not a nested boxed adapter.
+    public private(set) var rawSuspendEntryLambdaExprIDs: Set<ExprID> = []
     /// Receivers supplied by the running continuation, not by launcherArgs.
     public private(set) var coroutineScopeLambdaReceiverTypes: [ExprID: TypeID] = [:]
     /// Tracks expressions whose expected type comes from a type annotation
@@ -1671,6 +1740,9 @@ public final class BindingTable {
     /// call. Only source-declared expected types are authoritative enough to
     /// contradict an explicit lambda parameter annotation with `Any`.
     public private(set) var sourceDeclaredExpectedTypeExprIDs: Set<ExprID> = []
+    /// Callable literals checked against nominal FunctionN still infer a
+    /// function type, but must materialize their closure ABI before escaping.
+    public private(set) var nominalFunctionExpectedTypes: [ExprID: TypeID] = [:]
     /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     /// Maps stdlib special call expressions to their lowering kind.
@@ -1691,6 +1763,7 @@ public final class BindingTable {
     /// Maps callable reference expression IDs to their kind (function vs property)
     /// so that KIR lowering can emit KFunction / KProperty type identity (REFL-003).
     public private(set) var callableRefKinds: [ExprID: CallableRefKind] = [:]
+    public var inferredCallableReferenceSymbols: Set<SymbolID> = []
     /// Tracks callable reference expressions that are unbound type references
     /// (e.g. `Type::member`).  The receiver is not captured; instead it
     /// becomes a parameter of the resulting function type (REFL-003).
@@ -1735,8 +1808,17 @@ public final class BindingTable {
         exprTypes[expr] = type
     }
 
+    public func bindWhenExhaustiveness(_ expr: ExprID, isExhaustive: Bool) {
+        whenExhaustiveness[expr] = isExhaustive
+    }
+
     public func bindIdentifier(_ expr: ExprID, symbol: SymbolID) {
         identifierSymbols[expr] = symbol
+    }
+
+    func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
+        identifierSymbols[expr] = symbol
+        functionReturnLambdaPaths[expr] = lambdaPath
     }
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {
@@ -1801,6 +1883,7 @@ public final class BindingTable {
 
     public func bindContractCallsInPlaceInitializedSymbols(_ expr: ExprID, symbols: [SymbolID]) {
         contractCallsInPlaceInitializedSymbolsByExpr[expr] = symbols
+        cachedContractCallsInPlaceInitializedSymbolsUnion = nil
     }
 
     public func contractCallsInPlaceInitializedSymbols(for expr: ExprID) -> [SymbolID] {
@@ -1879,9 +1962,18 @@ public final class BindingTable {
         floatingPointRangeExprIDs.contains(expr)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID, endExclusive: Bool = false) {
         floatingPointRangeExprIDs.insert(expr)
         floatingPointRangeElementTypesByExpr[expr] = type
+        if endExclusive {
+            openFloatingPointRangeExprIDs.insert(expr)
+        } else {
+            openFloatingPointRangeExprIDs.remove(expr)
+        }
+    }
+
+    public func isOpenFloatingPointRangeExpr(_ expr: ExprID) -> Bool {
+        openFloatingPointRangeExprIDs.contains(expr)
     }
 
     public func floatingPointRangeElementType(forExpr expr: ExprID) -> TypeID? {
@@ -1989,9 +2081,18 @@ public final class BindingTable {
         floatingPointRangeSymbolIDs.contains(symbol)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID, endExclusive: Bool = false) {
         floatingPointRangeSymbolIDs.insert(symbol)
         floatingPointRangeElementTypesBySymbol[symbol] = type
+        if endExclusive {
+            openFloatingPointRangeSymbolIDs.insert(symbol)
+        } else {
+            openFloatingPointRangeSymbolIDs.remove(symbol)
+        }
+    }
+
+    public func isOpenFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
+        openFloatingPointRangeSymbolIDs.contains(symbol)
     }
 
     public func floatingPointRangeElementType(forSymbol symbol: SymbolID) -> TypeID? {
@@ -2042,6 +2143,10 @@ public final class BindingTable {
 
     public func classRefTargetType(for expr: ExprID) -> TypeID? {
         classRefTargetTypes[expr]
+    }
+
+    public func bindBoundClassRef(_ expr: ExprID) {
+        boundClassRefExprs.insert(expr)
     }
 
     public func exprType(for expr: ExprID) -> TypeID? {
@@ -2241,6 +2346,10 @@ public final class BindingTable {
         coroutineLauncherLambdaExprIDs.insert(expr)
     }
 
+    public func markRawSuspendEntryLambdaExpr(_ expr: ExprID) {
+        rawSuspendEntryLambdaExprIDs.insert(expr)
+    }
+
     /// Whether the lambda literal is a KIR-level coroutine launcher's block
     /// argument (see `coroutineLauncherLambdaExprIDs`).
     public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
@@ -2260,6 +2369,10 @@ public final class BindingTable {
     /// Whether the expression's expected type was written in source.
     public func hasSourceDeclaredExpectedType(_ expr: ExprID) -> Bool {
         sourceDeclaredExpectedTypeExprIDs.contains(expr)
+    }
+
+    public func bindNominalFunctionExpectedType(_ expr: ExprID, type: TypeID) {
+        nominalFunctionExpectedTypes[expr] = type
     }
 
     /// Mark a call expression as a stdlib special call requiring custom lowering.

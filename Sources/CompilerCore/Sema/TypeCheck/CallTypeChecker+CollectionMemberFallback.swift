@@ -29,6 +29,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        guard calleeName != knownNames.contains else { return nil }
 
         let memberName = interner.resolve(calleeName)
         if sema.bindings.exprTypes[receiverID] == nil {
@@ -36,6 +37,17 @@ extension CallTypeChecker {
         }
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+        if calleeName == knownNames.containsAll {
+            // Expression markers also admit Iterable and Sequence values here,
+            // but containsAll belongs only to Collection and its subtypes.
+            guard let collectionSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsCollectionFQName),
+                  driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
+                      sema.types.isNominalSubtypeSymbol($0, of: collectionSymbol)
+                  })
+            else {
+                return nil
+            }
+        }
         let sourceLevelRangeReceiverType = sourceLevelRangeMemberLookupType(
             receiverExpr: receiverID,
             receiverType: receiverType,
@@ -1847,7 +1859,7 @@ extension CallTypeChecker {
         case knownNames.filterNotNull, knownNames.unzip, knownNames.eachCount:
             return argCount == 0
         case knownNames.get, knownNames.getOrNull, knownNames.elementAtOrNull,
-             knownNames.contains, knownNames.containsAll, knownNames.indexOf, knownNames.lastIndexOf, knownNames.indexOfFirst, knownNames.indexOfLast, knownNames.binarySearch,
+             knownNames.containsAll, knownNames.indexOf, knownNames.lastIndexOf, knownNames.indexOfFirst, knownNames.indexOfLast, knownNames.binarySearch,
              knownNames.sortedBy, knownNames.find, knownNames.reduce, knownNames.reduceOrNull, knownNames.reduceIndexedOrNull, knownNames.runningReduce, knownNames.runningReduceIndexed, knownNames.scanReduce, knownNames.take, knownNames.drop, knownNames.zip,
              knownNames.filterIndexed,
              knownNames.sortedByDescending, knownNames.sortedWith, knownNames.partition,

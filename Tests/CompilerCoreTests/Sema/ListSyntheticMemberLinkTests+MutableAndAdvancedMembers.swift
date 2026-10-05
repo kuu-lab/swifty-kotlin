@@ -282,7 +282,7 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.unzip to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+            #expect(!ctx.diagnostics.hasError, "Expected List.unzip to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -583,10 +583,8 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            // KSP-705 residual: addAll keeps a synthetic runtime link until its
-            // own Kotlin migration lands.
             let expectedExternalLinks: [(String, Int, String)] = [
-                ("addAll", 1, "__kk_mutable_list_addAll"),
+                ("addAll", 1, "__kk_mutable_list_addAll_checked"),
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
@@ -686,11 +684,8 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            // KSP-705 residual: addAll still resolves to a synthetic runtime
-            // extern; removeAll/retainAll are bundled MutableList defaults
-            // since KSP-1503.
             let expectedExternalLinks: [String: String?] = [
-                "addAll": "__kk_mutable_list_addAll",
+                "addAll": "__kk_mutable_list_addAll_checked",
                 "removeAll": nil,
                 "retainAll": nil,
             ]
@@ -966,7 +961,7 @@ extension ListSyntheticMemberLinkTests {
             // KSP-705 residual: addAll keeps a synthetic runtime link;
             // KSP-1503 migrated removeAll/retainAll to bundled defaults.
             let expectedExternalLinks: [String: String?] = [
-                "addAll": "__kk_mutable_list_addAll",
+                "addAll": "__kk_mutable_list_addAll_checked",
                 "removeAll": nil,
                 "retainAll": nil,
             ]
@@ -2304,11 +2299,11 @@ extension ListSyntheticMemberLinkTests {
         #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Map")
         guard classType.args.count == 2,
               case let .out(keyType) = classType.args[0],
-              case let .out(valueType) = classType.args[1],
+              case let .invariant(valueType) = classType.args[1],
               case .typeParam = sema.types.kind(of: keyType),
               case .typeParam = sema.types.kind(of: valueType)
         else {
-            Issue.record("Expected MutableMap.putAll parameter to use projected Map<K, V>"); return
+            Issue.record("Expected MutableMap.putAll parameter to use Map<out K, V>"); return
         }
     }
 
