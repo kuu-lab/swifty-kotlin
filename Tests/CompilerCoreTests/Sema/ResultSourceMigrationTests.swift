@@ -98,7 +98,7 @@ struct ResultSourceMigrationTests {
             )
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let constructorCall = try #require(firstExprID(in: ast) { _, expr in
+            let constructorCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       let calleeExpr = ast.arena.expr(callee),
                       case let .nameRef(name, _) = calleeExpr
@@ -144,7 +144,7 @@ struct ResultSourceMigrationTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let runCatchingCall = try #require(firstExprID(in: ast) { _, expr in
+            let runCatchingCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       let calleeExpr = ast.arena.expr(callee),
                       case let .nameRef(name, _) = calleeExpr
@@ -168,7 +168,7 @@ struct ResultSourceMigrationTests {
                 "getOrDefault": nil,
             ]
             for (memberName, expectedLink) in expectedMemberLinks {
-                let memberCall = try #require(firstExprID(in: ast) { _, expr in
+                let memberCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
@@ -310,7 +310,7 @@ struct ResultSourceMigrationTests {
             let sema = try #require(ctx.sema)
 
             for propertyName in ["isSuccess", "isFailure"] {
-                let memberRead = try #require(firstExprID(in: ast) { _, expr in
+                let memberRead = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == propertyName
                 })

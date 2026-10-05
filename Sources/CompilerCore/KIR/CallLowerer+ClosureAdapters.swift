@@ -190,6 +190,7 @@ extension CallLowerer {
         prefixArguments: [KIRExprID] = [],
         loweredArgID: KIRExprID,
         argExprID: ExprID,
+        returnsErasedValue: Bool = false,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -198,12 +199,12 @@ extension CallLowerer {
         var finalArgs = prefixArguments
         var lambdaID = loweredArgID
         var resolvedCallableInfo = driver.ctx.callableValueInfo(for: lambdaID)
-        if let callableInfo = resolvedCallableInfo,
-           !callableInfo.hasClosureParam,
+        if returnsErasedValue || resolvedCallableInfo.map({ !$0.hasClosureParam }) == true,
            let adaptedInfo = makeClosureThunkCallableAdapter(
-               callableInfo: callableInfo,
+               callableInfo: resolvedCallableInfo,
                loweredArgID: lambdaID,
                argExprID: argExprID,
+               returnsErasedValue: returnsErasedValue,
                sema: sema,
                arena: arena,
                interner: interner,
@@ -1188,6 +1189,7 @@ extension CallLowerer {
             return makeClosureThunkExpandedArguments(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,
+                returnsErasedValue: externalLinkName == "kk_runtime_result_run_catching",
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -1263,9 +1265,10 @@ extension CallLowerer {
     }
 
     func makeClosureThunkCallableAdapter(
-        callableInfo: KIRCallableValueInfo,
+        callableInfo: KIRCallableValueInfo?,
         loweredArgID: KIRExprID,
         argExprID: ExprID,
+        returnsErasedValue: Bool = false,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -1290,16 +1293,21 @@ extension CallLowerer {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
-        let callArguments = appendCallableCaptureLoads(
-            callableInfo: callableInfo,
-            closureExpr: closureExpr,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            body: &body
-        )
+        let callArguments: [KIRExprID]
+        if let callableInfo, !callableInfo.hasClosureParam {
+            callArguments = appendCallableCaptureLoads(
+                callableInfo: callableInfo,
+                closureExpr: closureExpr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                body: &body
+            )
+        } else {
+            callArguments = [closureExpr]
+        }
 
-        let lambdaCanThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
+        let lambdaCanThrow = callableInfo.map { callableRequiresThrownChannel($0.symbol, arena: arena) } ?? true
         let callResult = arena.appendTemporary(type: functionType.returnType
         )
         let thrownResult = lambdaCanThrow
@@ -1307,8 +1315,8 @@ extension CallLowerer {
             )
             : nil
         body.append(.call(
-            symbol: callableInfo.symbol,
-            callee: callableInfo.callee,
+            symbol: callableInfo?.symbol,
+            callee: callableInfo?.callee ?? interner.intern("kk_function_invoke_0"),
             arguments: callArguments,
             result: callResult,
             canThrow: lambdaCanThrow,
@@ -1324,7 +1332,9 @@ extension CallLowerer {
             body.append(.label(continueLabel))
         }
 
-        switch sema.types.kind(of: functionType.returnType) {
+        // Result stores an erased payload; ABI lowering boxes concrete return values.
+        let adapterReturnType = returnsErasedValue ? sema.types.anyType : functionType.returnType
+        switch sema.types.kind(of: adapterReturnType) {
         case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
@@ -1338,7 +1348,7 @@ extension CallLowerer {
                     symbol: adapterSymbol,
                     name: adapterName,
                     params: [closureParam],
-                    returnType: functionType.returnType,
+                    returnType: adapterReturnType,
                     body: body,
                     isSuspend: functionType.isSuspend,
                     isInline: false
@@ -1347,13 +1357,18 @@ extension CallLowerer {
         )
         driver.ctx.appendGeneratedCallableDecl(adapterDecl)
 
-        let adapterCaptureArguments = makeBoxedCallableCaptureArguments(
-            callableInfo: callableInfo,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        )
+        let adapterCaptureArguments: [KIRExprID]
+        if let callableInfo {
+            adapterCaptureArguments = makeBoxedCallableCaptureArguments(
+                callableInfo: callableInfo,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        } else {
+            adapterCaptureArguments = [loweredArgID]
+        }
 
         return KIRCallableValueInfo(
             symbol: adapterSymbol,
