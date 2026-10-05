@@ -123,6 +123,14 @@ struct RuntimeCharArithmeticTests {
         #expect(kk_char_minus(kk_box_char(0), kk_box_char(0xFFFF)) == -65535)
     }
 
+    @Test
+    func testCharCode_unboxesUTF16CodeUnits() {
+        for value in [0, 97, 122, 0x7FFF, 0x8000, 0xD800, 0xDC00, 0xFFFF] {
+            #expect(kk_char_code(value) == value)
+            #expect(kk_char_code(kk_box_char(value)) == value)
+        }
+    }
+
     // MARK: - String.get
 
     @Test

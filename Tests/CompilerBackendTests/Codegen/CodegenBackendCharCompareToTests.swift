@@ -61,9 +61,12 @@ struct CodegenBackendCharCompareToTests {
             println('Z'.compareTo('A'))
             println('A'.compareTo('Z'))
             println('A'.compareTo('A'))
+            val erased: Any = 'z'
+            println((erased as Char).code)
+            println((erased as Char).compareTo('a'))
         }
         """
-        try assertKotlinOutput(source, moduleName: "CharCompareTo", expected: "1\n-1\n0\n")
+        try assertKotlinOutput(source, moduleName: "CharCompareTo", expected: "1\n-1\n0\n122\n1\n")
     }
 
     @Test

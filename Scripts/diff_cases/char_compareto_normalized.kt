@@ -40,6 +40,10 @@ fun main() {
     println(compareComparable('a', 'z'))
     println(compareGeneric(122, 97))
 
+    val erased: Any = 'z'
+    println((erased as Char).code)
+    println((erased as Char).compareTo('a'))
+
     println('z' - 'a')
     println('a' - 'z')
     println(Char.MAX_VALUE - Char.MIN_VALUE)
