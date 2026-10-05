@@ -2724,6 +2724,14 @@ extension ExprLowerer {
                               let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
                               return pk == nil || pk == .package || pk == .object
                           }() {
+                    if let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                       sema.symbols.symbol(ownerSymbol)?.kind == .object
+                    {
+                        driver.emitObjectLazyInitGuardIfNeeded(
+                            objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                            instructions: &instructions
+                        )
+                    }
                     let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                     let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
                     instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))

@@ -613,7 +613,13 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let receiverType = driver.helpers.retypeClassNameAsCompanionValue(
+            receiverExpr,
+            currentType: inferredReceiverType,
+            ast: ctx.ast,
+            sema: sema
+        ) ?? inferredReceiverType
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
@@ -640,6 +646,21 @@ extension ExprTypeChecker {
         sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
         let propType = propResult.type
         let propSymbol = sema.symbols.symbol(propResult.symbol)
+        if let propSymbol,
+           !ctx.visibilityChecker.isAccessible(
+               propSymbol,
+               fromFile: ctx.currentFileID,
+               enclosingClass: ctx.enclosingClassSymbol
+           )
+        {
+            driver.helpers.emitVisibilityError(
+                for: propSymbol,
+                name: interner.resolve(calleeName),
+                range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
         if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
             _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
         }
