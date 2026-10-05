@@ -80,7 +80,8 @@ import TestStdlibCache
             let sema = try #require(ctx.sema)
             let ast = try #require(ctx.ast)
             let member = try #require(sema.symbols.allSymbols().first {
-                $0.flags.contains(.overrideMember)
+                $0.fqName.map(ctx.interner.resolve) == ["Child", "remove"]
+                    && $0.flags.contains(.overrideMember)
             })
             sema.symbols.removeFlags(isFinal ? .finalMember : .overrideMember, for: member.id)
             DataFlowSemaPhase().validateOpenFinalOverride(
