@@ -261,6 +261,15 @@ final class ObjectLiteralLowerer {
             interner: interner,
             instructions: &instructions
         )
+        appendObjectAnyToStringRegistration(
+            objectValue: objectValue,
+            nominalSymbol: objectSymbol,
+            driver: driver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         // Seed `lateinit` fields with the null sentinel before the
         // superclass constructor runs (a fresh object's fields are 0, which
         // the lateinit read path would take for a live value).
@@ -933,10 +942,9 @@ final class ObjectLiteralLowerer {
                 }
                 continue
             }
-            // Object-literal member properties are not flagged `.overrideMember`
-            // in Sema, so every non-delegated property gets a getter accessor;
-            // the itable registration only wires up the ones that match an
-            // interface property, and any extra getter is simply unused.
+            // Every non-delegated property gets a getter accessor, including
+            // non-virtual properties used directly by object-literal reads.
+            // Dispatch registration wires up the class/interface overrides.
             if let getter = propertyDecl.getter, getter.body != .unit {
                 driver.memberLowerer.lowerAccessorBody(
                     accessorBody: getter.body,

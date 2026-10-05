@@ -222,40 +222,13 @@ extension DataFlowSemaPhase {
         // the separate itable-relative slot space BUG-141 introduced
         // (kirInterfacePropertyGetterSlots) — this loop must not create a
         // second, inconsistent slot space for the same property there.
-        let ownAccessorProperties = Self.orderedOwnAccessorProperties(
+        Self.assignPropertyAccessorVtableSlots(
             for: nominalSymbol,
-            symbols: symbols
+            symbols: symbols,
+            inheritedVtable: inheritedVtable,
+            vtableSlots: &vtableSlots,
+            nextVtableSlot: &nextVtableSlot
         )
-        for property in ownAccessorProperties {
-            // Properties cannot be overloaded, so — unlike methods above,
-            // which must disambiguate same-(name, arity) siblings — a name
-            // match against the class's own inheritance chain is always
-            // unambiguous.
-            let inheritedProperty = property.flags.contains(.overrideMember)
-                ? Self.findInheritedClassProperty(named: property.name, startingAt: nominalID, symbols: symbols)
-                : nil
-
-            let getterAccessor = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property.id)
-            if let inheritedProperty,
-               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: inheritedProperty)]
-            {
-                vtableSlots[getterAccessor] = matchedSlot
-            } else {
-                vtableSlots[getterAccessor] = nextVtableSlot
-                nextVtableSlot += 1
-            }
-
-            guard property.flags.contains(.mutable) else { continue }
-            let setterAccessor = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property.id)
-            if let inheritedProperty,
-               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertySetterAccessorSymbol(for: inheritedProperty)]
-            {
-                vtableSlots[setterAccessor] = matchedSlot
-            } else {
-                vtableSlots[setterAccessor] = nextVtableSlot
-                nextVtableSlot += 1
-            }
-        }
         let vtableSize = max(nextVtableSlot, layoutHint?.declaredVtableSize ?? 0)
 
         let inheritedItable = superClass.flatMap { symbols.nominalLayout(for: $0)?.itableSlots } ?? [:]
@@ -546,6 +519,50 @@ extension DataFlowSemaPhase {
                 return lhsIsIterator && !rhsIsIterator
             }
             return lhs.id.rawValue < rhs.id.rawValue
+        }
+    }
+
+    /// Shared by header-time named layouts and body-time local/anonymous layouts.
+    static func assignPropertyAccessorVtableSlots(
+        for nominalSymbol: SemanticSymbol,
+        symbols: SymbolTable,
+        inheritedVtable: [SymbolID: Int],
+        vtableSlots: inout [SymbolID: Int],
+        nextVtableSlot: inout Int
+    ) {
+        let ownAccessorProperties = orderedOwnAccessorProperties(
+            for: nominalSymbol,
+            symbols: symbols
+        )
+        for property in ownAccessorProperties {
+            // Properties cannot be overloaded, so — unlike methods above,
+            // which must disambiguate same-(name, arity) siblings — a name
+            // match against the class's own inheritance chain is always
+            // unambiguous.
+            let inheritedProperty = property.flags.contains(.overrideMember)
+                ? Self.findInheritedClassProperty(named: property.name, startingAt: nominalSymbol.id, symbols: symbols)
+                : nil
+
+            let getterAccessor = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property.id)
+            if let inheritedProperty,
+               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: inheritedProperty)]
+            {
+                vtableSlots[getterAccessor] = matchedSlot
+            } else {
+                vtableSlots[getterAccessor] = nextVtableSlot
+                nextVtableSlot += 1
+            }
+
+            guard property.flags.contains(.mutable) else { continue }
+            let setterAccessor = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property.id)
+            if let inheritedProperty,
+               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertySetterAccessorSymbol(for: inheritedProperty)]
+            {
+                vtableSlots[setterAccessor] = matchedSlot
+            } else {
+                vtableSlots[setterAccessor] = nextVtableSlot
+                nextVtableSlot += 1
+            }
         }
     }
 
