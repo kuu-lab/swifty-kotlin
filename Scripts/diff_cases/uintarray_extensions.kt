@@ -50,6 +50,9 @@ fun main() {
     converted[1] = 1u
     println(ints.toList())
     println(converted.toList())
+    val signedView = intArrayOf(-1, -2147483648).asUIntArray()
+    println(signedView.toList())
+    println(signedView.toUIntArray().toList())
     val boxed: Array<out UInt> = arrayOf(4294967295u, 2147483648u)
     println(boxed.toUIntArray().toList())
     val objects = arrayOf(1u, 2u)

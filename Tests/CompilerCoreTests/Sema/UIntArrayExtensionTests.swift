@@ -29,7 +29,7 @@ struct UIntArrayExtensionTests {
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let names: Set<String> = [

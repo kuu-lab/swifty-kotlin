@@ -717,7 +717,15 @@ public fun List<UShort>.toUShortArray(): UShortArray {
 
 public fun UIntArray.toUIntArray(): UIntArray = copyOf()
 
-public fun IntArray.toUIntArray(): UIntArray = copyOf().asUIntArray()
+public fun IntArray.toUIntArray(): UIntArray {
+    val result = UIntArray(this.size)
+    var i = 0
+    while (i < this.size) {
+        result[i] = this[i].toUInt()
+        i++
+    }
+    return result
+}
 
 public fun Array<out UInt>.toUIntArray(): UIntArray {
     val size = this.size
@@ -726,16 +734,6 @@ public fun Array<out UInt>.toUIntArray(): UIntArray {
     while (i < size) {
         result[i] = this[i]
         i++
-    }
-    return result
-}
-
-public fun Collection<UInt>.toUIntArray(): UIntArray {
-    val result = UIntArray(this.size)
-    var index = 0
-    for (element in this) {
-        result[index] = element
-        index++
     }
     return result
 }
