@@ -1289,7 +1289,14 @@ package final class MetadataEncoder {
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterCallsInPlaceKinds: valueParameterCallsInPlaceKinds,
-            contractImplicationEffects: symbols.contractImplicationEffects(for: symbol.id),
+            contractImplicationEffects: symbols.contractImplicationEffects(for: symbol.id).map { effect in
+                ContractImplicationEffect(parameterIndex: effect.parameterIndex,
+                    returnCondition: effect.returnCondition, argumentCondition: effect.argumentCondition,
+                    targetTypeSignature: effect.targetType.map {
+                        metadataTypeSignature($0, symbols: symbols, types: types,
+                                              mangler: mangler, nameResolver: { interner.resolve($0) })
+                    })
+            },
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
             reifiedTypeParameterIndices: reifiedTypeParameterIndices,
@@ -1521,6 +1528,7 @@ package final class MetadataEncoder {
                 if !record.contractImplicationEffects.isEmpty {
                     let effects = record.contractImplicationEffects.map {
                         "\($0.parameterIndex):\($0.returnCondition.rawValue):\($0.argumentCondition.rawValue)"
+                            + ($0.targetTypeSignature.map { ":" + Data($0.utf8).base64EncodedString() } ?? "")
                     }.joined(separator: ",")
                     fields.append("contractImplies=\(effects)")
                 }
@@ -2200,10 +2208,12 @@ final class MetadataDecoder {
         case "contractImplies":
             record.contractImplicationEffects = value.split(separator: ",").compactMap { item in
                 let parts = item.split(separator: ":")
-                guard parts.count == 3, let index = Int(parts[0]), index >= 0,
+                guard (parts.count == 3 || parts.count == 4), let index = Int(parts[0]), index >= 0,
                       let result = ContractReturnCondition(rawValue: String(parts[1])),
                       let condition = ContractArgumentCondition(rawValue: String(parts[2])) else { return nil }
-                return ContractImplicationEffect(parameterIndex: index, returnCondition: result, argumentCondition: condition)
+                let signature = parts.count == 4 ? Data(base64Encoded: String(parts[3])).flatMap { String(data: $0, encoding: .utf8) } : nil
+                guard condition != .isType || signature != nil else { return nil }
+                return ContractImplicationEffect(parameterIndex: index, returnCondition: result, argumentCondition: condition, targetTypeSignature: signature)
             }
         case "canThrow":
             record.canThrow = value == "1" || value == "true"

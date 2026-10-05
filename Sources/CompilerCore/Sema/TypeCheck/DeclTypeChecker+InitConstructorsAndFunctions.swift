@@ -874,7 +874,8 @@ extension DeclTypeChecker {
             signature: signature,
             ast: ctx.ast,
             interner: ctx.interner,
-            sema: sema
+            sema: sema,
+            scope: functionScope
         )
         recordDirectInlineLambdaInvocation(
             function: function,
@@ -982,7 +983,8 @@ extension DeclTypeChecker {
         signature: FunctionSignature,
         ast: ASTModule,
         interner: StringInterner,
-        sema: SemaModule
+        sema: SemaModule,
+        scope: Scope
     ) {
         guard case let .block(expressions, _) = function.body,
               let firstExprID = expressions.first,
@@ -1025,7 +1027,8 @@ extension DeclTypeChecker {
                 signature: signature,
                 ast: ast,
                 interner: interner,
-                sema: sema
+                sema: sema,
+                scope: scope
             )
         }
     }
@@ -1046,7 +1049,8 @@ extension DeclTypeChecker {
         signature: FunctionSignature,
         ast: ASTModule,
         interner: StringInterner,
-        sema: SemaModule
+        sema: SemaModule,
+        scope: Scope
     ) {
         guard let effectExpr = ast.arena.expr(effectExprID) else { return }
 
@@ -1100,7 +1104,8 @@ extension DeclTypeChecker {
                 signature: signature,
                 ast: ast,
                 interner: interner,
-                sema: sema
+                sema: sema,
+                scope: scope
             )
             return
         }
@@ -1208,9 +1213,28 @@ extension DeclTypeChecker {
         signature: FunctionSignature,
         ast: ASTModule,
         interner: StringInterner,
-        sema: SemaModule
+        sema: SemaModule,
+        scope: Scope
     ) {
         guard let conditionExpr = ast.arena.expr(impliesArgs[0].expr) else {
+            return
+        }
+
+        // Record the type in the declaration scope, not the caller's scope.
+        if case let .isCheck(operand, typeRef, negated, _) = conditionExpr,
+           !negated,
+           case let .nameRef(name, _) = ast.arena.expr(operand),
+           let index = function.valueParams.firstIndex(where: { $0.name == name })
+        {
+            let targetType = driver.helpers.resolveTypeRef(
+                typeRef, ast: ast, sema: sema, interner: interner, scope: scope
+            )
+            guard targetType != sema.types.errorType else { return }
+            sema.symbols.addContractImplicationEffect(
+                ContractImplicationEffect(parameterIndex: index, returnCondition: returnCondition,
+                                          argumentCondition: .isType, targetType: targetType),
+                for: symbol
+            )
             return
         }
 

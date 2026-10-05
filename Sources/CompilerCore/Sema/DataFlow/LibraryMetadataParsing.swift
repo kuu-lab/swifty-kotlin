@@ -542,7 +542,16 @@ extension DataFlowSemaPhase {
             )
         }
         for effect in record.contractImplicationEffects where effect.parameterIndex < valueParameterSymbols.count {
-            symbols.addContractImplicationEffect(effect, for: ownerSymbol)
+            let targetType = effect.targetTypeSignature.flatMap {
+                decodeImportedTypeSignature(token: $0, symbols: symbols, types: types,
+                    interner: interner, diagnostics: diagnostics, metadataPath: metadataPath,
+                    ownerFQName: record.fqName, cache: cache, allowPlaceholders: allowPlaceholders)
+            }
+            guard effect.argumentCondition != .isType || targetType != nil else { continue }
+            symbols.addContractImplicationEffect(
+                ContractImplicationEffect(parameterIndex: effect.parameterIndex,
+                    returnCondition: effect.returnCondition, argumentCondition: effect.argumentCondition,
+                    targetType: targetType), for: ownerSymbol)
         }
         return FunctionSignature(
             receiverType: functionType.receiver,
