@@ -1047,6 +1047,37 @@ extension ExprLowerer {
                     ))
                     return result
                 }
+                // Direct imports of singleton extension properties (such as
+                // Int.Companion.MAX_VALUE) bind to a package-owned property.
+                // Its storage is the getter, not a global slot; supply the
+                // declared singleton receiver when no implicit receiver matched.
+                if sema.symbols.symbol(symbol)?.kind == .property,
+                   let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+                   case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+                   sema.symbols.symbol(receiverClass.classSymbol)?.kind == .object,
+                   let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                {
+                    let receiverSymbol = receiverClass.classSymbol
+                    driver.emitObjectLazyInitGuardIfNeeded(
+                        objectSymbol: receiverSymbol, arena: arena, sema: sema,
+                        instructions: &instructions
+                    )
+                    let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
+                    instructions.append(.constValue(result: receiver, value: .symbolRef(receiverSymbol)))
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiver],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 // For top-level or object-member property symbols, emit loadGlobal so the
                 // backend reads the current value from the global slot.
                 if let sym = sema.symbols.symbol(symbol),
