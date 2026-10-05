@@ -74,6 +74,7 @@ struct NativeEmitter {
     let interner: StringInterner
     let typeSystem: TypeSystem?
     let symbols: SymbolTable?
+    let externalFunctionSymbolsByLinkName: [String: SymbolID]
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
@@ -106,6 +107,23 @@ struct NativeEmitter {
         self.interner = interner
         self.typeSystem = typeSystem
         self.symbols = symbols
+        var externalFunctionSymbolsByLinkName: [String: SymbolID] = [:]
+        var ambiguousLinkNames: Set<String> = []
+        for symbol in symbols?.allSymbols() ?? [] where symbol.kind == .function {
+            guard let linkName = symbols?.externalLinkName(for: symbol.id),
+                  !linkName.isEmpty,
+                  !ambiguousLinkNames.contains(linkName)
+            else {
+                continue
+            }
+            if externalFunctionSymbolsByLinkName[linkName] != nil {
+                externalFunctionSymbolsByLinkName.removeValue(forKey: linkName)
+                ambiguousLinkNames.insert(linkName)
+            } else {
+                externalFunctionSymbolsByLinkName[linkName] = symbol.id
+            }
+        }
+        self.externalFunctionSymbolsByLinkName = externalFunctionSymbolsByLinkName
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords

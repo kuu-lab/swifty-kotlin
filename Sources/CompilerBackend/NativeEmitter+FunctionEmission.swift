@@ -1818,6 +1818,44 @@ extension NativeEmitter {
                 globalVariables: globalVariables,
                 nameCounter: nameCounter,
                 declareExternalFunction: { name, argCount, appendThrown in
+                    // Runtime calls use raw handles rather than Kotlin aggregate types.
+                    if let spec = Self.runtimeABIFunctionByName[name] {
+                        let valueParameters = spec.parameters.filter {
+                            !(spec.isThrowing && $0.name == "outThrown" && $0.type == .nullableIntptrPointer)
+                        }
+                        return declareExternalFunction(
+                            named: name,
+                            argumentCount: valueParameters.count,
+                            appendThrownChannel: spec.isThrowing
+                        )
+                    }
+                    // Source-backed addresses must use the same typed ABI as calls,
+                    // including aggregate Strings and the hidden thrown channel.
+                    if let symbol = externalFunctionSymbolsByLinkName[name],
+                       let signature = symbols?.functionSignature(for: symbol)
+                    {
+                        if let internalFunction = internalFunctions[symbol] {
+                            return internalFunction
+                        }
+                        let parameterCount = signature.parameterTypes.count
+                            + (signature.receiverType == nil ? 0 : 1)
+                        if let sourceSignature = sourceExternalSignature(
+                            for: symbol,
+                            argumentCount: parameterCount
+                        ) {
+                            var parameterTypes = loweredLLVMTypes(for: sourceSignature.parameters)
+                            parameterTypes.append(outThrownPointerType)
+                            return declareExternalFunction(
+                                named: name,
+                                parameterTypes: parameterTypes,
+                                returnType: loweredLLVMType(
+                                    for: sourceSignature.returnType,
+                                    lowering: typeLowering,
+                                    defaultType: int64Type
+                                )
+                            )
+                        }
+                    }
                     // Function-address constants use a conservative four-word
                     // prototype when no call-site signature is available. If
                     // this body also calls the symbol directly, prefer that
