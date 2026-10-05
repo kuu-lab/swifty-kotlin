@@ -707,32 +707,6 @@ public fun <T> Sequence<T>.joinToString(
 // KSP-442: Sequence terminal operations migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeSequence.swift
 
-public fun <T> Sequence<T>.first(): T {
-    val iterator = iterator()
-    if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
-    return iterator.next()
-}
-
-public fun <T> Sequence<T>.first(predicate: (T) -> Boolean): T {
-    for (element in this) {
-        if (predicate(element)) return element
-    }
-    throw NoSuchElementException("Sequence contains no element matching the predicate.")
-}
-
-public fun <T> Sequence<T>.firstOrNull(): T? {
-    val iterator = iterator()
-    if (!iterator.hasNext()) return null
-    return iterator.next()
-}
-
-public fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? {
-    for (element in this) {
-        if (predicate(element)) return element
-    }
-    return null
-}
-
 public fun <T> Sequence<T>.indexOf(element: T): Int {
     val elements = this.toList()
     var i = 0

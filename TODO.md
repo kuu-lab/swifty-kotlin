@@ -3052,7 +3052,7 @@
     - `kotlin.sequences.elementAtOrElse` — fun Sequence.elementAtOrElse(Int, Function1): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/elementAtOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, #A>): #A`
     - `kotlin.sequences.elementAtOrNull` — fun Sequence.elementAtOrNull(Int): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/elementAtOrNull(kotlin/Int): #A?`
 
-- [x] KSP-1344: kotlin.sequences.Sequence.first-family の未実装 stdlib API を実装する（6 件）
+- [ ] KSP-1344: kotlin.sequences.Sequence.first-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `first`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3066,7 +3066,7 @@
     - `kotlin.sequences.firstNotNullOfOrNull` — fun Sequence.firstNotNullOfOrNull(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any> (kotlin.sequences/Sequence<#A>).kotlin.sequences/firstNotNullOfOrNull(kotlin/Function1<#A, #B?>): #B?`
     - `kotlin.sequences.firstOrNull` — fun Sequence.firstOrNull(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/firstOrNull(): #A?`
     - `kotlin.sequences.firstOrNull` — fun Sequence.firstOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/firstOrNull(kotlin/Function1<#A, kotlin/Boolean>): #A?`
-  - 完了根拠（2026-09-19、KSP-1344 残件対応）: `SequenceConversionsAndSetOps.kt:36-59` に `firstNotNullOf` / `firstNotNullOfOrNull` を追加し、Sequence の encounter order、最初の non-null 結果、空結果、例外伝播を Kotlin source path で実装。`HeaderHelpers+SyntheticSequenceResidualStubs.swift` の該当 synthetic registration と Sequence runtime surface spec の該当2件を削除し、既存の低レベル runtime ABI bridge は direct/residual path 用として保持した。専用 Sema Golden、Sema call-binding/link テスト、Codegen 回帰、`stdlib_kotlin_sequences_Sequence_first.kt` の Kotlin 2.3.10 diff が PASS。
+  - 再検証（2026-10-05、修正 PR のマージ待ち）: 既存の宣言・過去の finite diff PASS は canonical 所有権と遅延 terminal 契約の証拠ではなかった。iterator ベースへ修正済みの `first` / `firstOrNull` 4件の本体は維持し、`kotlin.sequences` へ移動、predicate overload を inline 化した。`firstNotNullOf` / `firstNotNullOfOrNull` は `toList()` を廃して最初の non-null 結果で停止し、公式 annotations と `R : Any` / `R?` を保持。canonical alias の contextual nullable transform 推論を最小修正し、共有 Iterable/List と既存 runtime ABI bridge は保持した。専用 source-binding/native 回帰と fresh stdlib を使う Kotlin 2.3.10 の専用 diff O0/O2（suffix 例外、iterator remainder、無限 Sequence、non-local return、nullable/generic、side effects）を確認。対象 Sema golden のみ artifact mode で更新。全 Swift suite・全 golden・全 diff corpus はローカル未実行で、完了ゲート達成・マージ済みとは扱わない。
 
 - [x] KSP-1345: kotlin.sequences.Sequence.flat-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `flat`

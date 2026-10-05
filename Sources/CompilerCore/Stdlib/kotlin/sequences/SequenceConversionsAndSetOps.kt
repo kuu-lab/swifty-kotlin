@@ -33,27 +33,48 @@ public inline fun <T> Sequence<T>.findLast(predicate: (T) -> Boolean): T? {
     return last
 }
 
-// KSP-1344: Sequence firstNotNullOf-family migrated to bundled Kotlin source.
-// Materialize once so the transform is evaluated in encounter order and the
-// result follows the same sequence terminal-operation path as first/firstOrNull.
-public inline fun <T, R : Any> Sequence<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val result = transform(elements[i])
-        if (result != null) return result
-        i += 1
+public fun <T> Sequence<T>.first(): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
+    return iterator.next()
+}
+
+public inline fun <T> Sequence<T>.first(predicate: (T) -> Boolean): T {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    throw NoSuchElementException("Sequence contains no element matching the predicate.")
+}
+
+public fun <T> Sequence<T>.firstOrNull(): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    return iterator.next()
+}
+
+public inline fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    for (element in this) {
+        if (predicate(element)) return element
     }
     return null
 }
 
-public inline fun <T, R : Any> Sequence<T>.firstNotNullOf(transform: (T) -> R?): R {
-    val elements = this.toList()
-    var i = 0
-    while (i < elements.size) {
-        val result = transform(elements[i])
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Any> Sequence<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
+    for (element in this) {
+        val result = transform(element)
         if (result != null) return result
-        i += 1
+    }
+    return null
+}
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Any> Sequence<T>.firstNotNullOf(transform: (T) -> R?): R {
+    for (element in this) {
+        val result = transform(element)
+        if (result != null) return result
     }
     throw NoSuchElementException("No element of the sequence was transformed to a non-null value.")
 }
