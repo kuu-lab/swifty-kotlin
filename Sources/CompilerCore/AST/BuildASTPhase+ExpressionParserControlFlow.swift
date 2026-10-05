@@ -164,7 +164,7 @@ extension BuildASTPhase.ExpressionParser {
         {
             if token.kind == .keyword(.is) {
                 _ = consume()
-                guard let typeRef = parseTypeReference(token.range) else {
+                guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
                     return nil
                 }
                 let conditionRange = mergeRanges(astArena.exprRange(subject), nil, fallback: token.range)
@@ -176,7 +176,7 @@ extension BuildASTPhase.ExpressionParser {
             {
                 _ = consume() // !
                 _ = consume() // is
-                guard let typeRef = parseTypeReference(token.range) else {
+                guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
                     return nil
                 }
                 let conditionRange = mergeRanges(astArena.exprRange(subject), nil, fallback: token.range)

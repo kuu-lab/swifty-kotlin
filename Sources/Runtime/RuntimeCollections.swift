@@ -357,6 +357,11 @@ public func kk_array_list_init(_ listRaw: Int) -> Int {
     return 0
 }
 
+@_cdecl("__kk_array_list_is_read_only")
+public func kk_array_list_is_read_only(_ listRaw: Int) -> Int {
+    kk_box_bool(runtimeListBox(from: listRaw)?.isReadOnly == true ? 1 : 0)
+}
+
 // STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_list_add).
 @_cdecl("__kk_emptyList")
@@ -791,6 +796,14 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
 
 @_cdecl("__kk_mutable_collection_add")
 public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int {
+    kk_mutable_collection_add_throwing(collectionRaw, elem, nil)
+}
+
+@_cdecl("__kk_mutable_collection_add_throwing")
+public func kk_mutable_collection_add_throwing(
+    _ collectionRaw: Int, _ elem: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     if let list = runtimeListBox(from: collectionRaw) {
         list.withMutableValues { values in
             values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
@@ -800,7 +813,7 @@ public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int 
     if let set = runtimeSetBox(from: collectionRaw) {
         return kk_box_bool(set.insert(value: runtimeValueFromCollectionABI(elem)) ? 1 : 0)
     }
-    if let sourceResult = runtimeSourceMutableCollectionAdd(collectionRaw, elem) {
+    if let sourceResult = runtimeSourceMutableCollectionAdd(collectionRaw, elem, outThrown: outThrown) {
         return sourceResult
     }
     return kk_box_bool(0)
@@ -808,6 +821,14 @@ public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int 
 
 @_cdecl("__kk_mutable_collection_remove")
 public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> Int {
+    kk_mutable_collection_remove_throwing(collectionRaw, elem, nil)
+}
+
+@_cdecl("__kk_mutable_collection_remove_throwing")
+public func kk_mutable_collection_remove_throwing(
+    _ collectionRaw: Int, _ elem: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     if let list = runtimeListBox(from: collectionRaw) {
         guard let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) }) else {
             return kk_box_bool(0)
@@ -825,7 +846,8 @@ public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> I
         collectionRaw, elem,
         interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
         methodSlot: 3,
-        context: "MutableCollection.remove dispatch"
+        context: "MutableCollection.remove dispatch",
+        outThrown: outThrown
     ) {
         return result
     }
@@ -834,6 +856,14 @@ public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> I
 
 @_cdecl("__kk_mutable_collection_clear")
 public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
+    kk_mutable_collection_clear_throwing(collectionRaw, nil)
+}
+
+@_cdecl("__kk_mutable_collection_clear_throwing")
+public func kk_mutable_collection_clear_throwing(
+    _ collectionRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     if let list = runtimeListBox(from: collectionRaw) {
         list.values = []
         return 0
@@ -846,7 +876,8 @@ public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
         collectionRaw,
         interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
         methodSlot: 2,
-        context: "MutableCollection.clear dispatch"
+        context: "MutableCollection.clear dispatch",
+        outThrown: outThrown
     ) {
         return result
     }
@@ -855,17 +886,26 @@ public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
 
 @_cdecl("__kk_mutable_collection_removeAll")
 public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
+    kk_mutable_collection_removeAll_throwing(collectionRaw, elementsRaw, nil)
+}
+
+@_cdecl("__kk_mutable_collection_removeAll_throwing")
+public func kk_mutable_collection_removeAll_throwing(
+    _ collectionRaw: Int, _ elementsRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     if runtimeListBox(from: collectionRaw) != nil {
         return kk_mutable_list_removeAll(collectionRaw, elementsRaw)
     }
     if runtimeSetBox(from: collectionRaw) != nil {
-        return kk_mutable_set_removeAll(collectionRaw, elementsRaw, nil)
+        return kk_mutable_set_removeAll(collectionRaw, elementsRaw, outThrown)
     }
     if let result = runtimeSourceInterfaceCall1(
         collectionRaw, elementsRaw,
         interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
         methodSlot: 4,
-        context: "MutableCollection.removeAll dispatch"
+        context: "MutableCollection.removeAll dispatch",
+        outThrown: outThrown
     ) {
         return result
     }
@@ -874,17 +914,26 @@ public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw:
 
 @_cdecl("__kk_mutable_collection_retainAll")
 public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
+    kk_mutable_collection_retainAll_throwing(collectionRaw, elementsRaw, nil)
+}
+
+@_cdecl("__kk_mutable_collection_retainAll_throwing")
+public func kk_mutable_collection_retainAll_throwing(
+    _ collectionRaw: Int, _ elementsRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     if runtimeListBox(from: collectionRaw) != nil {
         return kk_mutable_list_retainAll(collectionRaw, elementsRaw)
     }
     if runtimeSetBox(from: collectionRaw) != nil {
-        return kk_mutable_set_retainAll(collectionRaw, elementsRaw, nil)
+        return kk_mutable_set_retainAll(collectionRaw, elementsRaw, outThrown)
     }
     if let result = runtimeSourceInterfaceCall1(
         collectionRaw, elementsRaw,
         interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
         methodSlot: 5,
-        context: "MutableCollection.retainAll dispatch"
+        context: "MutableCollection.retainAll dispatch",
+        outThrown: outThrown
     ) {
         return result
     }
@@ -893,12 +942,21 @@ public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw:
 
 @_cdecl("__kk_mutable_collection_addAll")
 public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
+    kk_mutable_collection_addAll_throwing(collectionRaw, elementsRaw, nil)
+}
+
+@_cdecl("__kk_mutable_collection_addAll_throwing")
+public func kk_mutable_collection_addAll_throwing(
+    _ collectionRaw: Int, _ elementsRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     if runtimeListBox(from: collectionRaw) == nil, runtimeSetBox(from: collectionRaw) == nil,
        let result = runtimeSourceInterfaceCall1(
            collectionRaw, elementsRaw,
            interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
            methodSlot: 1,
-           context: "MutableCollection.addAll dispatch"
+           context: "MutableCollection.addAll dispatch",
+           outThrown: outThrown
        )
     {
         return result

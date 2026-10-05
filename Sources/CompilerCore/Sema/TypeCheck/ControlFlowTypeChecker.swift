@@ -317,7 +317,7 @@ final class ControlFlowTypeChecker {
         )
         // Smart cast: apply condition branching to the while body (P5-66)
         let branch = ctx.dataFlow.branchOnCondition(
-            conditionExpr, base: ctx.flowState, locals: locals,
+            conditionExpr, base: ctx.flowState.includingMembers(from: locals), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
         )
         var bodyLocals = locals
@@ -599,7 +599,7 @@ final class ControlFlowTypeChecker {
             )
         }
         let branch = ctx.dataFlow.branchOnCondition(
-            condition, base: ctx.flowState, locals: locals,
+            condition, base: ctx.flowState.includingMembers(from: locals), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
         )
         var thenLocals = locals

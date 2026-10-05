@@ -212,7 +212,8 @@ public final class CodegenPhase: CompilerPhase {
             target: ctx.options.target,
             optLevel: ctx.options.optLevel,
             debugInfo: ctx.options.debugInfo,
-            diagnostics: ctx.diagnostics
+            diagnostics: ctx.diagnostics,
+            moduleName: ctx.options.moduleName
         )
     }
 
@@ -239,6 +240,7 @@ public final class CodegenPhase: CompilerPhase {
             info.functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: ctx.interner,
+                moduleName: ctx.options.moduleName,
                 symbols: sema.symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
@@ -560,15 +562,7 @@ public final class CodegenPhase: CompilerPhase {
             .filter { ctx.sourceManager.origin(of: $0)?.isBundledStdlib == true }
             .map(\.rawValue))
 
-        let excludeSourceFileIDs: Set<Int32>
-        let includeSynthetic: Bool
-        if ctx.options.stdlibOnly || ctx.options.stdlibLibraryPath != nil {
-            excludeSourceFileIDs = []
-            includeSynthetic = false
-        } else {
-            excludeSourceFileIDs = bundledFileIDs
-            includeSynthetic = bundledFileIDs.isEmpty
-        }
+        let excludeSourceFileIDs = ctx.options.stdlibOnly ? [] : bundledFileIDs
 
         let runtimeCallbackRawReturnSymbolIDs = NativeEmitter.collectRuntimeCallbackRawStringReturnSymbols(
             module: module,
@@ -611,7 +605,7 @@ public final class CodegenPhase: CompilerPhase {
             functionLinkNames: functionLinkNamesBySymbol,
             inlineFunctionSymbols: inlineFunctionSymbols,
             includeNonPublic: ctx.options.stdlibOnly,
-            includeSynthetic: includeSynthetic,
+            includeSynthetic: false,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
             excludeSourceFileIDs: excludeSourceFileIDs,
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,

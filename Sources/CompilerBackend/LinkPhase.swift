@@ -61,6 +61,8 @@ final class LinkPhase: CompilerPhase {
         guard let entrySymbol = resolveEntrySymbol(
             kir: kir,
             interner: ctx.interner,
+            moduleName: ctx.options.moduleName,
+            symbols: ctx.sema?.symbols,
             fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
         ) else {
             ctx.diagnostics.error(
@@ -213,6 +215,8 @@ final class LinkPhase: CompilerPhase {
     private func resolveEntrySymbol(
         kir: KIRModule,
         interner: StringInterner,
+        moduleName: String,
+        symbols: SymbolTable?,
         fileFacadeNamesByFileID: [Int32: String]
     ) -> String? {
         let knownNames = KnownCompilerNames(interner: interner)
@@ -229,6 +233,8 @@ final class LinkPhase: CompilerPhase {
                 return CodegenSymbolSupport.cFunctionSymbol(
                     for: function,
                     interner: interner,
+                    moduleName: moduleName,
+                    symbols: symbols,
                     fileFacadeNamesByFileID: fileFacadeNamesByFileID
                 )
             }

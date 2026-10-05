@@ -257,7 +257,7 @@ struct LoweringFlowCodegenTests {
         import kotlinx.coroutines.flow.*
 
         suspend fun runFilter(pred: suspend (Int) -> Boolean) {
-            flow<Int> { emit(1) }.collect { v ->
+            flow { emit(1) }.collect { v ->
                 try { pred(v) } catch (e: Throwable) { }
             }
             println("filter done")
@@ -267,7 +267,7 @@ struct LoweringFlowCodegenTests {
             val scale = 2
             val op = { value: Int -> println(value * scale) }
             var n = 0
-            flow<Int> { emit(1) }.collect { v -> op(v); n += 1 }
+            flow { emit(1) }.collect { v -> op(v); n += 1 }
             println(n)
         }
 
@@ -482,6 +482,8 @@ struct LoweringFlowCodegenTests {
     @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
+        fun println(value: Any?) {}
+
         fun main() {
             runBlocking {
                 flow {
@@ -503,9 +505,11 @@ struct LoweringFlowCodegenTests {
         try withTemporaryFile(contents: source) { path in
             // Exercise intrinsic lowering without bundled Flow declarations.
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowIntrinsicLoweringRewrite", emit: .kirDump, includeStdlib: false
+                inputs: [path], moduleName: "FlowIntrinsicLoweringRewrite", emit: .kirDump,
+                includeStdlib: false, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
@@ -525,7 +529,7 @@ struct LoweringFlowCodegenTests {
     @Test(arguments: [true, false])
     func testCoroutineLoweringFlowCollectInjectsSuspendCollectorFunctionID(includeStdlib: Bool) throws {
         let source = """
-        import kotlinx.coroutines.flow.*
+        \(includeStdlib ? "import kotlinx.coroutines.flow.*" : "fun println(value: Any?) {}")
 
         fun main() {
             runBlocking {
@@ -541,9 +545,11 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump, includeStdlib: includeStdlib
+                inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump,
+                includeStdlib: includeStdlib, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allFunctions = findAllKIRFunctions(in: module)
@@ -646,6 +652,8 @@ struct LoweringFlowCodegenTests {
     @Test(arguments: [true, false])
     func testFlowCollectTwiceLowersBothCollectCalls(includeStdlib: Bool) throws {
         let source = """
+        \(includeStdlib ? "import kotlinx.coroutines.flow.*" : "fun println(value: Any?) {}")
+
         suspend fun runFlowCollectTwice() {
             val stream = flow {
                 emit(1)
@@ -662,9 +670,11 @@ struct LoweringFlowCodegenTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump, includeStdlib: includeStdlib
+                inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump,
+                includeStdlib: includeStdlib, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let collectCalls = findAllKIRFunctions(in: module).filter {
@@ -685,6 +695,8 @@ struct LoweringFlowCodegenTests {
     @Test
     func testFlowLoweringInsertsFlowHandleReleaseCalls() throws {
         let source = """
+        fun println(value: Any?) {}
+
         suspend fun runFlowOwnership() {
             val stream = flow {
                 emit(1)
@@ -703,9 +715,11 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowOwnership", emit: .kirDump, includeStdlib: false
+                inputs: [path], moduleName: "FlowOwnership", emit: .kirDump,
+                includeStdlib: false, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
