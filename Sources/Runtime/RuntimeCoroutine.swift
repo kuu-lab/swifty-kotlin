@@ -304,6 +304,8 @@ final class RuntimeContinuationState: @unchecked Sendable {
     private var uninterceptedEntryPointRaw: Int = 0
     private var uninterceptedCompletionContinuation: Int = 0
     private var hasStartedUninterceptedCoroutine = false
+    // Cancellation must wake the innermost call and let it unwind before its caller.
+    private var suspendedCallChild: RuntimeContinuationState?
     private let interceptionLock = NSRecursiveLock()
     private var generatedContextRaw: Int?
     private var interceptedContinuationRaw: Int?
@@ -617,6 +619,11 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// the fallback semaphore is signalled.
     func signalResume() {
         stateLock.lock()
+        if let child = suspendedCallChild {
+            stateLock.unlock()
+            child.signalResume()
+            return
+        }
         if let cont = resumeContinuation {
             resumeContinuation = nil
             let loop = eventLoop
@@ -733,6 +740,25 @@ final class RuntimeContinuationState: @unchecked Sendable {
         fallbackSemaphore = nil
         resumeSignalPending = false
         hasResumed = false
+        stateLock.unlock()
+    }
+
+    func bindSuspendedCallChild(_ child: RuntimeContinuationState) {
+        stateLock.lock()
+        suspendedCallChild = child
+        let pending = resumeSignalPending
+        resumeSignalPending = false
+        stateLock.unlock()
+        if pending {
+            child.signalResume()
+        }
+    }
+
+    func unbindSuspendedCallChild(_ child: RuntimeContinuationState) {
+        stateLock.lock()
+        if suspendedCallChild === child {
+            suspendedCallChild = nil
+        }
         stateLock.unlock()
     }
 
@@ -2217,15 +2243,27 @@ public func kk_coroutine_call_direct_suspend(
     guard let callerState = runtimeContinuationState(from: callerContinuationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_call_direct_suspend received invalid caller continuation handle")
     }
-    if let childState = runtimeContinuationState(from: childContinuation) {
+    let callerTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let callerJobHandle = RuntimeJobHandle.current
+    defer {
+        RuntimeCoroutineScopeTaskKey.installKey(callerTaskKey)
+        RuntimeJobHandle.current = callerJobHandle
+    }
+    let childState = runtimeContinuationState(from: childContinuation)
+    if let childState {
         childState.scope = callerState.scope
         childState.jobHandle = callerState.jobHandle
+        childState.flowCollectContext = callerState.flowCollectContext
+        callerState.bindSuspendedCallChild(childState)
     }
     let completion = RuntimeDirectSuspendCompletion()
     _ = runSuspendEntryLoopWithContinuation(
         entryPointRaw: entryPointRaw,
         continuation: childContinuation,
         onCompletion: { result, thrown in
+            if let childState {
+                callerState.unbindSuspendedCallChild(childState)
+            }
             // Always publish the outcome, including clearing the thrown slot on
             // success: the caller's state machine reads this slot at the resume
             // label, and a stale exception from a previously caught throw would
@@ -3075,11 +3113,19 @@ public func kk_kxmini_run_blocking_with_cont(
     // Forward `outThrown` so an exception thrown by the blocking body reaches the
     // caller. Callers (e.g. the `runBlocking`/suspend-value thunks) branch on this
     // slot to rethrow; dropping it silently swallowed the exception.
-    return runtimeRunBlockingOnEventLoop(
-        entryPointRaw: entryPointRaw,
-        continuation: continuation,
-        outThrown: outThrown
-    )
+    let ownedJob = contState?.jobHandle == nil ? RuntimeJobHandle() : nil
+    if let ownedJob {
+        ownedJob.markStarted()
+        ownedJob.continuationState = contState
+        contState?.jobHandle = ownedJob
+    }
+    return withExtendedLifetime(ownedJob) {
+        runtimeRunBlockingOnEventLoop(
+            entryPointRaw: entryPointRaw,
+            continuation: continuation,
+            outThrown: outThrown
+        )
+    }
 }
 
 @_cdecl("kk_suspend_coroutine")
@@ -4483,10 +4529,11 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     job.markStarted()
     job.continuationState = contState
     contState.jobHandle = job
-    // launcherArgs[0] is the suspend-entry receiver slot: the block's `this`
-    // (ProducerScope / ActorScope) is the channel handle; captures occupy the
-    // remaining slots, seeded by the call-site rewrite.
-    contState.launcherArgs[0] = Int64(channelHandle)
+    // Legacy launchers leave slot zero for the receiver; closure-first
+    // adapters seed both the closure and receiver at the call site.
+    if contState.launcherArgs[0] == nil {
+        contState.launcherArgs[0] = Int64(channelHandle)
+    }
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
     contState.scope = callerScope
@@ -5737,30 +5784,10 @@ func runSuspendEntryLoopWithContinuation(
 @_silgen_name("kk_suspend_function_invoke_0")
 public func kk_suspend_function_invoke_0(
     _ functionRaw: Int,
+    _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard functionRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
-        return 0
-    }
-
-    // STDLIB-CORO-BUG-01: a `suspend () -> R` value's invoke thunk has the
-    // `(outThrown) -> R` shape (boxed closure or raw thunk); dispatch through
-    // kk_function_invoke_0, which handles both with the correct arity, rather
-    // than bit-casting it to a continuation-taking suspend entry point.
-    // Capture the caller continuation first: the callee's nested run loop
-    // reinstalls the thread task key, so `.current` no longer resolves here
-    // after the call returns.
-    let callerState = RuntimeContinuationState.current
-    var thrown = 0
-    let result = kk_function_invoke_0(functionRaw, &thrown)
-    // Publish the outcome on the caller's continuation so the suspend-invocation
-    // lowering observes a thrown exception (and clears any stale one on success).
-    if result != Int(bitPattern: kk_coroutine_suspended()) {
-        callerState?.thrownException = thrown
-    }
-    outThrown?.pointee = thrown
-    return result
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [], continuation: continuation, outThrown: outThrown)
 }
 
 /// Invoke a suspend function with 1 argument using continuation-passing style.
@@ -5769,28 +5796,10 @@ public func kk_suspend_function_invoke_0(
 public func kk_suspend_function_invoke(
     _ functionRaw: Int,
     _ arg: Int,
+    _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard functionRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
-        return 0
-    }
-
-    // STDLIB-CORO-BUG-01: the 1-argument counterpart of kk_suspend_function_invoke_0.
-    // A `suspend (T) -> R` value's invoke thunk has the `(arg, outThrown) -> R`
-    // shape (boxed closure or raw thunk); dispatch through kk_function_invoke,
-    // which handles both, rather than bit-casting it to a continuation-taking
-    // suspend entry point.
-    let callerState = RuntimeContinuationState.current
-    var thrown = 0
-    let result = kk_function_invoke(functionRaw, arg, &thrown)
-    // Publish the outcome on the caller's continuation so the suspend-invocation
-    // lowering observes a thrown exception (and clears any stale one on success).
-    if result != Int(bitPattern: kk_coroutine_suspended()) {
-        callerState?.thrownException = thrown
-    }
-    outThrown?.pointee = thrown
-    return result
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [arg], continuation: continuation, outThrown: outThrown)
 }
 
 /// Invoke a suspend function with 2 arguments using the function-value ABI.
@@ -5799,21 +5808,10 @@ public func kk_suspend_function_invoke_2(
     _ functionRaw: Int,
     _ arg1: Int,
     _ arg2: Int,
+    _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard functionRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
-        return 0
-    }
-
-    let callerState = RuntimeContinuationState.current
-    var thrown = 0
-    let result = kk_function_invoke_2(functionRaw, arg1, arg2, &thrown)
-    if result != Int(bitPattern: kk_coroutine_suspended()) {
-        callerState?.thrownException = thrown
-    }
-    outThrown?.pointee = thrown
-    return result
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2], continuation: continuation, outThrown: outThrown)
 }
 
 @_silgen_name("kk_suspend_function_invoke_3")
@@ -5822,21 +5820,10 @@ public func kk_suspend_function_invoke_3(
     _ arg1: Int,
     _ arg2: Int,
     _ arg3: Int,
+    _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard functionRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
-        return 0
-    }
-
-    let callerState = RuntimeContinuationState.current
-    var thrown = 0
-    let result = kk_function_invoke_3(functionRaw, arg1, arg2, arg3, &thrown)
-    if result != Int(bitPattern: kk_coroutine_suspended()) {
-        callerState?.thrownException = thrown
-    }
-    outThrown?.pointee = thrown
-    return result
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3], continuation: continuation, outThrown: outThrown)
 }
 
 @_silgen_name("kk_suspend_function_invoke_4")
@@ -5846,21 +5833,10 @@ public func kk_suspend_function_invoke_4(
     _ arg2: Int,
     _ arg3: Int,
     _ arg4: Int,
+    _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard functionRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
-        return 0
-    }
-
-    let callerState = RuntimeContinuationState.current
-    var thrown = 0
-    let result = kk_function_invoke_4(functionRaw, arg1, arg2, arg3, arg4, &thrown)
-    if result != Int(bitPattern: kk_coroutine_suspended()) {
-        callerState?.thrownException = thrown
-    }
-    outThrown?.pointee = thrown
-    return result
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3, arg4], continuation: continuation, outThrown: outThrown)
 }
 
 @_silgen_name("kk_suspend_function_invoke_5")
@@ -5871,19 +5847,8 @@ public func kk_suspend_function_invoke_5(
     _ arg3: Int,
     _ arg4: Int,
     _ arg5: Int,
+    _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard functionRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
-        return 0
-    }
-
-    let callerState = RuntimeContinuationState.current
-    var thrown = 0
-    let result = kk_function_invoke_5(functionRaw, arg1, arg2, arg3, arg4, arg5, &thrown)
-    if result != Int(bitPattern: kk_coroutine_suspended()) {
-        callerState?.thrownException = thrown
-    }
-    outThrown?.pointee = thrown
-    return result
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5], continuation: continuation, outThrown: outThrown)
 }

@@ -79,7 +79,7 @@ struct SequenceLookupNames {
         kkSequenceBuilderYieldName = interner.intern("__kk_sequence_builder_yield")
         kkSequenceBuilderYieldAllName = interner.intern("__kk_sequence_builder_yieldAll")
         kkIteratorBuilderBuildName = interner.intern("__kk_iterator_builder_build")
-        kkIteratorBuilderHasNextName = interner.intern("__kk_iterator_builder_hasNext")
+        kkIteratorBuilderHasNextName = interner.intern("kk_iterator_hasNext")
         kkIteratorBuilderNextName = interner.intern("__kk_iterator_builder_next")
         kkSequenceFlatMapName = interner.intern("kk_sequence_flatMap")
         kkSequenceFlatMapIndexedName = interner.intern("kk_sequence_flatMapIndexed")

@@ -55,14 +55,17 @@ struct CoroutineStartModeLoweringTests {
         return callees
     }
 
-    /// The three launchers a start mode can select. `DEFAULT` and `ATOMIC`
+    /// The three launcher modes, in raw and continuation-aware forms. `DEFAULT` and `ATOMIC`
     /// share one: they differ only in whether a cancellation arriving before
     /// the first suspension can still stop the body, which this runtime does
     /// not model separately.
     private static let allLaunchers: Set<String> = [
         "kk_kxmini_launch",
+        "kk_kxmini_launch_with_cont",
         "kk_kxmini_launch_lazy",
+        "kk_kxmini_launch_lazy_with_cont",
         "kk_kxmini_launch_undispatched",
+        "kk_kxmini_launch_undispatched_with_cont",
     ]
 
     @Test(arguments: [
@@ -73,13 +76,14 @@ struct CoroutineStartModeLoweringTests {
     ])
     func testStartModeSelectsItsRuntimeLauncher(startMode: String, expected: String) throws {
         let callees = try launcherCallees(startMode: startMode)
+        let expectedLaunchers: Set<String> = [expected, expected + "_with_cont"]
 
         #expect(
-            callees.contains(expected),
+            !callees.isDisjoint(with: expectedLaunchers),
             "CoroutineStart.\(startMode) should lower to \(expected), got: \(callees.sorted())"
         )
 
-        let wrong = callees.intersection(Self.allLaunchers.subtracting([expected]))
+        let wrong = callees.intersection(Self.allLaunchers.subtracting(expectedLaunchers))
         #expect(
             wrong.isEmpty,
             "CoroutineStart.\(startMode) also selected \(wrong.sorted())"

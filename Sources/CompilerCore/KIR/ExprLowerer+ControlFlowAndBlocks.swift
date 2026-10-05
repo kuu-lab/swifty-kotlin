@@ -2049,9 +2049,10 @@ extension ExprLowerer {
             )
 
         case let .returnExpr(value, label, _):
+            let targetsFunction = sema.bindings.functionReturnLambdaPaths[exprID] != nil
             // A labeled return targeting a lambda body inlined into a loop (e.g. `repeat`)
             // ends only that iteration: run the inner `finally` blocks, then jump.
-            if let label, let iterationEnd = driver.ctx.continueLabel(for: label) {
+            if !targetsFunction, let label, let iterationEnd = driver.ctx.continueLabel(for: label) {
                 if let value {
                     _ = lowerExpr(
                         value,
@@ -2097,7 +2098,7 @@ extension ExprLowerer {
                 } else {
                     returnValue = lowered
                 }
-                if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
                     instructions.append(.nonLocalReturn(returnValue, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(
@@ -2108,7 +2109,7 @@ extension ExprLowerer {
                     instructions.append(.returnValue(returnValue))
                 }
             } else {
-                if label == nil, driver.ctx.currentLambdaAllowsNonLocalReturn {
+                if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
                     instructions.append(.nonLocalReturn(nil, target: driver.ctx.nonLocalReturnTarget.map(KIRReturnTarget.function)))
                 } else {
                     inlineAllEnclosingFinallyBlocks(

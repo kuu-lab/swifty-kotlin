@@ -91,6 +91,8 @@ final class TypeCheckSemaPhase: CompilerPhase {
             work.run()
         }
 
+        validateFunctionReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
                 switch decl {
@@ -116,6 +118,45 @@ final class TypeCheckSemaPhase: CompilerPhase {
                 "KSWIFTK-TYPE-0003",
                 "Unbound declaration found during type checking.",
                 range: declRange
+            )
+        }
+    }
+
+    private func validateFunctionReturnLambdaPaths(ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine) {
+        guard !sema.bindings.functionReturnLambdaPaths.isEmpty else { return }
+        var inlineLambdaArguments: Set<ExprID> = []
+        for (callExprID, binding) in sema.bindings.callBindings {
+            guard sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
+                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
+            else { continue }
+            let arguments: [CallArgument]
+            switch ast.arena.expr(callExprID) {
+            case let .call(_, _, args, _), let .memberCall(_, _, _, args, _):
+                arguments = args
+            default:
+                continue
+            }
+            for (index, argument) in arguments.enumerated() {
+                let parameterIndex = binding.parameterMapping[index] ?? index
+                guard case .lambdaLiteral = ast.arena.expr(argument.expr),
+                      signature.parameterTypes.indices.contains(parameterIndex),
+                      case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex]))
+                else { continue }
+                if !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                    || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                {
+                    inlineLambdaArguments.insert(argument.expr)
+                }
+            }
+        }
+        for returnExprID in sema.bindings.functionReturnLambdaPaths.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let lambdaPath = sema.bindings.functionReturnLambdaPaths[returnExprID],
+                  !lambdaPath.allSatisfy({ inlineLambdaArguments.contains($0) })
+            else { continue }
+            diagnostics.error(
+                "KSWIFTK-SEMA-0042",
+                "A return to an enclosing function cannot cross a non-inline, crossinline, or noinline lambda boundary.",
+                range: ast.arena.exprRange(returnExprID)
             )
         }
     }

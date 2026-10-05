@@ -1400,7 +1400,7 @@ extension ExprTypeChecker {
         } else {
             ctx
         }
-        bodyCtx = bodyCtx.enteringLambdaBody()
+        bodyCtx = bodyCtx.enteringLambdaBody(id)
         if let receiverType = ctx.implicitReceiverType,
            let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
            bodyCtx.implicitReceiverStack.last?.symbol != receiverSymbol

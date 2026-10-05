@@ -375,6 +375,31 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func testClassifyFunctionTypes(hasReceiver: Bool, isSuspend: Bool) {
+        let types = TypeSystem()
+        let sema = makeSemaModule(types: types).ctx
+
+        let intType = types.make(.primitive(.int, .nonNull))
+        let funcType = types.make(.functionType(FunctionType(
+            contextReceivers: [intType],
+            receiver: hasReceiver ? intType : nil,
+            params: [intType],
+            returnType: intType,
+            isSuspend: isSuspend,
+            nullability: .nullable
+        )))
+        let descriptor = RuntimeTypeCheckToken.classify(type: funcType, sema: sema)
+        #expect(descriptor.category.base == RuntimeTypeCheckToken.functionBase)
+        #expect(descriptor.nullable)
+        if case let .function(arity, suspend) = descriptor.category {
+            #expect(arity == 2 + (hasReceiver ? 1 : 0))
+            #expect(suspend == isSuspend)
+        } else {
+            Issue.record("Expected function category")
+        }
+    }
+
     @Test func testDistinctNominalTypesProduceDifferentTokens() {
         let interner = StringInterner()
         let types = TypeSystem()
