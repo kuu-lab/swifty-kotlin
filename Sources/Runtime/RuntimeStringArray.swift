@@ -1283,6 +1283,17 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        // Raw callable references and adapted closure boxes retain reflection
+        // identity in callable metadata rather than an object allocation tag.
+        let isFunctionReference = runtimeStorage.withDelegateLock { state in
+            state.callableRefMetadataByValue[value]?.kind == .function
+        }
+        if isFunctionReference {
+            registerReflectionRuntimeTypeMetadata()
+            if runtimeIsAssignable(sourceTypeID: kFunctionRuntimeTypeID, targetTypeID: payload) {
+                return 1
+            }
+        }
         if runtimeArrayHasType(rawValue: value, typeID: payload) {
             return 1
         }
