@@ -1444,8 +1444,8 @@ extension CoroutineLoweringPass {
     /// Emits `kk_object_new(2+N, classID: 0)` with `captures` stored at
     /// slots 2... — the packed-environment shape
     /// `CallLowerer.splitCallableLambdaArgument` produces and
-    /// `__kk_produce_launch` expands.
-    private func emitPackedCaptureEnvironment(
+    /// `__kk_produce_launch` / `kk_coroutine_scope_async` expand.
+    func emitPackedCaptureEnvironment(
         _ captures: [KIRExprID],
         using rewrite: SuspendRewriteContext,
         into instructions: inout [KIRInstruction]
