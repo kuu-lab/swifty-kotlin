@@ -96,7 +96,7 @@ struct FlowHandleLifetimeLoweringTests {
             kkFlowFlatMapMerge: interner.intern("__kk_flow_flat_map_merge"),
             kkFlowFlatMapLatest: interner.intern("__kk_flow_flat_map_latest")
         )
-        var flowExprIDs: Set<Int32> = []
+        var flowExprIDs: Set<Int32> = [handle.rawValue]
         var remainingConsumes = [handle.rawValue: finalConsume ? 2 : 1]
         // Pin lexical consume releases separately from guarded scope-exit ownership cleanup.
         let rewritten = CoroutineLoweringPass().rewriteFlowInstructions(
@@ -105,6 +105,10 @@ struct FlowHandleLifetimeLoweringTests {
             flowExprIDs: &flowExprIDs, remainingConsumes: &remainingConsumes,
             symbolByExprRaw: [:], names: names, isFlowScopeFunction: false
         )
+        #expect(rewritten.instructions.filter { instruction in
+            if case .call(_, names.kkFlowCollect, _, _, _, _, _, _) = instruction { return true }
+            return false
+        }.count == (finalConsume ? 2 : 1))
         var afterLoop = false
         return rewritten.instructions.compactMap { instruction in
             if case .label(40) = instruction { afterLoop = true }
