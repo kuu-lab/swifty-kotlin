@@ -220,21 +220,39 @@ extension DeclTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        let resolved = driver.callChecker.resolveCallRespectingLambdaReturnType(
-            candidates: candidates,
-            args: args,
-            argTypes: prepared.argTypes,
-            range: range,
-            calleeName: ctx.interner.intern("<init>"),
-            explicitTypeArgs: typeArguments,
-            expectedType: targetType,
-            implicitReceiverType: nil,
-            lambdaLiteralIndices: prepared.lambdaLiteralIndices,
-            inputOnlyLambdaIndices: prepared.inputOnlyLambdaIndices,
-            blockedLambdaRefinement: prepared.blockedLambdaRefinement,
-            hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter,
-            ctx: ctx
-        )
+        func resolveArguments(_ argTypes: [TypeID]) -> ResolvedCall {
+            driver.callChecker.resolveCallRespectingLambdaReturnType(
+                candidates: candidates,
+                args: args,
+                argTypes: argTypes,
+                range: range,
+                calleeName: ctx.interner.intern("<init>"),
+                explicitTypeArgs: typeArguments,
+                expectedType: targetType,
+                implicitReceiverType: nil,
+                lambdaLiteralIndices: prepared.lambdaLiteralIndices,
+                inputOnlyLambdaIndices: prepared.inputOnlyLambdaIndices,
+                blockedLambdaRefinement: prepared.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter,
+                ctx: ctx
+            )
+        }
+        var resolved = resolveArguments(prepared.argTypes)
+        var callArgs = zip(args, prepared.argTypes).map { argument, type in
+            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+        }
+        if resolved.diagnostic != nil,
+           reinferConstructorDelegationArguments(
+               args: args,
+               candidates: candidates,
+               expectedType: targetType,
+               argTypes: &callArgs,
+               ctx: ctx,
+               locals: &locals
+           )
+        {
+            resolved = resolveArguments(callArgs.map(\.type))
+        }
         if let diagnostic = resolved.diagnostic {
             ctx.sema.diagnostics.emit(diagnostic)
         }
@@ -489,6 +507,87 @@ extension DeclTypeChecker {
         } else if ownerSymbol != nil {
             emitUnresolvedDelegation(delegation: delegation, sema: sema)
         }
+    }
+
+    private func reinferConstructorDelegationArguments(
+        args: [CallArgument],
+        candidates: [SymbolID],
+        expectedType: TypeID?,
+        argTypes: inout [CallArg],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let expectedType,
+              case let .classType(ownerType) = sema.types.kind(of: expectedType)
+        else { return false }
+        let ownerParameters = sema.types.nominalTypeParameterSymbols(for: ownerType.classSymbol)
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(ownerParameters)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (parameter, argument) in zip(ownerParameters, ownerType.args) {
+            guard let variable = typeVarBySymbol[parameter] else { continue }
+            switch argument {
+            case let .invariant(type), let .in(type), let .out(type):
+                substitution[variable] = type
+            case .star:
+                continue
+            }
+        }
+        let candidateParameterTypes = candidates.compactMap { candidate -> [Int: TypeID]? in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let mapping = ctx.resolver.buildParameterMapping(
+                      signature: signature,
+                      callArgs: argTypes,
+                      symbols: sema.symbols,
+                      typeSystem: sema.types
+                  )
+            else { return nil }
+            let parameterTypes = mapping.mapValues { parameterIndex in
+                sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[parameterIndex],
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+            }
+            for (index, argument) in args.enumerated() {
+                let originalType = argTypes[index].type
+                guard !argument.isSpread,
+                      driver.callChecker.isInferableNestedCallExpr(argument.expr, ast: ctx.ast),
+                      driver.callChecker.typeContainsNothingType(originalType, sema: sema),
+                      let parameterType = parameterTypes[index]
+                else { continue }
+                if !sema.types.isSubtype(originalType, parameterType),
+                   driver.callChecker.concreteNestedCallExpectedType(
+                       originalArgumentType: originalType,
+                       boundType: parameterType,
+                       sema: sema
+                   ) == nil
+                {
+                    return nil
+                }
+            }
+            return parameterTypes
+        }
+        guard let firstCandidate = candidateParameterTypes.first else { return false }
+
+        var didReinfer = false
+        for (index, argument) in args.enumerated() {
+            let originalType = argTypes[index].type
+            guard driver.callChecker.isInferableNestedCallExpr(argument.expr, ast: ctx.ast),
+                  driver.callChecker.typeContainsNothingType(originalType, sema: sema),
+                  let parameterType = firstCandidate[index],
+                  candidateParameterTypes.allSatisfy({ $0[index] == parameterType }),
+                  let argumentExpectedType = driver.callChecker.concreteNestedCallExpectedType(
+                      originalArgumentType: originalType,
+                      boundType: parameterType,
+                      sema: sema
+                  )
+            else { continue }
+            let type = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: argumentExpectedType)
+            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            didReinfer = true
+        }
+        return didReinfer
     }
 
     private func constructorOwnerType(

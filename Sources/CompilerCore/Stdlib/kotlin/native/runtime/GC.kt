@@ -9,8 +9,8 @@ package kotlin.native.runtime
 
 import kotlin.internal.KsSymbolName
 import kotlin.time.Duration
-import kotlin.time.microseconds
-import kotlin.time.nanoseconds
+import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.nanoseconds
 
 @NativeRuntimeApi
 @SinceKotlin("1.9")

@@ -11,6 +11,14 @@ class Delegating<T>(val transform: (T) -> T) {
     constructor(marker: Int) : this(transform = { it })
 }
 
+class FactoryDelegating<T>(val actions: MutableList<(T) -> Unit>, val transform: (T) -> T) {
+    constructor(marker: Int) : this(transform = { it }, actions = mutableListOf())
+}
+open class FactoryBase<T>(val actions: MutableList<(T) -> Unit>, val transform: (T) -> T)
+class FactoryDerived<U> : FactoryBase<U> {
+    constructor(marker: Int) : super(transform = { it }, actions = mutableListOf())
+}
+
 open class NullableBase<T>(val transform: (T) -> Int)
 object NullableDerived : NullableBase<String?>({ if (it == null) 0 else it.length })
 
@@ -41,6 +49,12 @@ fun main() {
     println(GenericDerived.transform("generic"))
     println(Secondary(5).transform(6))
     println(Delegating<String>(0).transform("identity"))
+    val factoryDelegating = FactoryDelegating<String>(0)
+    println(factoryDelegating.actions.size)
+    println(factoryDelegating.transform("factory-this"))
+    val factoryDerived = FactoryDerived<Int>(0)
+    println(factoryDerived.actions.size)
+    println(factoryDerived.transform(42))
     println(NullableDerived.transform(null))
     println(NullableDerived.transform("abc"))
     println(OverloadDerived.transform(8))

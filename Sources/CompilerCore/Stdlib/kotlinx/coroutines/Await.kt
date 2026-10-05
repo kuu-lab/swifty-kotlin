@@ -5,12 +5,9 @@ package kotlinx.coroutines
 
 // `awaitCancellation()` lives in the compiler's synthetic registry
 // (externalLinkName `kk_await_cancellation`): calls lower to a suspend point
-// that parks the caller continuation on the never-completing
-// `runtimeNonCancellableJob`, so the coroutine only unwinds via
-// cancellation. It cannot live here as a
-// bundled body: bundled code cannot reference `NonCancellable` as a `Job`
-// (the grafted supertype only exists in user-module sema), and a
-// `suspendCoroutineUninterceptedOrReturn` park never observes cancellation.
+// that parks a cancellable continuation linked to the caller's Job.
+// Cancellation wakes the parked continuation even when it is not the
+// Job's launcher continuation (e.g. inside a scope-builder block).
 
 // Top-level parameter forms of `joinAll` / `awaitAll`. The
 // `Collection<Deferred<T>>.awaitAll()` / `Collection<Job>.joinAll()` receivers

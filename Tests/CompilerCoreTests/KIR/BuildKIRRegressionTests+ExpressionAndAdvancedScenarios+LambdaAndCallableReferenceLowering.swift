@@ -3,6 +3,57 @@
 import Testing
 
 extension BuildKIRRegressionTests {
+    @Test func testBuildKIRCompareValuesByVarargSelectorsAreMaterialized() throws {
+        let ctx = makeContextFromSource("""
+        data class P(val n: String, val a: Int)
+        fun name(p: P): String = p.n
+        fun main(): Int = compareValuesBy(P("a", 1), P("a", 2), ::name, { it.a }, { it.n }, { it.a })
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let materialized = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_function_create_1"
+            else { return nil }
+            return result
+        }
+        let stored = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_array_set"
+            else { return nil }
+            return arguments[2]
+        }
+        #expect(materialized.count == 4)
+        #expect(Array(stored.suffix(4)) == materialized)
+    }
+
+    @Test func testBuildKIRImportedCompareValuesByCallableReferenceIsMaterialized() throws {
+        let ctx = makeContextFromSource("""
+        data class P(val n: String, val a: Int)
+        fun name(p: P): String = p.n
+        fun main(): Int = compareValuesBy(P("a", 1), P("a", 2), ::name, { it.a })
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let materialized = try #require(body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_function_create_1"
+            else { return nil }
+            return result
+        }.first)
+        let call = try #require(body.first { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == "compareValuesBy"
+        })
+        if case let .call(_, _, arguments, _, _, _, _, _) = call {
+            #expect(arguments[2] == materialized)
+        }
+    }
+
     @Test func testBuildKIRInlineCallableReferencesUseErasedFunctionValueAdapters() throws {
         let source = """
         fun visit(key: String, value: Int) { println("$key$value") }

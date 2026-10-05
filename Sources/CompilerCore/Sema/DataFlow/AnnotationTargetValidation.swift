@@ -261,7 +261,9 @@ extension DataFlowSemaPhase {
         for annotation in param.annotations {
             let site: AnnotationUsageSite
             switch annotation.useSiteTarget?.lowercased() {
-            case nil, "param", "setparam":
+            case nil:
+                site = param.isProperty ? .constructorPropertyParameter : .valueParameter
+            case "param", "setparam":
                 site = .valueParameter
             case "field":
                 site = .paramField
@@ -634,6 +636,8 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("CONSTRUCTOR")
         case .valueParameter:
             return allowedTargets.contains("VALUE_PARAMETER")
+        case .constructorPropertyParameter:
+            return !allowedTargets.isDisjoint(with: ["VALUE_PARAMETER", "PROPERTY", "FIELD"])
         case .enumEntry:
             return allowedTargets.contains("FIELD") || allowedTargets.contains("CLASS")
         case let .property(explicitUseSiteTarget):
@@ -709,6 +713,8 @@ extension DataFlowSemaPhase {
             return "a constructor"
         case .valueParameter:
             return "a value parameter"
+        case .constructorPropertyParameter:
+            return "a constructor property parameter"
         case .enumEntry:
             return "an enum entry"
         case .property:
@@ -789,6 +795,7 @@ extension DataFlowSemaPhase {
         case function
         case constructor
         case valueParameter
+        case constructorPropertyParameter
         case enumEntry
         case property(explicitUseSiteTarget: Bool)
         case getter

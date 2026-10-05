@@ -177,6 +177,48 @@ struct LoweringPassRegressionTests {
     }
 
     @Test
+    func testSuspendWrapperUsesCompletionRelayInsteadOfRunBlocking() throws {
+        let fixture = try makeLoweringRewriteFixture()
+        let wrapper = try findKIRFunction(named: "suspendTarget", in: fixture.module, interner: fixture.interner)
+        let callees = extractCallees(from: wrapper.body, interner: fixture.interner)
+        #expect(callees.contains("kk_coroutine_call_suspend_wrapper"))
+        #expect(!callees.contains("kk_kxmini_run_blocking_with_cont"))
+    }
+
+    @Test
+    func testImportedSuspendCallHasSuspendGuardAndResumeLabel() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let diagnostics = DiagnosticEngine()
+        let importedName = interner.intern("importedSuspend")
+        let imported = symbols.define(
+            kind: .function, name: importedName, fqName: [importedName],
+            declSite: makeRange(), visibility: .public, flags: [.importedLibrary, .suspendFunction]
+        )
+        symbols.setFunctionSignature(FunctionSignature(parameterTypes: [], returnType: types.unitType, isSuspend: true), for: imported)
+        symbols.setExternalLinkName("kk_fn_importedSuspend", for: imported)
+        let result = arena.appendTemporary(type: types.unitType)
+        let caller = KIRFunction(
+            symbol: SymbolID(rawValue: 950), name: interner.intern("caller"), params: [], returnType: types.unitType,
+            body: [
+                .call(symbol: imported, callee: interner.intern("kk_fn_importedSuspend"), arguments: [], result: result, canThrow: true, thrownResult: nil),
+                .returnValue(result),
+            ], isSuspend: true, isInline: false
+        )
+        let callerID = arena.appendDecl(.function(caller))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: diagnostics)
+        try runLowering(module: module, interner: interner, moduleName: "ImportedSuspend", sema: sema.ctx, diagnostics: diagnostics)
+        let lowered = try findKIRFunction(named: "kk_suspend_caller", in: module, interner: interner)
+        #expect(lowered.body.contains { if case .returnIfEqual = $0 { return true }; return false })
+        let callees = extractCallees(from: lowered.body, interner: interner)
+        #expect(callees.contains("kk_coroutine_state_get_thrown_exception"))
+        #expect(callees.contains("kk_fn_importedSuspend"))
+    }
+
+    @Test
     func testLoweringNormalizesEmptyFunctionBody() throws {
         let fixture = try makeLoweringRewriteFixture()
 

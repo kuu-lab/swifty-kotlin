@@ -243,6 +243,7 @@ extension BuildASTPhase {
             modifiers: modifiers,
             annotations: annotations,
             superTypes: superTypeEntries.map(\.typeRef),
+            superTypeEntries: superTypeEntries,
             superTypeConstructorArgs: superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? [],
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
             initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),

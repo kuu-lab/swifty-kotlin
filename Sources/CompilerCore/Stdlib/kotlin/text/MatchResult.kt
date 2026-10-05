@@ -222,7 +222,8 @@ public val MatchResult.destructured: MatchResult.Destructured
 public val MatchResult.Destructured.match: MatchResult
     get() = __kkDestructuredMatch(this)
 
-private fun MatchResult.Destructured.groupValue(index: Int): String =
+@PublishedApi
+internal fun MatchResult.Destructured.groupValue(index: Int): String =
     __kkMatchResultGroupValue(__kkDestructuredMatch(this), index)
 
 public operator fun MatchResult.Destructured.component1(): String = groupValue(1)

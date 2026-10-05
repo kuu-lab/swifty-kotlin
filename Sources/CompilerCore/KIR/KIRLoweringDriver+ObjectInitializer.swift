@@ -344,6 +344,12 @@ extension KIRLoweringDriver {
             shared: shared,
             body: &body
         )
+        emitClassDelegationInitializers(
+            ownerSymbol: objectSymbol,
+            receiverID: objectHandleExpr,
+            shared: shared,
+            body: &body
+        )
         emitObjectBodyInitializers(objectDecl, shared: shared, body: &body)
 
         body.append(.label(alreadyInitializedLabel))

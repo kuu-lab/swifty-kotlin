@@ -103,10 +103,12 @@ package enum BundledStdlib {
         _bundledStdlibSources
     }
 
-    // Visibility is now persisted in library metadata. Rebuild any cached
-    // stdlib artifact whose manifest predates the metadata change.
+    // Rebuild artifacts predating metadata or callback ABI changes.
     private static let _manifestHash: String = Self.stableFNV1a64Hex(
-        for: _bundledStdlibSources + [(path: "__metadata_visibility_v2", contents: Data())]
+        for: _bundledStdlibSources + [
+            (path: "__metadata_visibility_v2", contents: Data()),
+            (path: "__metadata_callback_abi_v1", contents: Data()),
+        ]
     )
 
     /// Returns a stable hash of the bundled stdlib manifest.

@@ -52,6 +52,17 @@ struct ConstructorLambdaExpectedTypeTests {
         }
         """,
         """
+        class Derived<T>(val actions: MutableList<(T) -> Unit>, val transform: (T) -> T) {
+            constructor(marker: Int) : this(transform = { it }, actions = mutableListOf())
+        }
+        """,
+        """
+        open class Base<T>(val actions: MutableList<(T) -> Unit>, val transform: (T) -> T)
+        class Derived<U> : Base<U> {
+            constructor(marker: Int) : super(transform = { it }, actions = mutableListOf())
+        }
+        """,
+        """
         open class Base<A, B>(val seed: A, val transform: (B) -> A)
         class Derived<T>(seed: T) : Base<T, Int>(seed, { seed })
         """,

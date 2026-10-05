@@ -7,22 +7,28 @@ import kotlin.internal.KsSymbolName
 // Migration source: Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticBuilderDSLStubs.swift
 
 @KsSymbolName("__kk_builder_list_new")
-private external fun <E> __kkBuilderListNew(capacity: Int): MutableList<E>
+@PublishedApi
+internal external fun <E> __kkBuilderListNew(capacity: Int): MutableList<E>
 
 @KsSymbolName("__kk_builder_set_new")
-private external fun <E> __kkBuilderSetNew(capacity: Int): MutableSet<E>
+@PublishedApi
+internal external fun <E> __kkBuilderSetNew(capacity: Int): MutableSet<E>
 
 @KsSymbolName("__kk_builder_map_new")
-private external fun <K, V> __kkBuilderMapNew(capacity: Int): MutableMap<K, V>
+@PublishedApi
+internal external fun <K, V> __kkBuilderMapNew(capacity: Int): MutableMap<K, V>
 
 @KsSymbolName("__kk_builder_list_freeze")
-private external fun <E> __kkBuilderListFreeze(value: MutableList<E>): List<E>
+@PublishedApi
+internal external fun <E> __kkBuilderListFreeze(value: MutableList<E>): List<E>
 
 @KsSymbolName("__kk_builder_set_freeze")
-private external fun <E> __kkBuilderSetFreeze(value: MutableSet<E>): Set<E>
+@PublishedApi
+internal external fun <E> __kkBuilderSetFreeze(value: MutableSet<E>): Set<E>
 
 @KsSymbolName("__kk_builder_map_freeze")
-private external fun <K, V> __kkBuilderMapFreeze(value: MutableMap<K, V>): Map<K, V>
+@PublishedApi
+internal external fun <K, V> __kkBuilderMapFreeze(value: MutableMap<K, V>): Map<K, V>
 
 // The internal helpers mirror Kotlin stdlib's @PublishedApi entry points.
 // Keep the builder action on a mutable receiver until the final freeze so an

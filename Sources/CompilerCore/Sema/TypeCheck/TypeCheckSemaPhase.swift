@@ -173,5 +173,7 @@ private final class TypeCheckWork: @unchecked Sendable {
 
     func run() {
         driver.typeCheckModule(fileScopes: fileScopes, files: files)
+        ConstPropertyEvaluator(ast: driver.ast, sema: driver.sema, interner: driver.interner)
+            .evaluate(diagnostics: driver.diagnostics)
     }
 }
