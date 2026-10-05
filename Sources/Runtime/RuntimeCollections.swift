@@ -966,19 +966,35 @@ public func kk_mutable_list_add(
 
 @_cdecl("__kk_mutable_list_remove")
 public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
+    kk_mutable_list_remove_dispatch(listRaw, elem, nil)
+}
+
+@_cdecl("__kk_mutable_list_remove_dispatch")
+public func kk_mutable_list_remove_dispatch(
+    _ listRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     if runtimeListBox(from: listRaw) == nil,
        let result = runtimeSourceInterfaceCall1(
            listRaw, elem,
            interfaceTypeID: runtimeMutableListInterfaceTypeID,
            methodSlot: 7,
-           context: "MutableList.remove dispatch"
+           context: "MutableList.remove dispatch",
+           outThrown: outThrown
        )
     {
         return result
     }
-    guard let list = runtimeListBox(from: listRaw),
-          let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) })
-    else {
+    guard let list = runtimeListBox(from: listRaw) else {
+        return kk_box_bool(0)
+    }
+    guard !list.isReadOnly else {
+        runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
+        return kk_box_bool(0)
+    }
+    guard let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) }) else {
         return kk_box_bool(0)
     }
     list.withMutableValues { $0.remove(at: index) }

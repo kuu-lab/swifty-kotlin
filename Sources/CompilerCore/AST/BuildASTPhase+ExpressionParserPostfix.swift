@@ -144,15 +144,10 @@ extension BuildASTPhase.ExpressionParser {
             }
 
             if matches(.symbol(.doubleColon)) {
-                guard let opToken = consume(),
-                      let memberToken = current(),
-                      let memberName = tokenText(memberToken)
-                else {
+                guard let reference = parseCallableReference(receiver: expr) else {
                     break
                 }
-                _ = consume()
-                let range = mergeRanges(astArena.exprRange(expr), memberToken.range, fallback: opToken.range)
-                expr = astArena.appendExpr(.callableRef(receiver: expr, member: memberName, range: range))
+                expr = reference
                 continue
             }
 

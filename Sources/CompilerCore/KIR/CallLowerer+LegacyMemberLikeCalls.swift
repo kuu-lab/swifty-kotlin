@@ -1182,6 +1182,8 @@ extension CallLowerer {
             case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
             case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
             case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
+            case ("toUShort", byteType, ushortType): interner.intern("kk_int_to_ushort")
+            case ("toUShort", shortType, ushortType): interner.intern("kk_int_to_ushort")
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
