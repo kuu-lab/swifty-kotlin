@@ -1763,6 +1763,14 @@ public final class BindingTable {
     /// lowering reads the receiver through the captured value of that symbol
     /// instead of the innermost implicit receiver.
     public private(set) var implicitReceiverOuterReceiverSymbols: [ExprID: SymbolID] = [:]
+    /// For implicit member-extension calls, the receiver-tower entry whose
+    /// value supplies the declared extension receiver argument: e.g. `bump()`
+    /// inside `with("s") { ... }` nested in `fun Int.gapProbe()` picks the
+    /// enclosing `Int` receiver parameter, which capture analysis then routes
+    /// into the lambda so KIR lowering reads the real Int value rather than
+    /// the lambda's own `String` receiver. `implicitReceiverOuterReceiver`
+    /// names the *dispatch* side; this names the *extension* side.
+    public private(set) var implicitExtensionReceiverSymbols: [ExprID: SymbolID] = [:]
     /// Calls resolved through the ambient CoroutineScope of a coroutine builder
     /// need a runtime receiver even though the builder lambda keeps a no-receiver
     /// function ABI.
@@ -2412,6 +2420,19 @@ public final class BindingTable {
     /// on, if any. See `implicitReceiverOuterReceiverSymbols`.
     public func implicitReceiverOuterReceiver(for expr: ExprID) -> SymbolID? {
         implicitReceiverOuterReceiverSymbols[expr]
+    }
+
+    /// Record which receiver-tower entry supplies a member extension's
+    /// extension receiver argument. See `implicitExtensionReceiverSymbols`.
+    public func markImplicitExtensionReceiver(_ expr: ExprID, symbol: SymbolID) {
+        implicitExtensionReceiverSymbols[expr] = symbol
+    }
+
+    /// The receiver-tower symbol supplying a member extension's extension
+    /// receiver argument, if Sema recorded one. See
+    /// `implicitExtensionReceiverSymbols`.
+    public func implicitExtensionReceiver(for expr: ExprID) -> SymbolID? {
+        implicitExtensionReceiverSymbols[expr]
     }
 
     public func markCoroutineScopeImplicitReceiverCall(_ expr: ExprID) {

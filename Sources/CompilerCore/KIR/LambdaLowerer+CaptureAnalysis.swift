@@ -306,6 +306,14 @@ extension LambdaLowerer {
             {
                 referenced.append(symbol)
             }
+            // A member-extension call whose extension receiver Sema picked
+            // from an outer tower entry reads that receiver value; a nested
+            // lambda must capture it the same way.
+            if let symbol = sema.bindings.implicitExtensionReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
             collectBoundIdentifierSymbols(in: calleeExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             for argument in args {
                 collectBoundIdentifierSymbols(in: argument.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
@@ -415,6 +423,11 @@ extension LambdaLowerer {
 
         case let .callableRef(receiverExpr, _, _):
             if let symbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
+            if let symbol = sema.bindings.implicitExtensionReceiver(for: exprID),
                seen.insert(symbol).inserted
             {
                 referenced.append(symbol)

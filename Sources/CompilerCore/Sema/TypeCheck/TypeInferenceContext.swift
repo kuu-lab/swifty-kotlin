@@ -232,6 +232,45 @@ struct TypeInferenceContext: CustomStringConvertible {
         return nil
     }
 
+    /// Same tower as `implicitReceiverMemberLookupTypes()` but keeps each
+    /// entry's receiver symbol when one exists: the symbol is how capture
+    /// analysis and KIR lowering materialize that exact receiver value
+    /// (e.g. a member extension's receiver parameter captured into a lambda).
+    /// The innermost active receiver has no symbol at this layer — KIR maps it
+    /// to the active implicit receiver expression instead.
+    func implicitReceiverMemberLookupEntries() -> [(type: TypeID, symbol: SymbolID?)] {
+        var entries: [(type: TypeID, symbol: SymbolID?)] = []
+        var seen: Set<TypeID> = []
+        func appendUnique(_ type: TypeID, symbol: SymbolID?) {
+            if seen.insert(type).inserted {
+                entries.append((type, symbol))
+            }
+        }
+        if let implicitReceiverType {
+            appendUnique(implicitReceiverType, symbol: nil)
+        }
+        for entry in implicitReceiverStack.reversed() {
+            appendUnique(entry.type, symbol: entry.symbol)
+        }
+        for entry in outerReceiverTypes.reversed() {
+            appendUnique(entry.type, symbol: entry.symbol)
+        }
+        if let enclosingClassSymbol {
+            let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
+                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            appendUnique(
+                sema.types.make(.classType(ClassType(
+                    classSymbol: enclosingClassSymbol,
+                    args: ownerArgs,
+                    nullability: .nonNull
+                ))),
+                symbol: enclosingClassSymbol
+            )
+        }
+        return entries
+    }
+
     /// Ordered implicit receiver types for unqualified member lookup, innermost
     /// first: the active implicit receiver, then enclosing lambda receivers,
     /// then labeled `this@Label` receivers innermost-out, then the enclosing

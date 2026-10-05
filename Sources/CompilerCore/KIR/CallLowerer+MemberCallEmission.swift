@@ -6,17 +6,51 @@ extension CallLowerer {
         sema.symbols.memberExtensionOwnerSymbol(for: callee)
     }
 
-    func memberExtensionDispatchReceiver(for callee: SymbolID, callExprID: ExprID?, sema: SemaModule) -> KIRExprID? {
+    func memberExtensionDispatchReceiver(
+        for callee: SymbolID,
+        callExprID: ExprID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
         guard let owner = memberExtensionOwnerSymbol(for: callee, sema: sema),
               let ownerInfo = sema.symbols.symbol(owner)
         else { return nil }
-        return callExprID
-            .flatMap { sema.bindings.implicitReceiverOuterReceiver(for: $0) }
-            .flatMap { driver.ctx.localValue(for: $0) }
-            ?? driver.ctx.capturedOuterReceiverExprID(for: owner)
-            ?? driver.ctx.capturedOuterReceiverExprID(reaching: owner, sema: sema)
-            ?? driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name)
-            ?? driver.ctx.activeImplicitReceiverExprID()
+        // A receiver found under an owner that merely *reaches* the dispatch
+        // owner (a subtype like `Derived` for `Base`, or an `inner class`
+        // instance that must hop through its `$outer` link) is not yet a
+        // value of the owner's type — chain it, and reject values that
+        // cannot reach `owner` at all instead of passing them as-is.
+        func resolveToOwner(_ exprID: KIRExprID?) -> KIRExprID? {
+            exprID.flatMap {
+                resolveOuterChainValue(
+                    from: $0,
+                    to: owner,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+        }
+        if let marked = callExprID
+            .flatMap({ sema.bindings.implicitReceiverOuterReceiver(for: $0) })
+            .flatMap({ driver.ctx.localValue(for: $0) }),
+           let resolved = resolveToOwner(marked)
+        {
+            return resolved
+        }
+        if let direct = driver.ctx.capturedOuterReceiverExprID(for: owner) {
+            return direct
+        }
+        if let reachingOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
+           let resolved = resolveToOwner(driver.ctx.capturedOuterReceiverExprID(for: reachingOwner))
+        {
+            return resolved
+        }
+        return resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
+            ?? resolveToOwner(driver.ctx.activeImplicitReceiverExprID())
     }
 
     func sequenceBuilderRuntimeCalleeName(
@@ -247,7 +281,14 @@ extension CallLowerer {
         let knownNames = KnownCompilerNames(interner: interner)
         var finalArguments = arguments
         let memberExtensionDispatchReceiver = chosenCallee.flatMap {
-            self.memberExtensionDispatchReceiver(for: $0, callExprID: callExprID, sema: sema)
+            self.memberExtensionDispatchReceiver(
+                for: $0,
+                callExprID: callExprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         if let memberExtensionDispatchReceiver {
             finalArguments.insert(memberExtensionDispatchReceiver, at: 0)

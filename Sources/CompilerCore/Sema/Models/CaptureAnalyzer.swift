@@ -126,6 +126,13 @@ struct CaptureAnalyzer {
                 {
                     captured.insert(receiverSymbol)
                 }
+                // Same for a member-extension call's extension receiver when
+                // Sema picked it from an enclosing tower entry.
+                if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 // A bare member call inside an object literal resolves to the
                 // enclosing class's member symbol. Preserve that class's
                 // implicit receiver as a capture so lowering can still pass
@@ -238,6 +245,11 @@ struct CaptureAnalyzer {
 
             case let .callableRef(receiver, _, _):
                 if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
+                if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
                    outerSymbols.contains(receiverSymbol)
                 {
                     captured.insert(receiverSymbol)

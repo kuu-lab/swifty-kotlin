@@ -1097,8 +1097,18 @@ final class CallLowerer {
                 }
                 if !matchesDeclaredReceiver(implicitReceiver) {
                     implicitReceiver = nil
-                    if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
-                       matchesDeclaredReceiver(activeReceiver)
+                    // Sema records which receiver-tower entry supplies the
+                    // extension receiver (e.g. the enclosing Int receiver
+                    // parameter captured into a `with("s")` lambda), so read
+                    // that exact value first — the active receiver may be an
+                    // unrelated shadowing receiver.
+                    if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: exprID),
+                       let receiverValue = driver.ctx.localValue(for: receiverSymbol),
+                       matchesDeclaredReceiver(receiverValue)
+                    {
+                        implicitReceiver = receiverValue
+                    } else if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                              matchesDeclaredReceiver(activeReceiver)
                     {
                         implicitReceiver = activeReceiver
                     } else if let owner = sema.symbols.parentSymbol(for: chosen),
@@ -1201,7 +1211,14 @@ final class CallLowerer {
             }
             if let extensionReceiver = implicitReceiver {
                 finalArgIDs.insert(extensionReceiver, at: 0)
-                if let dispatchReceiver = memberExtensionDispatchReceiver(for: chosen, callExprID: exprID, sema: sema) {
+                if let dispatchReceiver = memberExtensionDispatchReceiver(
+                    for: chosen,
+                    callExprID: exprID,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
                     finalArgIDs.insert(dispatchReceiver, at: 0)
                     implicitReceiver = dispatchReceiver
                 }
