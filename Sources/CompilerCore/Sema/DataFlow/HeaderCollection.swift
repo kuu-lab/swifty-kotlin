@@ -2158,6 +2158,7 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "time", "TimedValue"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
+            || resolvedFQName == ["kotlin", "text", "CharDirectionality"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
             // KUU-876: the source-backed InvalidMutabilityException must keep
             // its bundled declSite when the synthetic anchor is reused.
