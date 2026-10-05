@@ -95,12 +95,18 @@ func runtime_test_blocking_actor(_ continuation: Int, _ outThrown: UnsafeMutable
     }
     // This inner suspend-value invocation borrows the actor's scope. It must
     // return without joining that scope, which contains the actor itself.
+    let callerTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    let callerState = RuntimeContinuationState.current
+    let callerJob = RuntimeJobHandle.current
     let inner = kk_coroutine_continuation_new(undispatchedBodyFunctionID)
     _ = kk_kxmini_run_blocking_with_cont(
         unsafeBitCast(runtime_test_undispatched_body as EventLoopTestSuspendEntry, to: Int.self),
         inner,
         outThrown
     )
+    #expect(RuntimeCoroutineScopeTaskKey.currentTaskKey == callerTaskKey)
+    #expect(RuntimeContinuationState.current === callerState)
+    #expect(RuntimeJobHandle.current === callerJob)
     eventLoopTestLog.record("actor finished")
     return kk_coroutine_state_exit(continuation, 0)
 }
@@ -296,6 +302,65 @@ struct RuntimeCoroutineEventLoopTests {
         #expect(log.snapshot() == (0 ..< 5).map { "task \($0)" })
     }
 
+    @Test func testBurstLaunchSharesFIFOWithAsyncAndResumptions() {
+        let loop = RuntimeEventLoop()
+        let log = EventLoopTestLog()
+        let done = RuntimeCompletionFlag()
+        loop.enqueue {
+            RuntimeCoroutineBurstDepth.enter()
+            defer { RuntimeCoroutineBurstDepth.exit() }
+            let first = RuntimeJobHandle()
+            RuntimePendingLaunchQueue.enqueue(job: first, workItem: DispatchWorkItem {
+                log.record("launch")
+            })
+            KxMiniRuntime.launch { log.record("async") }
+            loop.enqueue { log.record("resumption") }
+            let second = RuntimeJobHandle()
+            RuntimePendingLaunchQueue.enqueue(job: second, workItem: DispatchWorkItem {
+                log.record("launch again")
+            })
+            #expect(log.snapshot().isEmpty, "enqueueing must not execute a child inline")
+            RuntimePendingLaunchQueue.flush()
+            loop.enqueue { done.set() }
+        }
+        let finished = loop.run(until: { done.isSet }, deadline: Date().addingTimeInterval(2))
+        #expect(finished)
+        #expect(log.snapshot() == ["launch", "async", "resumption", "launch again"])
+    }
+
+    @Test func testEventLoopLaunchCanBeCancelledBeforeItsTurn() {
+        let loop = RuntimeEventLoop()
+        let log = EventLoopTestLog()
+        let done = RuntimeCompletionFlag()
+        loop.enqueue {
+            RuntimeCoroutineBurstDepth.enter()
+            defer { RuntimeCoroutineBurstDepth.exit() }
+            let job = RuntimeJobHandle()
+            let workItem = DispatchWorkItem { log.record("cancelled body") }
+            job.dispatchWorkItem = workItem
+            job.markScheduled()
+            RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
+            _ = job.cancel()
+            RuntimePendingLaunchQueue.flush()
+            loop.enqueue { done.set() }
+        }
+        let finished = loop.run(until: { done.isSet }, deadline: Date().addingTimeInterval(2))
+        #expect(finished)
+        #expect(log.snapshot().isEmpty)
+    }
+
+    @Test func testPoolLaunchRemainsStagedUntilBurstFlush() {
+        #expect(RuntimeEventLoop.current == nil)
+        let ran = DispatchSemaphore(value: 0)
+        RuntimeCoroutineBurstDepth.enter()
+        defer { RuntimeCoroutineBurstDepth.exit() }
+        let job = RuntimeJobHandle()
+        RuntimePendingLaunchQueue.enqueue(job: job, workItem: DispatchWorkItem { ran.signal() })
+        #expect(ran.wait(timeout: .now() + .milliseconds(50)) == .timedOut)
+        RuntimePendingLaunchQueue.flush()
+        #expect(ran.wait(timeout: .now() + .seconds(2)) == .success)
+    }
+
     @Test func testTaskEnqueuedWhileDrainingRunsAfterTasksAlreadyQueued() {
         let loop = RuntimeEventLoop()
         let log = EventLoopTestLog()
@@ -368,6 +433,31 @@ struct RuntimeCoroutineEventLoopTests {
     }
 
     // MARK: - CoroutineStart.UNDISPATCHED
+
+    @Test func testLaunchedBodyRestoresAmbientScopeAndJob() {
+        let previousScope = RuntimeCoroutineScope.current
+        let previousJob = RuntimeJobHandle.current
+        let continuation = kk_coroutine_continuation_new(undispatchedBodyFunctionID)
+        let scope = RuntimeCoroutineScope()
+        let job = RuntimeJobHandle()
+        _ = job.cancel()
+        let completed = RuntimeCompletionFlag()
+
+        runtimeStartLaunchedBody(
+            entryPointRaw: unsafeBitCast(runtime_test_undispatched_body as EventLoopTestSuspendEntry, to: Int.self),
+            continuation: continuation,
+            scope: scope,
+            job: job
+        ) { result, thrown in
+            #expect(result == 7)
+            #expect(thrown == 0)
+            completed.set()
+        }
+
+        #expect(completed.isSet)
+        #expect(RuntimeCoroutineScope.current === previousScope)
+        #expect(RuntimeJobHandle.current === previousJob)
+    }
 
     @Test func testUndispatchedLaunchRunsBodyBeforeReturning() {
         let entryRaw = unsafeBitCast(

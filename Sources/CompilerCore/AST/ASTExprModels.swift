@@ -191,7 +191,7 @@ public enum Expr: Equatable, Codable {
     case lambdaLiteral(params: [InternedString], body: ExprID, label: InternedString? = nil, range: SourceRange)
     case objectLiteral(superTypes: [TypeRefID], decl: DeclID?, range: SourceRange)
     case callableRef(receiver: ExprID?, member: InternedString, range: SourceRange)
-    case localFunDecl(name: InternedString, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange)
+    case localFunDecl(name: InternedString, receiverType: TypeRefID? = nil, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange)
     /// A `class`/`object` declared as a block statement (`{ class L { ... } }`).
     /// Unlike a top-level nominal decl the name is only visible to statements
     /// after it inside the same block scope, mirroring `localFunDecl`.

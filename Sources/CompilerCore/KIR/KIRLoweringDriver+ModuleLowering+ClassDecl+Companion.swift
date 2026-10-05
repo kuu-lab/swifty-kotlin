@@ -93,7 +93,25 @@ extension KIRLoweringDriver {
                     thrownResult: nil
                 ))
             }
+            appendObjectItableMethodRegistrations(
+                objectValue: allocatedObject,
+                nominalSymbol: companionSymbol,
+                driver: self,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
             appendObjectVtableMethodRegistrations(
+                objectValue: allocatedObject,
+                nominalSymbol: companionSymbol,
+                driver: self,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+            appendObjectItableMethodRegistrations(
                 objectValue: allocatedObject,
                 nominalSymbol: companionSymbol,
                 driver: self,
@@ -200,6 +218,12 @@ extension KIRLoweringDriver {
             companionDecl,
             objectSymbol: companionSymbol,
             objectValue: companionObjectValue,
+            shared: shared,
+            body: &body
+        )
+        emitClassDelegationInitializers(
+            ownerSymbol: companionSymbol,
+            receiverID: companionObjectValue,
             shared: shared,
             body: &body
         )

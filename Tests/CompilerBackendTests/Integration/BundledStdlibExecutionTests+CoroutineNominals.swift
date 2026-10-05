@@ -2,6 +2,114 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true])
+    func testNativeDispatcherGetUsesSourceDefault(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.coroutines.*
+            import kotlinx.coroutines.*
+            object MissingKey : CoroutineContext.Key<CoroutineContext.Element>
+            @OptIn(ExperimentalStdlibApi::class)
+            object DispatcherKey : AbstractCoroutineContextKey<ContinuationInterceptor, ContinuationInterceptor>(
+                ContinuationInterceptor.Key, { element: CoroutineContext.Element -> if (element === Dispatchers.Default) Dispatchers.Default else null }
+            )
+            class CustomInterceptor : ContinuationInterceptor {
+                override val key: CoroutineContext.Key<*> get() = ContinuationInterceptor.Key
+                override fun <T> interceptContinuation(c: Continuation<T>): Continuation<T> = c
+                override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? {
+                    println("override")
+                    return null
+                }
+            }
+            class CustomDispatcher : CoroutineDispatcher() {
+                override fun <T> interceptContinuation(c: Continuation<T>): Continuation<T> = c
+                override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? {
+                    println("dispatcher override")
+                    return null
+                }
+            }
+            @OptIn(ExperimentalStdlibApi::class)
+            fun main() {
+                println(Dispatchers.Default[MissingKey] == null)
+                println(Dispatchers.Main[MissingKey] == null)
+                val interceptor: ContinuationInterceptor = Dispatchers.Default
+                println(interceptor[ContinuationInterceptor.Key] === interceptor)
+                println(Dispatchers.Default[DispatcherKey] === Dispatchers.Default)
+                println(interceptor.minusKey(DispatcherKey) === EmptyCoroutineContext)
+                val custom: ContinuationInterceptor = CustomInterceptor()
+                println(custom[MissingKey] == null)
+                val customDispatcher: CoroutineDispatcher = CustomDispatcher()
+                println(customDispatcher[MissingKey] == null)
+            }
+            """,
+            expectedOutput: "true\ntrue\ntrue\ntrue\ntrue\noverride\ntrue\ndispatcher override\ntrue\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [false, true])
+    func testScopeBuilderReceiverFunctionValues(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+
+            suspend fun throughCoroutine(block: suspend CoroutineScope.() -> Int): Any =
+                coroutineScope(block = block)
+            suspend fun throughSupervisor(block: suspend CoroutineScope.() -> Int): Any =
+                supervisorScope(block)
+
+            fun main() = runBlocking {
+                val block: suspend CoroutineScope.() -> Int = { 23 }
+                println(coroutineScope(block = block))
+                println(supervisorScope(block = block))
+                val nullable: suspend CoroutineScope.() -> Int? = { null }
+                println(coroutineScope(block = nullable))
+                println(supervisorScope(block = nullable))
+                val label = "captured"
+                val increment = 4
+                val offset = 19
+                var state = 3
+                val captured: suspend CoroutineScope.() -> Int = {
+                    delay(1)
+                    println(label)
+                    this.ensureActive()
+                    println(this.coroutineContext.job === currentCoroutineContext().job)
+                    state += increment
+                    state + offset
+                }
+                println(throughCoroutine(captured))
+                println(throughSupervisor(captured))
+                println(state)
+                println(coroutineScope {
+                    val scope: CoroutineScope = this
+                    scope.async { delay(1); 7 }.await()
+                })
+                println(supervisorScope {
+                    val scope: CoroutineScope = this
+                    scope.async { delay(1); 11 }.await()
+                })
+                val throwing: suspend CoroutineScope.() -> Int = {
+                    delay(1)
+                    throw IllegalArgumentException(label)
+                }
+                try {
+                    throughCoroutine(throwing)
+                } catch (e: IllegalArgumentException) {
+                    println(e.message)
+                }
+                try {
+                    throughSupervisor(throwing)
+                } catch (e: IllegalArgumentException) {
+                    println(e.message)
+                }
+                Unit
+            }
+            """,
+            expectedOutput: "23\n23\nnull\nnull\ncaptured\ntrue\n26\ncaptured\ntrue\n30\n11\n7\n11\ncaptured\ncaptured\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [false, true])
     func testTestSchedulerLongClockABI(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """

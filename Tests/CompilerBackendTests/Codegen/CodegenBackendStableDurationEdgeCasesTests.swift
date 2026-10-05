@@ -158,7 +158,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
                 true
                 true
                 true
-                true
+                false
                 """ + "\n"
         )
     }
@@ -540,7 +540,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
     }
 
     @Test
-    func testDurationStableInfiniteAddSaturation() throws {
+    func testDurationStableInfiniteArithmeticRejectsUndefinedResults() throws {
         let source = """
         import kotlin.time.Duration
         import kotlin.time.Duration.Companion.seconds
@@ -549,13 +549,22 @@ struct CodegenBackendStableDurationEdgeCasesTests {
             val inf = Duration.INFINITE
             println(inf.isInfinite())
             println((inf + 1.seconds).isInfinite())
-            val diff = inf - inf
-            println(diff.isInfinite())
-            println(diff.isPositive())
+            try {
+                inf - inf
+                println(false)
+            } catch (e: IllegalArgumentException) {
+                println(true)
+            }
+            try {
+                inf + -inf
+                println(false)
+            } catch (e: IllegalArgumentException) {
+                println(true)
+            }
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableInfiniteAddSaturation", expected: "true\ntrue\nfalse\nfalse\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableInfiniteArithmetic", expected: "true\ntrue\ntrue\ntrue\n")
     }
 
     @Test

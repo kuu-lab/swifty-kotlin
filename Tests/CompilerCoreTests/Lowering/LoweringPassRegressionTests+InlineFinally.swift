@@ -4,6 +4,35 @@ import Testing
 
 extension LoweringPassRegressionTests {
     @Test
+    func ownedNonLocalReturnStopsBeforeCallerCleanup() {
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let function = SymbolID(rawValue: 200)
+        let value = arena.appendExpr(.intLiteral(42), type: types.intType)
+        let result = arena.appendTemporary(type: types.intType)
+        let callerCleanup = arena.appendTemporary()
+        let cleanup = arena.appendTemporary()
+        let body: [KIRInstruction] = [
+            .beginNonLocalReturnScope(value: callerCleanup, target: 10),
+            .beginNonLocalReturnScope(value: result, target: 20, function: .function(function)),
+            .beginNonLocalReturnScope(value: cleanup, target: 30),
+            .nonLocalReturn(value, target: .function(function)),
+            .endNonLocalReturnScope, .label(30), .resumeNonLocalReturn(cleanup),
+            .endNonLocalReturnScope, .label(20),
+            .endNonLocalReturnScope, .label(10), .resumeNonLocalReturn(callerCleanup),
+            .returnUnit,
+        ]
+        let lowered = InlineLoweringPass().resolveNonLocalReturnScopes(
+            body, locations: [], arena: arena, unitType: types.unitType, returnType: types.unitType
+        )
+        #expect(lowered.body == [
+            .copy(from: value, to: cleanup), .jump(30), .label(30),
+            .copy(from: cleanup, to: result), .jump(20), .label(20), .label(10), .returnUnit,
+        ])
+        #expect(arena.exprType(cleanup) == types.intType)
+    }
+
+    @Test
     func nonLocalReturnScopesRouteInnermostCleanupThenOuterCleanup() {
         let arena = KIRArena()
         let types = TypeSystem()

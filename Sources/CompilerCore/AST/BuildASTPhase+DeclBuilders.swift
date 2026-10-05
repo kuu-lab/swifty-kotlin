@@ -243,6 +243,7 @@ extension BuildASTPhase {
             modifiers: modifiers,
             annotations: annotations,
             superTypes: superTypeEntries.map(\.typeRef),
+            superTypeEntries: superTypeEntries,
             superTypeConstructorArgs: superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? [],
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
             initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),
@@ -758,8 +759,7 @@ extension BuildASTPhase {
         let isValProperty = modifierPrefixTokens.contains(where: { $0.kind == .keyword(.val) })
         let isVarProperty = modifierPrefixTokens.contains(where: { $0.kind == .keyword(.var) })
         let defaultValueExpr: ExprID?
-        if let defaultTokens = split.defaultTokens?
-            .filter({ $0.kind != .symbol(.semicolon) }),
+        if let defaultTokens = split.defaultTokens,
             !defaultTokens.isEmpty
         {
             let parser = ExpressionParser(

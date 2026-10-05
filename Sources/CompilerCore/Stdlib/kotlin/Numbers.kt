@@ -59,6 +59,7 @@ public fun Long.rotateRight(bitCount: Int): Long =
 // bridge required by the current primitive representation.
 
 @KsSymbolName("kk_int_to_double_bits")
+@PublishedApi
 internal external fun __intToDouble(value: Int): Double
 
 public inline fun Int.toChar(): Char = __charFromCode(this)

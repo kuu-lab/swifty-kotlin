@@ -348,6 +348,12 @@ extension KIRLoweringDriver {
             shared: shared,
             body: &body
         )
+        emitClassDelegationInitializers(
+            ownerSymbol: objectSymbol,
+            receiverID: objectHandleExpr,
+            shared: shared,
+            body: &body
+        )
         emitObjectBodyInitializers(objectDecl, shared: shared, body: &body)
 
         body.append(.label(alreadyInitializedLabel))
@@ -455,6 +461,7 @@ extension KIRLoweringDriver {
             loweredArgs: loweredArgs,
             spreadFlags: superArgs.map(\.isSpread),
             callBinding: callBinding,
+            sourceArgExprs: superArgs.map(\.expr),
             result: resultID,
             shared: shared,
             body: &body
@@ -470,9 +477,8 @@ extension KIRLoweringDriver {
     /// in `VtableOverrideMatching.swift`). Falls back to the first candidate
     /// when nothing narrows cleanly (e.g. a defaulted trailing parameter
     /// omitted at the call site) rather than emitting no super call at all.
-    /// Named objects prefer the Sema call binding and only reach this
-    /// heuristic when none was recorded; object literals still rely on it
-    /// and do not expand omitted default arguments.
+    /// Objects prefer the Sema call binding and only reach this heuristic
+    /// when none was recorded.
     func resolveObjectSuperConstructor(
         candidates: [SymbolID],
         argExprs: [ExprID],

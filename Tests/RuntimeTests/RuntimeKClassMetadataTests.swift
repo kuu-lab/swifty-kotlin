@@ -139,6 +139,23 @@ struct RuntimeKClassMetadataTests {
 
     // MARK: - __kk_kclass_register_metadata C API
 
+    @Test func qualifiedNameUsesMetadataInsteadOfSimpleNameHint() {
+        let typeToken = Int((Int64(1234) << RuntimeTypeTokenEncoding.payloadShift)
+            | RuntimeTypeTokenEncoding.nominalBase)
+        let simpleName = makeRuntimeString("MyAnno")
+        let kclass = __kk_kclass_create(typeToken, simpleName)
+        #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(kclass)) == "MyAnno")
+
+        _ = __kk_kclass_register_metadata(
+            typeToken, makeRuntimeString("annotations.MyAnno"), simpleName,
+            0, 1 << 6, 0, 0, 1
+        )
+
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kclass)) == "MyAnno")
+        #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(kclass)) == "annotations.MyAnno")
+        #expect(runtimeStringFromRaw(__kk_type_token_qualified_name(typeToken, simpleName)) == "annotations.MyAnno")
+    }
+
     @Test func registerMetadataViaCABI() {
         // Create runtime strings for names.
         let qualifiedName = makeRuntimeString("com.example.Animal")

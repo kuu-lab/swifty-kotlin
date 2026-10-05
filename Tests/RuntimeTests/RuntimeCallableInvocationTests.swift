@@ -48,6 +48,23 @@ struct RuntimeCallableInvocationTests {
         #expect(__kk_kcallable_get_metadata(raw, 6) == 0)
     }
 
+    @Test func boxedReferencePreservesCompleteReflectionMetadataWithoutDescription() {
+        let (source, parameters) = function()
+        let wrapper = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: 1, closureRaw: 0, arity: 2))
+        __kk_function_copy_description(source, wrapper)
+        #expect(__kk_kcallable_get_name(wrapper) == __kk_kcallable_get_name(source))
+        #expect(runtimeStorage.withDelegateLock { state in
+            state.callableRefMetadataByValue[wrapper]?.returnTypeRaw == state.callableRefMetadataByValue[source]?.returnTypeRaw
+        })
+        #expect(__kk_kcallable_get_metadata(wrapper, 0) == __kk_kcallable_get_metadata(source, 0))
+        var thrown = 0
+        #expect(kk_unbox_int(__kk_kcallable_call(wrapper, list([kk_box_int(3), kk_box_int(4)]), &thrown)) == 7)
+        #expect(thrown == 0)
+        let map = registerRuntimeObject(RuntimeMapBox(keys: [parameters[1]], values: [kk_box_int(11)]))
+        #expect(kk_unbox_int(__kk_kcallable_call_by(wrapper, map, &thrown)) == 19)
+        #expect(thrown == 0)
+    }
+
     @Test func invalidArityAndMissingRequiredArgumentsThrow() {
         let (raw, _) = function()
         var thrown = 0

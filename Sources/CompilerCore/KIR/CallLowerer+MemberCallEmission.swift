@@ -229,6 +229,12 @@ extension CallLowerer {
         let knownNames = KnownCompilerNames(interner: interner)
         var finalArguments = arguments
         if let chosenCallee,
+           let localValue = driver.ctx.localValue(for: chosenCallee),
+           let callable = driver.ctx.callableValueInfo(for: localValue)
+        {
+            finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
+        }
+        if let chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "kk_coroutine_scope_async",
            finalArguments.count == 4
         {
@@ -888,7 +894,9 @@ extension CallLowerer {
             return
         }
         var callArguments = finalArguments
-        if loweredCalleeText == "__kk_system_currentTimeMillis"
+        if let chosenCallee, runtimeExternalOmitsObjectReceiver(chosenCallee, sema: sema) {
+            callArguments = Array(callArguments.dropFirst())
+        } else if loweredCalleeText == "__kk_system_currentTimeMillis"
             || loweredCalleeText == "__kk_system_nanoTime"
             || loweredCalleeText == "__kk_system_process_start_nanos"
             || loweredCalleeText == "__kk_system_gc"

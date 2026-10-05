@@ -35,7 +35,8 @@ public inline operator fun <K, V> Map<out K, V>.get(key: K): V? =
     (this as Map<K, V>).get(key)
 
 @KsSymbolName("__kk_mutable_map_iterator")
-private external fun <K, V> __kk_mutable_map_iterator(
+@PublishedApi
+internal external fun <K, V> __kk_mutable_map_iterator(
     map: MutableMap<K, V>
 ): MutableIterator<MutableMap.MutableEntry<K, V>>
 
@@ -46,7 +47,8 @@ private external fun <K, V> __kk_mutable_map_withDefault(
 ): MutableMap<K, V>
 
 @KsSymbolName("__kk_mutable_map_remove")
-private external fun <K, V> __kk_mutable_map_remove(map: MutableMap<K, V>, key: K): V?
+@PublishedApi
+internal external fun <K, V> __kk_mutable_map_remove(map: MutableMap<K, V>, key: K): V?
 
 // Kotlin 2.3.10 defines Map.contains as the key-membership operator.
 public inline operator fun <K, V> Map<out K, V>.contains(key: K): Boolean = containsKey(key)

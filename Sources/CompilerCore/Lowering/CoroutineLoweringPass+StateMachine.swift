@@ -50,6 +50,12 @@ extension CoroutineLoweringPass {
         // CORO-004: runtime suspend callees that take the caller continuation as a
         // trailing argument so they can resume the awaiting coroutine without blocking.
         let continuationConsumingRuntimeCallees: Set<InternedString> = [
+            interner.intern("kk_suspend_function_invoke_0"),
+            interner.intern("kk_suspend_function_invoke"),
+            interner.intern("kk_suspend_function_invoke_2"),
+            interner.intern("kk_suspend_function_invoke_3"),
+            interner.intern("kk_suspend_function_invoke_4"),
+            interner.intern("kk_suspend_function_invoke_5"),
             // KSP-1566: bundled `delay` overloads are declared straight on the
             // `kk_kxmini_delay` bridge, whose external suspend call emits the
             // cdecl directly with the caller continuation appended.

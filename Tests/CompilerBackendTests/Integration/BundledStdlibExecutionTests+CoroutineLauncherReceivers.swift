@@ -2,6 +2,29 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testFlowSuspendCollectorFailureReachesCatchOutsideRunBlockingHelper(useArtifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.flow.*
+            import kotlinx.coroutines.runBlocking
+
+            fun runCollect(source: Flow<Int>, action: suspend (Int) -> Unit) = runBlocking {
+                source.collect(action)
+            }
+
+            fun main() {
+                val failure: suspend (Int) -> Unit = { throw IllegalArgumentException("converted") }
+                try { runCollect(flowOf(1), failure) }
+                catch (e: IllegalArgumentException) { println("specific:${e.message}") }
+                catch (e: Throwable) { println("other:${e.message}") }
+            }
+            """,
+            expectedOutput: "specific:converted\n",
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testProduceNestedLambdaParametersInsideRunBlocking(useArtifact: Bool) throws {
         try compileAndRunKotlin(
             """

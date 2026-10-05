@@ -29,6 +29,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        guard calleeName != knownNames.contains else { return nil }
 
         let memberName = interner.resolve(calleeName)
         if sema.bindings.exprTypes[receiverID] == nil {
@@ -1858,7 +1859,7 @@ extension CallTypeChecker {
         case knownNames.filterNotNull, knownNames.unzip, knownNames.eachCount:
             return argCount == 0
         case knownNames.get, knownNames.getOrNull, knownNames.elementAtOrNull,
-             knownNames.contains, knownNames.containsAll, knownNames.indexOf, knownNames.lastIndexOf, knownNames.indexOfFirst, knownNames.indexOfLast, knownNames.binarySearch,
+             knownNames.containsAll, knownNames.indexOf, knownNames.lastIndexOf, knownNames.indexOfFirst, knownNames.indexOfLast, knownNames.binarySearch,
              knownNames.sortedBy, knownNames.find, knownNames.reduce, knownNames.reduceOrNull, knownNames.reduceIndexedOrNull, knownNames.runningReduce, knownNames.runningReduceIndexed, knownNames.scanReduce, knownNames.take, knownNames.drop, knownNames.zip,
              knownNames.filterIndexed,
              knownNames.sortedByDescending, knownNames.sortedWith, knownNames.partition,

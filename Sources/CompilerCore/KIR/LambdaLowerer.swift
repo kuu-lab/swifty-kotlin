@@ -4,6 +4,22 @@ struct KIRCallableValueInfo {
     let captureArguments: [KIRExprID]
     /// True when lambda has closure param for C HOF ABI (filter, map, etc.).
     let hasClosureParam: Bool
+    /// Raw entry for trampolines that must own the lambda's continuation frames.
+    let unboxedSymbol: SymbolID?
+
+    init(
+        symbol: SymbolID,
+        callee: InternedString,
+        captureArguments: [KIRExprID],
+        hasClosureParam: Bool,
+        unboxedSymbol: SymbolID? = nil
+    ) {
+        self.symbol = symbol
+        self.callee = callee
+        self.captureArguments = captureArguments
+        self.hasClosureParam = hasClosureParam
+        self.unboxedSymbol = unboxedSymbol
+    }
 }
 
 final class LambdaLowerer {
@@ -102,7 +118,7 @@ final class LambdaLowerer {
             "kk_suspend_function_invoke_5",
             "kk_suspend_coroutine",
             "kk_with_timeout",
-            "kk_with_timeout_or_null",
+            "kk_with_timeout_or_null_throwing",
             "kk_flow_collect",
             "__kk_flow_collectLatest",
             "kk_flow_emit",
@@ -326,6 +342,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
         for capture in functionCaptureBindings {
@@ -440,16 +457,18 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        let returnedBody = boxErasedReturnValue(
-            loweredBody,
-            returnType: substitutedReturnType,
-            returnsErasedGeneric: returnsErasedGeneric,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &lambdaBody
-        )
-        lambdaBody.append(.returnValue(returnedBody))
+        if !driver.controlFlowLowerer.isTerminatedExpr(loweredBody, arena: arena, sema: sema) {
+            let returnedBody = boxErasedReturnValue(
+                loweredBody,
+                returnType: substitutedReturnType,
+                returnsErasedGeneric: returnsErasedGeneric,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &lambdaBody
+            )
+            lambdaBody.append(.returnValue(returnedBody))
+        }
         lambdaBody.append(.endBlock)
 
         // Coroutine launcher lambdas with an explicit receiver use launcher slot 0
@@ -560,6 +579,7 @@ final class LambdaLowerer {
            !needsClosureParam,
            !isSamConversion,
            !sema.bindings.isCoroutineLauncherLambdaExpr(exprID),
+           !sema.bindings.rawSuspendEntryLambdaExprIDs.contains(exprID),
            let functionType
         {
             if let materialized = materializeEscapingCallableValue(
@@ -576,6 +596,12 @@ final class LambdaLowerer {
                 return materialized
             }
         }
+        if let functionType {
+            emitRawFunctionArityTag(
+                lambdaValueExpr, functionType: functionType, sema: sema,
+                arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         emitFunctionDescription(
             value: lambdaValueExpr,
             description: "kotlin.Function\(lambdaParameterTypes.count)",
@@ -583,6 +609,29 @@ final class LambdaLowerer {
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
         return lambdaValueExpr
+    }
+
+    private func emitRawFunctionArityTag(
+        _ callableExpr: KIRExprID,
+        functionType: FunctionType,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let arity = Int64(functionType.contextReceivers.count
+            + (functionType.receiver == nil ? 0 : 1) + functionType.params.count)
+        let arityExpr = arena.appendExpr(.intLiteral(arity), type: sema.types.intType)
+        instructions.append(.constValue(result: arityExpr, value: .intLiteral(arity)))
+        // Preserve the raw symbol and capture ABI for inline/HOF/coroutine lowering.
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_function_value_tag_arity"),
+            arguments: [callableExpr, arityExpr],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
     }
 
     /// Re-establishes one captured symbol's value inside a lambda body's
@@ -645,16 +694,33 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // The kk_function_create_N ABI has no receiver slot, so a receiver-bearing
-        // callable (e.g. `DeepRecursiveScope<T, R>.(T) -> R`) cannot be boxed here
-        // without dropping the receiver. Keep the raw lambda instead: call sites
-        // that consume such callables adapt them through
-        // makeCollectionHOFCallableAdapter, which forwards the receiver explicitly.
-        guard functionType.receiver == nil else {
-            return nil
+        if functionType.receiver != nil, !functionType.isSuspend {
+            // Generic receiver callbacks already use the callee's erased return ABI.
+            guard lambdaReturnType == functionType.returnType else { return nil }
+            let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
+            instructions.append(.constValue(result: callable, value: .symbolRef(lambdaSymbol)))
+            driver.ctx.registerCallableValue(
+                callable,
+                symbol: lambdaSymbol,
+                callee: syntheticLambdaName(for: exprID, interner: interner),
+                captureArguments: captureArguments,
+                hasClosureParam: false
+            )
+            return driver.callLowerer.materializeFunctionValueArgument(
+                loweredArgID: callable,
+                argExprID: exprID,
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
+        // Suspend values count the receiver as the first invocation argument.
+        let invocationTypes = functionType.receiver.map { [$0] + functionType.params }
+            ?? functionType.params
         let createCallee: InternedString
-        switch functionType.params.count {
+        switch invocationTypes.count {
         case 0:
             createCallee = interner.intern("kk_function_create_0")
         case 1:
@@ -677,7 +743,7 @@ final class LambdaLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        let valueParams: [KIRParameter] = functionType.params.enumerated().map { index, type in
+        let valueParams: [KIRParameter] = invocationTypes.enumerated().map { index, type in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
                 type: type
@@ -814,7 +880,8 @@ final class LambdaLowerer {
             symbol: adapterSymbol,
             callee: adapterName,
             captureArguments: [closureObj],
-            hasClosureParam: false
+            hasClosureParam: true,
+            unboxedSymbol: lambdaSymbol
         )
         emitFunctionDescription(
             value: materializedExpr,
@@ -1372,6 +1439,7 @@ final class LambdaLowerer {
         }()
         var captureArguments: [KIRExprID] = []
         if let receiverExpr,
+           !isUnbound,
            targetSymbol.flatMap({ sema.symbols.symbol($0)?.kind }) != .constructor
         {
             let loweredReceiver = driver.lowerExpr(
@@ -1891,14 +1959,20 @@ final class LambdaLowerer {
         // Returning a tagged callable reference here would pass the reflection wrapper
         // object to runtime HOF entry points instead of the generated thunk symbol.
         if needsHOFWrapper {
+            if sema.bindings.callableRefKind(for: exprID) == .functionRef,
+               case let .functionType(functionType) = sema.types.kind(of: callableType)
+            {
+                emitRawFunctionArityTag(
+                    callableExpr, functionType: functionType, sema: sema,
+                    arena: arena, interner: interner, instructions: &instructions
+                )
+            }
             return callableExpr
         }
 
-        // An implicit `::member` returned from its receiver scope outlives
-        // the KIR callable-value table: another function cannot recover its
-        // captured `this` from that compile-time map. Box it using the same
-        // closure adapter as an escaping lambda, so runtime invocation reads
-        // the receiver from the closure object.
+        // Bound references need per-value storage: the same target pointer can
+        // also represent an unbound reference with a different arity. Boxing
+        // preserves the receiver when the value escapes the KIR callable table.
         let callableValue: KIRExprID
         if !captureArguments.isEmpty,
            case let .functionType(functionType) = sema.types.kind(of: callableType),
@@ -2202,7 +2276,8 @@ final class LambdaLowerer {
         let arity: Int64
         let isSuspendFlag: Int64
         if case let .functionType(functionType) = sema.types.kind(of: callableType) {
-            arity = Int64(functionType.params.count)
+            arity = Int64(functionType.contextReceivers.count
+                + (functionType.receiver == nil ? 0 : 1) + functionType.params.count)
             isSuspendFlag = functionType.isSuspend ? 1 : 0
         } else {
             // Property references have arity 0 (no value params, just a getter).
@@ -2323,6 +2398,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 
@@ -2363,16 +2439,18 @@ final class LambdaLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &lambdaBody
         )
-        let returnedBody = boxErasedReturnValue(
-            loweredBody,
-            returnType: substitutedReturnType,
-            returnsErasedGeneric: returnsErasedGeneric,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &lambdaBody
-        )
-        lambdaBody.append(.returnValue(returnedBody))
+        if !driver.controlFlowLowerer.isTerminatedExpr(loweredBody, arena: arena, sema: sema) {
+            let returnedBody = boxErasedReturnValue(
+                loweredBody,
+                returnType: substitutedReturnType,
+                returnsErasedGeneric: returnsErasedGeneric,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &lambdaBody
+            )
+            lambdaBody.append(.returnValue(returnedBody))
+        }
         lambdaBody.append(.endBlock)
 
         // See the matching comment in lowerLambdaLiteralExpr: the expected/
@@ -2455,6 +2533,12 @@ final class LambdaLowerer {
             hasClosureParam: false
         )
 
+        if let functionType {
+            emitRawFunctionArityTag(
+                lambdaValueExpr, functionType: functionType, sema: sema,
+                arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         return lambdaValueExpr
     }
 }

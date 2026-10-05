@@ -424,6 +424,16 @@ extension DataFlowSemaPhase {
             // for runtime-created objects (e.g. CharSequence.length at slot 2).
             .filter { !$0.flags.contains(.extensionMemberAlias) }
 
+        if nominalSymbol.fqName.map(interner.resolve) == ["kotlin", "coroutines", "CoroutineContext"] {
+            // The runtime bridges use these slots for source-defined contexts.
+            let bridgeMethods = ["get", "fold", "plus", "minusKey"]
+            return methods.sorted { lhs, rhs in
+                let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
+                let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
+                return lhsSlot == rhsSlot ? lhs.id.rawValue < rhs.id.rawValue : lhsSlot < rhsSlot
+            }
+        }
+
         let isList = nominalSymbol.fqName.count == 3
             && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
             && interner.resolve(nominalSymbol.fqName[1]) == "collections"

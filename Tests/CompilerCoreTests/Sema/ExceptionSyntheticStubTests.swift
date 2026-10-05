@@ -257,6 +257,68 @@ struct ExceptionSyntheticStubTests {
         _ = try sharedSourceSema()
     }
 
+    @Test func testStringIndexOutOfBoundsExceptionSurfaceIsRegistered() throws {
+        let (sema, interner) = try sharedSema()
+        let exceptionFQName = ["java", "lang", "StringIndexOutOfBoundsException"].map { interner.intern($0) }
+        let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+        #expect(sema.symbols.symbol(exceptionSymbol)?.kind == .class)
+        #expect(!(sema.symbols.symbol(exceptionSymbol)?.flags.contains(.synthetic) ?? true))
+
+        let parentFQName = ["kotlin", "IndexOutOfBoundsException"].map { interner.intern($0) }
+        let parentSymbol = try #require(sema.symbols.lookup(fqName: parentFQName))
+        #expect(sema.symbols.directSupertypes(for: exceptionSymbol).contains(parentSymbol))
+
+        let exceptionType = sema.types.make(.classType(ClassType(
+            classSymbol: exceptionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let constructors = sema.symbols.lookupAll(fqName: exceptionFQName + [interner.intern("<init>")]).filter {
+            sema.symbols.symbol($0)?.kind == .constructor
+        }
+        let expected: [([TypeID], String?)] = [
+            ([], "__kk_string_index_out_of_bounds_exception_new"),
+            ([sema.types.makeNullable(sema.types.stringType)], "__kk_string_index_out_of_bounds_exception_new_message"),
+            ([sema.types.intType], nil),
+        ]
+        #expect(constructors.count == expected.count)
+        for (parameterTypes, linkName) in expected {
+            let constructor = try #require(constructors.first {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
+            })
+            #expect(sema.symbols.functionSignature(for: constructor)?.returnType == exceptionType)
+            #expect(sema.symbols.externalLinkName(for: constructor) == linkName)
+        }
+    }
+
+    @Test func testStringIndexOutOfBoundsExceptionResolvesInSource() throws {
+        let sources = [
+            """
+            fun noArg(): IndexOutOfBoundsException = StringIndexOutOfBoundsException()
+            fun message(m: String?): Throwable = StringIndexOutOfBoundsException(m)
+            fun index(i: Int): RuntimeException = StringIndexOutOfBoundsException(i)
+            fun catchString(): String = try { "abc"[5].toString() }
+                catch (e: StringIndexOutOfBoundsException) { e.message ?: "string" }
+                catch (e: IndexOutOfBoundsException) { "parent" }
+            """,
+            """
+            import java.lang.StringIndexOutOfBoundsException as StringBounds
+            fun catchAlias(): String = try { throw StringBounds("alias") }
+                catch (e: StringBounds) { e.message ?: "alias" }
+            """,
+            """
+            import java.lang.StringIndexOutOfBoundsException
+            fun catchQualified(): Throwable = try { throw StringIndexOutOfBoundsException("qualified") }
+                catch (e: java.lang.StringIndexOutOfBoundsException) { e }
+            """,
+        ].enumerated().map { index, source in "package stringBounds\(index)\n\(source)" }
+        try withTemporaryFiles(contents: sources) { paths in
+            let context = makeCompilationContext(inputs: paths)
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        }
+    }
+
     @Test func testNegativeArraySizeExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try sharedSema()
 

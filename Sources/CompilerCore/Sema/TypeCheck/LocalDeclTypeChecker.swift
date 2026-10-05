@@ -144,6 +144,11 @@ final class LocalDeclTypeChecker {
         }
         sema.symbols.setPropertyType(localType, for: localSymbol)
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
+        if isMutable, initializer != nil, !isDelegated,
+           ctx.dataFlow.localStability.isNeverReassigned(id)
+        {
+            ctx.dataFlow.stableMutableReceivers.insert(localSymbol)
+        }
         sema.bindings.bindIdentifier(id, symbol: localSymbol)
         // Propagate collection marks through local variable declarations
         // so that `val list = listOf(1,2,3); list.size` still recognizes
@@ -175,8 +180,9 @@ final class LocalDeclTypeChecker {
                     sema.bindings.markFloatingPointRangeExpr(id)
                     sema.bindings.markFloatingPointRangeSymbol(localSymbol)
                     if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: initializer) {
-                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
-                        sema.bindings.bindFloatingPointRangeElementType(elementType, forSymbol: localSymbol)
+                        let endExclusive = sema.bindings.isOpenFloatingPointRangeExpr(initializer)
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id, endExclusive: endExclusive)
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forSymbol: localSymbol, endExclusive: endExclusive)
                     }
                 }
             }
@@ -241,6 +247,7 @@ final class LocalDeclTypeChecker {
                     diagnostics: ctx.semaCtx.diagnostics
                 )
                 locals[name] = (declaredType, local.symbol, local.isMutable, true)
+                locals.invalidateMembers(root: local.symbol)
                 if ctx.sema.bindings.isFlowExpr(value) {
                     ctx.sema.bindings.markFlowSymbol(local.symbol)
                     if let flowElementType = ctx.sema.bindings.flowElementType(forExpr: value) {

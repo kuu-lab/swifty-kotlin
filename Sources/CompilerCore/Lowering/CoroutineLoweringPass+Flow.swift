@@ -265,7 +265,7 @@ extension CoroutineLoweringPass {
             case let .jumpIfNotNull(value, _), let .rethrow(value),
                  let .returnValue(value), let .storeGlobal(value, _):
                 return [value]
-            case let .nonLocalReturn(value):
+            case let .nonLocalReturn(value, _):
                 return value.map { [$0] } ?? []
             default:
                 return []
@@ -397,6 +397,7 @@ extension CoroutineLoweringPass {
                 }
             }
         }
+        let freshFunctions = freshFlowFunctions(module: module, ctx: ctx)
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
 
@@ -834,7 +835,7 @@ extension CoroutineLoweringPass {
                 isFlowScopeFunction: isFlowScopeFunction(function)
             )
 
-            updated.replaceBody(loweredBody)
+            updated.replaceBody(cleanUpOwnedFlows(loweredBody, module: module, ctx: ctx, freshFunctions: freshFunctions))
             return updated
         }
         module.arena.transformFunctions(transformFunction)
