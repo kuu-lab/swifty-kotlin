@@ -410,7 +410,8 @@ extension BuildASTPhase.ExpressionParser {
             end = labelToken.range.end
         }
 
-        let value = parseExpression(minPrecedence: 0)
+        // An else clause terminates a bare return in the enclosing if branch.
+        let value = matches(.keyword(.else)) ? nil : parseExpression(minPrecedence: 0)
         if let value, let valueEnd = astArena.exprRange(value)?.end {
             end = valueEnd
         }

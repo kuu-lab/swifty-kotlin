@@ -46,9 +46,17 @@ extension BuildKIRRegressionTests {
         #expect(nonLocalLambdas.allSatisfy { $0.isInlineOnly })
         #expect(lambdas.count == 8)
         #expect(lambdas.filter { !$0.isInlineOnly }.count == 5)
+        let nonLocalSymbols = Set(nonLocalLambdas.map(\.symbol))
+        // Crossinline arguments may need adapters, but non-local returns
+        // must remain in their inline-only lambdas.
         #expect(!module.arena.declarations.contains { declaration in
-            guard case let .function(function) = declaration else { return false }
-            return context.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+            guard case let .function(function) = declaration,
+                  context.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+            else { return false }
+            return function.body.contains { instruction in
+                guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return false }
+                return nonLocalSymbols.contains(symbol)
+            }
         })
     }
 }
