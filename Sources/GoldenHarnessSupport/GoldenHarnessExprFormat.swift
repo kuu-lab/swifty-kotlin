@@ -117,7 +117,7 @@ enum GoldenHarnessExprFormat {
         case let .callableRef(receiver, member, _):
             let renderedReceiver = receiver.map { ctx.exprKey($0) } ?? "_"
             return "callableRef recv=\(renderedReceiver) member=\(interner.resolve(member))"
-        case let .localFunDecl(name, valueParams, returnType, body, isSuspend, _):
+        case let .localFunDecl(name, receiverType, valueParams, returnType, body, isSuspend, _):
             let params = valueParams.map { interner.resolve($0.name) }.joined(separator: ",")
             let bodyStr = switch body {
             case let .block(exprs, _):
@@ -128,7 +128,8 @@ enum GoldenHarnessExprFormat {
                 "unit"
             }
             let retStr = returnType.map { ctx.renderTypeRef($0) } ?? "nil"
-            return "localFunDecl \(interner.resolve(name))\(isSuspend ? " suspend=1" : "") params=[\(params)] returnType=\(retStr) body=\(bodyStr)"
+            let receiverStr = receiverType.map { " receiver=\(ctx.renderTypeRef($0))" } ?? ""
+            return "localFunDecl \(interner.resolve(name))\(receiverStr)\(isSuspend ? " suspend=1" : "") params=[\(params)] returnType=\(retStr) body=\(bodyStr)"
         case let .localNominalDecl(declID, _):
             return "localNominalDecl decl=\(declID.rawValue)"
         case let .blockExpr(statements, trailingExpr, _):

@@ -75,6 +75,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// vtable/itable slot or be treated as a real member of the nominal
     /// (KUU-545).
     public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
+    public static let localFunction = SymbolFlags(rawValue: 1 << 25)
 }
 
 public struct SemanticSymbol: Sendable {
