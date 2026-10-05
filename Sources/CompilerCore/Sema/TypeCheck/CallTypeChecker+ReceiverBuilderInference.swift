@@ -119,6 +119,13 @@ extension CallTypeChecker {
             signature: signature, substitution: solution.substitution,
             typeVarBySymbol: variables, range: range, typeSystem: sema.types
         ) {
+            // Collection builders can still infer element/key/value types from
+            // mutations in the dedicated path when this callback session has
+            // no evidence. Preserve successful inference from other arguments
+            // or an expected type before falling back.
+            if hasGenericCollectionReceiverLambda(signature: signature, sema: sema, interner: ctx.interner) {
+                return nil
+            }
             ctx.semaCtx.diagnostics.emit(diagnostic)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }

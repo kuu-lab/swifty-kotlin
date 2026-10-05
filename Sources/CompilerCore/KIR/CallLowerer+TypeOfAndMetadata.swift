@@ -326,6 +326,10 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        emitKClassDisplayNameRegistration(
+            symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
 
         // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(

@@ -107,6 +107,31 @@ extension CallLowerer {
             ))
             return result
         }
+        // Enum locals use raw ordinals, while erased collection slots hold
+        // tagged boxes. Normalize before the inherited Enum.equals binding
+        // can box only the argument and compare it against a raw receiver.
+        if op == .equal || op == .notEqual,
+           let lhsType = sema.bindings.exprTypes[lhs],
+           let rhsType = sema.bindings.exprTypes[rhs],
+           lhsType == rhsType,
+           case let .classType(enumType) = sema.types.kind(of: lhsType),
+           enumType.nullability == .nonNull,
+           sema.symbols.symbol(enumType.classSymbol)?.kind == .enumClass
+        {
+            let ordinalLhs = unboxIfEnumTyped(
+                lhsID, staticType: lhsType, sema: sema, arena: arena,
+                interner: interner, into: &instructions
+            )
+            let ordinalRhs = unboxIfEnumTyped(
+                rhsID, staticType: rhsType, sema: sema, arena: arena,
+                interner: interner, into: &instructions
+            )
+            instructions.append(.binary(
+                op: op == .equal ? .equal : .notEqual,
+                lhs: ordinalLhs, rhs: ordinalRhs, result: result
+            ))
+            return result
+        }
         let isKClassEquality = (op == .equal || op == .notEqual)
             && (
                 isKClassReceiverType(

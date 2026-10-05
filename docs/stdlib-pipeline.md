@@ -838,8 +838,17 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-1217 adds one private bridge, `__kk_locale_toString_flat` (reason: memory
+   representation). `Locale` constructor fields reside in `RuntimeLocaleBox`,
+   not Kotlin object slots; the bridge returns their JVM-style text as a flat
+   String. It is shared with Any/print/collection rendering. Public dispatch
+   remains in bundled `java/util/Locale.kt`; no synthetic member is added.
+   `RuntimeABISpec.localeFunctions` registers the ABI and automatically changes
+   the computed `specVersion`. The `__kk_*` export count increases by one.
+
 3. **性能エスケープハッチは実測必須**: ベンチ数値（KSP-INF-007 の基盤）を添付できない限り、
    性能を理由とした Swift 残留・(c) 分類を認めない。
+
 4. **二重 oracle**: 移行タスクは diff_kotlinc ケースに加え、bundled .kt を実行して期待値比較する
    自己完結テスト（KSP-INF-006）を必須にする（テンプレート T 手順7）。
 5. **Capability Matrix**: 言語機能ブロッカーは KSP-CAP-* として独立起票し、各移行タスクは必要 CAP を

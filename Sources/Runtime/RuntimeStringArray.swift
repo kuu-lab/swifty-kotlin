@@ -417,22 +417,55 @@ public func __kk_throwable_toString(
     return Int(bitPattern: runtimeMakeStringPointer(runtimeRenderedExceptionMessage(typeName, message)))
 }
 
+/// Matches the JVM UTF-8 encoder's replacement for malformed UTF-16 at the
+/// console boundary, without changing Kotlin's internal code units.
+func runtimeConsoleString(_ value: String) -> String {
+    var units = KotlinStringSurrogateEncoding.utf16CodeUnits(value)
+    var index = 0
+    while index < units.count {
+        let unit = units[index]
+        if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
+           (0xDC00 ... 0xDFFF).contains(units[index + 1])
+        {
+            index += 2
+            continue
+        }
+        if (0xD800 ... 0xDFFF).contains(unit) {
+            units[index] = 0x003F
+        }
+        index += 1
+    }
+    return String(decoding: units, as: UTF16.self)
+}
+
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
+<<<<<<< HEAD
     Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "")
+=======
+    Swift.print(runtimeConsoleString(message), terminator: "")
+>>>>>>> origin/master
 }
 
 @_cdecl("__kk_println_raw")
 public func __kk_println_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
+<<<<<<< HEAD
     Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "\n")
+=======
+    Swift.print(runtimeConsoleString(message), terminator: "\n")
+>>>>>>> origin/master
 }
 
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
+<<<<<<< HEAD
     FileHandle.standardError.write(Data(KotlinStringSurrogateEncoding.printableString(message).utf8))
+=======
+    FileHandle.standardError.write(Data(runtimeConsoleString(message).utf8))
+>>>>>>> origin/master
     return 0
 }
 
@@ -1262,6 +1295,17 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        // Raw callable references and adapted closure boxes retain reflection
+        // identity in callable metadata rather than an object allocation tag.
+        let isFunctionReference = runtimeStorage.withDelegateLock { state in
+            state.callableRefMetadataByValue[value]?.kind == .function
+        }
+        if isFunctionReference {
+            registerReflectionRuntimeTypeMetadata()
+            if runtimeIsAssignable(sourceTypeID: kFunctionRuntimeTypeID, targetTypeID: payload) {
+                return 1
+            }
+        }
         if runtimeArrayHasType(rawValue: value, typeID: payload) {
             return 1
         }
@@ -1816,6 +1860,15 @@ public func __kk_kclass_register_metadata_v2(
         isFunInterface: (flags & (1 << 12)) != 0
     )
     runtimeKClassMetadataRegistry.register(typeToken: typeToken, entry: entry)
+    return 0
+}
+
+/// Registers a compiler-derived JVM binary name without changing qualifiedName.
+@_cdecl("__kk_kclass_register_display_name")
+public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw: Int) -> Int {
+    if let displayName = extractString(from: UnsafeMutableRawPointer(bitPattern: displayNameRaw)) {
+        runtimeKClassMetadataRegistry.setDisplayName(typeToken: typeToken, displayName: displayName)
+    }
     return 0
 }
 
@@ -2757,6 +2810,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let instantBox = tryCast(raw, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
+    if let localeBox = tryCast(raw, to: RuntimeLocaleBox.self) {
+        return runtimeLocaleToString(localeBox)
+    }
     if let listBox = runtimeListBox(from: value) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
@@ -2803,6 +2859,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
+    }
+    if let kclassBox = tryCast(raw, to: RuntimeKClassBox.self) {
+        return runtimeKClassToString(kclassBox)
     }
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)

@@ -96,6 +96,81 @@ struct ContractCallSiteEffectsTests {
     }
 
     @Test
+    func typeImplicationsNarrowOnlyMatchingBranches() throws {
+        let declarations = """
+        import kotlin.contracts.*
+        @OptIn(ExperimentalContracts::class)
+        inline fun <reified T> hasType(x: Any?): Boolean {
+            contract { returns(true) implies (x is T) }
+            return x is T
+        }
+        @OptIn(ExperimentalContracts::class)
+        fun isStr(x: Any?): Boolean {
+            contract { returns(true) implies (x is String) }
+            return x is String
+        }
+        @OptIn(ExperimentalContracts::class)
+        fun notStr(x: Any?): Boolean {
+            contract { returns(false) implies (x is String) }
+            return x !is String
+        }
+        @OptIn(ExperimentalContracts::class)
+        fun ensureStr(x: Any?) {
+            contract { returns() implies (x is String) }
+            if (x !is String) throw IllegalArgumentException()
+        }
+        @OptIn(ExperimentalContracts::class)
+        fun strResult(x: Any?): String? {
+            contract { returnsNotNull() implies (x is String) }
+            return if (x is String) x else null
+        }
+        @OptIn(ExperimentalContracts::class)
+        fun bothStr(a: Any?, b: Any?): Boolean {
+            contract {
+                returns(true) implies (a is String)
+                returns(true) implies (b is String)
+            }
+            return a is String && b is String
+        }
+        """
+        let positive = [
+            "if (hasType<String>(x)) println(x.length)",
+            "class String {}; if (isStr(x)) println(x.length)",
+            "if (isStr(x)) println(x.length)",
+            "if (!notStr(x)) println(x.length)",
+            "if (notStr(x)) {} else println(x.length)",
+            "if (isStr(x) == true) println(x.length)",
+            "if (false == notStr(x)) println(x.length)",
+            "if (isStr(x) && x.length > 0) println(x.length)",
+            "if (!isStr(x)) return; println(x.length)",
+            "if (bothStr(b = y, a = x)) println(x.length + y.length)",
+            "ensureStr(x); println(x.length)",
+            "if (strResult(x) != null) println(x.length)",
+        ]
+        let negative = [
+            "isStr(x); println(x.length)",
+            "if (!isStr(x)) println(x.length)",
+            "if (notStr(x)) println(x.length)",
+            "if (isStr(x) || isStr(y)) println(x.length)",
+            "if (isStr(x)) {}; println(x.length)",
+            "if (strResult(x) == null) println(x.length)",
+        ]
+        let sources = (positive + negative).enumerated().map { index, body in
+            "package typecase\(index)\n" + declarations + "\nfun probe(x: Any?, y: Any?) { \(body) }"
+        }
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths.prefix(positive.count) {
+                #expect(diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }.isEmpty)
+            }
+            for path in paths.dropFirst(positive.count) {
+                #expect(diagnosticsForPath(path, in: ctx).contains { $0.severity == .error })
+            }
+        }
+    }
+
+    @Test
     func onlyGuaranteedInvocationsInitializeLocals() throws {
         let kinds = ["EXACTLY_ONCE", "AT_LEAST_ONCE", "AT_MOST_ONCE", "UNKNOWN", ""]
         let sources = kinds.enumerated().map { index, kind in
@@ -126,8 +201,8 @@ struct ContractCallSiteEffectsTests {
         }
     }
 
-    @Test
-    func importedImplicationsNarrowCallArguments() throws {
+    @Test(arguments: [false, true])
+    func importedImplicationsNarrowCallArguments(isType: Bool) throws {
         let libDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
         try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
@@ -135,15 +210,36 @@ struct ContractCallSiteEffectsTests {
         let manifest = """
         {"formatVersion": 1, "moduleName": "Contracts", "metadata": "metadata.bin"}
         """
-        let record = MetadataRecord(
+        var record = MetadataRecord(
             kind: .function, mangledName: "_KK_present", fqName: "test.present", arity: 1,
-            typeSignature: "F1<Q<Lkotlin_String;>,Z>",
-            contractImplicationEffects: [ContractImplicationEffect(parameterIndex: 0, returnCondition: .returnsTrue, argumentCondition: .nonNull)],
+            typeSignature: isType ? "F1<Q<A>,Z>" : "F1<Q<Lkotlin_String;>,Z>",
+            contractImplicationEffects: [ContractImplicationEffect(parameterIndex: 0, returnCondition: .returnsTrue, argumentCondition: isType ? .isType : .nonNull, targetTypeSignature: isType ? "Lkotlin_String;" : nil)],
             valueParameterNames: ["x"]
         )
+        if isType {
+            try withTemporaryFile(contents: """
+            package test
+            import kotlin.contracts.*
+            @OptIn(ExperimentalContracts::class)
+            fun present(x: Any?): Boolean {
+                contract { returns(true) implies (x is String) }
+                return x is String
+            }
+            """) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+                #expect(!ctx.diagnostics.hasError)
+                let sema = try #require(ctx.sema)
+                record = try #require(MetadataEncoder().buildRecords(
+                    symbols: sema.symbols, types: sema.types, moduleName: "Contracts",
+                    interner: ctx.interner, functionLinkNames: [:]
+                ).first { $0.fqName == "test.present" })
+                #expect(record.contractImplicationEffects.first?.targetTypeSignature != nil)
+            }
+        }
         try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
         try MetadataEncoder().serialize([record]).write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
-        try withTemporaryFile(contents: "import test.present\nfun probe(x: String?) { if (present(x)) println(x.length) }") { path in
+        try withTemporaryFile(contents: "import test.present\nfun probe(x: \(isType ? "Any?" : "String?")) { if (present(x)) println(x.length) }") { path in
             let ctx = makeCompilationContext(inputs: [path], searchPaths: [libDir.path])
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")

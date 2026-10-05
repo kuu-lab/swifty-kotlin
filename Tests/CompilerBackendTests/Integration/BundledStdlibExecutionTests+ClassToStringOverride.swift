@@ -7,6 +7,62 @@ import Testing
 // when toString() is called directly -- see that file's header comment for
 // the full root-cause writeup.
 extension BundledStdlibExecutionTests {
+    // KUU-1254: cover both imported-artifact and source-injected stdlib paths.
+    @Test(arguments: [true, false])
+    func testValueClassSynthesizedToString(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            @JvmInline value class VC(val v: Int)
+            @JvmInline value class VC2(val v: Int) { override fun toString() = "custom$v" }
+            @JvmInline value class WS(val s: String)
+            @JvmInline value class Meters(val v: Double)
+            @JvmInline value class Maybe(val v: Int?)
+            class Outer {
+                @JvmInline value class Nested(val n: Int)
+            }
+            data class Holder(val value: VC)
+            fun main() {
+                println(VC(5))
+                println(VC(5).toString())
+                println(VC2(5))
+                println(WS("abc"))
+                println(listOf(VC(1), VC(2)))
+                println("template=${VC(6)}")
+                val erased: Any = VC(7)
+                println(erased.toString())
+                println("$erased")
+                println(Meters(1.5))
+                println(Maybe(null))
+                println(Maybe(9))
+                println(Outer.Nested(8))
+                println(Holder(VC(10)))
+                println(VC(5) == VC(5))
+                println(VC(5).hashCode())
+            }
+            """,
+            expectedOutput:
+                """
+                VC(v=5)
+                VC(v=5)
+                custom5
+                WS(s=abc)
+                [VC(v=1), VC(v=2)]
+                template=VC(v=6)
+                VC(v=7)
+                VC(v=7)
+                Meters(v=1.5)
+                Maybe(v=null)
+                Maybe(v=9)
+                Nested(n=8)
+                Holder(value=VC(v=10))
+                true
+                5
+                """ + "\n",
+            moduleName: "KUU1254ValueClassToString",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     // KUU-599 regression: an imported generic collection HOF passes a boxed
     // value-class element through an erased callback ABI. Double must be
     // unboxed before the lambda reads its property, and a value class's

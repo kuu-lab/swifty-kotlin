@@ -264,6 +264,68 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testFlowTakeFirstAbort(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/flow_take_first_abort.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "FlowTakeFirstAbort",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                Requested element count 0 should be positive
+                Requested element count -1 should be positive
+                start
+                cleanup
+                [1]
+                start
+                cleanup
+                [1]
+                start
+                second
+                cleanup
+                [1, 2]
+                start
+                cleanup
+                1
+                start
+                cleanup
+                [1]
+                start
+                cleanup
+                1
+                [1, 2]
+                []
+                null
+                empty
+                start
+                cleanup
+                downstream
+                upstream
+
+                """)
+        }
+    }
+
     @Test
     func testFlowTerminalLogicThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -939,6 +1001,52 @@ struct StdlibArtifactRegressionTests {
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "caught: shared boom\n")
+        }
+    }
+
+    /// KUU-1040: primary constructor properties can override the open message
+    /// and cause properties through the bundled exception hierarchy in both modes.
+    @Test(arguments: [false, true])
+    func testThrowableConstructorPropertyOverrides(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/throwable_constructor_property_override.kt"
+        ), encoding: .utf8)
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ThrowableConstructorPropertyOverrides",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            invalid input
+            true
+            invalid input
+            root
+            invalid input
+            true
+            missing field
+            true
+            invalid input
+            root
+
+            """)
         }
     }
 
@@ -1763,10 +1871,8 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-016: imported synthetic enum entries for
-    /// `CharDirectionality` must round-trip as compile-time ordinals so the
-    /// shared stdlib `Char.directionality` extension can compare directionality
-    /// values by ordinal.
+    /// STDLIB-ARTIFACT-016: source-backed CharDirectionality entries must
+    /// preserve ordinal comparisons through the shared stdlib artifact.
     @Test
     func testCharDirectionalityConstantsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()

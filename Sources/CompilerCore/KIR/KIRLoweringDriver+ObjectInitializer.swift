@@ -530,10 +530,9 @@ extension KIRLoweringDriver {
                 guard let initializer = property.initializer else { continue }
                 let initializerValue = lowerExpr(initializer, shared: shared, emit: &body)
                 let targetSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-                let propertyType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
-                let targetRef = arena.appendExpr(.symbolRef(targetSymbol), type: propertyType)
-                body.append(.constValue(result: targetRef, value: .symbolRef(targetSymbol)))
-                body.append(.copy(from: initializerValue, to: targetRef))
+                // Initialization writes storage directly, without invoking a
+                // virtual getter or setter synthesized for this property.
+                body.append(.storeGlobal(value: initializerValue, symbol: targetSymbol))
             case let .initBlock(index):
                 guard index < objectDecl.initBlocks.count else { continue }
                 let initBlock = objectDecl.initBlocks[index]

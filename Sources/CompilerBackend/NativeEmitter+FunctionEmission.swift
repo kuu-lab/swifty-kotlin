@@ -58,6 +58,12 @@ extension NativeEmitter {
                 extraArgumentCount: 1,
                 canThrow: false
             ),
+            "__kk_locale_toString_flat": FlatStringReturnCallSpec(
+                flatName: "__kk_locale_toString_flat",
+                stringArgumentCount: 0,
+                extraArgumentCount: 1,
+                canThrow: false
+            ),
             "__kk_string_concat_flat": FlatStringReturnCallSpec(
                 flatName: "__kk_string_concat_flat",
                 stringArgumentCount: 2,
