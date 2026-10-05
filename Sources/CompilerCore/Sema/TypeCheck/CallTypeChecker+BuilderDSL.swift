@@ -1008,12 +1008,13 @@ extension CallTypeChecker {
     func sequenceBuilderReturnType(
         lambdaExprID: ExprID,
         expectedType: TypeID?,
+        explicitElementType: TypeID? = nil,
         ctx: TypeInferenceContext,
         locals: LocalBindings,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let elementType = sequenceBuilderElementType(
+        let elementType = explicitElementType ?? sequenceBuilderElementType(
             lambdaExprID: lambdaExprID,
             expectedType: expectedType,
             ctx: ctx,
@@ -1072,12 +1073,13 @@ extension CallTypeChecker {
     func iteratorBuilderReturnType(
         lambdaExprID: ExprID,
         expectedType: TypeID?,
+        explicitElementType: TypeID? = nil,
         ctx: TypeInferenceContext,
         locals: LocalBindings,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let elementType = sequenceBuilderElementType(
+        let elementType = explicitElementType ?? sequenceBuilderElementType(
             lambdaExprID: lambdaExprID,
             expectedType: expectedType,
             ctx: ctx,
@@ -1674,46 +1676,42 @@ extension CallTypeChecker {
             yielded: &yieldedExprs,
             yieldedCollections: &yieldedCollectionExprs
         )
-        // Pre-infer yield argument types when they are not yet in the binding table.
-        // This breaks the chicken-and-egg: the lambda body hasn't been fully type-checked
-        // yet, so we run a lightweight inference pass on each yield argument before
-        // using them to determine the element type T for SequenceScope<T>.
-        // We use a snapshot/truncate pattern on the diagnostic engine so that
-        // speculative errors (e.g. unresolved loop variables) are discarded.
-        var previewLocals = locals
-        let diagnosticEngine = ctx.semaCtx.diagnostics
+        // Check the whole lambda so loop variables and local declarations shadow
+        // outer names during bootstrap. The real check uses the inferred element type.
+        if (yieldedExprs + yieldedCollectionExprs).contains(where: {
+            sema.bindings.exprType(for: $0) == nil
+        }), let scopeSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("SequenceScope"),
+        ]) {
+            let receiverType = sema.types.make(.classType(ClassType(
+                classSymbol: scopeSymbol,
+                args: [.invariant(sema.types.nullableAnyType)],
+                nullability: .nonNull
+            )))
+            var previewLocals = locals
+            let diagnosticEngine = ctx.semaCtx.diagnostics
+            let snapshot = diagnosticEngine.count
+            _ = driver.inferExpr(
+                lambdaExprID,
+                ctx: ctx.with(implicitReceiverType: receiverType),
+                locals: &previewLocals,
+                expectedType: sequenceBuilderLambdaType(receiverType: receiverType, sema: sema)
+            )
+            diagnosticEngine.truncate(to: snapshot)
+        }
         var elementTypes: [TypeID] = []
         for exprID in yieldedExprs {
-            if let cached = sema.bindings.exprType(for: exprID),
-               cached != sema.types.errorType {
-                elementTypes.append(cached)
-                continue
-            }
-            let snapshot = diagnosticEngine.count
-            let inferredType = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
-            if inferredType == sema.types.errorType {
-                diagnosticEngine.truncate(to: snapshot)
-                continue
-            }
-            // Discard any spurious diagnostics emitted during speculative inference
-            // (e.g. "unresolved reference" for loop variables not yet in scope).
-            diagnosticEngine.truncate(to: snapshot)
+            guard let inferredType = sema.bindings.exprType(for: exprID),
+                  inferredType != sema.types.errorType
+            else { continue }
             elementTypes.append(inferredType)
         }
         for exprID in yieldedCollectionExprs {
-            let inferredType: TypeID
-            if let cached = sema.bindings.exprType(for: exprID),
-               cached != sema.types.errorType {
-                inferredType = cached
-            } else {
-                let snapshot = diagnosticEngine.count
-                let preInferred = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
-                diagnosticEngine.truncate(to: snapshot)
-                guard preInferred != sema.types.errorType else {
-                    continue
-                }
-                inferredType = preInferred
-            }
+            guard let inferredType = sema.bindings.exprType(for: exprID),
+                  inferredType != sema.types.errorType
+            else { continue }
             if let elementType = sequenceBuilderCollectionElementType(
                 inferredType,
                 sema: sema,
