@@ -18,6 +18,8 @@ extension CompilerCoreTests {
         "receiver?.visit<Int>() label@{ it }",
         "receiver?.visit<Int>(7) label@{ it }",
         "receiver.visit `visit label`@{ it }",
+        "receiver.visit inner@{ it }",
+        "receiver?.visit<Int>() field@{ it }",
     ])
     func testLabeledTrailingLambdaPreservesMemberCall(expression: String) throws {
         let (ast, ctx) = try buildASTModule(from: "fun test() = \(expression)", includeStdlib: false)
@@ -57,7 +59,10 @@ extension CompilerCoreTests {
             Issue.record("Expected a labeled trailing lambda argument")
             return
         }
-        #expect(ctx.interner.resolve(label) == (expression.contains("`") ? "visit label" : "label"))
+        let expectedLabel = expression.contains("`") ? "visit label"
+            : expression.contains("inner@") ? "inner"
+            : expression.contains("field@") ? "field" : "label"
+        #expect(ctx.interner.resolve(label) == expectedLabel)
         #expect(ast.arena.exprRange(callID)?.end == lambdaRange.end)
     }
 
@@ -68,6 +73,8 @@ extension CompilerCoreTests {
         "visit<Int> label@{ 1 }",
         "visit<Int>() label@{ 1 }",
         "visit<Int>(7) label@{ 1 }",
+        "visit<Int> inner@{ 1 }",
+        "visit() field@{ 1 }",
     ])
     func testLabeledTrailingLambdaPreservesTopLevelCall(expression: String) throws {
         let (ast, ctx) = try buildASTModule(from: "fun test() = \(expression)", includeStdlib: false)
@@ -88,8 +95,33 @@ extension CompilerCoreTests {
             Issue.record("Expected a labeled trailing lambda argument")
             return
         }
-        #expect(ctx.interner.resolve(label) == "label")
+        let expectedLabel = expression.contains("inner@") ? "inner"
+            : expression.contains("field@") ? "field" : "label"
+        #expect(ctx.interner.resolve(label) == expectedLabel)
         #expect(ast.arena.exprRange(callID)?.end == lambdaRange.end)
+    }
+
+    @Test(arguments: ["inner", "field", "`visit label`"])
+    func testLabeledTrailingLambdaPreservesReturnTarget(labelName: String) throws {
+        let (ast, ctx) = try buildASTModule(
+            from: "fun test() = receiver.visit \(labelName)@{ return@\(labelName) 7 }",
+            includeStdlib: false
+        )
+        #expect(!ctx.diagnostics.hasError)
+        let function = try #require(topLevelFunction(named: "test", in: ast, interner: ctx.interner))
+        guard case let .expr(callID, _) = function.body,
+              case let .memberCall(_, _, _, args, _) = ast.arena.expr(callID),
+              let argument = args.last,
+              case let .lambdaLiteral(_, body, label?, _) = ast.arena.expr(argument.expr),
+              case let .returnExpr(value?, target?, _) = ast.arena.expr(body),
+              case let .intLiteral(number, _) = ast.arena.expr(value)
+        else {
+            Issue.record("Expected a labeled local return with its value")
+            return
+        }
+        #expect(ctx.interner.resolve(label) == labelName.replacingOccurrences(of: "`", with: ""))
+        #expect(target == label)
+        #expect(number == 7)
     }
 
     @Test func testLabeledTrailingLambdaBindsCollectionExtensions() throws {

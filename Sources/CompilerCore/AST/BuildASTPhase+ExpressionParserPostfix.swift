@@ -20,7 +20,7 @@ extension BuildASTPhase.ExpressionParser {
     /// exactly `identifier @ {`.
     private func parseLabeledTrailingLambda() -> ExprID? {
         guard let nameToken = current(),
-              let name = identifierFromToken(nameToken),
+              let name = tokenText(nameToken),
               let atToken = peek(1), atToken.kind == .symbol(.at),
               let braceToken = peek(2), braceToken.kind == .symbol(.lBrace)
         else {

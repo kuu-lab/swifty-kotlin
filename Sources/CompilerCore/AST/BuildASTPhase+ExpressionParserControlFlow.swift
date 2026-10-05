@@ -397,7 +397,7 @@ extension BuildASTPhase.ExpressionParser {
         var end = returnToken.range.end
         if let atToken = current(), atToken.kind == .symbol(.at),
            let labelToken = peek(1),
-           let labelName = identifierFromToken(labelToken)
+           let labelName = tokenText(labelToken)
         {
             _ = consume()
             _ = consume()
