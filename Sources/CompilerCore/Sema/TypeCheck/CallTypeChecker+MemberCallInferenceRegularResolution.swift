@@ -2058,6 +2058,13 @@ extension CallTypeChecker {
             hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
             ctx: ctx
         )
+        // Ambiguous applicable members retain precedence over extensions.
+        if let diagnostic = resolved.diagnostic,
+           diagnostic.code == "KSWIFTK-SEMA-0003"
+        {
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
         // A same-named member that cannot accept the call must not hide an
         // applicable extension. Only retried after ordinary resolution failed, so
         // a viable member (including range/lambda arguments whose provisional
