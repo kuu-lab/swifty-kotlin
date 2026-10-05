@@ -6,6 +6,80 @@ import Testing
 struct MemberPropertySmartCastTests {
     @Test(arguments: [
         "if (args.x != null) println(args.x.length)",
+        "if (args.x == null) return; println(args.x.length)",
+        "if (args.x != null && args.x.length > 0) println(args.x.length)",
+        "requireNotNull(args.x); println(args.x.length)",
+        "check(args.x != null); println(args.x.length)",
+        "when (args.x) { null -> println(0); else -> println(args.x.length) }",
+        "when { args.x != null -> println(args.x.length); else -> println(0) }",
+        "while (flag) { if (args.x != null) println(args.x.length); break }",
+        "val reader = { if (args.x != null) println(args.x.length) }; reader()",
+        "fun read() { if (args.x != null) println(args.x.length) }; read()",
+        "fun String.read() { if (args.x != null) println(args.x.length) }; \"reader\".read()",
+        "if (flag) { var args = Args(null); args = Args(\"inner\") }; if (args.x != null) println(args.x.length)",
+        "fun shadow(args: Args) { println(args.x) }; if (args.x != null) println(args.x.length)"
+    ])
+    func neverReassignedVarReceiver(body: String) throws {
+        let ctx = makeContextFromSource("""
+        class Args(val x: String?)
+        fun test(flag: Boolean) {
+            var args = Args("hello")
+            \(body)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func neverReassignedVarReceiverNestedAndTypeNarrowing() throws {
+        let ctx = makeContextFromSource("""
+        class Inner(val x: Any?)
+        class Outer(val inner: Inner?)
+        fun test() {
+            var outer = Outer(Inner("hello"))
+            if (outer.inner != null && outer.inner.x is String) println(outer.inner.x.length)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "if (args.x != null) { args = Args(null); println(args.x.length) }",
+        "if (args.x != null) { if (flag) args = Args(null); println(args.x.length) }",
+        "if (args.x != null) { if (flag) { args = Args(null) }; println(args.x.length) }",
+        "if (args.x != null) { when { flag -> args = Args(null); else -> println(0) }; println(args.x.length) }",
+        "if (args.x != null) { while (flag) { args = Args(null); break }; println(args.x.length) }",
+        "if (args.x != null) { do { println(args.x.length); args = Args(null) } while (flag) }",
+        "if (args.x != null) { for (i in 0..1) { args = Args(null) }; println(args.x.length) }",
+        "if (args.x != null) { try { args = Args(null) } finally { println(0) }; println(args.x.length) }",
+        "val write = { args = Args(null) }; if (args.x != null) { write(); println(args.x.length) }",
+        "if (args.x != null) { val write = { args = Args(null) }; write(); println(args.x.length) }",
+        "val read = { if (args.x != null) println(args.x.length) }; args = Args(null); read()",
+        "fun write() { args = Args(null) }; if (args.x != null) { write(); println(args.x.length) }",
+        "fun String.write() { args = Args(null) }; if (args.x != null) { \"writer\".write(); println(args.x.length) }",
+        "val writer = object { fun write() { args = Args(null) } }; if (args.x != null) { writer.write(); println(args.x.length) }",
+        "class Writer { fun write() { args = Args(null) } }; if (args.x != null) { Writer().write(); println(args.x.length) }",
+        "class Writer { fun write(value: Unit = run { args = Args(null) }) {} }; if (args.x != null) { Writer().write(); println(args.x.length) }",
+        "class Writer(value: Unit = run { args = Args(null) }); if (args.x != null) { Writer(); println(args.x.length) }",
+        "class Writer { constructor(value: Unit = kotlin.run { args = Args(null) }) {} }; if (args.x != null) { Writer(); println(args.x.length) }",
+        "class Writer(value: Unit) { constructor() : this(kotlin.run { args = Args(null) }) }; if (args.x != null) { Writer(); println(args.x.length) }",
+        "requireNotNull(args.x); args = Args(null); println(args.x.length)"
+    ])
+    func reassignedReceiverIsNotStable(body: String) throws {
+        let ctx = makeContextFromSource("""
+        class Args(val x: String?)
+        fun test(flag: Boolean) {
+            var args = Args("hello")
+            \(body)
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0026", in: ctx)
+    }
+
+    @Test(arguments: [
+        "if (args.x != null) println(args.x.length)",
         "if (null != args.x) println(args.x.length)",
         "if (args.x == null) println(0) else println(args.x.length)",
         "if (!(args.x == null)) println(args.x.length)",

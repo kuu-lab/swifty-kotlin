@@ -727,7 +727,7 @@ public func __kk_channel_create_with_policy(_ capacity: Int, _ onBufferOverflow:
 
 /// KSP-1573: `SendChannel.invokeOnClose(handler)` bridge. `handler` crosses
 /// the boundary as an (fnPtr, closureRaw) pair, the same function-value
-/// convention `kk_job_invoke_on_completion` uses. The handler is invoked with
+/// convention `__kk_job_invoke_on_completion` uses. The handler is invoked with
 /// a nil cause when the channel first closes, or immediately when it is
 /// already closed.
 @_cdecl("__kk_channel_invoke_on_close")

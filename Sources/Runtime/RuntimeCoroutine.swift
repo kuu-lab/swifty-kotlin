@@ -710,7 +710,8 @@ final class RuntimeContinuationState: @unchecked Sendable {
             dispatcher: context.dispatcher,
             name: context.name ?? scope?.name,
             exceptionHandler: context.exceptionHandler,
-            jobHandleRaw: jobRaw
+            jobHandleRaw: jobRaw,
+            nameHandleRaw: context.nameHandleRaw
         )
     }
 
@@ -794,9 +795,9 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// (via kk_kxmini_async_await or kk_job_join). Checked by scope's waitForChildren
     /// to avoid double-releasing the original passRetained.
     private var isConsumedByUserCode = false
-    /// Set when the async body is actually scheduled (`KxMiniRuntime.launch` / dispatcher queue).
-    /// Keeps `kk_job_is_active` aligned with `RuntimeJobHandle` (inactive until `markStarted`).
+    /// Actual body entry, distinct from an explicit LAZY start request.
     private var isBodyStarted = false
+    private var isStartRequested = false
     /// CORO-004: Resumers invoked with (result, thrownException) when the task completes
     /// (normally, exceptionally, or via cancel). Suspend-aware awaiters
     /// (`kk_kxmini_async_await`) and the synchronous `awaitResult()` fallback both
@@ -852,7 +853,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// Mirrors `RuntimeJobHandle.installLazyStartBody`.
     func installLazyStartBody(_ body: @escaping @Sendable () -> Void) {
         lock.lock()
-        if !isBodyStarted, !isCompleted {
+        if !isBodyStarted, !isStartRequested, !isCompleted {
             lazyStartBody = body
         }
         lock.unlock()
@@ -872,16 +873,20 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     ///
     /// `body` runs after the lock is released: it dispatches the block, and
     /// `NSLock` is not recursive.
-    func startIfNeeded() {
+    @discardableResult
+    func startIfNeeded() -> Bool {
         lock.lock()
         guard let body = lazyStartBody, !isCompleted, !isCancelled else {
             lazyStartBody = nil
             lock.unlock()
-            return
+            return false
         }
         lazyStartBody = nil
+        isStartRequested = true
+        completionJob.markScheduled()
         lock.unlock()
         body()
+        return true
     }
 
     func markConsumedByUserCode() {
@@ -914,7 +919,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     func isActiveSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return isBodyStarted && !isCompleted && !isCancelled
+        return (isBodyStarted || isStartRequested) && !isCompleted && !isCancelled
     }
 
     /// Thread-safe snapshot for `kk_job_is_failed` (aligned with `RuntimeJobHandle.isFailedSnapshot`).
@@ -1361,15 +1366,18 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     /// STDLIB-CORO-001: Start a LAZY job by dispatching its body exactly once.
-    func startIfNeeded() {
+    @discardableResult
+    func startIfNeeded() -> Bool {
         lock.lock()
         guard state == .new, let body = lazyStartBody else {
             lock.unlock()
-            return
+            return false
         }
         lazyStartBody = nil
+        state = .active
         lock.unlock()
         body()
+        return true
     }
 
     func markBodyless() {
@@ -3912,6 +3920,7 @@ public func kk_coroutine_scope_async(
     }
     let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
     let hasEnvironment = closureRaw != 0 || runtimeFunctionValueBox(from: entryPointRaw) != nil
+        || runtimeCallableObjectPair(from: entryPointRaw) != nil
     let function = resolveFunctionValuePair(fnPtr: entryPointRaw, closureRaw: closureRaw)
     return runtimeScopeAsync(scope: scope, context: context, start: start) { task in
         RuntimeCoroutineScope.current = scope
@@ -4561,6 +4570,17 @@ public func kk_supervisor_job_new() -> Int {
     return runtimeRegisterObject(job)
 }
 
+@_cdecl("kk_job_start")
+public func kk_job_start(_ jobHandle: Int) -> Int {
+    if let job = runtimeJobHandle(from: jobHandle) {
+        return job.startIfNeeded() ? 1 : 0
+    }
+    if let task = runtimeAsyncTask(from: jobHandle) {
+        return task.startIfNeeded() ? 1 : 0
+    }
+    return 0
+}
+
 /// Joins (waits for) a job handle to complete and releases it.
 /// This consumes the handle (balances the passRetained from launch).
 @_cdecl("kk_job_join")
@@ -4682,8 +4702,8 @@ public func kk_coroutine_yield(_ continuation: Int) -> Int {
 
 // MARK: - withTimeout / withTimeoutOrNull
 
-/// Runs a `withTimeout`/`withTimeoutOrNull` block on a deadline, reporting whether
-/// the deadline expired first.
+/// Runs a timeout block on a deadline, preserving its result or failure unless
+/// this deadline expires first.
 ///
 /// BUG-190: the block runs on its own *child* continuation seeded from the caller,
 /// never on the caller's continuation. When the deadline expires the block's entry
@@ -4698,7 +4718,7 @@ private func runTimeoutBlock(
     timeoutMillis: Int,
     entryPointRaw: Int,
     continuation: Int
-) -> (timedOut: Bool, result: Int) {
+) -> (timedOut: Bool, result: Int, thrown: Int) {
     let scopeHandle = kk_coroutine_scope_new()
     let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
         UnsafeMutableRawPointer(bitPattern: scopeHandle)!
@@ -4714,14 +4734,22 @@ private func runTimeoutBlock(
     }
     blockJob.markStarted()
 
-    final class ResultBox: @unchecked Sendable { var value = 0 }
+    final class ResultBox: @unchecked Sendable {
+        var value = 0
+        var thrown = 0
+    }
     let resultBox = ResultBox()
     let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
 
     let workItem = DispatchWorkItem {
         resultBox.value = runSuspendEntryLoopWithContinuation(
-            entryPointRaw: entryPointRaw, continuation: blockContinuation
+            entryPointRaw: entryPointRaw,
+            continuation: blockContinuation,
+            outThrown: &resultBox.thrown
         )
+        if resultBox.thrown != 0 {
+            scope.cancel()
+        }
     }
     // The block itself runs off-loop (on the global pool) so its suspensions
     // never depend on the caller's queue. The caller, though, may be draining a
@@ -4751,10 +4779,12 @@ private func runTimeoutBlock(
         blockJob.cancel(message: "TimeoutCancellationException")
         scope.cancel()
         _ = kk_coroutine_scope_wait(scopeHandle)
-        return (true, 0)
+        return (true, 0, 0)
     }
-    _ = kk_coroutine_scope_wait(scopeHandle)
-    return (false, resultBox.value)
+    let childFailure = kk_coroutine_scope_wait(scopeHandle)
+    let childThrown = childFailure == runtimeNullSentinelInt ? 0 : childFailure
+    let thrown = resultBox.thrown != 0 ? resultBox.thrown : childThrown
+    return (false, thrown == 0 ? resultBox.value : 0, thrown)
 }
 
 /// Runs the given block with a timeout. If the block does not complete within
@@ -4787,14 +4817,25 @@ public func kk_with_timeout(
         )
         return 0
     }
+    outThrown?.pointee = outcome.thrown
     return outcome.result
 }
 
-/// Runs the given block with a timeout. If the block does not complete within
-/// `timeoutMillis`, returns null (0) instead of throwing.
-/// Used as the lowering target for `withTimeoutOrNull(timeMillis) { }`.
+/// Legacy non-throwing ABI; new Kotlin calls use the throwing bridge below.
 @_cdecl("kk_with_timeout_or_null")
 public func kk_with_timeout_or_null(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    kk_with_timeout_or_null_throwing(timeoutMillis, entryPointRaw, continuation, nil)
+}
+
+/// Returns null only for this deadline's expiry; block failures propagate unchanged.
+@_cdecl("kk_with_timeout_or_null_throwing")
+public func kk_with_timeout_or_null_throwing(
+    _ timeoutMillis: Int,
+    _ entryPointRaw: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let outcome = runTimeoutBlock(
         timeoutMillis: timeoutMillis,
         entryPointRaw: entryPointRaw,
@@ -4806,6 +4847,7 @@ public func kk_with_timeout_or_null(_ timeoutMillis: Int, _ entryPointRaw: Int, 
         // would otherwise be indistinguishable from "no value" when printed/compared.
         return runtimeNullSentinelInt
     }
+    outThrown?.pointee = outcome.thrown
     return outcome.result
 }
 
@@ -5098,20 +5140,8 @@ public func kk_job_get_cancellation_exception(_ jobHandle: Int) -> Int {
 /// `(Throwable?) -> Unit` crosses this bundled `external fun` boundary as a
 /// (fnPtr, closureRaw) pair (it may capture locals) -- see
 /// [[function-type-param-abi-split-convention]]. Registers it and returns a
-/// disposal id for `kk_job_dispose_completion_handler` (0 if the handler
+/// disposal id for `__kk_job_dispose_handle` (0 if the handler
 /// already ran inline because the job was already terminal).
-/// `RuntimeAsyncTask` (`Deferred`) is not supported yet -- returns 0 without
-/// registering anything.
-@_cdecl("kk_job_invoke_on_completion")
-public func kk_job_invoke_on_completion(
-    _ jobHandle: Int,
-    _ onCancelling: Int,
-    _ handlerFnPtr: Int,
-    _ handlerClosureRaw: Int
-) -> Int {
-    __kk_job_invoke_on_completion(jobHandle, onCancelling, 1, handlerFnPtr, handlerClosureRaw)
-}
-
 @_cdecl("__kk_job_invoke_on_completion")
 public func __kk_job_invoke_on_completion(
     _ jobHandle: Int,
@@ -5140,12 +5170,7 @@ public func __kk_job_invoke_on_completion(
 }
 
 /// KUU-CORO-101: ABI backing for the `DisposableHandle` returned by
-/// `Job.invokeOnCompletion` (via `__kk_job_dispose_completion_handler`).
-@_cdecl("kk_job_dispose_completion_handler")
-public func kk_job_dispose_completion_handler(_ jobHandle: Int, _ handlerID: Int) {
-    __kk_job_dispose_handle(jobHandle, handlerID)
-}
-
+/// `Job.invokeOnCompletion` (via `__kk_job_dispose_handle`).
 @_cdecl("__kk_job_dispose_handle")
 public func __kk_job_dispose_handle(_ jobHandle: Int, _ handlerID: Int) {
     let job = runtimeJobHandle(from: jobHandle) ?? runtimeAsyncTask(from: jobHandle)?.completionJob

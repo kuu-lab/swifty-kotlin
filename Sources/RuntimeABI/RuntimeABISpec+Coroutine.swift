@@ -743,6 +743,18 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_coroutine_name_key",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_coroutine_name_key_get",
+            parameters: [RuntimeABIParameter(name: "receiver", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_exception_handler_create",
             parameters: [
                 RuntimeABIParameter(name: "handlerFnPtr", type: .intptr),
@@ -781,6 +793,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_context_get_dispatch",
+            parameters: [
+                RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "keyRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_context_fold",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
@@ -801,6 +823,16 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_context_minusKey_dispatch",
+            parameters: [
+                RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "keyRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_context_get_dispatcher",
@@ -1349,6 +1381,16 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_job_start",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false,
+            returnsRawBoolean: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_job_join",
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
@@ -1547,18 +1589,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_job_invoke_on_completion",
-            parameters: [
-                RuntimeABIParameter(name: "jobHandle", type: .intptr),
-                RuntimeABIParameter(name: "onCancelling", type: .intptr),
-                RuntimeABIParameter(name: "handlerFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "handlerClosureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_job_invoke_on_completion",
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
@@ -1591,16 +1621,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_job_dispose_handle",
-            parameters: [
-                RuntimeABIParameter(name: "jobHandle", type: .intptr),
-                RuntimeABIParameter(name: "handlerID", type: .intptr),
-            ],
-            returnType: .void,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_job_dispose_completion_handler",
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
                 RuntimeABIParameter(name: "handlerID", type: .intptr),

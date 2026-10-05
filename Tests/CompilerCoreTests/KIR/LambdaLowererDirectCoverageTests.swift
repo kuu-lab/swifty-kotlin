@@ -43,9 +43,9 @@ struct LambdaLowererDirectCoverageTests {
         })
     }
 
-    @Test(arguments: [false, true], [false, true])
+    @Test(arguments: [false, true], [nil, false, true] as [Bool?])
     func capturingLambdaRespectsInlineParameters(
-        allowsNonLocalReturn: Bool, importedParameterAllowsNonLocalReturn: Bool
+        allowsNonLocalReturn: Bool, importedParameterAllowsNonLocalReturn: Bool?
     ) {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
@@ -87,7 +87,7 @@ struct LambdaLowererDirectCoverageTests {
             )
             fixture.symbols.setFunctionSignature(FunctionSignature(
                 parameterTypes: [functionType], returnType: fixture.types.intType,
-                valueParameterAllowsNonLocalReturn: [importedParameterAllowsNonLocalReturn]
+                valueParameterAllowsNonLocalReturn: importedParameterAllowsNonLocalReturn.map { [$0] } ?? []
             ), for: importedInline)
             var arguments = [callable]
             let instructionCount = instructions.count
@@ -96,7 +96,7 @@ struct LambdaLowererDirectCoverageTests {
                 sema: fixture.sema, arena: fixture.kirArena, interner: fixture.interner,
                 instructions: &instructions, arguments: &arguments
             )
-            if importedParameterAllowsNonLocalReturn {
+            if importedParameterAllowsNonLocalReturn == true {
                 #expect(arguments == [callable])
                 #expect(instructions.count == instructionCount)
             } else {

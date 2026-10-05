@@ -73,29 +73,27 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
-    @Test(arguments: [false, true], [false, true])
-    func testClassifyFunctionTypes(hasReceiver: Bool, isSuspend: Bool) {
+    @Test func testClassifyFunctionType() {
         let types = TypeSystem()
         let sema = makeSemaModule(types: types).ctx
 
         let intType = types.make(.primitive(.int, .nonNull))
         let funcType = types.make(.functionType(FunctionType(
-            contextReceivers: [intType],
-            receiver: hasReceiver ? intType : nil,
+            receiver: nil,
             params: [intType],
             returnType: intType,
-            isSuspend: isSuspend,
-            nullability: .nullable
+            isSuspend: false,
+            nullability: .nonNull
         )))
         let descriptor = RuntimeTypeCheckToken.classify(type: funcType, sema: sema)
         #expect(descriptor.category.base == RuntimeTypeCheckToken.functionBase)
-        #expect(descriptor.nullable)
-        if case let .function(arity, suspend) = descriptor.category {
-            #expect(arity == 2 + (hasReceiver ? 1 : 0))
-            #expect(suspend == isSuspend)
-        } else {
-            Issue.record("Expected function category")
+        #expect(!descriptor.nullable)
+        guard case let .function(arity, isSuspend) = descriptor.category else {
+            Issue.record("Expected .function category for function type")
+            return
         }
+        #expect(arity == 1)
+        #expect(!isSuspend)
     }
 
     @Test func testEncodeConsistencyWithClassify() {
@@ -374,6 +372,31 @@ struct RuntimeTypeCheckTokenTests {
                 encoded == expected,
                 "String::class should encode with stringBase like an ordinary `is String` check, not nominalBase."
             )
+        }
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func testClassifyFunctionTypes(hasReceiver: Bool, isSuspend: Bool) {
+        let types = TypeSystem()
+        let sema = makeSemaModule(types: types).ctx
+
+        let intType = types.make(.primitive(.int, .nonNull))
+        let funcType = types.make(.functionType(FunctionType(
+            contextReceivers: [intType],
+            receiver: hasReceiver ? intType : nil,
+            params: [intType],
+            returnType: intType,
+            isSuspend: isSuspend,
+            nullability: .nullable
+        )))
+        let descriptor = RuntimeTypeCheckToken.classify(type: funcType, sema: sema)
+        #expect(descriptor.category.base == RuntimeTypeCheckToken.functionBase)
+        #expect(descriptor.nullable)
+        if case let .function(arity, suspend) = descriptor.category {
+            #expect(arity == 2 + (hasReceiver ? 1 : 0))
+            #expect(suspend == isSuspend)
+        } else {
+            Issue.record("Expected function category")
         }
     }
 

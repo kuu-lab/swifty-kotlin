@@ -329,6 +329,48 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
     // MARK: - CoroutineName create / get
 
+    @Test func testCoroutineNameSingletonKeyPreservesElementIdentity() {
+        let first = kk_coroutine_name_create(runtimeRegisterObject(RuntimeStringBox("first")))
+        let second = kk_coroutine_name_create(runtimeRegisterObject(RuntimeStringBox("second")))
+        let key = kk_coroutine_name_key()
+        #expect(key == kk_coroutine_name_key())
+        #expect(kk_coroutine_name_key_get(first) == key)
+        #expect(kk_context_get(first, key) == first)
+        #expect(kk_context_get(0, key) == 0)
+        let dispatcher = kk_dispatcher_default()
+        let combined = kk_context_plus(dispatcher, first)
+        #expect(kk_context_get(combined, key) == first)
+        let replaced = kk_context_plus(combined, second)
+        #expect(kk_context_get(replaced, key) == second)
+        let removed = kk_context_minusKey(replaced, key)
+        #expect(kk_context_get(removed, key) == 0)
+        #expect(kk_context_get_dispatcher(removed) == dispatcher)
+        #expect(kk_context_get(combined, key) == first)
+        let typeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element"))
+        let getterRaw = kk_itable_lookup_dynamic(first, typeID, 3)
+        #expect(getterRaw != 0)
+        if getterRaw != 0 {
+            let getter = unsafeBitCast(getterRaw, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 123
+            #expect(getter(first, &thrown) == key)
+            #expect(thrown == 0)
+        }
+        for slot in 0 ... 2 {
+            #expect(runtimeCoroutineContextElementMethod(first, typeID, slot) != nil)
+            #expect(runtimeCoroutineContextElementMethod(dispatcher, typeID, slot) != nil)
+        }
+        let getRaw = kk_itable_lookup_dynamic(first, typeID, 0)
+        if getRaw != 0 {
+            let get = unsafeBitCast(getRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 123
+            #expect(get(first, key, &thrown) == first)
+            #expect(get(dispatcher, key, &thrown) == runtimeNullSentinelInt)
+            #expect(thrown == 0)
+        }
+        #expect(runtimeCoroutineContextElementMethod(first, typeID, 4) == nil)
+        #expect(runtimeCoroutineContextElementMethod(first, 0, 3) == nil)
+    }
+
     /// kk_coroutine_name_create with a null pointer uses "coroutine" as default.
     @Test func testCoroutineNameCreateDefaultName() {
         let nameHandle = kk_coroutine_name_create(0)
@@ -395,6 +437,22 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
     }
 
     // MARK: - CoroutineContext element retrieval
+
+    @Test func testContextDispatchBridgesPreserveNativeFallback() {
+        let nameBox = RuntimeStringBox("Native")
+        let nameElem = kk_coroutine_name_create(runtimeRegisterStringBox(nameBox))
+        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9919))
+        let ctx = kk_context_plus(emptyCtx, nameElem)
+        var thrown = 42
+        let retrieved = __kk_context_get_dispatch(ctx, nameElem, &thrown)
+        #expect(runtimeStringBoxValue(kk_coroutine_name_get(retrieved)) == "Native")
+        #expect(thrown == 0)
+        #expect(__kk_context_get_dispatch(emptyCtx, nameElem, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        let reduced = __kk_context_minusKey_dispatch(ctx, nameElem, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_context_get(reduced, nameElem) == 0)
+    }
 
     /// kk_context_get returns 0 for a key not present in the context.
     @Test func testContextGetAbsentKeyReturnsZero() {

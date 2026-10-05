@@ -236,13 +236,28 @@ extension CallLowerer {
         // (BUG-265).
         if sema.symbols.propertyHasCustomGetter(for: propertySymbol)
             || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
+            || sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil
         {
-            let receiverID = loweredReceiverID ?? driver.lowerExpr(
-                receiverExpr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+            let receiverID: KIRExprID
+            if let loweredReceiverID {
+                receiverID = loweredReceiverID
+            } else if case .nameRef = ast.arena.expr(receiverExpr),
+                      sema.bindings.identifierSymbol(for: receiverExpr) == nil,
+                      let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+            {
+                let ownerType = sema.types.make(.classType(ClassType(
+                    classSymbol: ownerSymbol, args: [], nullability: .nonNull
+                )))
+                receiverID = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+                instructions.append(.constValue(result: receiverID, value: .symbolRef(ownerSymbol)))
+            } else {
+                receiverID = driver.lowerExpr(
+                    receiverExpr,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: resultType)
@@ -348,6 +363,7 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
+        resultTypeOverride: TypeID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // `object` member properties never reach this point: they're always
@@ -364,7 +380,7 @@ extension CallLowerer {
         else {
             return nil
         }
-        let readResultType = sema.bindings.exprTypes[exprID]
+        let readResultType = resultTypeOverride ?? sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
         return lowerStoredMemberPropertyReadValue(
@@ -1235,6 +1251,7 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
+        interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // The receiver may itself be a qualified member-access chain (e.g. the
@@ -1336,6 +1353,19 @@ extension CallLowerer {
             // initializers) never ran, silently keeping every inherited
             // property at its zeroed default.
             if valueSymbol.kind == .object {
+                if let linkName = sema.symbols.externalLinkName(for: valueSymbolID), !linkName.isEmpty {
+                    let resultType = sema.symbols.propertyType(for: valueSymbolID) ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: valueSymbolID,
+                        callee: interner.intern(linkName),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 driver.emitObjectLazyInitGuardIfNeeded(
                     objectSymbol: valueSymbolID, arena: arena, sema: sema, instructions: &instructions
                 )

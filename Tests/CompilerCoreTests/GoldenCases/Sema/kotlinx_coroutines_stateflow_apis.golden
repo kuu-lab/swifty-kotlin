@@ -1,0 +1,67 @@
+symbol fq=__local_0.state[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.MutableStateFlow<Int>
+symbol fq=__local_1.count[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.StateFlow<Int>
+symbol fq=__local_2.view[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.StateFlow<Int>
+symbol fq=__local_3.sharedView[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.SharedFlow<Int>
+symbol fq=__local_4.shared[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.flow.MutableSharedFlow<Int>
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fkotlinx_coroutines_stateflow_apis package=_
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@6:34 int(1) type=Int
+expr e@6:17 call callee=e@6:17#1 args=[_:e@6:34] type=kotlinx.coroutines.flow.MutableStateFlow<Int> call=kotlinx.coroutines.flow.MutableStateFlow.<init>[kind=ctor;recv=kotlinx.coroutines.flow.MutableStateFlow<T0>;params=T0;gen=1] targs=[Int]
+expr e@6:5 localDecl state mutable=0 type=_ init=e@6:17 type=Unit ref=__local_0.state[kind=local]
+expr e@7:5 name(state) type=kotlinx.coroutines.flow.MutableStateFlow<Int> ref=__local_0.state[kind=local]
+expr e@7:19 int(2) type=Int
+expr e@7:5#1 memberAssign recv=e@7:5 callee=value value=e@7:19 type=Unit ref=kotlinx.coroutines.flow.MutableStateFlow.value[kind=prop]
+expr e@8:5 name(state) type=kotlinx.coroutines.flow.MutableStateFlow<Int> ref=__local_0.state[kind=local]
+expr e@8:25 int(2) type=Int
+expr e@8:28 int(3) type=Int
+expr e@8:5#1 memberCall recv=e@8:5 callee=compareAndSet args=[_:e@8:25,_:e@8:28] type=Boolean call=kotlinx.coroutines.flow.MutableStateFlow.compareAndSet[kind=fun;recv=kotlinx.coroutines.flow.MutableStateFlow<T0>;params=T0,T0;gen=1] targs=[Int]
+expr e@9:5 name(state) type=kotlinx.coroutines.flow.MutableStateFlow<Int> ref=__local_0.state[kind=local]
+expr e@9:20 name(it) type=Int ref=s-0
+expr e@9:25 int(1) type=Int
+expr e@9:20#1 binary(add) lhs=e@9:20 rhs=e@9:25 type=Int
+expr e@9:18 lambda params=[] body=e@9:20#1 label=update type=(Int) -> Int
+expr e@9:5#1 memberCall recv=e@9:5 callee=update args=[_:e@9:18] type=Unit call=kotlinx.coroutines.flow.update[kind=fun;recv=kotlinx.coroutines.flow.MutableStateFlow<T0>;params=fn{p=T0;ret=T0};gen=1] targs=[Int]
+expr e@10:5 name(state) type=kotlinx.coroutines.flow.MutableStateFlow<Int> ref=__local_0.state[kind=local]
+expr e@10:26 name(it) type=Int ref=s-1
+expr e@10:31 int(1) type=Int
+expr e@10:26#1 binary(add) lhs=e@10:26 rhs=e@10:31 type=Int
+expr e@10:24 lambda params=[] body=e@10:26#1 label=getAndUpdate type=(Int) -> Int
+expr e@10:5#1 memberCall recv=e@10:5 callee=getAndUpdate args=[_:e@10:24] type=Int call=kotlinx.coroutines.flow.getAndUpdate[kind=fun;recv=kotlinx.coroutines.flow.MutableStateFlow<T0>;params=fn{p=T0;ret=T0};gen=1] targs=[Int]
+expr e@11:5 name(state) type=kotlinx.coroutines.flow.MutableStateFlow<Int> ref=__local_0.state[kind=local]
+expr e@11:26 name(it) type=Int ref=s-2
+expr e@11:31 int(1) type=Int
+expr e@11:26#1 binary(add) lhs=e@11:26 rhs=e@11:31 type=Int
+expr e@11:24 lambda params=[] body=e@11:26#1 label=updateAndGet type=(Int) -> Int
+expr e@11:5#1 memberCall recv=e@11:5 callee=updateAndGet args=[_:e@11:24] type=Int call=kotlinx.coroutines.flow.updateAndGet[kind=fun;recv=kotlinx.coroutines.flow.MutableStateFlow<T0>;params=fn{p=T0;ret=T0};gen=1] targs=[Int]
+expr e@12:33 name(state) type=kotlinx.coroutines.flow.MutableStateFlow<Int> ref=__local_0.state[kind=local]
+expr e@12:33#1 memberCall recv=e@12:33 callee=subscriptionCount args=[] type=kotlinx.coroutines.flow.StateFlow<Int> ref=kotlinx.coroutines.flow.MutableStateFlow.subscriptionCount[kind=prop]
+expr e@12:5 localDecl count mutable=0 type=StateFlow<Int> init=e@12:33#1 type=Unit ref=__local_1.count[kind=local]
+expr e@13:32 name(state) type=kotlinx.coroutines.flow.MutableStateFlow<Int> ref=__local_0.state[kind=local]
+expr e@13:32#1 memberCall recv=e@13:32 callee=asStateFlow args=[] type=kotlinx.coroutines.flow.StateFlow<Int> call=kotlinx.coroutines.flow.asStateFlow[kind=fun;recv=kotlinx.coroutines.flow.MutableStateFlow<T0>;params=;gen=1] targs=[Int]
+expr e@13:5 localDecl view mutable=0 type=StateFlow<Int> init=e@13:32#1 type=Unit ref=__local_2.view[kind=local]
+expr e@14:39 name(state) type=kotlinx.coroutines.flow.MutableStateFlow<Int> ref=__local_0.state[kind=local]
+expr e@14:39#1 memberCall recv=e@14:39 callee=asSharedFlow args=[] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.asSharedFlow[kind=fun;recv=kotlinx.coroutines.flow.MutableStateFlow<T0>;params=;gen=1] targs=[Int]
+expr e@14:5 localDecl sharedView mutable=0 type=SharedFlow<Int> init=e@14:39#1 type=Unit ref=__local_3.sharedView[kind=local]
+expr e@15:5 name(view) type=kotlinx.coroutines.flow.StateFlow<Int> ref=__local_2.view[kind=local]
+expr e@15:5#1 memberCall recv=e@15:5 callee=distinctUntilChanged args=[] type=kotlinx.coroutines.flow.StateFlow<Int> call=kotlinx.coroutines.flow.distinctUntilChanged[kind=fun;recv=kotlinx.coroutines.flow.StateFlow<T0>;params=;gen=1] targs=[Int]
+expr e@15:5#2 memberCall recv=e@15:5#1 callee=conflate args=[] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.conflate[kind=fun;recv=kotlinx.coroutines.flow.SharedFlow<T0>;params=;gen=1] targs=[Int]
+expr e@15:5#3 memberCall recv=e@15:5#2 callee=cancellable args=[] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.cancellable[kind=fun;recv=kotlinx.coroutines.flow.SharedFlow<T0>;params=;gen=1] targs=[Int]
+expr e@15:65 name(EmptyCoroutineContext) type=kotlin.coroutines.EmptyCoroutineContext ref=kotlin.coroutines.EmptyCoroutineContext[kind=obj]
+expr e@15:5#4 memberCall recv=e@15:5#3 callee=flowOn args=[_:e@15:65] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.flowOn[kind=fun;recv=kotlinx.coroutines.flow.SharedFlow<T0>;params=kotlin.coroutines.CoroutineContext;gen=1] targs=[Int]
+expr e@15:95 int(0) type=Int
+expr e@15:5#5 memberCall recv=e@15:5#4 callee=buffer args=[_:e@15:95] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.buffer[kind=fun;recv=kotlinx.coroutines.flow.SharedFlow<T0>;params=Int,kotlinx.coroutines.channels.BufferOverflow;gen=1] targs=[Int]
+expr e@16:41 int(2) type=Int
+expr e@16:44 int(1) type=Int
+expr e@16:47 name(BufferOverflow) type=kotlinx.coroutines.channels.BufferOverflow ref=kotlinx.coroutines.channels.BufferOverflow[kind=enum]
+expr e@16:47#1 memberCall recv=e@16:47 callee=DROP_OLDEST args=[] type=kotlinx.coroutines.channels.BufferOverflow ref=kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST[kind=field]
+expr e@16:18 call callee=e@16:18#1 args=[_:e@16:41,_:e@16:44,_:e@16:47#1] type=kotlinx.coroutines.flow.MutableSharedFlow<Int> call=kotlinx.coroutines.flow.MutableSharedFlow.<init>[kind=ctor;recv=kotlinx.coroutines.flow.MutableSharedFlow<T0>;params=Int,Int,kotlinx.coroutines.channels.BufferOverflow;gen=1] targs=[Int]
+expr e@16:5 localDecl shared mutable=0 type=_ init=e@16:18 type=Unit ref=__local_4.shared[kind=local]
+expr e@17:5 name(shared) type=kotlinx.coroutines.flow.MutableSharedFlow<Int> ref=__local_4.shared[kind=local]
+expr e@17:20 int(1) type=Int
+expr e@17:5#1 memberCall recv=e@17:5 callee=tryEmit args=[_:e@17:20] type=Boolean call=kotlinx.coroutines.flow.MutableSharedFlow.tryEmit[kind=fun;recv=kotlinx.coroutines.flow.MutableSharedFlow<T0>;params=T0;gen=1] targs=[Int]
+expr e@18:5 name(shared) type=kotlinx.coroutines.flow.MutableSharedFlow<Int> ref=__local_4.shared[kind=local]
+expr e@18:5#1 memberCall recv=e@18:5 callee=resetReplayCache args=[] type=Unit call=kotlinx.coroutines.flow.MutableSharedFlow.resetReplayCache[kind=fun;recv=kotlinx.coroutines.flow.MutableSharedFlow<T0>;params=;gen=1] targs=[Int]
+expr e@19:5 name(shared) type=kotlinx.coroutines.flow.MutableSharedFlow<Int> ref=__local_4.shared[kind=local]
+expr e@19:5#1 memberCall recv=e@19:5 callee=asSharedFlow args=[] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.asSharedFlow[kind=fun;recv=kotlinx.coroutines.flow.MutableSharedFlow<T0>;params=;gen=1] targs=[Int]
+expr e@19:5#2 memberCall recv=e@19:5#1 callee=buffer args=[] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.buffer[kind=fun;recv=kotlinx.coroutines.flow.SharedFlow<T0>;params=Int,kotlinx.coroutines.channels.BufferOverflow;gen=1] targs=[Int]

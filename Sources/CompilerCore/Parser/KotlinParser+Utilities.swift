@@ -86,22 +86,29 @@ extension KotlinParser {
             return arena.appendNode(kind: .statement, range: invalidRange, [])
         }
 
-        var depth = 1
-        while !stream.atEOF(), depth > 0 {
+        var closingSymbols = [closing]
+        while !stream.atEOF() {
             let token = stream.peek()
-            if case let .symbol(symbol) = token.kind, symbol == closing, depth == 1 {
+            if case let .symbol(symbol) = token.kind, symbol == closing, closingSymbols.count == 1 {
                 _ = consumeToken(into: &children, range: &range)
                 return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
             }
-            if depth == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
+            if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
                 break
             }
 
             _ = consumeToken(into: &children, range: &range)
-            if case .symbol(opening) = token.kind {
-                depth += 1
-            } else if case .symbol(closing) = token.kind {
-                depth -= 1
+            switch token.kind {
+            case .symbol(.lParen):
+                closingSymbols.append(.rParen)
+            case .symbol(.lBracket):
+                closingSymbols.append(.rBracket)
+            case .symbol(.lBrace):
+                closingSymbols.append(.rBrace)
+            case let .symbol(symbol) where symbol == closingSymbols.last:
+                closingSymbols.removeLast()
+            default:
+                break
             }
         }
 

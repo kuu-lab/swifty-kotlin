@@ -165,12 +165,12 @@ final class RuntimeArrayIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
 
 final class RuntimeStringIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
-        "kotlin.StringIndexOutOfBoundsException"
+        "java.lang.StringIndexOutOfBoundsException"
     }
 
     override var exceptionHierarchyFQNames: [String] {
         [
-            "kotlin.StringIndexOutOfBoundsException",
+            "java.lang.StringIndexOutOfBoundsException",
             "kotlin.IndexOutOfBoundsException",
             "kotlin.RuntimeException",
             "kotlin.Exception",
@@ -944,6 +944,18 @@ public func kk_array_index_out_of_bounds_exception_new() -> Int {
 @_cdecl("__kk_array_index_out_of_bounds_exception_new_message")
 public func kk_array_index_out_of_bounds_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateArrayIndexOutOfBoundsException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
+    )
+}
+
+@_cdecl("__kk_string_index_out_of_bounds_exception_new")
+public func kk_string_index_out_of_bounds_exception_new() -> Int {
+    runtimeAllocateStringIndexOutOfBoundsException(message: nil)
+}
+
+@_cdecl("__kk_string_index_out_of_bounds_exception_new_message")
+public func kk_string_index_out_of_bounds_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateStringIndexOutOfBoundsException(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }

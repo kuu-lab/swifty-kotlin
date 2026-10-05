@@ -136,7 +136,8 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 scope: scope,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                enclosingTypeParameters: classLocalTypeParameters
             )
         }
 
@@ -276,7 +277,8 @@ extension DataFlowSemaPhase {
                 declSite: funDecl.range,
                 ast: ast, symbols: symbols, types: types,
                 interner: interner, isInline: funDecl.isInline,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                enclosingTypeParameters: classLocalTypeParameters
             )
 
             // Merge class type parameters with function's own type parameters.
@@ -834,7 +836,8 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         scope: Scope,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        enclosingTypeParameters: [InternedString: SymbolID]
     ) {
         let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(declID) else {
@@ -904,7 +907,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                enclosingTypeParameters: nestedClass.isInner ? enclosingTypeParameters : [:]
             )
             let nestedTypeParamSymbols = nestedTypeParamResult.symbols
             let nestedLocalTypeParameters = nestedTypeParamResult.localMap
@@ -1003,6 +1007,15 @@ extension DataFlowSemaPhase {
                             classTypeParameterCount: nestedTypeParamSymbols.count
                         ),
                         for: nestedPrimaryCtorSymbol
+                    )
+                    registerAnnotations(
+                        nestedClass.primaryConstructorAnnotations,
+                        symbol: nestedPrimaryCtorSymbol,
+                        declRange: nestedClass.range,
+                        sourceFileID: sourceFileID,
+                        sourceManager: ctx.sourceManager,
+                        symbols: symbols,
+                        diagnostics: diagnostics
                     )
                 }
             }

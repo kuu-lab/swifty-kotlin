@@ -126,6 +126,17 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_of",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "fallbackToken", type: .intptr),
+                RuntimeABIParameter(name: "nameHint", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
         // KSP-496: KClass-handle-based simpleName/qualifiedName bridges (used by
         // Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt).
         RuntimeABIFunctionSpec(

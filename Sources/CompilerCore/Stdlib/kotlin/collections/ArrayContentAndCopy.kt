@@ -402,7 +402,8 @@ public fun <T> Array<out T>.copyInto(
     return destination
 }
 
-private fun requireCopyOfSize(newSize: Int) {
+@PublishedApi
+internal fun requireCopyOfSize(newSize: Int) {
     require(newSize >= 0) { "Invalid new array size: $newSize." }
 }
 

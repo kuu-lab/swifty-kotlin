@@ -559,6 +559,55 @@ struct RuntimeCoroutineAdvancedTests {
         #expect(thrown == 0, "withTimeout must clear the thrown channel when no timeout occurs")
     }
 
+    @Test(arguments: [false, true])
+    func testTimeoutBridgesPropagateBlockExceptionUnchanged(afterSuspension: Bool) {
+        let immediate: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, thrown in
+            thrown?.pointee = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+            return 0
+        }
+        let delayed: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, thrown in
+            if kk_coroutine_state_enter(continuation, 8841) == 0 {
+                _ = kk_coroutine_state_set_label(continuation, 1)
+                return kk_kxmini_delay(1, continuation)
+            }
+            thrown?.pointee = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+            return 0
+        }
+        let entryRaw = unsafeBitCast(afterSuspension ? delayed : immediate, to: Int.self)
+        for exception in [
+            runtimeAllocateIllegalStateException(message: "boom"),
+            runtimeAllocateCancellationException(message: "cancelled"),
+            runtimeAllocateTimeoutCancellationException(timeoutMillis: 10),
+        ] {
+            let continuation = kk_coroutine_continuation_new(8841)
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(exception))
+            var thrown = -1
+            #expect(kk_with_timeout(5000, entryRaw, continuation, &thrown) == 0)
+            #expect(thrown == exception)
+            thrown = -1
+            #expect(kk_with_timeout_or_null_throwing(5000, entryRaw, continuation, &thrown) == 0)
+            #expect(thrown == exception)
+        }
+    }
+
+    @Test func testThrowingTimeoutOrNullClearsThrownOnSuccessAndExpiry() {
+        let fast = unsafeBitCast(
+            advcoro_return_fixed as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let slow = unsafeBitCast(
+            advcoro_long_delay_then_return as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let continuation = kk_coroutine_continuation_new(8842)
+        var thrown = -1
+        #expect(kk_with_timeout_or_null_throwing(5000, fast, continuation, &thrown) == 42)
+        #expect(thrown == 0)
+        thrown = -1
+        #expect(kk_with_timeout_or_null_throwing(1, slow, continuation, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
+    }
+
     // MARK: - Test 12: Multiple spill slots are independent
 
     /// Setting two distinct spill slots and reading them back after a suspension
