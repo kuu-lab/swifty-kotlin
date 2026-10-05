@@ -545,6 +545,7 @@ extension CallTypeChecker {
                         || calleeStr == "associateTo"
                         || calleeStr == "associateByTo"
                         || calleeStr == "associateWithTo"
+                        || calleeStr == "find"
                         || isIterableFilterFamilyHOF))
                         || (isIterableIndexReceiver && isIterableIndexFamilyHOF)))
                     || (allowConcreteForEachReceiver
@@ -3846,7 +3847,7 @@ extension CallTypeChecker {
                             typeArguments: [collectionElementType]
                         )
                         let didBindIterableSource = !didBindListSource
-                            && ["first", "last"].contains(calleeStr)
+                            && ["first", "last", "find"].contains(calleeStr)
                             && bindBundledIterableSourceFunction(
                                 typeArguments: [collectionElementType]
                             )
@@ -5948,7 +5949,7 @@ extension CallTypeChecker {
             let didBindIterableFilterSource = Self.sourceBackedListFilterNames.contains(calleeStr)
                 && args.count == 1
                 && !didBindListFilterSource
-                && isIterableReceiver
+                && (isIterableReceiver || (calleeStr == "filterIndexed" && isCollectionReceiver))
                 && (!isSetReceiver || calleeStr == "filterIndexed")
                 && bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             if didBindIterableFilterSource,
