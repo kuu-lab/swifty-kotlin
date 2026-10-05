@@ -156,9 +156,10 @@ public fun <T : Comparable<T>> T.coerceAtMost(maximumValue: T): T {
  * @return this value if it's in the range, or `range.start` if this value is less than `range.start`, or `range.endInclusive` if this value is greater than `range.endInclusive`.
  */
 public fun <T : Comparable<T>> T.coerceIn(range: ClosedRange<T>): T {
-    // `ClosedRange` interface members are compiler residuals; they do not
-    // lower on a `ClosedRange<T>`-typed receiver (KSP-641 does the same for
-    // the `ClosedFloatingPointRange` overload), so this declaration is an
-    // intrinsic fallback for erased generic bodies.
+    if (range.isEmpty()) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: $range.")
+    }
+    if (this < range.start) return range.start
+    if (this > range.endInclusive) return range.endInclusive
     return this
 }
