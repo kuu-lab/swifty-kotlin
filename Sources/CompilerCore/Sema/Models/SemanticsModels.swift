@@ -29,6 +29,23 @@ public enum SymbolKind: Hashable, Sendable {
 }
 
 extension SymbolTable {
+    /// Whether `import <path>` contributes the declarations nested under that
+    /// path to unqualified lookup. A path that resolves only to packages acts
+    /// like a package import (the `import kotlin.collections` quirk), and a
+    /// wildcard import (`import a.b.*`) always contributes. A non-wildcard
+    /// import whose path also resolves to a declaration must not: a class may
+    /// share its FQ name with a synthesised package record, so treating
+    /// `import kotlin.coroutines.CoroutineContext` as a package import would
+    /// leak the interface's members (Element, Key, ...) into bare-name
+    /// resolution and shadow same-named user declarations (KUU-1205).
+    public func importPathContributesMembers(_ path: [InternedString], isWildcard: Bool) -> Bool {
+        let resolved = lookupAll(fqName: path)
+        guard resolved.contains(where: { symbol($0)?.kind == .package }) else {
+            return false
+        }
+        return isWildcard || resolved.allSatisfy { symbol($0)?.kind == .package }
+    }
+
     /// Member extensions use [dispatch, extension, value arguments], while
     /// their semantic signature stores only the extension receiver.
     public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {

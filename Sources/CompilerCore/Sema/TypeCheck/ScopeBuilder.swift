@@ -212,7 +212,10 @@ struct TypeCheckScopeBuilder {
                 }
             }
 
-            if hasPackageImport {
+            // A non-wildcard import resolving to a declaration must not dump
+            // that declaration's neighbours into the wildcard scope, even when
+            // a synthetic package record shares its FQ name (KUU-1205).
+            if sema.symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                 for importedSymbol in topLevelSymbolsByPackage[importDecl.path] ?? [] {
                     if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
                         continue
