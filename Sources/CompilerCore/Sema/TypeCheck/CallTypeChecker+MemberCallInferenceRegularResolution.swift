@@ -201,15 +201,16 @@ extension CallTypeChecker {
                 if let currentReceiverType = ctx.implicitReceiverType,
                    let classSymbol = driver.helpers.nominalSymbol(of: currentReceiverType, types: sema.types)
                 {
-                    // Handle qualified super: super<Interface>
+                    // Handle qualified super: super<Type>
                     if let qualifier = interfaceQualifier {
                         let qualifierStr = ctx.interner.resolve(qualifier)
                         let directSupertypes = sema.symbols.directSupertypes(for: classSymbol)
 
-                        // Find the specified interface in direct supertypes
+                        // Find the specified class or interface in direct supertypes
                         for superID in directSupertypes {
                             guard let superSym = sema.symbols.symbol(superID) else { continue }
-                            if superSym.kind == .interface, superSym.name == qualifier {
+                            let isValidKind = superSym.kind == .interface || superSym.kind == .class || superSym.kind == .enumClass
+                            if isValidKind, superSym.name == qualifier {
                                 qualifiedSuperType = superID
                                 supertypeSymbols.insert(superID)
                                 break
@@ -697,7 +698,7 @@ extension CallTypeChecker {
                             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                                 return false
                             }
-                            return signature.parameterTypes.isEmpty
+                            return signature.parameterTypes.isEmpty && signature.typeParameterSymbols.isEmpty
                         }
                         if let zeroArgNested,
                            let signature = sema.symbols.functionSignature(for: zeroArgNested)
@@ -750,7 +751,12 @@ extension CallTypeChecker {
                                 parameterMapping: resolved.parameterMapping
                             )
                         )
-                        let resultType = signature.returnType
+                        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                        let resultType = sema.types.substituteTypeParameters(
+                            in: signature.returnType,
+                            substitution: resolved.substitutedTypeArguments,
+                            typeVarBySymbol: typeVarBySymbol
+                        )
                         if ast.arena.isExplicitCall(id),
                            let nestedOwner = sema.symbols.parentSymbol(for: chosen),
                            let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
@@ -821,7 +827,18 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
-            let finalType = safeCall ? sema.types.makeNullable(propResult.type) : propResult.type
+            sema.bindings.bindExprType(id, type: propResult.type)
+            let narrowedType: TypeID? = if let reference = ctx.dataFlow.resolveStableReference(
+                id, locals: locals, ast: ast, sema: sema, interner: interner
+            ), reference.isStable {
+                ctx.dataFlow.resolvedTypeFromFlowState(
+                    ctx.flowState.includingMembers(from: locals), reference: reference.symbol
+                )
+            } else {
+                nil
+            }
+            let propertyType = narrowedType ?? propResult.type
+            let finalType = safeCall ? sema.types.makeNullable(propertyType) : propertyType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }

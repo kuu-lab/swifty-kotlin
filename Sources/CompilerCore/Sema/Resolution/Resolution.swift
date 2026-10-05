@@ -680,9 +680,12 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
-            let argType = !arg.isSpread
+            let inferredArgType = !arg.isSpread
                 ? (integerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
                 : arg.type
+            let argType = !arg.isSpread
+                ? (typeSystem.suspendConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
+                : inferredArgType
 
             // A spread argument contributes the element type of its array to
             // the vararg parameter. Recover that type when possible so

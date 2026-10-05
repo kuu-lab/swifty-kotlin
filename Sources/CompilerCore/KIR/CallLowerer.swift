@@ -322,6 +322,21 @@ final class CallLowerer {
         }
     }
 
+    func runtimeExternalOmitsObjectReceiver(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
+        guard let owner = sema.symbols.parentSymbol(for: symbolID),
+              sema.symbols.symbol(owner)?.kind == .object,
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              let linkName = sema.symbols.externalLinkName(for: symbolID),
+              let spec = RuntimeABISpec.byName[linkName]
+        else {
+            return false
+        }
+        let valueParameters = spec.parameters.filter {
+            !($0.name == "outThrown" && $0.type == .nullableIntptrPointer)
+        }
+        return abiParametersMatchFactorySignature(valueParameters, signature, sema: sema)
+    }
+
     private func isFlatStringGroup(
         at index: Int,
         in parameters: [RuntimeABIParameter]
@@ -1041,7 +1056,8 @@ final class CallLowerer {
             }
         } else if let chosen,
                   let signature = sema.symbols.functionSignature(for: chosen),
-                  signature.receiverType != nil
+                  signature.receiverType != nil,
+                  !runtimeExternalOmitsObjectReceiver(chosen, sema: sema)
         {
             // A call that Sema resolved on an *outer* implicit receiver (e.g.
             // an enclosing class's member invoked unqualified from an object
@@ -1076,6 +1092,20 @@ final class CallLowerer {
                 {
                     implicitReceiver = capturedReceiver
                 }
+            }
+            if let owner = sema.symbols.parentSymbol(for: chosen),
+               let containingClass = sema.symbols.parentSymbol(for: owner),
+               sema.symbols.companionObjectSymbol(for: containingClass) == owner,
+               let receiverType = signature.receiverType,
+               case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+               receiverClass.classSymbol == owner
+            {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+                )
+                let receiver = arena.appendExpr(.symbolRef(owner), type: receiverType)
+                instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+                implicitReceiver = receiver
             }
             if implicitReceiver == nil,
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)

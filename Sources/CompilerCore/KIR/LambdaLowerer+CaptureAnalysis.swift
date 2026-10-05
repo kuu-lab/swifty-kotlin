@@ -299,6 +299,11 @@ extension LambdaLowerer {
 
         case let .memberCall(receiverExpr, _, _, args, _),
              let .safeMemberCall(receiverExpr, _, _, args, _):
+            if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
             collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             for argument in args {
                 collectBoundIdentifierSymbols(in: argument.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)

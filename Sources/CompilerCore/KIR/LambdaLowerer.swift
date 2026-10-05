@@ -1397,6 +1397,7 @@ final class LambdaLowerer {
         }()
         var captureArguments: [KIRExprID] = []
         if let receiverExpr,
+           !isUnbound,
            targetSymbol.flatMap({ sema.symbols.symbol($0)?.kind }) != .constructor
         {
             let loweredReceiver = driver.lowerExpr(
