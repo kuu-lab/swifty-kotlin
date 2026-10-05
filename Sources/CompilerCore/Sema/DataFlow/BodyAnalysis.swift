@@ -431,7 +431,7 @@ extension DataFlowSemaPhase {
 
             current.removeLast()
         }
-        return candidates
+        return candidates.filter { isNominalTypeSymbol($0.kind) }
     }
 
     private func resolveNominalCandidates(
@@ -485,9 +485,12 @@ extension DataFlowSemaPhase {
                 // stdlib class found by the short-name fallback can replace the
                 // imported class in a function signature (KUU-916).
                 if let shortName = path.first {
+                    // Package-only paths (and `a.b.*` wildcards) contribute
+                    // members; a path that also resolves to a declaration is
+                    // a declaration import and must not leak its neighbours
+                    // (KUU-1205).
                     for importDecl in imports where importDecl.alias == nil {
-                        let imported = symbols.lookupAll(fqName: importDecl.path)
-                        if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                        if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                             paths.append(importDecl.path + [shortName])
                         }
                     }
@@ -534,8 +537,7 @@ extension DataFlowSemaPhase {
                 }
             }
             for importDecl in imports where importDecl.alias == nil {
-                let imported = symbols.lookupAll(fqName: importDecl.path)
-                if imported.contains(where: { symbols.symbol($0)?.kind == .package }) {
+                if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                     candidatePaths.append(importDecl.path + path)
                 }
             }
@@ -551,7 +553,8 @@ extension DataFlowSemaPhase {
         var seenPaths: Set<[InternedString]> = []
         var result: [SemanticSymbol] = []
         for candidatePath in candidatePaths where seenPaths.insert(candidatePath).inserted {
-            result.append(contentsOf: symbols.lookupAll(fqName: candidatePath).compactMap { symbols.symbol($0) })
+            result.append(contentsOf: symbols.lookupAll(fqName: candidatePath).compactMap { symbols.symbol($0) }
+                .filter { isNominalTypeSymbol($0.kind) })
         }
         return result
     }
@@ -638,7 +641,7 @@ extension DataFlowSemaPhase {
         case let .typeParam(tp):
             return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable)))
         case let .functionType(ft):
-            return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, nullability: .nullable)))
+            return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: .nullable)))
         case let .kClassType(kc):
             return types.make(.kClassType(KClassType(argument: kc.argument, nullability: .nullable)))
         case .any, .unit, .nothing:
@@ -835,7 +838,7 @@ extension DataFlowSemaPhase {
                 recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             )
-            return types.make(.functionType(FunctionType(contextReceivers: newContextReceivers, receiver: newReceiver, params: newParams, returnType: newReturn, isSuspend: ft.isSuspend, nullability: ft.nullability)))
+            return types.make(.functionType(FunctionType(contextReceivers: newContextReceivers, receiver: newReceiver, params: newParams, returnType: newReturn, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: ft.nullability)))
         case let .kClassType(kc):
             let newArg = applySubstitution(
                 kc.argument,

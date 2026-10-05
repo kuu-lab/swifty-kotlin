@@ -1,6 +1,6 @@
 ---
 name: kswiftc-end-to-end
-description: Verifying a kswiftc backend change end-to-end — diff_kotlinc sample runs, LLVM IR parity against a master worktree, and targeted CompilerBackendTests suites. Read this before running a backend gate; it records the harness behaviours that make a green run misleading.
+description: Verifying a kswiftc backend/stdlib change end-to-end — diff_kotlinc sample runs, LLVM IR parity against a master worktree, targeted CompilerBackendTests suites, and parity-probe pitfalls for bundled-stdlib (Char/locale/Unicode) APIs. Read this before running a backend gate; it records the harness behaviours that make a green run misleading.
 ---
 
 # kswiftc End-to-End Sample & IR Parity Testing
@@ -10,10 +10,11 @@ None. Only the repo blueprint (Swift + LLVM + `kotlinc`) needs to be applied.
 
 ## When to use
 
-A change reached Lowering, Codegen, or Link and `swift test` alone is not evidence:
+A change reached Lowering, Codegen, Link, or the **bundled Kotlin stdlib**
+(`Sources/CompilerCore/Stdlib/**`) and `swift test` alone is not evidence:
 either the emitted IR is supposed to be unchanged (NFC refactors, pass reordering) or a
 sample program's runtime output is the only thing pinning the behaviour (stdlib
-migrations, ABI edits, boxing boundaries).
+migrations, ABI edits, boxing boundaries, new stdlib APIs).
 
 Build, test, and golden-update commands and Linux environment variables
 (`C_INCLUDE_PATH`, `LIBRARY_PATH`, `KSWIFTK_LLVM_DYLIB`) are in
@@ -27,6 +28,13 @@ misleading.
   checkout leaves source mtimes older than `.build/debug/kswiftc`. If a source change
   appears to have no effect, `swift package clean` before `swift build` — but only then;
   it is a several-minute cost.
+- **A stale stdlib kklib silently tests the OLD stdlib.** Bundled stdlib `.kt` files are
+  read at compile time from the resource bundle
+  `.build/<triple>/debug/KSwiftK_CompilerCore.resources/Stdlib/` — NOT directly from
+  `Sources/`. After editing `Sources/CompilerCore/Stdlib/**`, re-copy the file into the
+  resource bundle AND `rm -rf ~/.cache/kswiftk/stdlib/*/KSwiftKStdlib.kklib*` before
+  compiling probes (rebuild takes ~45-70s on first compile). `diff` the Sources copy
+  against the bundle copy to confirm the edit actually reached the compiler.
 - **`--emit llvm` and `--emit kir` are a different stdlib mode.** Using the prebuilt
   default `.kklib` requires `emit == .executable`
   ([`CompilerTypes.swift`](../../../Sources/CompilerCore/Sema/Models/CompilerTypes.swift)
@@ -77,6 +85,39 @@ misleading.
 - If `/tmp` fills up, point `TMPDIR` at a writable directory with space.
 - Keep test `.kt` repros and outputs under `/tmp` — never in the repo worktree.
 
+## Parity-probe pitfalls for bundled-stdlib Char/locale/Unicode APIs
+
+- **Never write `\uXXXX` Kotlin escapes through file-writing tools.** File-write paths
+  may interpret the escape and store the decoded character — lone surrogates (`\uD83D`)
+  cannot survive UTF-8 at all and silently become U+FFFD or a wrong code point, which
+  makes the probe test the wrong character. Generate such probes with python emitting
+  literal ASCII `\\uXXXX` sequences (`"'\\u%04X'" % cp`) and verify with `grep`/read-back
+  that the file contains the escape text.
+- **Never print `java.util.Locale` objects (or other shell stdlib classes) in a probe.**
+  The bundled `java.util.Locale` has no `toString()` — printing one yields the default
+  `<object 0xPTR>` rendering, which differs from kotlinc (`en_US`) AND differs between
+  two runs of the same binary (non-deterministic pointer). Label sections with constant
+  strings instead (`"en_US" to Locale("en","US")` pairs).
+- **Case-bridge edge defects.** `__kk_char_uppercase_locale` /
+  `__kk_char_lowercase_locale` NUL truncation and lone-surrogate→U+FFFD were fixed for
+  Char (#7714), but the same root cause survives at String level (KUU-1216):
+  `String.uppercase()`/`lowercase()`/locale variants truncate interior NULs and
+  `uppercase()` maps lone surrogates to U+FFFD (JVM: identity). When a parity failure
+  involves case mapping, isolate the primitive first (`uppercase(locale)` alone on the
+  exact char) before attributing the bug to new code.
+- **Program stdout may contain NUL/invalid-UTF-8 bytes** (e.g. `'\u0000'` results).
+  `diff` then reports "Binary files differ" and hides the actual delta — compare with
+  `cmp` for the verdict and `diff -a` or `xxd` for inspection.
+- **Print code points, not raw chars, for risky probes.** For lone surrogates,
+  unassigned code points, and noncharacters, print `.map { it.code }` lists — JVM and
+  KSwiftK may diverge in the stdout *encoding* layer (replacement chars) rather than in
+  the value itself; printing codes isolates value correctness and keeps the byte-compare
+  meaningful.
+- **A good sweep proves it isn't trivially constant.** When probing a predicate like
+  `isTitleCase`, include known-positive chars (Lt: U+01C5/01C8/01CB/01F2 and Greek
+  U+1F88/1F98/1FA8/1FBC/1FCC/1FFC) next to their Lu/Ll neighbours — an all-`false`
+  byte-identical output would also match a broken `false`-always implementation.
+
 ## Showing CLI evidence to a human
 
 Compiler runs are shell-only, so don't screen-record them. When a PR comment needs
@@ -84,6 +125,8 @@ visual proof, launch a terminal on the desktop and screenshot its output:
 `konsole` is installed (`DISPLAY=:0 konsole -e <script>`), and
 `wmctrl -i -r <winid> -b add,maximized_vert,maximized_horz` maximizes it by window ID
 (`wmctrl -l` lists windows) before screenshotting with the computer tool.
+If the evidence output is longer than one screen, scroll back with Shift+PageUp and take
+a second screenshot of the top.
 
 ## Run a single diff sample
 
@@ -98,6 +141,22 @@ The full `Scripts/diff_cases` directory is ~1425 cases and parallelises across
 `DIFF_WORKERS` (default: CPU count). It prints nothing until each case finishes — delegate
 the whole-directory gate to CI or a long-running job and run a targeted subset
 interactively.
+
+## Manual probe protocol (per-PR stdlib verification)
+
+```bash
+.build/debug/kswiftc /tmp/probe.kt -o /tmp/probe_out/bin   # expect exit 0, zero 'error' lines on stderr
+/tmp/probe_out/bin > cand.out                            # run ELF
+kotlinc /tmp/probe.kt -include-runtime -d /tmp/probe_out/ref.jar
+java -XX:-UsePerfData -jar /tmp/probe_out/ref.jar > ref.out
+cmp cand.out ref.out                                     # byte-identical = PASS
+```
+
+The first `kswiftc` compile after touching `Sources/CompilerCore/Stdlib/**` pays the
+~45-70s kklib rebuild; subsequent compiles reuse the cache. Also run the repo's own new
+diff case through `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/<case>.kt` once —
+it builds its own fresh artifact under `.artifacts/diff_kotlinc/` and is the sanctioned
+verdict.
 
 ## LLVM IR parity against master
 
@@ -163,7 +222,7 @@ than copying it into a PR description or a note.
 and exercise the shared-`.kklib` path that `diff_kotlinc.sh` uses.
 
 The split between the unit tests and the diff cases is deliberate, so don't "fix" it:
-the bundled `stateIn(initialValue:)` and `shareIn(replay:)` signatures differ from JVM
+the bundled `stateIn(initialValue:)` and `shareIn(replayCache:)` signatures differ from JVM
 `kotlinx.coroutines` on purpose, so anything touching them can only be pinned by a unit
 test. `state_flow_kotlin.kt` calls both and is therefore `SKIP-DIFF` (DEBT-DIFF-001).
 `shared_flow_kotlin.kt` deliberately stays inside JVM-compatible API

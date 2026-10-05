@@ -1,52 +1,52 @@
-symbol fq=__local_0.deferred[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.CompletableDeferred<String>
-symbol fq=__local_1.view[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.Deferred<String>
-symbol fq=__local_2.job[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.Job
-symbol fq=__local_3.deferred[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.CompletableDeferred<Int>
-symbol fq=__local_4.job[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.CompletableJob
-symbol fq=awaitValue[kind=fun;params=;susp] kind=function vis=public flags=suspendFunction sig=recv=_ params=[] ret=Int suspend=1
-symbol fq=completeJob.$0.parent[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=completeJob[kind=fun;params=kotlinx.coroutines.Job?] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.Job?] ret=Boolean
-symbol fq=completed[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol fq=__local_0.deferred[kind=local;type=kotlinx.coroutines.CompletableDeferred<String>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.CompletableDeferred<String>
+symbol fq=__local_1.view[kind=local;type=kotlinx.coroutines.Deferred<String>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.Deferred<String>
+symbol fq=__local_2.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.Job
+symbol fq=__local_3.deferred[kind=local;type=kotlinx.coroutines.CompletableDeferred<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.CompletableDeferred<Int>
+symbol fq=__local_4.job[kind=local;type=kotlinx.coroutines.CompletableJob;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.CompletableJob
+symbol fq=awaitValue[kind=fun;params=;ret=Int;susp;origin=fixture] kind=function vis=public flags=suspendFunction sig=recv=_ params=[] ret=Int suspend=1
+symbol fq=completeJob.$0.parent[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=completeJob[kind=fun;params=kotlinx.coroutines.Job?;ret=Boolean;names=[parent];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.Job?] ret=Boolean
+symbol fq=completed[kind=fun;params=;ret=String;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 file fkotlinx_coroutines_completable package=_
-  decl completed[kind=fun;params=] fun completed sym=completed[kind=fun;params=]
-  decl awaitValue[kind=fun;params=;susp] fun awaitValue suspend=1 sym=awaitValue[kind=fun;params=;susp]
-  decl completeJob[kind=fun;params=kotlinx.coroutines.Job?] fun completeJob sym=completeJob[kind=fun;params=kotlinx.coroutines.Job?]
+  decl completed[kind=fun;params=;ret=String;origin=fixture] fun completed sym=completed[kind=fun;params=;ret=String;origin=fixture]
+  decl awaitValue[kind=fun;params=;ret=Int;susp;origin=fixture] fun awaitValue suspend=1 sym=awaitValue[kind=fun;params=;ret=Int;susp;origin=fixture]
+  decl completeJob[kind=fun;params=kotlinx.coroutines.Job?;ret=Boolean;names=[parent];origin=fixture] fun completeJob sym=completeJob[kind=fun;params=kotlinx.coroutines.Job?;ret=Boolean;names=[parent];origin=fixture]
 expr e@4:69 string(value) type=String
-expr e@4:49 call callee=e@4:49#1 args=[_:e@4:69] type=kotlinx.coroutines.CompletableDeferred<String> call=kotlinx.coroutines.CompletableDeferred[kind=fun;params=T0;gen=1] targs=[String]
-expr e@4:5 localDecl deferred mutable=0 type=CompletableDeferred<String> init=e@4:49 type=Unit ref=__local_0.deferred[kind=local]
-expr e@5:34 name(deferred) type=kotlinx.coroutines.CompletableDeferred<String> ref=__local_0.deferred[kind=local]
-expr e@5:5 localDecl view mutable=0 type=Deferred<String> init=e@5:34 type=Unit ref=__local_1.view[kind=local]
-expr e@6:20 name(view) type=kotlinx.coroutines.Deferred<String> ref=__local_1.view[kind=local]
-expr e@6:5 localDecl job mutable=0 type=Job init=e@6:20 type=Unit ref=__local_2.job[kind=local]
-expr e@7:5 name(deferred) type=kotlinx.coroutines.CompletableDeferred<String> ref=__local_0.deferred[kind=local]
+expr e@4:49 call callee=e@4:49#1 args=[_:e@4:69] type=kotlinx.coroutines.CompletableDeferred<String> call=kotlinx.coroutines.CompletableDeferred[kind=fun;params=T0;ret=kotlinx.coroutines.CompletableDeferred<T0>;gen=1;names=[value]] targs=[String]
+expr e@4:5 localDecl deferred mutable=0 type=CompletableDeferred<String> init=e@4:49 type=Unit ref=__local_0.deferred[kind=local;type=kotlinx.coroutines.CompletableDeferred<String>;origin=fixture]
+expr e@5:34 name(deferred) type=kotlinx.coroutines.CompletableDeferred<String> ref=__local_0.deferred[kind=local;type=kotlinx.coroutines.CompletableDeferred<String>;origin=fixture]
+expr e@5:5 localDecl view mutable=0 type=Deferred<String> init=e@5:34 type=Unit ref=__local_1.view[kind=local;type=kotlinx.coroutines.Deferred<String>;origin=fixture]
+expr e@6:20 name(view) type=kotlinx.coroutines.Deferred<String> ref=__local_1.view[kind=local;type=kotlinx.coroutines.Deferred<String>;origin=fixture]
+expr e@6:5 localDecl job mutable=0 type=Job init=e@6:20 type=Unit ref=__local_2.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture]
+expr e@7:5 name(deferred) type=kotlinx.coroutines.CompletableDeferred<String> ref=__local_0.deferred[kind=local;type=kotlinx.coroutines.CompletableDeferred<String>;origin=fixture]
 expr e@7:23 string(other) type=String
-expr e@7:5#1 memberCall recv=e@7:5 callee=complete args=[_:e@7:23] type=Boolean call=kotlinx.coroutines.CompletableDeferred.complete[kind=fun;recv=kotlinx.coroutines.CompletableDeferred<T0>;params=T0;gen=1] targs=[String]
-expr e@8:5 name(view) type=kotlinx.coroutines.Deferred<String> ref=__local_1.view[kind=local]
-expr e@8:5#1 memberCall recv=e@8:5 callee=getCompletionExceptionOrNull args=[] type=kotlin.Throwable? call=kotlinx.coroutines.Deferred.getCompletionExceptionOrNull[kind=fun;recv=kotlinx.coroutines.Deferred<T0>;params=;gen=1] targs=[String]
-expr e@9:5 name(job) type=kotlinx.coroutines.Job ref=__local_2.job[kind=local]
-expr e@9:5#1 memberCall recv=e@9:5 callee=isCompleted args=[] type=Boolean ref=kotlinx.coroutines.Job.isCompleted[kind=prop]
-expr e@10:12 name(view) type=kotlinx.coroutines.Deferred<String> ref=__local_1.view[kind=local]
-expr e@10:12#1 memberCall recv=e@10:12 callee=getCompleted args=[] type=String call=kotlinx.coroutines.Deferred.getCompleted[kind=fun;recv=kotlinx.coroutines.Deferred<T0>;params=;gen=1] targs=[String]
+expr e@7:5#1 memberCall recv=e@7:5 callee=complete args=[_:e@7:23] type=Boolean call=kotlinx.coroutines.CompletableDeferred.complete[kind=fun;recv=kotlinx.coroutines.CompletableDeferred<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[value]] targs=[String]
+expr e@8:5 name(view) type=kotlinx.coroutines.Deferred<String> ref=__local_1.view[kind=local;type=kotlinx.coroutines.Deferred<String>;origin=fixture]
+expr e@8:5#1 memberCall recv=e@8:5 callee=getCompletionExceptionOrNull args=[] type=kotlin.Throwable? call=kotlinx.coroutines.Deferred.getCompletionExceptionOrNull[kind=fun;recv=kotlinx.coroutines.Deferred<T0>;params=;ret=kotlin.Throwable?;gen=1;classGen=1] targs=[String]
+expr e@9:5 name(job) type=kotlinx.coroutines.Job ref=__local_2.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture]
+expr e@9:5#1 memberCall recv=e@9:5 callee=isCompleted args=[] type=Boolean ref=kotlinx.coroutines.Job.isCompleted[kind=prop;type=Boolean]
+expr e@10:12 name(view) type=kotlinx.coroutines.Deferred<String> ref=__local_1.view[kind=local;type=kotlinx.coroutines.Deferred<String>;origin=fixture]
+expr e@10:12#1 memberCall recv=e@10:12 callee=getCompleted args=[] type=String call=kotlinx.coroutines.Deferred.getCompleted[kind=fun;recv=kotlinx.coroutines.Deferred<T0>;params=;ret=T0;gen=1;classGen=1] targs=[String]
 expr e@10:5 return value=e@10:12#1 type=Nothing
-expr e@14:20 call callee=e@14:20#1 args=[] type=kotlinx.coroutines.CompletableDeferred<Int> call=kotlinx.coroutines.CompletableDeferred[kind=fun;params=kotlinx.coroutines.Job?;gen=1] targs=[Int]
-expr e@14:5 localDecl deferred mutable=0 type=_ init=e@14:20 type=Unit ref=__local_3.deferred[kind=local]
-expr e@15:5 name(deferred) type=kotlinx.coroutines.CompletableDeferred<Int> ref=__local_3.deferred[kind=local]
+expr e@14:20 call callee=e@14:20#1 args=[] type=kotlinx.coroutines.CompletableDeferred<Int> call=kotlinx.coroutines.CompletableDeferred[kind=fun;params=kotlinx.coroutines.Job?;ret=kotlinx.coroutines.CompletableDeferred<T0>;gen=1;defaults=[1];names=[parent]] targs=[Int]
+expr e@14:5 localDecl deferred mutable=0 type=_ init=e@14:20 type=Unit ref=__local_3.deferred[kind=local;type=kotlinx.coroutines.CompletableDeferred<Int>;origin=fixture]
+expr e@15:5 name(deferred) type=kotlinx.coroutines.CompletableDeferred<Int> ref=__local_3.deferred[kind=local;type=kotlinx.coroutines.CompletableDeferred<Int>;origin=fixture]
 expr e@15:23 int(42) type=Int
-expr e@15:5#1 memberCall recv=e@15:5 callee=complete args=[_:e@15:23] type=Boolean call=kotlinx.coroutines.CompletableDeferred.complete[kind=fun;recv=kotlinx.coroutines.CompletableDeferred<T0>;params=T0;gen=1] targs=[Int]
-expr e@16:12 name(deferred) type=kotlinx.coroutines.CompletableDeferred<Int> ref=__local_3.deferred[kind=local]
-expr e@16:12#1 memberCall recv=e@16:12 callee=await args=[] type=Int call=kotlinx.coroutines.Deferred.await[kind=fun;recv=kotlinx.coroutines.Deferred<T0>;params=;susp;gen=1] targs=[Int]
+expr e@15:5#1 memberCall recv=e@15:5 callee=complete args=[_:e@15:23] type=Boolean call=kotlinx.coroutines.CompletableDeferred.complete[kind=fun;recv=kotlinx.coroutines.CompletableDeferred<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[value]] targs=[Int]
+expr e@16:12 name(deferred) type=kotlinx.coroutines.CompletableDeferred<Int> ref=__local_3.deferred[kind=local;type=kotlinx.coroutines.CompletableDeferred<Int>;origin=fixture]
+expr e@16:12#1 memberCall recv=e@16:12 callee=await args=[] type=Int call=kotlinx.coroutines.Deferred.await[kind=fun;recv=kotlinx.coroutines.Deferred<T0>;params=;ret=T0;susp;gen=1;classGen=1] targs=[Int]
 expr e@16:5 return value=e@16:12#1 type=Nothing
-expr e@20:46 name(parent) type=kotlinx.coroutines.Job? ref=completeJob.$0.parent[kind=vparam]
-expr e@20:31 call callee=e@20:31#1 args=[_:e@20:46] type=kotlinx.coroutines.CompletableJob call=kotlinx.coroutines.CompletableJob[kind=fun;params=kotlinx.coroutines.Job?]
-expr e@20:5 localDecl job mutable=0 type=CompletableJob init=e@20:31 type=Unit ref=__local_4.job[kind=local]
-expr e@21:5 name(job) type=kotlinx.coroutines.CompletableJob ref=__local_4.job[kind=local]
+expr e@20:46 name(parent) type=kotlinx.coroutines.Job? ref=completeJob.$0.parent[kind=vparam;origin=fixture]
+expr e@20:31 call callee=e@20:31#1 args=[_:e@20:46] type=kotlinx.coroutines.CompletableJob call=kotlinx.coroutines.CompletableJob[kind=fun;params=kotlinx.coroutines.Job?;ret=kotlinx.coroutines.CompletableJob;defaults=[1];names=[parent]]
+expr e@20:5 localDecl job mutable=0 type=CompletableJob init=e@20:31 type=Unit ref=__local_4.job[kind=local;type=kotlinx.coroutines.CompletableJob;origin=fixture]
+expr e@21:5 name(job) type=kotlinx.coroutines.CompletableJob ref=__local_4.job[kind=local;type=kotlinx.coroutines.CompletableJob;origin=fixture]
 expr e@21:53 string(failure) type=String
-expr e@21:31 call callee=e@21:31#1 args=[_:e@21:53] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?]
-expr e@21:5#1 memberCall recv=e@21:5 callee=completeExceptionally args=[_:e@21:31] type=Boolean call=kotlinx.coroutines.CompletableJob.completeExceptionally[kind=fun;recv=kotlinx.coroutines.CompletableJob;params=kotlin.Throwable]
-expr e@22:12 name(job) type=kotlinx.coroutines.CompletableJob ref=__local_4.job[kind=local]
-expr e@22:12#1 memberCall recv=e@22:12 callee=complete args=[] type=Boolean call=kotlinx.coroutines.CompletableJob.complete[kind=fun;recv=kotlinx.coroutines.CompletableJob;params=]
+expr e@21:31 call callee=e@21:31#1 args=[_:e@21:53] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?;ret=kotlin.IllegalStateException;names=[message]]
+expr e@21:5#1 memberCall recv=e@21:5 callee=completeExceptionally args=[_:e@21:31] type=Boolean call=kotlinx.coroutines.CompletableJob.completeExceptionally[kind=fun;recv=kotlinx.coroutines.CompletableJob;params=kotlin.Throwable;ret=Boolean;names=[exception]]
+expr e@22:12 name(job) type=kotlinx.coroutines.CompletableJob ref=__local_4.job[kind=local;type=kotlinx.coroutines.CompletableJob;origin=fixture]
+expr e@22:12#1 memberCall recv=e@22:12 callee=complete args=[] type=Boolean call=kotlinx.coroutines.CompletableJob.complete[kind=fun;recv=kotlinx.coroutines.CompletableJob;params=;ret=Boolean]
 expr e@22:5 return value=e@22:12#1 type=Nothing
 section stdlib-targets
 target fq=kotlinx.coroutines.CompletableDeferred[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0] supertypes=[kotlinx.coroutines.Deferred<T0>]
 target fq=kotlinx.coroutines.CompletableJob[kind=iface] origin=importedLibrary kind=interface vis=public flags=synthetic supertypes=[kotlinx.coroutines.Job]
-target fq=kotlinx.coroutines.Deferred[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0(out)] supertypes=[kotlinx.coroutines.Job] type=kotlinx.coroutines.Deferred<out Any>
+target fq=kotlinx.coroutines.Deferred[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0(out)] supertypes=[kotlinx.coroutines.Job] type=kotlinx.coroutines.Deferred<out Any?>

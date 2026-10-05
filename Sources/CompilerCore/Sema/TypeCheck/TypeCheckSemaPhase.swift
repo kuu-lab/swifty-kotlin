@@ -91,6 +91,8 @@ final class TypeCheckSemaPhase: CompilerPhase {
             work.run()
         }
 
+        validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
                 switch decl {
@@ -116,6 +118,64 @@ final class TypeCheckSemaPhase: CompilerPhase {
                 "KSWIFTK-TYPE-0003",
                 "Unbound declaration found during type checking.",
                 range: declRange
+            )
+        }
+
+        // KUU-1211: escape-analyze `Comparable<Char>` locals now that body
+        // type checking has populated bindings; KIR lowering reads the result
+        // to dispatch their `compareTo` receivers through `kk_char_compareTo`
+        // like kotlinc's unboxed `Intrinsics.compare` on a primitive `char`.
+        sema.bindings.setNonEscapingComparableCharLocals(
+            ComparableCharEscapeAnalyzer(
+                ast: ast,
+                symbols: sema.symbols,
+                types: sema.types,
+                bindings: sema.bindings,
+                interner: ctx.interner
+            ).analyze()
+        )
+    }
+
+    private func validateReturnLambdaPaths(ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine) {
+        guard !sema.bindings.functionReturnLambdaPaths.isEmpty
+            || !sema.bindings.lambdaReturnLambdaPaths.isEmpty else { return }
+        var inlineLambdaArguments: Set<ExprID> = []
+        for (callExprID, binding) in sema.bindings.callBindings {
+            guard sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
+                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
+            else { continue }
+            let arguments: [CallArgument]
+            switch ast.arena.expr(callExprID) {
+            case let .call(_, _, args, _), let .memberCall(_, _, _, args, _):
+                arguments = args
+            default:
+                continue
+            }
+            for (index, argument) in arguments.enumerated() {
+                let parameterIndex = binding.parameterMapping[index] ?? index
+                guard case .lambdaLiteral = ast.arena.expr(argument.expr),
+                      signature.parameterTypes.indices.contains(parameterIndex),
+                      case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex]))
+                else { continue }
+                if !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                    || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                {
+                    inlineLambdaArguments.insert(argument.expr)
+                }
+            }
+        }
+        let returnPaths = sema.bindings.functionReturnLambdaPaths.merging(
+            sema.bindings.lambdaReturnLambdaPaths, uniquingKeysWith: { _, lambdaPath in lambdaPath }
+        )
+        for returnExprID in returnPaths.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let lambdaPath = returnPaths[returnExprID],
+                  !lambdaPath.allSatisfy({ inlineLambdaArguments.contains($0) })
+            else { continue }
+            let destination = sema.bindings.lambdaReturnTargets[returnExprID] == nil ? "function" : "lambda"
+            diagnostics.error(
+                "KSWIFTK-SEMA-0042",
+                "A return to an enclosing \(destination) cannot cross a non-inline, crossinline, or noinline lambda boundary.",
+                range: ast.arena.exprRange(returnExprID)
             )
         }
     }
@@ -173,5 +233,7 @@ private final class TypeCheckWork: @unchecked Sendable {
 
     func run() {
         driver.typeCheckModule(fileScopes: fileScopes, files: files)
+        ConstPropertyEvaluator(ast: driver.ast, sema: driver.sema, interner: driver.interner)
+            .evaluate(diagnostics: driver.diagnostics)
     }
 }

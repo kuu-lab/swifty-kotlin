@@ -32,6 +32,7 @@ public final class TypeSystem {
     /// The symbol ID of the synthetic `kotlin.reflect.KFunction` interface (STDLIB-REFLECT-063).
     /// Used in subtyping to allow function types to be assigned to KFunction<R> variables.
     public internal(set) var kFunctionInterfaceSymbol: SymbolID?
+    public internal(set) var kCallableInterfaceSymbol: SymbolID?
 
     /// The symbol of the bundled `kotlin.Function<R>` interface.
     /// Function types are subtypes of this source-backed common function interface.
@@ -269,7 +270,7 @@ public final class TypeSystem {
             return make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: nullability)))
         case let .functionType(ft):
             if ft.nullability == nullability { return type }
-            return make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, nullability: nullability)))
+            return make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: nullability)))
         case let .kClassType(kc):
             if kc.nullability == nullability { return type }
             return make(.kClassType(KClassType(argument: kc.argument, nullability: nullability)))

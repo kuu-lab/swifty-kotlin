@@ -139,10 +139,10 @@ private func runtimeRenderTaggedChar(_ value: Int) -> String {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if isObjectPointer, let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-            return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+            return runtimeCharacterFromRaw(charBox.value)
         }
     }
-    return UnicodeScalar(value).map(String.init) ?? "?"
+    return runtimeCharacterFromRaw(value)
 }
 
 private func runtimeTaggedFloatValue(_ value: Int) -> Float {
@@ -190,7 +190,7 @@ private func runtimeTaggedULongValue(_ value: Int) -> UInt {
 
 private func runtimeStringHashCode(_ value: String) -> Int {
     var hash: Int32 = 0
-    for codeUnit in value.utf16 {
+    for codeUnit in runtimeKotlinStringUTF16CodeUnits(value) {
         hash = 31 &* hash &+ Int32(truncatingIfNeeded: codeUnit)
     }
     return Int(hash)
@@ -214,7 +214,7 @@ private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
 /// XOR — which `Int32(truncatingIfNeeded:)` below discards — so the two
 /// shifts agree on the low 32 bits for every input (verified against
 /// kotlinc for Long.MIN_VALUE/MAX_VALUE, -1, -5, and -2.5's Double bits).
-private func runtimeXorFoldHashCode(_ bits: Int64) -> Int {
+func runtimeXorFoldHashCode(_ bits: Int64) -> Int {
     Int(Int32(truncatingIfNeeded: bits ^ (bits >> 32)))
 }
 
@@ -223,7 +223,7 @@ private func runtimeXorFoldHashCode(_ bits: Int64) -> Int {
 /// the wrong helper for this: it's a zero-extending bit-transport encoding
 /// for the ABI boundary, not the sign-extended `Int` that Kotlin's
 /// Float.hashCode()/toBits() expose.
-private func runtimeFloatHashCode(_ value: Float) -> Int {
+func runtimeFloatHashCode(_ value: Float) -> Int {
     if value.isNaN {
         return Int(Int32(bitPattern: 0x7FC0_0000 as UInt32))
     }
@@ -340,9 +340,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return runtimeStringHashCode(value)
     }
     if let durationBox = tryCast(pointer, to: RuntimeDurationBox.self) {
-        // Duration.hashCode() is Long.hashCode of the nanosecond payload
+        // Duration.hashCode() is Long.hashCode of the tagged payload
         // (KUU-645); keep the boxed/Any path on the same xor-fold.
-        return runtimeXorFoldHashCode(durationBox.nanoseconds)
+        return runtimeXorFoldHashCode(durationBox.rawValue)
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
         let epochHash = Int32(truncatingIfNeeded: instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32))
@@ -362,7 +362,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     // 64-bit `Int` (even with `&+`/`&*`) only happens to agree while the
     // running total stays inside Int32 range and silently diverges once a
     // longer collection or a large-hashCode element pushes it past that.
-    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+    if let listBox = runtimeListBox(from: value) {
         var hash: Int32 = 1
         for element in listBox.values {
             hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element.legacyRawValue))
@@ -417,6 +417,13 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
                 hash = hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
             }
             return Int(hash)
+        }
+        // A user hashCode override wins over the structural fallbacks below:
+        // hashed collections already honor it via runtimeElementKeyHash, and
+        // Any.hashCode() must agree with them (KUU-1093 — e.g. boxed Duration,
+        // whose member hashCode is rawValue.hashCode(), not a structural fold).
+        if let overridden = runtimeObjectHashCodeOverride(value) {
+            return overridden
         }
         if runtimeIsDataClass(classID: objBox.classID) {
             // The first two slots are the runtime object header. Data-class
@@ -1173,7 +1180,8 @@ public func __kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePoin
 
 @_cdecl("__kk_double_ulp")
 public func __kk_double_ulp(_ value: Int) -> Int {
-    kk_double_to_bits(kk_bits_to_double(value).ulp)
+    let raw = kk_bits_to_double(value)
+    return kk_double_to_bits(raw.isInfinite ? Double.infinity : raw.ulp)
 }
 
 @_cdecl("__kk_double_nextUp")
@@ -1188,7 +1196,8 @@ public func __kk_double_nextDown(_ value: Int) -> Int {
 
 @_cdecl("__kk_float_ulp")
 public func __kk_float_ulp(_ value: Int) -> Int {
-    kk_float_to_bits(kk_bits_to_float(value).ulp)
+    let raw = kk_bits_to_float(value)
+    return kk_float_to_bits(raw.isInfinite ? Float.infinity : raw.ulp)
 }
 
 @_cdecl("__kk_float_nextUp")

@@ -109,6 +109,8 @@ enum DiagnosticRegistry {
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
         "INVISIBLE_MEMBER": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
         "INVISIBLE_REFERENCE": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
+        "NON_PUBLIC_CALL_FROM_PUBLIC_INLINE": ["KSWIFTK-SEMA-0045"],
+        "PROTECTED_CALL_FROM_PUBLIC_INLINE": ["KSWIFTK-SEMA-0045"],
         "DEPRECATION": ["KSWIFTK-SEMA-DEPRECATED"],
         "DEPRECATION_ERROR": ["KSWIFTK-SEMA-DEPRECATED"],
         "OPT_IN_USAGE": ["KSWIFTK-SEMA-OPT-IN"],
@@ -144,7 +146,7 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-LEX-0004",
             pass: "LEX",
             defaultSeverity: .error,
-            summary: "Invalid escape sequence in string."
+            summary: "Unescaped line break in string literal."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-LEX-0006",
@@ -223,6 +225,12 @@ enum DiagnosticRegistry {
             pass: "PARSE",
             defaultSeverity: .error,
             summary: "Structured syntax nesting exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0014",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected an identifier after '::'."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
@@ -378,6 +386,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Cannot access internal member of the bundled stdlib."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0045",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Public-API inline function cannot access a non-public-API declaration."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0050",
@@ -811,6 +825,12 @@ enum DiagnosticRegistry {
             pass: "LIB",
             defaultSeverity: .warning,
             summary: "Kotlin .klib dependency missing from the library search path."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0031",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Duplicate library declaration ignored; first on the search path wins."
         ),
     ]
 

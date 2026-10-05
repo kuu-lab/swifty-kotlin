@@ -41,8 +41,8 @@ enum GoldenHarnessDumpError: Error, CustomStringConvertible {
 /// block (RF-GOLDEN-011) renders identically under both contracts; the split
 /// between ordinary and dedicated output happens at render time from
 /// ownership and the spec's target list, never by post-processing strings.
-/// RF-GOLDEN-008 flips the default after maintainer review; until then only
-/// tests select this contract.
+/// RF-GOLDEN-008 made `.fixtureOwned` the default contract after maintainer
+/// review; `.current` remains selectable only for tests comparing formats.
 enum GoldenSemaRenderingContract {
     case current
     case fixtureOwned
@@ -103,7 +103,7 @@ enum GoldenHarnessDump {
         preInjectedFiles: [(path: String, contents: Data)] = [],
         stdlibLibraryPath: String? = nil,
         caseSpec: GoldenHarnessCaseSpec? = nil,
-        renderingContract: GoldenSemaRenderingContract = .current
+        renderingContract: GoldenSemaRenderingContract = .fixtureOwned
     ) throws -> String {
         let stdlib = try resolveStdlibMode(spec: caseSpec, stdlibLibraryPath: stdlibLibraryPath)
         let ctx = makeCompilationContext(
@@ -177,7 +177,7 @@ enum GoldenHarnessDump {
         sourceFileID: FileID,
         diagnostics: DiagnosticEngine,
         caseSpec: GoldenHarnessCaseSpec?,
-        renderingContract: GoldenSemaRenderingContract = .current
+        renderingContract: GoldenSemaRenderingContract = .fixtureOwned
     ) throws -> String {
         let ctx = StableRenderContext(
             sema: sema,

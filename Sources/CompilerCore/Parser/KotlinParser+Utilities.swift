@@ -86,22 +86,29 @@ extension KotlinParser {
             return arena.appendNode(kind: .statement, range: invalidRange, [])
         }
 
-        var depth = 1
-        while !stream.atEOF(), depth > 0 {
+        var closingSymbols = [closing]
+        while !stream.atEOF() {
             let token = stream.peek()
-            if case let .symbol(symbol) = token.kind, symbol == closing, depth == 1 {
+            if case let .symbol(symbol) = token.kind, symbol == closing, closingSymbols.count == 1 {
                 _ = consumeToken(into: &children, range: &range)
                 return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
             }
-            if depth == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
+            if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
                 break
             }
 
             _ = consumeToken(into: &children, range: &range)
-            if case .symbol(opening) = token.kind {
-                depth += 1
-            } else if case .symbol(closing) = token.kind {
-                depth -= 1
+            switch token.kind {
+            case .symbol(.lParen):
+                closingSymbols.append(.rParen)
+            case .symbol(.lBracket):
+                closingSymbols.append(.rBracket)
+            case .symbol(.lBrace):
+                closingSymbols.append(.rBrace)
+            case let .symbol(symbol) where symbol == closingSymbols.last:
+                closingSymbols.removeLast()
+            default:
+                break
             }
         }
 
@@ -686,10 +693,8 @@ enum ParserBoundaryPolicy {
     ]
 
     private static let nonSplittingNewlineSymbols: Set<Symbol> = [
-        .dot, .comma, .questionDot, .questionQuestion,
-        .plus, .minus, .star, .slash,
-        .equalEqual, .assign, .arrow,
-        .rParen, .rBracket, .rBrace,
+        .dot, .comma, .questionDot, .questionColon, .ampAmp, .barBar,
+        .rParen, .rBracket,
     ]
 
     /// Symbols that cannot end an expression, so a newline right after one is a
@@ -769,7 +774,7 @@ enum ParserBoundaryPolicy {
     }
 
     /// Tokens that can only continue an expression when they begin a line:
-    /// `.member`, `?.member`, `?: fallback`, `&&`, `||`, and the `else` /
+    /// `.member`, `?.member`, `?: fallback`, `&&`, `||`, `as`, and the `else` /
     /// `catch` / `finally` continuation keywords never start a statement, so a
     /// newline before one of them keeps the current declaration going
     /// (`fun f() =\n    xs\n        .map { ... }`).
@@ -783,12 +788,15 @@ enum ParserBoundaryPolicy {
             return leadingContinuationSymbols.contains(symbol)
         case .keyword(.else), .keyword(.catch), .keyword(.finally):
             return true
+        case .keyword(.as):
+            return true
         default:
             return false
         }
     }
 
     static func shouldSplitStatementOnNewline(_ kind: TokenKind) -> Bool {
+        if kind == .keyword(.as) { return false }
         if case let .symbol(symbol) = kind {
             return !nonSplittingNewlineSymbols.contains(symbol)
         }

@@ -1,0 +1,265 @@
+/// Proves effective immutability before flow inference, including deferred writes
+/// in closures. A local with any reassignment is conservatively excluded.
+final class LocalVariableStabilityAnalyzer {
+    private var analyzedRoots: Set<ExprID> = []
+    private var declarations: Set<ExprID> = []
+    private var reassigned: Set<ExprID> = []
+    var inPlaceLambdaScopes: Set<ExprID> = []
+    private var mutationScopes: [ExprID: Set<ExprID>] = [:]
+    private var closureScopes: [ExprID] = []
+    private var lambdaCalls: [ExprID: (call: ExprID, argument: Int)] = [:]
+    // Only writes from a deeper deferred scope invalidate local smart casts.
+    private var declarationDepths: [ExprID: Int] = [:]
+
+    func isMutatedInClosure(_ declaration: ExprID, sema: SemaModule) -> Bool {
+        (mutationScopes[declaration] ?? []).contains { scope in
+            if inPlaceLambdaScopes.contains(scope) { return false }
+            guard let site = lambdaCalls[scope],
+                  let binding = sema.bindings.callBinding(for: site.call),
+                  let parameterIndex = binding.parameterMapping[site.argument],
+                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                  signature.valueParameterSymbols.indices.contains(parameterIndex)
+            else { return true }
+            return !isInPlaceParameter(parameterIndex, function: binding.chosenCallee, sema: sema)
+        }
+    }
+
+    func isInPlaceParameter(_ index: Int, function: SymbolID, sema: SemaModule) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: function),
+              signature.valueParameterSymbols.indices.contains(index)
+        else { return false }
+        if sema.symbols.symbol(function)?.flags.contains(.inlineFunction) == true,
+           signature.valueParameterAllowsNonLocalReturn.indices.contains(index),
+           signature.valueParameterAllowsNonLocalReturn[index]
+        {
+            return true
+        }
+        let parameter = signature.valueParameterSymbols[index]
+        return sema.symbols.contractCallsInPlaceEffects(for: function)
+            .contains { $0.parameterSymbol == parameter }
+    }
+
+    func isNeverReassigned(_ declaration: ExprID) -> Bool {
+        declarations.contains(declaration) && !reassigned.contains(declaration)
+    }
+
+    func analyze(_ body: FunctionBody, ast: ASTModule) {
+        let roots: [ExprID] = switch body {
+        case let .block(expressions, _): expressions
+        case let .expr(expression, _): [expression]
+        case .unit: []
+        }
+        analyze(roots, ast: ast)
+    }
+
+    func analyze(_ roots: [ExprID], ast: ASTModule) {
+        guard roots.contains(where: { !analyzedRoots.contains($0) }) else { return }
+        var locals: [InternedString: ExprID] = [:]
+        for root in roots {
+            visit(root, ast: ast, locals: &locals)
+            analyzedRoots.insert(root)
+        }
+    }
+
+    private func visitBody(_ body: FunctionBody, ast: ASTModule, locals: [InternedString: ExprID]) {
+        var scope = locals
+        switch body {
+        case let .block(expressions, _):
+            for expression in expressions { visit(expression, ast: ast, locals: &scope) }
+        case let .expr(expression, _):
+            visit(expression, ast: ast, locals: &scope)
+        case .unit: break
+        }
+    }
+
+    private func visit(_ id: ExprID, ast: ASTModule, locals: inout [InternedString: ExprID]) {
+        guard let expression = ast.arena.expr(id) else { return }
+        analyzedRoots.insert(id)
+        func scoped(_ child: ExprID, hiding names: [InternedString] = []) {
+            var scope = locals
+            for name in names { scope.removeValue(forKey: name) }
+            visit(child, ast: ast, locals: &scope)
+        }
+        func children(_ expressions: [ExprID]) {
+            for expression in expressions { visit(expression, ast: ast, locals: &locals) }
+        }
+        switch expression {
+        case let .localDecl(name, _, _, initializer, _, _):
+            if let initializer { children([initializer]) }
+            declarations.insert(id)
+            declarationDepths[id] = closureScopes.count
+            locals[name] = id
+        case let .destructuringDecl(names, _, initializer, _):
+            children([initializer])
+            declarations.insert(id)
+            declarationDepths[id] = closureScopes.count
+            for name in names.compactMap({ $0 }) { locals[name] = id }
+        case let .localAssign(name, value, _), let .compoundAssign(_, name, value, _):
+            if let declaration = locals[name] {
+                reassigned.insert(declaration)
+                if let depth = declarationDepths[declaration], depth < closureScopes.count {
+                    mutationScopes[declaration, default: []].formUnion(closureScopes.dropFirst(depth))
+                }
+            }
+            children([value])
+        case let .blockExpr(statements, trailing, _):
+            var scope = locals
+            for child in statements + (trailing.map { [$0] } ?? []) {
+                visit(child, ast: ast, locals: &scope)
+            }
+        case let .lambdaLiteral(params, body, _, _):
+            closureScopes.append(id)
+            scoped(body, hiding: params)
+            closureScopes.removeLast()
+        case let .localFunDecl(name, _, params, _, body, _, _):
+            closureScopes.append(id)
+            var scope = locals
+            for param in params {
+                if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }
+                scope.removeValue(forKey: param.name)
+            }
+            scope.removeValue(forKey: name)
+            visitBody(body, ast: ast, locals: scope)
+            closureScopes.removeLast()
+            locals.removeValue(forKey: name)
+        case let .forExpr(variable, iterable, body, _, _):
+            children([iterable])
+            scoped(body, hiding: variable.map { [$0] } ?? [])
+        case let .forDestructuringExpr(names, iterable, body, _):
+            children([iterable])
+            scoped(body, hiding: names.compactMap { $0 })
+        case let .whileExpr(condition, body, _, _):
+            children([condition])
+            scoped(body)
+        case let .doWhileExpr(body, condition, _, _):
+            scoped(body)
+            scoped(condition)
+        case let .ifExpr(condition, thenBody, elseBody, _):
+            children([condition])
+            scoped(thenBody)
+            if let elseBody { scoped(elseBody) }
+        case let .whenExpr(subject, branches, elseBody, _):
+            var scope = locals
+            if let subject { visit(subject, ast: ast, locals: &scope) }
+            for branch in branches {
+                var branchScope = scope
+                for child in branch.conditions + (branch.guard_.map { [$0] } ?? []) + [branch.body] {
+                    visit(child, ast: ast, locals: &branchScope)
+                }
+            }
+            if let elseBody { visit(elseBody, ast: ast, locals: &scope) }
+        case let .tryExpr(body, catches, finallyBody, _):
+            scoped(body)
+            for clause in catches { scoped(clause.body, hiding: clause.paramName.map { [$0] } ?? []) }
+            if let finallyBody { scoped(finallyBody) }
+        case let .call(callee, _, args, _):
+            for (index, argument) in args.enumerated() {
+                if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                    lambdaCalls[argument.expr] = (id, index)
+                }
+            }
+            children([callee] + args.map(\.expr))
+        case let .memberCall(receiver, _, _, args, _), let .safeMemberCall(receiver, _, _, args, _):
+            for (index, argument) in args.enumerated() {
+                if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                    lambdaCalls[argument.expr] = (id, index)
+                }
+            }
+            children([receiver] + args.map(\.expr))
+        case let .memberAssign(receiver, _, value, _), let .memberCompoundAssign(_, receiver, _, value, _):
+            children([receiver, value])
+        case let .indexedAccess(receiver, indices, _):
+            children([receiver] + indices)
+        case let .indexedAssign(receiver, indices, value, _), let .indexedCompoundAssign(_, receiver, indices, value, _):
+            children([receiver] + indices + [value])
+        case let .binary(_, lhs, rhs, _), let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
+            children([lhs, rhs])
+        case let .unaryExpr(_, value, _), let .isCheck(value, _, _, _), let .asCast(value, _, _, _),
+             let .nullAssert(value, _), let .throwExpr(value, _):
+            children([value])
+        case let .returnExpr(value, _, _), let .callableRef(value, _, _):
+            if let value { children([value]) }
+        case let .stringTemplate(parts, _):
+            for part in parts {
+                if case let .expression(value) = part { children([value]) }
+            }
+        case let .objectLiteral(_, declaration, _):
+            closureScopes.append(id)
+            if let declaration { visitNominal(declaration, ast: ast, locals: locals) }
+            closureScopes.removeLast()
+        case let .localNominalDecl(declaration, _):
+            closureScopes.append(id)
+            visitNominal(declaration, ast: ast, locals: locals)
+            closureScopes.removeLast()
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
+             .charLiteral, .boolLiteral, .stringLiteral, .nameRef, .breakExpr, .continueExpr, .superRef, .thisRef:
+            break
+        }
+    }
+
+    private func visitNominal(_ id: DeclID, ast: ASTModule, locals: [InternedString: ExprID]) {
+        guard let declaration = ast.arena.decl(id) else { return }
+        let functions: [DeclID]
+        let properties: [DeclID]
+        let initBlocks: [FunctionBody]
+        let arguments: [ExprID]
+        let nestedDeclarations: [DeclID]
+        let constructors: [ConstructorDecl]
+        var scope = locals
+        switch declaration {
+        case let .classDecl(decl):
+            functions = decl.memberFunctions
+            properties = decl.memberProperties
+            initBlocks = decl.initBlocks
+            constructors = decl.secondaryConstructors
+            arguments = decl.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
+                + decl.superTypeEntries.compactMap(\.delegateExpression)
+            nestedDeclarations = decl.nestedClasses + decl.nestedObjects
+            for param in decl.primaryConstructorParams {
+                if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }
+                scope.removeValue(forKey: param.name)
+            }
+        case let .objectDecl(decl):
+            functions = decl.memberFunctions
+            properties = decl.memberProperties
+            initBlocks = decl.initBlocks
+            constructors = []
+            arguments = decl.superTypeConstructorArgs.map(\.expr)
+            nestedDeclarations = decl.nestedClasses + decl.nestedObjects
+        default: return
+        }
+        for property in properties {
+            if case let .propertyDecl(decl) = ast.arena.decl(property) { scope.removeValue(forKey: decl.name) }
+        }
+        for argument in arguments { visit(argument, ast: ast, locals: &scope) }
+        for function in functions {
+            guard case let .funDecl(decl) = ast.arena.decl(function) else { continue }
+            var functionScope = scope
+            for param in decl.valueParams {
+                if let value = param.defaultValue { visit(value, ast: ast, locals: &functionScope) }
+                functionScope.removeValue(forKey: param.name)
+            }
+            visitBody(decl.body, ast: ast, locals: functionScope)
+        }
+        for constructor in constructors {
+            var constructorScope = scope
+            for param in constructor.valueParams {
+                if let value = param.defaultValue { visit(value, ast: ast, locals: &constructorScope) }
+                constructorScope.removeValue(forKey: param.name)
+            }
+            for argument in constructor.delegationCall?.args ?? [] {
+                visit(argument.expr, ast: ast, locals: &constructorScope)
+            }
+            visitBody(constructor.body, ast: ast, locals: constructorScope)
+        }
+        for property in properties {
+            guard case let .propertyDecl(decl) = ast.arena.decl(property) else { continue }
+            if let initializer = decl.initializer { visit(initializer, ast: ast, locals: &scope) }
+            for body in [decl.getter?.body, decl.setter?.body, decl.delegateBody].compactMap({ $0 }) {
+                visitBody(body, ast: ast, locals: scope)
+            }
+        }
+        for body in initBlocks { visitBody(body, ast: ast, locals: scope) }
+        for nested in nestedDeclarations { visitNominal(nested, ast: ast, locals: scope) }
+    }
+}

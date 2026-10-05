@@ -347,7 +347,8 @@ extension CallLowerer {
             receiver: concreteFunctionType.receiver.map { _ in sema.types.anyType },
             params: concreteFunctionType.params.map { _ in sema.types.anyType },
             returnType: sema.types.anyType,
-            isSuspend: concreteFunctionType.isSuspend
+            isSuspend: concreteFunctionType.isSuspend,
+            isCallableReference: concreteFunctionType.isCallableReference
         )
         return materializeFunctionValueArgument(
             loweredArgID: argID,

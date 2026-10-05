@@ -480,6 +480,34 @@ extension OverloadResolver {
             )
         }
 
+        if containsTypeVariable(subtype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+            || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+        {
+            if case .functionType = typeSystem.kind(of: subtype),
+               let function = typeSystem.nominalFunctionType(for: supertype)
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: subtype, supertype: typeSystem.make(.functionType(function)),
+                    typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                    blameRange: blameRange, depth: depth + 1
+                )
+            }
+            if case let .functionType(superFunction) = supertypeKind,
+               let function = typeSystem.nominalFunctionType(for: subtype)
+                   ?? nominalFunctionTypeThroughInheritance(
+                       subtype,
+                       matchingArityOf: superFunction,
+                       typeSystem: typeSystem
+                   )
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: typeSystem.make(.functionType(function)), supertype: supertype,
+                    typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                    blameRange: blameRange, depth: depth + 1
+                )
+            }
+        }
+
         // Case 2: supertype is a generic class type with inferable variables or
         // use-site projections. Projections such as `Comparator<in Char>` are
         // otherwise left to the nominal subtype check, which cannot distinguish
@@ -676,7 +704,9 @@ extension OverloadResolver {
             if case let .functionType(subFunc) = subtypeKind,
                effectiveParams.count == superEffectiveParams.count,
                subFunc.contextReceivers.count == superFunc.contextReceivers.count,
-               subFunc.isSuspend == superFunc.isSuspend,
+               // A non-suspend function is usable wherever a suspend one is
+               // expected (`() -> T <: suspend () -> T`), but not vice versa.
+               superFunc.isSuspend || !subFunc.isSuspend,
                subFunc.nullability == superFunc.nullability || superFunc.nullability == .nullable
             {
                 var result: [VariableConstraint] = []
@@ -843,6 +873,28 @@ extension OverloadResolver {
             targetNullability: subtype.nullability,
             typeSystem: typeSystem
         )
+    }
+
+    /// KUU-1195: a nominal subtype that reaches `kotlin.Function.FunctionN`
+    /// through inheritance (e.g. `KProperty0<Int>` via its `() -> V` supertype
+    /// binding) decomposes against a variable-bearing function supertype the
+    /// same way a literal `FunctionN` does — otherwise `KProperty0<Int> <:
+    /// () -> R` would never bind `R`. Only the subtype side looks through
+    /// inheritance: a plain `() -> Int` is not a `KProperty0<Int>`, so the
+    /// supertype direction keeps the direct `nominalFunctionType` check.
+    private func nominalFunctionTypeThroughInheritance(
+        _ subtype: TypeID,
+        matchingArityOf function: FunctionType,
+        typeSystem: TypeSystem
+    ) -> FunctionType? {
+        guard case let .classType(subClass) = typeSystem.kind(of: subtype) else {
+            return nil
+        }
+        let arity = (function.receiver.map { [$0] } ?? []).count + function.params.count
+        guard let lifted = typeSystem.inheritedFunctionNClassType(of: subClass, arity: arity) else {
+            return nil
+        }
+        return typeSystem.nominalFunctionType(for: typeSystem.make(.classType(lifted)))
     }
 
     private func decomposeTypeArgConstraintImpl(

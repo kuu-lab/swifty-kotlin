@@ -18,8 +18,8 @@ enum InlineErasedLambdaABI {
     ]
 
     /// Imported inline HOF bodies were ABI-lowered before they were serialized.
-    /// Their erased selector results therefore remain boxed when a lowered
-    /// floating-point operator consumes them in the caller.
+    /// Their erased selector results remain boxed even when the lambda body is
+    /// spliced into the caller. Floating-point operators consume raw bits.
     static func unboxErasedArithmeticArgumentsIfNeeded(
         callee: InternedString,
         arguments: [KIRExprID],
@@ -45,9 +45,11 @@ enum InlineErasedLambdaABI {
                 return callResult == argument
                     && Self.erasedFunctionInvokeCallees.contains(ctx.interner.resolve(invokeCallee))
             }
-            guard isErasedInvokeResult else { continue }
-            let targetType = module.arena.exprType(argument)
-                ?? types.make(.primitive(primitive, .nonNull))
+            guard isErasedType(module.arena.exprType(argument), ctx: ctx)
+                || isErasedInvokeResult else { continue }
+            // The boxed result's Any/type-parameter type describes the handle,
+            // not the primitive representation required by this operator.
+            let targetType = types.make(.primitive(primitive, .nonNull))
             let unboxed = module.arena.appendTemporary(type: targetType)
             body.append(.call(
                 symbol: nil,

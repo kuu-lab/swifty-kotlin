@@ -4,6 +4,59 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testExpectClassBodylessMembersOnlyReportMissingActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            expect abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(!errors.isEmpty)
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-MPP-UNRESOLVED" }, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testExpectClassBodylessMembersLinkToActual() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """,
+            """
+            actual abstract class Charset {
+                actual fun newEncoder(): Int = 1
+                actual final override fun equals(other: Any?): Boolean = false
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testNonExpectClassBodylessMembersStillRequireBodies() throws {
+        let ctx = makeContextFromSource(
+            """
+            abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 2, "Expected a missing-body error for each member: \(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0009" }, "Unexpected diagnostics: \(errors)")
+    }
+
     @Test func testUnresolvedExpectExtensionRemainsCallable() throws {
         let ctx = makeContextFromSource(
             """

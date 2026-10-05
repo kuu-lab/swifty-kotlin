@@ -1,0 +1,33 @@
+fun main() {
+    println(StringBuilder("\uE000")[0].code)
+    println("\uE000"[0].code)
+    val text = "\uE000\uE7FF\uE800\uD800x\uDFFF\uD800\uDC00"
+    println(text.length)
+    for (ch in text) println(ch.code)
+    val builder = StringBuilder(text)
+    println(builder.length)
+    for (ch in builder.toString()) println(ch.code)
+    println("\uD800".compareTo("\uE000"))
+    println("\uD800\uDC00" < "\uE000")
+    println(text.replace("\uE000", "a")[3].code)
+    println(text.replace("\uE800", "b")[3].code)
+    println(text.indexOf('\uD800'))
+    println(text.indexOf('\uE800'))
+    println("\uE800\uE000")
+    val raw = """"""
+    println(raw.length)
+    println(raw[0].code)
+    println(raw[1].code)
+    println("$raw\uE800".length)
+    val privateUse = "\uE000\uE7FF\uE800"
+    println(privateUse.encodeToByteArray().decodeToString() == privateUse)
+    println(listOf(privateUse).toString().length)
+    println('\uE800'.toString().length)
+    println('\uD800'.toString()[0].code)
+    println(listOf('\uE800', '\uE000').toString().length)
+    println("[%3s]".format("\uE800").length)
+    println("[%3c]".format('\uE800').length)
+    println("%h".format("\uE800"))
+    println("\uD800\uE000".replace('\uD800', 'z'))
+    println("\uD800\uE000".replaceFirst("\uE000", "z")[0].code)
+}

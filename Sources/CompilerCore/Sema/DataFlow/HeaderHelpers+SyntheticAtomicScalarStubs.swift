@@ -232,7 +232,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         constructorLinkName: String,
-        externalLinkPrefix: String
+        externalLinkPrefix: String,
+        includeGetAndSetAlias: Bool = false
     ) {
         let atomicRefSymbol = ensureClassSymbol(
             named: "AtomicReference",
@@ -299,7 +300,7 @@ extension DataFlowSemaPhase {
             prefix: externalLinkPrefix,
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
-            includeGetAndSetAlias: true,
+            includeGetAndSetAlias: includeGetAndSetAlias,
             includeCompareAndSet: false,
             symbols: symbols,
             interner: interner

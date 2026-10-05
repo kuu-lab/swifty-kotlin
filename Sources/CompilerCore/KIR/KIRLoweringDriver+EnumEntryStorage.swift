@@ -300,13 +300,11 @@ extension KIRLoweringDriver {
             }
             body.append(.label(nextLabel))
         }
-        let nullOutThrown = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-        body.append(.constValue(result: nullOutThrown, value: .null))
         let fallbackResult = arena.appendTemporary(type: trapResultType ?? sema.types.unitType)
         body.append(.call(
             symbol: nil,
             callee: interner.intern("kk_abort_unreachable"),
-            arguments: [nullOutThrown],
+            arguments: [],
             result: fallbackResult,
             canThrow: false,
             thrownResult: nil,

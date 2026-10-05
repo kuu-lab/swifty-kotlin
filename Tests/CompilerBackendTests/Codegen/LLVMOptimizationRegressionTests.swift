@@ -9,6 +9,93 @@ import Testing
 @Suite
 struct LLVMOptimizationRegressionTests {
     @Test(arguments: [0, 2])
+    func replaceFirstCharImportedBuilderAddressesUseDeclaredABI(optimization: Int) throws {
+        let source = """
+        fun main() {
+            println("hello".replaceFirstChar { it.uppercase() })
+            println("aBc".replaceFirstChar { it.lowercase() })
+            println("hello".replaceFirstChar { it.uppercaseChar() })
+            println("aBc".replaceFirstChar { it.lowercaseChar() })
+            println("ßeta".replaceFirstChar { it.uppercase() })
+            println("hello".replaceFirstChar(Char::titlecase))
+            val titlecase: (Char) -> String = Char::titlecase
+            println("ßeta".replaceFirstChar(titlecase))
+            println("x".replaceFirstChar { "YY" })
+            val replacement: CharSequence = "ZZ"
+            println("hello".replaceFirstChar { replacement })
+            val stringReplacement = "SS"
+            println("hello".replaceFirstChar { stringReplacement })
+            println("hello".replaceFirstChar { "" })
+            var calls = 0
+            println("".replaceFirstChar { calls++; it.uppercase() })
+            println("".replaceFirstChar { calls++; it.uppercaseChar() })
+            println(calls)
+            try {
+                "hello".replaceFirstChar {
+                    if (it == 'h') throw IllegalArgumentException("transform")
+                    it.uppercase()
+                }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationReplaceFirstChar",
+            expected: "Hello\naBc\nHello\naBc\nSSeta\nHello\nSseta\nYY\nZZello\nSSello\nello\n\n\n0\ntransform\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func arrayListMemberBridgesUseRuntimeThrowingABI(optimization: Int) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_989_arraylist_member_bridge.kt"
+        ), encoding: .utf8)
+        try assertOutput(
+            source,
+            moduleName: "ArrayListMemberBridgeABI",
+            expected: "[1]\n[1]\nfalse\ntrue\n[]\nout of bounds\n2\n[2]\ntrue\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func sourceInjectedStdlibRuntimeBridges(optimization: Int) throws {
+        let source = """
+        enum class Entry { FIRST, SECOND }
+
+        fun main() {
+            println("hello")
+            println(Pair(1, 2).first)
+            println(Triple(1, 2, 3).third)
+            println(UnsupportedOperationException("unsupported").message)
+            println(IllegalStateException("illegal").message)
+            println(enumValues<Entry>().size)
+            println(Regex("ab").find("abc")!!.value)
+            println(listOf(1, 2, 3).windowed(2) { it.sum() })
+            val offset = 10
+            println(listOf(1, 2, 3).windowed(2) { it.sum() + offset })
+            println("12".toIntOrNull())
+            println("invalid".toIntOrNull())
+            println(kotlin.system.System.nanoTime() > 0)
+            println(kotlin.native.Platform.getAvailableProcessors() > 0)
+        }
+        """
+        try assertOutput(
+            source,
+            moduleName: "LLVMSourceInjectedRuntimeBridges",
+            expected: "hello\n1\n3\nunsupported\nillegal\n2\nab\n[3, 5]\n[13, 15]\n12\nnull\ntrue\ntrue\n",
+            optimization: optimization == 0 ? .O0 : .O2,
+            stdlibFromSource: true
+        )
+    }
+
+    @Test(arguments: [0, 2])
     func inheritedMapToStringUsesImportedABI(optimization: Int) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -161,6 +248,22 @@ struct LLVMOptimizationRegressionTests {
             source,
             moduleName: "LLVMOptimizationNestedClassRuntime",
             expected: "true\ntrue\nfalse\ntrue\ntrue\nA5\n10\nA(n=5)\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func nestedConstructorPropertiesDoNotPanicAtEachOptimizationLevel(optimization: Int) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_994_nested_constructor_properties.kt"
+        ), encoding: .utf8)
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationNestedConstructorProperties",
+            expected: "a\nb 1\n2\n3\n9\n3\n6\n9\ncircle=5\nrect=21\n",
             optimization: try #require(OptimizationLevel(rawValue: optimization))
         )
     }
@@ -366,14 +469,17 @@ struct LLVMOptimizationRegressionTests {
         moduleName: String,
         expected: String,
         optimization: OptimizationLevel,
-        stdlibPath: String? = nil
+        stdlibPath: String? = nil,
+        stdlibFromSource: Bool = false
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let outputPath = FileManager.default.temporaryDirectory
                 .appendingPathComponent("llvm-optimization-\(UUID().uuidString)")
                 .path
-            let libraryPath: String
-            if let stdlibPath {
+            let libraryPath: String?
+            if stdlibFromSource {
+                libraryPath = nil
+            } else if let stdlibPath {
                 libraryPath = stdlibPath
             } else {
                 libraryPath = try testStdlibArtifactPath()
@@ -385,7 +491,8 @@ struct LLVMOptimizationRegressionTests {
                 emit: .executable,
                 target: defaultTargetTriple(),
                 optLevel: optimization,
-                stdlibLibraryPath: libraryPath
+                stdlibLibraryPath: libraryPath,
+                allowDefaultStdlibLibrary: !stdlibFromSource
             )
             let context = CompilationContext(
                 options: options,
@@ -399,6 +506,7 @@ struct LLVMOptimizationRegressionTests {
             try LinkPhase().run(context)
 
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0, "Unexpected runtime failure: \(result.stderr)")
             let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalized == expected)
         }

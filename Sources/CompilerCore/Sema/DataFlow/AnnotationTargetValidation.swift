@@ -261,7 +261,9 @@ extension DataFlowSemaPhase {
         for annotation in param.annotations {
             let site: AnnotationUsageSite
             switch annotation.useSiteTarget?.lowercased() {
-            case nil, "param", "setparam":
+            case nil:
+                site = param.isProperty ? .constructorPropertyParameter : .valueParameter
+            case "param", "setparam":
                 site = .valueParameter
             case "field":
                 site = .paramField
@@ -560,9 +562,10 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            if let packageSymbol = symbols.lookup(fqName: importDecl.path),
-               symbols.symbol(packageSymbol)?.kind == .package
-            {
+            // Non-wildcard imports whose path names a declaration (a class may
+            // share a synthetic package record's FQ name) do not expose the
+            // declaration's neighbours as bare annotation names (KUU-1205).
+            if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                 if let child = symbols.children(ofFQName: importDecl.path).compactMap({ symbols.symbol($0) }).first(where: { $0.kind == .annotationClass && $0.name == shortName }) {
                     return child.id
                 }
@@ -634,6 +637,8 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("CONSTRUCTOR")
         case .valueParameter:
             return allowedTargets.contains("VALUE_PARAMETER")
+        case .constructorPropertyParameter:
+            return !allowedTargets.isDisjoint(with: ["VALUE_PARAMETER", "PROPERTY", "FIELD"])
         case .enumEntry:
             return allowedTargets.contains("FIELD") || allowedTargets.contains("CLASS")
         case let .property(explicitUseSiteTarget):
@@ -709,6 +714,8 @@ extension DataFlowSemaPhase {
             return "a constructor"
         case .valueParameter:
             return "a value parameter"
+        case .constructorPropertyParameter:
+            return "a constructor property parameter"
         case .enumEntry:
             return "an enum entry"
         case .property:
@@ -789,6 +796,7 @@ extension DataFlowSemaPhase {
         case function
         case constructor
         case valueParameter
+        case constructorPropertyParameter
         case enumEntry
         case property(explicitUseSiteTarget: Bool)
         case getter

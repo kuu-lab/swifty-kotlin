@@ -15,6 +15,7 @@ func whenConditionKey(
     return whenConditionKeyFromExpr(
         expr,
         conditionID: conditionID,
+        ast: ast,
         sema: sema,
         interner: interner
     )
@@ -26,6 +27,7 @@ func whenConditionKey(
 private func whenConditionKeyFromExpr(
     _ expr: Expr,
     conditionID: ExprID,
+    ast: ASTModule,
     sema: SemaModule,
     interner: StringInterner
 ) -> String? {
@@ -35,10 +37,10 @@ private func whenConditionKeyFromExpr(
     switch expr {
     case let .nameRef(name, _):
         return nameRefKey(name: name, conditionID: conditionID, sema: sema, interner: interner)
-    case let .memberCall(_, calleeName, _, args, _):
+    case let .memberCall(receiver, _, _, args, _):
         return memberCallKey(
-            calleeName: calleeName, args: args,
-            conditionID: conditionID, sema: sema, interner: interner
+            receiver: receiver, args: args,
+            conditionID: conditionID, ast: ast, sema: sema, interner: interner
         )
     case let .isCheck(_, typeRefID, negated, _):
         return isCheckKey(typeRefID: typeRefID, negated: negated, conditionID: conditionID, sema: sema)
@@ -81,21 +83,41 @@ private func nameRefKey(
 }
 
 private func memberCallKey(
-    calleeName _: InternedString,
+    receiver: ExprID,
     args: [CallArgument],
     conditionID: ExprID,
+    ast: ASTModule,
     sema: SemaModule,
-    interner _: StringInterner
+    interner: StringInterner
 ) -> String? {
-    // Only produce a key for argument-less enum-style member references.
-    // When args are non-empty the call may return different values for
-    // different arguments, so we return nil to avoid false deduplication.
     guard args.isEmpty,
-          let symbolID = sema.bindings.identifierSymbols[conditionID]
+          !ast.arena.isExplicitCall(conditionID),
+          let symbolID = sema.bindings.identifierSymbols[conditionID],
+          let symbol = sema.symbols.symbol(symbolID)
     else {
         return nil
     }
-    return "sym:\(symbolID.rawValue)"
+    let symbolKey = "sym:\(symbolID.rawValue)"
+    switch symbol.kind {
+    case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+        return symbolKey
+    case .property, .field:
+        // Enum entries and constants identify values independently of their qualifier.
+        if symbol.flags.contains(.constValue)
+            || (symbol.kind == .field
+                && sema.symbols.lookupAll(fqName: Array(symbol.fqName.dropLast())).contains {
+                    sema.symbols.symbol($0)?.kind == .enumClass
+                })
+        {
+            return symbolKey
+        }
+        guard let receiverKey = whenConditionKey(for: receiver, ast: ast, sema: sema, interner: interner) else {
+            return nil
+        }
+        return "member:\(receiverKey).\(symbolKey)"
+    default:
+        return nil
+    }
 }
 
 private func isCheckKey(

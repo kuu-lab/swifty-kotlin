@@ -70,6 +70,11 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
     }
 }
 
+/// Renders class handles consistently across Any.toString, printing, and collections.
+func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
+    "class \(box.metadata?.displayName ?? box.reflectionQualifiedName)"
+}
+
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
 @_cdecl("__kk_kclass_get_arity")
@@ -257,6 +262,16 @@ private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
         return nil
     }
     return tryCast(ptr, to: RuntimeKParameterBox.self)
+}
+
+@_cdecl("__kk_kparameter_create_typed")
+public func __kk_kparameter_create_typed(
+    _ index: Int, _ nameRaw: Int, _ typeRaw: Int, _ isOptional: Int, _ kind: Int, _ typeToken: Int, _ callableOwner: Int = 0
+) -> Int {
+    let raw = __kk_kparameter_create(index, nameRaw, typeRaw, isOptional, kind)
+    runtimeKParameterBox(from: raw)?.typeToken = typeToken
+    runtimeKParameterBox(from: raw)?.callableOwner = callableOwner
+    return raw
 }
 
 @_cdecl("__kk_kparameter_get_index")

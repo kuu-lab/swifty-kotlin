@@ -126,6 +126,13 @@ struct CaptureAnalyzer {
                 {
                     captured.insert(receiverSymbol)
                 }
+                // Same for a member-extension call's extension receiver when
+                // Sema picked it from an enclosing tower entry.
+                if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 // A bare member call inside an object literal resolves to the
                 // enclosing class's member symbol. Preserve that class's
                 // implicit receiver as a capture so lowering can still pass
@@ -237,11 +244,21 @@ struct CaptureAnalyzer {
                 }
 
             case let .callableRef(receiver, _, _):
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
+                if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 if let receiver {
                     visit(receiver)
                 }
 
-            case let .localFunDecl(_, _, _, body, _, _):
+            case let .localFunDecl(_, _, _, _, body, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
                 }
@@ -326,6 +343,11 @@ struct CaptureAnalyzer {
                 // visited here or the enclosing closure won't capture it.
                 guard let decl = ast.arena.decl(declID) else {
                     break
+                }
+                if let owner = sema.bindings.declSymbol(for: declID) {
+                    captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
+                        outerSymbols.contains($0)
+                    })
                 }
                 let constructorArgExprs: [ExprID]
                 let memberFunctionDecls: [DeclID]

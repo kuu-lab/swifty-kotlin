@@ -1,46 +1,46 @@
-symbol fq=__local_0.first[kind=local] kind=local vis=private flags=_ type=Int
-symbol fq=__local_1.last[kind=local] kind=local vis=private flags=_ type=Int
-symbol fq=__local_2.step[kind=local] kind=local vis=private flags=_ type=Int
-symbol fq=__local_3.iterator[kind=local] kind=local vis=private flags=_ type=kotlin.collections.IntIterator
-symbol fq=inspectIntProgression.$0.other[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=inspectIntProgression.$0.progression[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=inspectIntProgression[kind=fun;params=kotlin.ranges.IntProgression,Any?] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.IntProgression,Any?] ret=Unit
+symbol fq=__local_0.first[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_1.last[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_2.step[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_3.iterator[kind=local;type=kotlin.collections.IntIterator;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.IntIterator
+symbol fq=inspectIntProgression.$0.other[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=inspectIntProgression.$0.progression[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=inspectIntProgression[kind=fun;params=kotlin.ranges.IntProgression,Any?;ret=Unit;names=[progression,other];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.IntProgression,Any?] ret=Unit
 file fstdlib_kotlin_ranges_IntProgression_IntProgression_n package=_
-  decl inspectIntProgression[kind=fun;params=kotlin.ranges.IntProgression,Any?] fun inspectIntProgression sym=inspectIntProgression[kind=fun;params=kotlin.ranges.IntProgression,Any?]
-expr e@2:22 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam]
-expr e@2:22#1 memberCall recv=e@2:22 callee=first args=[] type=Int ref=kotlin.ranges.IntProgression.first[kind=prop]
-expr e@2:5 localDecl first mutable=0 type=Int init=e@2:22#1 type=Unit ref=__local_0.first[kind=local]
-expr e@3:21 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam]
-expr e@3:21#1 memberCall recv=e@3:21 callee=last args=[] type=Int ref=kotlin.ranges.IntProgression.last[kind=prop]
-expr e@3:5 localDecl last mutable=0 type=Int init=e@3:21#1 type=Unit ref=__local_1.last[kind=local]
-expr e@4:21 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam]
-expr e@4:21#1 memberCall recv=e@4:21 callee=step args=[] type=Int ref=kotlin.ranges.IntProgression.step[kind=prop]
-expr e@4:5 localDecl step mutable=0 type=Int init=e@4:21#1 type=Unit ref=__local_2.step[kind=local]
-expr e@5:33 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam]
-expr e@5:33#1 memberCall recv=e@5:33 callee=iterator args=[] type=kotlin.collections.IntIterator call=kotlin.ranges.IntProgression.iterator[kind=fun;recv=kotlin.ranges.IntProgression;params=]
-expr e@5:5 localDecl iterator mutable=0 type=IntIterator init=e@5:33#1 type=Unit ref=__local_3.iterator[kind=local]
-expr e@6:15 name(first) type=Int ref=__local_0.first[kind=local]
-expr e@6:22 name(last) type=Int ref=__local_1.last[kind=local]
-expr e@6:28 name(step) type=Int ref=__local_2.step[kind=local]
+  decl inspectIntProgression[kind=fun;params=kotlin.ranges.IntProgression,Any?;ret=Unit;names=[progression,other];origin=fixture] fun inspectIntProgression sym=inspectIntProgression[kind=fun;params=kotlin.ranges.IntProgression,Any?;ret=Unit;names=[progression,other];origin=fixture]
+expr e@2:22 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam;origin=fixture]
+expr e@2:22#1 memberCall recv=e@2:22 callee=first args=[] type=Int ref=kotlin.ranges.IntProgression.first[kind=prop;type=Int]
+expr e@2:5 localDecl first mutable=0 type=Int init=e@2:22#1 type=Unit ref=__local_0.first[kind=local;type=Int;origin=fixture]
+expr e@3:21 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam;origin=fixture]
+expr e@3:21#1 memberCall recv=e@3:21 callee=last args=[] type=Int ref=kotlin.ranges.IntProgression.last[kind=prop;type=Int]
+expr e@3:5 localDecl last mutable=0 type=Int init=e@3:21#1 type=Unit ref=__local_1.last[kind=local;type=Int;origin=fixture]
+expr e@4:21 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam;origin=fixture]
+expr e@4:21#1 memberCall recv=e@4:21 callee=step args=[] type=Int ref=kotlin.ranges.IntProgression.step[kind=prop;type=Int]
+expr e@4:5 localDecl step mutable=0 type=Int init=e@4:21#1 type=Unit ref=__local_2.step[kind=local;type=Int;origin=fixture]
+expr e@5:33 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam;origin=fixture]
+expr e@5:33#1 memberCall recv=e@5:33 callee=iterator args=[] type=kotlin.collections.IntIterator call=kotlin.ranges.IntProgression.iterator[kind=fun;recv=kotlin.ranges.IntProgression;params=;ret=kotlin.collections.IntIterator]
+expr e@5:5 localDecl iterator mutable=0 type=IntIterator init=e@5:33#1 type=Unit ref=__local_3.iterator[kind=local;type=kotlin.collections.IntIterator;origin=fixture]
+expr e@6:15 name(first) type=Int ref=__local_0.first[kind=local;type=Int;origin=fixture]
+expr e@6:22 name(last) type=Int ref=__local_1.last[kind=local;type=Int;origin=fixture]
+expr e@6:28 name(step) type=Int ref=__local_2.step[kind=local;type=Int;origin=fixture]
 expr e@6:13 stringTemplate[expr(e@6:15),lit(,),expr(e@6:22),lit(,),expr(e@6:28)] type=String
-expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
-expr e@7:13 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam]
-expr e@7:32 name(other) type=Any? ref=inspectIntProgression.$0.other[kind=vparam]
-expr e@7:13#1 memberCall recv=e@7:13 callee=equals args=[_:e@7:32] type=Boolean call=kotlin.ranges.IntProgression.equals[kind=fun;recv=kotlin.ranges.IntProgression;params=Any?]
-expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@8:13 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam]
-expr e@8:13#1 memberCall recv=e@8:13 callee=hashCode args=[] type=Int call=kotlin.ranges.IntProgression.hashCode[kind=fun;recv=kotlin.ranges.IntProgression;params=]
-expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@9:13 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam]
-expr e@9:13#1 memberCall recv=e@9:13 callee=toString args=[] type=String call=kotlin.ranges.IntProgression.toString[kind=fun;recv=kotlin.ranges.IntProgression;params=]
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
-expr e@10:13 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam]
-expr e@10:28 name(other) type=Any? ref=inspectIntProgression.$0.other[kind=vparam]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@7:13 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam;origin=fixture]
+expr e@7:32 name(other) type=Any? ref=inspectIntProgression.$0.other[kind=vparam;origin=fixture]
+expr e@7:13#1 memberCall recv=e@7:13 callee=equals args=[_:e@7:32] type=Boolean call=kotlin.ranges.IntProgression.equals[kind=fun;recv=kotlin.ranges.IntProgression;params=Any?;ret=Boolean;names=[other]]
+expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@8:13 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam;origin=fixture]
+expr e@8:13#1 memberCall recv=e@8:13 callee=hashCode args=[] type=Int call=kotlin.ranges.IntProgression.hashCode[kind=fun;recv=kotlin.ranges.IntProgression;params=;ret=Int]
+expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@9:13 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam;origin=fixture]
+expr e@9:13#1 memberCall recv=e@9:13 callee=toString args=[] type=String call=kotlin.ranges.IntProgression.toString[kind=fun;recv=kotlin.ranges.IntProgression;params=;ret=String]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@10:13 name(progression) type=kotlin.ranges.IntProgression ref=inspectIntProgression.$0.progression[kind=vparam;origin=fixture]
+expr e@10:28 name(other) type=Any? ref=inspectIntProgression.$0.other[kind=vparam;origin=fixture]
 expr e@10:13#1 binary(equal) lhs=e@10:13 rhs=e@10:28 type=Boolean
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@11:9 name(iterator) type=kotlin.collections.IntIterator ref=__local_3.iterator[kind=local]
-expr e@11:9#1 memberCall recv=e@11:9 callee=hasNext args=[] type=Boolean call=kotlin.collections.Iterator.hasNext[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;gen=1] targs=[Int]
-expr e@11:37 name(iterator) type=kotlin.collections.IntIterator ref=__local_3.iterator[kind=local]
-expr e@11:37#1 memberCall recv=e@11:37 callee=nextInt args=[] type=Int call=kotlin.collections.IntIterator.nextInt[kind=fun;recv=kotlin.collections.IntIterator;params=]
-expr e@11:29 call callee=e@11:29#1 args=[_:e@11:37#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@11:9 name(iterator) type=kotlin.collections.IntIterator ref=__local_3.iterator[kind=local;type=kotlin.collections.IntIterator;origin=fixture]
+expr e@11:9#1 memberCall recv=e@11:9 callee=hasNext args=[] type=Boolean call=kotlin.collections.Iterator.hasNext[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;ret=Boolean;gen=1;classGen=1] targs=[Int]
+expr e@11:37 name(iterator) type=kotlin.collections.IntIterator ref=__local_3.iterator[kind=local;type=kotlin.collections.IntIterator;origin=fixture]
+expr e@11:37#1 memberCall recv=e@11:37 callee=nextInt args=[] type=Int call=kotlin.collections.IntIterator.nextInt[kind=fun;recv=kotlin.collections.IntIterator;params=;ret=Int]
+expr e@11:29 call callee=e@11:29#1 args=[_:e@11:37#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@11:5 if cond=e@11:9#1 then=e@11:29 else=_ type=Unit

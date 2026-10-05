@@ -1,17 +1,17 @@
-symbol fq=__local_0.zeroValue[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLong
-symbol fq=__local_1.longValue[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLong
-symbol fq=golden.sema.atomicLongConstructorSemantics[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
+symbol fq=__local_0.zeroValue[kind=local;type=kotlin.concurrent.atomics.AtomicLong;origin=fixture] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLong
+symbol fq=__local_1.longValue[kind=local;type=kotlin.concurrent.atomics.AtomicLong;origin=fixture] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLong
+symbol fq=golden.sema.atomicLongConstructorSemantics[kind=fun;params=;ret=Long;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
 file fstdlib_kotlin_concurrent_atomics_AtomicLong_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
-  decl golden.sema.atomicLongConstructorSemantics[kind=fun;params=] fun atomicLongConstructorSemantics sym=golden.sema.atomicLongConstructorSemantics[kind=fun;params=]
+  decl golden.sema.atomicLongConstructorSemantics[kind=fun;params=;ret=Long;origin=fixture] fun atomicLongConstructorSemantics sym=golden.sema.atomicLongConstructorSemantics[kind=fun;params=;ret=Long;origin=fixture]
 expr e@8:32 long(0) type=Long
-expr e@8:21 call callee=e@8:21#1 args=[_:e@8:32] type=kotlin.concurrent.atomics.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long]
-expr e@8:5 localDecl zeroValue mutable=0 type=_ init=e@8:21 type=Unit ref=__local_0.zeroValue[kind=local]
+expr e@8:21 call callee=e@8:21#1 args=[_:e@8:32] type=kotlin.concurrent.atomics.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long;ret=kotlin.concurrent.atomics.AtomicLong;names=[value]]
+expr e@8:5 localDecl zeroValue mutable=0 type=_ init=e@8:21 type=Unit ref=__local_0.zeroValue[kind=local;type=kotlin.concurrent.atomics.AtomicLong;origin=fixture]
 expr e@9:32 long(42) type=Long
-expr e@9:21 call callee=e@9:21#1 args=[_:e@9:32] type=kotlin.concurrent.atomics.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long]
-expr e@9:5 localDecl longValue mutable=0 type=_ init=e@9:21 type=Unit ref=__local_1.longValue[kind=local]
-expr e@10:12 name(zeroValue) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.zeroValue[kind=local]
-expr e@10:12#1 memberCall recv=e@10:12 callee=load args=[] type=Long call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=]
-expr e@10:31 name(longValue) type=kotlin.concurrent.atomics.AtomicLong ref=__local_1.longValue[kind=local]
-expr e@10:31#1 memberCall recv=e@10:31 callee=load args=[] type=Long call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=]
+expr e@9:21 call callee=e@9:21#1 args=[_:e@9:32] type=kotlin.concurrent.atomics.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long;ret=kotlin.concurrent.atomics.AtomicLong;names=[value]]
+expr e@9:5 localDecl longValue mutable=0 type=_ init=e@9:21 type=Unit ref=__local_1.longValue[kind=local;type=kotlin.concurrent.atomics.AtomicLong;origin=fixture]
+expr e@10:12 name(zeroValue) type=kotlin.concurrent.atomics.AtomicLong ref=__local_0.zeroValue[kind=local;type=kotlin.concurrent.atomics.AtomicLong;origin=fixture]
+expr e@10:12#1 memberCall recv=e@10:12 callee=load args=[] type=Long call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=;ret=Long]
+expr e@10:31 name(longValue) type=kotlin.concurrent.atomics.AtomicLong ref=__local_1.longValue[kind=local;type=kotlin.concurrent.atomics.AtomicLong;origin=fixture]
+expr e@10:31#1 memberCall recv=e@10:31 callee=load args=[] type=Long call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicLong;params=;ret=Long]
 expr e@10:12#2 binary(add) lhs=e@10:12#1 rhs=e@10:31#1 type=Long
 expr e@10:5 return value=e@10:12#2 type=Nothing

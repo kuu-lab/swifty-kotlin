@@ -5,6 +5,16 @@ public extension RuntimeABISpec {
     /// Range/Progression (P5-68)
     static let rangeFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_floating_range_endpoint_or_null",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "endpoint", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_double_rangeTo",
             parameters: [
                 RuntimeABIParameter(name: "a", type: .intptr),
@@ -39,6 +49,42 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "a", type: .intptr),
                 RuntimeABIParameter(name: "b", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_double_range_start",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_double_range_endInclusive",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_float_range_start",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_float_range_endInclusive",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Range",

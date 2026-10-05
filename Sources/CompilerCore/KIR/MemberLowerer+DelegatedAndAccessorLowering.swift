@@ -629,7 +629,11 @@ extension MemberLowerer {
         var body: KIRLoweringEmitContext = [.beginBlock]
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
         let result = arena.appendTemporary(type: propType)
-        if let fieldOffset, !isEnumOwned {
+        if ownerSym.kind == .object {
+            // Named singleton properties use global storage, even when their
+            // getters retain a receiver parameter for interface dispatch.
+            body.append(.loadGlobal(result: result, symbol: fieldKey))
+        } else if let fieldOffset, !isEnumOwned {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             body.append(.call(
@@ -718,7 +722,9 @@ extension MemberLowerer {
         var body: KIRLoweringEmitContext = [.beginBlock]
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
         body.append(.constValue(result: valueExpr, value: .symbolRef(valueParamSymbol)))
-        if let fieldOffset, !isEnumOwned {
+        if ownerSym.kind == .object {
+            body.append(.storeGlobal(value: valueExpr, symbol: fieldKey))
+        } else if let fieldOffset, !isEnumOwned {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             body.append(.call(

@@ -77,6 +77,76 @@ extension DataFlowSemaPhase {
         let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
+        /// The library that claimed each symbol, as a user-facing origin
+        /// label (module name, or metadata path when unnamed) and the
+        /// metadata path that identifies it. `SymbolTable.define` merges a
+        /// record onto the first symbol declared at its FQ name; when two
+        /// libraries export the same declaration the second record therefore
+        /// lands on an already-bound symbol. First on the search path wins —
+        /// the loser's record is shadowed so the symbol's signature, owning
+        /// module, and inline body stay consistent — while its external link
+        /// names still alias to the merged symbol so bodies in the losing
+        /// library that reference the declaration keep resolving.
+        var boundSymbolOrigins: [SymbolID: (origin: String, metadataPath: String)] = [:]
+        var shadowedDuplicateRecords: [(record: ImportedLibrarySymbolRecord, symbol: SymbolID)] = []
+        /// FQ names of records that were shadowed — the duplicates
+        /// themselves plus the member records hidden underneath them — so
+        /// deeper declarations (nested classes, enum entries, parameters of
+        /// shadowed callables) shadow transitively.
+        var shadowedDeclOrigins: [[InternedString]: String] = [:]
+        /// Member records shadowed with their owner. They never receive a
+        /// symbol, but their external link names still resolve — against the
+        /// merged declaration space, where a same-FQName counterpart from the
+        /// winning library may exist — so bodies in the losing library that
+        /// call the member dispatch consistently.
+        var shadowedMemberRecords: [ImportedLibrarySymbolRecord] = []
+        /// Member machinery (parameters, backing fields, locals, labels):
+        /// hidden silently with its owner — these records encode part of a
+        /// callable, not a declaration a consumer names directly.
+        func isShadowedMemberMachinery(_ kind: SymbolKind) -> Bool {
+            switch kind {
+            case .valueParameter, .typeParameter, .backingField, .local, .label:
+                true
+            default:
+                false
+            }
+        }
+        /// The winning library when `record` is a member of a declaration
+        /// another library already owns, else nil. A class that loses the
+        /// merge must take its whole member surface with it: binding the
+        /// losing class's fields, accessors (resolved at losing-layout
+        /// offsets), and loser-only members onto the winning layout would
+        /// compile and then crash or read garbage at runtime. Callables
+        /// legitimately coexist as overloads, so parameter-kind records are
+        /// shadowed only when the callable's owner — not the callable itself
+        /// — is a foreign-owned nominal (e.g. `dup.Shadow.<init>.v` loses
+        /// through `dup.Shadow`, while a `dup.helper` overload's parameters
+        /// survive).
+        func shadowedOwnerOrigin(
+            for record: ImportedLibrarySymbolRecord,
+            metadataPath: String
+        ) -> String? {
+            guard record.kind != .package else { return nil }
+            let ownerFQName = Array(record.fqName.dropLast())
+            if let winner = shadowedDeclOrigins[ownerFQName] { return winner }
+            let probeFQName: [InternedString]
+            if isShadowedMemberMachinery(record.kind) {
+                probeFQName = Array(record.fqName.dropLast(2))
+                if probeFQName != ownerFQName,
+                   let winner = shadowedDeclOrigins[probeFQName]
+                { return winner }
+            } else {
+                probeFQName = ownerFQName
+            }
+            guard !probeFQName.isEmpty,
+                  let ownerSymbol = symbols.lookupAll(fqName: probeFQName).first,
+                  let ownerKind = symbols.symbol(ownerSymbol)?.kind,
+                  isNominalLayoutTargetSymbol(ownerKind),
+                  let bound = boundSymbolOrigins[ownerSymbol],
+                  bound.metadataPath != metadataPath
+            else { return nil }
+            return bound.origin
+        }
         let lazyLoaderState = ImportedLibraryLazyLoaderState(importedInlineFunctions: importedInlineFunctions)
         var klibModules: [LoadedKlibModule] = []
         /// Every `.klib` that passed manifest gating — including ones whose
@@ -101,6 +171,20 @@ extension DataFlowSemaPhase {
             moduleFQN: InternedString?
         ) -> SymbolID? {
             guard !record.fqName.isEmpty else { return nil }
+            let origin = moduleFQN.map { "module '\(interner.resolve($0))'" }
+                ?? "'\(metadataPath)'"
+            if let winner = shadowedOwnerOrigin(for: record, metadataPath: metadataPath) {
+                if !isShadowedMemberMachinery(record.kind) {
+                    diagnostics.warning(
+                        "KSWIFTK-LIB-0031",
+                        "Declaration '\(renderFQName(record.fqName, interner: interner))' imported from \(origin) ignored; its owner is provided by \(winner)",
+                        range: nil
+                    )
+                }
+                shadowedDeclOrigins[record.fqName] = winner
+                shadowedMemberRecords.append(record)
+                return nil
+            }
             let name = record.fqName.last ?? interner.intern("_")
             var flags: SymbolFlags = [.synthetic, .importedLibrary]
             if record.isSuspend, record.kind == .function {
@@ -112,6 +196,7 @@ extension DataFlowSemaPhase {
             if record.isOperator, record.kind == .function {
                 flags.insert(.operatorFunction)
             }
+            if record.isMemberExtension { flags.insert(.memberExtension) }
             // Overrides must stay marked so member lookup can shadow the
             // supertype declaration instead of reporting an ambiguity.
             if record.isOverride,
@@ -142,6 +227,17 @@ extension DataFlowSemaPhase {
                 visibility: record.visibility,
                 flags: flags
             )
+            if let winner = boundSymbolOrigins[symbol] {
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0031",
+                    "Duplicate declaration '\(renderFQName(record.fqName, interner: interner))' imported from \(origin) ignored; \(winner.origin) takes precedence",
+                    range: nil
+                )
+                shadowedDuplicateRecords.append((record: record, symbol: symbol))
+                shadowedDeclOrigins[record.fqName] = winner.origin
+                return symbol
+            }
+            boundSymbolOrigins[symbol] = (origin: origin, metadataPath: metadataPath)
             if let moduleFQN {
                 symbols.setModuleFQN(moduleFQN, for: symbol)
             }
@@ -385,6 +481,29 @@ extension DataFlowSemaPhase {
                 importedSymbolByFQName[fQName] = binding.symbol
             }
         }
+        // A shadowed member contributes its external link names the same
+        // way a duplicate does — aliased to the winning library's
+        // same-FQName counterpart. Members with no counterpart (loser-only
+        // declarations) stay unmapped; no consumer code can name them, and
+        // the losing library's own archive code remains self-consistent.
+        for record in shadowedMemberRecords {
+            guard let counterpart = symbols.lookupAll(fqName: record.fqName).first else {
+                continue
+            }
+            shadowedDuplicateRecords.append((record: record, symbol: counterpart))
+        }
+        // A shadowed duplicate still contributes its external link names as
+        // aliases of the merged symbol: call sites inside the losing library
+        // (including its surviving non-duplicate declarations) resolve by
+        // that library's own link names.
+        for shadowed in shadowedDuplicateRecords {
+            if let linkName = shadowed.record.externalLinkName, !linkName.isEmpty {
+                externalLinkNameToSymbol[linkName] = shadowed.symbol
+            }
+            if let linkName = shadowed.record.defaultStubExternalLinkName, !linkName.isEmpty {
+                externalLinkNameToSymbol[linkName] = SyntheticSymbolScheme.defaultStubSymbol(for: shadowed.symbol)
+            }
+        }
 
         // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: a function's type parameter is
         // "phantom" when it never appears in its receiver, value parameters,
@@ -458,6 +577,16 @@ extension DataFlowSemaPhase {
         for binding in propertyBindingsWithGetter {
             guard let getterLink = binding.record.propertyGetterExternalLinkName,
                   let getterSymbol = symbols.extensionPropertyGetterAccessor(for: binding.symbol)
+            else {
+                continue
+            }
+            externalLinkNameToSymbol[getterLink] = getterSymbol
+        }
+        for shadowed in shadowedDuplicateRecords {
+            guard shadowed.record.kind == .property || shadowed.record.kind == .field,
+                  let getterLink = shadowed.record.propertyGetterExternalLinkName,
+                  !getterLink.isEmpty,
+                  let getterSymbol = symbols.extensionPropertyGetterAccessor(for: shadowed.symbol)
             else {
                 continue
             }
@@ -1224,6 +1353,7 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: signature.valueParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
+                    valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     typeParameterSymbols: normalizedTypeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: normalizedUpperBoundsList,
@@ -1519,6 +1649,7 @@ extension DataFlowSemaPhase {
         let isInline: Bool
         let isOperator: Bool
         let isOverride: Bool
+        let isMemberExtension: Bool
         let receiverOwnerFQName: [InternedString]?
         let valueParameterIsVararg: [Bool]
         let valueParameterAllowsNonLocalReturn: [Bool]
@@ -1526,6 +1657,7 @@ extension DataFlowSemaPhase {
         /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect
         /// decoded from metadata, `nil` where the parameter has none.
         let valueParameterCallsInPlaceKinds: [InvocationKind?]
+        let contractImplicationEffects: [ContractImplicationEffect]
         let canThrow: Bool
         let valueParameterNames: [String]
         let reifiedTypeParameterIndices: Set<Int>
@@ -1592,11 +1724,13 @@ extension DataFlowSemaPhase {
             isInline: Bool = false,
             isOperator: Bool = false,
             isOverride: Bool = false,
+            isMemberExtension: Bool = false,
             receiverOwnerFQName: [InternedString]? = nil,
             valueParameterIsVararg: [Bool] = [],
             valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
+            contractImplicationEffects: [ContractImplicationEffect] = [],
             canThrow: Bool = false,
             valueParameterNames: [String] = [],
             reifiedTypeParameterIndices: Set<Int> = [],
@@ -1652,11 +1786,13 @@ extension DataFlowSemaPhase {
             self.isInline = isInline
             self.isOperator = isOperator
             self.isOverride = isOverride
+            self.isMemberExtension = isMemberExtension
             self.receiverOwnerFQName = receiverOwnerFQName
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
+            self.contractImplicationEffects = contractImplicationEffects
             self.canThrow = canThrow
             self.valueParameterNames = valueParameterNames
             self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
@@ -1952,7 +2088,8 @@ extension DataFlowSemaPhase {
             // ownership from the decoded receiver type so imported stdlib
             // extensions (for example Sequence.chunked/windowed) follow the
             // same resolution path as bundled source declarations.
-            if let receiverType = signature.receiverType,
+            if !record.isMemberExtension,
+               let receiverType = signature.receiverType,
                case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
                let receiverSymbol = symbols.symbol(receiverClassType.classSymbol),
                isNominalLayoutTargetSymbol(receiverSymbol.kind)
@@ -1966,16 +2103,32 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(defaultStubLink, for: stubSymbol)
                 let intType = types.intType
                 let reifiedCount = signature.reifiedTypeParameterIndices.count
-                let stubParameterTypes = signature.parameterTypes + Array(repeating: intType, count: reifiedCount) + [intType]
+                var stubReceiverType = signature.receiverType
+                var stubLeadingParameters: [TypeID] = []
+                if record.isMemberExtension,
+                   let owner = symbols.parentSymbol(for: symbol)
+                {
+                    let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                        .prefix(signature.classTypeParameterCount)
+                        .map { .invariant(types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                    stubLeadingParameters.append(types.make(.classType(ClassType(
+                        classSymbol: owner, args: ownerArgs, nullability: .nonNull
+                    ))))
+                    stubLeadingParameters.append(contentsOf: [signature.receiverType].compactMap { $0 })
+                    stubReceiverType = nil
+                }
+                let stubParameterTypes = stubLeadingParameters + signature.parameterTypes
+                    + Array(repeating: intType, count: reifiedCount) + [intType]
                 symbols.setFunctionSignature(
                     FunctionSignature(
-                        receiverType: signature.receiverType,
+                        receiverType: stubReceiverType,
                         parameterTypes: stubParameterTypes,
                         returnType: signature.returnType,
                         isSuspend: false,
                         canThrow: signature.canThrow,
                         valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: signature.valueParameterIsVararg
+                        valueParameterIsVararg: Array(repeating: false, count: stubLeadingParameters.count)
+                            + signature.valueParameterIsVararg
                             + Array(repeating: false, count: reifiedCount + 1),
                         typeParameterSymbols: signature.typeParameterSymbols,
                         reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices

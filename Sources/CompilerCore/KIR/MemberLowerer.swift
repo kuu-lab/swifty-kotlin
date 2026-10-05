@@ -302,23 +302,28 @@ final class MemberLowerer {
                         compilationCtx: compilationCtx
                     ))
                 }
-                let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
+                let shared = KIRLoweringSharedContext(
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
+                let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                    classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+                ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                    classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+                )
+                let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+                    symbol: symbol, memberDecls: nestedDirect + forwardingDecls
+                )))
                 directMembers.append(kirID)
                 allDecls.append(kirID)
                 allDecls.append(contentsOf: nestedAllDecls)
+                allDecls.append(contentsOf: forwardingDecls)
 
                 // Lower constructors for nested classes (inner and static).
                 // Without this, nested class constructors would not be emitted
                 // into KIR and codegen would produce undefined symbol references.
                 let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
                 let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                let shared = KIRLoweringSharedContext(
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers
-                )
                 for ctorSymbol in ctorSymbols {
                     let ctorDecls = driver.lowerConstructor(
                         ctorSymbol: ctorSymbol,
@@ -379,10 +384,22 @@ final class MemberLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 compilationCtx: compilationCtx
             )
-            let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
+            let shared = KIRLoweringSharedContext(
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+            ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+            )
+            let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+                symbol: symbol, memberDecls: nestedDirect + forwardingDecls
+            )))
             directMembers.append(kirID)
             allDecls.append(kirID)
             allDecls.append(contentsOf: nestedAll)
+            allDecls.append(contentsOf: forwardingDecls)
 
             // Nested objects that implement interfaces need a heap-backed global
             // and initializer so interface-typed receivers can use dynamic
@@ -500,12 +517,47 @@ final class MemberLowerer {
         var params: [KIRParameter] = []
         if let signature {
             if let receiverType = signature.receiverType {
+                // Member extensions (`fun T.m(...)` declared inside a class or
+                // interface) carry two receivers: the dispatch receiver
+                // (`this@Owner`, the enclosing instance) followed by the
+                // extension receiver (bare `this`). Emit the dispatch receiver
+                // as an implicit leading parameter so calls lower to
+                // [dispatch, extension, args] like JVM member extensions.
+                if function.receiverType != nil,
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                   [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+                {
+                    let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                        .prefix(signature.classTypeParameterCount)
+                        .map { .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                    let dispatchReceiverType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol, args: ownerArgs, nullability: .nonNull
+                    )))
+                    let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+                    params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: dispatchReceiverType))
+                    let dispatchReceiverExpr = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: dispatchReceiverType)
+                    driver.ctx.setLocalValue(dispatchReceiverExpr, for: dispatchReceiverSymbol)
+                    driver.ctx.setLocalValue(dispatchReceiverExpr, for: ownerSymbol)
+                    driver.ctx.setLocalDeclaredType(dispatchReceiverType, for: ownerSymbol)
+                    driver.ctx.setQualifiedThisReceiver(dispatchReceiverExpr, for: ownerInfo.name)
+                    driver.ctx.setCapturedOuterReceiver(dispatchReceiverExpr, for: ownerSymbol)
+                }
                 let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: symbol)
                 params.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
+                driver.ctx.setLocalDeclaredType(receiverType, for: receiverSymbol)
                 driver.ctx.setImplicitReceiver(
                     symbol: receiverSymbol,
                     exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
                 )
+                if function.receiverType == nil,
+                   let owner = sema.symbols.parentSymbol(for: symbol),
+                   let receiver = driver.ctx.activeImplicitReceiverExprID()
+                {
+                    driver.ctx.setCapturedOuterReceiver(receiver, for: owner)
+                    driver.ctx.setLocalValue(receiver, for: owner)
+                    driver.ctx.setLocalDeclaredType(receiverType, for: owner)
+                }
             }
             let isVararg = driver.callSupportLowerer.normalizeBoolFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {

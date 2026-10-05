@@ -5,6 +5,45 @@ import Testing
 
 @Suite
 struct LibMetadataImportIntegrationTests {
+    @Test(arguments: [false, true])
+    func testInlineParameterReturnModesSurviveSignatureNormalization(indexed: Bool) throws {
+        let libDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+        let manifest = """
+        {"formatVersion": 1, "moduleName": "InlineParameters", "metadata": "metadata.bin"}
+        """
+        let records = [MetadataRecord(
+            kind: .function,
+            mangledName: "_KK_inlineParameters",
+            fqName: "test.inlineParameters",
+            arity: 3,
+            isInline: true,
+            typeSignature: "F3<F0<Z>,F0<Z>,F0<Z>,Z>",
+            valueParameterAllowsNonLocalReturn: [true, false, false],
+            valueParameterNames: ["block", "crossinlineBlock", "noinlineBlock"]
+        )]
+        let encoder = MetadataEncoder()
+        let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], searchPaths: [libDir.path], includeStdlib: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let function = try #require(sema.symbols.lookup(
+                fqName: ["test", "inlineParameters"].map(ctx.interner.intern)
+            ))
+            let signature = try #require(sema.symbols.functionSignature(for: function))
+            #expect(signature.parameterTypes.count == 3)
+            #expect(signature.valueParameterAllowsNonLocalReturn == [true, false, false])
+        }
+    }
+
     @Test func testInputOnlyTypeParameterAnnotationIsRestored() throws {
         let libDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
@@ -634,6 +673,134 @@ struct LibMetadataImportIntegrationTests {
             result = ctx
         }
         return result
+    }
+
+    @Test(arguments: [false, true])
+    func testClassAndFactoryAcrossLibrariesKeepDistinctKinds(indexed: Bool) throws {
+        let fm = FileManager.default
+        let directory = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: directory) }
+
+        func library(_ module: String, records: [MetadataRecord]) throws -> String {
+            let path = directory.appendingPathComponent(module).appendingPathExtension("kklib")
+            try fm.createDirectory(at: path, withIntermediateDirectories: true)
+            try "{\"formatVersion\":1,\"moduleName\":\"\(module)\",\"metadata\":\"metadata.bin\"}"
+                .write(to: path.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+            let encoder = MetadataEncoder()
+            let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+            try metadata.write(to: path.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+            return path.path
+        }
+
+        let classLibrary = try library("ClassLib", records: [
+            MetadataRecord(kind: .class, mangledName: "_Foo", fqName: "dup.Foo"),
+            MetadataRecord(kind: .constructor, mangledName: "_Foo_init", fqName: "dup.Foo.<init>",
+                           arity: 1, typeSignature: "F1<I,Ldup.Foo;>"),
+        ])
+        let factoryLibrary = try library("FactoryLib", records: [
+            MetadataRecord(kind: .function, mangledName: "_Foo_factory", fqName: "dup.Foo",
+                           arity: 0, typeSignature: "F0<I>"),
+        ])
+        for paths in [[classLibrary, factoryLibrary], [factoryLibrary, classLibrary]] {
+            try withTemporaryFile(contents: "fun constructor(): dup.Foo = dup.Foo(3)\nfun factory(): Int = dup.Foo()") { path in
+                let ctx = makeCompilationContext(inputs: [path], searchPaths: paths, includeStdlib: false)
+                try runSema(ctx)
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+                #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0031" })
+                let sema = try #require(ctx.sema)
+                let candidates = sema.symbols.lookupAll(fqName: ["dup", "Foo"].map(ctx.interner.intern))
+                let kinds = candidates.compactMap { sema.symbols.symbol($0)?.kind }
+                #expect(kinds.contains(.class))
+                #expect(kinds.contains(.function))
+            }
+        }
+    }
+
+    // KUU-1213: two libraries exporting the same class FQName used to trap
+    // building the per-symbol binding map (duplicate SymbolID → SIGILL).
+    // The first library on the search path now wins and the shadowed
+    // duplicate reports KSWIFTK-LIB-0031 instead of crashing. The losing
+    // class's members shadow with it — a loser-only member resolving onto
+    // the winner's layout would compile and then crash at runtime.
+    @Test(arguments: [false, true])
+    func testDuplicateClassAcrossLibrariesFirstWinsWithWarning(indexed: Bool) throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: baseDir) }
+
+        func writeLibrary(_ moduleName: String, extraMember: Bool = false) throws -> URL {
+            let libDir = baseDir.appendingPathComponent(moduleName).appendingPathExtension("kklib")
+            try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+            try """
+            {"formatVersion": 1, "moduleName": "\(moduleName)", "metadata": "metadata.bin"}
+            """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+            var records = [
+                MetadataRecord(
+                    kind: .class,
+                    mangledName: "_KK_\(moduleName)_Owner",
+                    fqName: "dup.Owner"
+                ),
+                MetadataRecord(
+                    kind: .property,
+                    mangledName: "_KK_\(moduleName)_Owner_value",
+                    fqName: "dup.Owner.value",
+                    typeSignature: "I"
+                ),
+            ]
+            if extraMember {
+                records.append(
+                    MetadataRecord(
+                        kind: .property,
+                        mangledName: "_KK_\(moduleName)_Owner_extra",
+                        fqName: "dup.Owner.extra",
+                        typeSignature: "I"
+                    )
+                )
+            }
+            let encoder = MetadataEncoder()
+            let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+            try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+            return libDir
+        }
+
+        let libA = try writeLibrary("DuplicateA")
+        let libB = try writeLibrary("DuplicateB", extraMember: true)
+
+        func winningOwnerModule(searchPaths: [String], winnerHasExtra: Bool) throws -> String? {
+            var module: String?
+            try withTemporaryFile(contents: "fun main() = 0") { path in
+                let ctx = makeCompilationContext(
+                    inputs: [path],
+                    searchPaths: searchPaths,
+                    includeStdlib: false
+                )
+                try runSema(ctx)
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+                assertHasDiagnostic("KSWIFTK-LIB-0031", in: ctx)
+                let sema = try #require(ctx.sema)
+                let owner = try #require(sema.symbols.lookup(
+                    fqName: ["dup", "Owner"].map(ctx.interner.intern)
+                ))
+                module = sema.symbols.moduleFQN(for: owner).map { ctx.interner.resolve($0) }
+                // Both libraries declare `dup.Owner.value`: exactly one
+                // symbol survives. The losing library's extra member is
+                // hidden with its owner instead of resolving onto the
+                // winner's layout.
+                #expect(sema.symbols.lookupAll(
+                    fqName: ["dup", "Owner", "value"].map(ctx.interner.intern)
+                ).count == 1)
+                let extraSymbols = sema.symbols.lookupAll(
+                    fqName: ["dup", "Owner", "extra"].map(ctx.interner.intern)
+                )
+                #expect(extraSymbols.isEmpty != winnerHasExtra)
+            }
+            return module
+        }
+
+        #expect(try winningOwnerModule(searchPaths: [libA.path, libB.path], winnerHasExtra: false) == "DuplicateA")
+        #expect(try winningOwnerModule(searchPaths: [libB.path, libA.path], winnerHasExtra: true) == "DuplicateB")
     }
 }
 #endif

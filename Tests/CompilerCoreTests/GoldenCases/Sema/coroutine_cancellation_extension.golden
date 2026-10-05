@@ -1,16 +1,20 @@
-symbol fq=__local_0.job[kind=local] kind=local vis=private flags=_ type=kotlinx.coroutines.Job
-symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
+symbol fq=__local_0.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.Job
+symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=kotlinx.coroutines.launch.block[kind=vparam;origin=unknown] kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlinx.coroutines.launch[kind=fun;params=fn{su;r=kotlinx.coroutines.CoroutineScope;p=;ret=Unit};ret=kotlinx.coroutines.Job;names=[block];origin=unknown] kind=function vis=public flags=synthetic sig=recv=_ params=[suspend kotlinx.coroutines.CoroutineScope.() -> Unit] ret=kotlinx.coroutines.Job
+symbol fq=kotlinx.coroutines.runBlocking.block[kind=vparam;origin=unknown] kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlinx.coroutines.runBlocking[kind=fun;params=fn{su;r=kotlinx.coroutines.CoroutineScope;p=;ret=Any?};ret=Any;names=[block];origin=unknown] kind=function vis=public flags=synthetic sig=recv=_ params=[suspend kotlinx.coroutines.CoroutineScope.() -> Any?] ret=Any
 file fcoroutine_cancellation_extension package=golden.sema
-  decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
+  decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@8:15 int(10) type=Int
-expr e@8:9 call callee=e@8:9#1 args=[_:e@8:15] type=Unit call=kotlinx.coroutines.delay[kind=fun;params=Int;susp]
-expr e@7:22 lambda params=[] body=e@8:9 label=launch type=suspend () -> Unit
-expr e@7:15 call callee=e@7:15#1 args=[_:e@7:22] type=kotlinx.coroutines.Job call=kotlinx.coroutines.launch[kind=fun;params=fn{su;p=;ret=Unit}]
-expr e@7:5 localDecl job mutable=0 type=_ init=e@7:15 type=Unit ref=__local_0.job[kind=local]
-expr e@10:5 name(job) type=kotlinx.coroutines.Job ref=__local_0.job[kind=local]
-expr e@10:5#1 memberCall recv=e@10:5 callee=cancel args=[] type=Unit call=kotlinx.coroutines.Job.cancel[kind=fun;recv=kotlinx.coroutines.Job;params=]
-expr e@11:5 name(job) type=kotlinx.coroutines.Job ref=__local_0.job[kind=local]
-expr e@11:5#1 memberCall recv=e@11:5 callee=join args=[] type=Unit call=kotlinx.coroutines.Job.join[kind=fun;recv=kotlinx.coroutines.Job;params=;susp]
+expr e@8:9 call callee=e@8:9#1 args=[_:e@8:15] type=Unit call=kotlinx.coroutines.delay[kind=fun;params=Int;ret=Unit;susp;names=[timeMillis]]
+expr e@7:22 lambda params=[] body=e@8:9 label=launch type=suspend kotlinx.coroutines.CoroutineScope.() -> Unit
+expr e@7:15 call callee=e@7:15#1 args=[_:e@7:22] type=kotlinx.coroutines.Job call=kotlinx.coroutines.launch[kind=fun;params=fn{su;r=kotlinx.coroutines.CoroutineScope;p=;ret=Unit};ret=kotlinx.coroutines.Job;names=[block];origin=unknown]
+expr e@7:5 localDecl job mutable=0 type=_ init=e@7:15 type=Unit ref=__local_0.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture]
+expr e@10:5 name(job) type=kotlinx.coroutines.Job ref=__local_0.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture]
+expr e@10:5#1 memberCall recv=e@10:5 callee=cancel args=[] type=Unit call=kotlinx.coroutines.Job.cancel[kind=fun;recv=kotlinx.coroutines.Job;params=;ret=Unit]
+expr e@11:5 name(job) type=kotlinx.coroutines.Job ref=__local_0.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture]
+expr e@11:5#1 memberCall recv=e@11:5 callee=join args=[] type=Unit call=kotlinx.coroutines.Job.join[kind=fun;recv=kotlinx.coroutines.Job;params=;ret=Unit;susp]
 expr e@7:5#1 blockExpr stmts=[e@7:5,e@10:5#1] trailing=e@11:5#1 type=Unit
-expr e@6:26 lambda params=[] body=e@7:5#1 label=runBlocking type=suspend () -> Any
-expr e@6:14 call callee=e@6:14#1 args=[_:e@6:26] type=Any call=kotlinx.coroutines.runBlocking[kind=fun;params=fn{su;p=;ret=Any}]
+expr e@6:26 lambda params=[] body=e@7:5#1 label=runBlocking type=suspend kotlinx.coroutines.CoroutineScope.() -> Any?
+expr e@6:14 call callee=e@6:14#1 args=[_:e@6:26] type=Unit call=kotlinx.coroutines.runBlocking[kind=fun;params=fn{su;r=kotlinx.coroutines.CoroutineScope;p=;ret=Any?};ret=Any;names=[block];origin=unknown]

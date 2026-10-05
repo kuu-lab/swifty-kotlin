@@ -223,25 +223,41 @@ case あたりの stdlib 再コンパイルを回避する。
 > 補足: 並行メモが提案していた別基準（Smoke 相当の入力で wall-clock 15%未満 or 200ms未満）との
 > すり合わせは決着済み。実測に基づき上記 +100ms トリガーを採用した（`docs/refactoring-metrics.md`）。
 
-## 8. golden / diff_kotlinc への影響 (RF-STDLIB-007)
+## 8. golden / diff_kotlinc への影響 (RF-STDLIB-007 → RF-GOLDEN-008 で改訂)
 
 - golden（Lexer/Parser/Sema/Diagnostics）は **ユーザー入力ファイルのみ**を対象とし、
   `__bundled_*` 由来のトークン・AST・診断はダンプに含めない（既にパス名で判別可能）
-- ただし Sema golden のシンボル ID は bundled ソースの宣言数に影響される。
-  §4 の決定的順序（辞書順・ユーザーより先）を不変条件とし、stdlib 変更時は
-  `UPDATE_GOLDEN=1` での一括更新を許容する（更新 diff が機械的であることを PR でレビュー）
+- Sema golden の通常 body は RF-GOLDEN-007/008 の fixture-owned 契約
+  （`GoldenSemaRenderingContract.fixtureOwned`、既定）で描画する:
+  - `symbol` 行は fixture 所有の宣言（RF-GOLDEN-002 の `.fixture` / `.unknown` origin）に限定する。
+    bundled / stub / member-alias / imported の外部宣言は `flags=` / `sig=` / `type=` の
+    メタデータ行を出さない
+  - `call=` / `ref=` / `type=` / `targs=` / `sig=` の参照キーは RF-GOLDEN-006 の公開宣言キーで表記する。
+    戻り型・境界・引数名・default/vararg/nonlocal・throws・variance・underlying を含み、
+    stdlib の実装方式（synthetic stub / source-backed / member alias / imported）の差は
+    公開キーへ投影されない
+- stdlib 宣言のメタデータ契約は `.golden-spec` の `target=` を持つ対象指定ケースの
+  `section stdlib-targets` が担当する。spec・期待値・profile・担当重複は
+  `GoldenHarnessCaseDiscovery.preflightAllSuites` の全量ゲートが検査する（RF-GOLDEN-013）
+- **更新方針**: 実装詳細だけの変化（synthetic↔source-backed 切替・内部 flag・
+  未参照宣言の追加・alias/declSite/シンボル ID の揺れ）では通常 Golden を更新しない。
+  公開 API / 解決先の意味変更・出力仕様移行（契約フォーマット改版）時の
+  `UPDATE_GOLDEN=1` 一括更新は許容する（更新 diff が機械的であることを PR でレビュー）。
+  §4 の決定的順序（辞書順・ユーザーより先）は不変条件
 - stdlib ソース自身に diagnostics が出る状態はコンパイラのバグとして扱う
   （warning 含めゼロを CI で enforcing にする）
 - `diff_kotlinc.sh`: 移行した各 API に対応する diff ケースを `Scripts/diff_cases/` に**必ず追加**する。
   kotlinc と意図的に挙動を変えない限り `// SKIP-DIFF` は使わない
 
-実装ステータス（2026-07-06）:
+実装ステータス（2026-10-04、RF-GOLDEN-008 時点）:
 
 - `LoadSourcesPhase` は bundled / residual stdlib sources を `__bundled_*` path の辞書順に登録し、
   `Tests/CompilerCoreTests/Driver/BundledStdlibOrderingTests.swift` が「bundled がユーザー入力より先」
   と「bundled 同士が辞書順」を固定している
-- Sema golden は `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` で bundled declSite symbols を
-  除外し、`rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が 0 件になる状態を維持する
+- Sema golden は `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` の fixture-owned 契約で
+  fixture 所有 symbol のみを描画し、`rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が
+  0 件になる状態を維持する。参照キーは公開宣言キー表記で、外部 symbol のメタデータは
+  対象指定ケースの `section stdlib-targets` と `GoldenHarnessInventoryTests` の全量ゲートが担保する
 - Diagnostics golden / CLI diagnostics は `DiagnosticEngine.render` / `renderJSON` が source location、
   severity、code、message で render 時ソートする
 - `Scripts/diff_kotlinc.sh` は `find | sort` の case discovery、interleaved sharding、parallel worker logs の
@@ -600,6 +616,30 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 
 #### (c) 残留（`__kk_` 降格のみ）— 118 関数
 
+##### `Continuation.intercepted` source owner と実行モデル（KUU-975）
+
+公開拡張 `fun <T> Continuation<T>.intercepted(): Continuation<T>` の唯一の owner は
+`kotlin/coroutines/intrinsics/IntrinsicsNative.kt`。synthetic 宣言を削除し、Kotlin 本体から
+private `@KsSymbolName("__kk_continuation_intercepted")` bridge を呼ぶ。
+理由コードは **GC・continuation / メモリ表現**: KSwiftK の生成 continuation は Swift 所有の
+`RuntimeContinuationState` であり、Kotlin/Native の `ContinuationImpl` ではない。
+Kotlin heap の通常の Continuation は Swift object として cast せず同一 handle を返す。
+既存の Swift `KKContinuation` の dispatcher adaptation は runtime に残す。
+`kk_*` → `__kk_*` は 1 対 1 の降格であり ABI 関数総数は増えない。
+`RuntimeABISpec.specVersion` は登録変更から自動再計算される。
+
+KUU-1164 で生成 state に completion context の保持、source-defined interceptor の
+interface dispatch、intercepted result cache、完了時の release を追加した。
+private bridge は Kotlin source の `ContinuationInterceptor.Key` を受け取り、通常の
+source Continuation の context は読まず、生成 state のみ context lookup を行う。
+native dispatcher wrapper の resume は元の生成 state に戻る。
+Swift `KKContinuation` の dispatcher wrapper は wrapper 自身の再 interception は identity だが、
+元 continuation に対する複数回の呼び出しの cache は持たない。
+生成 continuation の custom `ContinuationInterceptor` は
+[KUU-1164](https://linear.app/kuu/issue/KUU-1164/生成-coroutine-の-intercepted-が-completion-context-の) で対応済み。
+通常の source Continuation の identity、context getter 非評価、空 context の生成 continuation、
+既存 native dispatcher の resume は Sema/source+artifact 実行テストと kotlinc diff で固定する。
+
 | 系統 | 代表シンボル | 数 | ファイル |
 |---|---|---:|---|
 | suspend 機構・continuation | `kk_suspend_coroutine`, `kk_coroutine_suspended`, `kk_coroutine_continuation_{context,factory,new,resume,resume_with,resume_with_exception}`, `kk_coroutine_state_{enter,exit,get_completion,get_spill,get_thrown_exception,set_completion,set_label,set_spill}`, `kk_create_coroutine_unintercepted`, `kk_start_coroutine_unintercepted_or_return`, `kk_continuation_intercepted`, `kk_continuation_interceptor_intercept_continuation`, `kk_exception_handler_{new,create,invoke}`, `kk_is_cancellation_exception` | 24 | Coroutine / Context |
@@ -798,8 +838,17 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-1217 adds one private bridge, `__kk_locale_toString_flat` (reason: memory
+   representation). `Locale` constructor fields reside in `RuntimeLocaleBox`,
+   not Kotlin object slots; the bridge returns their JVM-style text as a flat
+   String. It is shared with Any/print/collection rendering. Public dispatch
+   remains in bundled `java/util/Locale.kt`; no synthetic member is added.
+   `RuntimeABISpec.localeFunctions` registers the ABI and automatically changes
+   the computed `specVersion`. The `__kk_*` export count increases by one.
+
 3. **性能エスケープハッチは実測必須**: ベンチ数値（KSP-INF-007 の基盤）を添付できない限り、
    性能を理由とした Swift 残留・(c) 分類を認めない。
+
 4. **二重 oracle**: 移行タスクは diff_kotlinc ケースに加え、bundled .kt を実行して期待値比較する
    自己完結テスト（KSP-INF-006）を必須にする（テンプレート T 手順7）。
 5. **Capability Matrix**: 言語機能ブロッカーは KSP-CAP-* として独立起票し、各移行タスクは必要 CAP を
@@ -825,7 +874,7 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
 |---|---|---|---|
-| `kotlinx/coroutines/selects/Select.kt` / `SelectClauses.kt`（KSP-1579） | 登録順に readiness を poll し、未成立なら `yield()`。`selectUnbiased` も同順序。句呼び出しはトップレベル拡張と登録中 builder の thread-local を使用。第一級 channel 句は要素型を `Any?` に消去し、`Deferred<T>.onAwait` 関数は型付きで、第一級 property は `Deferred<*>` / `Any?` に消去する。`Mutex.onLock` の owner は追跡しない。結果の明示型または期待型が必要 | `SelectBuilder<R>` 内の型付き member extension、atomic な句登録・選択、unbiased ordering と owner-aware mutex | issue で順次評価を許容。builder inference / member extension dispatch は [KUU-954](https://linear.app/kuu/issue/KUU-954/receiver-builder-内のコールバック結果から型引数を推論できないselectbuild-dsl) で追跡し、型付き property・owner-aware Mutex と coroutine scheduler の対応後に本家形へ戻す |
+| `kotlinx/coroutines/selects/Select.kt` / `SelectClauses.kt`（KSP-1579） | 登録順に readiness を poll し、未成立なら `yield()`。`selectUnbiased` も同順序。句登録は `SelectBuilder<R>` の member extension（KUU-962）で callback 戻り型を builder の R に接続する（`clause` 経由でも直接 `onReceive` 等でも同じ R）。builder スコープ外の句呼び出しはトップレベル拡張と登録中 builder の thread-local（`__kk_select_builder_exchange`）を使用する。第一級 channel 句は要素型を `Any?` に消去し、`Deferred<T>.onAwait` 関数は型付きで、第一級 property は `Deferred<*>` / `Any?` に消去する。`Mutex.onLock` の owner は追跡しない | atomic な句登録・選択、unbiased ordering、型付き property、owner-aware mutex | issue で順次評価を許容。builder inference / member extension dispatch は [KUU-954](https://linear.app/kuu/issue/KUU-954/receiver-builder-内のコールバック結果から型引数を推論できないselectbuild-dsl) の推論機構に依存。型付き property・owner-aware Mutex と coroutine scheduler の対応後に本家形へ戻す |
 | `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |
 | `kotlin/Throws.kt` | 解消済み（`public annotation class Throws(public vararg val exceptionClasses: KClass<out Throwable>)` へ復元、合成登録を撤廃） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証、解消済み）|
 | `uuid/Uuid.kt`（KSP-1502） | `generateV7()` の単調性カウンタを `AtomicLong` + CAS ループでなく plain `var`（`UuidV7MonotonicState`）で実装（スレッド安全性なし） | `private object UuidV7Generator` が `kotlin.concurrent.atomics.AtomicLong`（`@OptIn(ExperimentalAtomicApi::class)`）を CAS ループで使用 | `kotlin.concurrent.atomics.AtomicLong` の `load()`/`compareAndSet()` が実運用で動作検証され次第、本家形へ復元 |
@@ -849,3 +898,12 @@ identity without retaining a wrapper through its job.
 compiler passes the generated getter slot; tags return themselves and Kotlin
 objects retain virtual getter dispatch. This adds one `__kk_*` bridge (reason:
 memory representation) without changing scheduler behavior.
+
+Inherited `ContinuationInterceptor.get`/`minusKey` calls on native dispatchers
+select the source-backed Kotlin default using `__kk_dispatcher_default_method`;
+the compiler supplies its function pointer instead of assigning fixed itable
+slots. Kotlin receivers retain their resolved overrides and thrown channels.
+`__kk_is_native_dispatcher` lets these defaults avoid the Kotlin `key` getter
+for native tags/handles while keeping polymorphic-key logic in Kotlin. The two
+new `__kk_*` entries are memory-representation bridges: native schedulers have
+no source-object layout, and neither bridge implements context-key semantics.

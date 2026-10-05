@@ -13,7 +13,6 @@ public func __kk_select_start_job(_ handle: Int) -> Int {
     }
     return 0
 }
-
 @_cdecl("__kk_select_builder_exchange")
 public func __kk_select_builder_exchange(_ builder: Int) -> Int {
     let previous = __kk_select_builder_current()

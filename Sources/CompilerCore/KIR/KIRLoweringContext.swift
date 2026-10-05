@@ -47,6 +47,7 @@ final class KIRLoweringContext {
     /// parameter of an inline function. A label-free return in that body exits
     /// the caller rather than the lambda.
     var currentLambdaAllowsNonLocalReturn = false
+    var nonLocalReturnTarget: SymbolID?
     /// One-shot allowance installed by CallLowerer for the lambda argument it
     /// is about to lower. This prevents nested lambdas from inheriting the
     /// enclosing lambda's non-local-return permission.
@@ -148,6 +149,7 @@ final class KIRLoweringContext {
         let contextReceiverValueStack: [[ContextReceiverValue]]
         let currentFunctionSymbol: SymbolID?
         let currentLambdaAllowsNonLocalReturn: Bool
+        let nonLocalReturnTarget: SymbolID?
         let pendingLambdaNonLocalReturnAllowance: Bool
         let loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)]
         let finallyBlockStack: [(exprID: ExprID, loopDepth: Int)]
@@ -168,6 +170,7 @@ final class KIRLoweringContext {
             contextReceiverValueStack: contextReceiverValueStack,
             currentFunctionSymbol: currentFunctionSymbol,
             currentLambdaAllowsNonLocalReturn: currentLambdaAllowsNonLocalReturn,
+            nonLocalReturnTarget: nonLocalReturnTarget,
             pendingLambdaNonLocalReturnAllowance: pendingLambdaNonLocalReturnAllowance,
             loopControlStack: loopControlStack,
             finallyBlockStack: finallyBlockStack,
@@ -188,6 +191,7 @@ final class KIRLoweringContext {
         contextReceiverValueStack = snapshot.contextReceiverValueStack
         currentFunctionSymbol = snapshot.currentFunctionSymbol
         currentLambdaAllowsNonLocalReturn = snapshot.currentLambdaAllowsNonLocalReturn
+        nonLocalReturnTarget = snapshot.nonLocalReturnTarget
         pendingLambdaNonLocalReturnAllowance = snapshot.pendingLambdaNonLocalReturnAllowance
         loopControlStack = snapshot.loopControlStack
         finallyBlockStack = snapshot.finallyBlockStack
@@ -221,6 +225,7 @@ final class KIRLoweringContext {
         contextReceiverValueStack.removeAll(keepingCapacity: true)
         currentFunctionSymbol = nil
         currentLambdaAllowsNonLocalReturn = false
+        nonLocalReturnTarget = nil
         pendingLambdaNonLocalReturnAllowance = false
         loopControlStack.removeAll(keepingCapacity: true)
         finallyBlockStack.removeAll(keepingCapacity: true)
@@ -328,6 +333,46 @@ final class KIRLoweringContext {
 
     func capturedOuterReceiverExprID(for owner: SymbolID) -> KIRExprID? {
         capturedOuterReceiverExprsByOwner[owner]
+    }
+
+    /// A captured outer receiver whose declared owner is `owner` itself, a
+    /// nominal subtype of it (a member extension's `Derived` dispatch
+    /// receiver holds inherited `Base` members), or an inner-class receiver
+    /// whose `$outer` chain reaches it.
+    func capturedOuterReceiverExprID(reaching owner: SymbolID, sema: SemaModule) -> KIRExprID? {
+        capturedOuterReceiverOwner(reaching: owner, sema: sema).flatMap {
+            capturedOuterReceiverExprsByOwner[$0]
+        }
+    }
+
+    /// The owner a captured outer receiver is registered under that can reach
+    /// `owner` — see `capturedOuterReceiverExprID(reaching:)`. Entries are
+    /// probed in symbol order so codegen stays deterministic.
+    func capturedOuterReceiverOwner(reaching owner: SymbolID, sema: SemaModule) -> SymbolID? {
+        for registeredOwner in capturedOuterReceiverExprsByOwner.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            if receiverOwnerReaches(registeredOwner, target: owner, sema: sema) {
+                return registeredOwner
+            }
+        }
+        return nil
+    }
+
+    /// Whether a receiver registered under `candidate` can reach `target`:
+    /// `candidate` is `target` or a nominal subtype of it (inherited-member
+    /// owners), or `candidate` is an inner class whose `$outer` chain climbs
+    /// to `target` or to a subtype of it.
+    private func receiverOwnerReaches(_ candidate: SymbolID, target: SymbolID, sema: SemaModule) -> Bool {
+        var current: SymbolID? = candidate
+        var visited: Set<SymbolID> = []
+        while let owner = current, visited.insert(owner).inserted {
+            if owner == target || sema.types.isNominalSubtypeSymbol(owner, of: target) {
+                return true
+            }
+            current = sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true
+                ? sema.symbols.parentSymbol(for: owner)
+                : nil
+        }
+        return false
     }
 
     func setCapturedOuterReceiver(_ exprID: KIRExprID, for owner: SymbolID) {
@@ -488,13 +533,15 @@ final class KIRLoweringContext {
         symbol: SymbolID,
         callee: InternedString,
         captureArguments: [KIRExprID],
-        hasClosureParam: Bool = false
+        hasClosureParam: Bool = false,
+        unboxedSymbol: SymbolID? = nil
     ) {
         callableValueInfoByExprID[exprID] = KIRCallableValueInfo(
             symbol: symbol,
             callee: callee,
             captureArguments: captureArguments,
-            hasClosureParam: hasClosureParam
+            hasClosureParam: hasClosureParam,
+            unboxedSymbol: unboxedSymbol
         )
     }
 

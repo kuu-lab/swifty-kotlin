@@ -50,6 +50,7 @@ struct ABIMismatchTests {
     func collectionMutationSignaturesIncludeThrowingChannel() throws {
         let expected: [(name: String, parameters: [String])] = [
             ("__kk_mutable_list_add", ["listRaw", "elem", "outThrown"]),
+            ("__kk_mutable_list_remove_dispatch", ["listRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_add", ["setRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_remove", ["setRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_clear", ["setRaw", "outThrown"]),
@@ -73,6 +74,16 @@ struct ABIMismatchTests {
                 "Generated C header must expose the throwing collection mutation ABI for \(item.name)"
             )
         }
+    }
+
+    @Test
+    func legacyMutableListRemoveKeepsNonThrowingABI() throws {
+        let spec = try requireSpec("__kk_mutable_list_remove")
+        #expect(spec.parameters.map(\.name) == ["listRaw", "elem"])
+        #expect(spec.parameters.allSatisfy { $0.type == .intptr })
+        #expect(!spec.isThrowing)
+        let extern = try #require(RuntimeABIExterns.externDecl(named: spec.name))
+        #expect(extern.parameterTypes == spec.parameterTypeStrings)
     }
 
     @Test
@@ -953,24 +964,53 @@ struct ABIMismatchTests {
     func kkSuspendFunctionInvokeSignature() throws {
         let spec = try requireSpec("kk_suspend_function_invoke")
         #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 3)
+        #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "functionRaw")
         #expect(spec.parameters[0].type == .intptr)
         #expect(spec.parameters[1].name == "arg")
         #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "outThrown")
-        #expect(spec.parameters[2].type == .nullableIntptrPointer)
+        #expect(spec.parameters[2].name == "continuation")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
     @Test
     func kkSuspendFunctionInvokeZeroAritySignature() throws {
         let spec = try requireSpec("kk_suspend_function_invoke_0")
         #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters.count == 3)
         #expect(spec.parameters[0].name == "functionRaw")
         #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "outThrown")
-        #expect(spec.parameters[1].type == .nullableIntptrPointer)
+        #expect(spec.parameters[1].name == "continuation")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "outThrown")
+        #expect(spec.parameters[2].type == .nullableIntptrPointer)
+    }
+
+    @Test
+    func kkSuspendFunctionInvokeTwoAritySignature() throws {
+        let spec = try requireSpec("kk_suspend_function_invoke_2")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "continuation", "outThrown"])
+        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
+    }
+
+    @Test
+    func kkSuspendFunctionCreateSignature() throws {
+        let spec = try requireSpec("kk_suspend_function_create")
+        #expect(spec.returnType == .intptr)
+        #expect(!spec.isThrowing)
+        #expect(spec.parameters.map(\.name) == ["bodyRaw", "closureRaw", "arity", "entryPointRaw"])
+        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr])
+    }
+
+    @Test
+    func kkSuspendFunctionInvokeThreeAritySignature() throws {
+        let spec = try requireSpec("kk_suspend_function_invoke_3")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "arg3", "continuation", "outThrown"])
+        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
     }
 
     @Test

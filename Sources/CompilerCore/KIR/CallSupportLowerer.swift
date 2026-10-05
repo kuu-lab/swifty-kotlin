@@ -28,6 +28,11 @@ final class CallSupportLowerer {
                 collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
             }
         }
+        for expr in ast.arena.snapshot().expressions {
+            if case let .localNominalDecl(declID, _) = expr {
+                collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
+            }
+        }
         return mapping
     }
 
@@ -149,11 +154,46 @@ final class CallSupportLowerer {
         // parameters; the stub mirrors them and forwards them to the original.
         var params: [KIRParameter] = captures.map(\.param)
         var captureArgExprs: [KIRExprID] = []
+        var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
         if let receiverType = signature.receiverType {
+            // Member extensions (`fun T.m(...)` declared inside a nominal
+            // type) carry a dispatch receiver (`this@Owner`) ahead of the
+            // extension receiver, so the stub's ABI is
+            // [dispatch, extension, params..., mask] and its inner call
+            // forwards both receivers.
+            if let ownerSymbol = driver.callLowerer.memberExtensionOwnerSymbol(for: originalSymbol, sema: sema),
+               let ownerInfo = sema.symbols.symbol(ownerSymbol)
+            {
+                let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount)
+                    .map { .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                let dispatchReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: ownerSymbol, args: ownerArgs, nullability: .nonNull
+                )))
+                let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+                params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: dispatchReceiverType))
+                let dispatchReceiverExpr = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: dispatchReceiverType)
+                driver.ctx.setLocalValue(dispatchReceiverExpr, for: dispatchReceiverSymbol)
+                driver.ctx.setLocalValue(dispatchReceiverExpr, for: ownerSymbol)
+                driver.ctx.setLocalDeclaredType(dispatchReceiverType, for: ownerSymbol)
+                driver.ctx.setQualifiedThisReceiver(dispatchReceiverExpr, for: ownerInfo.name)
+                driver.ctx.setCapturedOuterReceiver(dispatchReceiverExpr, for: ownerSymbol)
+                dispatchReceiverBinding = (dispatchReceiverSymbol, dispatchReceiverExpr)
+            }
             let receiverSym = syntheticReceiverParameterSymbol(functionSymbol: originalSymbol)
+            driver.ctx.setLocalDeclaredType(receiverType, for: receiverSym)
             params.append(KIRParameter(symbol: receiverSym, type: receiverType))
             let receiverExpr = arena.appendExpr(.symbolRef(receiverSym), type: receiverType)
             driver.ctx.setImplicitReceiver(symbol: receiverSym, exprID: receiverExpr)
+            if sema.symbols.memberExtensionOwnerSymbol(for: originalSymbol) == nil,
+               let owner = sema.symbols.parentSymbol(for: originalSymbol),
+               case let .classType(classType) = sema.types.kind(of: receiverType),
+               classType.classSymbol == owner
+            {
+                driver.ctx.setCapturedOuterReceiver(receiverExpr, for: owner)
+                driver.ctx.setLocalValue(receiverExpr, for: owner)
+                driver.ctx.setLocalDeclaredType(receiverType, for: owner)
+            }
         }
         let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: paramCount)
         var effectiveParameterTypes: [TypeID] = []
@@ -199,10 +239,24 @@ final class CallSupportLowerer {
         params.append(KIRParameter(symbol: maskSymbol, type: intType))
 
         var body: [KIRInstruction] = [.beginBlock]
+        if let dispatchReceiverBinding {
+            body.append(.constValue(result: dispatchReceiverBinding.exprID, value: .symbolRef(dispatchReceiverBinding.symbol)))
+        }
 
+        if let dispatchReceiverBinding {
+            body.append(.constValue(result: dispatchReceiverBinding.exprID, value: .symbolRef(dispatchReceiverBinding.symbol)))
+        }
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
+
+        driver.objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: originalSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        )
 
         for capture in captures {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
@@ -288,6 +342,9 @@ final class CallSupportLowerer {
 
         let receiverExprForCall = driver.ctx.activeImplicitReceiverExprID()
         var callArgs: [KIRExprID] = captureArgExprs
+        if let dispatchReceiverBinding {
+            callArgs.append(dispatchReceiverBinding.exprID)
+        }
         if let receiverExprForCall {
             callArgs.append(receiverExprForCall)
         }
@@ -335,7 +392,10 @@ final class CallSupportLowerer {
                chosenCallee: originalSymbol,
                calleeName: originalName,
                receiverExpr: nil,
-               loweredReceiverID: receiverExprForCall,
+               // Member extensions dispatch on the enclosing owner (the
+               // leading `callArgs` entry), not the extension receiver —
+               // the extension receiver is an ordinary leading argument.
+               loweredReceiverID: dispatchReceiverBinding?.exprID ?? receiverExprForCall,
                isSuperCall: false,
                // `tryEmitVirtualDispatch` strips the leading receiver from
                // `finalArguments` itself (see its `vcArguments.removeFirst()`)
@@ -651,11 +711,41 @@ final class CallSupportLowerer {
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
                 if isVararg[paramIndex] {
+                    for argIndex in argIndices
+                        where sourceArgExprs.indices.contains(argIndex)
+                        && (!spreadFlags.indices.contains(argIndex) || !spreadFlags[argIndex])
+                    {
+                        boxedArguments[argIndex] = driver.callLowerer.adaptSuspendFunctionValueArgument(
+                            providedArguments[argIndex],
+                            sourceExpr: sourceArgExprs[argIndex],
+                            parameterType: signature.parameterTypes[paramIndex],
+                            sema: sema, arena: arena, interner: interner,
+                            instructions: &instructions
+                        )
+                    }
                     let primitiveArrayType = primitiveVarargArrayType(
                         elementType: signature.parameterTypes[paramIndex],
                         sema: sema,
                         interner: interner
                     )
+                    if (externalLinkName == nil || externalLinkName?.hasPrefix("kk_fn_") == true),
+                       case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[paramIndex]))
+                    {
+                        for argIndex in argIndices {
+                            guard sourceArgExprs.indices.contains(argIndex),
+                                  !(argIndex < spreadFlags.count && spreadFlags[argIndex]),
+                                  let materialized = driver.callLowerer.materializeCollectionFactoryFunctionValueElementIfNeeded(
+                                      boxedArguments[argIndex],
+                                      sourceArgExprID: sourceArgExprs[argIndex],
+                                      sema: sema,
+                                      arena: arena,
+                                      interner: interner,
+                                      instructions: &instructions
+                                  )
+                            else { continue }
+                            boxedArguments[argIndex] = materialized
+                        }
+                    }
                     boxNonSpreadVarargArguments(
                         argIndices,
                         in: &boxedArguments,
@@ -684,7 +774,18 @@ final class CallSupportLowerer {
                     )
                     normalized.append(packed)
                 } else if let argIndex = argIndices.first {
-                    normalized.append(providedArguments[argIndex])
+                    let argument = providedArguments[argIndex]
+                    if sourceArgExprs.indices.contains(argIndex) {
+                        normalized.append(driver.callLowerer.adaptSuspendFunctionValueArgument(
+                            argument,
+                            sourceExpr: sourceArgExprs[argIndex],
+                            parameterType: signature.parameterTypes[paramIndex],
+                            sema: sema, arena: arena, interner: interner,
+                            instructions: &instructions
+                        ))
+                    } else {
+                        normalized.append(argument)
+                    }
                 }
                 continue
             }

@@ -80,6 +80,11 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         case .builtin:
+            if driver.exprChecker.rejectInvalidBuiltinCharCompoundAssignment(
+                id, op: op, lhs: elementType, rhs: valueType, range: range, ctx: ctx
+            ) {
+                return sema.types.errorType
+            }
             elementOperator = nil
         case let .resolved(binding):
             elementOperator = binding
@@ -125,11 +130,17 @@ extension LocalDeclTypeChecker {
         // The resolved element operator already checked its own argument
         // and result types; these constraints only describe the builtin path.
         if elementOperator == nil {
-            driver.emitSubtypeConstraint(
-                left: valueType, right: elementType,
-                range: ctx.ast.arena.exprRange(valueExpr) ?? range,
-                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
-            )
+            let binaryOp = driver.helpers.compoundAssignToBinaryOp(op)
+            let isCharOffset = elementType == sema.types.charType
+                && valueType == sema.types.intType
+                && [.add, .subtract].contains(binaryOp)
+            if !isCharOffset {
+                driver.emitSubtypeConstraint(
+                    left: valueType, right: elementType,
+                    range: ctx.ast.arena.exprRange(valueExpr) ?? range,
+                    solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
             driver.emitSubtypeConstraint(
                 left: resultType, right: elementType, range: range,
                 solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
@@ -168,7 +179,10 @@ extension LocalDeclTypeChecker {
         if elementType == sema.types.errorType || nonNullElement == sema.types.stringType {
             return .builtin
         }
-        if case .primitive = sema.types.kind(of: nonNullElement) {
+        if case .primitive = sema.types.kind(of: nonNullElement),
+           nonNullElement != sema.types.charType,
+           sema.types.makeNonNullable(valueType) != sema.types.charType
+        {
             return .builtin
         }
         let exprChecker = driver.exprChecker
@@ -216,7 +230,12 @@ extension LocalDeclTypeChecker {
                 )
                 return .failed
             }
-            if binary != nil, receiverSupportsIndexedSet(receiverType, ctx: ctx) {
+            let builtinCharOffset = elementType == sema.types.charType
+                && valueType == sema.types.intType
+                && !exprChecker.hasInvalidBuiltinCharArithmetic(
+                    op: driver.helpers.compoundAssignToBinaryOp(op), lhs: elementType, rhs: valueType, sema: sema
+                )
+            if binary != nil || builtinCharOffset, receiverSupportsIndexedSet(receiverType, ctx: ctx) {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0302",
                     "Assignment operator is ambiguous because both '\(interner.resolve(assignNames[0]))' and the corresponding binary operator are applicable.",
@@ -246,9 +265,31 @@ extension LocalDeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> (CallBinding, TypeID)? {
         let sema = ctx.sema
-        let candidates = driver.exprChecker.collectOperatorCandidates(
+        var candidates = driver.exprChecker.collectOperatorCandidates(
             names: names, receiverType: elementType, ctx: ctx
         )
+        if candidates.isEmpty, let valueType = args.first?.type,
+           sema.types.makeNonNullable(elementType) == sema.types.charType
+            || sema.types.makeNonNullable(valueType) == sema.types.charType
+        {
+            let name = ctx.interner.resolve(names[0])
+            let binaryOp: BinaryOp? = switch name {
+            case "plus": .add
+            case "minus": .subtract
+            case "times": .multiply
+            case "div": .divide
+            case "rem": .modulo
+            default: nil
+            }
+            let needsExtension = binaryOp.map {
+                driver.exprChecker.hasInvalidBuiltinCharArithmetic(op: $0, lhs: elementType, rhs: valueType, sema: sema)
+            } ?? name.hasSuffix("Assign")
+            if needsExtension {
+                candidates = driver.exprChecker.collectScopedOperatorExtensionCandidates(
+                    names: names, receiverType: elementType, ctx: ctx
+                )
+            }
+        }
         guard !candidates.isEmpty else { return nil }
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
@@ -452,6 +493,7 @@ extension LocalDeclTypeChecker {
     func inferLocalFunDeclExpr(
         _ id: ExprID,
         name: InternedString,
+        receiverTypeRef: TypeRefID? = nil,
         valueParams: [ValueParamDecl],
         returnTypeRef: TypeRefID?,
         body: FunctionBody,
@@ -464,6 +506,12 @@ extension LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
+        let receiverType = receiverTypeRef.map {
+            driver.helpers.resolveTypeRef(
+                $0, ast: ast, sema: sema, interner: interner, scope: ctx.scope,
+                diagnostics: ctx.semaCtx.diagnostics, inferenceContext: ctx, usageRange: range
+            )
+        }
         var parameterTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
         for param in valueParams {
@@ -517,7 +565,7 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        var functionFlags: SymbolFlags = []
+        var functionFlags: SymbolFlags = [.localFunction]
         if isSuspend {
             functionFlags.insert(.suspendFunction)
         }
@@ -534,6 +582,7 @@ extension LocalDeclTypeChecker {
         )
 
         let signature = FunctionSignature(
+            receiverType: receiverType,
             parameterTypes: parameterTypes,
             returnType: resolvedReturnType,
             isSuspend: isSuspend,
@@ -545,6 +594,7 @@ extension LocalDeclTypeChecker {
         sema.symbols.setFunctionSignature(signature, for: funSymbol)
 
         let funType = sema.types.make(.functionType(FunctionType(
+            receiver: receiverType,
             params: parameterTypes,
             returnType: resolvedReturnType,
             isSuspend: isSuspend,
@@ -552,13 +602,25 @@ extension LocalDeclTypeChecker {
         )))
 
         // Local functions introduce a new scope for control flow: reset loop/lambda stacks.
-        var bodyLocals = locals; let bodyCtx = ctx.copying(
+        var bodyLocals = locals
+        let bodyReceiverType: TypeID? = receiverType ?? ctx.implicitReceiverType
+        var bodyCtx = ctx.copying(
+            implicitReceiverType: bodyReceiverType,
             loopDepth: 0,
             loopLabelStack: [],
             lambdaLabelStack: [],
+            lambdaReturnScopes: [],
             lambdaDepth: 0,
-            enclosingFunctionReturnType: resolvedReturnType
+            enclosingFunctionReturnType: resolvedReturnType,
+            enclosingFunctionSymbol: funSymbol,
+            enclosingLambdaExprIDs: [],
+            currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
+        if let receiverType {
+            let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: funSymbol)
+            bodyLocals[interner.intern("this")] = (receiverType, receiverSymbol, false, true)
+            bodyCtx = bodyCtx.withOuterReceiver(label: name, type: receiverType, symbol: receiverSymbol)
+        }
         for (i, param) in valueParams.enumerated() {
             bodyLocals[param.name] = (parameterTypes[i], paramSymbols[i], false, true)
         }
@@ -586,6 +648,7 @@ extension LocalDeclTypeChecker {
 
         if returnTypeRef == nil, case .expr = body, inferredBodyType != sema.types.errorType {
             let inferredSignature = FunctionSignature(
+                receiverType: receiverType,
                 parameterTypes: parameterTypes,
                 returnType: inferredBodyType,
                 isSuspend: isSuspend,
@@ -598,6 +661,7 @@ extension LocalDeclTypeChecker {
         }
         let finalReturnType = sema.symbols.functionSignature(for: funSymbol)?.returnType ?? resolvedReturnType
         let finalFunType = sema.types.make(.functionType(FunctionType(
+            receiver: receiverType,
             params: parameterTypes,
             returnType: finalReturnType,
             isSuspend: isSuspend,

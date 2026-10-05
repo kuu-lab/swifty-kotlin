@@ -488,7 +488,7 @@ extension CallTypeChecker {
         }
     }
 
-    private func hasGenericCollectionReceiverLambda(
+    func hasGenericCollectionReceiverLambda(
         signature: FunctionSignature,
         sema: SemaModule,
         interner: StringInterner
@@ -1008,12 +1008,13 @@ extension CallTypeChecker {
     func sequenceBuilderReturnType(
         lambdaExprID: ExprID,
         expectedType: TypeID?,
+        explicitElementType: TypeID? = nil,
         ctx: TypeInferenceContext,
         locals: LocalBindings,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let elementType = sequenceBuilderElementType(
+        let elementType = explicitElementType ?? sequenceBuilderElementType(
             lambdaExprID: lambdaExprID,
             expectedType: expectedType,
             ctx: ctx,
@@ -1072,12 +1073,13 @@ extension CallTypeChecker {
     func iteratorBuilderReturnType(
         lambdaExprID: ExprID,
         expectedType: TypeID?,
+        explicitElementType: TypeID? = nil,
         ctx: TypeInferenceContext,
         locals: LocalBindings,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let elementType = sequenceBuilderElementType(
+        let elementType = explicitElementType ?? sequenceBuilderElementType(
             lambdaExprID: lambdaExprID,
             expectedType: expectedType,
             ctx: ctx,
@@ -1512,11 +1514,12 @@ extension CallTypeChecker {
             return .unary([])
         }
 
-        var sendArgumentExprs: [ExprID] = []
+        var sendArgumentExprs: [(expr: ExprID, shadowedNames: Set<InternedString>)] = []
         collectProduceBuilderSendExprs(
             in: bodyExprID,
             ast: ctx.ast,
             interner: interner,
+            shadowedNames: [],
             sendArgumentExprs: &sendArgumentExprs
         )
 
@@ -1529,15 +1532,27 @@ extension CallTypeChecker {
         // it first (same pattern as the sequence-builder yield scan above).
         var previewLocals = locals
         let diagnosticEngine = ctx.semaCtx.diagnostics
-        let argumentTypes = sendArgumentExprs.compactMap { exprID -> TypeID? in
-            if let cached = sema.bindings.exprType(for: exprID),
+        let argumentTypes = sendArgumentExprs.compactMap { entry -> TypeID? in
+            if let cached = sema.bindings.exprType(for: entry.expr),
                cached != sema.types.errorType
             {
                 return cached
             }
+            // A `send` inside a nested lambda may reference that lambda's own
+            // parameters (`collect { v -> send(v) }`).  Those names must not
+            // resolve to an outer same-named binding during the preview —
+            // that would pin the channel element to the shadowed outer type.
+            var removed: [(InternedString, LocalBindings.Value?)] = []
+            for name in entry.shadowedNames {
+                removed.append((name, previewLocals[name]))
+                previewLocals[name] = nil
+            }
             let snapshot = diagnosticEngine.count
-            let inferredType = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
+            let inferredType = driver.inferExpr(entry.expr, ctx: ctx, locals: &previewLocals)
             diagnosticEngine.truncate(to: snapshot)
+            for (name, previous) in removed {
+                previewLocals[name] = previous
+            }
             return inferredType == sema.types.errorType ? nil : inferredType
         }
         return .unary(argumentTypes)
@@ -1547,7 +1562,8 @@ extension CallTypeChecker {
         in exprID: ExprID,
         ast: ASTModule,
         interner: StringInterner,
-        sendArgumentExprs: inout [ExprID]
+        shadowedNames: Set<InternedString>,
+        sendArgumentExprs: inout [(expr: ExprID, shadowedNames: Set<InternedString>)]
     ) {
         guard let expr = ast.arena.expr(exprID) else {
             return
@@ -1559,86 +1575,106 @@ extension CallTypeChecker {
                interner.resolve(name) == "send",
                let first = args.first
             {
-                sendArgumentExprs.append(first.expr)
+                sendArgumentExprs.append((expr: first.expr, shadowedNames: shadowedNames))
             }
-            collectProduceBuilderSendExprs(in: callee, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+            collectProduceBuilderSendExprs(in: callee, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             for argument in args {
-                collectProduceBuilderSendExprs(in: argument.expr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: argument.expr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
         case let .memberCall(receiver, callee, _, args, _):
             if interner.resolve(callee) == "send",
                let first = args.first
             {
-                sendArgumentExprs.append(first.expr)
+                sendArgumentExprs.append((expr: first.expr, shadowedNames: shadowedNames))
             }
-            collectProduceBuilderSendExprs(in: receiver, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+            collectProduceBuilderSendExprs(in: receiver, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             for argument in args {
-                collectProduceBuilderSendExprs(in: argument.expr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: argument.expr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
         case let .blockExpr(statements, trailingExpr, _):
+            var scoped = shadowedNames
             for statementExprID in statements {
-                collectProduceBuilderSendExprs(in: statementExprID, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: statementExprID, ast: ast, interner: interner, shadowedNames: scoped, sendArgumentExprs: &sendArgumentExprs)
+                // A local declaration shadows outer bindings for the rest of
+                // the block, same as a nested lambda parameter does.
+                if let statement = ast.arena.expr(statementExprID),
+                   case let .localDecl(name, _, _, _, _, _) = statement {
+                    scoped.insert(name)
+                }
             }
             if let trailingExpr {
-                collectProduceBuilderSendExprs(in: trailingExpr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: trailingExpr, ast: ast, interner: interner, shadowedNames: scoped, sendArgumentExprs: &sendArgumentExprs)
             }
         case let .ifExpr(condition, thenExpr, elseExpr, _):
-            collectProduceBuilderSendExprs(in: condition, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
-            collectProduceBuilderSendExprs(in: thenExpr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+            collectProduceBuilderSendExprs(in: condition, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
+            collectProduceBuilderSendExprs(in: thenExpr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             if let elseExpr {
-                collectProduceBuilderSendExprs(in: elseExpr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: elseExpr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
         case let .whenExpr(subject, branches, elseBody, _):
             if let subject {
-                collectProduceBuilderSendExprs(in: subject, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: subject, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
             for branch in branches {
                 for condition in branch.conditions {
-                    collectProduceBuilderSendExprs(in: condition, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                    collectProduceBuilderSendExprs(in: condition, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
                 }
                 if let branchGuard = branch.guard_ {
-                    collectProduceBuilderSendExprs(in: branchGuard, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                    collectProduceBuilderSendExprs(in: branchGuard, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
                 }
-                collectProduceBuilderSendExprs(in: branch.body, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: branch.body, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
             if let elseBody {
-                collectProduceBuilderSendExprs(in: elseBody, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: elseBody, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
-        case let .forExpr(_, iterableExpr, bodyExpr, _, _),
-            let .forDestructuringExpr(_, iterableExpr, bodyExpr, _):
-            collectProduceBuilderSendExprs(in: iterableExpr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
-            collectProduceBuilderSendExprs(in: bodyExpr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+        case let .forExpr(loopVariable, iterableExpr, bodyExpr, _, _):
+            collectProduceBuilderSendExprs(in: iterableExpr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
+            var bodyShadowed = shadowedNames
+            if let loopVariable {
+                bodyShadowed.insert(loopVariable)
+            }
+            collectProduceBuilderSendExprs(in: bodyExpr, ast: ast, interner: interner, shadowedNames: bodyShadowed, sendArgumentExprs: &sendArgumentExprs)
+        case let .forDestructuringExpr(names, iterableExpr, bodyExpr, _):
+            collectProduceBuilderSendExprs(in: iterableExpr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
+            collectProduceBuilderSendExprs(in: bodyExpr, ast: ast, interner: interner, shadowedNames: shadowedNames.union(names.compactMap { $0 }), sendArgumentExprs: &sendArgumentExprs)
         case let .returnExpr(value, _, _):
             if let value {
-                collectProduceBuilderSendExprs(in: value, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: value, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
         case let .tryExpr(body, catchClauses, finallyBody, _):
-            collectProduceBuilderSendExprs(in: body, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+            collectProduceBuilderSendExprs(in: body, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             for clause in catchClauses {
-                collectProduceBuilderSendExprs(in: clause.body, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: clause.body, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
             if let finallyBody {
-                collectProduceBuilderSendExprs(in: finallyBody, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: finallyBody, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
-        case let .lambdaLiteral(_, bodyExpr, _, _):
-            collectProduceBuilderSendExprs(in: bodyExpr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+        case let .lambdaLiteral(params, bodyExpr, _, _):
+            // A nested lambda's parameters (and the implicit `it` of a
+            // parameterless literal) shadow outer locals inside its body;
+            // preview-local lookup must not see the shadowed spelling.
+            var nestedShadowed = shadowedNames.union(params)
+            if params.isEmpty {
+                nestedShadowed.insert(interner.intern("it"))
+            }
+            collectProduceBuilderSendExprs(in: bodyExpr, ast: ast, interner: interner, shadowedNames: nestedShadowed, sendArgumentExprs: &sendArgumentExprs)
         case let .indexedAccess(receiver, indices, _):
-            collectProduceBuilderSendExprs(in: receiver, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+            collectProduceBuilderSendExprs(in: receiver, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             for indexExpr in indices {
-                collectProduceBuilderSendExprs(in: indexExpr, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: indexExpr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
         case let .stringTemplate(parts, _):
             for part in parts {
                 switch part {
                 case let .expression(exprID):
-                    collectProduceBuilderSendExprs(in: exprID, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                    collectProduceBuilderSendExprs(in: exprID, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
                 default:
                     break
                 }
             }
         case let .localDecl(_, _, _, initializer, _, _):
             if let initializer {
-                collectProduceBuilderSendExprs(in: initializer, ast: ast, interner: interner, sendArgumentExprs: &sendArgumentExprs)
+                collectProduceBuilderSendExprs(in: initializer, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
         case .localAssign, .compoundAssign, .memberAssign, .indexedAssign, .indexedCompoundAssign, .memberCompoundAssign:
             break
@@ -1674,46 +1710,42 @@ extension CallTypeChecker {
             yielded: &yieldedExprs,
             yieldedCollections: &yieldedCollectionExprs
         )
-        // Pre-infer yield argument types when they are not yet in the binding table.
-        // This breaks the chicken-and-egg: the lambda body hasn't been fully type-checked
-        // yet, so we run a lightweight inference pass on each yield argument before
-        // using them to determine the element type T for SequenceScope<T>.
-        // We use a snapshot/truncate pattern on the diagnostic engine so that
-        // speculative errors (e.g. unresolved loop variables) are discarded.
-        var previewLocals = locals
-        let diagnosticEngine = ctx.semaCtx.diagnostics
+        // Check the whole lambda so loop variables and local declarations shadow
+        // outer names during bootstrap. The real check uses the inferred element type.
+        if (yieldedExprs + yieldedCollectionExprs).contains(where: {
+            sema.bindings.exprType(for: $0) == nil
+        }), let scopeSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("SequenceScope"),
+        ]) {
+            let receiverType = sema.types.make(.classType(ClassType(
+                classSymbol: scopeSymbol,
+                args: [.invariant(sema.types.nullableAnyType)],
+                nullability: .nonNull
+            )))
+            var previewLocals = locals
+            let diagnosticEngine = ctx.semaCtx.diagnostics
+            let snapshot = diagnosticEngine.count
+            _ = driver.inferExpr(
+                lambdaExprID,
+                ctx: ctx.with(implicitReceiverType: receiverType),
+                locals: &previewLocals,
+                expectedType: sequenceBuilderLambdaType(receiverType: receiverType, sema: sema)
+            )
+            diagnosticEngine.truncate(to: snapshot)
+        }
         var elementTypes: [TypeID] = []
         for exprID in yieldedExprs {
-            if let cached = sema.bindings.exprType(for: exprID),
-               cached != sema.types.errorType {
-                elementTypes.append(cached)
-                continue
-            }
-            let snapshot = diagnosticEngine.count
-            let inferredType = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
-            if inferredType == sema.types.errorType {
-                diagnosticEngine.truncate(to: snapshot)
-                continue
-            }
-            // Discard any spurious diagnostics emitted during speculative inference
-            // (e.g. "unresolved reference" for loop variables not yet in scope).
-            diagnosticEngine.truncate(to: snapshot)
+            guard let inferredType = sema.bindings.exprType(for: exprID),
+                  inferredType != sema.types.errorType
+            else { continue }
             elementTypes.append(inferredType)
         }
         for exprID in yieldedCollectionExprs {
-            let inferredType: TypeID
-            if let cached = sema.bindings.exprType(for: exprID),
-               cached != sema.types.errorType {
-                inferredType = cached
-            } else {
-                let snapshot = diagnosticEngine.count
-                let preInferred = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
-                diagnosticEngine.truncate(to: snapshot)
-                guard preInferred != sema.types.errorType else {
-                    continue
-                }
-                inferredType = preInferred
-            }
+            guard let inferredType = sema.bindings.exprType(for: exprID),
+                  inferredType != sema.types.errorType
+            else { continue }
             if let elementType = sequenceBuilderCollectionElementType(
                 inferredType,
                 sema: sema,

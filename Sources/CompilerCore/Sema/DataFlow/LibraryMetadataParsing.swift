@@ -154,11 +154,13 @@ extension DataFlowSemaPhase {
                 isInline: metadataRecord.isInline,
                 isOperator: metadataRecord.isOperator,
                 isOverride: metadataRecord.isOverride,
+                isMemberExtension: metadataRecord.isMemberExtension,
                 receiverOwnerFQName: receiverOwnerFQName,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
+                contractImplicationEffects: metadataRecord.contractImplicationEffects,
                 canThrow: metadataRecord.canThrow,
                 valueParameterNames: metadataRecord.valueParameterNames,
                 reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
@@ -365,7 +367,7 @@ extension DataFlowSemaPhase {
             from: functionType,
             types: types
         )
-        let classTypeParameterCount = ownerNominalTypeParameterCount(
+        var classTypeParameterCount = ownerNominalTypeParameterCount(
             of: functionType,
             record: record,
             symbols: symbols,
@@ -408,6 +410,29 @@ extension DataFlowSemaPhase {
             if isWellFormed, restored.count >= typeParameterSymbols.count {
                 typeParameterSymbols = restored
                 restoredDeclarationOrder = true
+            }
+        }
+        // Member extensions (`fun T.m(...)` declared inside a nominal type)
+        // carry the *extension* receiver in `functionType.receiver`, so the
+        // receiver-based owner scan in `ownerNominalTypeParameterCount`
+        // yields 0. When `callTParams` restored the declaration order, the
+        // leading owner parameters are present as placeholders — recover the
+        // count from the declaring nominal resolved by FQ name. Without
+        // `callTParams` the owner parameters' positions among the
+        // structurally collected ones are unknowable, so the count stays 0.
+        if classTypeParameterCount == 0,
+           restoredDeclarationOrder,
+           record.fqName.count >= 2
+        {
+            let ownerFQName = Array(record.fqName.dropLast())
+            if let ownerSymbol = symbols.lookupAll(fqName: ownerFQName)
+                .compactMap({ symbols.symbol($0) })
+                .first(where: { isNominalLayoutTargetSymbol($0.kind) })
+            {
+                classTypeParameterCount = min(
+                    types.nominalTypeParameterSymbols(for: ownerSymbol.id).count,
+                    typeParameterSymbols.count
+                )
             }
         }
         // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: `collectTypeParameterSymbols` only
@@ -515,6 +540,18 @@ extension DataFlowSemaPhase {
                 ContractCallsInPlaceEffect(parameterSymbol: valueParameterSymbols[index], kind: kind!),
                 for: ownerSymbol
             )
+        }
+        for effect in record.contractImplicationEffects where effect.parameterIndex < valueParameterSymbols.count {
+            let targetType = effect.targetTypeSignature.flatMap {
+                decodeImportedTypeSignature(token: $0, symbols: symbols, types: types,
+                    interner: interner, diagnostics: diagnostics, metadataPath: metadataPath,
+                    ownerFQName: record.fqName, cache: cache, allowPlaceholders: allowPlaceholders)
+            }
+            guard effect.argumentCondition != .isType || targetType != nil else { continue }
+            symbols.addContractImplicationEffect(
+                ContractImplicationEffect(parameterIndex: effect.parameterIndex,
+                    returnCondition: effect.returnCondition, argumentCondition: effect.argumentCondition,
+                    targetType: targetType), for: ownerSymbol)
         }
         return FunctionSignature(
             receiverType: functionType.receiver,
@@ -922,6 +959,12 @@ extension DataFlowSemaPhase {
                 }
                 return makeNullable(inner)
             }
+            if consume(prefix: "KSF"), let next = peek(), next.isNumber {
+                return parseFunctionType(isSuspend: true, isCallableReference: true)
+            }
+            if consume(prefix: "KF"), let next = peek(), next.isNumber {
+                return parseFunctionType(isSuspend: false, isCallableReference: true)
+            }
             if consume(prefix: "SF"), let next = peek(), next.isNumber {
                 return parseFunctionType(isSuspend: true)
             }
@@ -1081,7 +1124,7 @@ extension DataFlowSemaPhase {
             return .invariant(type)
         }
 
-        private mutating func parseFunctionType(isSuspend: Bool) -> TypeID? {
+        private mutating func parseFunctionType(isSuspend: Bool, isCallableReference: Bool = false) -> TypeID? {
             guard let arity = parseNumber(), consume(character: "<") else {
                 return nil
             }
@@ -1152,6 +1195,7 @@ extension DataFlowSemaPhase {
                 params: params,
                 returnType: returnType,
                 isSuspend: isSuspend,
+                isCallableReference: isCallableReference,
                 nullability: .nonNull
             )))
         }
@@ -1214,6 +1258,7 @@ extension DataFlowSemaPhase {
                     params: functionType.params,
                     returnType: functionType.returnType,
                     isSuspend: functionType.isSuspend,
+                    isCallableReference: functionType.isCallableReference,
                     nullability: .nullable
                 )))
             case let .kClassType(kClassType):

@@ -8,12 +8,17 @@ import Foundation
 
 // MARK: - CoroutineContext Elements (STDLIB-CORO-077)
 
+private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.coroutines.CoroutineContext"
+)
+
 /// A coroutine context is a keyed collection of context elements.
 /// Elements include: dispatcher, Job, CoroutineName, CoroutineExceptionHandler.
 /// Contexts compose via the `+` operator (right-hand side wins for same key).
 final class RuntimeCoroutineContext: @unchecked Sendable {
     var dispatcher: Int  // 0 means "inherit from parent"
     var name: String?
+    var nameHandleRaw: Int
     var exceptionHandler: RuntimeExceptionHandlerBox?
     var jobHandleRaw: Int
 
@@ -21,10 +26,13 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         dispatcher: Int = 0,
         name: String? = nil,
         exceptionHandler: RuntimeExceptionHandlerBox? = nil,
-        jobHandleRaw: Int = 0
+        jobHandleRaw: Int = 0,
+        nameHandleRaw: Int = 0
     ) {
         self.dispatcher = dispatcher
         self.name = name
+        self.nameHandleRaw = nameHandleRaw != 0 ? nameHandleRaw
+            : name.map { runtimeRegisterObject(RuntimeCoroutineNameBox(name: $0)) } ?? 0
         self.exceptionHandler = exceptionHandler
         self.jobHandleRaw = jobHandleRaw
     }
@@ -35,7 +43,8 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
             dispatcher: other.dispatcher != 0 ? other.dispatcher : self.dispatcher,
             name: other.name ?? self.name,
             exceptionHandler: other.exceptionHandler ?? self.exceptionHandler,
-            jobHandleRaw: other.jobHandleRaw != 0 ? other.jobHandleRaw : self.jobHandleRaw
+            jobHandleRaw: other.jobHandleRaw != 0 ? other.jobHandleRaw : self.jobHandleRaw,
+            nameHandleRaw: other.name != nil ? other.nameHandleRaw : self.nameHandleRaw
         )
     }
 }
@@ -45,6 +54,62 @@ final class RuntimeCoroutineNameBox: @unchecked Sendable {
     let name: String
     init(name: String) {
         self.name = name
+    }
+}
+
+private final class RuntimeCoroutineNameKey: @unchecked Sendable {}
+private let runtimeCoroutineNameKeyRaw = runtimeRegisterObject(RuntimeCoroutineNameKey())
+
+@_cdecl("kk_coroutine_name_key")
+public func kk_coroutine_name_key() -> Int {
+    runtimeCoroutineNameKeyRaw
+}
+
+@_cdecl("kk_coroutine_name_key_get")
+public func kk_coroutine_name_key_get(_ receiver: Int) -> Int {
+    runtimeCoroutineNameKeyRaw
+}
+
+func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
+    // Element declares get/fold/minusKey; its key getter follows those slots.
+    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")) else {
+        return nil
+    }
+    let ptr = isRegisteredRuntimeObjectPointer(receiver) ? UnsafeMutableRawPointer(bitPattern: receiver) : nil
+    let isName = ptr.flatMap { tryCast($0, to: RuntimeCoroutineNameBox.self) } != nil
+    let isDispatcher = isDispatcherTag(receiver) || ptr.flatMap { tryCast($0, to: RuntimeDispatcher.self) } != nil
+    guard isName || isDispatcher else {
+        return nil
+    }
+    switch methodSlot {
+    case 0:
+        let get: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, key, outThrown in
+            outThrown?.pointee = 0
+            let element = kk_context_get(receiver, key)
+            return element == 0 ? runtimeNullSentinelInt : element
+        }
+        return unsafeBitCast(get, to: Int.self)
+    case 1:
+        let fold: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+            receiver, initial, operation, closure, outThrown in
+            outThrown?.pointee = 0
+            return kk_context_fold(receiver, initial, operation, closure, outThrown)
+        }
+        return unsafeBitCast(fold, to: Int.self)
+    case 2:
+        let minusKey: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, key, outThrown in
+            outThrown?.pointee = 0
+            return kk_context_minusKey(receiver, key)
+        }
+        return unsafeBitCast(minusKey, to: Int.self)
+    case 3 where isName:
+        let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, outThrown in
+            outThrown?.pointee = 0
+            return kk_coroutine_name_key_get(receiver)
+        }
+        return unsafeBitCast(getter, to: Int.self)
+    default:
+        return nil
     }
 }
 
@@ -163,6 +228,26 @@ public func kk_context_get(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     return 0
 }
 
+@_cdecl("__kk_context_get_dispatch")
+public func __kk_context_get_dispatch(
+    _ contextRaw: Int,
+    _ keyRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let result = runtimeSourceInterfaceCall1(
+        contextRaw, keyRaw,
+        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+        methodSlot: 0,
+        context: "CoroutineContext.get dispatch",
+        outThrown: outThrown
+    ) {
+        return result
+    }
+    let result = kk_context_get(contextRaw, keyRaw)
+    return result == 0 ? runtimeNullSentinelInt : result
+}
+
 /// Fold the known coroutine context elements from left to right.
 @_cdecl("kk_context_fold")
 public func kk_context_fold(
@@ -195,6 +280,25 @@ public func kk_context_minusKey(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     return runtimeRegisterObject(reduced)
 }
 
+@_cdecl("__kk_context_minusKey_dispatch")
+public func __kk_context_minusKey_dispatch(
+    _ contextRaw: Int,
+    _ keyRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let result = runtimeSourceInterfaceCall1(
+        contextRaw, keyRaw,
+        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+        methodSlot: 3,
+        context: "CoroutineContext.minusKey dispatch",
+        outThrown: outThrown
+    ) {
+        return result
+    }
+    return kk_context_minusKey(contextRaw, keyRaw)
+}
+
 /// Extract the dispatcher from a CoroutineContext.
 /// Returns a dispatcher tag (or 0 if none).
 @_cdecl("kk_context_get_dispatcher")
@@ -212,13 +316,22 @@ public func kk_context_get_dispatcher(_ contextRaw: Int) -> Int {
     return 0
 }
 
-/// Intercept a continuation using its dispatcher-backed context, if any.
-@_cdecl("kk_continuation_intercepted")
-public func kk_continuation_intercepted(_ continuationRaw: Int) -> Int {
+/// Intercept compiler-created states, leaving ordinary source continuations untouched.
+@_cdecl("__kk_continuation_intercepted")
+public func __kk_continuation_intercepted(
+    _ continuationRaw: Int,
+    _ interceptorKey: Int = 0,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    if let state = runtimeContinuationState(from: continuationRaw) {
+        return state.intercepted(continuationRaw: continuationRaw, interceptorKey: interceptorKey, outThrown: outThrown)
+    }
     guard continuationRaw != 0,
+          isRegisteredRuntimeObjectPointer(continuationRaw),
           let ptr = UnsafeMutableRawPointer(bitPattern: continuationRaw)
     else {
-        return 0
+        return continuationRaw
     }
     let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     guard let continuation = object as? KKContinuation else {
@@ -230,6 +343,65 @@ public func kk_continuation_intercepted(_ continuationRaw: Int) -> Int {
         return continuationRaw
     }
     return runtimeRegisterObject(interceptedObject)
+}
+
+func runtimeContinuationInterceptor(context: Int, key: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let getRaw = kk_itable_lookup_dynamic(
+        context, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext")), 0
+    )
+    if getRaw != 0, key != 0 {
+        let get = unsafeBitCast(getRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        let result = get(context, key, outThrown)
+        return result == runtimeNullSentinelInt ? 0 : result
+    }
+    return kk_context_get_dispatcher(context)
+}
+
+private final class RuntimeGeneratedContinuation: KKContinuation, @unchecked Sendable {
+    let state: RuntimeContinuationState
+    let raw: Int
+
+    init(state: RuntimeContinuationState, raw: Int) {
+        self.state = state
+        self.raw = raw
+    }
+
+    var context: UnsafeMutableRawPointer? {
+        UnsafeMutableRawPointer(bitPattern: __kk_coroutine_continuation_context(raw))
+    }
+
+    func resumeWith(_ result: UnsafeMutableRawPointer?) {
+        __kk_coroutine_continuation_resume_with(raw, Int(bitPattern: result))
+    }
+}
+
+func runtimeInterceptGeneratedContinuation(interceptor: Int, continuation: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard interceptor != 0 else {
+        return continuation
+    }
+    let interceptRaw = kk_itable_lookup_dynamic(
+        interceptor, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")), 0
+    )
+    guard interceptRaw != 0 else {
+        return continuation
+    }
+    let intercept = unsafeBitCast(interceptRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    return intercept(interceptor, continuation, outThrown)
+}
+
+func runtimeReleaseInterceptedContinuation(interceptor: Int, continuation: Int) {
+    let releaseRaw = kk_itable_lookup_dynamic(
+        interceptor, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")), 1
+    )
+    guard releaseRaw != 0 else {
+        return
+    }
+    let release = unsafeBitCast(releaseRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    _ = release(interceptor, continuation, &thrown)
+    if thrown != 0 {
+        _ = kk_native_processUnhandledException(thrown, nil)
+    }
 }
 
 /// Intercept a continuation using an explicit interceptor object.
@@ -245,25 +417,46 @@ public func kk_continuation_interceptor_intercept_continuation(
     else {
         return continuationRaw
     }
-    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    guard let continuation = object as? KKContinuation else {
-        return continuationRaw
+    let continuation: KKContinuation
+    if let state = runtimeContinuationState(from: continuationRaw) {
+        continuation = RuntimeGeneratedContinuation(state: state, raw: continuationRaw)
+    } else {
+        guard isRegisteredRuntimeObjectPointer(continuationRaw),
+              let native = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() as? KKContinuation
+        else {
+            return continuationRaw
+        }
+        continuation = native
     }
     let intercepted = runtimeInterceptedContinuation(using: dispatcherTag, continuation: continuation)
     let interceptedObject = intercepted as AnyObject
-    if interceptedObject === object {
+    if interceptedObject === continuation as AnyObject {
         return continuationRaw
     }
     return runtimeRegisterObject(interceptedObject)
 }
 
-func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
-    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")) else {
-        return nil
-    }
+func runtimeIsNativeDispatcher(_ receiver: Int) -> Bool {
     let isDispatcherObject = isRegisteredRuntimeObjectPointer(receiver)
         && UnsafeMutableRawPointer(bitPattern: receiver).flatMap { tryCast($0, to: RuntimeDispatcher.self) } != nil
-    guard isDispatcherTag(receiver) || isDispatcherObject else {
+    return isDispatcherTag(receiver) || isDispatcherObject
+}
+
+@_cdecl("__kk_is_native_dispatcher")
+public func kk_is_native_dispatcher(_ receiver: Int) -> Int {
+    runtimeIsNativeDispatcher(receiver) ? 1 : 0
+}
+
+// The compiler supplies the source implementation, not a runtime-owned slot.
+@_cdecl("__kk_dispatcher_default_method")
+public func kk_dispatcher_default_method(_ receiver: Int, _ virtualMethod: Int, _ defaultMethod: Int) -> Int {
+    runtimeIsNativeDispatcher(receiver) ? defaultMethod : virtualMethod
+}
+
+func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
+    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")),
+          runtimeIsNativeDispatcher(receiver)
+    else {
         return nil
     }
     // ContinuationInterceptor declares intercept/release before its context overrides.
@@ -287,6 +480,9 @@ func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int,
 
 /// Return the raw handle for a known context element matching the supplied key.
 private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: RuntimeCoroutineContext) -> Int? {
+    if keyRaw == runtimeCoroutineNameKeyRaw {
+        return ctx.name != nil ? ctx.nameHandleRaw : nil
+    }
     if keyRaw != 0,
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
        let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self)
@@ -300,7 +496,7 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
        let nameBox = tryCast(ptr, to: RuntimeCoroutineNameBox.self)
     {
-        return ctx.name == nameBox.name ? runtimeRegisterObject(RuntimeCoroutineNameBox(name: nameBox.name)) : nil
+        return ctx.name == nameBox.name ? ctx.nameHandleRaw : nil
     }
     if keyRaw != 0,
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
@@ -321,8 +517,8 @@ private func runtimeCoroutineContextElementHandles(in ctx: RuntimeCoroutineConte
     if ctx.dispatcher != 0 {
         handles.append(ctx.dispatcher)
     }
-    if let name = ctx.name {
-        handles.append(runtimeRegisterObject(RuntimeCoroutineNameBox(name: name)))
+    if ctx.name != nil {
+        handles.append(ctx.nameHandleRaw)
     }
     if let handler = ctx.exceptionHandler {
         handles.append(Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(handler).toOpaque())))
@@ -339,8 +535,14 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
         dispatcher: ctx.dispatcher,
         name: ctx.name,
         exceptionHandler: ctx.exceptionHandler,
-        jobHandleRaw: ctx.jobHandleRaw
+        jobHandleRaw: ctx.jobHandleRaw,
+        nameHandleRaw: ctx.nameHandleRaw
     )
+    if keyRaw == runtimeCoroutineNameKeyRaw {
+        next.name = nil
+        next.nameHandleRaw = 0
+        return next
+    }
     if keyRaw != 0,
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
        let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self)
@@ -362,6 +564,7 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
     {
         if next.name == nameBox.name {
             next.name = nil
+            next.nameHandleRaw = 0
         }
         return next
     }
@@ -436,28 +639,30 @@ public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continu
         ? resolvedCtx.dispatcher
         : RuntimeDispatcherTag.defaultDispatcher
 
-    var restoreJobHandle: (@Sendable () -> Void)?
+    var restoreJobHandle: (@Sendable (Int) -> Void)?
     if let contState = runtimeContinuationState(from: continuation) {
         if let name = resolvedCtx.name, let scope = contState.scope {
             scope.name = name
         }
-        // Install a Job element from the context (e.g. NonCancellable) as this
-        // block's ambient job, so cancellation checks inside the block observe it
-        // instead of falling through to the caller's job/scope. This is what makes
-        // `withContext(NonCancellable) { ... }` immune to the enclosing job's
-        // cancellation: NonCancellable's backing job is never cancelled.
-        //
-        // This override must not leak past the end of this withContext block --
-        // otherwise every subsequent cancellation check in the same coroutine
-        // would observe the (never-cancelled) override job forever. Save the
-        // original and restore it via restoreJobHandle once the block genuinely
-        // finishes, across all of kk_with_context's completion paths (inline,
-        // CORO-004 async, and non-coroutine semaphore).
         if let overrideJob = runtimeJobHandle(from: resolvedCtx.jobHandleRaw) {
             let savedJobHandle = contState.jobHandle
-            contState.jobHandle = overrideJob
-            restoreJobHandle = { [weak contState] in
+            let isNonCancellable = resolvedCtx.jobHandleRaw == kk_non_cancellable_instance()
+            // Upstream exposes the block's own Job, not the NonCancellable
+            // singleton. It is detached from the cancelled outer Job but can
+            // still be cancelled explicitly from inside the block.
+            let blockJob = isNonCancellable ? runtimeJobHandle(from: kk_job_new()) : nil
+            blockJob?.continuationState = contState
+            contState.jobHandle = blockJob ?? overrideJob
+            let shieldedCaller = isNonCancellable ? RuntimeContinuationState.current : nil
+            shieldedCaller?.beginCancellationShield()
+            restoreJobHandle = { [weak contState] thrown in
+                if thrown != 0 {
+                    _ = blockJob?.completeExceptionally(with: thrown)
+                } else {
+                    _ = blockJob?.complete(with: 0)
+                }
                 contState?.jobHandle = savedJobHandle
+                shieldedCaller?.endCancellationShield()
             }
         }
     }
@@ -472,7 +677,7 @@ private func isDispatcherTag(_ raw: Int) -> Bool {
     raw == RuntimeDispatcherTag.mainDispatcher
 }
 
-private func isRegisteredRuntimeObjectPointer(_ raw: Int) -> Bool {
+func isRegisteredRuntimeObjectPointer(_ raw: Int) -> Bool {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return false
     }
@@ -504,7 +709,7 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
         return ctx
     }
     if let nameBox = tryCast(ptr, to: RuntimeCoroutineNameBox.self) {
-        return RuntimeCoroutineContext(name: nameBox.name)
+        return RuntimeCoroutineContext(name: nameBox.name, nameHandleRaw: raw)
     }
     if let handler = tryCast(ptr, to: RuntimeExceptionHandlerBox.self) {
         return RuntimeCoroutineContext(exceptionHandler: handler)
@@ -694,17 +899,13 @@ func kk_with_context_impl(
     _ dispatcherRaw: Int,
     _ blockFnPtr: Int,
     _ continuation: Int,
-    restoreJobHandle: (@Sendable () -> Void)?
+    restoreJobHandle: (@Sendable (Int) -> Void)?
 ) -> Int {
-    // STDLIB-CORO-077: If dispatcherRaw is a RuntimeCoroutineContext, delegate
-    // to kk_with_context_full which handles context element propagation.
+    // A single element (not just a composed context) must propagate its Job/name/handler.
     if !isDispatcherTag(dispatcherRaw), dispatcherRaw != 0,
-       isRegisteredRuntimeObjectPointer(dispatcherRaw),
-       let ptr = UnsafeMutableRawPointer(bitPattern: dispatcherRaw),
-       runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-       tryCast(ptr, to: RuntimeCoroutineContext.self) != nil
+       isRegisteredRuntimeObjectPointer(dispatcherRaw)
     {
-        restoreJobHandle?()
+        restoreJobHandle?(0)
         return kk_with_context_full(dispatcherRaw, blockFnPtr, continuation)
     }
 
@@ -721,7 +922,7 @@ func kk_with_context_impl(
     guard suspendEntryPoint(from: blockFnPtr) != nil else {
         // Clean up the continuation to avoid leaking coroutine state.
         _ = kk_coroutine_state_exit(continuation, 0)
-        restoreJobHandle?()
+        restoreJobHandle?(0)
         return 0
     }
 
@@ -762,11 +963,13 @@ func kk_with_context_impl(
         defer { RuntimeDispatcher.current = savedDispatcher }
         RuntimeCoroutineScope.current = parentScope
         RuntimeDispatcher.current = dispatcher
+        var thrown = 0
         let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: blockFnPtr,
-            continuation: continuation
+            continuation: continuation,
+            outThrown: &thrown
         )
-        restoreJobHandle?()
+        restoreJobHandle?(thrown)
         return result
     }
 
@@ -790,7 +993,7 @@ func kk_with_context_impl(
                 entryPointRaw: blockFnPtr,
                 continuation: capturedContinuation,
                 onCompletion: { result, thrown in
-                    restoreJobHandle?()
+                    restoreJobHandle?(thrown)
                     if thrown != 0 {
                         callerState.resume(withException: thrown)
                     } else {
@@ -812,11 +1015,13 @@ func kk_with_context_impl(
         RuntimeCoroutineScope.current = parentScope
         defer { RuntimeCoroutineScope.current = savedScope }
 
+        var thrown = 0
         resultBox.value = runSuspendEntryLoopWithContinuation(
             entryPointRaw: blockFnPtr,
-            continuation: continuation
+            continuation: continuation,
+            outThrown: &thrown
         )
-        restoreJobHandle?()
+        restoreJobHandle?(thrown)
         semaphore.signal()
     }
 

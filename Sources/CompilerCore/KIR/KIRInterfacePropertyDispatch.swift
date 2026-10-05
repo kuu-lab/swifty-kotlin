@@ -38,10 +38,15 @@ func kirInterfacePropertyGetterSlots(
     let sizeName = knownNames.size
     let isCollectionOrMap = interfaceInfo.fqName == knownNames.kotlinCollectionsCollectionFQName
         || interfaceInfo.fqName == knownNames.kotlinCollectionsMapFQName
+    let isClosedFloatingPointRange = interfaceInfo.fqName == [
+        interner.intern("kotlin"), interner.intern("ranges"), interner.intern("ClosedFloatingPointRange"),
+    ]
     var properties = sema.symbols.children(ofFQName: interfaceInfo.fqName)
         .compactMap { id -> (symbol: SymbolID?, name: InternedString)? in
             guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
             let isSyntheticCollectionSize = isCollectionOrMap && property.name == sizeName
+            let isFloatingPointEndpoint = isClosedFloatingPointRange
+                && [interner.intern("start"), interner.intern("endInclusive")].contains(property.name)
             // BUG-240: Map's other runtime-bridged view properties
             // (keys/values/entries/size) need itable getter slots too so a
             // custom Map — delegated (`class C : Map<K,V> by d`) or
@@ -59,11 +64,13 @@ func kirInterfacePropertyGetterSlots(
             // Collection/Map runtime-backed properties are the exception: their
             // bridges can fall back to source-backed itable dispatch for custom
             // views.
-            if let linkName = sema.symbols.externalLinkName(for: id),
-               !linkName.isEmpty,
-               !isSyntheticMapProperty,
-               !isSyntheticCollectionSize
-            {
+            let hasRuntimeLink = sema.symbols.externalLinkName(for: id)?.isEmpty == false
+                || sema.symbols.annotations(for: id).contains {
+                    KnownCompilerAnnotation.ksSymbolName.matches($0.annotationFQName)
+                }
+            // Imported properties can carry the bridge on their getter instead
+            // of the property symbol. Preserve the source-side slot layout.
+            if hasRuntimeLink, !isSyntheticMapProperty, !isSyntheticCollectionSize {
                 return nil
             }
             // Likewise for synthetic runtime members registered on an otherwise
@@ -77,6 +84,7 @@ func kirInterfacePropertyGetterSlots(
                 || property.flags.contains(.importedLibrary)
                 || isSyntheticCollectionSize
                 || isSyntheticMapProperty
+                || isFloatingPointEndpoint
             else {
                 return nil
             }

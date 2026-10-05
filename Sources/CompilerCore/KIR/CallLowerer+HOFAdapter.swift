@@ -69,7 +69,7 @@ extension CallLowerer {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
-        var callArguments = appendCallableCaptureLoads(
+        var callArguments = callableInfo.hasClosureParam ? [closureExpr] : appendCallableCaptureLoads(
             callableInfo: callableInfo,
             closureExpr: closureExpr,
             sema: sema,
@@ -115,17 +115,24 @@ extension CallLowerer {
             callArguments.append(unboxedExpr)
         }
 
-        // `functionType.returnType` is the concrete lambda result, while an
-        // erased HOF return slot is `Any`.
-        let adapterReturnType: TypeID = {
-            guard let erasedReturnType = erasedFunctionType?.returnType,
-                  isErasedRepresentationType(erasedReturnType, sema: sema),
-                  isNonNullValueRepresentationType(functionType.returnType, sema: sema)
-            else {
-                return functionType.returnType
-            }
-            return sema.types.anyType
-        }()
+        if !callableInfo.hasClosureParam,
+           functionType.receiver != nil,
+           sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
+        {
+            let captureCount = callableInfo.captureArguments.count
+            callArguments = Array(callArguments.dropFirst(captureCount))
+                + Array(callArguments.prefix(captureCount))
+        }
+
+        // Reference-returning callbacks (e.g. Comparable selectors) need boxes
+        // even when the concrete callable already has a closure parameter.
+        let adapterReturnType = erasedFunctionType.flatMap {
+            functionValueBoxedReturnType(
+                concreteReturnType: functionType.returnType,
+                expectedReturnType: $0.returnType,
+                sema: sema
+            )
+        } ?? functionType.returnType
 
         let callResult = arena.appendTemporary(type: functionType.returnType
         )
@@ -179,6 +186,26 @@ extension CallLowerer {
             captureArguments: callableInfo.captureArguments,
             hasClosureParam: true
         )
+    }
+
+    func functionValueBoxedReturnType(
+        concreteReturnType: TypeID,
+        expectedReturnType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard isNonNullValueRepresentationType(concreteReturnType, sema: sema) else {
+            return nil
+        }
+        if isErasedRepresentationType(expectedReturnType, sema: sema) {
+            return sema.types.anyType
+        }
+        if case .classType = sema.types.kind(of: expectedReturnType),
+           !isNonNullValueRepresentationType(expectedReturnType, sema: sema),
+           !isNonNullEnumType(expectedReturnType, sema: sema)
+        {
+            return expectedReturnType
+        }
+        return nil
     }
 
     /// True for types represented as an erased `Any` handle at runtime: type

@@ -90,7 +90,8 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             constructorLinkName: "kk_atomic_ref_create",
-            externalLinkPrefix: "__kk_atomic_ref"
+            externalLinkPrefix: "__kk_atomic_ref",
+            includeGetAndSetAlias: true
         )
 
         // Array atomics retain their responsibility-specific synthetic shells and
@@ -153,13 +154,6 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "__kk_atomic_int",
             includeArithmetic: true,
-            includeIncrementAndGetAlias: true,
-            includeGetAndIncrementAlias: true,
-            includeGetAndDecrementAlias: true,
-            includeGetAndSetAlias: true,
-            includeGetAndAddAlias: true,
-            includeDecrementAndGetAlias: true,
-            includeAddAndGetAlias: true,
             compareAndSetLinkName: "kk_atomic_int_compareAndSet",
             symbols: symbols,
             interner: interner,
@@ -174,13 +168,6 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "__kk_atomic_long",
             includeArithmetic: true,
-            includeIncrementAndGetAlias: true,
-            includeGetAndIncrementAlias: true,
-            includeGetAndDecrementAlias: true,
-            includeGetAndSetAlias: true,
-            includeGetAndAddAlias: true,
-            includeDecrementAndGetAlias: true,
-            includeAddAndGetAlias: true,
             compareAndSetLinkName: "kk_atomic_long_compareAndSet",
             symbols: symbols,
             interner: interner,
@@ -195,7 +182,6 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "__kk_atomic_bool",
             includeArithmetic: false,
-            includeGetAndSetAlias: true,
             includeCompareAndSet: false,
             symbols: symbols,
             interner: interner,

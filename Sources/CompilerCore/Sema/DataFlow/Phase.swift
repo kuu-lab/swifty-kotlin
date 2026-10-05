@@ -426,9 +426,27 @@ final class DataFlowSemaPhase: CompilerPhase {
             // collection/sequence member-call fallback resolution (which keys off
             // parentSymbol == owner) can find them. Skip retained runtime-bridge
             // overlaps so synthetic ABI stubs keep routing through kk_* entries.
+            //
+            // Member extensions (`fun T.m(...)` declared inside a nominal type)
+            // must keep their declaring owner as parent: re-parenting them to
+            // the extension receiver would erase the dispatch receiver owner
+            // member-extension calls need for the [dispatch, extension, args]
+            // calling convention.
             guard symbol.kind == .function,
                   !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
             else { continue }
+            let declaringOwnerFQName = Array(symbol.fqName.dropLast())
+            let declaringOwnerIsNominal = symbols.lookupAll(fqName: declaringOwnerFQName)
+                .compactMap { symbols.symbol($0) }
+                .contains { owner in
+                    switch owner.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass: true
+                    default: false
+                    }
+                }
+            if declaringOwnerIsNominal {
+                continue
+            }
             if let receiverFQName = symbols.importedMemberIndexShape(for: symbol.id)?.receiverOwnerFQName {
                 // Lazy shells carry the receiver's nominal FQ name in the
                 // compact index, so the parent edge is restored without
@@ -493,6 +511,19 @@ final class DataFlowSemaPhase: CompilerPhase {
                 sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
                 interner: ctx.interner, into: &predeclared
             )
+        }
+        // Alias right-hand sides can reference nested types before their owners'
+        // signatures are collected, including owners in later input files.
+        for file in orderedFiles {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            for declID in file.topLevelDecls {
+                guard let symbol = predeclared[declID] else { continue }
+                predeclareNestedNominalTypeHeaders(
+                    declID: declID, ownerSymbol: symbol, sourceFileID: file.fileID,
+                    ast: ast, symbols: symbols, types: types, bindings: bindings,
+                    scope: fileScope, ctx: ctx
+                )
+            }
         }
         // Numeric subtype and least-upper-bound checks use the canonical kotlin.Number symbol.
         resolveNumberClassSymbol(
@@ -586,10 +617,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics, interner: ctx.interner
         )
         validateAbstractOverrides(
-            ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
-        )
-        validateAbstractClassConstraints(
             ast: ast, symbols: symbols, bindings: bindings, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner
         )

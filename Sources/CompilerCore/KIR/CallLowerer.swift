@@ -322,6 +322,21 @@ final class CallLowerer {
         }
     }
 
+    func runtimeExternalOmitsObjectReceiver(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
+        guard let owner = sema.symbols.parentSymbol(for: symbolID),
+              sema.symbols.symbol(owner)?.kind == .object,
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              let linkName = sema.symbols.externalLinkName(for: symbolID),
+              let spec = RuntimeABISpec.byName[linkName]
+        else {
+            return false
+        }
+        let valueParameters = spec.parameters.filter {
+            !($0.name == "outThrown" && $0.type == .nullableIntptrPointer)
+        }
+        return abiParametersMatchFactorySignature(valueParameters, signature, sema: sema)
+    }
+
     private func isFlatStringGroup(
         at index: Int,
         in parameters: [RuntimeABIParameter]
@@ -385,6 +400,19 @@ final class CallLowerer {
             objectValue: result, factoryName: callee,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
+        if let owner = sema.symbols.parentSymbol(for: constructorSymbol),
+           sema.symbols.symbol(owner)?.fqName == ["kotlin", "collections", "ArrayDeque"].map(interner.intern)
+        {
+            appendObjectVtableMethodRegistrations(
+                objectValue: result,
+                nominalSymbol: owner,
+                driver: driver,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         return result
     }
 
@@ -1041,7 +1069,8 @@ final class CallLowerer {
             }
         } else if let chosen,
                   let signature = sema.symbols.functionSignature(for: chosen),
-                  signature.receiverType != nil
+                  signature.receiverType != nil,
+                  !runtimeExternalOmitsObjectReceiver(chosen, sema: sema)
         {
             // A call that Sema resolved on an *outer* implicit receiver (e.g.
             // an enclosing class's member invoked unqualified from an object
@@ -1049,6 +1078,74 @@ final class CallLowerer {
             // enclosing `this`, not the member's own implicit receiver.
             var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
                 .flatMap { driver.ctx.localValue(for: $0) }
+            if memberExtensionOwnerSymbol(for: chosen, sema: sema) != nil {
+                // Member extensions carry a dispatch receiver ahead of the
+                // extension receiver: `implicitReceiverOuterReceiver` names
+                // the *dispatch* side, so the extension receiver must come
+                // from an implicit receiver whose type is a subtype of the
+                // declared receiver — the innermost `this` first, then a
+                // labeled/captured receiver that happens to match.
+                func matchesDeclaredReceiver(_ candidate: KIRExprID?) -> Bool {
+                    guard let candidate,
+                          let declaredReceiver = signature.receiverType,
+                          let type = arena.exprType(candidate)
+                    else { return false }
+                    return sema.types.isSubtype(
+                        sema.types.makeNonNullable(type),
+                        sema.types.makeNonNullable(declaredReceiver)
+                    )
+                }
+                if !matchesDeclaredReceiver(implicitReceiver) {
+                    implicitReceiver = nil
+                    // Sema records which receiver-tower entry supplies the
+                    // extension receiver (e.g. the enclosing Int receiver
+                    // parameter captured into a `with("s")` lambda), so read
+                    // that exact value first — the active receiver may be an
+                    // unrelated shadowing receiver.
+                    if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: exprID),
+                       let receiverValue = driver.ctx.localValue(for: receiverSymbol),
+                       matchesDeclaredReceiver(receiverValue)
+                    {
+                        implicitReceiver = receiverValue
+                    } else if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                              matchesDeclaredReceiver(activeReceiver)
+                    {
+                        implicitReceiver = activeReceiver
+                    } else if let owner = sema.symbols.parentSymbol(for: chosen),
+                              let ownerName = sema.symbols.symbol(owner)?.name,
+                              let qualifiedThis = driver.ctx.qualifiedThisReceiverExprID(for: ownerName),
+                              matchesDeclaredReceiver(qualifiedThis)
+                    {
+                        implicitReceiver = qualifiedThis
+                    }
+                }
+                if implicitReceiver == nil {
+                    implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+                }
+            } else if let owner = sema.symbols.parentSymbol(for: chosen)
+            {
+                if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                   let activeType = arena.exprType(activeReceiver),
+                   case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(activeType)),
+                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+                {
+                    implicitReceiver = activeReceiver
+                } else if let dispatchReceiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
+                    ?? driver.ctx.capturedOuterReceiverExprID(reaching: owner, sema: sema)
+                {
+                    implicitReceiver = dispatchReceiver
+                }
+            }
+            // Inside a member-extension body the active implicit receiver is
+            // the extension receiver, but an unqualified call to an enclosing
+            // member must dispatch on the `this@Owner` parameter instead.
+            if implicitReceiver == nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let ownerName = sema.symbols.symbol(owner)?.name,
+               let qualifiedThis = driver.ctx.qualifiedThisReceiverExprID(for: ownerName)
+            {
+                implicitReceiver = qualifiedThis
+            }
             if implicitReceiver == nil {
                 implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
                 // A bare call inside an object literal can resolve to a member of
@@ -1060,9 +1157,24 @@ final class CallLowerer {
                 if let owner = sema.symbols.parentSymbol(for: chosen),
                    owner != driver.ctx.activeImplicitReceiverSymbol(),
                    let capturedReceiver = driver.ctx.localValue(for: owner)
+                       ?? driver.ctx.capturedOuterReceiverExprID(reaching: owner, sema: sema)
                 {
                     implicitReceiver = capturedReceiver
                 }
+            }
+            if let owner = sema.symbols.parentSymbol(for: chosen),
+               let containingClass = sema.symbols.parentSymbol(for: owner),
+               sema.symbols.companionObjectSymbol(for: containingClass) == owner,
+               let receiverType = signature.receiverType,
+               case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+               receiverClass.classSymbol == owner
+            {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+                )
+                let receiver = arena.appendExpr(.symbolRef(owner), type: receiverType)
+                instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+                implicitReceiver = receiver
             }
             if implicitReceiver == nil,
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
@@ -1097,14 +1209,25 @@ final class CallLowerer {
             {
                 implicitReceiver = ownerReceiver
             }
-            if let implicitReceiver {
-                finalArgIDs.insert(implicitReceiver, at: 0)
+            if let extensionReceiver = implicitReceiver {
+                finalArgIDs.insert(extensionReceiver, at: 0)
+                if let dispatchReceiver = memberExtensionDispatchReceiver(
+                    for: chosen,
+                    callExprID: exprID,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    finalArgIDs.insert(dispatchReceiver, at: 0)
+                    implicitReceiver = dispatchReceiver
+                }
                 // Runtime-backed MutableSet values (including collection
                 // builder receivers) do not carry a Kotlin itable for the
                 // source-backed default mutation members. Resolve those
                 // implicit calls to their demoted ABI bridges before the
                 // generic virtual-dispatch path is selected.
-                let implicitReceiverType = arena.exprType(implicitReceiver)
+                let implicitReceiverType = arena.exprType(implicitReceiver ?? extensionReceiver)
                     ?? signature.receiverType
                     ?? sema.types.anyType
                 implicitReceiverRuntimeCallee = runtimeBackedSetMemberCallee(
@@ -1127,9 +1250,25 @@ final class CallLowerer {
             // implementation of an interface method, is otherwise bypassed.
             // SequenceScope calls use runtime-owned builder receivers, so their
             // remapped ABI entry points must remain direct calls.
+            //
+            // Source-declared callees (no link name) always take this path.
+            // Imported `kk_fn_*` members only take it when the callee is
+            // abstract: kklib emits a no-op stub for abstract declarations, so
+            // a direct call silently does nothing (KUU-962: `registerClause`
+            // inside `SelectBuilder` member extensions). Non-abstract
+            // `kk_fn_*` members (`external` runtime bridges like
+            // `MutableCollection.remove`, and members with real bodies) are
+            // callable directly — virtual dispatch on them would also break
+            // receivers whose runtime box never registered the interface
+            // itable (`kk_itable_lookup_dynamic` → dispatch error).
+            let chosenLinkName = sema.symbols.externalLinkName(for: chosen)
+            let isUnlinkedSourceCallee = chosenLinkName?.isEmpty ?? true
+            let isAbstractLinkedCallee = CallLowerer.isSourceBackedLinkName(chosenLinkName)
+                && !isUnlinkedSourceCallee
+                && sema.symbols.symbol(chosen)?.flags.contains(.abstractType) == true
             if let implicitReceiver,
                implicitReceiverRuntimeCallee == nil,
-               !kirIsRuntimeBridgedCallee(chosen, sema: sema),
+               isUnlinkedSourceCallee || isAbstractLinkedCallee,
                sequenceBuilderRuntimeCalleeName(
                    chosenCallee: chosen,
                    calleeName: sourceCalleeName,
@@ -1541,6 +1680,7 @@ final class CallLowerer {
             "__kk_mutable_map_putAll",
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
+            "__kk_sequence_builder_yieldAll_checked",
             "kk_sequence_elementAt",
             "kk_iterable_iterator",
             "kk_mutex_unlock",
@@ -1602,6 +1742,7 @@ final class CallLowerer {
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "__kk_mutable_list_removeAt",
+            "__kk_sequence_builder_yieldAll_checked",
             "__kk_mutable_list_add",
             "__kk_mutable_list_add_at",
             "__kk_mutable_list_set",
@@ -2055,6 +2196,8 @@ final class CallLowerer {
         case ("toUByte", sema.types.byteType, sema.types.ubyteType): interner.intern("kk_byte_to_ubyte")
         case ("toUByte", sema.types.shortType, sema.types.ubyteType): interner.intern("kk_short_to_ubyte")
         case ("toUShort", sema.types.intType, sema.types.ushortType): interner.intern("kk_int_to_ushort")
+        case ("toUShort", sema.types.byteType, sema.types.ushortType): interner.intern("kk_int_to_ushort")
+        case ("toUShort", sema.types.shortType, sema.types.ushortType): interner.intern("kk_int_to_ushort")
         case ("toUShort", sema.types.longType, sema.types.ushortType): interner.intern("kk_long_to_ushort")
         case ("toUShort", sema.types.uintType, sema.types.ushortType): interner.intern("kk_uint_to_ushort")
         case ("toUShort", sema.types.ulongType, sema.types.ushortType): interner.intern("kk_ulong_to_ushort")

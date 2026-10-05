@@ -265,6 +265,9 @@ extension TypeSystem {
             return true
 
         case let (.functionType(leftFunction), .functionType(rightFunction)):
+            if rightFunction.isCallableReference && !leftFunction.isCallableReference {
+                return false
+            }
             guard leftFunction.contextReceivers.count == rightFunction.contextReceivers.count else {
                 return false
             }
@@ -304,10 +307,21 @@ extension TypeSystem {
             return isSubtype(leftFunction.returnType, rightFunction.returnType)
 
         case let (.functionType(leftFunction), .classType(rightClass)):
-            // Function types are subtypes of the common `kotlin.Function<R>`
-            // interface as well as `kotlin.reflect.KFunction<R>`.
+            if leftFunction.isCallableReference, let kFunctionSymbol = kFunctionInterfaceSymbol {
+                let reflectiveType = make(.classType(ClassType(
+                    classSymbol: kFunctionSymbol,
+                    args: [.out(leftFunction.returnType)],
+                    nullability: leftFunction.nullability
+                )))
+                if isSubtype(reflectiveType, supertype) {
+                    return true
+                }
+            }
+            // Only callable references implement the reflective KFunction interface.
             guard rightClass.classSymbol == functionInterfaceSymbol
-                || rightClass.classSymbol == kFunctionInterfaceSymbol
+                || (leftFunction.isCallableReference
+                    && (rightClass.classSymbol == kFunctionInterfaceSymbol
+                        || rightClass.classSymbol == kCallableInterfaceSymbol))
             else {
                 // KUU-1084: `(P1..PN) -> R` also conforms to the synthetic
                 // `kotlin.Function.FunctionN` interface of matching arity.
@@ -337,6 +351,17 @@ extension TypeSystem {
             // the nominal form is a subtype of the equivalent function type.
             if functionNArity(of: leftClass.classSymbol) != nil {
                 return functionNSubtypeOfFunctionType(leftClass, rightFunction)
+            }
+            // KUU-1195: a nominal type that reaches `FunctionN` through
+            // inheritance (e.g. the bundled `KProperty0/1/2` interfaces, whose
+            // `() -> V` / `(T) -> V` / `(D, E) -> V` supertypes are bound to
+            // `Function0/1/2` during inheritance resolution) is likewise a
+            // subtype of the matching function type.
+            if let liftedFunctionN = inheritedFunctionNClassType(
+                of: leftClass,
+                arity: (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count
+            ), functionNSubtypeOfFunctionType(liftedFunctionN, rightFunction) {
+                return true
             }
             guard let symbols = symbolTable else { return false }
             guard let sym = symbols.symbol(leftClass.classSymbol),
@@ -885,6 +910,65 @@ extension TypeSystem {
     private func functionNArity(of classSymbol: SymbolID) -> Int? {
         for (arity, symbolID) in functionNInterfaceSymbols where symbolID == classSymbol {
             return arity
+        }
+        return nil
+    }
+
+    func nominalFunctionType(for type: TypeID) -> FunctionType? {
+        guard case let .classType(classType) = kind(of: type),
+              let arity = functionNArity(of: classType.classSymbol),
+              classType.args.count == arity + 1
+        else {
+            return nil
+        }
+        let arguments = classType.args.enumerated().compactMap { index, argument -> TypeID? in
+            switch argument {
+            case let .invariant(type):
+                return type
+            case let .in(type) where index < arity:
+                return type
+            case let .out(type) where index == arity:
+                return type
+            default:
+                return nil
+            }
+        }
+        guard arguments.count == arity + 1 else { return nil }
+        return FunctionType(
+            params: Array(arguments.prefix(arity)),
+            returnType: arguments[arity],
+            nullability: classType.nullability
+        )
+    }
+
+    /// Lifts a nominal class type to the `kotlin.Function.FunctionN`
+    /// interface of the given arity that it reaches through its nominal
+    /// supertype chain (e.g. `KProperty0<Int>` → `Function0<Int>` via the
+    /// `() -> V` supertype binding — KUU-1195), preserving the declared
+    /// projections and the subtype's nullability. `nil` when no `FunctionN`
+    /// ancestor of that arity exists. The walk mirrors
+    /// `isNominalSubtypeSymbol`: an explicit worklist with a visited set so a
+    /// cyclic `.kklib` supertype graph cannot loop.
+    func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
+        var visited: Set<SymbolID> = [classType.classSymbol]
+        var queue = directNominalSupertypes(for: classType.classSymbol)
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visited.insert(current).inserted else { continue }
+            if functionNArity(of: current) == arity,
+               let args = liftedNominalSupertypeArgs(
+                   from: classType.classSymbol,
+                   childArgs: classType.args,
+                   to: current
+               )
+            {
+                return ClassType(
+                    classSymbol: current,
+                    args: args,
+                    nullability: classType.nullability
+                )
+            }
+            queue.append(contentsOf: directNominalSupertypes(for: current))
         }
         return nil
     }

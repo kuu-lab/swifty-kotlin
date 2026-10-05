@@ -11,6 +11,9 @@ extension CallLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
+        if case let .functionType(functionType) = sema.types.kind(of: nonNullType) {
+            return functionType.isCallableReference
+        }
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
@@ -43,8 +46,20 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let calleeStr = interner.resolve(calleeName)
-        guard calleeStr == "name" || calleeStr == "returnType" else { return nil }
+        guard ["name", "returnType", "parameters", "typeParameters", "visibility", "isFinal", "isOpen", "isAbstract", "isSuspend"].contains(calleeStr) else { return nil }
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+           let property = sema.bindings.identifierSymbol(for: exprID),
+           let propertyType = sema.symbols.propertyType(for: property),
+           let receiver = Optional(driver.exprLowerer.lowerExpr(
+               receiverExpr, ast: ast, sema: sema, arena: arena, interner: interner,
+               propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
+           )) {
+            return tryLowerInterfaceItablePropertyGetterRead(
+                propertySymbol: property, loweredReceiverID: receiver, resultType: propertyType,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         guard isKCallableReceiverType(receiverType, sema: sema, interner: interner) else { return nil }
         guard let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               !sema.symbols.isSourceBackedSymbol(propertySymbol)
@@ -120,10 +135,8 @@ extension CallLowerer {
                 || resolvedName == "KFunction1" || resolvedName == "KFunction2"
                 || resolvedName == "KFunction3" || resolvedName == "KCallable"
         }
-        // Also check function types — callable references (`::foo`) have function types
-        // but are tagged as KFunction at runtime.
-        if case .functionType = sema.types.kind(of: nonNullType) {
-            return false // Plain function types are not KFunction; only tagged callable refs are.
+        if case let .functionType(functionType) = sema.types.kind(of: nonNullType) {
+            return functionType.isCallableReference
         }
         return false
     }
@@ -151,8 +164,7 @@ extension CallLowerer {
     ) -> KIRExprID? {
         let calleeStr = interner.resolve(calleeName)
         guard let runtimeFunc = Self.kFunctionMemberMap[calleeStr] else { return nil }
-        if (calleeStr == "name" || calleeStr == "returnType"),
-           let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
            sema.symbols.isSourceBackedSymbol(propertySymbol)
         {
             return nil
@@ -252,10 +264,10 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let calleeStr = interner.resolve(calleeName)
-        guard calleeStr == "call" else { return nil }
+        guard calleeStr == "call" || calleeStr == "callBy" else { return nil }
 
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        guard isKFunctionReceiverType(receiverType, sema: sema, interner: interner) else { return nil }
+        guard case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType)) else { return nil }
 
         // Lower the receiver expression (the KFunction handle).
         let receiverID = driver.exprLowerer.lowerExpr(
@@ -263,6 +275,17 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+
+        if calleeStr == "callBy", let arg = args.first {
+            let map = driver.exprLowerer.lowerExpr(arg.expr, ast: ast, sema: sema, arena: arena, interner: interner,
+                                                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions)
+            let result = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_call_by"), arguments: [receiverID, map],
+                                      result: result, canThrow: true, thrownResult: nil))
+            let typed = arena.appendTemporary(type: sema.bindings.exprTypes[exprID])
+            instructions.append(.copy(from: result, to: typed))
+            return typed
+        }
 
         // Lower all arguments.
         var argExprs: [KIRExprID] = []
@@ -272,62 +295,24 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            argExprs.append(argExpr)
+            argExprs.append(boxValueForAnySlot(
+                argExpr, sourceType: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType, types: sema.types,
+                symbols: sema.symbols, interner: interner, arena: arena, requireNonNull: true, into: &instructions
+            ))
         }
 
-        // Choose the appropriate arity-specific call.
-        let callCallee: String
-        switch argExprs.count {
-        case 0: callCallee = "__kk_kfunction_call_0"
-        case 1: callCallee = "__kk_kfunction_call_1"
-        case 2: callCallee = "__kk_kfunction_call_2"
-        case 3: callCallee = "__kk_kfunction_call_3"
-        default: callCallee = "__kk_kfunction_call_vararg"
-        }
+        let list = driver.callSupportLowerer.packVarargArguments(
+            argIndices: Array(argExprs.indices), providedArguments: argExprs, spreadFlags: args.map(\.isSpread),
+            boxPrimitiveElements: false, arena: arena, interner: interner,
+            intType: sema.types.intType, anyType: sema.types.anyType, types: sema.types, symbols: sema.symbols,
+            instructions: &instructions
+        )
+        let raw = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_call"), arguments: [receiverID, list],
+                                  result: raw, canThrow: true, thrownResult: nil))
+        let typed = arena.appendTemporary(type: sema.bindings.exprTypes[exprID])
+        instructions.append(.copy(from: raw, to: typed))
+        return typed
 
-        let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-
-        if argExprs.count <= 3 {
-            // Direct arity-specific call: kk_kfunction_call_N(handle, arg1, ..., outThrown)
-            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
-            )
-            let result = arena.appendTemporary(type: resultType
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern(callCallee),
-                arguments: [receiverID] + argExprs,
-                result: result,
-                canThrow: true,
-                thrownResult: thrownResult
-            ))
-            return result
-        } else {
-            // Vararg path: pack args into a list, call __kk_kfunction_call_vararg.
-            // First, create a runtime list with the args.
-            let listExpr = arena.appendTemporary(type: sema.types.anyType
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("__kk_list_of"),
-                arguments: argExprs,
-                result: listExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
-            )
-            let result = arena.appendTemporary(type: resultType
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern(callCallee),
-                arguments: [receiverID, listExpr],
-                result: result,
-                canThrow: true,
-                thrownResult: thrownResult
-            ))
-            return result
-        }
     }
 }
