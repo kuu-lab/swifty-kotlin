@@ -66,8 +66,24 @@ extension DeclTypeChecker {
                 enclosingClassSymbol: symbol
             )
 
+        // Primary constructor parameters without `val`/`var` are only in scope
+        // for property initializers and `init {}` blocks, not for member
+        // functions — so they're threaded through as `locals` rather than
+        // inserted into `classScope`.
+        let primaryCtorLocals = primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
         if let companionDeclID = classDecl.companionObject {
+            // Infer both sides first: companion bodies may use inferred instance members.
+            let diagnosticSnapshot = diagnostics.count
+            inferClassLikeMemberTypes(
+                memberFunctions: classDecl.memberFunctions,
+                memberProperties: classDecl.memberProperties,
+                ctx: classCtx,
+                propertyInitializerLocals: primaryCtorLocals,
+                solver: solver,
+                diagnostics: diagnostics
+            )
             typeCheckNestedObjectDecl(companionDeclID, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+            diagnostics.truncate(to: diagnosticSnapshot)
         }
 
         validateClassLikeHeaderOptInTypes(
@@ -75,12 +91,6 @@ extension DeclTypeChecker {
             ctx: classCtx,
             range: classDecl.range
         )
-
-        // Primary constructor parameters without `val`/`var` are only in scope
-        // for property initializers and `init {}` blocks, not for member
-        // functions — so they're threaded through as `locals` rather than
-        // inserted into `classScope`.
-        let primaryCtorLocals = primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
 
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
@@ -101,7 +111,7 @@ extension DeclTypeChecker {
             memberFunctions: classDecl.memberFunctions,
             memberProperties: classDecl.memberProperties,
             nestedClasses: classDecl.nestedClasses,
-            nestedObjects: classDecl.nestedObjects,
+            nestedObjects: allNestedObjects,
             ctx: classCtx,
             propertyInitializerLocals: primaryCtorLocals,
             solver: solver,
@@ -390,7 +400,16 @@ extension DeclTypeChecker {
             )
 
         if let companionDeclID = interfaceDecl.companionObject {
+            let diagnosticSnapshot = diagnostics.count
+            inferClassLikeMemberTypes(
+                memberFunctions: interfaceDecl.memberFunctions,
+                memberProperties: interfaceDecl.memberProperties,
+                ctx: interfaceCtx,
+                solver: solver,
+                diagnostics: diagnostics
+            )
             typeCheckNestedObjectDecl(companionDeclID, ctx: interfaceCtx, solver: solver, diagnostics: diagnostics)
+            diagnostics.truncate(to: diagnosticSnapshot)
         }
 
         validateClassLikeHeaderOptInTypes(
@@ -403,18 +422,16 @@ extension DeclTypeChecker {
             memberFunctions: interfaceDecl.memberFunctions,
             memberProperties: interfaceDecl.memberProperties,
             nestedClasses: interfaceDecl.nestedClasses,
-            nestedObjects: interfaceDecl.nestedObjects,
+            nestedObjects: allNestedObjects,
             ctx: interfaceCtx,
             solver: solver,
             diagnostics: diagnostics
         )
     }
 
-    func typeCheckClassLikeMembers(
+    private func inferClassLikeMemberTypes(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
-        nestedClasses: [DeclID],
-        nestedObjects: [DeclID],
         ctx: TypeInferenceContext,
         propertyInitializerLocals: LocalBindings = [:],
         solver: ConstraintSolver,
@@ -476,6 +493,28 @@ extension DeclTypeChecker {
                 continue
             }
         }
+    }
+
+    func typeCheckClassLikeMembers(
+        memberFunctions: [DeclID],
+        memberProperties: [DeclID],
+        nestedClasses: [DeclID],
+        nestedObjects: [DeclID],
+        ctx: TypeInferenceContext,
+        propertyInitializerLocals: LocalBindings = [:],
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        inferClassLikeMemberTypes(
+            memberFunctions: memberFunctions,
+            memberProperties: memberProperties,
+            ctx: ctx,
+            propertyInitializerLocals: propertyInitializerLocals,
+            solver: solver,
+            diagnostics: diagnostics
+        )
 
         for declID in memberFunctions {
             guard let decl = ast.arena.decl(declID),

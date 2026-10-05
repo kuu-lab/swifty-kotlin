@@ -43,6 +43,37 @@ struct CompanionClassScopeTests {
         #expect(module.arena.expr(receiver) == .symbolRef(companion))
     }
 
+    @Test func companionBodiesCanUseInferredInstanceMembers() throws {
+        let ctx = makeContextFromSource("""
+        class Dependent {
+            val own = listOf(1, 2)
+            fun ownItems() = own
+            val initial = retrieve(this)
+            init { println(retrieve(this)) }
+            fun size() = result.size
+            companion object {
+                fun retrieve(d: Dependent) = d.ownItems().size
+                val result = listOf(1)
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func invalidCompanionBodiesStillReportErrors() throws {
+        let ctx = makeContextFromSource("""
+        class Invalid {
+            companion object {
+                val value: String = 1
+                fun missing() = unknown()
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
     @Test func instanceAndLocalMembersShadowCompanionMembers() throws {
         let ctx = makeContextFromSource("""
         class Shadow {
