@@ -167,12 +167,30 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
+        typeCheckInterfaceDelegation(
+            entries: classDecl.superTypeEntries,
+            range: classDecl.range,
+            symbol: symbol,
+            ctx: ctx,
+            solver: solver,
+            diagnostics: diagnostics
+        )
+    }
+
+    private func typeCheckInterfaceDelegation(
+        entries: [SuperTypeEntry],
+        range: SourceRange,
+        symbol: SymbolID,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
         let sema = ctx.sema
-        let delegatedEntries = classDecl.superTypeEntries.filter { $0.delegateExpression != nil }
+        let delegatedEntries = entries.filter { $0.delegateExpression != nil }
         guard !delegatedEntries.isEmpty else { return }
 
         var delegationCtx = ctx
-        let ctorSymbols = sema.symbols.symbols(atDeclSite: classDecl.range)
+        let ctorSymbols = sema.symbols.symbols(atDeclSite: range)
             .compactMap { sema.symbols.symbol($0) }
             .filter { $0.kind == .constructor }
 
@@ -272,6 +290,15 @@ extension DeclTypeChecker {
             symbol: symbol,
             ctx: objectCtx,
             range: objectDecl.range
+        )
+
+        typeCheckInterfaceDelegation(
+            entries: objectDecl.superTypeEntries,
+            range: objectDecl.range,
+            symbol: symbol,
+            ctx: ctx,
+            solver: solver,
+            diagnostics: diagnostics
         )
 
         // Superclass constructor arguments are evaluated in the enclosing

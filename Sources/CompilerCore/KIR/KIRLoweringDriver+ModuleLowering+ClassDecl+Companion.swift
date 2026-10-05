@@ -203,6 +203,12 @@ extension KIRLoweringDriver {
             shared: shared,
             body: &body
         )
+        emitClassDelegationInitializers(
+            ownerSymbol: companionSymbol,
+            receiverID: companionObjectValue,
+            shared: shared,
+            body: &body
+        )
 
         // Emit property initializers and init blocks in declaration order.
         for member in companionDecl.classBodyInitOrder {

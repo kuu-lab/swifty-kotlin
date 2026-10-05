@@ -126,7 +126,7 @@ extension KIRLoweringDriver {
                 body: &body
             )
             emitClassDelegationInitializers(
-                classDecl: classDecl, ownerSymbol: ownerSymbol,
+                ownerSymbol: ownerSymbol,
                 receiverID: ctx.activeImplicitReceiverExprID()!,
                 shared: shared, body: &body
             )
@@ -497,8 +497,7 @@ extension KIRLoweringDriver {
     }
 
     /// CLASS-008: Emits delegate field initialization for `: Interface by expr`.
-    private func emitClassDelegationInitializers(
-        classDecl _: ClassDecl,
+    func emitClassDelegationInitializers(
         ownerSymbol: SymbolID,
         receiverID: KIRExprID,
         shared: KIRLoweringSharedContext,

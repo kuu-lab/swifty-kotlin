@@ -146,7 +146,7 @@ extension KIRLoweringDriver {
     }
 
     /// CLASS-008: Synthesize forwarding method bodies for delegated interface methods.
-    private func synthesizeClassDelegationForwardingMethods(
+    func synthesizeClassDelegationForwardingMethods(
         classSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
         compilationCtx: CompilationContext
@@ -345,7 +345,7 @@ extension KIRLoweringDriver {
     /// the delegate's runtime type the same way a forwarded method call does,
     /// and calls the matching concrete implementer's own getter/setter
     /// accessor — never the interface's null-returning abstract stub.
-    private func synthesizeClassDelegationForwardingPropertyAccessors(
+    func synthesizeClassDelegationForwardingPropertyAccessors(
         classSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
         compilationCtx: CompilationContext
