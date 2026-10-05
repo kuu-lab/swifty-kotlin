@@ -524,6 +524,15 @@ struct RuntimeCallableRefMetadata {
     let arity: Int
     let kind: RuntimeCallableRefKind
     let isSuspend: Bool
+    var invoker: Int = 0
+    var environment: Int = 0
+    var parameters: Int = 0
+    var typeParameters: Int = 0
+    var flags: Int = 1
+    var visibility: Int = 0
+    var setterInvoker: Int = 0
+    var setterParameters: Int = 0
+    var property: Int = 0
 }
 
 final class RuntimeFunctionValueBox {
@@ -2708,6 +2717,9 @@ final class RuntimeKTypeProjectionBox {
 /// Runtime box for `kotlin.reflect.KParameter`.
 /// Represents a single parameter of a KFunction or KConstructor.
 final class RuntimeKParameterBox {
+    var typeToken: Int?
+    var callableOwner = 0
+    var boundArguments: [Int] = []
     /// Parameter index (0-based).
     let index: Int
     /// Parameter name as a KKString raw handle (0 if unnamed).
