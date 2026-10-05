@@ -540,14 +540,42 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        let callableValue: KIRExprID
+        if functionType.isCallableReference {
+            let name = arena.appendTemporary(type: sema.types.stringType)
+            let returnType = arena.appendTemporary(type: sema.types.stringType)
+            emitNonThrowingCall(
+                callee: interner.intern("__kk_kcallable_get_name"), arg: loweredArgID,
+                result: name, into: &instructions
+            )
+            emitNonThrowingCall(
+                callee: interner.intern("__kk_kcallable_get_return_type"), arg: loweredArgID,
+                result: returnType, into: &instructions
+            )
+            let arity = arena.appendExpr(.intLiteral(Int64(valueArity)), type: sema.types.intType)
+            instructions.append(.constValue(result: arity, value: .intLiteral(Int64(valueArity))))
+            let isSuspend = arena.appendExpr(.intLiteral(functionType.isSuspend ? 1 : 0), type: sema.types.intType)
+            instructions.append(.constValue(result: isSuspend, value: .intLiteral(functionType.isSuspend ? 1 : 0)))
+            callableValue = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_callable_ref_tag_kfunction"),
+                arguments: [materialized, name, returnType, arity, isSuspend],
+                result: callableValue,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        } else {
+            callableValue = materialized
+        }
         driver.ctx.registerCallableValue(
-            materialized,
+            callableValue,
             symbol: resolvedCallableInfo.symbol,
             callee: resolvedCallableInfo.callee,
             captureArguments: [closureRaw],
             hasClosureParam: true
         )
-        return materialized
+        return callableValue
     }
 
     func materializeSourceBackedFunctionValueArguments(
@@ -666,7 +694,8 @@ extension CallLowerer {
                     receiver: concreteFunctionType.receiver.map { _ in sema.types.anyType },
                     params: concreteFunctionType.params.map { _ in sema.types.anyType },
                     returnType: sema.types.anyType,
-                    isSuspend: concreteFunctionType.isSuspend
+                    isSuspend: concreteFunctionType.isSuspend,
+                    isCallableReference: concreteFunctionType.isCallableReference
                 )
             default:
                 continue

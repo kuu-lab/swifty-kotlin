@@ -263,7 +263,7 @@ public final class TypeSystem {
             return make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: nullability)))
         case let .functionType(ft):
             if ft.nullability == nullability { return type }
-            return make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, nullability: nullability)))
+            return make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: nullability)))
         case let .kClassType(kc):
             if kc.nullability == nullability { return type }
             return make(.kClassType(KClassType(argument: kc.argument, nullability: nullability)))
