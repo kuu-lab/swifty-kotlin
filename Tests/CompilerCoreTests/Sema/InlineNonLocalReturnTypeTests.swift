@@ -30,10 +30,17 @@ struct InlineNonLocalReturnTypeTests {
             local()
             return "ok"
         }
+        fun withLocalExtension(): Int {
+            fun Int.local(): Int {
+                invokeBlock { return@local this + 1 }
+                return -1
+            }
+            return 2.local()
+        }
         """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
-        #expect(ctx.sema?.bindings.functionReturnLambdaPaths.count == 6)
+        #expect(ctx.sema?.bindings.functionReturnLambdaPaths.count == 7)
     }
 
     @Test func lambdaLabelsShadowFunctionNameLabels() throws {

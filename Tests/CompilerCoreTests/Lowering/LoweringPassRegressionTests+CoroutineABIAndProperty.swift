@@ -4,6 +4,32 @@ import Foundation
 import Testing
 
 extension LoweringPassRegressionTests {
+    @Test
+    func testCoroutineDurationArgumentsUseMillisecondStorageBridge() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlin.time.Duration.Companion.milliseconds
+
+        fun main() = runBlocking {
+            delay(5.milliseconds)
+            withTimeout(10_000_000_000_000L.milliseconds) { 42 }
+            withTimeoutOrNull(10_000_000_000_000L.milliseconds) { 43 }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "DurationCoroutineStorage", emit: .kirDump)
+            try runToLowering(ctx)
+            let module = try #require(ctx.kir)
+            let callees = findAllKIRFunctions(in: module).flatMap {
+                extractCallees(from: $0.body, interner: ctx.interner)
+            }
+            #expect(callees.filter { $0 == "kk_duration_inWholeMilliseconds" }.count == 3)
+            #expect(callees.contains("kk_kxmini_delay"))
+            #expect(callees.contains("kk_with_timeout"))
+            #expect(callees.contains("kk_with_timeout_or_null"))
+        }
+    }
+
     // MARK: - Coroutine Launcher Arg Tests
 
     @Test

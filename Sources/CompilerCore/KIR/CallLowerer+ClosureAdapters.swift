@@ -578,12 +578,6 @@ extension CallLowerer {
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
 
-        // Source-backed inline functions are fully expanded in the same
-        // module, so lambda arguments can be consumed directly there.
-        if isInline, !isImported {
-            return
-        }
-
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
         // function-value object. Imported Kotlin functions compiled to .kklib
@@ -630,6 +624,13 @@ extension CallLowerer {
                   !signature.valueParameterIsVararg.indices.contains(parameterIndex)
                     || !signature.valueParameterIsVararg[parameterIndex]
             else {
+                continue
+            }
+            // Same-module inline expansion can consume raw symbols directly,
+            // but tagged callable references still cross the erased invoke ABI.
+            if isInline, !isImported,
+               case .symbolRef? = arena.expr(arguments[finalArgIndex])
+            {
                 continue
             }
             let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])

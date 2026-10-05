@@ -89,6 +89,15 @@ fun directReturn(): Int {
     return -1
 }
 
+fun localExtensionReturn(): Int {
+    val bonus = 4
+    fun Int.local(): Int {
+        invokeBlock { return@local this + bonus }
+        return -1
+    }
+    return 6.local()
+}
+
 fun main() {
     unitReturn()
     println(valueReturn())
@@ -101,4 +110,5 @@ fun main() {
     unitFinallyReturn()
     println(localFunctionReturn())
     println(directReturn())
+    println(localExtensionReturn())
 }

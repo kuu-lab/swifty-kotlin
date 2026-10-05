@@ -452,6 +452,7 @@ extension LocalDeclTypeChecker {
     func inferLocalFunDeclExpr(
         _ id: ExprID,
         name: InternedString,
+        receiverTypeRef: TypeRefID? = nil,
         valueParams: [ValueParamDecl],
         returnTypeRef: TypeRefID?,
         body: FunctionBody,
@@ -464,6 +465,12 @@ extension LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
+        let receiverType = receiverTypeRef.map {
+            driver.helpers.resolveTypeRef(
+                $0, ast: ast, sema: sema, interner: interner, scope: ctx.scope,
+                diagnostics: ctx.semaCtx.diagnostics, inferenceContext: ctx, usageRange: range
+            )
+        }
         var parameterTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
         for param in valueParams {
@@ -517,7 +524,7 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        var functionFlags: SymbolFlags = []
+        var functionFlags: SymbolFlags = [.localFunction]
         if isSuspend {
             functionFlags.insert(.suspendFunction)
         }
@@ -534,6 +541,7 @@ extension LocalDeclTypeChecker {
         )
 
         let signature = FunctionSignature(
+            receiverType: receiverType,
             parameterTypes: parameterTypes,
             returnType: resolvedReturnType,
             isSuspend: isSuspend,
@@ -545,6 +553,7 @@ extension LocalDeclTypeChecker {
         sema.symbols.setFunctionSignature(signature, for: funSymbol)
 
         let funType = sema.types.make(.functionType(FunctionType(
+            receiver: receiverType,
             params: parameterTypes,
             returnType: resolvedReturnType,
             isSuspend: isSuspend,
@@ -552,15 +561,24 @@ extension LocalDeclTypeChecker {
         )))
 
         // Local functions introduce a new scope for control flow: reset loop/lambda stacks.
-        var bodyLocals = locals; let bodyCtx = ctx.copying(
+        var bodyLocals = locals
+        let bodyReceiverType: TypeID? = receiverType ?? ctx.implicitReceiverType
+        var bodyCtx = ctx.copying(
+            implicitReceiverType: bodyReceiverType,
             loopDepth: 0,
             loopLabelStack: [],
             lambdaLabelStack: [],
             lambdaDepth: 0,
             enclosingFunctionReturnType: resolvedReturnType,
             enclosingFunctionSymbol: funSymbol,
-            enclosingLambdaExprIDs: []
+            enclosingLambdaExprIDs: [],
+            currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
+        if let receiverType {
+            let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: funSymbol)
+            bodyLocals[interner.intern("this")] = (receiverType, receiverSymbol, false, true)
+            bodyCtx = bodyCtx.withOuterReceiver(label: name, type: receiverType, symbol: receiverSymbol)
+        }
         for (i, param) in valueParams.enumerated() {
             bodyLocals[param.name] = (parameterTypes[i], paramSymbols[i], false, true)
         }
@@ -588,6 +606,7 @@ extension LocalDeclTypeChecker {
 
         if returnTypeRef == nil, case .expr = body, inferredBodyType != sema.types.errorType {
             let inferredSignature = FunctionSignature(
+                receiverType: receiverType,
                 parameterTypes: parameterTypes,
                 returnType: inferredBodyType,
                 isSuspend: isSuspend,
@@ -600,6 +619,7 @@ extension LocalDeclTypeChecker {
         }
         let finalReturnType = sema.symbols.functionSignature(for: funSymbol)?.returnType ?? resolvedReturnType
         let finalFunType = sema.types.make(.functionType(FunctionType(
+            receiver: receiverType,
             params: parameterTypes,
             returnType: finalReturnType,
             isSuspend: isSuspend,
