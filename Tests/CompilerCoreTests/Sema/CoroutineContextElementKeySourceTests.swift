@@ -15,6 +15,12 @@ struct CoroutineContextElementKeySourceTests {
             val explicitJob: Job? = ctx[Job.Key]
             val id: CoroutineId? = ctx[CoroutineId]
             val explicitId: CoroutineId? = ctx[CoroutineId.Key]
+            val interceptor: ContinuationInterceptor? = ctx[ContinuationInterceptor]
+        }
+
+        fun composed(job: Job) {
+            val ctx = EmptyCoroutineContext + job
+            val found: Job? = ctx[Job]
         }
 
         @OptIn(ExperimentalCoroutinesApi::class)
@@ -35,7 +41,7 @@ struct CoroutineContextElementKeySourceTests {
             else { return nil }
             return ExprID(rawValue: Int32(index))
         }
-        #expect(accesses.count == 7)
+        #expect(accesses.count == 9)
         for access in accesses {
             let binding = try #require(sema.bindings.callBinding(for: access))
             let callee = try #require(sema.symbols.symbol(binding.chosenCallee))
@@ -46,12 +52,12 @@ struct CoroutineContextElementKeySourceTests {
         }
     }
 
-    @Test
-    func genericIndexAcceptsNamedCompanionValue() throws {
+    @Test(arguments: ["", "Named"])
+    func genericIndexAcceptsCompanionValue(companionName: String) throws {
         let source = """
         interface Token<T>
         class Item {
-            companion object Named : Token<Item>
+            companion object \(companionName) : Token<Item>
         }
         class Lookup {
             operator fun <T> get(key: Token<T>): T? = null
@@ -61,6 +67,23 @@ struct CoroutineContextElementKeySourceTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func genericIndexRejectsCompanionWithoutKeySupertype() throws {
+        let source = """
+        interface Token<T>
+        class Item {
+            companion object Named
+        }
+        class Lookup {
+            operator fun <T> get(key: Token<T>): T? = null
+        }
+        fun lookup(value: Lookup): Item? = value[Item]
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
     }
 
     @Test(arguments: ["key", "get", "fold", "minusKey"])

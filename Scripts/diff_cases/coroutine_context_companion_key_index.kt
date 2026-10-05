@@ -1,9 +1,9 @@
 import kotlin.coroutines.*
 import kotlinx.coroutines.*
 
-object ItemKey : CoroutineContext.Key<Item>
+object OtherKey : CoroutineContext.Key<Item>
 
-class Item(val value: Int) : AbstractCoroutineContextElement(ItemKey) {
+class Item(val value: Int) : AbstractCoroutineContextElement(Item.Key) {
     companion object Key : CoroutineContext.Key<Item>
 }
 
@@ -27,11 +27,13 @@ fun probe(context: CoroutineContext, key: CoroutineContext.Key<Item>) {
 }
 
 fun main() = runBlocking {
-    probe(coroutineContext, ItemKey)
-    probe(EmptyCoroutineContext, ItemKey)
+    probe(coroutineContext, Item.Key)
+    probe(EmptyCoroutineContext, Item.Key)
+    probe(EmptyCoroutineContext + Job(), Item.Key)
     println(EmptyCoroutineContext[Job] == null)
     println(EmptyCoroutineContext[Item] == null)
-    println(Item(42)[ItemKey]?.value)
-    println(Item(42)[Item] == null)
+    println(Item(42)[Item]?.value)
+    println(Item(42)[Item.Key]?.value)
+    println(Item(42)[OtherKey] == null)
     println(Lookup()[Value] == null)
 }
