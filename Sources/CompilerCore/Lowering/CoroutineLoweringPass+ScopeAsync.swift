@@ -36,34 +36,62 @@ extension CoroutineLoweringPass {
             arguments[2] = arena.appendExpr(.intLiteral(ordinal), type: rewrite.intType)
         }
         let suspendArgExpr = call.arguments[3]
-        guard let symbol = symbolReference(
-                  for: suspendArgExpr, module: rewrite.module,
-                  propagatedSymbols: symbolByExprRaw
-              ),
-              let lowered = rewrite.loweredBySymbol[symbol],
-              let thunk = rewrite.launcherThunkByOriginalSymbol[symbol]
+        let callableInfo = arena.callableValueInfo(for: suspendArgExpr)
+        var suspendSymbol = symbolReference(
+            for: suspendArgExpr, module: rewrite.module,
+            propagatedSymbols: symbolByExprRaw
+        )
+        // A block that resolves to a `kk_function_value_adapter_*` symbol (the
+        // materialization of a stored `suspend CoroutineScope.() -> T` value)
+        // keeps its captures inside the boxed value: its invoke ABI is
+        // `(closureEnv, receiver, outThrown)`, not per-capture launcherArgs —
+        // so it must stay on the boxed path.
+        if let symbol = suspendSymbol,
+           isFunctionValueAdapterSymbol(symbol, using: rewrite) {
+            suspendSymbol = nil
+        }
+        // A literal block that reached the member overload through expected-type
+        // inference (e.g. `val d: Deferred<Int> = async { ... }`, resolved via
+        // the implicit receiver) carries no propagated symbol on its arg expr;
+        // recover the suspend symbol from the callable info so it still takes
+        // the launcher continuation path — the boxed path would invoke its
+        // `(params, continuation)` ABI as a value thunk and corrupt the scope.
+        if suspendSymbol == nil,
+           let info = callableInfo,
+           !isFunctionValueAdapterSymbol(info.symbol, using: rewrite),
+           rewrite.loweredBySymbol[info.symbol] != nil {
+            suspendSymbol = info.symbol
+        }
+        guard let symbol = suspendSymbol,
+              let lowered = rewrite.loweredBySymbol[symbol]
         else {
             let entryExpr: KIRExprID
             let envExpr: KIRExprID
             var instructions: [KIRInstruction] = []
-            if let callableInfo = arena.callableValueInfo(for: suspendArgExpr) {
+            if let info = callableInfo,
+               !isFunctionValueAdapterSymbol(info.symbol, using: rewrite) {
+                // A non-adapter suspend value whose symbol is not lowered in
+                // this module: pass its fnPtr with the packed capture env.
                 entryExpr = arena.appendTemporary(type: rewrite.intType)
                 instructions.append(.constValue(
                     result: entryExpr,
-                    value: .symbolRef(callableInfo.symbol)
+                    value: .symbolRef(info.symbol)
                 ))
-                switch callableInfo.captureArguments.count {
+                switch info.captureArguments.count {
                 case 0:
                     envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
                     instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
                 default:
                     envExpr = emitPackedCaptureEnvironment(
-                        callableInfo.captureArguments,
+                        info.captureArguments,
                         using: rewrite,
                         into: &instructions
                     )
                 }
             } else {
+                // Adapter-valued or opaque values: `suspendArgExpr` evaluates
+                // to the FunctionValueBox; the runtime resolves its
+                // `(closureEnv, receiver, outThrown)` entry itself.
                 entryExpr = suspendArgExpr
                 envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
                 instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
@@ -84,16 +112,22 @@ extension CoroutineLoweringPass {
         // emitter produced.
         let trailingCaptures = Array(call.arguments.dropFirst(4))
         let captures: [KIRExprID] = trailingCaptures.isEmpty
-            ? (arena.callableValueInfo(for: suspendArgExpr)?.captureArguments ?? [])
+            ? (callableInfo?.captureArguments ?? [])
             : trailingCaptures
 
         let receiverFirst = arena.receiverFirstLauncherLambdaSymbols.contains(symbol)
         let suspendParamCount = arena.function(for: symbol)?.params.count
             ?? (captures.count + 1)
-        let scopeSlot = receiverFirst ? 0 : suspendParamCount - 1
-        guard scopeSlot >= 0 else {
-            return nil
+        // A zero-parameter suspend fn gets no launcher thunk — its
+        // `(continuation)` ABI is already the thunk shape — so the lowered
+        // symbol itself is the launcher entry.
+        let entrySymbol = rewrite.launcherThunkByOriginalSymbol[symbol]?.symbol
+            ?? (suspendParamCount == 0 ? lowered.symbol : nil)
+        guard let entrySymbol else {
+            assertionFailure("Internal compiler error: CoroutineScope.async launcher entry missing")
+            return [call.instruction]
         }
+        let scopeSlot = receiverFirst ? 0 : max(0, suspendParamCount - 1)
 
         let functionIDExpr = arena.appendExpr(
             .intLiteral(Int64(lowered.symbol.rawValue)), type: rewrite.intType
@@ -138,7 +172,7 @@ extension CoroutineLoweringPass {
 
         let entryExpr = arena.appendTemporary(type: rewrite.intType)
         let scopeSlotExpr = arena.appendExpr(.intLiteral(Int64(scopeSlot)), type: rewrite.intType)
-        instructions.append(.constValue(result: entryExpr, value: .symbolRef(thunk.symbol)))
+        instructions.append(.constValue(result: entryExpr, value: .symbolRef(entrySymbol)))
         instructions.append(.call(
             symbol: nil,
             callee: rewrite.ctx.interner.intern("kk_coroutine_scope_async_with_cont"),

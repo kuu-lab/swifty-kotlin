@@ -285,6 +285,23 @@ extension CoroutineLoweringPass {
         return sema.bindings.isCoroutineLauncherLambdaExpr(ExprID(rawValue: exprRaw))
     }
 
+    /// Returns true when `symbol` is a `kk_function_value_adapter_*` — the
+    /// materialization `LambdaLowerer.materializeFunctionValueArgument`
+    /// synthesizes for a suspend function *value*. Adapter thunks take
+    /// `(closureEnv, receiver, outThrown)` where captures ride inside the
+    /// closure env box, so they must not be routed through the
+    /// per-capture launcherArgs convention.
+    func isFunctionValueAdapterSymbol(
+        _ symbol: SymbolID,
+        using rewrite: SuspendRewriteContext
+    ) -> Bool {
+        guard let function = rewrite.module.arena.function(for: symbol) else {
+            return false
+        }
+        return rewrite.ctx.interner.resolve(function.name)
+            .hasPrefix("kk_function_value_adapter_")
+    }
+
     /// STDLIB-CORO-001: Detect whether an expression has the synthetic
     /// `kotlinx.coroutines.CoroutineStart` enum type, used to disambiguate
     /// `launch(start = CoroutineStart.LAZY)` from `launch(Dispatchers.Default)`.

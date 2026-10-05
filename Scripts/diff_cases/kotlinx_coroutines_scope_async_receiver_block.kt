@@ -17,4 +17,14 @@ fun main() = runBlocking {
     val viaValue = asyncValue(this, block)
     val literal = this.async { bonus + 23 }
     println(viaValue.await() + literal.await())
+    // Unqualified member-on-implicit-receiver shapes: an explicit Deferred<T>
+    // annotation routes through the boxed path; a stored receiver-bearing
+    // value resolves to the function-value adapter.
+    val t1: Deferred<Int> = async { 11 }
+    println(t1.await())
+    val t2: Deferred<Int> = async { 22 }
+    println(t2.await())
+    val stored: Deferred<Int> = async(block = block)
+    println(stored.await())
+    println(async(block = block).await())
 }
