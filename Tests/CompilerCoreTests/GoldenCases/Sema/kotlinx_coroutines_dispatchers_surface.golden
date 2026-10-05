@@ -1,48 +1,48 @@
-symbol fq=golden.sema.defaultDispatcher[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.executorDispatcher.$0.executor[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.executorDispatcher[kind=fun;params=java.util.concurrent.Executor] kind=function vis=public flags=_ sig=recv=_ params=[java.util.concurrent.Executor] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.fixedDispatcher[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.ioDispatcher[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.limitedDispatcher.$1.dispatcher[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.limitedDispatcher[kind=fun;params=kotlinx.coroutines.CoroutineDispatcher] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.CoroutineDispatcher] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.mainDispatcher[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.scheduledDispatcher[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.serviceDispatcher.$2.executor[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.serviceDispatcher[kind=fun;params=java.util.concurrent.ExecutorService] kind=function vis=public flags=_ sig=recv=_ params=[java.util.concurrent.ExecutorService] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.singleDispatcher[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
-symbol fq=golden.sema.unconfinedDispatcher[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.defaultDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.executorDispatcher.$0.executor[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.executorDispatcher[kind=fun;params=java.util.concurrent.Executor;ret=kotlinx.coroutines.CoroutineDispatcher;names=[executor];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[java.util.concurrent.Executor] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.fixedDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.ioDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.limitedDispatcher.$1.dispatcher[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.limitedDispatcher[kind=fun;params=kotlinx.coroutines.CoroutineDispatcher;ret=kotlinx.coroutines.CoroutineDispatcher;names=[dispatcher];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.coroutines.CoroutineDispatcher] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.mainDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.scheduledDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.serviceDispatcher.$2.executor[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.serviceDispatcher[kind=fun;params=java.util.concurrent.ExecutorService;ret=kotlinx.coroutines.CoroutineDispatcher;names=[executor];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[java.util.concurrent.ExecutorService] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.singleDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
+symbol fq=golden.sema.unconfinedDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.coroutines.CoroutineDispatcher
 file fkotlinx_coroutines_dispatchers_surface package=golden.sema
-  decl golden.sema.defaultDispatcher[kind=fun;params=] fun defaultDispatcher sym=golden.sema.defaultDispatcher[kind=fun;params=]
-  decl golden.sema.ioDispatcher[kind=fun;params=] fun ioDispatcher sym=golden.sema.ioDispatcher[kind=fun;params=]
-  decl golden.sema.unconfinedDispatcher[kind=fun;params=] fun unconfinedDispatcher sym=golden.sema.unconfinedDispatcher[kind=fun;params=]
-  decl golden.sema.mainDispatcher[kind=fun;params=] fun mainDispatcher sym=golden.sema.mainDispatcher[kind=fun;params=]
-  decl golden.sema.limitedDispatcher[kind=fun;params=kotlinx.coroutines.CoroutineDispatcher] fun limitedDispatcher sym=golden.sema.limitedDispatcher[kind=fun;params=kotlinx.coroutines.CoroutineDispatcher]
-  decl golden.sema.singleDispatcher[kind=fun;params=] fun singleDispatcher sym=golden.sema.singleDispatcher[kind=fun;params=]
-  decl golden.sema.fixedDispatcher[kind=fun;params=] fun fixedDispatcher sym=golden.sema.fixedDispatcher[kind=fun;params=]
-  decl golden.sema.scheduledDispatcher[kind=fun;params=] fun scheduledDispatcher sym=golden.sema.scheduledDispatcher[kind=fun;params=]
-  decl golden.sema.executorDispatcher[kind=fun;params=java.util.concurrent.Executor] fun executorDispatcher sym=golden.sema.executorDispatcher[kind=fun;params=java.util.concurrent.Executor]
-  decl golden.sema.serviceDispatcher[kind=fun;params=java.util.concurrent.ExecutorService] fun serviceDispatcher sym=golden.sema.serviceDispatcher[kind=fun;params=java.util.concurrent.ExecutorService]
+  decl golden.sema.defaultDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] fun defaultDispatcher sym=golden.sema.defaultDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture]
+  decl golden.sema.ioDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] fun ioDispatcher sym=golden.sema.ioDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture]
+  decl golden.sema.unconfinedDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] fun unconfinedDispatcher sym=golden.sema.unconfinedDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture]
+  decl golden.sema.mainDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] fun mainDispatcher sym=golden.sema.mainDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture]
+  decl golden.sema.limitedDispatcher[kind=fun;params=kotlinx.coroutines.CoroutineDispatcher;ret=kotlinx.coroutines.CoroutineDispatcher;names=[dispatcher];origin=fixture] fun limitedDispatcher sym=golden.sema.limitedDispatcher[kind=fun;params=kotlinx.coroutines.CoroutineDispatcher;ret=kotlinx.coroutines.CoroutineDispatcher;names=[dispatcher];origin=fixture]
+  decl golden.sema.singleDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] fun singleDispatcher sym=golden.sema.singleDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture]
+  decl golden.sema.fixedDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] fun fixedDispatcher sym=golden.sema.fixedDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture]
+  decl golden.sema.scheduledDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture] fun scheduledDispatcher sym=golden.sema.scheduledDispatcher[kind=fun;params=;ret=kotlinx.coroutines.CoroutineDispatcher;origin=fixture]
+  decl golden.sema.executorDispatcher[kind=fun;params=java.util.concurrent.Executor;ret=kotlinx.coroutines.CoroutineDispatcher;names=[executor];origin=fixture] fun executorDispatcher sym=golden.sema.executorDispatcher[kind=fun;params=java.util.concurrent.Executor;ret=kotlinx.coroutines.CoroutineDispatcher;names=[executor];origin=fixture]
+  decl golden.sema.serviceDispatcher[kind=fun;params=java.util.concurrent.ExecutorService;ret=kotlinx.coroutines.CoroutineDispatcher;names=[executor];origin=fixture] fun serviceDispatcher sym=golden.sema.serviceDispatcher[kind=fun;params=java.util.concurrent.ExecutorService;ret=kotlinx.coroutines.CoroutineDispatcher;names=[executor];origin=fixture]
 expr e@7:48 name(Dispatchers) type=kotlinx.coroutines.Dispatchers ref=kotlinx.coroutines.Dispatchers[kind=obj]
-expr e@7:48#1 memberCall recv=e@7:48 callee=Default args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Default[kind=prop]
+expr e@7:48#1 memberCall recv=e@7:48 callee=Default args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Default[kind=prop;type=kotlinx.coroutines.CoroutineDispatcher]
 expr e@8:43 name(Dispatchers) type=kotlinx.coroutines.Dispatchers ref=kotlinx.coroutines.Dispatchers[kind=obj]
-expr e@8:43#1 memberCall recv=e@8:43 callee=IO args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.IO[kind=prop]
+expr e@8:43#1 memberCall recv=e@8:43 callee=IO args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.IO[kind=prop;type=kotlinx.coroutines.CoroutineDispatcher]
 expr e@9:51 name(Dispatchers) type=kotlinx.coroutines.Dispatchers ref=kotlinx.coroutines.Dispatchers[kind=obj]
-expr e@9:51#1 memberCall recv=e@9:51 callee=Unconfined args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Unconfined[kind=prop]
+expr e@9:51#1 memberCall recv=e@9:51 callee=Unconfined args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Unconfined[kind=prop;type=kotlinx.coroutines.CoroutineDispatcher]
 expr e@10:45 name(Dispatchers) type=kotlinx.coroutines.Dispatchers ref=kotlinx.coroutines.Dispatchers[kind=obj]
-expr e@10:45#1 memberCall recv=e@10:45 callee=Main args=[] type=kotlinx.coroutines.CoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Main[kind=prop]
-expr e@10:45#2 memberCall recv=e@10:45#1 callee=immediate args=[] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.immediate.$get[kind=fun;recv=kotlinx.coroutines.CoroutineDispatcher;params=]
-expr e@11:79 name(dispatcher) type=kotlinx.coroutines.CoroutineDispatcher ref=golden.sema.limitedDispatcher.$1.dispatcher[kind=vparam]
+expr e@10:45#1 memberCall recv=e@10:45 callee=Main args=[] type=kotlinx.coroutines.MainCoroutineDispatcher ref=kotlinx.coroutines.Dispatchers.Main[kind=prop;type=kotlinx.coroutines.MainCoroutineDispatcher]
+expr e@10:45#2 memberCall recv=e@10:45#1 callee=immediate args=[] type=kotlinx.coroutines.MainCoroutineDispatcher ref=kotlinx.coroutines.MainCoroutineDispatcher.immediate[kind=prop;type=kotlinx.coroutines.MainCoroutineDispatcher]
+expr e@11:79 name(dispatcher) type=kotlinx.coroutines.CoroutineDispatcher ref=golden.sema.limitedDispatcher.$1.dispatcher[kind=vparam;origin=fixture]
 expr e@11:109 int(2) type=Int
-expr e@11:79#1 memberCall recv=e@11:79 callee=limitedParallelism args=[_:e@11:109] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.limitedParallelism[kind=fun;recv=kotlinx.coroutines.CoroutineDispatcher;params=Int]
+expr e@11:79#1 memberCall recv=e@11:79 callee=limitedParallelism args=[_:e@11:109] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.limitedParallelism[kind=fun;recv=kotlinx.coroutines.CoroutineDispatcher;params=Int;ret=kotlinx.coroutines.CoroutineDispatcher;names=[parallelism]]
 expr e@12:70 string(single) type=String
-expr e@12:47 call callee=e@12:47#1 args=[_:e@12:70] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.newSingleThreadContext[kind=fun;params=String]
+expr e@12:47 call callee=e@12:47#1 args=[_:e@12:70] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.newSingleThreadContext[kind=fun;params=String;ret=kotlinx.coroutines.CoroutineDispatcher;names=[name]]
 expr e@13:72 int(2) type=Int
 expr e@13:75 string(fixed) type=String
-expr e@13:46 call callee=e@13:46#1 args=[_:e@13:72,_:e@13:75] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.newFixedThreadPoolContext[kind=fun;params=Int,String]
+expr e@13:46 call callee=e@13:46#1 args=[_:e@13:72,_:e@13:75] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.newFixedThreadPoolContext[kind=fun;params=Int,String;ret=kotlinx.coroutines.CoroutineDispatcher;names=[nThreads,name]]
 expr e@14:80 int(2) type=Int
 expr e@14:83 string(scheduled) type=String
-expr e@14:50 call callee=e@14:50#1 args=[_:e@14:80,_:e@14:83] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.newScheduledThreadPoolContext[kind=fun;params=Int,String]
-expr e@15:67 name(executor) type=java.util.concurrent.Executor ref=golden.sema.executorDispatcher.$0.executor[kind=vparam]
-expr e@15:67#1 memberCall recv=e@15:67 callee=asCoroutineDispatcher args=[] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.asCoroutineDispatcher[kind=fun;recv=java.util.concurrent.Executor;params=]
-expr e@16:73 name(executor) type=java.util.concurrent.ExecutorService ref=golden.sema.serviceDispatcher.$2.executor[kind=vparam]
-expr e@16:73#1 memberCall recv=e@16:73 callee=asCoroutineDispatcher args=[] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.asCoroutineDispatcher[kind=fun;recv=java.util.concurrent.ExecutorService;params=]
+expr e@14:50 call callee=e@14:50#1 args=[_:e@14:80,_:e@14:83] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.newScheduledThreadPoolContext[kind=fun;params=Int,String;ret=kotlinx.coroutines.CoroutineDispatcher;names=[nThreads,name]]
+expr e@15:67 name(executor) type=java.util.concurrent.Executor ref=golden.sema.executorDispatcher.$0.executor[kind=vparam;origin=fixture]
+expr e@15:67#1 memberCall recv=e@15:67 callee=asCoroutineDispatcher args=[] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.asCoroutineDispatcher[kind=fun;recv=java.util.concurrent.Executor;params=;ret=kotlinx.coroutines.CoroutineDispatcher]
+expr e@16:73 name(executor) type=java.util.concurrent.ExecutorService ref=golden.sema.serviceDispatcher.$2.executor[kind=vparam;origin=fixture]
+expr e@16:73#1 memberCall recv=e@16:73 callee=asCoroutineDispatcher args=[] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.asCoroutineDispatcher[kind=fun;recv=java.util.concurrent.ExecutorService;params=;ret=kotlinx.coroutines.CoroutineDispatcher]

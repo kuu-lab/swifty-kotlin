@@ -1,18 +1,18 @@
-symbol fq=__ObjectLiteral_0_229_366[kind=class] kind=class vis=private flags=synthetic
-symbol fq=golden.sema.Named.<init>.$0.initial[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.Named[kind=class] kind=class vis=public flags=_
-symbol fq=golden.sema.makeAnon.$1.value[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.makeAnon[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=kotlin.properties.ObservableProperty<Int>
-symbol fq=golden.sema.readName.$2.named[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.readName[kind=fun;params=golden.sema.Named] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Named] ret=String
+symbol fq=__ObjectLiteral_0_229_366[kind=class;origin=fixture] kind=class vis=private flags=synthetic
+symbol fq=golden.sema.Named.<init>.$0.initial[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.Named[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.makeAnon.$1.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.makeAnon[kind=fun;params=Int;ret=kotlin.properties.ObservableProperty<Int>;names=[value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=kotlin.properties.ObservableProperty<Int>
+symbol fq=golden.sema.readName.$2.named[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readName[kind=fun;params=golden.sema.Named;ret=String;names=[named];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Named] ret=String
 file fstdlib_kotlin_properties_ObservableProperty_n_n package=golden.sema
-  decl golden.sema.Named[kind=class] class Named sym=golden.sema.Named[kind=class]
-  decl golden.sema.makeAnon[kind=fun;params=Int] fun makeAnon sym=golden.sema.makeAnon[kind=fun;params=Int]
-  decl golden.sema.readName[kind=fun;params=golden.sema.Named] fun readName sym=golden.sema.readName[kind=fun;params=golden.sema.Named]
-expr e@6:59 name(initial) type=String ref=golden.sema.Named.<init>.$0.initial[kind=vparam]
-expr e@9:45 name(value) type=Int ref=golden.sema.makeAnon.$1.value[kind=vparam]
+  decl golden.sema.Named[kind=class;origin=fixture] class Named sym=golden.sema.Named[kind=class;origin=fixture]
+  decl golden.sema.makeAnon[kind=fun;params=Int;ret=kotlin.properties.ObservableProperty<Int>;names=[value];origin=fixture] fun makeAnon sym=golden.sema.makeAnon[kind=fun;params=Int;ret=kotlin.properties.ObservableProperty<Int>;names=[value];origin=fixture]
+  decl golden.sema.readName[kind=fun;params=golden.sema.Named;ret=String;names=[named];origin=fixture] fun readName sym=golden.sema.readName[kind=fun;params=golden.sema.Named;ret=String;names=[named];origin=fixture]
+expr e@6:59 name(initial) type=String ref=golden.sema.Named.<init>.$0.initial[kind=vparam;origin=fixture]
+expr e@9:45 name(value) type=Int ref=golden.sema.makeAnon.$1.value[kind=vparam;origin=fixture]
 expr e@9:12 objectLiteral supers=[ObservableProperty<Int>] type=__ObjectLiteral_0_229_366
 expr e@9:5 return value=e@9:12 type=Nothing
-expr e@15:12 name(named) type=golden.sema.Named ref=golden.sema.readName.$2.named[kind=vparam]
-expr e@15:12#1 memberCall recv=e@15:12 callee=toString args=[] type=String call=kotlin.properties.ObservableProperty.toString[kind=fun;recv=kotlin.properties.ObservableProperty<T0>;params=;gen=1] targs=[String]
+expr e@15:12 name(named) type=golden.sema.Named ref=golden.sema.readName.$2.named[kind=vparam;origin=fixture]
+expr e@15:12#1 memberCall recv=e@15:12 callee=toString args=[] type=String call=kotlin.properties.ObservableProperty.toString[kind=fun;recv=kotlin.properties.ObservableProperty<T0>;params=;ret=String;gen=1;classGen=1] targs=[String]
 expr e@15:5 return value=e@15:12#1 type=Nothing

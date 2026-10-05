@@ -339,6 +339,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// True if signalResume() was called before any continuation or wait was
     /// installed (edge case: timer fires immediately).
     private var resumeSignalPending = false
+    private var cancellationShieldDepth = 0
 
     // CORO-003: Task-local continuation state registry (replaces TLS).
     // Maps an opaque task token (assigned by the suspend-entry loop on entry) to
@@ -614,14 +615,29 @@ final class RuntimeContinuationState: @unchecked Sendable {
         runtimeWaitDrainingEventLoop(sem)
     }
 
-    /// Wake the coroutine.  If a continuation closure is installed, it is
-    /// dispatched asynchronously on a GCD queue (non-blocking).  Otherwise
-    /// the fallback semaphore is signalled.
-    func signalResume() {
+    func beginCancellationShield() {
         stateLock.lock()
+        cancellationShieldDepth += 1
+        stateLock.unlock()
+    }
+
+    func endCancellationShield() {
+        stateLock.lock()
+        cancellationShieldDepth -= 1
+        stateLock.unlock()
+    }
+
+    /// Wake the coroutine. Cancellation from a replaced Job must not resume
+    /// a shielded withContext caller, but ordinary block completion still can.
+    func signalResume(isCancellation: Bool = false) {
+        stateLock.lock()
+        if isCancellation, cancellationShieldDepth > 0 {
+            stateLock.unlock()
+            return
+        }
         if let child = suspendedCallChild {
             stateLock.unlock()
-            child.signalResume()
+            child.signalResume(isCancellation: isCancellation)
             return
         }
         if let cont = resumeContinuation {
@@ -1690,7 +1706,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         }
         lock.unlock()
 
-        stateToResume?.signalResume()
+        stateToResume?.signalResume(isCancellation: true)
         for child in childrenToCancel {
             runtimeCancelChild(child)
         }
@@ -4644,10 +4660,22 @@ public func kk_job_start(_ jobHandle: Int) -> Int {
     return 0
 }
 
-/// Joins (waits for) a job handle to complete and releases it.
-/// This consumes the handle (balances the passRetained from launch).
+/// Waits for completion, except for the always-active NonCancellable singleton.
 @_cdecl("kk_job_join")
-public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
+public func kk_job_join(
+    _ jobHandle: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    if runtimeJobHandle(from: jobHandle) === runtimeNonCancellableJob {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: "This job is always active")
+        return 0
+    }
+    return runtimeJoinJob(jobHandle, continuation)
+}
+
+private func runtimeJoinJob(_ jobHandle: Int, _ continuation: Int) -> Int {
     if let callerState = runtimeContinuationState(from: continuation) {
         var thrown = 0
         if kk_coroutine_check_cancellation(continuation, &thrown) != 0 {
@@ -4727,10 +4755,14 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
     return result
 }
 
-/// Await job completion using the same consuming wait path as join().
+/// Await job completion using the same wait path as join().
 @_cdecl("kk_job_await_completion")
-public func kk_job_await_completion(_ jobHandle: Int, _ continuation: Int) -> Int {
-    kk_job_join(jobHandle, continuation)
+public func kk_job_await_completion(
+    _ jobHandle: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    kk_job_join(jobHandle, continuation, outThrown)
 }
 
 // MARK: - Coroutine yield()
@@ -5353,9 +5385,8 @@ public func kk_ensure_active(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
 }
 
 /// Singleton backing `kotlinx.coroutines.NonCancellable`. A `RuntimeJobHandle` that
-/// is never cancelled: installing it as a continuation's jobHandle (see
-/// `kk_with_context_full`) makes cancellation checks against that continuation
-/// always observe "active", regardless of the enclosing job's real state.
+/// is never cancelled. `withContext(NonCancellable)` instead creates its own
+/// block Job, detached from the enclosing Job's cancellation.
 private let runtimeNonCancellableJob: RuntimeJobHandle = {
     let job = RuntimeJobHandle()
     job.markStarted()
@@ -5374,6 +5405,18 @@ public func kk_non_cancellable_instance() -> Int {
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
         state.borrowedObjectPointers.insert(UInt(bitPattern: ptr))
+    }
+    let nonCancellableID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.NonCancellable")
+    let jobID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.Job")
+    let abstractElementID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.AbstractCoroutineContextElement")
+    let elementID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")
+    let contextID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext")
+    runtimeStorage.withMetadataLock { state in
+        state.objectTypeByPointer[UInt(bitPattern: ptr)] = nonCancellableID
+        state.typeParents[nonCancellableID, default: []].formUnion([jobID, abstractElementID])
+        state.typeParents[jobID, default: []].insert(elementID)
+        state.typeParents[abstractElementID, default: []].insert(elementID)
+        state.typeParents[elementID, default: []].insert(contextID)
     }
     return Int(bitPattern: ptr)
 }
