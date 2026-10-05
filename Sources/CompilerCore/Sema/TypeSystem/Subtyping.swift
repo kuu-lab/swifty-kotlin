@@ -889,6 +889,29 @@ extension TypeSystem {
         return nil
     }
 
+    func nominalFunctionType(for type: TypeID) -> FunctionType? {
+        guard case let .classType(classType) = kind(of: type),
+              let arity = functionNArity(of: classType.classSymbol),
+              classType.args.count == arity + 1
+        else {
+            return nil
+        }
+        let arguments = classType.args.compactMap { argument -> TypeID? in
+            switch argument {
+            case let .invariant(type), let .in(type), let .out(type):
+                return type
+            case .star:
+                return nil
+            }
+        }
+        guard arguments.count == arity + 1 else { return nil }
+        return FunctionType(
+            params: Array(arguments.prefix(arity)),
+            returnType: arguments[arity],
+            nullability: classType.nullability
+        )
+    }
+
     /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>`: the receiver counts as the
     /// leading parameter, arity must match, each `in` argument accepts the
     /// parameter (`Ai <: Qi`), and the return type satisfies the `out` argument

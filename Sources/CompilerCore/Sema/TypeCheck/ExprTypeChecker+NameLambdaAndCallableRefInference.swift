@@ -1193,6 +1193,9 @@ extension ExprTypeChecker {
         if let expectedType, case let .functionType(functionType) = sema.types.kind(of: expectedType) {
             expectedFunctionType = functionType
             samConversion = false
+        } else if let expectedType, let functionType = sema.types.nominalFunctionType(for: expectedType) {
+            expectedFunctionType = functionType
+            samConversion = false
         } else if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
             expectedFunctionType = samFT
             samConversion = true
@@ -1444,8 +1447,9 @@ extension ExprTypeChecker {
                     typeSystem: sema.types,
                     blameRange: ast.arena.exprRange(body)
                 ))
-                sema.bindings.bindExprType(id, type: expectedType)
-                return expectedType
+                let functionType = sema.types.make(.functionType(expectedFunctionType))
+                sema.bindings.bindExprType(id, type: functionType)
+                return functionType
             }
             // Enhanced return type inference with Unit optimization
             let optimizedReturnType = inferOptimizedReturnType(
@@ -1507,7 +1511,7 @@ extension ExprTypeChecker {
                     throws: expectedFunctionType.throws
                 )))
             } else {
-                expectedType
+                sema.types.make(.functionType(expectedFunctionType))
             }
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
@@ -2023,6 +2027,9 @@ extension ExprTypeChecker {
         if let expectedType {
             if case .functionType = sema.types.kind(of: expectedType) {
                 expectedFunctionType = expectedType
+                expectedSamInterfaceType = nil
+            } else if let functionType = sema.types.nominalFunctionType(for: expectedType) {
+                expectedFunctionType = sema.types.make(.functionType(functionType))
                 expectedSamInterfaceType = nil
             } else if let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
                 expectedFunctionType = sema.types.make(.functionType(samFT))

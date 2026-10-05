@@ -629,6 +629,11 @@ extension CallLowerer {
             switch sema.types.kind(of: parameterType) {
             case let .functionType(declaredFunctionType):
                 functionType = declaredFunctionType
+            case .classType:
+                guard let nominalFunctionType = sema.types.nominalFunctionType(for: parameterType) else {
+                    continue
+                }
+                functionType = nominalFunctionType
             case .typeParam:
                 // The callee's own declaration erases this parameter to a bare
                 // type parameter (e.g. Pair<A, B>'s `first: A`), so a function

@@ -3,6 +3,37 @@
 import Testing
 
 extension BuildKIRRegressionTests {
+    @Test func testBuildKIRMaterializesNominalFunctionArguments() throws {
+        let source = """
+        fun widen(f: Function1<Int, String>): (Int) -> String = f
+        fun main() {
+            val h: Function1<Int, String> = { it.toString() }
+            println(widen(h)(9))
+            println(widen { it.toString() }(10))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let boxedValues = Set(body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_function_create_1"
+            else { return nil }
+            return result
+        })
+        let widenArguments = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "widen"
+            else { return nil }
+            return arguments.first
+        }
+        #expect(widenArguments.count == 2)
+        #expect(widenArguments.allSatisfy(boxedValues.contains))
+    }
+
     @Test func testBuildKIRObjectLiteralArgumentIsNotLoweredToUnitPlaceholder() throws {
         let source = """
         interface I
