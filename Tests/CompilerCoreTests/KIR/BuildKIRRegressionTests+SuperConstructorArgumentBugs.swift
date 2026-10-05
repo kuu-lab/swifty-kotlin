@@ -7,6 +7,28 @@ import Testing
 /// constructor. The executable counterpart is
 /// `Scripts/diff_cases/super_ctor_named_defaults_and_throwable_factories.kt`.
 extension BuildKIRRegressionTests {
+    @Test(arguments: [
+        "object Derived : Base(transform = { it + \"!\" })",
+        "class Derived : Base(transform = { it + \"!\" })",
+        "class Derived : Base { constructor() : super(transform = { it + \"!\" }) }",
+        "fun make() = object : Base(transform = { it + \"!\" }) {}",
+    ])
+    func constructorDelegationMaterializesLambdaFunctionValues(declaration: String) throws {
+        let source = """
+        open class Base(val label: String = "base", val transform: (String) -> String)
+        \(declaration)
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try #require(ctx.kir)
+        let delegatesWithFunctionValue = findAllKIRFunctions(in: module).contains { function in
+            let callees = extractCallees(from: function.body, interner: ctx.interner)
+            return callees.contains("kk_function_create_1") && callees.contains("Base$default")
+        }
+        #expect(delegatesWithFunctionValue)
+    }
+
     /// `object O : Base()` used to call `Base.<init>` with no arguments,
     /// reading garbage for both defaulted parameters.
     @Test

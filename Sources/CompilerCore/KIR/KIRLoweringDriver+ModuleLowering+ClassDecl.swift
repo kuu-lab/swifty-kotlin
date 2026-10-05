@@ -942,6 +942,7 @@ extension KIRLoweringDriver {
             target: resolvedSymbol,
             receiver: ctx.activeImplicitReceiverExprID(),
             loweredArgs: loweredArgs,
+            sourceArgs: delegation.args,
             spreadFlags: delegation.args.map(\.isSpread),
             callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
             result: delegationResultID,
@@ -958,6 +959,7 @@ extension KIRLoweringDriver {
         target: SymbolID?,
         receiver: KIRExprID?,
         loweredArgs: [KIRExprID],
+        sourceArgs: [CallArgument],
         spreadFlags: [Bool],
         callBinding: CallBinding?,
         result: KIRExprID,
@@ -966,6 +968,31 @@ extension KIRLoweringDriver {
     ) {
         let sema = shared.sema
         let arena = shared.arena
+        var loweredArgs = loweredArgs
+        if let target,
+           let signature = sema.symbols.functionSignature(for: target),
+           sema.symbols.externalLinkName(for: target)?.isEmpty ?? true
+        {
+            for argIndex in loweredArgs.indices where sourceArgs.indices.contains(argIndex) {
+                let parameterIndex = callBinding?.parameterMapping[argIndex] ?? argIndex
+                guard signature.parameterTypes.indices.contains(parameterIndex),
+                      case let .functionType(functionType) = sema.types.kind(
+                          of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
+                      )
+                else {
+                    continue
+                }
+                loweredArgs[argIndex] = callLowerer.materializeFunctionValueArgument(
+                    loweredArgID: loweredArgs[argIndex],
+                    argExprID: sourceArgs[argIndex].expr,
+                    functionType: functionType,
+                    sema: sema,
+                    arena: arena,
+                    interner: shared.interner,
+                    instructions: &body.instructions
+                )
+            }
+        }
         var argIDs: [KIRExprID] = []
         if let receiver {
             argIDs.append(receiver)

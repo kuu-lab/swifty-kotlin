@@ -259,6 +259,7 @@ extension KIRLoweringDriver {
             target: superCtorSymbol,
             receiver: receiverID,
             loweredArgs: loweredSuperArgs,
+            sourceArgs: superArgs,
             spreadFlags: superArgs.map(\.isSpread),
             callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
             result: resultID,

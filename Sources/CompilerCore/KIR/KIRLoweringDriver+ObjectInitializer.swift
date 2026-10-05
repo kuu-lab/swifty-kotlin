@@ -449,6 +449,7 @@ extension KIRLoweringDriver {
             target: superCtorSymbol,
             receiver: objectValue,
             loweredArgs: loweredArgs,
+            sourceArgs: superArgs,
             spreadFlags: superArgs.map(\.isSpread),
             callBinding: callBinding,
             result: resultID,

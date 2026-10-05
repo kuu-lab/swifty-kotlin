@@ -4,6 +4,29 @@ import Testing
 
 @Suite
 struct ConstructorLambdaExpectedTypeTests {
+    @Test
+    func localSuperclassLambdaCapturesOuterParameter() throws {
+        let source = """
+        open class Base(val transform: (Int) -> Int)
+        fun make(offset: Int) {
+            class Local : Base({ it + offset })
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let sema = try #require(ctx.sema)
+            let localClass = try #require(sema.symbols.symbols(ofKind: .class).first {
+                sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) == "Local" } ?? false
+            })
+            let captures = sema.bindings.objectLiteralCaptureSymbols(for: localClass)
+            #expect(captures.contains {
+                sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) == "offset" } ?? false
+            })
+        }
+    }
+
     @Test(arguments: [
         """
         open class Base(val transform: (Int) -> Int)
@@ -55,8 +78,12 @@ struct ConstructorLambdaExpectedTypeTests {
         open class Base(val transform: (Int) -> Int)
         fun make(offset: Int) {
             class Local : Base({ it + offset })
-            object Named : Base({ it + offset })
         }
+        """,
+        """
+        open class Base(val transform: (Int) -> Int)
+        class Container { object Named : Base({ it + 1 }) }
+        enum class Mode { FIRST, SECOND }
         """,
         """
         open class Base(val transform: (Int) -> Int)

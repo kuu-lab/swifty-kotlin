@@ -127,6 +127,8 @@ extension DeclTypeChecker {
         extraLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
+        // Enum's name/ordinal superclass arguments are synthesized during lowering.
+        guard sema.symbols.symbol(symbol)?.kind != .enumClass else { return }
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
               let superclassInfo = sema.symbols.symbol(superclassSymbol),
               let primaryCtorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)

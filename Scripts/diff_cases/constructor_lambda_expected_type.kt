@@ -27,6 +27,8 @@ object PairDerived : PairBase({ it * 2 }, { it + "?" })
 fun increment(value: Int): Int = value + 1
 fun increment(value: String): String = value + "!"
 object ReferenceDerived : IntBase(::increment)
+class Container { object Named : IntBase({ it + 11 }) }
+enum class Mode { FIRST, SECOND }
 
 fun main() {
     println(Derived.transform(1))
@@ -47,6 +49,6 @@ fun main() {
     println(anonymous.transform(12))
     class Local : IntBase({ it + offset })
     println(Local().transform(13))
-    object Named : IntBase({ it + offset })
-    println(Named.transform(14))
+    println(Container.Named.transform(14))
+    println(Mode.SECOND.ordinal)
 }

@@ -729,7 +729,8 @@ extension ExprTypeChecker {
                 in: exprID,
                 ast: ast,
                 sema: sema,
-                outerSymbols: captureOuterSymbols
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
             ))
         }
         return capturedSymbols

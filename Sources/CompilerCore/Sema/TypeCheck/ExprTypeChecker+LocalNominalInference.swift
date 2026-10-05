@@ -302,12 +302,6 @@ extension ExprTypeChecker {
         // Unlike an object literal (KSP-CAP-018), a local class's superclass
         // constructor arguments are evaluated inside `<init>`, so they infer
         // against ctor-param + captured locals.
-        var delegationLocals = primaryCtorLocals
-        for entry in classDecl.superTypeEntries {
-            for arg in entry.constructorArgs {
-                _ = driver.inferExpr(arg.expr, ctx: classCtx, locals: &delegationLocals, expectedType: nil)
-            }
-        }
         driver.declChecker.typeCheckPrimaryConstructorSuperDelegation(
             classDecl,
             symbol: classSymbol,

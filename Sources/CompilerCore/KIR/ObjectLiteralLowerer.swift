@@ -532,6 +532,7 @@ final class ObjectLiteralLowerer {
             target: superCtorSymbol,
             receiver: objectValue,
             loweredArgs: loweredArgs,
+            sourceArgs: objectDecl.superTypeConstructorArgs,
             spreadFlags: objectDecl.superTypeConstructorArgs.map(\.isSpread),
             callBinding: callBinding,
             result: resultID,
