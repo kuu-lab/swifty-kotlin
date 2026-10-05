@@ -29,7 +29,8 @@ struct GenericClassPropertyInitTypeParamScopeTests {
                 Issue.record("Expected a function type, not Boolean")
                 return
             }
-            #expect(function.receiver != nil)
+            let receiver = try #require(function.receiver)
+            #expect(sema.types.nullability(of: receiver) == .nullable)
             #expect(function.returnType == sema.types.intType)
         }
     }
