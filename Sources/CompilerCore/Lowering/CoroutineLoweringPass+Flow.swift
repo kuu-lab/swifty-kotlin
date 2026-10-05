@@ -397,6 +397,7 @@ extension CoroutineLoweringPass {
                 }
             }
         }
+        let freshFunctions = freshFlowFunctions(module: module, ctx: ctx)
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
 
@@ -834,7 +835,7 @@ extension CoroutineLoweringPass {
                 isFlowScopeFunction: isFlowScopeFunction(function)
             )
 
-            updated.replaceBody(loweredBody)
+            updated.replaceBody(cleanUpOwnedFlows(loweredBody, module: module, ctx: ctx, freshFunctions: freshFunctions))
             return updated
         }
         module.arena.transformFunctions(transformFunction)

@@ -205,7 +205,7 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump, includeStdlib: false)
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
@@ -214,12 +214,12 @@ struct LoweringFlowCodegenTests {
             #expect(allCallees.contains("kk_flow_create"))
             #expect(allCallees.contains("kk_flow_emit"))
             #expect(allCallees.contains("kk_flow_collect"))
-            #expect(allCallees.contains("single"))
+            #expect(allCallees.contains("__kk_flow_single"))
             #expect(!allCallees.contains("flow"))
             #expect(!allCallees.contains("transform"))
             #expect(!allCallees.contains("collect"))
             #expect(!allCallees.contains("emit"))
-            #expect(!allCallees.contains("__kk_flow_single"))
+            #expect(!allCallees.contains("single"))
         }
     }
 
@@ -239,7 +239,7 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump, includeStdlib: false)
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
@@ -356,7 +356,7 @@ struct LoweringFlowCodegenTests {
         }
         """
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump, includeStdlib: false)
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
@@ -393,7 +393,7 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowOwnership", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowOwnership", emit: .kirDump, includeStdlib: false)
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
