@@ -179,6 +179,7 @@ extension ExprLowerer {
         guard !blocks.isEmpty else { return }
 
         let intType = sema.types.make(.primitive(.int, .nonNull))
+        let finallyDepth = driver.ctx.enclosingFinallyBlocks().count
 
         // Process innermost-first (reversed) so that the stack is trimmed
         // correctly: for each finally block, we temporarily set the stack
@@ -194,6 +195,7 @@ extension ExprLowerer {
         // try-catch that owns the finally.
         for i in stride(from: blocks.count - 1, through: 0, by: -1) {
             let entry = blocks[i]
+            instructions.append(.beginFinallyCleanup(skipping: finallyDepth - entry.stackIndex))
             var finallyInstructions: [KIRInstruction] = []
             driver.ctx.withFinallyStackDepth(entry.stackIndex) {
                 _ = lowerExpr(
@@ -268,6 +270,7 @@ extension ExprLowerer {
                 // No throwable calls — append the finally body directly.
                 instructions.append(contentsOf: finallyInstructions)
             }
+            instructions.append(.endFinallyCleanup)
         }
     }
 

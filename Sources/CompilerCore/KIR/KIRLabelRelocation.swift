@@ -72,6 +72,8 @@ enum KIRLabelRelocation {
             return [target]
         case let .jumpIfNotNull(_, target):
             return [target]
+        case let .beginNonLocalReturnScope(_, target):
+            return [target]
         default:
             return []
         }
@@ -92,6 +94,8 @@ enum KIRLabelRelocation {
             return .jumpIfEqual(lhs: lhs, rhs: rhs, target: mapping[target] ?? target)
         case let .jumpIfNotNull(value, target):
             return .jumpIfNotNull(value: value, target: mapping[target] ?? target)
+        case let .beginNonLocalReturnScope(value, target):
+            return .beginNonLocalReturnScope(value: value, target: mapping[target] ?? target)
         default:
             return instruction
         }

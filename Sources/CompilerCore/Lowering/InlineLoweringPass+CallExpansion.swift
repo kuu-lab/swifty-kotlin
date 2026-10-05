@@ -642,6 +642,20 @@ extension InlineLoweringPass {
             case .beginFinallyGuard:
                 lowered.append(.beginFinallyGuard)
 
+            case .beginFinallyCleanup, .endFinallyCleanup:
+                lowered.append(instruction)
+
+            case let .beginNonLocalReturnScope(value, target):
+                let slot = InlineExprCloning.cloneOrReuseExpr(value, localExprMap: &localExprMap, in: module.arena)
+                lowered.append(.beginNonLocalReturnScope(value: slot, target: labelRemap[target] ?? target))
+
+            case .endNonLocalReturnScope:
+                lowered.append(.endNonLocalReturnScope)
+
+            case let .resumeNonLocalReturn(value):
+                hasNonLocalReturn = true
+                lowered.append(.resumeNonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)))
+
             case .endFinallyGuard:
                 lowered.append(.endFinallyGuard)
             }
