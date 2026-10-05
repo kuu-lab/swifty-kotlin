@@ -57,10 +57,36 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         var getterCandidates: [SymbolID] = []
+        func hasDispatchReceiverOrImport(for candidate: SymbolID) -> Bool {
+            guard let owner = sema.symbols.parentSymbol(for: candidate),
+                  let ownerSymbol = sema.symbols.symbol(owner),
+                  ownerSymbol.kind == .class || ownerSymbol.kind == .interface
+                      || ownerSymbol.kind == .object
+            else {
+                return true
+            }
+            if visible.contains(candidate) {
+                return true
+            }
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner, args: [], nullability: .nonNull
+            )))
+            var receiverTypes = ctx.outerReceiverTypes.map(\.type)
+            if let implicitReceiverType = ctx.implicitReceiverType {
+                receiverTypes.append(implicitReceiverType)
+            }
+            if let enclosingClass = ctx.enclosingClassSymbol {
+                receiverTypes.append(sema.types.make(.classType(ClassType(
+                    classSymbol: enclosingClass, args: [], nullability: .nonNull
+                ))))
+            }
+            return receiverTypes.contains { sema.types.isSubtype($0, ownerType) }
+        }
         func collectGetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
                   !requireSynthetic || symbol.flags.contains(.synthetic),
+                  hasDispatchReceiverOrImport(for: candidate),
                   preferredSourcePackage == nil
                       || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),

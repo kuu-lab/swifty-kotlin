@@ -17,7 +17,7 @@ package kotlin.time
 // native implementation so that shifting a mark by Duration.INFINITE stays well defined.
 
 import kotlin.internal.KsSymbolName
-import kotlin.time.nanoseconds
+import kotlin.time.Duration.Companion.nanoseconds
 
 // KSP-1472: keep the public nominal type in bundled Kotlin source. Its
 // platform-independent operations remain source extensions below.

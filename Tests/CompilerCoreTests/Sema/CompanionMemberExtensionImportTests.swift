@@ -42,5 +42,27 @@ struct CompanionMemberExtensionImportTests {
             assertHasDiagnostic("KSWIFTK-SEMA-0024", in: diagnosticsForPath(paths[1], in: ctx))
         }
     }
+
+    @Test(arguments: [false, true])
+    func companionExtensionPropertyRequiresImport(imported: Bool) throws {
+        let declaration = """
+        package sample.library
+        class Token {
+            companion object {
+                val Int.doubled: Int get() = this * 2
+            }
+        }
+        """
+        let usage = """
+        package sample.usage
+        \(imported ? "import sample.library.Token.Companion.doubled" : "import sample.library.*")
+        fun use(): Int = 3.doubled
+        """
+        try withTemporaryFiles(contents: [declaration, usage]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError == !imported, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif
