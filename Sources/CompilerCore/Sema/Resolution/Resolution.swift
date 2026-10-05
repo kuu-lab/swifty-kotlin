@@ -1296,12 +1296,17 @@ extension OverloadResolver {
             if !lhsSubRhs {
                 // Kotlin's literal-specific widening order is not subtyping:
                 // Int is preferred to Byte/Short/Long, and Short to Byte.
-                guard call.args[index].signedIntegerLiteral != nil,
-                      !call.args[index].isSpread,
+                // Unsigned literals follow the same shape: UInt beats
+                // UByte/UShort/ULong, and UShort beats UByte.
+                guard !call.args[index].isSpread,
                       case let .primitive(lhsPrimitive, _) = typeSystem.kind(of: typeSystem.makeNonNullable(lhsParam)),
                       case let .primitive(rhsPrimitive, _) = typeSystem.kind(of: typeSystem.makeNonNullable(rhsParam)),
-                      (lhsPrimitive == .int && [.byte, .short, .long].contains(rhsPrimitive))
-                          || (lhsPrimitive == .short && rhsPrimitive == .byte)
+                      (call.args[index].signedIntegerLiteral != nil
+                          && ((lhsPrimitive == .int && [.byte, .short, .long].contains(rhsPrimitive))
+                              || (lhsPrimitive == .short && rhsPrimitive == .byte)))
+                          || (call.args[index].unsignedIntegerLiteral != nil
+                              && ((lhsPrimitive == .uint && [.ubyte, .ushort, .ulong].contains(rhsPrimitive))
+                                  || (lhsPrimitive == .ushort && rhsPrimitive == .ubyte)))
                 else { return false }
                 sawStrict = true
                 continue

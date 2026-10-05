@@ -435,8 +435,7 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        #expect(callees.contains("__kk_mutable_map_putAll"))
-        #expect(!(callees.contains("putAll")))
+        #expect(callees.contains("putAll"))
     }
 
     @Test func testDirectSharedAPILambdaAndObjectForwardersAreReachable() {

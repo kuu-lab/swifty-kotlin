@@ -67,27 +67,65 @@ extension InlineLoweringPass {
     /// or it may be a temporary that was defined via a `constValue` instruction
     /// carrying a `symbolRef` payload. Both patterns are resolved here so that
     /// lambda inlining works regardless of how the call argument was materialized.
+    /// The lambda symbol behind an expression: a direct `symbolRef` value, or
+    /// a temporary defined by a `constValue` carrying a `symbolRef` payload.
+    private func lambdaSymbolRef(
+        for expr: KIRExprID,
+        arena: KIRArena,
+        callerBody: [KIRInstruction]
+    ) -> SymbolID? {
+        if case let .symbolRef(symbol)? = arena.expr(expr) {
+            return symbol
+        }
+        for instruction in callerBody {
+            if case let .constValue(result, .symbolRef(symbol)) = instruction,
+               result == expr
+            {
+                return symbol
+            }
+        }
+        return nil
+    }
+
+    /// Resolve the lambda function for an argument expression. The argument
+    /// expression may be a direct `symbolRef` pointing to a lambda KIR function,
+    /// or it may be a temporary that was defined via a `constValue` instruction
+    /// carrying a `symbolRef` payload. Both patterns are resolved here so that
+    /// lambda inlining works regardless of how the call argument was materialized.
     func resolveLambdaFunction(
         argExpr: KIRExprID,
         arena: KIRArena,
         allFunctionsBySymbol: [SymbolID: KIRFunction],
-        callerBody: [KIRInstruction]
+        callerBody: [KIRInstruction],
+        ctx: KIRContext? = nil
     ) -> KIRFunction? {
-        // Direct symbolRef on the expression itself (most common path).
-        if case let .symbolRef(lambdaSymbol)? = arena.expr(argExpr) {
-            if let fn = allFunctionsBySymbol[lambdaSymbol] {
-                return fn
-            }
+        if let symbol = lambdaSymbolRef(for: argExpr, arena: arena, callerBody: callerBody),
+           let fn = allFunctionsBySymbol[symbol]
+        {
+            return fn
         }
-        // Fall back: scan the caller body for a constValue that defines this
-        // expression with a symbolRef value. This handles cases where the
-        // argument is a temporary assigned via `.constValue(result: argExpr,
-        // value: .symbolRef(symbol))`.
-        for instruction in callerBody {
-            if case let .constValue(result, .symbolRef(symbol)) = instruction,
-               result == argExpr,
-               let fn = allFunctionsBySymbol[symbol]
-            {
+        // A suspend callable materialized through `kk_function_create_N`
+        // (rewritten to `kk_suspend_function_create` by CoroutineLowering)
+        // wraps the lambda symbol as its first argument. See through the
+        // adapter call so a suspend lambda passed to an inline HOF can still be
+        // spliced; otherwise the erased invoke would run it on a dead
+        // continuation and store COROUTINE_SUSPENDED. Restricted to suspend
+        // functions: non-suspend adapters carry captures positionally and are
+        // handled by the regular path.
+        if let ctx {
+            for instruction in callerBody {
+                guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
+                      result == argExpr,
+                      let calleeName = Optional(ctx.interner.resolve(callee)),
+                      calleeName.hasPrefix("kk_function_create")
+                      || calleeName == "kk_suspend_function_create",
+                      let first = arguments.first,
+                      let symbol = lambdaSymbolRef(for: first, arena: arena, callerBody: callerBody),
+                      let fn = allFunctionsBySymbol[symbol],
+                      fn.isSuspend
+                else {
+                    continue
+                }
                 return fn
             }
         }
@@ -292,7 +330,8 @@ extension InlineLoweringPass {
                        argExpr: callableExpr,
                        arena: module.arena,
                        allFunctionsBySymbol: allFunctionsBySymbol,
-                       callerBody: lambdaFunction.body
+                       callerBody: lambdaFunction.body,
+                       ctx: ctx
                    )
                 {
                     let captureArgs = lambdaCaptureArguments(

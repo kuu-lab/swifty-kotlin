@@ -55,17 +55,6 @@ public fun String.toCharArray(startIndex: Int = 0, endIndex: Int = this.length):
     return result
 }
 
-public fun CharSequence.toCharArray(): CharArray {
-    val length = __kk_string_struct_get_length(this)
-    val result = CharArray(length)
-    var index = 0
-    while (index < length) {
-        result[index] = this[index]
-        index++
-    }
-    return result
-}
-
 @Suppress("UNCHECKED_CAST")
 public fun CharSequence.toTypedArray(): Array<Char> {
     val length = __kk_string_struct_get_length(this)

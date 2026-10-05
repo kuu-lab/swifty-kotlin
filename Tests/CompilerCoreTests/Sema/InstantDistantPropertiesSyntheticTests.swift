@@ -51,7 +51,9 @@ struct InstantDistantPropertiesSyntheticTests {
             ("__kk_instant_plus_duration", "kk_instant_plus_duration", [durationType], instantType),
             ("__kk_instant_minus_duration", "kk_instant_minus_duration", [durationType], instantType),
             ("__kk_instant_compare", "kk_instant_compare", [instantType], sema.types.intType),
-            ("__kk_instant_until", "kk_instant_until", [instantType], durationType),
+            // KUU-1093: kk_instant_until returns raw Int64 nanoseconds; the
+            // Kotlin source wraps it in Duration(...).
+            ("__kk_instant_until", "kk_instant_until", [instantType], sema.types.longType),
         ]
 
         for bridge in expectedBridges {

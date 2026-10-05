@@ -30,7 +30,6 @@ struct StringToCharArrayFunctionTests {
         fun sliceCharsFrom(s: String): CharArray = s.toCharArray(1)
         fun sliceCharsUntil(s: String): CharArray = s.toCharArray(endIndex = 2)
         fun sliceCharsNamed(s: String): CharArray = s.toCharArray(endIndex = 3, startIndex = 1)
-        fun sequenceChars(s: CharSequence): CharArray = s.toCharArray()
 
         fun explodeToTypedArray(s: String): Array<Char> {
             return s.toTypedArray()

@@ -192,9 +192,12 @@ public func kk_lateinit_get_or_throw(
 
 @_cdecl("kk_unbox_int")
 public func kk_unbox_int(_ obj: Int) -> Int {
-    if obj == runtimeNullSentinelInt {
-        return 0
-    }
+    // NOTE: no early-return for runtimeNullSentinelInt — see kk_unbox_long.
+    // The sentinel is never a valid heap pointer, so it reaches the
+    // passthrough branch below and stays the sentinel. That preserves
+    // `x == null` (a raw comparison against the sentinel) for `Int?`
+    // parameters spliced across the erased-lambda ABI, where the callee
+    // treats an unboxed sentinel as null.
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else {
         return obj
     }
@@ -212,8 +215,11 @@ public func kk_unbox_int(_ obj: Int) -> Int {
 
 @_cdecl("kk_unbox_bool")
 public func kk_unbox_bool(_ obj: Int) -> Int {
+    // NOTE: no early-return for runtimeNullSentinelInt — see kk_unbox_int.
+    // The sentinel falls through to the passthrough below so a `Boolean?`
+    // parameter unboxed across the erased-lambda ABI keeps its null marker.
     if obj == runtimeNullSentinelInt {
-        return 0
+        return obj
     }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else {
         return obj != 0 ? 1 : 0
@@ -345,7 +351,8 @@ public func kk_box_float(_ value: Int) -> Int {
 
 @_cdecl("kk_unbox_float")
 public func kk_unbox_float(_ obj: Int) -> Int {
-    if obj == runtimeNullSentinelInt { return 0 }
+    // NOTE: keep the null sentinel — see kk_unbox_int.
+    if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: objPointer))
@@ -392,7 +399,8 @@ public func kk_box_double_nonnull(_ value: Int) -> Int {
 
 @_cdecl("kk_unbox_double")
 public func kk_unbox_double(_ obj: Int) -> Int {
-    if obj == runtimeNullSentinelInt { return 0 }
+    // NOTE: keep the null sentinel — see kk_unbox_int.
+    if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: objPointer))
@@ -425,7 +433,8 @@ public func kk_box_char(_ value: Int) -> Int {
 
 @_cdecl("kk_unbox_char")
 public func kk_unbox_char(_ obj: Int) -> Int {
-    if obj == runtimeNullSentinelInt { return 0 }
+    // NOTE: keep the null sentinel — see kk_unbox_int.
+    if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: objPointer))

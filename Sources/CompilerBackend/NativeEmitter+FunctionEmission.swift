@@ -2553,10 +2553,39 @@ extension NativeEmitter {
                 let isSequenceBuilderRuntimeCall = calleeName == "__kk_sequence_builder_yield"
                     || calleeName == "__kk_sequence_builder_yieldAll"
                     || calleeName == "__kk_sequence_builder_yieldAll_checked"
+                // A `kk_`/`__kk_` callee spelling is a lowered runtime name, not
+                // a source-level identifier. When such a call still carries a
+                // KIR symbol that the callee text does not actually name (not the
+                // declared name, not the symbol's own `kk_fn_*` link name, and
+                // not the emitted entry in the internal lookup table), the
+                // symbol is stale bookkeeping: CallLowerer retargeted the call
+                // to a runtime bridge (e.g. `__kk_iterable_firstNotNullOf`) while
+                // keeping the source symbol for inline-expansion bookkeeping.
+                // Binding that call through `internalFunctions[symbol]` would
+                // invoke the source body with bridge-shaped arguments, so the
+                // callee text must win.
+                let calleeIsRuntimeName = calleeName.hasPrefix("kk_")
+                    || calleeName.hasPrefix("__kk_")
+                let calleeLookupKey = FunctionLookupKey(
+                    name: calleeName,
+                    parameterCount: argumentValues.count
+                )
+                let calleeNamesSymbol: Bool = if !calleeIsRuntimeName {
+                    true
+                } else if let symbol, symbol != .invalid {
+                    symbols?.symbol(symbol)?.name == callee
+                        || symbols?.externalLinkName(for: symbol)
+                            .map({ $0.hasPrefix("kk_fn_") && $0 == calleeName }) == true
+                        || internalFunctionsByLookupKey[calleeLookupKey]?
+                            .contains(where: { $0.symbol == symbol }) == true
+                } else {
+                    false
+                }
                 let normalizedSymbol: SymbolID? = if !isFunctionValueInvoke,
                                                        !isSequenceBuilderRuntimeCall,
                                                        let symbol,
-                                                       symbol != .invalid
+                                                       symbol != .invalid,
+                                                       calleeNamesSymbol
                 {
                     symbol
                 } else {

@@ -135,12 +135,15 @@ struct InnerClassOuterInstanceTests {
             else { return nil }
             return result
         }
-        let wrappedValue = try #require(wrappedValues.first, "Expected a function value retaining the captured suffix")
+        try #require(!wrappedValues.isEmpty, "Expected a function value retaining the captured suffix")
+        // Receiver-adapted materialization can wrap the same lambda more than
+        // once (e.g. __kk_function_copy_description chains); the constructor
+        // must receive one of those wrapped values, not the bare symbol.
         #expect(body.contains { instruction in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
                   ctx.interner.resolve(callee) == "Inner"
             else { return false }
-            return arguments.dropFirst().contains(wrappedValue)
+            return arguments.dropFirst().contains { wrappedValues.contains($0) }
         }, "The constructor must receive the wrapped function value")
     }
 

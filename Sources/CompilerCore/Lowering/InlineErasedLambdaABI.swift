@@ -181,6 +181,28 @@ enum InlineErasedLambdaABI {
         return primitive
     }
 
+    /// Both nullabilities of a resolved primitive kind. Nullable parameters of
+    /// a spliced lambda still arrive boxed across the erased boundary and need
+    /// the sentinel-aware `kk_unbox_*` (which maps null to the primitive's
+    /// null sentinel), not a pass-through.
+    private static func primitiveKind(of type: TypeID?, ctx: KIRContext) -> PrimitiveType? {
+        guard let type, let types = ctx.sema?.types,
+              let symbols = ctx.sema?.symbols
+        else {
+            return nil
+        }
+        let resolvedKind = resolveValueClassKind(
+            types.kind(of: type),
+            types: types,
+            symbols: symbols
+        )
+        guard case let .primitive(primitive, _) = resolvedKind
+        else {
+            return nil
+        }
+        return primitive
+    }
+
     /// Unbox arguments when a lambda is reached through an erased function
     /// value.  Concrete lambda parameter types determine the required primitive
     /// unboxing callee; nullable and reference values stay boxed.
@@ -202,7 +224,7 @@ enum InlineErasedLambdaABI {
             let argumentIsErased = module.arena.exprType(arguments[index])
                 .map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
             guard argumentIsErased,
-                  let primitive = nonNullPrimitiveKind(of: lambdaFunction.params[index].type, ctx: ctx)
+                  let primitive = primitiveKind(of: lambdaFunction.params[index].type, ctx: ctx)
             else {
                 continue
             }
