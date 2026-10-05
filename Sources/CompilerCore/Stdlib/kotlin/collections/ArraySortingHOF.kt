@@ -369,6 +369,8 @@ public fun UShortArray.binarySearch(element: UShort, fromIndex: Int = 0, toIndex
     return -(low + 1)
 }
 
+public fun UIntArray.sorted(): List<UInt> = sortedArray().toList()
+
 public fun UIntArray.sortedArray(): UIntArray {
     val result = this.copyOf()
     result.stableSortImpl(false)

@@ -20,10 +20,10 @@ fun checkParsed(value: Duration?, expected: Duration) {
 }
 
 fun main() {
-    for (input in listOf("PT5S", "1h", "PT1H30M", "1.5s", "PT0S", "-1.5s", "Infinity")) {
+    for (input in listOf("PT5S", "1h", "PT1H30M", "1.5s", "PT0S", "-1.5s", "106751d 23h 47m 16.854s", "10000000000000s", "Infinity")) {
         checkParsed(Duration.parseOrNull(input), Duration.parse(input))
     }
-    for (input in listOf("PT5S", "PT1H30M", "PT1.5S", "PT0S", "-PT1.5S")) {
+    for (input in listOf("PT5S", "PT1H30M", "PT1.5S", "PT0S", "-PT1.5S", "PT10000000000000S")) {
         checkParsed(Duration.parseIsoStringOrNull(input), Duration.parseIsoString(input))
     }
     val negativeInfinity = Duration.parseOrNull("-Infinity")

@@ -1006,12 +1006,8 @@ private struct RuntimePrimitiveNominalTypeIDs {
 /// An enum-ordinal `RuntimeIntBox` (`enumClassID != nil`) is excluded: its
 /// nominal identity is its enum class, not `kotlin.Int`.
 ///
-/// `RuntimeIntBox` also backs Byte/Short (there is no dedicated
-/// `kk_box_byte`/`kk_box_short`, so both box through `kk_box_int`'s
-/// `anyFallbackTag: 1`), so this collapses Byte/Short/Int to the same ID --
-/// harmless here since all three share the same `Number`/`Comparable`
-/// ancestry this lookup exists to answer; see `kk_op_is`'s intBase case for
-/// the same pre-existing limitation.
+/// `RuntimeIntBox` also backs Byte/Short and the small unsigned types;
+/// `primitiveTypeBase` preserves their distinct Kotlin identities.
 ///
 /// Precondition (enforced by `kk_op_is`, this function's only caller): `ptr`
 /// must not already be a tagged value-class box (`runtimeObjectTypeID(rawValue:)
@@ -1037,10 +1033,12 @@ private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) ->
     // never pays for it.
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self), intBox.enumClassID == nil {
         ids.registerEdgesOnce()
-        switch intBox.anyFallbackTag {
-        case 9: return ids.uint
-        case 10: return ids.ubyte
-        case 11: return ids.ushort
+        switch intBox.primitiveTypeBase {
+        case RuntimeTypeTokenEncoding.byteBase: return ids.byte
+        case RuntimeTypeTokenEncoding.shortBase: return ids.short
+        case RuntimeTypeTokenEncoding.uintBase: return ids.uint
+        case RuntimeTypeTokenEncoding.ubyteBase: return ids.ubyte
+        case RuntimeTypeTokenEncoding.ushortBase: return ids.ushort
         default: return ids.int
         }
     }
@@ -1123,10 +1121,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // ABILoweringPass's typeCheckValueCallees); see also the follow-up
         // tracking sequenceOf's missing element boxing.
         //
-        // Even when boxed, Int/UInt/UByte/UShort use the same RuntimeIntBox
-        // representation (through distinct boxing entry points that preserve
-        // hashCode metadata), so they remain indistinguishable from each other
-        // here — a separate, pre-existing limitation of runtime type checks.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -1142,7 +1136,10 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if runtimeObjectTypeID(rawValue: value) != nil {
             return 0
         }
-        return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
+        guard let box = tryCast(ptr, to: RuntimeIntBox.self), box.enumClassID == nil else {
+            return 0
+        }
+        return box.primitiveTypeBase == base ? 1 : 0
 
     case RuntimeTypeTokenEncoding.functionBase:
         // KUU-1084: function-type tokens encode the FunctionN arity in the
@@ -2725,7 +2722,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return runtimeArrayIdentityToString(value)
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue

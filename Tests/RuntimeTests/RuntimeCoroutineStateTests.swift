@@ -273,6 +273,20 @@ struct RuntimeCoroutineStateTests {
         #expect(kk_coroutine_state_get_thrown_exception(callerContinuation) == 0)
     }
 
+    @Test func testSchedulerWordABITracksLongClockValues() {
+        let scope = kk_coroutine_scope_new()
+        defer { _ = runtimeReleaseObject(scope) }
+        let scheduler = kk_test_scope_scheduler(scope)
+        let currentTime: (Int) -> Int = kk_test_scheduler_current_time
+        let scopeTime: (Int) -> Int = kk_test_scope_current_time
+        let advance: (Int, Int) -> Int = kk_test_scheduler_advance_time_by
+        #expect(currentTime(scheduler) == 0)
+        let delta = 4_294_967_296
+        _ = advance(scheduler, delta)
+        #expect(currentTime(scheduler) == delta)
+        #expect(scopeTime(scope) == delta)
+    }
+
     @Test func testDirectSuspendCallReturnsImmediateChildResult() {
         let callerContinuation = kk_coroutine_continuation_new(9108)
         defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }

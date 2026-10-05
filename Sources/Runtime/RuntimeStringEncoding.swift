@@ -61,6 +61,26 @@ public func __kk_charset_utf_32be() -> Int { CharsetTag.utf32be.rawValue }
 @_cdecl("__kk_charset_utf_32le")
 public func __kk_charset_utf_32le() -> Int { CharsetTag.utf32le.rawValue }
 
+@_cdecl("__kk_charset_name")
+public func __kk_charset_name(_ charsetTag: Int) -> Int {
+    guard let tag = CharsetTag(rawValue: charsetTag) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_charset_name unsupported charset ID \(charsetTag)")
+    }
+    let name: String
+    switch tag {
+    case .utf8: name = "UTF-8"
+    case .iso8859_1: name = "ISO-8859-1"
+    case .usASCII: name = "US-ASCII"
+    case .utf16: name = "UTF-16"
+    case .utf16be: name = "UTF-16BE"
+    case .utf16le: name = "UTF-16LE"
+    case .utf32: name = "UTF-32"
+    case .utf32be: name = "UTF-32BE"
+    case .utf32le: name = "UTF-32LE"
+    }
+    return runtimeMakeStringRaw(name)
+}
+
 // STDLIB-581: String.toByteArray(charset: Charset)
 @_cdecl("__kk_string_toByteArray_charset")
 public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> Int {

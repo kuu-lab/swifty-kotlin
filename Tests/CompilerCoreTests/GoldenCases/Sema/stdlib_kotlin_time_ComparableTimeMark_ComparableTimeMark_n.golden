@@ -14,7 +14,7 @@ expr e@10:5 localDecl absent mutable=0 type=Any? init=e@10:24 type=Unit ref=__lo
 expr e@11:39 name(first) type=kotlin.time.ComparableTimeMark ref=__local_0.first[kind=local]
 expr e@11:47 name(Duration) type=kotlin.time.Duration.Companion ref=kotlin.time.Duration[kind=class]
 expr e@11:47#1 memberCall recv=e@11:47 callee=ZERO args=[] type=kotlin.time.Duration call=kotlin.time.ZERO.$get[kind=fun;recv=kotlin.time.Duration.Companion;params=]
-expr e@11:39#1 binary(add) lhs=e@11:39 rhs=e@11:47#1 type=kotlin.time.ComparableTimeMark call=kotlin.time.plus[kind=fun;recv=kotlin.time.ComparableTimeMark;params=kotlin.time.Duration]
+expr e@11:39#1 binary(add) lhs=e@11:39 rhs=e@11:47#1 type=kotlin.time.ComparableTimeMark call=kotlin.time.ComparableTimeMark.plus[kind=fun;recv=kotlin.time.ComparableTimeMark;params=kotlin.time.Duration]
 expr e@11:5 localDecl shifted mutable=0 type=ComparableTimeMark init=e@11:39#1 type=Unit ref=__local_2.shifted[kind=local]
 expr e@12:36 call callee=e@12:36#1 args=[] type=kotlin.time.TestTimeSource call=kotlin.time.TestTimeSource.<init>[kind=ctor;recv=kotlin.time.TestTimeSource;params=]
 expr e@12:36#2 memberCall recv=e@12:36 callee=markNow args=[] type=kotlin.time.ComparableTimeMark call=kotlin.time.AbstractLongTimeSource.markNow[kind=fun;recv=kotlin.time.AbstractLongTimeSource;params=]

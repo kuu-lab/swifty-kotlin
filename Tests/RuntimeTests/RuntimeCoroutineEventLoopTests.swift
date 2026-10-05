@@ -296,6 +296,65 @@ struct RuntimeCoroutineEventLoopTests {
         #expect(log.snapshot() == (0 ..< 5).map { "task \($0)" })
     }
 
+    @Test func testBurstLaunchSharesFIFOWithAsyncAndResumptions() {
+        let loop = RuntimeEventLoop()
+        let log = EventLoopTestLog()
+        let done = RuntimeCompletionFlag()
+        loop.enqueue {
+            RuntimeCoroutineBurstDepth.enter()
+            defer { RuntimeCoroutineBurstDepth.exit() }
+            let first = RuntimeJobHandle()
+            RuntimePendingLaunchQueue.enqueue(job: first, workItem: DispatchWorkItem {
+                log.record("launch")
+            })
+            KxMiniRuntime.launch { log.record("async") }
+            loop.enqueue { log.record("resumption") }
+            let second = RuntimeJobHandle()
+            RuntimePendingLaunchQueue.enqueue(job: second, workItem: DispatchWorkItem {
+                log.record("launch again")
+            })
+            #expect(log.snapshot().isEmpty, "enqueueing must not execute a child inline")
+            RuntimePendingLaunchQueue.flush()
+            loop.enqueue { done.set() }
+        }
+        let finished = loop.run(until: { done.isSet }, deadline: Date().addingTimeInterval(2))
+        #expect(finished)
+        #expect(log.snapshot() == ["launch", "async", "resumption", "launch again"])
+    }
+
+    @Test func testEventLoopLaunchCanBeCancelledBeforeItsTurn() {
+        let loop = RuntimeEventLoop()
+        let log = EventLoopTestLog()
+        let done = RuntimeCompletionFlag()
+        loop.enqueue {
+            RuntimeCoroutineBurstDepth.enter()
+            defer { RuntimeCoroutineBurstDepth.exit() }
+            let job = RuntimeJobHandle()
+            let workItem = DispatchWorkItem { log.record("cancelled body") }
+            job.dispatchWorkItem = workItem
+            job.markScheduled()
+            RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
+            _ = job.cancel()
+            RuntimePendingLaunchQueue.flush()
+            loop.enqueue { done.set() }
+        }
+        let finished = loop.run(until: { done.isSet }, deadline: Date().addingTimeInterval(2))
+        #expect(finished)
+        #expect(log.snapshot().isEmpty)
+    }
+
+    @Test func testPoolLaunchRemainsStagedUntilBurstFlush() {
+        #expect(RuntimeEventLoop.current == nil)
+        let ran = DispatchSemaphore(value: 0)
+        RuntimeCoroutineBurstDepth.enter()
+        defer { RuntimeCoroutineBurstDepth.exit() }
+        let job = RuntimeJobHandle()
+        RuntimePendingLaunchQueue.enqueue(job: job, workItem: DispatchWorkItem { ran.signal() })
+        #expect(ran.wait(timeout: .now() + .milliseconds(50)) == .timedOut)
+        RuntimePendingLaunchQueue.flush()
+        #expect(ran.wait(timeout: .now() + .seconds(2)) == .success)
+    }
+
     @Test func testTaskEnqueuedWhileDrainingRunsAfterTasksAlreadyQueued() {
         let loop = RuntimeEventLoop()
         let log = EventLoopTestLog()

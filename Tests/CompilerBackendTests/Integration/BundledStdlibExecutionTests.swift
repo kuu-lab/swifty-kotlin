@@ -720,6 +720,184 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-1098: the bit-count and one-bit extensions execute through bundled
+    /// Kotlin on the remaining integer receivers, including zero, all-ones,
+    /// sign/high-bit boundaries, and mixed values.
+    @Test
+    func testSmallAndUnsignedBitFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun printByteBits(value: Byte) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printShortBits(value: Short) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printUByteBits(value: UByte) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printUShortBits(value: UShort) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printUIntBits(value: UInt) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printULongBits(value: ULong) {
+                println(value.countOneBits())
+                println(value.countLeadingZeroBits())
+                println(value.countTrailingZeroBits())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun main() {
+                printByteBits(0.toByte())
+                printByteBits(1.toByte())
+                printByteBits((-1).toByte())
+                printByteBits(64.toByte())
+                printShortBits(0.toShort())
+                printShortBits((-1).toShort())
+                printShortBits(0x1234.toShort())
+                printUByteBits(0u.toUByte())
+                printUByteBits(255u.toUByte())
+                printUByteBits(64u.toUByte())
+                printUShortBits(0u.toUShort())
+                printUShortBits(0xFFFFu.toUShort())
+                printUShortBits(0x1234u.toUShort())
+                printUIntBits(0u)
+                printUIntBits(0xFFFFFFFFu)
+                printUIntBits(0x12345678u)
+                printULongBits(0uL)
+                printULongBits(0xFFFFFFFFFFFFFFFFuL)
+                printULongBits(0x123456789ABCDEFuL)
+            }
+            """,
+            expectedOutput: """
+            0
+            8
+            8
+            0
+            0
+            1
+            7
+            0
+            1
+            1
+            8
+            0
+            0
+            -128
+            1
+            1
+            1
+            6
+            64
+            64
+            0
+            16
+            16
+            0
+            0
+            16
+            0
+            0
+            -32768
+            1
+            5
+            3
+            2
+            4096
+            4
+            0
+            8
+            8
+            0
+            0
+            8
+            0
+            0
+            128
+            1
+            1
+            1
+            6
+            64
+            64
+            0
+            16
+            16
+            0
+            0
+            16
+            0
+            0
+            32768
+            1
+            5
+            3
+            2
+            4096
+            4
+            0
+            32
+            32
+            0
+            0
+            32
+            0
+            0
+            2147483648
+            1
+            13
+            3
+            3
+            268435456
+            8
+            0
+            64
+            64
+            0
+            0
+            64
+            0
+            0
+            9223372036854775808
+            1
+            32
+            7
+            0
+            72057594037927936
+            1
+
+            """
+        )
+    }
+
     /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
     /// implementations across overflow, NaN, and signed-zero edge cases.
     @Test
@@ -1293,6 +1471,92 @@ struct BundledStdlibExecutionTests {
             true
 
             """
+        )
+    }
+
+    @Test
+    func testCharClosedRangeCoercionClampsAndRejectsEmptyRanges() throws {
+        try compileAndRunKotlin(
+            """
+            class CharBounds(
+                override val start: Char,
+                override val endInclusive: Char
+            ) : ClosedRange<Char> {
+                override fun toString(): String = "$start..$endInclusive"
+            }
+
+            fun <T : Comparable<T>> clamp(value: T, range: ClosedRange<T>): T = value.coerceIn(range)
+
+            fun emptyRangeMessage(range: ClosedRange<Char>): String? {
+                return try {
+                    'c'.coerceIn(range)
+                    "did not throw"
+                } catch (e: IllegalArgumentException) {
+                    e.message
+                }
+            }
+
+            fun main() {
+                println('a'.coerceIn('b'..'d'))
+                println('z'.coerceIn('b'..'d'))
+                println('c'.coerceIn('b'..'d'))
+                println('a'.coerceIn('b', 'd'))
+                val range: ClosedRange<Char> = 'b'..'d'
+                println('a'.coerceIn(range))
+                println('z'.coerceIn(range))
+                println('b'.coerceIn(range))
+                println('d'.coerceIn(range))
+                println('a'.coerceIn('c'..'c'))
+                println('z'.coerceIn('c'..'c'))
+                println(clamp('a', range))
+                println(clamp('z', range))
+                val custom = CharBounds('b', 'd')
+                println('a'.coerceIn(custom))
+                println('z'.coerceIn(custom))
+                println('c'.coerceIn(custom))
+                println(emptyRangeMessage('d'..'b'))
+                println(emptyRangeMessage(CharBounds('d', 'b')))
+                println(0.toChar().coerceIn(32768.toChar()..65535.toChar()).code)
+                println(65535.toChar().coerceIn(0.toChar()..32768.toChar()).code)
+                val nullable: Char? = 'a'
+                val absent: Char? = null
+                println(nullable?.coerceIn(range))
+                println(absent?.coerceIn(range))
+                println(clamp("a", "b".."d"))
+                println(clamp("z", "b".."d"))
+                println(clamp(0, 1..3))
+                println(clamp(4, 1..3))
+            }
+            """,
+            expectedOutput: """
+            b
+            d
+            c
+            b
+            b
+            d
+            b
+            d
+            c
+            c
+            b
+            d
+            b
+            d
+            c
+            Cannot coerce value to an empty range: d..b.
+            Cannot coerce value to an empty range: d..b.
+            32768
+            32768
+            b
+            null
+            b
+            d
+            1
+            3
+
+            """,
+            allowDefaultStdlibLibrary: false
         )
     }
 

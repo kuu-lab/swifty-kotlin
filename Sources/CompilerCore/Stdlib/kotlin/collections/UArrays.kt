@@ -82,6 +82,9 @@ public val UShortArray.size: Int get() = __kkUShortArraySize(this)
 public val UIntArray.size: Int get() = __kkUIntArraySize(this)
 public val ULongArray.size: Int get() = __kkULongArraySize(this)
 
+public val UIntArray.lastIndex: Int get() = this.size - 1
+public val UIntArray.indices: IntRange get() = 0..this.lastIndex
+
 public fun UByteArray.toList(): List<UByte> = __kkUByteArrayToList(this)
 public fun UShortArray.toList(): List<UShort> = __kkUShortArrayToList(this)
 public fun UIntArray.toList(): List<UInt> = __kkUIntArrayToList(this)

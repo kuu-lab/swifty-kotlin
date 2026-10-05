@@ -210,7 +210,8 @@ extension CallLowerer {
 
         // Primitive member function: Int/Long/UInt/ULong/UByte/UShort.inv() → kk_op_inv (P5-103, TYPE-005)
         if calleeStr == "inv",
-           args.isEmpty
+           args.isEmpty,
+           sema.bindings.callBinding(for: exprID) == nil
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -235,9 +236,14 @@ extension CallLowerer {
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
                 let nonNullResult = arena.appendTemporary(type: callResultType)
+                var receiverArgument = loweredReceiverID
+                if receiverType != nonNullReceiverType {
+                    receiverArgument = arena.appendTemporary(type: nonNullReceiverType)
+                    instructions.append(.copy(from: loweredReceiverID, to: receiverArgument))
+                }
                 emitNonThrowingCall(
                     callee: interner.intern("kk_op_inv"),
-                    arg: loweredReceiverID,
+                    arg: receiverArgument,
                     result: nonNullResult,
                     into: &instructions.instructions
                 )
@@ -332,6 +338,7 @@ extension CallLowerer {
                 let rawRhsType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
                 let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
                 let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
+                let isBitwiseReceiver = isShiftReceiver || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
                 let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
                 let primitiveCallee: InternedString? = switch calleeStr {
                 case "plus":
@@ -355,11 +362,11 @@ extension CallLowerer {
                         ? interner.intern("kk_op_urem")
                         : interner.intern(nonNullReceiverType == longType || nonNullRhsType == longType ? "kk_op_lfloor_mod" : "kk_op_floor_mod")
                 case "and":
-                    rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_and") : nil
+                    isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_and") : nil
                 case "or":
-                    rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_or") : nil
+                    isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_or") : nil
                 case "xor":
-                    rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
+                    isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
                 case "shl":
                     isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_shl") : nil
                 case "shr":
@@ -734,6 +741,24 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        if let primitiveCompareResult = tryLowerPrimitiveCompareTo(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: effectiveCalleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            precomputedReceiver: loweredReceiverID,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.copy(from: primitiveCompareResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // Explicit `.invoke(...)` on a receiver whose own type is a function
         // type (e.g. `fs["dbl"]?.invoke(4)`). Mirrors the non-safe-call arm
         // in `lowerMemberCallExpr` and goes through `lowerResolvedCallBody`
@@ -996,6 +1021,13 @@ extension CallLowerer {
             if Self.unresolvedCoroutineHandleMemberNames.contains(calleeStr), isCoroutineReceiver {
                 finalArguments.insert(loweredReceiverID, at: 0)
             }
+        }
+
+        if let chosen,
+           let localValue = driver.ctx.localValue(for: chosen),
+           let callable = driver.ctx.callableValueInfo(for: localValue)
+        {
+            finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
         }
 
         // Safe-call collection fallback can resolve the source-backed

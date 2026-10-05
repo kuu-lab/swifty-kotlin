@@ -28,7 +28,6 @@ fun snapshot(): Int {
 
 fun overridden(): Int {
     try { once { return 35 } } finally { return 36 }
-    return -1
 }
 
 fun localReturn(): Int {

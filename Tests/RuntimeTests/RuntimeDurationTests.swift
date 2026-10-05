@@ -384,22 +384,23 @@ struct RuntimeDurationTests {
     }
 
     @Test func testNullableParsersReturnTaggedLongPayloads() {
-        let cases: [(String, Int)] = [
-            ("PT5S", 5_000_000_000),
-            ("PT1H30M", 5_400_000_000_000),
-            ("PT1.5S", 1_500_000_000),
-            ("PT0S", 0),
-            ("-PT5S", -5_000_000_000),
-            ("PT999999999999999999999H", Int.max),
-            ("-PT999999999999999999999H", Int.min),
+        let cases: [(String, Int, Int)] = [
+            ("PT5S", 10_000_000_000, 5_000_000_000),
+            ("PT1H30M", 10_800_000_000_000, 5_400_000_000_000),
+            ("PT1.5S", 3_000_000_000, 1_500_000_000),
+            ("PT0S", 0, 0),
+            ("-PT5S", -10_000_000_000, -5_000_000_000),
+            ("PT10000000000000S", 20_000_000_000_000_001, Int.max),
+            ("PT999999999999999999999H", Int.max, Int.max),
+            ("-PT999999999999999999999H", -Int.max + 2, Int.min),
         ]
         for parse in [kk_duration_parseOrNull, kk_duration_parseIsoStringOrNull] {
-            for (input, expected) in cases {
+            for (input, expectedRaw, expectedNanoseconds) in cases {
                 let parsed = parse(stringHandle(input))
                 #expect(parsed != runtimeNullSentinelInt)
-                #expect(kk_unbox_long(parsed) == expected)
-                #expect(kk_unbox_long_static(parsed) == expected)
-                #expect(kk_duration_inWholeNanoseconds(parsed) == expected)
+                #expect(kk_unbox_long(parsed) == expectedRaw)
+                #expect(kk_unbox_long_static(parsed) == expectedRaw)
+                #expect(kk_duration_inWholeNanoseconds(parsed) == expectedNanoseconds)
                 #expect(runtimeObjectTypeID(rawValue: parsed) ==
                     runtimeStableNominalTypeID(fqName: "kotlin.time.Duration"))
             }
@@ -741,11 +742,90 @@ struct RuntimeDurationTests {
     // MARK: - Long.MAX_VALUE saturation (TEST-TIME-020)
 
     @Test func testDurationLongMaxValueSaturatesToInfinite() {
-        // Long.MAX_VALUE = Int64.max; all factories with a multiplier > 1 overflow to INFINITE
+        // Microseconds still fit in ms storage; coarser units exceed its range.
         let longMax = Int(Int64.max)
         #expect(kk_duration_isInfinite(durationFromDaysLong(longMax)) == 1)
         #expect(kk_duration_isInfinite(durationFromHoursLong(longMax)) == 1)
         #expect(kk_duration_isInfinite(durationFromMinutesLong(longMax)) == 1)
-        #expect(kk_duration_isInfinite(durationFromMicrosecondsLong(longMax)) == 1)
+        #expect(kk_duration_isInfinite(durationFromMicrosecondsLong(longMax)) == 0)
+        #expect(durationInWholeMilliseconds(durationFromMicrosecondsLong(longMax)) == longMax / 1_000)
+    }
+
+    @Test func testLongNanosecondExtremaRemainFinite() {
+        let positive = kk_duration_toDuration_long(Int.max, 0)
+        let negative = kk_duration_toDuration_long(Int.min, 0)
+        #expect(kk_duration_isInfinite(positive) == 0)
+        #expect(kk_duration_isInfinite(negative) == 0)
+        #expect(stringFromHandle(kk_duration_toString(positive)) == "106751d 23h 47m 16.854s")
+        #expect(stringFromHandle(kk_duration_toString(negative)) == "-(106751d 23h 47m 16.854s)")
+        #expect(kk_duration_inWholeNanoseconds(positive) == 9_223_372_036_854_000_000)
+        #expect(kk_duration_inWholeNanoseconds(negative) == -9_223_372_036_854_000_000)
+        #expect(kk_duration_unary_minus(negative) == positive)
+        #expect(kk_duration_absoluteValue(negative) == positive)
+        #expect(kk_duration_compareTo(positive, kk_duration_infinite()) < 0)
+        #expect(kk_duration_isInfinite(kk_duration_toDuration_long(Int.max, 2)) == 1)
+        #expect(kk_duration_isInfinite(kk_duration_toDuration_long(Int.min, 2)) == 1)
+    }
+
+    @Test func testNanosecondStorageBoundaryAndArithmetic() {
+        let maxNanos = 4_611_686_018_426_999_999
+        let nanos = kk_duration_toDuration_long(maxNanos, 0)
+        let millis = kk_duration_toDuration_long(maxNanos + 1, 0)
+        #expect(kk_duration_inWholeNanoseconds(nanos) == maxNanos)
+        #expect(kk_duration_inWholeNanoseconds(millis) == maxNanos + 1)
+        #expect(kk_duration_toDuration_long(maxNanos + 999_999, 0) == millis)
+        #expect(kk_duration_plus(nanos, durationFromNanoseconds(1)) == millis)
+        #expect(kk_duration_minus(millis, durationFromNanoseconds(1)) == millis)
+        #expect(kk_duration_minus(millis, durationFromMilliseconds(1)) == durationFromNanoseconds(maxNanos - 999_999))
+        #expect(kk_duration_compareTo(nanos, millis) < 0)
+        #expect(kk_duration_compareTo(kk_duration_unary_minus(nanos), kk_duration_unary_minus(millis)) > 0)
+        let doubled = kk_duration_times_int(kk_duration_toDuration_long(Int.max, 0), 2)
+        #expect(kk_duration_isInfinite(doubled) == 0)
+        #expect(kk_duration_inWholeNanoseconds(doubled) == Int.max)
+        #expect(kk_duration_div_int(doubled, 2) == kk_duration_toDuration_long(Int.max, 0))
+    }
+
+    @Test func testCoroutineMillisecondConversionDecodesStorage() {
+        #expect(kk_duration_inWholeMilliseconds(durationFromNanoseconds(2_500_000)) == 2)
+        #expect(kk_duration_inWholeMilliseconds(durationFromNanoseconds(-2_500_000)) == -2)
+        #expect(kk_duration_inWholeMilliseconds(kk_duration_toDuration_long(Int.max, 0)) == 9_223_372_036_854)
+        #expect(kk_duration_inWholeMilliseconds(kk_duration_toDuration_long(10_000_000_000_000, 2)) == 10_000_000_000_000)
+        #expect(kk_duration_inWholeMilliseconds(kk_duration_infinite()) == Int.max)
+        #expect(kk_duration_inWholeMilliseconds(kk_duration_unary_minus(kk_duration_infinite())) == Int.min)
+    }
+
+    @Test func testBoxedMillisecondEqualityPreservesDistinctFiniteValues() {
+        let firstRaw = kk_duration_toDuration_long(10_000_000_000_000, 2)
+        let secondRaw = kk_duration_plus(firstRaw, durationFromMilliseconds(1))
+        let first = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(firstRaw)))
+        let equal = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(firstRaw)))
+        let second = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(secondRaw)))
+        #expect(kk_duration_inWholeNanoseconds(first) == Int.max)
+        #expect(kk_duration_inWholeNanoseconds(second) == Int.max)
+        #expect(runtimeNonNullValuesEqual(first, equal))
+        #expect(!runtimeNonNullValuesEqual(first, second))
+        #expect(kk_any_member_hashCode(first) == kk_any_member_hashCode(equal))
+        #expect(kk_any_member_hashCode(first) != kk_any_member_hashCode(second))
+        var firstHash = Hasher()
+        var equalHash = Hasher()
+        runtimeElementKeyHash(first, into: &firstHash)
+        runtimeElementKeyHash(equal, into: &equalHash)
+        #expect(firstHash.finalize() == equalHash.finalize())
+    }
+
+    @Test func testMillisecondParsingAndNullableResultPreservePayload() throws {
+        let text = "106751d 23h 47m 16.854s"
+        var thrown = 0
+        let parsed = kk_duration_parse(stringHandle(text), &thrown)
+        let nullable = kk_duration_parseOrNull(stringHandle(text))
+        #expect(thrown == 0)
+        #expect(parsed == kk_duration_toDuration_long(Int.max, 0))
+        #expect(kk_unbox_long_static(nullable) == parsed)
+        #expect(kk_duration_isInfinite(nullable) == 0)
+        #expect(stringFromHandle(kk_duration_toString(nullable)) == text)
+        let boxed = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(parsed)))
+        #expect(kk_duration_compareTo(parsed, boxed) == 0)
+        let expectedHash = Int(Int32(truncatingIfNeeded: Int64(parsed) ^ (Int64(parsed) >> 32)))
+        #expect(kk_any_member_hashCode(boxed) == expectedHash)
     }
 }

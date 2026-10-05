@@ -94,7 +94,7 @@ extension DataFlowSemaPhase {
 
         // KSP-648: TimeMark / ComparableTimeMark members (elapsedNow, hasPassedNow,
         // hasNotPassedNow, plus/minus Duration, mark-to-mark minus, compareTo) are Kotlin
-        // extensions in Stdlib/kotlin/time/TimeMark.kt. Only the nominal types stay
+        // source members. Only the nominal types stay
         // synthetic so that markNow() and friends can refer to them.
 
         let timeSourceSymbol = ensureInterfaceSymbol(
