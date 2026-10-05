@@ -259,6 +259,16 @@ private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
     return tryCast(ptr, to: RuntimeKParameterBox.self)
 }
 
+@_cdecl("__kk_kparameter_create_typed")
+public func __kk_kparameter_create_typed(
+    _ index: Int, _ nameRaw: Int, _ typeRaw: Int, _ isOptional: Int, _ kind: Int, _ typeToken: Int, _ callableOwner: Int = 0
+) -> Int {
+    let raw = __kk_kparameter_create(index, nameRaw, typeRaw, isOptional, kind)
+    runtimeKParameterBox(from: raw)?.typeToken = typeToken
+    runtimeKParameterBox(from: raw)?.callableOwner = callableOwner
+    return raw
+}
+
 @_cdecl("__kk_kparameter_get_index")
 public func __kk_kparameter_get_index(_ raw: Int) -> Int {
     guard let box = runtimeKParameterBox(from: raw) else {

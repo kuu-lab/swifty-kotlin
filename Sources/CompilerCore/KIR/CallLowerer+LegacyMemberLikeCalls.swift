@@ -495,6 +495,26 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeText = calleeNameStr
+            if (calleeText == "start" || calleeText == "endInclusive"),
+               let runtimeGetter = closedRangeInterfaceRuntimeName(
+                   memberName: calleeText,
+                   receiverExpr: receiverExpr,
+                   receiverType: receiverType,
+                   chosenCallee: sema.bindings.callBindings[exprID]?.chosenCallee,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: runtimeGetter,
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             // Property `.first`/`.last` keep the non-throwing getters. Explicit
             // `first()`/`last()` must throw `NoSuchElementException` on empty,
             // including `IntRange` (Sema binds those calls to the property).
@@ -710,6 +730,7 @@ extension CallLowerer {
         // Primitive member function: Int/Long.inv() → kk_op_inv (P5-103)
         if calleeName == interner.intern("inv"),
            args.isEmpty,
+           sema.bindings.callBinding(for: exprID) == nil,
            shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold)
         {
             instructions.append(.call(
@@ -866,6 +887,7 @@ extension CallLowerer {
             let rawRhsType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
             let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
             let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
+            let isBitwiseReceiver = isShiftReceiver || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
             let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
             let primitiveCallee: InternedString? = switch calleeNameStr {
             case "plus":
@@ -889,11 +911,11 @@ extension CallLowerer {
                     ? interner.intern("kk_op_urem")
                     : interner.intern(nonNullReceiverType == longType || nonNullRhsType == longType ? "kk_op_lfloor_mod" : "kk_op_floor_mod")
             case "and":
-                rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_and") : nil
+                isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_and") : nil
             case "or":
-                rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_or") : nil
+                isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_or") : nil
             case "xor":
-                rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
+                isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
             case "shl":
                 isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_shl") : nil
             case "shr":
@@ -1182,6 +1204,8 @@ extension CallLowerer {
             case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
             case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
             case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
+            case ("toUShort", byteType, ushortType): interner.intern("kk_int_to_ushort")
+            case ("toUShort", shortType, ushortType): interner.intern("kk_int_to_ushort")
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
@@ -2410,25 +2434,14 @@ extension CallLowerer {
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
 
-        // Extract qualified super type information for super<Interface> calls
+        // Sema binds super<T> to the selected direct supertype, not the enclosing class.
         var qualifiedSuperType: SymbolID?
-        if isSuperCall, case let .superRef(interfaceQualifier, _) = ast.arena.expr(receiverExpr) {
-            if let qualifier = interfaceQualifier {
-                // Find the interface symbol that matches the qualifier
-                if let currentReceiverType = sema.bindings.exprTypes[receiverExpr],
-                   let classType = resolveClassType(currentReceiverType, sema: sema) {
-                    let classSymbol = classType.classSymbol
-                    let directSupertypes = sema.symbols.directSupertypes(for: classSymbol)
-                    let qualifierStr = interner.resolve(qualifier)
-                    for superID in directSupertypes {
-                        guard let superSym = sema.symbols.symbol(superID) else { continue }
-                        if superSym.kind == SymbolKind.interface && interner.resolve(superSym.name) == qualifierStr {
-                            qualifiedSuperType = superID
-                            break
-                        }
-                    }
-                }
-            }
+        if isSuperCall,
+           case .superRef(.some, _) = ast.arena.expr(receiverExpr),
+           let receiverType = sema.bindings.exprTypes[receiverExpr],
+           let classType = resolveClassType(receiverType, sema: sema)
+        {
+            qualifiedSuperType = classType.classSymbol
         }
 
         let callBinding = recoverMemberCallBinding(
@@ -2438,18 +2451,6 @@ extension CallLowerer {
             argumentExprs: args.map(\.expr),
             sema: sema
         ) ?? sema.bindings.callBindings[exprID]
-        if qualifiedSuperType == nil,
-           isSuperCall,
-           case let .superRef(interfaceQualifier?, _) = ast.arena.expr(receiverExpr),
-           let chosenCallee = callBinding?.chosenCallee,
-           chosenCallee != .invalid,
-           let ownerSymbol = sema.symbols.parentSymbol(for: chosenCallee),
-           let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .interface,
-           interner.resolve(ownerInfo.name) == interner.resolve(interfaceQualifier)
-        {
-            qualifiedSuperType = ownerSymbol
-        }
         let chosen: SymbolID? = if let chosenCallee = callBinding?.chosenCallee, chosenCallee != .invalid {
             chosenCallee
         } else {

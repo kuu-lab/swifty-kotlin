@@ -2,7 +2,7 @@
 struct InlineExpansion {
     let instructions: [KIRInstruction]
     let returnedExpr: KIRExprID?
-    /// True when the expansion contains non-local returns that exit the caller.
+    /// True when the expansion contains returns to a lexical enclosing function.
     let hasNonLocalReturn: Bool
     /// True when the expansion contains normal return terminators (returnValue/returnUnit)
     /// that need to be converted to exit-label jumps in the NLR path.
@@ -19,6 +19,7 @@ struct InlineExpansion {
 
 final class InlineLoweringPass: LoweringPass {
     var lambdaCaptureArgsByExpr: [KIRExprID: [KIRExprID]] = [:]
+    var nonLocalReturnTargets: Set<KIRReturnTarget> = []
 
     static let name = "InlineLowering"
     static let requiredStage: KIRStage = .propertyLowered
@@ -41,6 +42,13 @@ final class InlineLoweringPass: LoweringPass {
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         lambdaCaptureArgsByExpr.removeAll(keepingCapacity: true)
+        nonLocalReturnTargets = Set(module.arena.declarations.flatMap { declaration -> [KIRReturnTarget] in
+            guard case let .function(function) = declaration else { return [] }
+            return function.body.compactMap { instruction in
+                if case let .nonLocalReturn(_, target) = instruction { return target }
+                return nil
+            }
+        })
         let unitType = ctx.sema?.types.unitType
         // The expansion-target index snapshots every body the pass can
         // splice: module declarations (regular, `inline`, lambda bodies) and
@@ -202,6 +210,9 @@ final class InlineLoweringPass: LoweringPass {
                     labels: &labels,
                     expansionBudget: budget
                 ) {
+                    if let callerThrownResult {
+                        loweredBody.append(.constValue(result: callerThrownResult, value: .null))
+                    }
                     let (reroutedInstructions, throwDispatchLabel) = InlineThrowRerouting.rerouteUnprotectedThrows(
                         in: labels.relocate(lambdaExpansion.instructions),
                         callerThrownResult: callerThrownResult,
@@ -313,6 +324,10 @@ final class InlineLoweringPass: LoweringPass {
             // the caller's own labels and the inlined callee's cannot collide.
             let remappedInstructions = labels.relocate(expansion.instructions)
 
+            if let callerThrownResult {
+                loweredBody.append(.constValue(result: callerThrownResult, value: .null))
+            }
+
             // Redirect any throw inside the expansion that isn't already routed to
             // a local exception slot, so it reaches the caller's enclosing try
             // (see `InlineThrowRerouting`) instead of silently escaping the
@@ -365,10 +380,10 @@ final class InlineLoweringPass: LoweringPass {
                     }
 
                     switch expandedInstruction {
-                    case let .nonLocalReturn(value):
+                    case let .nonLocalReturn(value, target):
                         loweredBody.append(.nonLocalReturn(value.map {
                             InlineExprAliasing.resolveAlias(of: $0, aliases: aliases)
-                        }))
+                        }, target: target))
                         afterTerminator = true
                     case .resumeNonLocalReturn:
                         loweredBody.append(expandedInstruction)
@@ -503,6 +518,8 @@ final class InlineLoweringPass: LoweringPass {
                 result == expr || thrownResult == expr
             case let .copy(_, to):
                 to == expr
+            case let .beginNonLocalReturnScope(value, _, function):
+                function != nil && value == expr
             default:
                 false
             }

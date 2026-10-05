@@ -14,6 +14,7 @@ extension ExprTypeChecker {
             }
             locals[name] = (narrowed, local.symbol, local.isMutable, local.isInitialized)
         }
+        locals.memberFlow = state.members
     }
 
     // MARK: - Binary Expression Inference
@@ -55,7 +56,7 @@ extension ExprTypeChecker {
             )
             let lhsBranch = ctx.dataFlow.branchOnCondition(
                 lhsID,
-                base: ctx.flowState,
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ast,
                 sema: sema,
@@ -408,8 +409,6 @@ extension ExprTypeChecker {
             return effectiveType
         }
         let type: TypeID
-        let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
-        let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
 
         let lhsIsSigned = sema.types.isSigned(lhs)
         let rhsIsUnsigned = sema.types.isUnsigned(rhs)
@@ -470,12 +469,8 @@ extension ExprTypeChecker {
                 type = longType
             } else if lhs == ulongType || rhs == ulongType {
                 type = ulongType
-            } else if lhs == uintType || rhs == uintType {
+            } else if lhsIsUnsigned || rhsIsUnsigned {
                 type = uintType
-            } else if lhs == ushortType || rhs == ushortType {
-                type = ushortType
-            } else if lhs == ubyteType || rhs == ubyteType {
-                type = ubyteType
             } else {
                 type = intType
             }
@@ -494,12 +489,8 @@ extension ExprTypeChecker {
                 type = longType
             } else if lhs == ulongType || rhs == ulongType {
                 type = ulongType
-            } else if lhs == uintType || rhs == uintType {
+            } else if lhsIsUnsigned || rhsIsUnsigned {
                 type = uintType
-            } else if lhs == ushortType || rhs == ushortType {
-                type = ushortType
-            } else if lhs == ubyteType || rhs == ubyteType {
-                type = ubyteType
             } else {
                 type = intType
             }
@@ -512,12 +503,8 @@ extension ExprTypeChecker {
                 type = longType
             } else if lhs == ulongType || rhs == ulongType {
                 type = ulongType
-            } else if lhs == uintType || rhs == uintType {
+            } else if lhsIsUnsigned || rhsIsUnsigned {
                 type = uintType
-            } else if lhs == ushortType || rhs == ushortType {
-                type = ushortType
-            } else if lhs == ubyteType || rhs == ubyteType {
-                type = ubyteType
             } else {
                 type = intType
             }

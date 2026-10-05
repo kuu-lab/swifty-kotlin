@@ -37,11 +37,19 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     func parsePostfixOrPrimary() -> ExprID? {
+        let receiverStartIndex = index
         guard var expr = parsePrimary() else {
             return nil
         }
         while true {
             if matches(.symbol(.lessThan)) {
+                if let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
+                    guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {
+                        break
+                    }
+                    expr = reference
+                    continue
+                }
                 let savedIndex = index
                 if let typeArgs = tryParseExplicitTypeArgs() {
                     if matches(.symbol(.lParen)) {
@@ -144,15 +152,10 @@ extension BuildASTPhase.ExpressionParser {
             }
 
             if matches(.symbol(.doubleColon)) {
-                guard let opToken = consume(),
-                      let memberToken = current(),
-                      let memberName = tokenText(memberToken)
-                else {
+                guard let reference = parseCallableReference(receiver: expr) else {
                     break
                 }
-                _ = consume()
-                let range = mergeRanges(astArena.exprRange(expr), memberToken.range, fallback: opToken.range)
-                expr = astArena.appendExpr(.callableRef(receiver: expr, member: memberName, range: range))
+                expr = reference
                 continue
             }
 
@@ -172,6 +175,13 @@ extension BuildASTPhase.ExpressionParser {
             var memberEndRange = memberToken.range
             var hasExplicitCall = false
             if matches(.symbol(.lessThan)) {
+                if let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
+                    guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {
+                        break
+                    }
+                    expr = reference
+                    continue
+                }
                 let savedIndex = index
                 if let ta = tryParseExplicitTypeArgs() {
                     typeArgs = ta

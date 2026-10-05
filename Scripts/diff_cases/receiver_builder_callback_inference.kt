@@ -33,4 +33,7 @@ fun main() {
     val clause = Clause<Int>()
     val chosen = choose { clause.onResult { it + 1 } }
     println(chosen + 1)
+    val expected: Int = build {}
+    val explicit = build<Int> {}
+    println(expected + explicit)
 }

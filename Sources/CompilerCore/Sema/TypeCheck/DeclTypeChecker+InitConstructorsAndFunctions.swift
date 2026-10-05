@@ -669,7 +669,11 @@ extension DeclTypeChecker {
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
         // extension receiver from inside a lambda with its own receiver.
         if let extensionReceiverType = signature.receiverType {
-            functionCtx = functionCtx.withOuterReceiver(label: function.name, type: extensionReceiverType)
+            functionCtx = functionCtx.withOuterReceiver(
+                label: function.name,
+                type: extensionReceiverType,
+                symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            )
         }
         // Propagate suppression flag so that individual `return` statements inside
         // functions with inferred return types also skip the platform-type warning.
@@ -948,13 +952,18 @@ extension DeclTypeChecker {
            case let .call(returnsCalleeExprID, _, returnsArgs, _) = receiverExpr,
            let returnsCalleeExpr = ast.arena.expr(returnsCalleeExprID),
            case let .nameRef(returnsName, _) = returnsCalleeExpr,
-           interner.resolve(returnsName) == "returns"
+           ["returns", "returnsNotNull"].contains(interner.resolve(returnsName))
         {
             // Determine the returns constraint: nil = any return,
             // true/false = when the function returns that specific Boolean.
             let returnsValue: Bool?
-            if returnsArgs.isEmpty {
+            let returnCondition: ContractReturnCondition
+            if interner.resolve(returnsName) == "returnsNotNull", returnsArgs.isEmpty {
                 returnsValue = nil
+                returnCondition = .returnsNotNull
+            } else if interner.resolve(returnsName) == "returns", returnsArgs.isEmpty {
+                returnsValue = nil
+                returnCondition = .normally
                 // Also record the bare returns() effect for the function.
                 if sema.symbols.contractReturnsEffect(for: symbol) == nil {
                     sema.symbols.setContractReturnsEffect(
@@ -966,12 +975,19 @@ extension DeclTypeChecker {
                       let boolValue = extractBooleanLiteral(returnsArgs[0].expr, ast: ast, interner: interner)
             {
                 returnsValue = boolValue
+                returnCondition = boolValue ? .returnsTrue : .returnsFalse
+            } else if returnsArgs.count == 1,
+                      isNullLiteralExpr(returnsArgs[0].expr, ast: ast, interner: interner)
+            {
+                returnsValue = nil
+                returnCondition = .returnsNull
             } else {
                 return
             }
             recordReturnsImpliesEffect(
                 impliesArgs: impliesArgs,
                 returnsValue: returnsValue,
+                returnCondition: returnCondition,
                 function: function,
                 symbol: symbol,
                 signature: signature,
@@ -1032,7 +1048,7 @@ extension DeclTypeChecker {
            let firstArgExpr = ast.arena.expr(callArgs[0].expr),
            case let .nameRef(lambdaParamName, _) = firstArgExpr
         {
-            var invocationKind: InvocationKind = .exactlyOnce
+            var invocationKind: InvocationKind = .unknown
             if callArgs.count == 2 {
                 invocationKind = resolveInvocationKindArg(
                     callArgs[1].expr, ast: ast, interner: interner
@@ -1079,6 +1095,7 @@ extension DeclTypeChecker {
     private func recordReturnsImpliesEffect(
         impliesArgs: [CallArgument],
         returnsValue: Bool?,
+        returnCondition: ContractReturnCondition,
         function: FunDecl,
         symbol: SymbolID,
         signature: FunctionSignature,
@@ -1113,7 +1130,11 @@ extension DeclTypeChecker {
             }
             // For bare `returns() implies (param != null)`, also record the legacy
             // ContractNonNullEffect for backward compatibility.
-            if returnsValue == nil {
+            sema.symbols.addContractImplicationEffect(
+                ContractImplicationEffect(parameterIndex: parameterIndex, returnCondition: returnCondition, argumentCondition: .nonNull),
+                for: symbol
+            )
+            if returnCondition == .normally {
                 sema.symbols.setContractNonNullEffect(
                     ContractNonNullEffect(
                         parameterSymbol: signature.valueParameterSymbols[parameterIndex],
@@ -1133,6 +1154,11 @@ extension DeclTypeChecker {
            parameterIndex < signature.parameterTypes.count,
            signature.parameterTypes[parameterIndex] == sema.types.booleanType
         {
+            sema.symbols.addContractImplicationEffect(
+                ContractImplicationEffect(parameterIndex: parameterIndex, returnCondition: returnCondition, argumentCondition: .booleanTrue),
+                for: symbol
+            )
+            guard returnCondition != .returnsNotNull, returnCondition != .returnsNull else { return }
             sema.symbols.setContractConditionEffect(
                 ContractConditionEffect(
                     conditionParameterIndex: parameterIndex,

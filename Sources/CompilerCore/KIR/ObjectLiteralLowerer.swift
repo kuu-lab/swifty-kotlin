@@ -532,9 +532,9 @@ final class ObjectLiteralLowerer {
             target: superCtorSymbol,
             receiver: objectValue,
             loweredArgs: loweredArgs,
-            sourceArgs: objectDecl.superTypeConstructorArgs,
             spreadFlags: objectDecl.superTypeConstructorArgs.map(\.isSpread),
             callBinding: callBinding,
+            sourceArgExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             result: resultID,
             shared: KIRLoweringSharedContext(
                 ast: ast, sema: sema, arena: arena, interner: interner,

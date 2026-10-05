@@ -1117,6 +1117,7 @@
     - `kotlin.collections.ArrayList.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
 
 - [~] KSP-1046: kotlin.collections.ArrayList.ArrayList の未実装 stdlib API を実装する（25 件）
+  - 内部build focused回帰: canonical ArrayList ownerの `@PublishedApi internal build()` / metadata・client visibility、返値内容、freeze後の全直接mutation（remove(E)の不存在/存在/nullも含む）拒否、capacity hint境界をsource O0 / artifact O0・O2で検証する。既存boxのread-only metadata queryをArrayList局所guardへ接続し、共有freeze・MutableCollection/List dispatch/ABIは変更しない。source注入O2はKUU-969と同型の共有stdlib LLVM ABI不整合を再現し、全体ゲート未実行のため `[~]` を維持する。
   - 実装済み・focused確認（2026-09-27、KUU-669）: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayList/ArrayList.kt` へクラスを移し（CollectionAliases.kt から分離、`HashSet.kt` 等の per-nominal ディレクトリ規約に準拠）、25 メンバーを source-backed にした。`size`/`isEmpty`/`get`/`set`/`contains`/`containsAll`/`iterator`/`listIterator`×2/`subList`/`add`/`add`/`addAll`×2/`clear`/`remove`/`removeAll`/`removeAt`/`retainAll`/`toString` は `@KsSymbolName` 付き `override external` で既存 `kk_list_*`/`__kk_mutable_list_*`/`__kk_collection_*` bridge へ直結、`build()` は upstream 同様 `@PublishedApi internal`（`__kk_builder_list_freeze` 経由）、`equals`/`hashCode` は upstream の ordered-content 契約を Kotlin 本体で実装、`indexOf`/`lastIndexOf` は get/size ループ、`ensureCapacity`/`trimToSize` は capacity が runtime 管理のため contract-only の no-op。`iterator()` は upstream に合わせ `MutableIterator<E>` 返しに修正。ArrayList メンバー固有の stub / RuntimeABISpec エントリ / name-string 特例は存在せず削除対象なし（`CallTypeChecker` の `ArrayList` コンストラクタ型推論と CollectionMemberFallback の汎用 receiver-category 経路は共有仕組みとして残置）。新規 Sema Golden `stdlib_kotlin_collections_ArrayList_ArrayList_n.kt` を追加し、新規 diff ケース `stdlib_kotlin_collections_ArrayList_ArrayList_n.kt` は kotlinc diff PASS。確認済み: `swift build`、新規ケースの Sema Golden render（旧 CollectionAliases 状態との差分なし=機械的差分）、`check_todo_ids.sh`、`validate_runtime_abi_links.sh`（5件PASS）、`git diff --check`。全 `swift_test.sh` / 全 diff_cases は共通ゲートとして PR CI に委ねるため `[~]` を維持する。
   - 対象: `kotlin.collections.ArrayList` / receiver `ArrayList`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayList/ArrayList.kt`（該当ファイルが無ければ新規作成）
@@ -1298,7 +1299,7 @@
 
 - [ ] KSP-1075: kotlin.collections.MutableMap.MutableMap の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.collections.MutableMap` / receiver `MutableMap`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableMap/MutableMap.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableMap.kt`（既存 canonical interface owner）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_MutableMap_MutableMap_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_MutableMap_MutableMap_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_MutableMap_MutableMap_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。

@@ -8,6 +8,8 @@ struct TypeInferenceContext: CustomStringConvertible {
     let interner: StringInterner
     var scope: Scope
     var implicitReceiverType: TypeID?
+    /// Receiver values in lexical order, including shadowed lambda receivers.
+    var implicitReceiverStack: [(type: TypeID, symbol: SymbolID)] = []
     var builderInference: BuilderInferenceSession?
     var loopDepth: Int
     var loopLabelStack: [InternedString]
@@ -58,6 +60,7 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// When true, the current scope is a `flow { ... }` builder lambda body.
     /// Used to resolve unqualified `emit(...)` fallback.
     var isFlowBuilderLambdaScope: Bool = false
+    var flowBuilderInference: FlowBuilderInferenceSession?
     /// When true, the current scope is a coroutine builder lambda body.
     /// The lambda keeps the existing no-receiver ABI, but unqualified
     /// `CoroutineScope` extension calls still resolve against the ambient scope.

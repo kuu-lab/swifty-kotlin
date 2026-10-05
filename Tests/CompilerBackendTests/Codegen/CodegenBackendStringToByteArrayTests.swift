@@ -8,6 +8,34 @@ import Testing
 struct CodegenBackendStringToByteArrayTests {
 
     @Test
+    func testCodegenNullableCharsetNamesPreserveZeroTag() throws {
+        let source = """
+        fun choose(flag: Boolean): Charset? = if (flag) Charsets.UTF_8 else null
+        fun render(charset: Charset?) {
+            println(charset)
+            println(charset?.name())
+            println(charset?.toString())
+            println("$charset")
+            println("charset=" + charset)
+            println(charset == null)
+        }
+        fun main() {
+            render(choose(true))
+            render(choose(false))
+            render(Charsets.UTF_16)
+            println("é".toByteArray(choose(true)!!).contentToString())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableCharsetNames",
+            expected: "UTF-8\nUTF-8\nUTF-8\nUTF-8\ncharset=UTF-8\nfalse\n"
+                + "null\nnull\nnull\nnull\ncharset=null\ntrue\n"
+                + "UTF-16\nUTF-16\nUTF-16\nUTF-16\ncharset=UTF-16\nfalse\n[-61, -87]\n"
+        )
+    }
+
+    @Test
     func testCodegenStringToByteArrayNoArg() throws {
         let source = """
         fun main() {
