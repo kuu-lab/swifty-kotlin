@@ -38,10 +38,11 @@ public func __kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int 
 public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int) -> Int {
     // STDLIB-563: If the handle is a coroutine builder proxy, yield each element lazily.
     if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
+        var thrown = 0
         if let seq = runtimeSequenceBox(from: collectionRaw) {
             // Preserve outer lazy semantics: traverse nested sequence elements
             // on demand instead of materializing them first.
-            runtimeTraverseSequence(seq, outThrown: nil) { elem in
+            runtimeTraverseSequence(seq, outThrown: &thrown) { elem in
                 _ = proxy.coroutine.yieldValue(elem)
                 return true
             }
@@ -59,12 +60,15 @@ public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: I
             }
         } else if runtimeIteratorBuilderBox(from: collectionRaw) != nil
                || runtimeListIteratorBox(from: collectionRaw) != nil {
-            while __kk_iterator_builder_hasNext(collectionRaw) != 0 {
-                _ = proxy.coroutine.yieldValue(__kk_iterator_builder_next(collectionRaw))
+            while kk_iterator_hasNext(collectionRaw, &thrown) != 0, thrown == 0 {
+                let value = kk_iterator_next(collectionRaw, &thrown)
+                if thrown != 0 { break }
+                _ = proxy.coroutine.yieldValue(value)
             }
         } else {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yieldAll received invalid collection handle (expected List, Array, Set, Sequence, or Iterator)")
         }
+        proxy.coroutine.recordFailure(thrown)
         return 0
     }
     guard let builder = runtimeSequenceBuilderBox(from: builderRaw) else {

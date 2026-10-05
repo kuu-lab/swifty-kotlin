@@ -1873,6 +1873,10 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// Called by the producer to yield a value.
     func yieldValue(_ value: Int) -> Int {
         stateLock.lock()
+        guard failure == 0 else {
+            stateLock.unlock()
+            return 0
+        }
         pendingYieldedValues.append(value)
         stateLock.unlock()
 
@@ -1887,10 +1891,18 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// Called by the producer when it finishes (normally or via exception).
     func markFinished(thrown: Int = 0) {
         stateLock.lock()
-        failure = thrown
+        if failure == 0 { failure = thrown }
         finished = true
         stateLock.unlock()
         consumerGate.signal()
+    }
+
+    // The retained yieldAll ABI has no outThrown slot; keep its delegated
+    // failure until the legacy callback completes and the consumer receives it.
+    func recordFailure(_ thrown: Int) {
+        stateLock.lock()
+        if failure == 0 { failure = thrown }
+        stateLock.unlock()
     }
 
     private func consumePendingValueLocked() -> Int? {
@@ -2264,6 +2276,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private var cpsLoopStarted = false
     private var producerContinuationRaw: Int = 0
     private var failure: Int = 0
+    private var failureReported = false
 
     /// The most recently yielded value, valid when `state == .hasValue`.
     private(set) var yieldedValue: Int = 0
@@ -2314,16 +2327,27 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
             return true
         case .done:
             stateLock.lock()
-            outThrown?.pointee = failure
+            let thrown = failureForProbeLocked()
             stateLock.unlock()
+            outThrown?.pointee = thrown
             return false
         case .initial:
             awaitProducerYield()
             stateLock.lock()
             defer { stateLock.unlock() }
-            outThrown?.pointee = failure
+            let thrown = failureForProbeLocked()
+            outThrown?.pointee = thrown
             return state == .hasValue
         }
+    }
+
+    private func failureForProbeLocked() -> Int {
+        guard failure != 0 else { return 0 }
+        if failureReported {
+            return runtimeAllocateIllegalStateException(message: "Iterator has failed.")
+        }
+        failureReported = true
+        return failure
     }
 
     func consumeNext(outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {

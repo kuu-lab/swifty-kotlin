@@ -94,6 +94,7 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
     private var bufferedElements: [Int] = []
     private var bufferedIndex = 0
     private var exhausted = false
+    private var builderFailed = false
     private var started = false
 
     init(seq: RuntimeSequenceBox, source: Source) {
@@ -110,6 +111,10 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
     }
 
     func hasNext(outThrown: UnsafeMutablePointer<Int>?) -> Bool {
+        if builderFailed {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Iterator has failed.")
+            return false
+        }
         if bufferedIndex < bufferedElements.count { return true }
         guard !exhausted else { return false }
         if !started {
@@ -160,7 +165,14 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
     private func nextSourceElement(outThrown: UnsafeMutablePointer<Int>?) -> Int? {
         switch source {
         case let .builder(coroutine):
-            switch coroutine.nextElement(outThrown: outThrown) {
+            var thrown = 0
+            let next = coroutine.nextElement(outThrown: &thrown)
+            if thrown != 0 {
+                builderFailed = true
+                outThrown?.pointee = thrown
+                return nil
+            }
+            switch next {
             case let .value(value): return value
             case .done: return nil
             }

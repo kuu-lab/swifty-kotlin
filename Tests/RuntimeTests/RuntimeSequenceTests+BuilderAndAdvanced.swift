@@ -104,6 +104,111 @@ extension RuntimeSequenceTests {
         #expect(thrown == 0)
     }
 
+    @Test(arguments: [false, true])
+    func testFactoryYieldAllPropagatesNestedIteratorFailure(yieldsFirst: Bool) throws {
+        let inner: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "nested")
+            return 0
+        }
+        let innerAfterYield: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builder, thrown in
+            _ = __kk_iterator_builder_yield(builder, 17)
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "nested")
+            return 0
+        }
+        let outer: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { iterator, builder, _ in
+            _ = __kk_sequence_builder_yieldAll(builder, iterator)
+            _ = __kk_sequence_builder_yield(builder, 99)
+            return 0
+        }
+        let iterator = __kk_iterator_builder_build(unsafeBitCast(yieldsFirst ? innerAfterYield : inner, to: Int.self))
+        let sequence = __kk_sequence_builder_build(unsafeBitCast(outer, to: Int.self), iterator)
+        var thrown = 0
+        #expect(kk_sequence_to_list(sequence, &thrown) == runtimeNullSentinelInt)
+        let error = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(error.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(error.message == "nested")
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func testFactoryFailedIteratorDoesNotReplayProducerException(firstUsesNext: Bool, usesCPS: Bool) throws {
+        let producer: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "boom")
+            return 0
+        }
+        let iterator = usesCPS
+            ? __kk_iterator_builder_build_coro(unsafeBitCast(producer, to: Int.self), 730_003, 0)
+            : __kk_iterator_builder_build(unsafeBitCast(producer, to: Int.self))
+        var thrown = 0
+        if firstUsesNext {
+            _ = kk_iterator_next(iterator, &thrown)
+        } else {
+            _ = kk_iterator_hasNext(iterator, &thrown)
+        }
+        let original = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(original.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(original.message == "boom")
+        for usesNext in [false, true, false] {
+            thrown = 0
+            if usesNext {
+                _ = kk_iterator_next(iterator, &thrown)
+            } else {
+                _ = kk_iterator_hasNext(iterator, &thrown)
+            }
+            let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+            #expect(failure.exceptionFQName == "kotlin.IllegalStateException")
+            #expect(failure.message == "Iterator has failed.")
+        }
+    }
+
+    @Test
+    func testFactoryYieldAllPropagatesNestedSequenceFailure() throws {
+        let inner: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builder, thrown in
+            _ = __kk_sequence_builder_yield(builder, 17)
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "nested sequence")
+            return 0
+        }
+        let outer: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { source, builder, _ in
+            __kk_sequence_builder_yieldAll(builder, source)
+        }
+        let source = __kk_sequence_builder_build(unsafeBitCast(inner, to: Int.self))
+        let sequence = __kk_sequence_builder_build(unsafeBitCast(outer, to: Int.self), source)
+        var thrown = 0
+        #expect(kk_sequence_to_list(sequence, &thrown) == runtimeNullSentinelInt)
+        let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(failure.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(failure.message == "nested sequence")
+    }
+
+    @Test(arguments: [false, true])
+    func testFactoryFailedSequenceIteratorDoesNotReplayProducerException(usesCPS: Bool) throws {
+        let legacy: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "sequence boom")
+            return 0
+        }
+        let cps: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "sequence boom")
+            return 0
+        }
+        let sequence = usesCPS
+            ? __kk_sequence_builder_build_coro(unsafeBitCast(cps, to: Int.self), 730_004, 0)
+            : __kk_sequence_builder_build(unsafeBitCast(legacy, to: Int.self))
+        var thrown = 0
+        let iterator = kk_sequence_box_iterator(sequence, &thrown)
+        for probe in 0..<3 {
+            #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
+            let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+            #expect(failure.exceptionFQName == (probe == 0 ? "kotlin.IllegalArgumentException" : "kotlin.IllegalStateException"))
+            #expect(failure.message == (probe == 0 ? "sequence boom" : "Iterator has failed."))
+        }
+        _ = kk_sequence_iterator_next(iterator, &thrown)
+        let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(failure.message == "Iterator has failed.")
+        let fresh = kk_sequence_box_iterator(sequence, &thrown)
+        _ = kk_sequence_iterator_next(fresh, &thrown)
+        let original = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(original.message == "sequence boom")
+    }
+
     @Test
     func testFactoryGeneratorClaimsOneShotAtIteratorAcquisition() {
         let next: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in runtimeNullSentinelInt }
