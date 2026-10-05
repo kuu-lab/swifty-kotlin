@@ -593,9 +593,10 @@ final class ExprTypeChecker {
                 for (name, outerLocal) in locals {
                     if let blockLocal = blockLocals[name],
                        blockLocal.symbol == outerLocal.symbol,
-                       !outerLocal.isInitialized, blockLocal.isInitialized
+                       (outerLocal.isMutable && sema.types.nullability(of: sema.symbols.propertyType(for: outerLocal.symbol) ?? outerLocal.type) == .nullable)
+                           || (!outerLocal.isInitialized && blockLocal.isInitialized)
                     {
-                        locals[name] = (outerLocal.type, outerLocal.symbol, outerLocal.isMutable, true)
+                        locals[name] = (blockLocal.type, outerLocal.symbol, outerLocal.isMutable, blockLocal.isInitialized)
                     }
                 }
             }

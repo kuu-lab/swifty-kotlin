@@ -602,7 +602,17 @@ extension LocalDeclTypeChecker {
         )))
 
         // Local functions introduce a new scope for control flow: reset loop/lambda stacks.
+        let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
+        ctx.dataFlow.localStability.currentLocalFunctionScope = id
+        defer { ctx.dataFlow.localStability.currentLocalFunctionScope = previousFunctionScope }
         var bodyLocals = locals
+        // A deferred body cannot inherit mutable captures' flow facts from
+        // the declaration site. Establish its own facts while checking it.
+        for (name, local) in bodyLocals where local.isMutable {
+            let declaredType = sema.symbols.propertyType(for: local.symbol) ?? local.type
+            bodyLocals[name] = (declaredType, local.symbol, local.isMutable, local.isInitialized)
+        }
+        bodyLocals.memberFlow = [:]
         let bodyReceiverType: TypeID? = receiverType ?? ctx.implicitReceiverType
         var bodyCtx = ctx.copying(
             implicitReceiverType: bodyReceiverType,
@@ -614,6 +624,7 @@ extension LocalDeclTypeChecker {
             enclosingFunctionReturnType: resolvedReturnType,
             enclosingFunctionSymbol: funSymbol,
             enclosingLambdaExprIDs: [],
+            flowState: DataFlowState(),
             currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
         if let receiverType {

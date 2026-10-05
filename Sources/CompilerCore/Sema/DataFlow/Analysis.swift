@@ -31,6 +31,15 @@ struct DataFlowState: Equatable {
     func includingMembers(from locals: LocalBindings) -> DataFlowState {
         var state = self
         state.members = locals.memberFlow
+        // Assignments update local bindings. Do not revive a stale fact from
+        // an enclosing branch when splitting flow again after such a write.
+        for local in locals.values where local.isMutable {
+            if let variable = state.variables[local.symbol],
+               variable.possibleTypes.count == 1, !variable.possibleTypes.contains(local.type)
+            {
+                state.variables.removeValue(forKey: local.symbol)
+            }
+        }
         return state
     }
 }
