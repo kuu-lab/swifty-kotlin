@@ -72,7 +72,7 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
 
 /// Renders class handles consistently across Any.toString, printing, and collections.
 func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
-    "class \(box.reflectionQualifiedName)"
+    "class \(box.metadata?.displayName ?? box.reflectionQualifiedName)"
 }
 
 

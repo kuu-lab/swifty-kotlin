@@ -2605,6 +2605,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
 /// Populated from the binary metadata blob emitted by `RuntimeReflectionMetadataEmitter`.
 /// Each entry corresponds to a type or declaration that can be queried via `KClass` at runtime.
 struct RuntimeKClassMetadataEntry {
+    /// JVM binary name used only when rendering KClass handles.
+    var displayName: String? = nil
     let qualifiedName: String
     let simpleName: String
     let supertypeName: String?
@@ -2656,6 +2658,12 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return entries[typeToken]
+    }
+
+    func setDisplayName(typeToken: Int, displayName: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        entries[typeToken]?.displayName = displayName
     }
 
     func appendAnnotations(typeToken: Int, annotations: [RuntimeAnnotationRecord]) {
