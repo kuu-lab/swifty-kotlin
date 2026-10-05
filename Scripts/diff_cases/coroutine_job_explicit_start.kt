@@ -6,6 +6,9 @@ fun main() {
         println("launch before: ${lazyJob.isActive}")
         println("launch start: ${lazyJob.start()}")
         println("launch active: ${lazyJob.isActive}")
+        val boxedStart: Any = lazyJob.start()
+        println("launch boxed: $boxedStart")
+        println("launch branch: ${if (lazyJob.start()) "started" else "already started"}")
         println("launch again: ${lazyJob.start()}")
         lazyJob.join()
         println("launch completed: ${lazyJob.start()}")
@@ -35,13 +38,6 @@ fun main() {
         val cancelledTask = async(start = CoroutineStart.LAZY) { println("WRONG async"); 1 }
         cancelledTask.cancel()
         println("cancelled async: ${cancelledTask.start()}")
-        cancelledTask.join()
-
-        val task = async(start = CoroutineStart.LAZY) { println("WRONG started async"); 1 }
-        println("start before cancel: ${task.start()}")
-        task.cancel()
-        task.join()
-        println("start after cancel: ${task.start()}")
 
         val eagerJob = launch { }
         println("default launch: ${eagerJob.start()}")

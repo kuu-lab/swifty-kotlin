@@ -82,6 +82,38 @@ struct RuntimeJobStartTests {
         #expect(kk_job_is_completed(handle) == 1)
     }
 
+    @Test
+    func explicitDeferredStartDoesNotEnterTheBodyBeforeDispatch() {
+        let task = RuntimeAsyncTask()
+        let handle = runtimeRegisterObject(task)
+        task.installLazyStartBody {}
+        #expect(kk_job_start(handle) == 1)
+        #expect(kk_job_is_active(handle) == 1)
+        task.cancel()
+        #expect(kk_job_is_completed(handle) == 1)
+        #expect(kk_job_is_cancelled(handle) == 1)
+        #expect(kk_job_start(handle) == 0)
+    }
+
+    @Test(arguments: [false, true])
+    func completedLazyHandlesNeverStart(deferred: Bool) {
+        let calls = JobStartCounter()
+        let handle: Int
+        if deferred {
+            let task = RuntimeAsyncTask()
+            task.installLazyStartBody { calls.increment() }
+            task.complete(with: 42)
+            handle = runtimeRegisterObject(task)
+        } else {
+            let job = RuntimeJobHandle()
+            job.installLazyStartBody { calls.increment() }
+            #expect(job.complete(with: 42))
+            handle = runtimeRegisterObject(job)
+        }
+        #expect(kk_job_start(handle) == 0)
+        #expect(calls.count == 0)
+    }
+
     @Test(arguments: [false, true])
     func concurrentStartsClaimLazyBodyExactlyOnce(deferred: Bool) {
         let calls = JobStartCounter()

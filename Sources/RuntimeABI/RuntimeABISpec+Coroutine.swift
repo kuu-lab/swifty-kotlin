@@ -1332,7 +1332,8 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Coroutine",
-            isThrowing: false
+            isThrowing: false,
+            returnsRawBoolean: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_join",

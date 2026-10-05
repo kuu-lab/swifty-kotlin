@@ -4,6 +4,25 @@ import Testing
 @Suite
 struct CoroutineNominalSourceTests {
     @Test
+    func explicitStartResolvesWithoutBundledStdlib() throws {
+        try withTemporaryFile(contents: """
+        import kotlinx.coroutines.*
+        fun startJob(job: Job): Boolean = job.start()
+        fun startDeferred(deferred: Deferred): Boolean = deferred.start()
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let start = try #require(sema.symbols.lookup(fqName: [
+                "kotlinx", "coroutines", "Job", "start",
+            ].map(ctx.interner.intern)))
+            #expect(sema.symbols.externalLinkName(for: start) == "kk_job_start")
+            #expect(sema.symbols.symbol(start)?.flags.contains(.synthetic) == true)
+        }
+    }
+
+    @Test
     func nominalHierarchyAndConstructorsResolveFromBundledSource() throws {
         let source = """
         import kotlin.coroutines.*
