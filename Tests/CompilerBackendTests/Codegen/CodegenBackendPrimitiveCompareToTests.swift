@@ -8,6 +8,78 @@ import Testing
 struct CodegenBackendPrimitiveCompareToTests {
 
     @Test
+    func testByteAndShortCompareToAllSignedNumericTypes() throws {
+        let source = """
+        fun byteComparisons(b: Byte, s: Short, i: Int, l: Long, f: Float, d: Double) {
+            println(b.compareTo(b))
+            println(b.compareTo(s))
+            println(b.compareTo(i))
+            println(b.compareTo(l))
+            println(b.compareTo(f))
+            println(b.compareTo(d))
+        }
+        fun shortComparisons(s: Short, b: Byte, i: Int, l: Long, f: Float, d: Double) {
+            println(s.compareTo(b))
+            println(s.compareTo(s))
+            println(s.compareTo(i))
+            println(s.compareTo(l))
+            println(s.compareTo(f))
+            println(s.compareTo(d))
+        }
+        fun main() {
+            byteComparisons(1, 2, 2, 2L, 1.5f, 1.5)
+            shortComparisons(2, 1, 3, 3L, 2.5f, 2.5)
+            println(1.toByte().compareTo(2))
+            println(1.toShort().compareTo(2))
+            println(Byte.MIN_VALUE.compareTo(Byte.MAX_VALUE))
+            println(Short.MAX_VALUE.compareTo(Short.MIN_VALUE))
+            println(Byte.MAX_VALUE.compareTo(Long.MIN_VALUE))
+            println(Short.MIN_VALUE.compareTo(Long.MAX_VALUE))
+            println(Short.MAX_VALUE.compareTo(65536L))
+            println(Byte.MIN_VALUE.compareTo(-128.0))
+            println(0.toByte().compareTo(-0.0))
+            println(0.toShort().compareTo(-0.0f))
+            println(1.toByte().compareTo(Double.NaN))
+            println(1.toShort().compareTo(Float.POSITIVE_INFINITY))
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "NarrowPrimitiveCompareTo", expected: "0\n-1\n-1\n-1\n-1\n-1\n1\n0\n-1\n-1\n-1\n-1\n-1\n-1\n-1\n1\n1\n-1\n-1\n0\n1\n1\n-1\n-1\n")
+    }
+
+    @Test
+    func testByteAndShortCompareToPreservesSafeCallsAndGenericDispatch() throws {
+        let source = """
+        fun <T : Comparable<T>> compare(a: T, b: T): Int = a.compareTo(b)
+        fun receiver(value: Byte?): Byte? {
+            println("receiver")
+            return value
+        }
+        fun argument(): Double {
+            println("argument")
+            return 2.0
+        }
+        fun main() {
+            println(receiver(1)?.compareTo(argument()))
+            println(receiver(null)?.compareTo(argument()))
+            val short: Short? = -32768
+            println(short?.compareTo(Long.MAX_VALUE))
+            println(short?.compareTo(-32768.5f))
+            val absent: Short? = null
+            println(absent?.compareTo(argument()))
+            println(compare(Byte.MIN_VALUE, Byte.MAX_VALUE))
+            println(compare(Short.MAX_VALUE, Short.MIN_VALUE))
+            val byteComparable: Comparable<Byte> = Byte.MIN_VALUE
+            val shortComparable: Comparable<Short> = Short.MAX_VALUE
+            println(byteComparable.compareTo(Byte.MAX_VALUE))
+            println(shortComparable.compareTo(Short.MIN_VALUE))
+            val comparator: (Byte, Double) -> Int = { a, b -> a.compareTo(b) }
+            println(comparator(-128, -127.5))
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "NarrowPrimitiveCompareToSafeCall", expected: "receiver\nargument\n-1\nreceiver\nnull\n-1\n1\nnull\n-1\n1\n-1\n1\n-1\n")
+    }
+
+    @Test
     func testCodegenCompilesMixedFloatingPointCompareTo() throws {
         let source = """
         fun main() {

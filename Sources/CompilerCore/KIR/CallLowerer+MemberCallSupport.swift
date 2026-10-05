@@ -289,7 +289,8 @@ extension CallLowerer {
 
     func primitiveCompareABIKind(for type: TypeID, sema: SemaModule) -> PrimitiveCompareABIKind? {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
-        case .primitive(.int, _), .primitive(.ubyte, _), .primitive(.ushort, _):
+        case .primitive(.byte, _), .primitive(.short, _), .primitive(.int, _),
+             .primitive(.ubyte, _), .primitive(.ushort, _):
             return .int
         case .primitive(.long, _):
             return .long

@@ -51,7 +51,7 @@ extension DataFlowSemaPhase {
     ) {
         let kotlinPkg = [interner.intern("kotlin")]
 
-        let primitiveTypeNames = ["Int", "Long", "Double", "Float", "Char", "Boolean", "UInt", "ULong", "UByte", "UShort"]
+        let primitiveTypeNames = ["Byte", "Short", "Int", "Long", "Double", "Float", "Char", "Boolean", "UInt", "ULong", "UByte", "UShort"]
 
         for typeName in primitiveTypeNames {
             let primitiveSymbol = ensureClassSymbol(named: typeName, in: kotlinPkg, symbols: symbols, interner: interner)
