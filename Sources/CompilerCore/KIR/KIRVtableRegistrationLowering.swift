@@ -1479,9 +1479,32 @@ private func kirOverrideParameterTypesMatch(
 ) -> Bool {
     guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
     for (candidateType, interfaceType) in zip(candidateParameterTypes, interfaceParameterTypes) {
-        if case .typeParam = types.kind(of: candidateType) { continue }
-        if case .typeParam = types.kind(of: interfaceType) { continue }
-        if candidateType != interfaceType { return false }
+        if !kirOverrideParameterTypeMatches(candidateType, interfaceType, types: types) { return false }
+    }
+    return true
+}
+
+private func kirOverrideParameterTypeMatches(_ candidate: TypeID, _ interface: TypeID, types: TypeSystem) -> Bool {
+    if candidate == interface { return true }
+    if case .typeParam = types.kind(of: candidate) { return true }
+    if case .typeParam = types.kind(of: interface) { return true }
+    guard case let .classType(candidateClass) = types.kind(of: candidate),
+          case let .classType(interfaceClass) = types.kind(of: interface),
+          candidateClass.classSymbol == interfaceClass.classSymbol,
+          candidateClass.nullability == interfaceClass.nullability,
+          candidateClass.args.count == interfaceClass.args.count
+    else {
+        return false
+    }
+    for (candidateArg, interfaceArg) in zip(candidateClass.args, interfaceClass.args) {
+        switch (candidateArg, interfaceArg) {
+        case let (.invariant(lhs), .invariant(rhs)), let (.out(lhs), .out(rhs)), let (.in(lhs), .in(rhs)):
+            if !kirOverrideParameterTypeMatches(lhs, rhs, types: types) { return false }
+        case (.star, .star):
+            continue
+        default:
+            return false
+        }
     }
     return true
 }
