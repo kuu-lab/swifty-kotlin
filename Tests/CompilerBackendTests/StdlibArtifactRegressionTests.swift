@@ -264,6 +264,68 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testFlowTakeFirstAbort(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/flow_take_first_abort.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "FlowTakeFirstAbort",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                Requested element count 0 should be positive
+                Requested element count -1 should be positive
+                start
+                cleanup
+                [1]
+                start
+                cleanup
+                [1]
+                start
+                second
+                cleanup
+                [1, 2]
+                start
+                cleanup
+                1
+                start
+                cleanup
+                [1]
+                start
+                cleanup
+                1
+                [1, 2]
+                []
+                null
+                empty
+                start
+                cleanup
+                downstream
+                upstream
+
+                """)
+        }
+    }
+
     @Test
     func testFlowTerminalLogicThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

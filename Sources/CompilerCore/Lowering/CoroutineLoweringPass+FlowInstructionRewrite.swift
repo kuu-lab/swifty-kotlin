@@ -211,6 +211,8 @@ extension CoroutineLoweringPass {
                 // else (e.g. a `Sink.emit` member that stayed unbound) must
                 // keep its own dispatch instead of being swallowed by the
                 // Flow runtime bridge.
+                // Collector failures must use the original exception slot so
+                // upstream catch/finally blocks run before collection aborts.
                 if callee == names.emit, arguments.count == 1, isFlowScopeFunction,
                    !hasRealDeclaration(symbol, in: ctx) {
                     loweredBody.append(.call(
@@ -222,8 +224,8 @@ extension CoroutineLoweringPass {
                             appendIntConstantInBody(RuntimeFlowTag.emit.rawValue),
                         ],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil,
+                        canThrow: true,
+                        thrownResult: thrownResult,
                         isSuperCall: isSuperCall
                     ))
                     continue
