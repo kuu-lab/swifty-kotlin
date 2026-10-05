@@ -62,6 +62,20 @@ private func coro_intrinsics_nested_throw(_ continuation: Int, _ outThrown: Unsa
 @Suite(.serialized, .runtimeIsolation(.all))
 struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
+    @Test func dispatcherDefaultsOnlyApplyToNativeReceivers() {
+        let dispatcherObject = runtimeRegisterObject(RuntimeDispatcher(queue: .global(), tag: kk_dispatcher_default()))
+        for dispatcher in [kk_dispatcher_default(), kk_dispatcher_main(), kk_dispatcher_io(), dispatcherObject] {
+            #expect(kk_is_native_dispatcher(dispatcher) == 1)
+            #expect(kk_dispatcher_default_method(dispatcher, 123, 456) == 456)
+            #expect(kk_dispatcher_default_method(dispatcher, 0, 456) == 456)
+        }
+        for receiver in [0, runtimeNullSentinelInt, kk_coroutine_name_create(0)] {
+            #expect(kk_is_native_dispatcher(receiver) == 0)
+            #expect(kk_dispatcher_default_method(receiver, 123, 456) == 123)
+            #expect(kk_dispatcher_default_method(receiver, 0, 456) == 0)
+        }
+    }
+
     // MARK: - COROUTINE_SUSPENDED sentinel
 
     @Test func coroutineSuspendedSentinelIsNonNull() {
