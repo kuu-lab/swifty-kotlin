@@ -219,15 +219,15 @@ extension ExprTypeChecker {
         // user-declared extension such as `operator fun Int.times(v: Vec)`:
         // extension functions aren't members, so they can't be found that way
         // regardless of receiver type. Only search scope for one when the RHS
-        // isn't itself numeric, i.e. when the built-in primitive arithmetic
-        // below cannot apply — this leaves built-in arithmetic (and the
+        // isn't itself numeric, or a Char operand has no builtin arithmetic
+        // overload — this leaves built-in arithmetic (and the
         // member-wins behavior `operator_extension.kt` checks) unaffected.
         if operatorCandidates.isEmpty,
            lhsIsPrimitive,
            [.add, .subtract, .multiply, .divide, .modulo].contains(op)
         {
             let rhsIsNumeric = if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(rhs)) { true } else { false }
-            if !rhsIsNumeric {
+            if !rhsIsNumeric || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
                 let extensionCandidates = operatorNames.flatMap { name in
                     ctx.cachedScopeLookup(name).filter { candidate in
                         guard let symbol = ctx.cachedSymbol(candidate),
@@ -406,6 +406,15 @@ extension ExprTypeChecker {
             }
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
+        }
+        if hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
         let type: TypeID
 
@@ -610,6 +619,23 @@ extension ExprTypeChecker {
         }
         sema.bindings.bindExprType(id, type: type)
         return type
+    }
+
+    func hasInvalidBuiltinCharArithmetic(op: BinaryOp, lhs: TypeID, rhs: TypeID, sema: SemaModule) -> Bool {
+        guard sema.types.makeNonNullable(lhs) == sema.types.charType
+            || sema.types.makeNonNullable(rhs) == sema.types.charType
+        else { return false }
+        switch op {
+        case .add:
+            return !(lhs == sema.types.charType && (rhs == sema.types.intType || sema.types.isString(rhs)))
+                && !sema.types.isString(lhs)
+        case .subtract:
+            return !(lhs == sema.types.charType && (rhs == sema.types.intType || rhs == sema.types.charType))
+        case .multiply, .divide, .modulo:
+            return true
+        default:
+            return false
+        }
     }
 
     private func nominalRangeType(

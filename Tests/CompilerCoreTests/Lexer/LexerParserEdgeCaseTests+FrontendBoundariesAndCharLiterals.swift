@@ -352,6 +352,101 @@ extension LexerParserEdgeCaseTests {
     }
 
     @Test
+    func testCharArithmeticRejectsImplicitNumericConversions() throws {
+        var expressions = ["'a' + 'b'", "'a' * 2", "'a' / 2", "'a' % 3"]
+        for operand in ["c", "i", "l", "f", "d", "b", "s", "u", "ul"] {
+            for op in ["*", "/", "%"] {
+                expressions.append("c \(op) \(operand)")
+                expressions.append("\(operand) \(op) c")
+            }
+            if operand != "c" {
+                expressions.append("\(operand) + c")
+                expressions.append("\(operand) - c")
+            }
+            if operand != "i" {
+                expressions.append("c + \(operand)")
+                if operand != "c" {
+                    expressions.append("c - \(operand)")
+                }
+            }
+        }
+        expressions += ["c + ni", "c - ni", "nc + i", "nc - c", "nc + \"x\""]
+        let source = expressions.enumerated().map { index, expression in
+            "fun invalid\(index)(c: Char, i: Int, l: Long, f: Float, d: Double, b: Byte, s: Short, u: UInt, ul: ULong, nc: Char?, ni: Int?) = \(expression)"
+        }.joined(separator: "\n")
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == expressions.count, "Expected each invalid Char operation to be rejected: \(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" })
+        }
+    }
+
+    @Test
+    func testExplicitCharArithmeticRejectsImplicitNumericConversions() throws {
+        var expressions: [String] = []
+        for operand in ["c", "i", "l", "f", "d", "b", "s", "u", "ul"] {
+            for method in ["times", "div", "rem"] {
+                expressions.append("c.\(method)(\(operand))")
+                expressions.append("\(operand).\(method)(c)")
+            }
+            if operand != "c" {
+                expressions.append("\(operand).plus(c)")
+                expressions.append("\(operand).minus(c)")
+            }
+            if operand != "i" {
+                expressions.append("c.plus(\(operand))")
+                if operand != "c" {
+                    expressions.append("c.minus(\(operand))")
+                }
+            }
+        }
+        let source = expressions.enumerated().map { index, expression in
+            "fun invalid\(index)(c: Char, i: Int, l: Long, f: Float, d: Double, b: Byte, s: Short, u: UInt, ul: ULong) = \(expression)"
+        }.joined(separator: "\n")
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == expressions.count, "Expected each invalid explicit Char operation to be rejected: \(errors)")
+        }
+    }
+
+    @Test
+    func testCharArithmeticExtensionsAndBuiltinPriority() throws {
+        let source = """
+        operator fun Char.plus(other: Char): Int = this.code + other.code
+        operator fun Char.plus(other: Int): Int = this.code + other
+        operator fun Char.times(other: Int): Int = this.code * other
+        operator fun Char.div(other: Int): Int = this.code / other
+        operator fun Char.rem(other: Int): Int = this.code % other
+        operator fun Int.plus(other: Char): Int = this + other.code
+        fun test(c: Char, other: Char, i: Int) {
+            val sum: Int = c + other
+            val product: Int = c * i
+            val quotient: Int = c / i
+            val remainder: Int = c % i
+            val reversed: Int = i + c
+            val shifted: Char = c + i
+            val previous: Char = c - i
+            val distance: Int = c - other
+            val text: String = c + "x"
+            val prefix: String = "x" + c
+            val explicitShift: Char = c.plus(i)
+            val explicitPrevious: Char = c.minus(i)
+            val explicitDistance: Int = c.minus(other)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Valid Char members and extension operators should remain accepted: \(errors)")
+        }
+    }
+
+    @Test
     func testCharCompoundAssignmentPreservesCharType() throws {
         let source = """
         fun test() {
