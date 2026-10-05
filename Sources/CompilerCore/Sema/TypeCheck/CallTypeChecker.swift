@@ -1808,8 +1808,42 @@ final class CallTypeChecker {
                     guard !visibleOuterCandidates.isEmpty else {
                         continue
                     }
-                    candidates = visibleOuterCandidates
-                    callImplicitReceiverType = outerType
+                    // Member extensions consume two implicit receivers — the
+                    // tower entry that owns the declaration (dispatch) and an
+                    // implicit receiver matching the declared extension
+                    // receiver — so they resolve under a different
+                    // `callImplicitReceiverType` than ordinary members, which
+                    // check the dispatch receiver itself.
+                    var memberExtensionCandidates: [(symbol: SymbolID, receiverType: TypeID)] = []
+                    var regularCandidates: [SymbolID] = []
+                    for candidate in visibleOuterCandidates {
+                        guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil else {
+                            regularCandidates.append(candidate)
+                            continue
+                        }
+                        guard let signature = sema.symbols.functionSignature(for: candidate),
+                              let declaredReceiver = signature.receiverType,
+                              let extensionReceiver = ctx.implicitReceiverMemberLookupTypes().first(where: {
+                                  sema.types.isSubtype(
+                                      sema.types.makeNonNullable($0),
+                                      sema.types.makeNonNullable(declaredReceiver)
+                                  )
+                              })
+                        else { continue }
+                        memberExtensionCandidates.append((candidate, extensionReceiver))
+                    }
+                    if !regularCandidates.isEmpty {
+                        candidates = regularCandidates
+                        callImplicitReceiverType = outerType
+                    } else if let extensionReceiverType = memberExtensionCandidates.first?.receiverType {
+                        candidates = memberExtensionCandidates
+                            .filter { $0.receiverType == extensionReceiverType }
+                            .map(\.symbol)
+                        callImplicitReceiverType = extensionReceiverType
+                    }
+                    guard !candidates.isEmpty else {
+                        continue
+                    }
                     callInvisible = []
                     break
                 }
@@ -3459,6 +3493,30 @@ final class CallTypeChecker {
                 guard !outerCandidates.isEmpty else {
                     continue
                 }
+                // Member extensions consume two implicit receivers: the tower
+                // entry dispatches them while a (usually innermost) receiver
+                // supplies their declared extension receiver — `bump()` inside
+                // `Int.add()` binds `Base.bump` on dispatch `this@Derived` with
+                // receiver `Int`. Resolve them apart from plain members, which
+                // check the tower entry itself.
+                var outerMemberExtensionCandidates: [(symbol: SymbolID, receiverType: TypeID)] = []
+                var outerRegularCandidates: [SymbolID] = []
+                for candidate in outerCandidates {
+                    guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil else {
+                        outerRegularCandidates.append(candidate)
+                        continue
+                    }
+                    guard let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType,
+                          let extensionReceiver = ctx.implicitReceiverMemberLookupTypes().first(where: {
+                              sema.types.isSubtype(
+                                  sema.types.makeNonNullable($0),
+                                  sema.types.makeNonNullable(declaredReceiver)
+                              )
+                          })
+                    else { continue }
+                    outerMemberExtensionCandidates.append((candidate, extensionReceiver))
+                }
                 let outerArgTypes = args.map { argument in
                     driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
                 }
@@ -3466,7 +3524,7 @@ final class CallTypeChecker {
                     CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
                 }
                 let resolvedOuter = ctx.resolver.resolveCall(
-                    candidates: outerCandidates,
+                    candidates: outerRegularCandidates,
                     call: CallExpr(
                         range: range,
                         calleeName: calleeName,
@@ -3477,6 +3535,46 @@ final class CallTypeChecker {
                     implicitReceiverType: outerReceiver.type,
                     ctx: ctx.semaCtx
                 )
+                if resolvedOuter.chosenCallee == nil {
+                    var seenExtensionReceivers = Set<TypeID>()
+                    for receiverType in outerMemberExtensionCandidates.map(\.receiverType)
+                    where seenExtensionReceivers.insert(receiverType).inserted
+                    {
+                        let receiverCandidates = outerMemberExtensionCandidates
+                            .filter { $0.receiverType == receiverType }
+                            .map(\.symbol)
+                        let resolvedExtension = ctx.resolver.resolveCall(
+                            candidates: receiverCandidates,
+                            call: CallExpr(
+                                range: range,
+                                calleeName: calleeName,
+                                args: resolvedOuterArgs,
+                                explicitTypeArgs: explicitTypeArgs
+                            ),
+                            expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
+                            implicitReceiverType: receiverType,
+                            ctx: ctx.semaCtx
+                        )
+                        if let chosen = resolvedExtension.chosenCallee {
+                            let resultType = bindCallAndResolveReturnType(
+                                id,
+                                chosen: chosen,
+                                resolved: resolvedExtension,
+                                sema: sema
+                            )
+                            sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                            sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: outerReceiverSymbol)
+                            markCoroutineScopeImplicitReceiverCallIfNeeded(
+                                id,
+                                chosenCallee: chosen,
+                                receiverType: outerReceiver.type,
+                                ctx: ctx
+                            )
+                            sema.bindings.bindExprType(id, type: resultType)
+                            return resultType
+                        }
+                    }
+                }
                 if let chosen = resolvedOuter.chosenCallee {
                     let resultType = bindCallAndResolveReturnType(
                         id,

@@ -1078,8 +1078,41 @@ final class CallLowerer {
             // enclosing `this`, not the member's own implicit receiver.
             var implicitReceiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
                 .flatMap { driver.ctx.localValue(for: $0) }
-            if memberExtensionOwnerSymbol(for: chosen, sema: sema) == nil,
-               let owner = sema.symbols.parentSymbol(for: chosen)
+            if memberExtensionOwnerSymbol(for: chosen, sema: sema) != nil {
+                // Member extensions carry a dispatch receiver ahead of the
+                // extension receiver: `implicitReceiverOuterReceiver` names
+                // the *dispatch* side, so the extension receiver must come
+                // from an implicit receiver whose type is a subtype of the
+                // declared receiver — the innermost `this` first, then a
+                // labeled/captured receiver that happens to match.
+                func matchesDeclaredReceiver(_ candidate: KIRExprID?) -> Bool {
+                    guard let candidate,
+                          let declaredReceiver = signature.receiverType,
+                          let type = arena.exprType(candidate)
+                    else { return false }
+                    return sema.types.isSubtype(
+                        sema.types.makeNonNullable(type),
+                        sema.types.makeNonNullable(declaredReceiver)
+                    )
+                }
+                if !matchesDeclaredReceiver(implicitReceiver) {
+                    implicitReceiver = nil
+                    if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                       matchesDeclaredReceiver(activeReceiver)
+                    {
+                        implicitReceiver = activeReceiver
+                    } else if let owner = sema.symbols.parentSymbol(for: chosen),
+                              let ownerName = sema.symbols.symbol(owner)?.name,
+                              let qualifiedThis = driver.ctx.qualifiedThisReceiverExprID(for: ownerName),
+                              matchesDeclaredReceiver(qualifiedThis)
+                    {
+                        implicitReceiver = qualifiedThis
+                    }
+                }
+                if implicitReceiver == nil {
+                    implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+                }
+            } else if let owner = sema.symbols.parentSymbol(for: chosen)
             {
                 if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
                    let activeType = arena.exprType(activeReceiver),
@@ -1087,7 +1120,9 @@ final class CallLowerer {
                    sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
                 {
                     implicitReceiver = activeReceiver
-                } else if let dispatchReceiver = driver.ctx.capturedOuterReceiverExprID(for: owner) {
+                } else if let dispatchReceiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
+                    ?? driver.ctx.capturedOuterReceiverExprID(reaching: owner, sema: sema)
+                {
                     implicitReceiver = dispatchReceiver
                 }
             }
@@ -1112,6 +1147,7 @@ final class CallLowerer {
                 if let owner = sema.symbols.parentSymbol(for: chosen),
                    owner != driver.ctx.activeImplicitReceiverSymbol(),
                    let capturedReceiver = driver.ctx.localValue(for: owner)
+                       ?? driver.ctx.capturedOuterReceiverExprID(reaching: owner, sema: sema)
                 {
                     implicitReceiver = capturedReceiver
                 }

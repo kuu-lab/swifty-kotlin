@@ -14,6 +14,7 @@ extension CallLowerer {
             .flatMap { sema.bindings.implicitReceiverOuterReceiver(for: $0) }
             .flatMap { driver.ctx.localValue(for: $0) }
             ?? driver.ctx.capturedOuterReceiverExprID(for: owner)
+            ?? driver.ctx.capturedOuterReceiverExprID(reaching: owner, sema: sema)
             ?? driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name)
             ?? driver.ctx.activeImplicitReceiverExprID()
     }

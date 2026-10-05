@@ -102,12 +102,16 @@ extension LambdaLowerer {
         }
         let memberSymbol = sema.bindings.callBinding(for: exprID)?.chosenCallee
             ?? sema.bindings.identifierSymbols[exprID]
+        // An inherited member's declared owner (e.g. `Base`) has no captured
+        // receiver of its own inside a member extension; the dispatch receiver
+        // is registered under the enclosing class (`Derived`), so record the
+        // owner that actually reaches it or the lambda loses the receiver.
         if let memberSymbol,
            let owner = sema.symbols.parentSymbol(for: memberSymbol),
-           driver.ctx.capturedOuterReceiverExprID(for: owner) != nil,
-           seen.insert(owner).inserted
+           let receiverOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
+           seen.insert(receiverOwner).inserted
         {
-            referenced.append(owner)
+            referenced.append(receiverOwner)
         }
         if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
            seen.insert(symbol).inserted

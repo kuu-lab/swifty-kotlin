@@ -232,6 +232,45 @@ struct TypeInferenceContext: CustomStringConvertible {
         return nil
     }
 
+    /// Ordered implicit receiver types for unqualified member lookup, innermost
+    /// first: the active implicit receiver, then enclosing lambda receivers,
+    /// then labeled `this@Label` receivers innermost-out, then the enclosing
+    /// class. A member extension body's `this` is its extension receiver, but
+    /// Kotlin still resolves the dispatch owner's members — including inherited
+    /// ones — through the same implicit receiver tower, so callers must probe
+    /// every entry rather than only `implicitReceiverType`.
+    func implicitReceiverMemberLookupTypes() -> [TypeID] {
+        var types: [TypeID] = []
+        var seen: Set<TypeID> = []
+        func appendUnique(_ type: TypeID) {
+            if seen.insert(type).inserted {
+                types.append(type)
+            }
+        }
+        if let implicitReceiverType {
+            appendUnique(implicitReceiverType)
+        }
+        for entry in implicitReceiverStack.reversed() {
+            appendUnique(entry.type)
+        }
+        for entry in outerReceiverTypes.reversed() {
+            appendUnique(entry.type)
+        }
+        if let enclosingClassSymbol {
+            let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
+                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            appendUnique(
+                sema.types.make(.classType(ClassType(
+                    classSymbol: enclosingClassSymbol,
+                    args: ownerArgs,
+                    nullability: .nonNull
+                )))
+            )
+        }
+        return types
+    }
+
     func filterByVisibility(_ candidates: [SymbolID]) -> (visible: [SymbolID], invisible: [SemanticSymbol]) {
         var visible: [SymbolID] = []
         var invisible: [SemanticSymbol] = []

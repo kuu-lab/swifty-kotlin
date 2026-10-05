@@ -261,12 +261,18 @@ final class LocalDeclTypeChecker {
             return ctx.sema.types.unitType
         }
 
-        if let implicitReceiverType = ctx.implicitReceiverType,
-           let member = driver.helpers.lookupMemberProperty(
-               named: name,
-               receiverType: ctx.sema.types.makeNonNullable(implicitReceiverType),
-               sema: ctx.sema
-           )
+        var implicitReceiverMember: (symbol: SymbolID, type: TypeID)?
+        for receiverType in ctx.implicitReceiverMemberLookupTypes() {
+            if let member = driver.helpers.lookupMemberProperty(
+                named: name,
+                receiverType: ctx.sema.types.makeNonNullable(receiverType),
+                sema: ctx.sema
+            ) {
+                implicitReceiverMember = member
+                break
+            }
+        }
+        if let member = implicitReceiverMember
         {
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: member.type)
             ctx.sema.bindings.bindIdentifier(id, symbol: member.symbol)
