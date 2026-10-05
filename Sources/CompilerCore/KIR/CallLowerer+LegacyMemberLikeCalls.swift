@@ -495,6 +495,26 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeText = calleeNameStr
+            if (calleeText == "start" || calleeText == "endInclusive"),
+               let runtimeGetter = closedRangeInterfaceRuntimeName(
+                   memberName: calleeText,
+                   receiverExpr: receiverExpr,
+                   receiverType: receiverType,
+                   chosenCallee: sema.bindings.callBindings[exprID]?.chosenCallee,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: runtimeGetter,
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             // Property `.first`/`.last` keep the non-throwing getters. Explicit
             // `first()`/`last()` must throw `NoSuchElementException` on empty,
             // including `IntRange` (Sema binds those calls to the property).
