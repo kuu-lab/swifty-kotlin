@@ -83,15 +83,12 @@ internal external fun kkCoroutineScopeCancel(scope: Any)
 @KsSymbolName("kk_coroutine_scope_wait")
 internal external fun kkCoroutineScopeWait(scope: Any): Throwable?
 
-// The block return and function results are typed `Any` rather than a generic
-// `<R>`: the compiler cannot yet infer an outer type variable from a lambda body
-// whose value is itself a nested generic call (e.g. `async { 7 }.await()`), so a
-// generic signature breaks `coroutineScope { async { ... } }`. `Any` mirrors the
-// prior synthetic contract and preserves observed behavior; callers rely on the
-// usual implicit widening at the use site.
-public suspend fun coroutineScope(block: suspend () -> Any): Any {
+// Keep the erased block/result contract for nested generic builders.
+// Any? permits nullable results; Sema recovers each call's precise type
+// from its block body.
+public suspend fun coroutineScope(block: suspend () -> Any?): Any? {
     val scope = kkCoroutineScopeNew()
-    val result: Any
+    val result: Any?
     try {
         result = block()
     } catch (e: Throwable) {
@@ -106,9 +103,9 @@ public suspend fun coroutineScope(block: suspend () -> Any): Any {
     return result
 }
 
-public suspend fun supervisorScope(block: suspend () -> Any): Any {
+public suspend fun supervisorScope(block: suspend () -> Any?): Any? {
     val scope = kkSupervisorScopeNew()
-    val result: Any
+    val result: Any?
     try {
         result = block()
     } catch (e: Throwable) {

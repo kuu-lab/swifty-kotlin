@@ -80,3 +80,68 @@ public fun Long.lowestOneBit(): Long = this and (-this)
 public fun Long.takeHighestOneBit(): Long = highestOneBit()
 
 public fun Long.takeLowestOneBit(): Long = lowestOneBit()
+
+// KUU-1098: bit-count and one-bit extensions for the remaining integer types,
+// mirroring the real Kotlin stdlib formulas (operands masked to their width).
+
+public fun Byte.countOneBits(): Int = (toInt() and 0xFF).countOneBits()
+
+public fun Byte.countLeadingZeroBits(): Int =
+    (toInt() and 0xFF).countLeadingZeroBits() - (Int.SIZE_BITS - Byte.SIZE_BITS)
+
+public fun Byte.countTrailingZeroBits(): Int = (toInt() or 0x100).countTrailingZeroBits()
+
+public fun Byte.takeHighestOneBit(): Byte = (toInt() and 0xFF).takeHighestOneBit().toByte()
+
+public fun Byte.takeLowestOneBit(): Byte = toInt().takeLowestOneBit().toByte()
+
+public fun Short.countOneBits(): Int = (toInt() and 0xFFFF).countOneBits()
+
+public fun Short.countLeadingZeroBits(): Int =
+    (toInt() and 0xFFFF).countLeadingZeroBits() - (Int.SIZE_BITS - Short.SIZE_BITS)
+
+public fun Short.countTrailingZeroBits(): Int = (toInt() or 0x10000).countTrailingZeroBits()
+
+public fun Short.takeHighestOneBit(): Short = (toInt() and 0xFFFF).takeHighestOneBit().toShort()
+
+public fun Short.takeLowestOneBit(): Short = toInt().takeLowestOneBit().toShort()
+
+public fun UInt.countOneBits(): Int = toInt().countOneBits()
+
+public fun UInt.countLeadingZeroBits(): Int = toInt().countLeadingZeroBits()
+
+public fun UInt.countTrailingZeroBits(): Int = toInt().countTrailingZeroBits()
+
+public fun UInt.takeHighestOneBit(): UInt = toInt().takeHighestOneBit().toUInt()
+
+public fun UInt.takeLowestOneBit(): UInt = toInt().takeLowestOneBit().toUInt()
+
+public fun ULong.countOneBits(): Int = toLong().countOneBits()
+
+public fun ULong.countLeadingZeroBits(): Int = toLong().countLeadingZeroBits()
+
+public fun ULong.countTrailingZeroBits(): Int = toLong().countTrailingZeroBits()
+
+public fun ULong.takeHighestOneBit(): ULong = toLong().takeHighestOneBit().toULong()
+
+public fun ULong.takeLowestOneBit(): ULong = toLong().takeLowestOneBit().toULong()
+
+public fun UByte.countOneBits(): Int = toUInt().countOneBits()
+
+public fun UByte.countLeadingZeroBits(): Int = toByte().countLeadingZeroBits()
+
+public fun UByte.countTrailingZeroBits(): Int = toByte().countTrailingZeroBits()
+
+public fun UByte.takeHighestOneBit(): UByte = toInt().takeHighestOneBit().toUByte()
+
+public fun UByte.takeLowestOneBit(): UByte = toInt().takeLowestOneBit().toUByte()
+
+public fun UShort.countOneBits(): Int = toUInt().countOneBits()
+
+public fun UShort.countLeadingZeroBits(): Int = toShort().countLeadingZeroBits()
+
+public fun UShort.countTrailingZeroBits(): Int = toShort().countTrailingZeroBits()
+
+public fun UShort.takeHighestOneBit(): UShort = toInt().takeHighestOneBit().toUShort()
+
+public fun UShort.takeLowestOneBit(): UShort = toInt().takeLowestOneBit().toUShort()

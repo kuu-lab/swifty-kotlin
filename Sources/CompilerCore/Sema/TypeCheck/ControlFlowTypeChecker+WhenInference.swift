@@ -347,7 +347,7 @@ extension ControlFlowTypeChecker {
                 }
 
                 branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType)
+                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(branchLocals)
             }
@@ -374,7 +374,7 @@ extension ControlFlowTypeChecker {
                     }
                 }
                 branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
+                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(elseLocals)
             }
@@ -528,7 +528,7 @@ extension ControlFlowTypeChecker {
                 }
 
                 branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType)
+                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(branchLocals)
             }
@@ -538,7 +538,7 @@ extension ControlFlowTypeChecker {
                 let elseCtx = ctx.copying(flowState: cumulativeFalseState)
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &elseLocals, sema: sema)
                 branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
+                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(elseLocals)
             }

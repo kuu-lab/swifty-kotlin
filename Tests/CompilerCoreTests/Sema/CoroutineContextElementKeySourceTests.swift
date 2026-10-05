@@ -3,6 +3,89 @@ import Testing
 
 @Suite
 struct CoroutineContextElementKeySourceTests {
+    @Test
+    func contextIndexInfersElementFromCompanionKey() throws {
+        let source = """
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.*
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        fun lookup(ctx: CoroutineContext) {
+            val job: Job? = ctx[Job]
+            val explicitJob: Job? = ctx[Job.Key]
+            val id: CoroutineId? = ctx[CoroutineId]
+            val explicitId: CoroutineId? = ctx[CoroutineId.Key]
+            val interceptor: ContinuationInterceptor? = ctx[ContinuationInterceptor]
+        }
+
+        fun composed(job: Job) {
+            val ctx = EmptyCoroutineContext + job
+            val found: Job? = ctx[Job]
+        }
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        fun main() = runBlocking {
+            val job: Job? = coroutineContext[Job]
+            val id: CoroutineId? = coroutineContext[CoroutineId]
+            val explicitId: CoroutineId? = coroutineContext[CoroutineId.Key]
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let accesses = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+            guard case let .indexedAccess(_, _, range) = expr,
+                  ctx.sourceManager.origin(of: range.start.file) == .user
+            else { return nil }
+            return ExprID(rawValue: Int32(index))
+        }
+        #expect(accesses.count == 9)
+        for access in accesses {
+            let binding = try #require(sema.bindings.callBinding(for: access))
+            let callee = try #require(sema.symbols.symbol(binding.chosenCallee))
+            #expect(callee.fqName.map(ctx.interner.resolve) == ["kotlin", "coroutines", "CoroutineContext", "get"])
+            #expect(binding.substitutedTypeArguments.count == 1)
+            let element = try #require(binding.substitutedTypeArguments.first)
+            #expect(sema.bindings.exprTypes[access] == sema.types.makeNullable(element))
+        }
+    }
+
+    @Test(arguments: ["", "Named"])
+    func genericIndexAcceptsCompanionValue(companionName: String) throws {
+        let source = """
+        interface Token<T>
+        class Item {
+            companion object \(companionName) : Token<Item>
+        }
+        class Lookup {
+            operator fun <T> get(key: Token<T>): T? = null
+        }
+        fun lookup(value: Lookup): Item? = value[Item]
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func genericIndexRejectsCompanionWithoutKeySupertype() throws {
+        let source = """
+        interface Token<T>
+        class Item {
+            companion object Named
+        }
+        class Lookup {
+            operator fun <T> get(key: Token<T>): T? = null
+        }
+        fun lookup(value: Lookup): Item? = value[Item]
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
     @Test(arguments: ["key", "get", "fold", "minusKey"])
     func elementMembersHaveOneSourceOwner(name: String) throws {
         let ctx = makeContextFromSource("import kotlin.coroutines.CoroutineContext")

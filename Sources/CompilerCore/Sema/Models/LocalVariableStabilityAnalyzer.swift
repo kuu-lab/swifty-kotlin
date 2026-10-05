@@ -68,7 +68,7 @@ final class LocalVariableStabilityAnalyzer {
             }
         case let .lambdaLiteral(params, body, _, _):
             scoped(body, hiding: params)
-        case let .localFunDecl(name, params, _, body, _, _):
+        case let .localFunDecl(name, _, params, _, body, _, _):
             var scope = locals
             for param in params {
                 if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }

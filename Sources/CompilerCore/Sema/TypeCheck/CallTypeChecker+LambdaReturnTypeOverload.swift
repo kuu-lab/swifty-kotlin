@@ -104,7 +104,10 @@ extension CallTypeChecker {
                 if inferredNonLambdaArgTypes[index] != nil {
                     continue
                 }
-                inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals,
+                    expectedType: expectedTypeOverrides[index]
+                )
             }
         }
 
@@ -740,8 +743,7 @@ extension CallTypeChecker {
             // candidates disagree on the lambda's shape and no expected type is
             // pushed into the body, leaving its parameters untyped.
             for (argIndex, argument) in args.enumerated() {
-                guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr),
-                      !lambdaParams.isEmpty
+                guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr)
                 else {
                     continue
                 }
@@ -754,9 +756,20 @@ extension CallTypeChecker {
                 ),
                       case let .functionType(functionType) = sema.types.kind(
                           of: sema.types.makeNonNullable(parameterType)
-                      ),
-                      functionType.params.count == lambdaParams.count
+                      )
                 else {
+                    if !lambdaParams.isEmpty {
+                        return false
+                    }
+                    continue
+                }
+                // Without a parameter list, only zero parameters or a single
+                // implicit `it` can be supplied, never two or more.
+                if lambdaParams.isEmpty {
+                    if functionType.params.count > 1 {
+                        return false
+                    }
+                } else if functionType.params.count != lambdaParams.count {
                     return false
                 }
             }
@@ -1188,16 +1201,20 @@ extension CallTypeChecker {
            index < signature.classTypeParameterCount {
             return parameterType
         }
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        // `T` captures the full receiver type; only `T?` strips nullability
+        // before substituting T (e.g. `nullable.also { it }` versus `T?.ext`).
+        let substitutionReceiverType = declaredReceiver == nonNullDeclaredReceiver
+            ? receiverType
+            : sema.types.makeNonNullable(receiverType)
         // Avoid circular substitution when the concrete receiver still references the same type parameter.
-        guard !sema.types.typeContainsTypeParam(nonNullReceiverType, symbol: receiverTypeParam.symbol) else {
+        guard !sema.types.typeContainsTypeParam(substitutionReceiverType, symbol: receiverTypeParam.symbol) else {
             return parameterType
         }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         guard let typeVar = typeVarBySymbol[receiverTypeParam.symbol] else {
             return parameterType
         }
-        let substitution: [TypeVarID: TypeID] = [typeVar: nonNullReceiverType]
+        let substitution: [TypeVarID: TypeID] = [typeVar: substitutionReceiverType]
         return sema.types.substituteTypeParameters(
             in: parameterType,
             substitution: substitution,

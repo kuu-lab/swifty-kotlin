@@ -579,8 +579,11 @@ public func kk_mutable_map_putAll(
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeSourceMutableMapPutAll(mapRaw, otherMapRaw: otherMapRaw, outThrown: outThrown) ?? 0
     }
-    guard let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
+        return 0
+    }
+    guard let other = runtimeMapBox(from: otherMapRaw) else {
+        runtimeCopySourceMapEntries(map, from: otherMapRaw, outThrown: outThrown)
         return 0
     }
     let otherKeys = other.keyValues
@@ -590,6 +593,46 @@ public func kk_mutable_map_putAll(
         _ = map.put(key: key, value: otherValues[idx])
     }
     return 0
+}
+
+private func runtimeCopySourceMapEntries(
+    _ map: RuntimeMapBox,
+    from source: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) {
+    var thrown = 0
+    defer {
+        if thrown != 0 {
+            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "MutableMap.putAll dispatch")
+        }
+    }
+    // Runtime map boxes have no Kotlin itable. Source Map/Entry inputs do;
+    // use their getter slots instead of assuming entries are runtime pairs.
+    guard let entries = runtimeSourceInterfaceCall0(
+        source,
+        interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Map"),
+        methodSlot: 2,
+        context: "Map.entries dispatch",
+        outThrown: &thrown
+    ), thrown == 0 else { return }
+    let iterator = kk_iterable_iterator(entries, &thrown)
+    guard thrown == 0 else { return }
+    let entryTypeID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map.Entry")
+    while kk_iterator_hasNext(iterator, &thrown) != 0 {
+        guard thrown == 0 else { return }
+        let entry = kk_iterator_next(iterator, &thrown)
+        guard thrown == 0,
+              let key = runtimeSourceInterfaceCall0(
+                  entry, interfaceTypeID: entryTypeID, methodSlot: 0,
+                  context: "Map.Entry.key dispatch", outThrown: &thrown
+              ), thrown == 0,
+              let value = runtimeSourceInterfaceCall0(
+                  entry, interfaceTypeID: entryTypeID, methodSlot: 1,
+                  context: "Map.Entry.value dispatch", outThrown: &thrown
+              ), thrown == 0
+        else { return }
+        _ = map.put(key: key, value: value)
+    }
 }
 
 @_cdecl("__kk_mutable_map_plusAssign_pair")

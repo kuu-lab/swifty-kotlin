@@ -28,28 +28,34 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
+        precomputedReceiver: KIRExprID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let knownNames = KnownCompilerNames(interner: interner)
         guard args.count == 1,
               calleeName == knownNames.compareTo,
               let receiverType = sema.bindings.exprTypes[receiverExpr],
-              let kind = primitiveCompareABIKind(for: receiverType, sema: sema),
-              kind != .char
+              let receiverKind = primitiveCompareABIKind(for: receiverType, sema: sema),
+              receiverKind != .char,
+              let argType = sema.bindings.exprTypes[args[0].expr]
         else {
             return nil
         }
-        // Only handle same-kind comparisons (e.g. Int.compareTo(Int)). Mixed
-        // numeric overloads such as Int.compareTo(Double) require widening the
-        // receiver to the common type before comparing, which this raw-value
-        // path cannot express; let those fall through unchanged.
-        guard let argType = sema.bindings.exprTypes[args[0].expr],
-              primitiveCompareABIKind(for: argType, sema: sema) == kind
-        else {
+        let argumentKind = primitiveCompareABIKind(for: argType, sema: sema)
+        let isFloatingReceiver = receiverKind == .float || receiverKind == .double
+        let isNumericArgument: Bool = switch sema.types.kind(of: sema.types.makeNonNullable(argType)) {
+        case .primitive(.byte, _), .primitive(.short, _), .primitive(.int, _),
+             .primitive(.long, _), .primitive(.float, _), .primitive(.double, _):
+            true
+        default:
+            false
+        }
+        guard argumentKind == receiverKind || (isFloatingReceiver && isNumericArgument) else {
             return nil
         }
 
-        let lhsID = driver.lowerExpr(
+        let kind: PrimitiveCompareABIKind = isFloatingReceiver && argumentKind == .double ? .double : receiverKind
+        var lhsID = precomputedReceiver ?? driver.lowerExpr(
             receiverExpr,
             ast: ast,
             sema: sema,
@@ -58,7 +64,13 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let rhsID = driver.lowerExpr(
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        if precomputedReceiver != nil, nonNullReceiverType != receiverType {
+            let unboxedReceiver = arena.appendTemporary(type: nonNullReceiverType)
+            instructions.append(.copy(from: lhsID, to: unboxedReceiver))
+            lhsID = unboxedReceiver
+        }
+        var rhsID = driver.lowerExpr(
             args[0].expr,
             ast: ast,
             sema: sema,
@@ -67,11 +79,22 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        if isFloatingReceiver {
+            lhsID = widenIntegerOperandToFloatingPoint(
+                lhsID, operandTypeID: nonNullReceiverType, isFloatingPoint: true, toDouble: kind == .double,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            rhsID = widenIntegerOperandToFloatingPoint(
+                rhsID, operandTypeID: argType,
+                isFloatingPoint: argumentKind == .float || argumentKind == .double, toDouble: kind == .double,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         let kindLiteral = Int64(kind.rawValue)
         let kindExpr = arena.appendExpr(.intLiteral(kindLiteral), type: sema.types.intType)
         instructions.append(.constValue(result: kindExpr, value: .intLiteral(kindLiteral)))
 
-        let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.intType
+        let resultType = sema.types.makeNonNullable(sema.bindings.exprTypes[exprID] ?? sema.types.intType)
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,

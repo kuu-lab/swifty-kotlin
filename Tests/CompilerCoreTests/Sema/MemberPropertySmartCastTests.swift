@@ -15,6 +15,7 @@ struct MemberPropertySmartCastTests {
         "while (flag) { if (args.x != null) println(args.x.length); break }",
         "val reader = { if (args.x != null) println(args.x.length) }; reader()",
         "fun read() { if (args.x != null) println(args.x.length) }; read()",
+        "fun String.read() { if (args.x != null) println(args.x.length) }; \"reader\".read()",
         "if (flag) { var args = Args(null); args = Args(\"inner\") }; if (args.x != null) println(args.x.length)",
         "fun shadow(args: Args) { println(args.x) }; if (args.x != null) println(args.x.length)"
     ])
@@ -56,6 +57,7 @@ struct MemberPropertySmartCastTests {
         "if (args.x != null) { val write = { args = Args(null) }; write(); println(args.x.length) }",
         "val read = { if (args.x != null) println(args.x.length) }; args = Args(null); read()",
         "fun write() { args = Args(null) }; if (args.x != null) { write(); println(args.x.length) }",
+        "fun String.write() { args = Args(null) }; if (args.x != null) { \"writer\".write(); println(args.x.length) }",
         "val writer = object { fun write() { args = Args(null) } }; if (args.x != null) { writer.write(); println(args.x.length) }",
         "class Writer { fun write() { args = Args(null) } }; if (args.x != null) { Writer().write(); println(args.x.length) }",
         "class Writer { fun write(value: Unit = run { args = Args(null) }) {} }; if (args.x != null) { Writer().write(); println(args.x.length) }",

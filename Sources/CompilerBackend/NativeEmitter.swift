@@ -72,6 +72,7 @@ struct NativeEmitter {
     let bindings: LLVMCAPIBindings
     let module: KIRModule
     let interner: StringInterner
+    let moduleName: String
     let typeSystem: TypeSystem?
     let symbols: SymbolTable?
     let sourceManager: SourceManager?
@@ -90,6 +91,7 @@ struct NativeEmitter {
         bindings: LLVMCAPIBindings,
         module: KIRModule,
         interner: StringInterner,
+        moduleName: String = "main",
         typeSystem: TypeSystem? = nil,
         symbols: SymbolTable? = nil,
         sourceManager: SourceManager? = nil,
@@ -104,6 +106,7 @@ struct NativeEmitter {
         self.bindings = bindings
         self.module = module
         self.interner = interner
+        self.moduleName = moduleName
         self.typeSystem = typeSystem
         self.symbols = symbols
         self.sourceManager = sourceManager
@@ -721,6 +724,7 @@ struct NativeEmitter {
             let functionName = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                moduleName: moduleName,
                 symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
@@ -948,6 +952,7 @@ struct NativeEmitter {
             let name = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                moduleName: moduleName,
                 symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )

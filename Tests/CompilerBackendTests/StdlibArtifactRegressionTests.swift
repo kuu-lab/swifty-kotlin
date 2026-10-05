@@ -1395,6 +1395,49 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testResultGetOrDefaultPreservesFallback(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        fun main() {
+            val failed = runCatching { throw IllegalStateException("x") }
+            val success = runCatching { 42 }
+            println(failed.getOrDefault(-2))
+            println(success.getOrDefault(-2))
+            println(failed.getOrDefault("fallback"))
+            println(runCatching { null }.getOrDefault(-2))
+            println(runCatching<Int> { throw IllegalStateException("typed") }.getOrDefault(-3))
+            val absent: Result<Nothing>? = null
+            val present: Result<Nothing>? = failed
+            println(absent?.getOrDefault(-4))
+            println(present?.getOrDefault(-4))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ResultGetOrDefault",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "-2\n42\nfallback\nnull\n-3\nnull\n-4\n")
+        }
+    }
+
     /// Setter counterpart of `testResultMemberPropertyGetterSharedPath`:
     /// `var` properties with custom setters — a bundled extension `var`
     /// (`AtomicInt.value`) and a bundled member `var` (`AtomicLong.value`) —
