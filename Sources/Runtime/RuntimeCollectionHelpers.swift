@@ -1063,7 +1063,7 @@ private let runtimeListIteratorSetThunk: @convention(c) (Int, Int, UnsafeMutable
 
 private let runtimeListIteratorAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorAdd(raw, elem)
+    return runtimeListIteratorAdd(raw, elem, outThrown)
 }
 
 private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in

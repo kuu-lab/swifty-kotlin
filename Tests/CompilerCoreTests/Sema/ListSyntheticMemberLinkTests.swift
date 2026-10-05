@@ -2814,7 +2814,7 @@ struct ListSyntheticMemberLinkTests {
         let addSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("add")]))
         #expect(sema.symbols.externalLinkName(for: addSymbol) == "__kk_mutable_collection_add")
         let addAllSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("addAll")]))
-        #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "__kk_mutable_collection_addAll")
+        #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "__kk_mutable_collection_addAll_checked")
 
         let abstractMutableCollectionFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")]
         let abstractMutableCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableCollectionFQName))

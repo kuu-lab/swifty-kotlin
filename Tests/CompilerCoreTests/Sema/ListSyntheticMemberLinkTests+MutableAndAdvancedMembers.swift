@@ -586,7 +586,7 @@ extension ListSyntheticMemberLinkTests {
             // KSP-705 residual: addAll keeps a synthetic runtime link until its
             // own Kotlin migration lands.
             let expectedExternalLinks: [(String, Int, String)] = [
-                ("addAll", 1, "__kk_mutable_list_addAll"),
+                ("addAll", 1, "__kk_mutable_list_addAll_checked"),
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
@@ -690,7 +690,7 @@ extension ListSyntheticMemberLinkTests {
             // extern; removeAll/retainAll are bundled MutableList defaults
             // since KSP-1503.
             let expectedExternalLinks: [String: String?] = [
-                "addAll": "__kk_mutable_list_addAll",
+                "addAll": "__kk_mutable_list_addAll_checked",
                 "removeAll": nil,
                 "retainAll": nil,
             ]
@@ -966,7 +966,7 @@ extension ListSyntheticMemberLinkTests {
             // KSP-705 residual: addAll keeps a synthetic runtime link;
             // KSP-1503 migrated removeAll/retainAll to bundled defaults.
             let expectedExternalLinks: [String: String?] = [
-                "addAll": "__kk_mutable_list_addAll",
+                "addAll": "__kk_mutable_list_addAll_checked",
                 "removeAll": nil,
                 "retainAll": nil,
             ]
