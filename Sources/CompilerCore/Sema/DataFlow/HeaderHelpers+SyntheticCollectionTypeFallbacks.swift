@@ -443,41 +443,41 @@ extension DataFlowSemaPhase {
             parameterTypes: [typeParamType],
             returnType: types.booleanType,
             valueParameterNames: ["element"],
-            externalLinkName: "__kk_mutable_collection_add"
+            externalLinkName: "__kk_mutable_collection_add_throwing"
         )
         registerMutableCollectionFunction(
             name: "addAll",
             parameterTypes: [collectionType],
             returnType: types.booleanType,
             valueParameterNames: ["elements"],
-            externalLinkName: "__kk_mutable_collection_addAll"
+            externalLinkName: "__kk_mutable_collection_addAll_throwing"
         )
         registerMutableCollectionFunction(
             name: "clear",
             parameterTypes: [],
             returnType: types.unitType,
-            externalLinkName: "__kk_mutable_collection_clear"
+            externalLinkName: "__kk_mutable_collection_clear_throwing"
         )
         registerMutableCollectionFunction(
             name: "remove",
             parameterTypes: [typeParamType],
             returnType: types.booleanType,
             valueParameterNames: ["element"],
-            externalLinkName: "__kk_mutable_collection_remove"
+            externalLinkName: "__kk_mutable_collection_remove_throwing"
         )
         registerMutableCollectionFunction(
             name: "removeAll",
             parameterTypes: [collectionType],
             returnType: types.booleanType,
             valueParameterNames: ["elements"],
-            externalLinkName: "__kk_mutable_collection_removeAll"
+            externalLinkName: "__kk_mutable_collection_removeAll_throwing"
         )
         registerMutableCollectionFunction(
             name: "retainAll",
             parameterTypes: [collectionType],
             returnType: types.booleanType,
             valueParameterNames: ["elements"],
-            externalLinkName: "__kk_mutable_collection_retainAll"
+            externalLinkName: "__kk_mutable_collection_retainAll_throwing"
         )
 
         return mutableCollectionSymbol

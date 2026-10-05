@@ -245,7 +245,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
 
             // Rewrite value class constructor calls:
             // call <init>(allocObj, value) -> result  =>  copy(value, result)
-            case let .call(symbol, callee, arguments, callResult, canThrow, thrownResult, isSuperCall, _):
+            case let .call(symbol, callee, arguments, callResult, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                 if let symbol, valueClassCtors.contains(symbol),
                    let callResult
                 {
@@ -284,7 +284,8 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                     result: callResult,
                     canThrow: canThrow,
                     thrownResult: thrownResult,
-                    isSuperCall: isSuperCall
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
                 ))
 
             default:

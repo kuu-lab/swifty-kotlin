@@ -23,6 +23,65 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testExplicitListGetPreservesElementTypeAndSourceBinding() throws {
+        let source = """
+        fun shortGet(values: List<Short>): Short = values.get(index = 0)
+        fun byteGet(values: List<Byte>): Int = values.get(0).toInt().countOneBits()
+        fun mutableGet(values: MutableList<String>): String = values.get(0)
+        fun nullableGet(values: List<String?>): String? = values.get(0)
+        fun safeGet(values: List<Short>?): Short? = values?.get(0)
+        fun <T> first(values: List<T>): T = values.get(0)
+        fun inferredGet(): Short = listOf(0xF0.toShort()).get(0)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            #expect(!ctx.diagnostics.hasError, "Expected explicit List.get to type-check, got: \(ctx.diagnostics.diagnostics)")
+
+            let getCalls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                let callee: InternedString
+                let args: [CallArgument]
+                let range: SourceRange
+                switch ast.arena.expr(exprID) {
+                case let .memberCall(_, name, _, arguments, callRange),
+                     let .safeMemberCall(_, name, _, arguments, callRange):
+                    callee = name
+                    args = arguments
+                    range = callRange
+                default:
+                    return nil
+                }
+                guard ctx.interner.resolve(callee) == "get",
+                      args.count == 1,
+                      ctx.sourceManager.path(of: range.start.file) == path
+                else { return nil }
+                return exprID
+            }
+            #expect(getCalls.count == 7)
+            for call in getCalls {
+                let binding = try #require(sema.bindings.callBinding(for: call))
+                let callee = binding.chosenCallee
+                #expect(sema.symbols.isSourceBackedSymbol(callee))
+                #expect(sema.symbols.externalLinkName(for: callee) == "__kk_list_get")
+                #expect(sema.bindings.exprType(for: call) != sema.types.anyType)
+                #expect(binding.parameterMapping == [0: 0])
+                #expect(!binding.substitutedTypeArguments.isEmpty)
+            }
+            let returnTypes = getCalls.compactMap { sema.bindings.exprType(for: $0) }
+            #expect(returnTypes.contains(sema.types.byteType))
+            #expect(returnTypes.contains(sema.types.shortType))
+            #expect(returnTypes.contains(sema.types.makeNullable(sema.types.shortType)))
+            #expect(returnTypes.contains(sema.types.stringType))
+            #expect(returnTypes.contains(sema.types.makeNullable(sema.types.stringType)))
+        }
+    }
+
+    @Test
     func testListLastIndexExtensionFunctionResolvesToBundledSource() throws {
         let source = """
         import kotlin.collections.lastIndex
@@ -2809,12 +2868,13 @@ struct ListSyntheticMemberLinkTests {
             let memberSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern(expected.name)]))
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == expected.parameterCount)
+            #expect(sema.symbols.externalLinkName(for: memberSymbol) == "__kk_mutable_collection_\(expected.name)_throwing")
         }
 
         let addSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("add")]))
-        #expect(sema.symbols.externalLinkName(for: addSymbol) == "__kk_mutable_collection_add")
+        #expect(sema.symbols.externalLinkName(for: addSymbol) == "__kk_mutable_collection_add_throwing")
         let addAllSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("addAll")]))
-        #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "__kk_mutable_collection_addAll")
+        #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "__kk_mutable_collection_addAll_throwing")
 
         let abstractMutableCollectionFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")]
         let abstractMutableCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableCollectionFQName))

@@ -25,18 +25,17 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, FlowCollector<
     override val replayCache: List<T>
         get() = _buffer.toList()
 
-    override val value: T
+    override var value: T
         get() = _value
+        set(value) {
+            tryEmit(value)
+        }
 
     public fun tryEmit(value: T): Boolean {
         _value = value
         _buffer.clear()
         _buffer.add(value)
         return true
-    }
-
-    public fun setValue(value: T) {
-        tryEmit(value)
     }
 
     override suspend fun emit(value: T) {

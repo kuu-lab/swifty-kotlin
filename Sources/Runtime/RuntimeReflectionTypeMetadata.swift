@@ -126,11 +126,19 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
     let interfaceSlot = 0
     _ = kk_object_register_itable_iface(rawValue, Int(kCallableRuntimeTypeID), interfaceSlot)
     _ = kk_object_register_itable_method(
-        rawValue, interfaceSlot, 0, unsafeBitCast(runtimeKCallableNameGetter, to: Int.self)
+        rawValue, interfaceSlot, 6, unsafeBitCast(runtimeKCallableNameGetter, to: Int.self)
     )
     _ = kk_object_register_itable_method(
-        rawValue, interfaceSlot, 1, unsafeBitCast(runtimeKCallableReturnTypeGetter, to: Int.self)
+        rawValue, interfaceSlot, 8, unsafeBitCast(runtimeKCallableReturnTypeGetter, to: Int.self)
     )
+    let call: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, arguments, thrown in
+        __kk_kcallable_call(raw, arguments, thrown)
+    }
+    let callBy: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, arguments, thrown in
+        __kk_kcallable_call_by(raw, arguments, thrown)
+    }
+    _ = kk_object_register_itable_method(rawValue, interfaceSlot, 0, unsafeBitCast(call, to: Int.self))
+    _ = kk_object_register_itable_method(rawValue, interfaceSlot, 1, unsafeBitCast(callBy, to: Int.self))
 }
 
 private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = [

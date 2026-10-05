@@ -28,14 +28,14 @@ expr e@12:36 int(3) type=Int
 expr e@12:17#1 memberCall recv=e@12:17 callee=addAndFetch args=[_:e@12:36] type=Int call=kotlin.concurrent.atomics.addAndFetch[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=Int]
 expr e@12:5 localDecl added mutable=0 type=_ init=e@12:17#1 type=Unit ref=__local_3.added[kind=local]
 expr e@13:20 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=__local_0.atomic[kind=local]
-expr e@13:37 int(4) type=Int
-expr e@13:20#1 memberCall recv=e@13:20 callee=getAndAdd args=[_:e@13:37] type=Int call=kotlin.concurrent.atomics.getAndAdd[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=Int]
+expr e@13:39 int(4) type=Int
+expr e@13:20#1 memberCall recv=e@13:20 callee=fetchAndAdd args=[_:e@13:39] type=Int call=kotlin.concurrent.atomics.fetchAndAdd[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=Int]
 expr e@13:5 localDecl oldAdded mutable=0 type=_ init=e@13:20#1 type=Unit ref=__local_4.oldAdded[kind=local]
 expr e@14:24 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=__local_0.atomic[kind=local]
-expr e@14:24#1 memberCall recv=e@14:24 callee=getAndIncrement args=[] type=Int call=kotlin.concurrent.atomics.getAndIncrement[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=]
+expr e@14:24#1 memberCall recv=e@14:24 callee=fetchAndIncrement args=[] type=Int call=kotlin.concurrent.atomics.fetchAndIncrement[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=]
 expr e@14:5 localDecl oldIncrement mutable=0 type=_ init=e@14:24#1 type=Unit ref=__local_5.oldIncrement[kind=local]
 expr e@15:24 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=__local_0.atomic[kind=local]
-expr e@15:24#1 memberCall recv=e@15:24 callee=getAndDecrement args=[] type=Int call=kotlin.concurrent.atomics.getAndDecrement[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=]
+expr e@15:24#1 memberCall recv=e@15:24 callee=fetchAndDecrement args=[] type=Int call=kotlin.concurrent.atomics.fetchAndDecrement[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=]
 expr e@15:5 localDecl oldDecrement mutable=0 type=_ init=e@15:24#1 type=Unit ref=__local_6.oldDecrement[kind=local]
 expr e@16:20 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=__local_0.atomic[kind=local]
 expr e@16:46 int(15) type=Int

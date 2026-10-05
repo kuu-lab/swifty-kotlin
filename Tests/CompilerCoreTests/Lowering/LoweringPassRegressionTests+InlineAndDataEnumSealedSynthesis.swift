@@ -310,8 +310,12 @@ extension LoweringPassRegressionTests {
 
     // MARK: - DATA-003: hashCode() synthesis for data classes
 
-    @Test
-    func testDataClassHashCodeSynthesisGeneratesHashCodeFunction() throws {
+    @Test(arguments: [
+        "Int", "Array", "ByteArray", "ShortArray", "IntArray", "LongArray",
+        "FloatArray", "DoubleArray", "BooleanArray", "CharArray",
+        "UByteArray", "UShortArray", "UIntArray", "ULongArray",
+    ], [false, true])
+    func testDataClassHashCodeSynthesisGeneratesHashCodeFunction(propertyTypeName: String, nullable: Bool) throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
         let symbols = SymbolTable()
@@ -335,6 +339,35 @@ extension LoweringPassRegressionTests {
         )
 
         let intType = types.make(.primitive(.int, .nonNull))
+        var propertyType = nullable ? types.makeNullable(intType) : intType
+        var expectedArrayHashSymbol: SymbolID?
+        let contentHashName = interner.intern("contentHashCode")
+        let contentHashFQName = [interner.intern("kotlin"), interner.intern("collections"), contentHashName]
+        for arrayName in [
+            "Array", "ByteArray", "ShortArray", "IntArray", "LongArray",
+            "FloatArray", "DoubleArray", "BooleanArray", "CharArray",
+            "UByteArray", "UShortArray", "UIntArray", "ULongArray",
+        ] {
+            let name = interner.intern(arrayName)
+            let arraySymbol = symbols.define(
+                kind: .class, name: name, fqName: [interner.intern("kotlin"), name],
+                declSite: nil, visibility: .public
+            )
+            let arrayType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol, args: [], nullability: .nullable
+            )))
+            let hashSymbol = symbols.define(
+                kind: .function, name: contentHashName, fqName: contentHashFQName,
+                declSite: nil, visibility: .public
+            )
+            symbols.setFunctionSignature(FunctionSignature(
+                receiverType: arrayType, parameterTypes: [], returnType: intType, isSuspend: false
+            ), for: hashSymbol)
+            if arrayName == propertyTypeName {
+                propertyType = nullable ? arrayType : types.makeNonNullable(arrayType)
+                expectedArrayHashSymbol = hashSymbol
+            }
+        }
         let pointType = types.make(.classType(ClassType(
             classSymbol: pointSymbol,
             args: [],
@@ -351,7 +384,7 @@ extension LoweringPassRegressionTests {
             visibility: .public
         )
         symbols.setParentSymbol(pointSymbol, for: xSymbol)
-        symbols.setPropertyType(intType, for: xSymbol)
+        symbols.setPropertyType(propertyType, for: xSymbol)
 
         let yName = interner.intern("y")
         let ySymbol = symbols.define(
@@ -362,7 +395,7 @@ extension LoweringPassRegressionTests {
             visibility: .public
         )
         symbols.setParentSymbol(pointSymbol, for: ySymbol)
-        symbols.setPropertyType(intType, for: ySymbol)
+        symbols.setPropertyType(propertyType, for: ySymbol)
 
         // Primary constructor: synthesized hashCode only covers constructor parameters.
         let ctorSymbolpointSymbol = symbols.define(
@@ -386,7 +419,7 @@ extension LoweringPassRegressionTests {
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: nil,
-                parameterTypes: ctorParamspointSymbol.map { _ in intType },
+                parameterTypes: ctorParamspointSymbol.map { _ in propertyType },
                 returnType: intType,
                 isSuspend: false,
                 valueParameterSymbols: ctorParamspointSymbol,
@@ -438,9 +471,20 @@ extension LoweringPassRegressionTests {
         let hashCodeFn = try findKIRFunction(named: "hashCode", in: module, interner: interner)
         #expect(hashCodeFn.params.count == 1, "hashCode should have 1 receiver parameter")
 
-        // Verify body calls kk_any_hashCode for each property
         let callees = extractCallees(from: hashCodeFn.body, interner: interner)
-        #expect(callees.contains("kk_any_hashCode"), "hashCode should call kk_any_hashCode")
+        if let expectedArrayHashSymbol {
+            let arrayHashCalls = hashCodeFn.body.compactMap { instruction -> [KIRExprID]? in
+                guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                      symbol == expectedArrayHashSymbol else { return nil }
+                return arguments
+            }
+            #expect(arrayHashCalls.count == 2)
+            #expect(arrayHashCalls.allSatisfy { $0.count == 1 })
+            #expect(!callees.contains("kk_any_hashCode"))
+        } else {
+            #expect(callees.filter { $0 == "kk_any_hashCode" }.count == 2)
+            #expect(!callees.contains("contentHashCode"))
+        }
 
         // With 2 properties, should use 31 * result + hash pattern
         #expect(callees.contains("kk_op_mul"), "hashCode with 2+ properties should call kk_op_mul")

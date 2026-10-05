@@ -267,17 +267,23 @@ extension CallTypeChecker {
                     return finalType
 
                 case "getOrDefault" where args.count == 1:
-                    // getOrDefault(defaultValue: T): T
-                    let defaultExpectedType = resultElementType
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: defaultExpectedType)
+                    // Kotlin permits a fallback supertype of the Result element.
+                    // Nothing cannot constrain the fallback of a failure-only Result.
+                    let defaultExpectedType: TypeID? = if case .nothing = sema.types.kind(of: resultElementType) {
+                        expectedType
+                    } else {
+                        resultElementType
+                    }
+                    let defaultType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: defaultExpectedType)
+                    let returnType = sema.types.lub([resultElementType, defaultType])
                     if let getOrDefaultSymbol = lookupResultMember("getOrDefault", sema: sema, interner: interner) {
                         sema.bindings.bindCall(id, binding: CallBinding(
                             chosenCallee: getOrDefaultSymbol,
-                            substitutedTypeArguments: [resultElementType],
+                            substitutedTypeArguments: [returnType],
                             parameterMapping: [0: 0]
                         ))
                     }
-                    let finalType = safeCall ? sema.types.makeNullable(resultElementType) : resultElementType
+                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 

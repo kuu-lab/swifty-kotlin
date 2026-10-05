@@ -48,6 +48,36 @@ func runtime_test_undispatched_body(_ continuation: Int, _ outThrown: UnsafeMuta
 private let blockingActorFunctionID = 8_902
 private let blockingRootFunctionID = 8_903
 private let blockingDescendantFunctionID = 8_904
+private let yieldingChildFunctionID = 8_905
+private let yieldingRootFunctionID = 8_906
+
+@_cdecl("runtime_test_blocking_yielding_child")
+func runtime_test_blocking_yielding_child(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if kk_coroutine_state_enter(continuation, yieldingChildFunctionID) == 0 {
+        eventLoopTestLog.record("child-1")
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_coroutine_yield(continuation)
+    }
+    eventLoopTestLog.record("child-2")
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+@_cdecl("runtime_test_blocking_yielding_root")
+func runtime_test_blocking_yielding_root(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if kk_coroutine_state_enter(continuation, yieldingRootFunctionID) == 0 {
+        let childContinuation = kk_coroutine_continuation_new(yieldingChildFunctionID)
+        _ = kk_kxmini_launch_with_cont(
+            unsafeBitCast(runtime_test_blocking_yielding_child as EventLoopTestSuspendEntry, to: Int.self),
+            childContinuation
+        )
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_coroutine_yield(continuation)
+    }
+    eventLoopTestLog.record("parent")
+    return kk_coroutine_state_exit(continuation, 42)
+}
 
 private func launchEventLoopTestActor(_ entry: EventLoopTestSuspendEntry, functionID: Int) {
     let channel = kk_channel_create(1)
@@ -146,6 +176,33 @@ struct RuntimeCoroutineEventLoopTests {
 
     // MARK: - runBlocking child completion
 
+    @Test func testRunBlockingWaitsForYieldSuspendedChildWithoutJoin() {
+        var thrown = 0
+        let result = kk_kxmini_run_blocking(
+            unsafeBitCast(runtime_test_blocking_yielding_root as EventLoopTestSuspendEntry, to: Int.self),
+            yieldingRootFunctionID,
+            &thrown
+        )
+        eventLoopTestLog.record("runBlocking returned")
+        #expect(thrown == 0)
+        #expect(result == 42)
+        #expect(eventLoopTestLog.snapshot() == ["child-1", "parent", "child-2", "runBlocking returned"])
+    }
+
+    @Test func testRunBlockingWithContWaitsForYieldSuspendedChildWithoutJoin() {
+        var thrown = 0
+        let continuation = kk_coroutine_continuation_new(yieldingRootFunctionID)
+        let result = kk_kxmini_run_blocking_with_cont(
+            unsafeBitCast(runtime_test_blocking_yielding_root as EventLoopTestSuspendEntry, to: Int.self),
+            continuation,
+            &thrown
+        )
+        eventLoopTestLog.record("runBlocking returned")
+        #expect(thrown == 0)
+        #expect(result == 42)
+        #expect(eventLoopTestLog.snapshot() == ["child-1", "parent", "child-2", "runBlocking returned"])
+    }
+
     @Test func testRunBlockingWaitsForActorAfterBodyReturnsWithoutSuspending() {
         var thrown = 0
         let result = kk_kxmini_run_blocking(
@@ -237,6 +294,65 @@ struct RuntimeCoroutineEventLoopTests {
         let finished = loop.run(until: { done.isSet })
         #expect(finished)
         #expect(log.snapshot() == (0 ..< 5).map { "task \($0)" })
+    }
+
+    @Test func testBurstLaunchSharesFIFOWithAsyncAndResumptions() {
+        let loop = RuntimeEventLoop()
+        let log = EventLoopTestLog()
+        let done = RuntimeCompletionFlag()
+        loop.enqueue {
+            RuntimeCoroutineBurstDepth.enter()
+            defer { RuntimeCoroutineBurstDepth.exit() }
+            let first = RuntimeJobHandle()
+            RuntimePendingLaunchQueue.enqueue(job: first, workItem: DispatchWorkItem {
+                log.record("launch")
+            })
+            KxMiniRuntime.launch { log.record("async") }
+            loop.enqueue { log.record("resumption") }
+            let second = RuntimeJobHandle()
+            RuntimePendingLaunchQueue.enqueue(job: second, workItem: DispatchWorkItem {
+                log.record("launch again")
+            })
+            #expect(log.snapshot().isEmpty, "enqueueing must not execute a child inline")
+            RuntimePendingLaunchQueue.flush()
+            loop.enqueue { done.set() }
+        }
+        let finished = loop.run(until: { done.isSet }, deadline: Date().addingTimeInterval(2))
+        #expect(finished)
+        #expect(log.snapshot() == ["launch", "async", "resumption", "launch again"])
+    }
+
+    @Test func testEventLoopLaunchCanBeCancelledBeforeItsTurn() {
+        let loop = RuntimeEventLoop()
+        let log = EventLoopTestLog()
+        let done = RuntimeCompletionFlag()
+        loop.enqueue {
+            RuntimeCoroutineBurstDepth.enter()
+            defer { RuntimeCoroutineBurstDepth.exit() }
+            let job = RuntimeJobHandle()
+            let workItem = DispatchWorkItem { log.record("cancelled body") }
+            job.dispatchWorkItem = workItem
+            job.markScheduled()
+            RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
+            _ = job.cancel()
+            RuntimePendingLaunchQueue.flush()
+            loop.enqueue { done.set() }
+        }
+        let finished = loop.run(until: { done.isSet }, deadline: Date().addingTimeInterval(2))
+        #expect(finished)
+        #expect(log.snapshot().isEmpty)
+    }
+
+    @Test func testPoolLaunchRemainsStagedUntilBurstFlush() {
+        #expect(RuntimeEventLoop.current == nil)
+        let ran = DispatchSemaphore(value: 0)
+        RuntimeCoroutineBurstDepth.enter()
+        defer { RuntimeCoroutineBurstDepth.exit() }
+        let job = RuntimeJobHandle()
+        RuntimePendingLaunchQueue.enqueue(job: job, workItem: DispatchWorkItem { ran.signal() })
+        #expect(ran.wait(timeout: .now() + .milliseconds(50)) == .timedOut)
+        RuntimePendingLaunchQueue.flush()
+        #expect(ran.wait(timeout: .now() + .seconds(2)) == .success)
     }
 
     @Test func testTaskEnqueuedWhileDrainingRunsAfterTasksAlreadyQueued() {
