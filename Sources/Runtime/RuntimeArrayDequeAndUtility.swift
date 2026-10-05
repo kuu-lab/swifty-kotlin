@@ -235,10 +235,7 @@ private func runtimeValueDeepToString(_ raw: Int, visited: inout Set<Int>) -> St
 }
 
 private func runtimeArrayStringPointer(_ value: String) -> UnsafeMutableRawPointer {
-    let utf8 = Array(value.utf8)
-    return utf8.withUnsafeBufferPointer { buffer in
-        kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count))
-    }
+    runtimeMakeStringPointer(value)
 }
 
 @_cdecl("__kk_array_contentDeepToString")

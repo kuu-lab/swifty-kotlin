@@ -15,9 +15,9 @@ public interface Flow<out T>
 @KsSymbolName("kk_flow_collect")
 internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> Unit)
 
+@Suppress("UNCHECKED_CAST")
 public suspend fun <T> Flow<T>.collect(collector: suspend (T) -> Unit) {
     if (this is SharedFlow<*>) {
-        @Suppress("UNCHECKED_CAST")
         (this as SharedFlow<T>).collect(collector)
     } else {
         this.collectCold { value -> collector(value) }

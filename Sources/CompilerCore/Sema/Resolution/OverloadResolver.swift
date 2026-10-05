@@ -2,8 +2,8 @@ public struct CallArg {
     public let label: InternedString?
     public let isSpread: Bool
     public let type: TypeID
-    /// Keep a literal's value until each vararg candidate has been checked.
-    /// A pre-inferred Int/UInt alone cannot be narrowed to a Byte/UByte element.
+    /// Keep a literal's value until each candidate's parameter type is known.
+    /// A pre-inferred Int/UInt alone loses contextual integer adaptation.
     public let signedIntegerLiteral: Int64?
     public let unsignedIntegerLiteral: UInt64?
 

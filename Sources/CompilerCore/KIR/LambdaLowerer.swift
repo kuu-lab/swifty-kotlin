@@ -246,7 +246,8 @@ final class LambdaLowerer {
             lambdaBodyExprID: bodyExpr,
             ast: ast,
             sema: sema,
-            hasExplicitReceiver: needsExplicitReceiver || sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] != nil
+            arena: arena,
+            receiverType: functionType?.receiver ?? sema.bindings.coroutineScopeLambdaReceiverTypes[exprID]
         )
 
         // Non-capturing lambda optimization: if no captures, use function pointer directly
@@ -349,6 +350,7 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema)
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
+                bindCapturedOuterLambdaReceiver(captureExpr, type: capture.param.type, sema: sema)
                 if capturesRuntimeScopeReceiver {
                     driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(captureExpr)
                 }
@@ -389,6 +391,7 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
+                bindCapturedOuterLambdaReceiver(closureExpr, type: closureCapture.param.type, sema: sema)
                 if capturesRuntimeScopeReceiver {
                     driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(closureExpr)
                 }
@@ -417,6 +420,7 @@ final class LambdaLowerer {
                 bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
+                    bindCapturedOuterLambdaReceiver(loadedExpr, type: capture.param.type, sema: sema)
                     if capturesRuntimeScopeReceiver {
                         driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(loadedExpr)
                     }
@@ -564,9 +568,10 @@ final class LambdaLowerer {
         // own launcher-continuation rewrite (BUG-049), which expects to resolve
         // the raw lambda symbol directly rather than a kk_function_create_N
         // boxed closure -- see the coroutineLauncherLambdaExprIDs doc comment.
-        // A non-local return cannot escape in a runtime Function object.
-        // Preserve its raw callable and captures for the inline pass.
+        // Inline arguments must retain their raw captures even when the return
+        // is normal or belongs to a nested lambda.
         if !hasNonLocalReturn,
+           !allowsNonLocalReturn,
            !captureArgs.isEmpty,
            !needsClosureParam,
            !isSamConversion,
@@ -587,6 +592,12 @@ final class LambdaLowerer {
                 return materialized
             }
         }
+        emitFunctionDescription(
+            value: lambdaValueExpr,
+            description: "kotlin.Function\(lambdaParameterTypes.count)",
+            identity: true,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
         return lambdaValueExpr
     }
 
@@ -612,13 +623,17 @@ final class LambdaLowerer {
             driver.ctx.setLocalDelegateStorage(capturedValue, for: capture.capturedSymbol)
         } else if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
                   semanticSymbol.kind == .local,
-                  semanticSymbol.flags.contains(.mutable)
+                  (semanticSymbol.flags.contains(.mutable)
+                      || sema.bindings.isContractCallsInPlaceInitializedSymbol(capture.capturedSymbol))
         {
             driver.ctx.setMutableCaptureCell(capturedValue, for: capture.capturedSymbol)
         } else {
             driver.ctx.setLocalValue(capturedValue, for: capture.capturedSymbol)
         }
         driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+        if sema.symbols.symbol(capture.capturedSymbol)?.kind == .class {
+            bindCapturedOuterLambdaReceiver(capturedValue, type: capture.param.type, sema: sema)
+        }
         if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
            semanticSymbol.kind == .typeParameter,
            semanticSymbol.flags.contains(.reifiedTypeParameter)
@@ -627,6 +642,12 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(capturedValue, for: tokenSymbol)
             driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
         }
+    }
+
+    private func bindCapturedOuterLambdaReceiver(_ receiver: KIRExprID, type: TypeID, sema: SemaModule) {
+        guard case let .classType(classType) = sema.types.kind(of: type) else { return }
+        driver.ctx.setCapturedOuterReceiver(receiver, for: classType.classSymbol)
+        driver.ctx.setLocalValue(receiver, for: classType.classSymbol)
     }
 
     private func materializeEscapingCallableValue(
@@ -810,6 +831,12 @@ final class LambdaLowerer {
             captureArguments: [closureObj],
             hasClosureParam: false,
             unboxedSymbol: lambdaSymbol
+        )
+        emitFunctionDescription(
+            value: materializedExpr,
+            description: "kotlin.Function\(functionType.params.count)",
+            identity: true,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
         return materializedExpr
     }
@@ -1379,6 +1406,18 @@ final class LambdaLowerer {
             }
         } else if !isUnbound,
                   !isSingletonOwnedPropertyRef,
+                  let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+                  let receiverValue = captureValueExpr(
+                      for: receiverSymbol,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+        {
+            captureArguments.append(receiverValue)
+        } else if !isUnbound,
+                  !isSingletonOwnedPropertyRef,
                   sema.bindings.callableRefKind(for: exprID) == .propertyRef,
                   let targetSymbol,
                   let parentSymbol = sema.symbols.parentSymbol(for: targetSymbol),
@@ -1909,6 +1948,7 @@ final class LambdaLowerer {
                 callableType: callableType,
                 refKind: refKind,
                 memberName: memberName,
+                targetSymbol: targetSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -2160,6 +2200,7 @@ final class LambdaLowerer {
         callableType: TypeID,
         refKind: CallableRefKind,
         memberName: InternedString,
+        targetSymbol: SymbolID? = nil,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -2234,6 +2275,18 @@ final class LambdaLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        if refKind == .functionRef {
+            let anonymous = interner.resolve(memberName).hasPrefix("__AnonymousFunction_")
+            emitFunctionDescription(
+                value: taggedExpr,
+                description: anonymous ? "kotlin.Function\(arity)" : functionReferenceDescription(
+                    name: memberName, type: callableType, targetSymbol: targetSymbol,
+                    sema: sema, interner: interner
+                ),
+                identity: anonymous,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         return taggedExpr
     }
 
@@ -2393,6 +2446,13 @@ final class LambdaLowerer {
             )
         let lambdaValueExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: lambdaValueType)
         instructions.append(.constValue(result: lambdaValueExpr, value: .symbolRef(lambdaSymbol)))
+
+        emitFunctionDescription(
+            value: lambdaValueExpr,
+            description: "kotlin.Function\(lambdaParameterTypes.count)",
+            identity: true,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
 
         // Register with no capture arguments for optimization
         driver.ctx.registerCallableValue(

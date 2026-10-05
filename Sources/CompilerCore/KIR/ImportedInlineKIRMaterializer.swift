@@ -154,7 +154,7 @@ enum ImportedInlineKIRMaterializer {
     ) -> KIRInstruction {
         switch instruction {
         case .nop, .beginBlock, .endBlock, .label, .jump, .returnUnit,
-             .beginFinallyGuard, .endFinallyGuard:
+             .beginFinallyGuard, .endFinallyGuard, .beginFinallyCleanup, .endFinallyCleanup:
             return instruction
         case let .jumpIfEqual(lhs, rhs, target):
             return .jumpIfEqual(lhs: remap(lhs), rhs: remap(rhs), target: target)
@@ -204,6 +204,12 @@ enum ImportedInlineKIRMaterializer {
             return .returnValue(remap(value))
         case let .nonLocalReturn(value):
             return .nonLocalReturn(value.map(remap))
+        case let .beginNonLocalReturnScope(value, target):
+            return .beginNonLocalReturnScope(value: remap(value), target: target)
+        case .endNonLocalReturnScope:
+            return instruction
+        case let .resumeNonLocalReturn(value):
+            return .resumeNonLocalReturn(remap(value))
         }
     }
 }

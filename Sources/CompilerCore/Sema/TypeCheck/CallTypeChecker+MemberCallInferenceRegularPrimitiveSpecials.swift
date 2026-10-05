@@ -25,9 +25,7 @@ extension CallTypeChecker {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
-            let byteType = sema.types.byteType
-            let shortType = sema.types.shortType
-            if lookupReceiverType == intType || lookupReceiverType == longType || lookupReceiverType == uintType || lookupReceiverType == ulongType || lookupReceiverType == ubyteType || lookupReceiverType == ushortType || lookupReceiverType == byteType || lookupReceiverType == shortType {
+            if lookupReceiverType == intType || lookupReceiverType == longType || lookupReceiverType == uintType || lookupReceiverType == ulongType || lookupReceiverType == ubyteType || lookupReceiverType == ushortType {
                 let resultType = lookupReceiverType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
@@ -68,6 +66,7 @@ extension CallTypeChecker {
             let isPrimitiveReceiver = !isRangeReceiver
                 && (receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
             let isShiftReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType
+            let isBitwiseReceiver = isShiftReceiver || receiverForCheck == ubyteType || receiverForCheck == ushortType
             // Helper: whether a type is a small unsigned type (UByte/UShort).
             // In Kotlin stdlib, small unsigned types promote to UInt for most
             // arithmetic (plus/minus/times/div/rem). `mod` returns the RHS type.
@@ -202,7 +201,7 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "and", "or", "xor":
-                if isPrimitiveReceiver,
+                if isBitwiseReceiver,
                    rawRhsType == receiverForCheck
                 {
                     let resultType = receiverForCheck

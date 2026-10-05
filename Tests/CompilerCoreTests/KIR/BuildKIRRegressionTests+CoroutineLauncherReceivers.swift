@@ -47,6 +47,60 @@ extension BuildKIRRegressionTests {
         #expect(module.arena.expr(lambdaArgs[1]) == .symbolRef(adapter.params[1].symbol))
     }
 
+    @Test
+    func testCoroutineLauncherCapturesEnclosingGenericReceiverSeparatelyFromScope() throws {
+        let ctx = makeContextFromSource("""
+        import kotlinx.coroutines.*
+
+        fun accept(scope: CoroutineScope) {}
+
+        class Launcher<T>(val scope: CoroutineScope, var value: T) {
+            fun read(): T = value
+            fun start() = scope.launch {
+                accept(this)
+                println(read())
+                println(value)
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let owner = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Launcher")]))
+        let lambda = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            guard case let .function(function) = declaration,
+                  ctx.interner.resolve(function.name).hasPrefix("kk_lambda_"),
+                  function.body.contains(where: { instruction in
+                      guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                      return ctx.interner.resolve(callee) == "accept"
+                  })
+            else { return nil }
+            return function
+        }.first)
+        let capture = try #require(lambda.params.first { param in
+            guard case let .classType(type) = sema.types.kind(of: param.type) else { return false }
+            return type.classSymbol == owner
+        })
+        #expect(lambda.body.contains { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_array_get_inbounds",
+                  let receiver = arguments.first,
+                  case let .symbolRef(symbol) = module.arena.expr(receiver)
+            else { return false }
+            return symbol == capture.symbol
+        })
+        #expect(lambda.body.contains { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "accept",
+                  let receiver = arguments.first,
+                  let type = module.arena.exprType(receiver),
+                  case let .classType(classType) = sema.types.kind(of: type)
+            else { return false }
+            return classType.classSymbol != owner
+        })
+    }
+
     @Test(arguments: [false, true])
     func testRunBlockingReceiverDoesNotOccupyLauncherCaptureSlot(capturesLocal: Bool) throws {
         let ctx = makeContextFromSource("""
