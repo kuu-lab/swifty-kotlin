@@ -352,6 +352,17 @@ extension TypeSystem {
             if functionNArity(of: leftClass.classSymbol) != nil {
                 return functionNSubtypeOfFunctionType(leftClass, rightFunction)
             }
+            // KUU-1195: a nominal type that reaches `FunctionN` through
+            // inheritance (e.g. the bundled `KProperty0/1/2` interfaces, whose
+            // `() -> V` / `(T) -> V` / `(D, E) -> V` supertypes are bound to
+            // `Function0/1/2` during inheritance resolution) is likewise a
+            // subtype of the matching function type.
+            if let liftedFunctionN = inheritedFunctionNClassType(
+                of: leftClass,
+                arity: (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count
+            ), functionNSubtypeOfFunctionType(liftedFunctionN, rightFunction) {
+                return true
+            }
             guard let symbols = symbolTable else { return false }
             guard let sym = symbols.symbol(leftClass.classSymbol),
                   sym.kind == .interface,
@@ -928,6 +939,38 @@ extension TypeSystem {
             returnType: arguments[arity],
             nullability: classType.nullability
         )
+    }
+
+    /// Lifts a nominal class type to the `kotlin.Function.FunctionN`
+    /// interface of the given arity that it reaches through its nominal
+    /// supertype chain (e.g. `KProperty0<Int>` → `Function0<Int>` via the
+    /// `() -> V` supertype binding — KUU-1195), preserving the declared
+    /// projections and the subtype's nullability. `nil` when no `FunctionN`
+    /// ancestor of that arity exists. The walk mirrors
+    /// `isNominalSubtypeSymbol`: an explicit worklist with a visited set so a
+    /// cyclic `.kklib` supertype graph cannot loop.
+    func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
+        var visited: Set<SymbolID> = [classType.classSymbol]
+        var queue = directNominalSupertypes(for: classType.classSymbol)
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visited.insert(current).inserted else { continue }
+            if functionNArity(of: current) == arity,
+               let args = liftedNominalSupertypeArgs(
+                   from: classType.classSymbol,
+                   childArgs: classType.args,
+                   to: current
+               )
+            {
+                return ClassType(
+                    classSymbol: current,
+                    args: args,
+                    nullability: classType.nullability
+                )
+            }
+            queue.append(contentsOf: directNominalSupertypes(for: current))
+        }
+        return nil
     }
 
     /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>`: the receiver counts as the
