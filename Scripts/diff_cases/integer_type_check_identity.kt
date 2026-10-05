@@ -52,4 +52,12 @@ fun main() {
     }
     println((9.toByte() as Any) as Byte)
     println((500.toShort() as Any) as Short)
+    val literalByte: Byte = 1
+    val literalShort: Short = 2
+    val literalUByte: UByte = 3u
+    val literalUShort: UShort = 4u
+    println(tag(literalByte))
+    println(tag(literalShort))
+    println(tag(literalUByte))
+    println(tag(literalUShort))
 }
