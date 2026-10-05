@@ -234,7 +234,7 @@ public enum ContractReturnCondition: String, Equatable, Sendable {
 }
 
 public enum ContractArgumentCondition: String, Equatable, Sendable {
-    case nonNull, booleanTrue, booleanFalse
+    case nonNull, booleanTrue, booleanFalse, isType
 }
 
 public struct ContractImplicationEffect: Equatable, Sendable {
@@ -242,10 +242,15 @@ public struct ContractImplicationEffect: Equatable, Sendable {
     public let returnCondition: ContractReturnCondition
     public let argumentCondition: ContractArgumentCondition
 
-    public init(parameterIndex: Int, returnCondition: ContractReturnCondition, argumentCondition: ContractArgumentCondition) {
+    public let targetType: TypeID?
+    public let targetTypeSignature: String?
+
+    public init(parameterIndex: Int, returnCondition: ContractReturnCondition, argumentCondition: ContractArgumentCondition, targetType: TypeID? = nil, targetTypeSignature: String? = nil) {
         self.parameterIndex = parameterIndex
         self.returnCondition = returnCondition
         self.argumentCondition = argumentCondition
+        self.targetType = targetType
+        self.targetTypeSignature = targetTypeSignature
     }
 }
 
