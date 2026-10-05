@@ -12,14 +12,13 @@ package kotlin.ranges
 //
 // `ComparableRange`/`ComparableOpenEndRange` back the generic `rangeTo` /
 // `rangeUntil` operators. Their member bodies follow upstream, but
-// `ClosedRange`/`OpenEndRange` interface members are still compiler residuals
-// (KSP-451): a call to `contains`/`isEmpty` on a receiver statically typed as
-// `ClosedRange<T>`/`OpenEndRange<T>` lowers to the raw `__kk_range_*` handle
-// bridges, which cannot read a heap object, and `start`/`endInclusive`/
-// `endExclusive` have no lowering path for interface-typed receivers at all.
+// `ClosedRange` members use source interface dispatch, including itables
+// registered by runtime-backed range factories. `OpenEndRange` interface
+// members still use residual raw `__kk_range_*` handle bridges (KSP-451),
+// which cannot read a generic heap range object.
 // These overrides keep the members correct on the concrete classes
-// themselves; interface-typed dispatch on generic ranges remains a residual
-// limitation.
+// themselves; interface-typed dispatch on generic open-ended ranges remains
+// a residual limitation.
 //
 /** Returns false for null elements, otherwise delegates to the range member. */
 @SinceKotlin("2.3")
@@ -156,6 +155,9 @@ public fun <T : Comparable<T>> T.coerceAtMost(maximumValue: T): T {
  * @return this value if it's in the range, or `range.start` if this value is less than `range.start`, or `range.endInclusive` if this value is greater than `range.endInclusive`.
  */
 public fun <T : Comparable<T>> T.coerceIn(range: ClosedRange<T>): T {
+    if (range is ClosedFloatingPointRange) {
+        return this.coerceIn<T>(range)
+    }
     if (range.isEmpty()) {
         throw IllegalArgumentException("Cannot coerce value to an empty range: $range.")
     }
