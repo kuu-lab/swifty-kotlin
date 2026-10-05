@@ -810,6 +810,7 @@ extension DataFlowSemaPhase {
         // An expect class may declare its abstract contract only in the actual
         // implementation; an empty expect body is therefore not suspicious.
         if !hasAbstractMember,
+           !symbolInfo.flags.contains(.sealedType),
            !symbolInfo.flags.contains(.expectDeclaration),
            !inheritsFromAbstractSet(symbol, symbols: symbols, interner: interner)
         {
