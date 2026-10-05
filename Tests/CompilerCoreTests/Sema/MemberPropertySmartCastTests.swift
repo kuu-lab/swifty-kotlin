@@ -58,6 +58,10 @@ struct MemberPropertySmartCastTests {
         "fun write() { args = Args(null) }; if (args.x != null) { write(); println(args.x.length) }",
         "val writer = object { fun write() { args = Args(null) } }; if (args.x != null) { writer.write(); println(args.x.length) }",
         "class Writer { fun write() { args = Args(null) } }; if (args.x != null) { Writer().write(); println(args.x.length) }",
+        "class Writer { fun write(value: Unit = run { args = Args(null) }) {} }; if (args.x != null) { Writer().write(); println(args.x.length) }",
+        "class Writer(value: Unit = run { args = Args(null) }); if (args.x != null) { Writer(); println(args.x.length) }",
+        "class Writer { constructor(value: Unit = kotlin.run { args = Args(null) }) {} }; if (args.x != null) { Writer(); println(args.x.length) }",
+        "class Writer(value: Unit) { constructor() : this(kotlin.run { args = Args(null) }) }; if (args.x != null) { Writer(); println(args.x.length) }",
         "requireNotNull(args.x); args = Args(null); println(args.x.length)"
     ])
     func reassignedReceiverIsNotStable(body: String) throws {

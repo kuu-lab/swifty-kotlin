@@ -40,6 +40,7 @@ final class LocalVariableStabilityAnalyzer {
 
     private func visit(_ id: ExprID, ast: ASTModule, locals: inout [InternedString: ExprID]) {
         guard let expression = ast.arena.expr(id) else { return }
+        analyzedRoots.insert(id)
         func scoped(_ child: ExprID, hiding names: [InternedString] = []) {
             var scope = locals
             for name in names { scope.removeValue(forKey: name) }
@@ -70,8 +71,8 @@ final class LocalVariableStabilityAnalyzer {
         case let .localFunDecl(name, params, _, body, _, _):
             var scope = locals
             for param in params {
+                if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }
                 scope.removeValue(forKey: param.name)
-                if let value = param.defaultValue { scoped(value) }
             }
             scope.removeValue(forKey: name)
             visitBody(body, ast: ast, locals: scope)
@@ -144,21 +145,26 @@ final class LocalVariableStabilityAnalyzer {
         let initBlocks: [FunctionBody]
         let arguments: [ExprID]
         let nestedDeclarations: [DeclID]
+        let constructors: [ConstructorDecl]
         var scope = locals
         switch declaration {
         case let .classDecl(decl):
             functions = decl.memberFunctions
             properties = decl.memberProperties
-            initBlocks = decl.initBlocks + decl.secondaryConstructors.map(\.body)
+            initBlocks = decl.initBlocks
+            constructors = decl.secondaryConstructors
             arguments = decl.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
                 + decl.superTypeEntries.compactMap(\.delegateExpression)
-                + decl.primaryConstructorParams.compactMap(\.defaultValue)
             nestedDeclarations = decl.nestedClasses + decl.nestedObjects
-            for param in decl.primaryConstructorParams { scope.removeValue(forKey: param.name) }
+            for param in decl.primaryConstructorParams {
+                if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }
+                scope.removeValue(forKey: param.name)
+            }
         case let .objectDecl(decl):
             functions = decl.memberFunctions
             properties = decl.memberProperties
             initBlocks = decl.initBlocks
+            constructors = []
             arguments = decl.superTypeConstructorArgs.map(\.expr)
             nestedDeclarations = decl.nestedClasses + decl.nestedObjects
         default: return
@@ -170,8 +176,22 @@ final class LocalVariableStabilityAnalyzer {
         for function in functions {
             guard case let .funDecl(decl) = ast.arena.decl(function) else { continue }
             var functionScope = scope
-            for param in decl.valueParams { functionScope.removeValue(forKey: param.name) }
+            for param in decl.valueParams {
+                if let value = param.defaultValue { visit(value, ast: ast, locals: &functionScope) }
+                functionScope.removeValue(forKey: param.name)
+            }
             visitBody(decl.body, ast: ast, locals: functionScope)
+        }
+        for constructor in constructors {
+            var constructorScope = scope
+            for param in constructor.valueParams {
+                if let value = param.defaultValue { visit(value, ast: ast, locals: &constructorScope) }
+                constructorScope.removeValue(forKey: param.name)
+            }
+            for argument in constructor.delegationCall?.args ?? [] {
+                visit(argument.expr, ast: ast, locals: &constructorScope)
+            }
+            visitBody(constructor.body, ast: ast, locals: constructorScope)
         }
         for property in properties {
             guard case let .propertyDecl(decl) = ast.arena.decl(property) else { continue }
