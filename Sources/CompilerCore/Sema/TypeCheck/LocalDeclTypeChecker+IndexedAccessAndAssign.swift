@@ -135,7 +135,10 @@ extension LocalDeclTypeChecker {
                 sema: sema
             )
             let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType)
-            indexTypes.append(indexType)
+            let valueType = driver.helpers.retypeClassNameAsCompanionValue(
+                indexExpr, currentType: indexType, ast: ast, sema: sema
+            ) ?? indexType
+            indexTypes.append(valueType)
         }
 
         if !getCandidates.isEmpty {

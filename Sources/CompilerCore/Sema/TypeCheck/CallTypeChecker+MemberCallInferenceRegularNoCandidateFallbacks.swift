@@ -1181,6 +1181,7 @@ extension CallTypeChecker {
                 if let chosen = resolved.chosenCallee {
                     let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
                     sema.bindings.markInvokeOperatorCall(id)
+                    sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
                     let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType

@@ -51,12 +51,31 @@ final class RuntimeStringBuilderBox {
 private let stringBuilderTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.StringBuilder")
 private let stringBuilderCharSequenceSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
 private let stringBuilderAppendableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.Appendable")
+private let stringBuilderComparableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+private let stringBuilderCompareToMethod: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { lhs, rhs, outThrown in
+    outThrown?.pointee = 0
+    guard let lhsBuilder = runtimeStringBuilderBox(from: lhs),
+          let rhsBuilder = runtimeStringBuilderBox(from: rhs)
+    else {
+        runtimeStructuredPanic("StringBuilder.compareTo requires StringBuilder operands")
+    }
+    for (lhsUnit, rhsUnit) in zip(lhsBuilder.units, rhsBuilder.units) {
+        let difference = Int(lhsUnit) - Int(rhsUnit)
+        if difference != 0 {
+            return difference
+        }
+    }
+    return lhsBuilder.units.count - rhsBuilder.units.count
+}
 
 func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {
     runtimeRegisterObjectType(rawValue: raw, classID: stringBuilderTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderCharSequenceSuperTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderAppendableSuperTypeID)
+    runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderComparableSuperTypeID)
     runtimeRegisterCharSequenceItable(raw)
+    _ = kk_object_register_itable_iface(raw, Int(stringBuilderComparableSuperTypeID), 1)
+    _ = kk_object_register_itable_method(raw, 1, 0, unsafeBitCast(stringBuilderCompareToMethod, to: Int.self))
     return raw
 }
 

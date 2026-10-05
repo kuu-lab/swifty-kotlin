@@ -13,7 +13,7 @@ final class LambdaLowerer {
         self.driver = driver
     }
 
-    private func normalizeHOFPrimitiveParameter(
+    func normalizeHOFPrimitiveParameter(
         _ exprID: KIRExprID,
         type: TypeID,
         sema: SemaModule,
@@ -607,7 +607,8 @@ final class LambdaLowerer {
             driver.ctx.setLocalDelegateStorage(capturedValue, for: capture.capturedSymbol)
         } else if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
                   semanticSymbol.kind == .local,
-                  semanticSymbol.flags.contains(.mutable)
+                  (semanticSymbol.flags.contains(.mutable)
+                      || sema.bindings.isContractCallsInPlaceInitializedSymbol(capture.capturedSymbol))
         {
             driver.ctx.setMutableCaptureCell(capturedValue, for: capture.capturedSymbol)
         } else {
@@ -1899,8 +1900,7 @@ final class LambdaLowerer {
         // closure adapter as an escaping lambda, so runtime invocation reads
         // the receiver from the closure object.
         let callableValue: KIRExprID
-        if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
-           !captureArguments.isEmpty,
+        if !captureArguments.isEmpty,
            case let .functionType(functionType) = sema.types.kind(of: callableType),
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
@@ -1937,6 +1937,15 @@ final class LambdaLowerer {
                 interner: interner,
                 instructions: &instructions
             )
+            if case let .functionType(functionType) = sema.types.kind(of: callableType) {
+                registerCallableReflection(
+                    value: taggedExpr, callableSymbol: callableSymbol, callableName: callableName,
+                    targetSymbol: targetSymbol, parameterTypes: functionType.params, returnType: functionType.returnType,
+                    captures: captureArguments,
+                    receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+            }
             if let callableInfo = driver.ctx.callableValueInfo(for: callableValue) {
                 driver.ctx.registerCallableValue(
                     taggedExpr,
