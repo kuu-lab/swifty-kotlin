@@ -2859,6 +2859,22 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        // A qualified classifier such as `Outer.Nested` is a static class
+        // literal, even when Outer has a companion value. Do not evaluate it
+        // as a bound receiver; constructor calls and properties stay bound.
+        if case let .memberCall(_, _, _, args, _) = ctx.ast.arena.expr(receiver),
+           args.isEmpty, !ctx.ast.arena.isExplicitCall(receiver),
+           let symbolID = sema.bindings.identifierSymbol(for: receiver),
+           let symbol = sema.symbols.symbol(symbolID),
+           symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass
+               || symbol.kind == .annotationClass || symbol.kind == .object
+        {
+            let targetType = sema.types.makeNonNullable(receiverType)
+            sema.bindings.bindClassRefTargetType(id, type: targetType)
+            let kClassType = sema.types.makeKClassType(argument: targetType)
+            sema.bindings.bindExprType(id, type: kClassType)
+            return kClassType
+        }
         var visited: Set<TypeID> = []
         let isFlowNonNull: Bool
         if case let .nameRef(name, _) = ctx.ast.arena.expr(receiver),

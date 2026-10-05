@@ -601,17 +601,28 @@ extension CallTypeChecker {
             // declarations have no constructor at all, so a nested enum/object
             // reference must be the bare type/nested-owner (needed e.g. for
             // `Owner.Nested.ENTRY`, where `Nested` is the receiver of a
-            // further static member access). A parenthesis-less nested annotation
-            // class is likewise a qualifier, while an explicit call must continue
-            // through constructor resolution. A nested `class`, in
-            // contrast, may have a genuine public zero-arg constructor (e.g.
-            // `Outer.Builder()`), so it falls through to constructor
-            // resolution below, preserving the pre-existing behavior.
+            // further static member access). Parenthesis-less nested classes
+            // and annotation classes are likewise classifiers, including on
+            // the left of `::class`; only explicit calls construct instances.
             if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
                let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
                nestedOwnerKind == .enumClass || nestedOwnerKind == .object
-                   || (nestedOwnerKind == .annotationClass && !ast.arena.isExplicitCall(id))
+                   || ((nestedOwnerKind == .class || nestedOwnerKind == .annotationClass)
+                       && !ast.arena.isExplicitCall(id))
             {
+                if let nestedSymbol = sema.symbols.symbol(nestedOwner),
+                   !ctx.visibilityChecker.isAccessible(
+                       nestedSymbol,
+                       fromFile: ctx.currentFileID,
+                       enclosingClass: ctx.enclosingClassSymbol
+                   )
+                {
+                    driver.helpers.emitVisibilityError(
+                        for: nestedSymbol, name: interner.resolve(calleeName),
+                        range: range, diagnostics: ctx.semaCtx.diagnostics
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
                 let nestedType = sema.types.make(.classType(ClassType(
                     classSymbol: nestedOwner,
                     args: [],
