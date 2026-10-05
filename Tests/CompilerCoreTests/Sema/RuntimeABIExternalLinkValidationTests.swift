@@ -63,15 +63,19 @@ struct RuntimeABIExternalLinkValidationTests {
     @Test func testTimeoutLauncherUsesPackedChildContinuationABI() throws {
         let declarations = bundledKsSymbolNameDeclarations(in: """
         @KsSymbolName("kk_with_timeout")
-        external suspend fun <T> withTimeout(timeMillis: Long, block: suspend () -> T): T
-        @KsSymbolName("kk_with_timeout_or_null")
-        external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: suspend () -> T): T?
+        external suspend fun <T> withTimeout(timeMillis: Long, block: suspend CoroutineScope.() -> T): T
+        @KsSymbolName("kk_with_timeout_or_null_throwing")
+        external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: suspend CoroutineScope.() -> T): T?
         """, relativePath: "timeout.kt")
         #expect(declarations.count == 2)
         for declaration in declarations {
             let specs = RuntimeABISpec.allFunctions.filter { $0.name == declaration.linkName }
             #expect(specs.count == 1)
             let spec = try #require(specs.first)
+            #expect(spec.isThrowing)
+            #expect(spec.parameterTypeStrings == Array(repeating: RuntimeABICType.intptr.rawValue, count: 3) + [
+                RuntimeABICType.nullableIntptrPointer.rawValue,
+            ])
             #expect(runtimeABIArityCandidates(for: declaration, specs: specs).contains(spec.parameters.count))
             #expect(expectedRuntimeABIParameterTypeVariants(for: declaration) == [
                 Array(repeating: RuntimeABICType.intptr.rawValue, count: 3),
