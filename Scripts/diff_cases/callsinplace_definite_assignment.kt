@@ -33,6 +33,22 @@ fun read(block: (Int) -> Int): Int {
     return result
 }
 
+object UnsafeBufferOperations {
+    inline fun readFromHead(buffer: Int, block: (Int, Int, Int) -> Int): Int {
+        contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+        return block(buffer, 1, 9)
+    }
+}
+
+fun readBufferObject(block: (Int, Int, Int) -> Int): Int {
+    var result: Int
+    UnsafeBufferOperations.readFromHead(10) { array, start, endExclusive ->
+        result = block(array, start, endExclusive)
+        result
+    }
+    return result
+}
+
 inline fun readBufferHead(start: Int, end: Int, block: (Int, Int) -> Int): Int {
     contract { callsInPlace(block, InvocationKind.AT_LEAST_ONCE) }
     block(start, end)
@@ -98,6 +114,7 @@ fun viaMemberRun(): Int {
 
 fun main() {
     println(read { it + 42 })
+    println(readBufferObject { array, start, end -> array + end - start })
     println(readBuffer { start, end -> end - start })
     println(viaCustomExactlyOnce())
     println(viaCustomAtLeastOnce())
