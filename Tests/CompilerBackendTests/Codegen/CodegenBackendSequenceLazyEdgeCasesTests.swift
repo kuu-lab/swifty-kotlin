@@ -143,6 +143,32 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     }
 
     @Test
+    func testGenerateSequenceTraversesBeyondFormerLimitWithForwardedCallbacks() throws {
+        let source = """
+        fun seeded(next: (Int) -> Int?): Sequence<Int> = generateSequence(0, next)
+        fun nullable(next: () -> Int?): Sequence<Int> = generateSequence(next)
+
+        fun main() {
+            println(generateSequence(0) { it + 1 }.take(150000).last())
+            println(seeded { it + 1 }.take(150000).last())
+            var next = 0
+            println(nullable {
+                val value = next
+                next += 1
+                value
+            }.take(150000).last())
+            println(next)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenerateSequenceUnboundedForwardedCallbacks",
+            expected: "149999\n149999\n149999\n150000\n"
+        )
+    }
+
+    @Test
     func testGenerateSequenceIteratorPullsOnlyElementsRequestedByJoinToStringLimit() throws {
         let source = """
         fun main() {
@@ -1068,6 +1094,34 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
             source,
             moduleName: "SequenceRegistrationRuntime",
             expected: "[]\n[1, 2]\n3\n"
+        )
+    }
+
+    @Test
+    func testSequenceFirstVariantsShortCircuitUnboundedGenerators() throws {
+        let source = """
+        fun main() {
+            var calls = 0
+            println(generateSequence(0) { calls++; it + 1 }.first())
+            println(calls)
+            println(generateSequence(0) { it + 1 }.first { it > 100000 })
+            println(generateSequence(0) { calls++; it + 1 }.firstOrNull())
+            println(calls)
+            println(generateSequence(0) { it + 1 }.firstOrNull { it > 100000 })
+            println(emptySequence<Int>().firstOrNull())
+            println(sequenceOf(1, 2).firstOrNull { it > 2 })
+            try {
+                emptySequence<Int>().first()
+            } catch (e: NoSuchElementException) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFirstUnbounded",
+            expected: "0\n0\n100001\n0\n0\n100001\nnull\nnull\nempty\n"
         )
     }
 

@@ -4,6 +4,116 @@ import Testing
 
 @Suite
 struct CallableRefTypeIdentityTests {
+    @Test(arguments: ["Box<String>", "Box<List<String?>>", "Box<*>", "Box<out String>"])
+    func testExplicitTypeReceiverIsUnboundAndRetainsArguments(_ receiver: String) throws {
+        let ctx = makeContextFromSource("""
+        class Box<T> { fun echo(value: Int): Int = value }
+        fun main() { val ref = \(receiver)::echo }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        #expect(sema.bindings.isUnboundCallableRef(ref))
+        #expect(sema.bindings.captureSymbolsByExpr[ref]?.isEmpty != false)
+        guard case let .functionType(function) = sema.types.kind(of: try #require(sema.bindings.exprType(for: ref))),
+              case let .classType(owner) = sema.types.kind(of: try #require(function.params.first))
+        else {
+            Issue.record("Expected (Box<Args>, Int) -> Int.")
+            return
+        }
+        #expect(owner.args.count == 1)
+        #expect(function.params.count == 2)
+        #expect(function.params[1] == sema.types.intType)
+        #expect(function.returnType == sema.types.intType)
+    }
+
+    @Test func testExplicitTypeReceiverSpecializesGenericOwnerSignature() throws {
+        let ctx = makeContextFromSource("""
+        class Box<T> { fun echo(value: T): T = value }
+        fun main() { val ref = Box<String>::echo }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        guard case let .functionType(function) = sema.types.kind(of: try #require(sema.bindings.exprType(for: ref))) else {
+            Issue.record("Expected a function type.")
+            return
+        }
+        #expect(function.params.count == 2)
+        #expect(function.params[1] == sema.types.stringType)
+        #expect(function.returnType == sema.types.stringType)
+        #expect(sema.bindings.isUnboundCallableRef(ref))
+        #expect(sema.bindings.captureSymbolsByExpr[ref]?.isEmpty != false)
+    }
+
+    @Test(arguments: [
+        "val ref: (Box<Int>, Int) -> Int = Box<String>::echo",
+        "val ref = Box<Missing>::echo",
+        "val ref = Missing<String>::echo",
+        "val ref = Box<String>::class",
+        "val ref = Box<String, Int>::echo",
+        "val ref = Int<String>::plus",
+    ])
+    func testInvalidExplicitTypeReceiverIsRejected(_ declaration: String) throws {
+        let ctx = makeContextFromSource("""
+        class Box<T> { fun echo(value: Int): Int = value }
+        fun main() { \(declaration) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test(arguments: [
+        "val instance = Outer.Nested<String>()",
+        "val instance: Outer.Nested<String> = Outer.Nested()",
+        "val instance = Outer.Nested<String>(1)",
+    ])
+    func testNestedGenericConstructorCanSupplyUnboundReceiver(_ declaration: String) throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            class Nested<T>(val initial: Int = 0) { fun echo(value: Int): Int = value }
+        }
+        fun main() {
+            \(declaration)
+            val ref = Outer.Nested<String>::echo
+            val result: Int = ref(instance, 42)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testExplicitTypeReceiverSelectsSpecializedOverload() throws {
+        let ctx = makeContextFromSource("""
+        class Box<T> {
+            fun echo(value: T): T = value
+            fun echo(value: Int): Int = value
+        }
+        fun main() { val ref: (Box<String>, String) -> String = Box<String>::echo }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let target = try #require(sema.bindings.identifierSymbol(for: ref))
+        let signature = try #require(sema.symbols.functionSignature(for: target))
+        #expect(sema.types.typeContainsAnyTypeParam(signature.returnType))
+    }
+
     @Test func testFunctionValueDescriptionsIncludeReferenceSignaturesAndLambdaIdentity() throws {
         let ctx = makeContextFromSource("""
         fun top(): Int = 7
@@ -27,6 +137,153 @@ struct CallableRefTypeIdentityTests {
         }
         #expect(descriptions.contains("fun top(): kotlin.Int"))
         #expect(descriptions.filter { $0 == "kotlin.Function0" }.count == 2)
+    }
+
+    @Test func testInferredFunctionReferenceNameResolvesAndLowersToMetadata() throws {
+        let ctx = makeContextFromSource("""
+        fun topFun() = 3
+        val topVal = 4
+        class Box { fun member(x: Int) = x }
+        fun <T> identity(value: T): T = value
+        fun main(box: Box) {
+            val fr = ::topFun
+            val alias = fr
+            val bound = box::member
+            val unbound = Box::member
+            val nullable = if (true) ::topFun else null
+            println(fr())
+            println(fr.name)
+            println(alias.name)
+            println(bound.name)
+            println(unbound.name)
+            println(identity(fr).name)
+            println(nullable?.name)
+            val vr = ::topVal
+            println(vr.get())
+            println(vr.name)
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_kcallable_get_name"))
+        let boxedValues = Set(body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee).hasPrefix("kk_function_create_")
+            else { return nil }
+            return result
+        })
+        #expect(!boxedValues.isEmpty)
+        #expect(body.contains { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "__kk_function_copy_description",
+                  arguments.count == 2
+            else { return false }
+            return boxedValues.contains(arguments[1])
+        })
+    }
+
+    @Test(arguments: [
+        "val f = { 3 }; println(f.name)",
+        "val f: () -> Int = ::topFun; println(f.name)",
+        "val ref = ::topFun; val f: () -> Int = ref; println(f.name)",
+    ])
+    func testPlainFunctionValuesDoNotExposeReflectionName(body: String) throws {
+        let ctx = makeContextFromSource("""
+        fun topFun() = 3
+        fun main() { \(body) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0024" && $0.message.contains("'name'")
+        })
+    }
+
+    @Test func testLambdaCannotBeAssignedToKFunction() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KFunction
+        fun main() {
+            val f: KFunction<Int> = { 3 }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test func testBoxedFunctionReferencesResolveInheritedReflectionMembers() throws {
+        let ctx = makeContextFromSource("""
+        fun defaultFun(x: Int = 2) = x + 1
+        class Box { fun member(x: Int) = x }
+        fun <T> identity(value: T): T = value
+        fun main(box: Box) {
+            val ref = identity(::defaultFun)
+            println(ref.parameters[0].name)
+            println(ref.callBy(emptyMap()))
+            println(listOf(::defaultFun)[0].call(7))
+            println(identity(box::member).call(3))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "val f = { 3 }; println(f.call())",
+        "val f: () -> Int = ::topFun; println(f.call())",
+    ])
+    func testPlainFunctionValuesDoNotExposeReflectionCall(body: String) throws {
+        let ctx = makeContextFromSource("""
+        fun topFun() = 3
+        fun main() { \(body) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test(arguments: [false, true])
+    func testFunctionReferenceTypeSurvivesNullabilitySubstitutionAndMetadata(isSuspend: Bool) throws {
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let parameter = symbols.define(
+            kind: .typeParameter, name: interner.intern("T"),
+            fqName: [interner.intern("T")], declSite: nil, visibility: .public
+        )
+        let parameterType = types.make(.typeParam(TypeParamType(symbol: parameter)))
+        let referenceType = types.make(.functionType(FunctionType(
+            params: [parameterType], returnType: parameterType,
+            isSuspend: isSuspend, isCallableReference: true
+        )))
+        let variables = types.makeTypeVarBySymbol([parameter])
+        let variable = try #require(variables[parameter])
+        let specialized = types.substituteTypeParameters(
+            in: referenceType, substitution: [variable: types.intType], typeVarBySymbol: variables
+        )
+        let nullable = types.makeNullable(specialized)
+        let token = NameMangler().encodeType(nullable, symbols: symbols, types: types, nameResolver: interner.resolve)
+        let diagnostics = DiagnosticEngine()
+        let decoded = try #require(DataFlowSemaPhase().decodeImportedTypeSignature(
+            token: token, symbols: symbols, types: types, interner: interner,
+            diagnostics: diagnostics, metadataPath: "test", ownerFQName: []
+        ))
+        #expect(decoded == nullable)
+        guard case let .functionType(function) = types.kind(of: decoded) else {
+            Issue.record("Expected function reference type")
+            return
+        }
+        #expect(function.isCallableReference)
+        #expect(function.isSuspend == isSuspend)
+        #expect(function.params == [types.intType])
+        #expect(function.returnType == types.intType)
+        #expect(function.nullability == .nullable)
+        #expect(diagnostics.diagnostics.isEmpty)
+        let plain = types.make(.functionType(FunctionType(
+            params: [types.intType], returnType: types.intType, isSuspend: isSuspend
+        )))
+        #expect(types.isSubtype(specialized, plain))
+        #expect(!types.isSubtype(plain, specialized))
     }
 
     @Test func testSemaBindsFunctionRefKindForCallableReference() throws {

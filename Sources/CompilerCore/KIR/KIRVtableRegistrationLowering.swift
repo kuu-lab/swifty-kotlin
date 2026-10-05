@@ -1433,27 +1433,30 @@ private func kirFindMatchingMethod(
         {
             continue
         }
-        if firstCandidate == nil {
-            firstCandidate = candidate
-        }
-        let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
+        let candidateParameterTypes = sema.symbols.functionSignature(for: candidate)?.parameterTypes
         // Prefer a full parameter-type match so same-arity overloads
         // (e.g. StringBuilder.append(Char) vs append(String)) land in
         // the correct itable slot. Type parameters are wildcards.
-        if let interfaceParameterTypes,
+        if let interfaceParameterTypes, let candidateParameterTypes,
            kirOverrideParameterTypesMatch(
-               candidateParameterTypes: candidateParams,
+               candidateParameterTypes: candidateParameterTypes,
                interfaceParameterTypes: interfaceParameterTypes,
                types: sema.types
            )
         {
             return candidate
         }
-        // BUG-166: fall back to arity matching when type IDs don't
-        // line up (e.g. untracked signatures), then to first name match.
+        // A known, incompatible overload must not replace an inherited default.
+        if interfaceParameterTypes != nil, candidateParameterTypes != nil {
+            continue
+        }
+        if firstCandidate == nil {
+            firstCandidate = candidate
+        }
+        // BUG-166: retain arity/name fallback only for untracked signatures.
         if arityMatch == nil,
            let interfaceParamCount,
-           candidateParams.count == interfaceParamCount
+           candidateParameterTypes?.count == interfaceParamCount
         {
             arityMatch = candidate
         }
@@ -1475,12 +1478,37 @@ private func kirOverrideParameterTypesMatch(
     types: TypeSystem
 ) -> Bool {
     guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
-    for (candidateType, interfaceType) in zip(candidateParameterTypes, interfaceParameterTypes) {
-        if case .typeParam = types.kind(of: candidateType) { continue }
-        if case .typeParam = types.kind(of: interfaceType) { continue }
-        if candidateType != interfaceType { return false }
+    func typeMatches(_ candidateType: TypeID, _ interfaceType: TypeID) -> Bool {
+        if candidateType == interfaceType { return true }
+        if case .typeParam = types.kind(of: candidateType) { return true }
+        if case .typeParam = types.kind(of: interfaceType) { return true }
+        guard case let .classType(candidateClass) = types.kind(of: candidateType),
+              case let .classType(interfaceClass) = types.kind(of: interfaceType),
+              candidateClass.classSymbol == interfaceClass.classSymbol,
+              candidateClass.nullability == interfaceClass.nullability,
+              candidateClass.args.count == interfaceClass.args.count
+        else {
+            return false
+        }
+        return zip(candidateClass.args, interfaceClass.args).allSatisfy { candidateArg, interfaceArg in
+            let candidateInner: TypeID
+            let interfaceInner: TypeID
+            switch candidateArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                candidateInner = type
+            case .star:
+                return interfaceArg == .star
+            }
+            switch interfaceArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                interfaceInner = type
+            case .star:
+                return false
+            }
+            return typeMatches(candidateInner, interfaceInner)
+        }
     }
-    return true
+    return zip(candidateParameterTypes, interfaceParameterTypes).allSatisfy(typeMatches)
 }
 
 func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {

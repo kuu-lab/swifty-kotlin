@@ -14,6 +14,44 @@ struct RuntimeReflectionTypeMetadataTests {
         Int(truncatingIfNeeded: (typeID << 9) | 6)
     }
 
+    @Test func boundClassReferencesUseBoxedPrimitiveIdentity() throws {
+        let values: [(Int, Int64)] = [
+            (kk_box_int(1), RuntimeTypeTokenEncoding.intBase),
+            (kk_box_byte(1), RuntimeTypeTokenEncoding.byteBase),
+            (kk_box_short(1), RuntimeTypeTokenEncoding.shortBase),
+            (kk_box_uint(1), RuntimeTypeTokenEncoding.uintBase),
+            (kk_box_ubyte(1), RuntimeTypeTokenEncoding.ubyteBase),
+            (kk_box_ushort(1), RuntimeTypeTokenEncoding.ushortBase),
+            (kk_box_long(1), RuntimeTypeTokenEncoding.longBase),
+            (kk_box_ulong(1), RuntimeTypeTokenEncoding.ulongBase),
+            (kk_box_double(1), RuntimeTypeTokenEncoding.doubleBase),
+            (kk_box_float(1), RuntimeTypeTokenEncoding.floatBase),
+            (kk_box_bool(1), RuntimeTypeTokenEncoding.booleanBase),
+            (kk_box_char(65), RuntimeTypeTokenEncoding.charBase),
+            (makeRuntimeString("x"), RuntimeTypeTokenEncoding.stringBase),
+            (kk_box_unit(0), RuntimeTypeTokenEncoding.unitBase),
+        ]
+        for (value, base) in values {
+            let klass = __kk_kclass_of(value, Int(RuntimeTypeTokenEncoding.anyBase), 0)
+            #expect(try #require(runtimeKClassBox(from: klass)).typeToken == Int(base))
+            #expect(klass == __kk_kclass_create(Int(base), 0))
+        }
+    }
+
+    @Test func boundClassReferencesUseNominalMetadataInsteadOfStaticHint() throws {
+        let typeID: Int64 = 73001
+        let token = nominalToken(typeID)
+        _ = __kk_kclass_register_metadata(
+            token, makeRuntimeString("sample.Derived"), makeRuntimeString("Derived"),
+            0, 0, 0, 0, 0
+        )
+        let value = kk_object_new(0, Int(typeID))
+        let klass = __kk_kclass_of(value, Int(RuntimeTypeTokenEncoding.anyBase), makeRuntimeString("Any"))
+        #expect(try #require(runtimeKClassBox(from: klass)).typeToken == token)
+        #expect(runtimeRenderAnyForPrint(__kk_kclass_simple_name(klass)) == "Derived")
+        #expect(runtimeRenderAnyForPrint(__kk_kclass_qualified_name(klass)) == "sample.Derived")
+    }
+
     @Test func reflectionBoxesCarryNominalHierarchyAndSharedNameDispatch() {
         registerReflectionRuntimeTypeMetadata()
 

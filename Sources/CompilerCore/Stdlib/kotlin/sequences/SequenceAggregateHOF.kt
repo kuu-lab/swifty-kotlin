@@ -4,15 +4,13 @@ import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.internal.__valuesEqual
 
 // Float/Double maxOf uses these existing shared numeric helpers directly, the
-// same way Iterables.kt does, so NaN and signed-zero behavior stays identical
+// shared with Iterables.kt, so NaN and signed-zero behavior stays identical
 // to kotlin.comparisons.maxOf (calling that inline wrapper itself by
 // fully-qualified name from a non-inline caller left an unresolved "_maxOf"
 // symbol at link time in --stdlib-from-source mode). minOf uses the
 // comparisonMinOf import alias above instead of a local kk_min_float/double
 // redeclaration — a local redeclaration of kk_min_float produced wrong
 // results (returned the first operand unchanged) when called directly.
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
 
 // MIGRATION-SEQ-004
 // Sequence aggregate HOFs migrated to Kotlin source.
@@ -789,37 +787,27 @@ public fun <T> Sequence<T>.joinToString(
 // Migration source: Sources/Runtime/RuntimeSequence.swift
 
 public fun <T> Sequence<T>.first(): T {
-    val elements = this.toList()
-    if (elements.size == 0) throw NoSuchElementException("Sequence is empty.")
-    return elements[0]
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
+    return iterator.next()
 }
 
 public fun <T> Sequence<T>.first(predicate: (T) -> Boolean): T {
-    val elements = this.toList()
-    var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        val element = elements[i]
+    for (element in this) {
         if (predicate(element)) return element
-        i += 1
     }
     throw NoSuchElementException("Sequence contains no element matching the predicate.")
 }
 
 public fun <T> Sequence<T>.firstOrNull(): T? {
-    val elements = this.toList()
-    if (elements.size == 0) return null
-    return elements[0]
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    return iterator.next()
 }
 
 public fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? {
-    val elements = this.toList()
-    var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        val element = elements[i]
+    for (element in this) {
         if (predicate(element)) return element
-        i += 1
     }
     return null
 }

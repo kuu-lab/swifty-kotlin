@@ -54,10 +54,11 @@ extension DeclTypeChecker {
         signature: FunctionSignature,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
-        var locals: LocalBindings = [:]
+        var locals = baseLocals
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
             guard let param = sema.symbols.symbol(paramSymbol) else { continue }
             let type = localTypeForParameter(
@@ -85,7 +86,8 @@ extension DeclTypeChecker {
         _ classDecl: ClassDecl,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         guard classDecl.primaryConstructorParams.contains(where: { $0.defaultValue != nil }) else {
             return
@@ -104,7 +106,8 @@ extension DeclTypeChecker {
             signature: signature,
             ctx: ctx,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            baseLocals: baseLocals
         )
     }
 
@@ -310,11 +313,12 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         ownerSymbol: SymbolID? = nil,
         hasPrimaryConstructor: Bool = true,
-        explicitSuperclassSymbol: SymbolID? = nil
+        explicitSuperclassSymbol: SymbolID? = nil,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
         for ctor in constructors {
-            var locals: LocalBindings = [:]
+            var locals = baseLocals
             let ctorSymbols = sema.symbols.symbols(atDeclSite: ctor.range)
                 .compactMap { sema.symbols.symbol($0) }
                 .filter { $0.kind == .constructor }
@@ -355,7 +359,8 @@ extension DeclTypeChecker {
                         signature: signature,
                         ctx: constructorCtx,
                         solver: solver,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        baseLocals: baseLocals
                     )
                 }
             }
@@ -415,42 +420,142 @@ extension DeclTypeChecker {
             if candidates.isEmpty {
                 emitUnresolvedDelegation(delegation: delegation, sema: sema)
             } else {
-                let callExpr = CallExpr(
+                let expectedType = delegation.kind == .this
+                    ? constructorOwnerType(ownerSymbol, ctx: ctx)
+                    : constructorSuperclassType(
+                        ownerSymbol: ownerSymbol,
+                        superclassSymbol: explicitSuperclassSymbol,
+                        ctx: ctx
+                    )
+                var callExpr = CallExpr(
                     range: delegation.range,
                     calleeName: ctx.interner.intern("<init>"),
                     args: argTypes
                 )
-                let resolved = ctx.resolver.resolveCall(
+                var resolved = ctx.resolver.resolveCall(
                     candidates: candidates,
                     call: callExpr,
-                    expectedType: delegation.kind == .this
-                        ? constructorOwnerType(ownerSymbol, ctx: ctx)
-                        : constructorSuperclassType(
-                            ownerSymbol: ownerSymbol,
-                            superclassSymbol: explicitSuperclassSymbol,
-                            ctx: ctx
-                        ),
+                    expectedType: expectedType,
                     ctx: sema
                 )
+                if resolved.diagnostic != nil,
+                   reinferConstructorDelegationArguments(
+                       delegation: delegation,
+                       candidates: candidates,
+                       expectedType: expectedType,
+                       argTypes: &argTypes,
+                       ctx: ctx,
+                       locals: &locals
+                   )
+                {
+                    callExpr = CallExpr(range: delegation.range, calleeName: callExpr.calleeName, args: argTypes)
+                    resolved = ctx.resolver.resolveCall(
+                        candidates: candidates,
+                        call: callExpr,
+                        expectedType: expectedType,
+                        ctx: sema
+                    )
+                }
                 if let diagnostic = resolved.diagnostic {
                     sema.diagnostics.emit(diagnostic)
                 }
                 if let chosenCallee = resolved.chosenCallee, let currentCtorSymbolID {
                     sema.bindings.bindConstructorDelegationCall(
-                currentCtorSymbolID,
-                binding: CallBinding(
-                    chosenCallee: chosenCallee,
-                    substitutedTypeArguments: resolved.substitutedTypeArguments
-                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                        .map(\.value),
-                    parameterMapping: resolved.parameterMapping
-                )
-            )
+                        currentCtorSymbolID,
+                        binding: CallBinding(
+                            chosenCallee: chosenCallee,
+                            substitutedTypeArguments: resolved.substitutedTypeArguments
+                                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                .map(\.value),
+                            parameterMapping: resolved.parameterMapping
+                        )
+                    )
                 }
             }
         } else if ownerSymbol != nil {
             emitUnresolvedDelegation(delegation: delegation, sema: sema)
         }
+    }
+
+    private func reinferConstructorDelegationArguments(
+        delegation: ConstructorDelegationCall,
+        candidates: [SymbolID],
+        expectedType: TypeID?,
+        argTypes: inout [CallArg],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let expectedType,
+              case let .classType(ownerType) = sema.types.kind(of: expectedType)
+        else { return false }
+        let ownerParameters = sema.types.nominalTypeParameterSymbols(for: ownerType.classSymbol)
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(ownerParameters)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (parameter, argument) in zip(ownerParameters, ownerType.args) {
+            guard let variable = typeVarBySymbol[parameter] else { continue }
+            switch argument {
+            case let .invariant(type), let .in(type), let .out(type):
+                substitution[variable] = type
+            case .star:
+                continue
+            }
+        }
+        let candidateParameterTypes = candidates.compactMap { candidate -> [Int: TypeID]? in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let mapping = ctx.resolver.buildParameterMapping(
+                      signature: signature,
+                      callArgs: argTypes,
+                      symbols: sema.symbols,
+                      typeSystem: sema.types
+                  )
+            else { return nil }
+            let parameterTypes = mapping.mapValues { parameterIndex in
+                sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[parameterIndex],
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+            }
+            for (index, argument) in delegation.args.enumerated() {
+                let originalType = argTypes[index].type
+                guard !argument.isSpread,
+                      driver.callChecker.isInferableNestedCallExpr(argument.expr, ast: ctx.ast),
+                      driver.callChecker.typeContainsNothingType(originalType, sema: sema),
+                      let parameterType = parameterTypes[index]
+                else { continue }
+                if !sema.types.isSubtype(originalType, parameterType),
+                   driver.callChecker.concreteNestedCallExpectedType(
+                       originalArgumentType: originalType,
+                       boundType: parameterType,
+                       sema: sema
+                   ) == nil
+                {
+                    return nil
+                }
+            }
+            return parameterTypes
+        }
+        guard let firstCandidate = candidateParameterTypes.first else { return false }
+
+        var didReinfer = false
+        for (index, argument) in delegation.args.enumerated() {
+            let originalType = argTypes[index].type
+            guard driver.callChecker.isInferableNestedCallExpr(argument.expr, ast: ctx.ast),
+                  driver.callChecker.typeContainsNothingType(originalType, sema: sema),
+                  let parameterType = firstCandidate[index],
+                  candidateParameterTypes.allSatisfy({ $0[index] == parameterType }),
+                  let argumentExpectedType = driver.callChecker.concreteNestedCallExpectedType(
+                      originalArgumentType: originalType,
+                      boundType: parameterType,
+                      sema: sema
+                  )
+            else { continue }
+            let type = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: argumentExpectedType)
+            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            didReinfer = true
+        }
+        return didReinfer
     }
 
     private func constructorOwnerType(
@@ -653,7 +758,8 @@ extension DeclTypeChecker {
             signature: signature,
             ctx: functionCtx,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            baseLocals: baseLocals
         )
 
         // Bodyless declarations use .unit as their sentinel. Abstract and expect

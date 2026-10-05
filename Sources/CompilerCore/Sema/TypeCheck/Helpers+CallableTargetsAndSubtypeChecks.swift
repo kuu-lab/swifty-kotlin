@@ -44,7 +44,7 @@ extension TypeCheckHelpers {
     }
 
     /// `boundReceiver` carries the member symbol and the (possibly generic)
-    /// type of a bound `value::member` reference. The member's signature is
+    /// type of a `value::member` or `Type<Args>::member` reference. The member's signature is
     /// declared in terms of its owner's type parameters (`Transformer<A, B>.apply:
     /// (A) -> B`), so they are substituted with the receiver's type arguments
     /// (`Transformer<Int, Int>` -> `(Int) -> Int`) before the function type is built.
@@ -72,12 +72,13 @@ extension TypeCheckHelpers {
             returnType = specialize(returnType)
         }
         if !bindReceiver, let receiverType = signature.receiverType {
-            params.insert(receiverType, at: 0)
+            params.insert(boundReceiver?.receiverType ?? receiverType, at: 0)
         }
         return sema.types.make(.functionType(FunctionType(
             params: params,
             returnType: returnType,
             isSuspend: signature.isSuspend,
+            isCallableReference: true,
             nullability: .nonNull
         )))
     }
@@ -151,20 +152,134 @@ extension TypeCheckHelpers {
         guard let expectedFunctionType else {
             return sorted.first
         }
-        if let matched = sorted.first(where: { symbolID in
+        let matching = sorted.filter { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
-            let inferredType = callableFunctionType(
+            return contextualCallableFunctionType(
                 for: signature,
                 bindReceiver: bindReceiver,
                 boundReceiver: boundReceiverType.map { (symbolID, $0) },
+                expectedFunctionType: expectedFunctionType,
                 sema: sema
-            )
-            return sema.types.isSubtype(inferredType, expectedFunctionType)
-        }) {
+            ) != nil
+        }
+        if let matched = matching.first(where: {
+            sema.symbols.functionSignature(for: $0)?.typeParameterSymbols.isEmpty == true
+        }) ?? matching.first {
             return matched
         }
         return sorted.first
+    }
+
+    func contextualCallableFunctionType(
+        for signature: FunctionSignature,
+        bindReceiver: Bool,
+        boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
+        expectedFunctionType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        let inferredType = callableFunctionType(
+            for: signature,
+            bindReceiver: bindReceiver,
+            boundReceiver: boundReceiver,
+            sema: sema
+        )
+        let types = sema.types
+        let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        guard !typeVars.isEmpty else {
+            return types.isSubtype(inferredType, expectedFunctionType) ? inferredType : nil
+        }
+        let resolver = OverloadResolver()
+        var constraints = resolver.decomposeSubtypeConstraint(
+            subtype: inferredType,
+            supertype: expectedFunctionType,
+            typeVarBySymbol: typeVars,
+            typeSystem: types,
+            blameRange: nil
+        )
+        if let boundReceiver, let receiverType = signature.receiverType {
+            constraints += resolver.decomposeSubtypeConstraint(
+                subtype: boundReceiver.receiverType,
+                supertype: receiverType,
+                typeVarBySymbol: typeVars,
+                typeSystem: types,
+                blameRange: nil
+            )
+        }
+        func upperBounds(_ index: Int, _ symbol: SymbolID) -> [TypeID] {
+            let declared = index < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[index] : []
+            let stored = sema.symbols.typeParameterUpperBounds(for: symbol)
+            return declared + stored.filter { !declared.contains($0) }
+        }
+        let contextualVariables = Set(resolver.usedTypeVariables(from: constraints))
+        for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+            guard let variable = typeVars[symbol], contextualVariables.contains(variable) else { continue }
+            for bound in upperBounds(index, symbol)
+                where !resolver.containsTypeVariable(bound, typeVarBySymbol: typeVars, typeSystem: types)
+            {
+                constraints.append(VariableConstraint(
+                    kind: .subtype, left: .variable(variable), right: .type(bound)
+                ))
+            }
+        }
+        var solution = ConstraintSolver().solve(
+            vars: resolver.usedTypeVariables(from: constraints),
+            constraints: constraints,
+            typeSystem: types
+        )
+        // Dependent bounds can infer another parameter, e.g. C : List<T>.
+        for _ in 0 ..< signature.typeParameterSymbols.count {
+            guard solution.isSuccess else { return nil }
+            var added = false
+            for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                guard let variable = typeVars[symbol],
+                      let argument = solution.substitution[variable],
+                      argument != types.errorType
+                else { continue }
+                for bound in upperBounds(index, symbol) {
+                    let substitutedBound = types.substituteTypeParameters(
+                        in: bound, substitution: solution.substitution, typeVarBySymbol: typeVars
+                    )
+                    let decomposed = resolver.decomposeSubtypeConstraint(
+                        subtype: argument,
+                        supertype: substitutedBound,
+                        typeVarBySymbol: typeVars,
+                        typeSystem: types,
+                        blameRange: nil
+                    )
+                    constraints += decomposed
+                    added = added || !resolver.usedTypeVariables(from: decomposed).isEmpty
+                }
+            }
+            solution = ConstraintSolver().solve(
+                vars: resolver.usedTypeVariables(from: constraints),
+                constraints: constraints,
+                typeSystem: types
+            )
+            if !added { break }
+        }
+        guard solution.isSuccess else { return nil }
+        for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+            guard let variable = typeVars[symbol],
+                  let argument = solution.substitution[variable],
+                  argument != types.errorType
+            else {
+                // A bound generic owner's parameters may already be specialized.
+                if boundReceiver != nil, index < signature.classTypeParameterCount { continue }
+                return nil
+            }
+            for bound in upperBounds(index, symbol) {
+                let substitutedBound = types.substituteTypeParameters(
+                    in: bound, substitution: solution.substitution, typeVarBySymbol: typeVars
+                )
+                guard types.isSubtype(argument, substitutedBound) else { return nil }
+            }
+        }
+        let specializedType = types.substituteTypeParameters(
+            in: inferredType, substitution: solution.substitution, typeVarBySymbol: typeVars
+        )
+        return types.isSubtype(specializedType, expectedFunctionType) ? specializedType : nil
     }
 }

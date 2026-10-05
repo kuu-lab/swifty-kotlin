@@ -136,6 +136,7 @@ extension CallLowerer {
             ast: ast,
             sema: sema,
             arena: arena,
+            interner: interner,
             instructions: &instructions
         ) {
             return staticMemberValue
@@ -846,11 +847,33 @@ extension CallLowerer {
             }
         }
 
+        let isSourceArithmeticExtension = explicitFloatingOrCharArithmeticOp(calleeNameStr) != nil
+            && chosenCalleeForArgumentAdaptation.map {
+                sema.symbols.isSourceBackedSymbol($0)
+                    && sema.symbols.functionSignature(for: $0)?.receiverType != nil
+            } == true
+        if !isSourceArithmeticExtension,
+           calleeNameStr == "plus", args.count == 1,
+           sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType) == sema.types.charType,
+           sema.bindings.exprTypes[args[0].expr] == sema.types.stringType
+        {
+            let receiverString = emitAnyToStringWithNullGuard(
+                valueID: loweredReceiverID, valueType: sema.types.charType,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("__kk_string_concat_flat"),
+                arguments: [receiverString, loweredArgIDs[0]], result: result,
+                canThrow: false, thrownResult: nil
+            ))
+            return result
+        }
+
         // Explicit `Char.plus/minus` and `Float`/`Double` arithmetic member calls
         // (`'A'.plus(2)`, `2.0.times(4)`) behave exactly like the operator syntax, so
         // emit the same `.binary` node and let the operator/narrowing passes type it.
         // The integer-receiver fast path below only knows `kk_op_*` on integral slots.
-        if args.count == 1,
+        if !isSourceArithmeticExtension, args.count == 1,
            let binaryOp = explicitFloatingOrCharArithmeticOp(calleeNameStr),
            isNumericPrimitiveOperand(args[0].expr, sema: sema),
            !(sema.bindings.isRangeExpr(receiverExpr) || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
@@ -871,7 +894,7 @@ extension CallLowerer {
         let isRangePlusMinusReceiver = ["plus", "minus"].contains(calleeNameStr)
             && (sema.bindings.isRangeExpr(receiverExpr)
                 || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
-        if args.count == 1,
+        if !isSourceArithmeticExtension, args.count == 1,
            !isRangePlusMinusReceiver,
            shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold),
            isNumericPrimitiveOperand(args[0].expr, sema: sema)
@@ -1266,13 +1289,20 @@ extension CallLowerer {
             // name-string fallback is no longer needed here.
         }
 
-        // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
+        // Char.code → unboxed UTF-16 code unit (STDLIB-305)
         // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
         // digitToInt / digitToIntOrNull, so no lowering special case is needed.
         if args.isEmpty, calleeNameStr == "code" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if sema.types.makeNonNullable(receiverType) == sema.types.charType {
-                instructions.append(.copy(from: loweredReceiverID, to: result))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_char_code"),
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
                 return result
             }
         }
@@ -2434,25 +2464,14 @@ extension CallLowerer {
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
 
-        // Extract qualified super type information for super<Interface> calls
+        // Sema binds super<T> to the selected direct supertype, not the enclosing class.
         var qualifiedSuperType: SymbolID?
-        if isSuperCall, case let .superRef(interfaceQualifier, _) = ast.arena.expr(receiverExpr) {
-            if let qualifier = interfaceQualifier {
-                // Find the interface symbol that matches the qualifier
-                if let currentReceiverType = sema.bindings.exprTypes[receiverExpr],
-                   let classType = resolveClassType(currentReceiverType, sema: sema) {
-                    let classSymbol = classType.classSymbol
-                    let directSupertypes = sema.symbols.directSupertypes(for: classSymbol)
-                    let qualifierStr = interner.resolve(qualifier)
-                    for superID in directSupertypes {
-                        guard let superSym = sema.symbols.symbol(superID) else { continue }
-                        if superSym.kind == SymbolKind.interface && interner.resolve(superSym.name) == qualifierStr {
-                            qualifiedSuperType = superID
-                            break
-                        }
-                    }
-                }
-            }
+        if isSuperCall,
+           case .superRef(.some, _) = ast.arena.expr(receiverExpr),
+           let receiverType = sema.bindings.exprTypes[receiverExpr],
+           let classType = resolveClassType(receiverType, sema: sema)
+        {
+            qualifiedSuperType = classType.classSymbol
         }
 
         let callBinding = recoverMemberCallBinding(
@@ -2462,18 +2481,6 @@ extension CallLowerer {
             argumentExprs: args.map(\.expr),
             sema: sema
         ) ?? sema.bindings.callBindings[exprID]
-        if qualifiedSuperType == nil,
-           isSuperCall,
-           case let .superRef(interfaceQualifier?, _) = ast.arena.expr(receiverExpr),
-           let chosenCallee = callBinding?.chosenCallee,
-           chosenCallee != .invalid,
-           let ownerSymbol = sema.symbols.parentSymbol(for: chosenCallee),
-           let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .interface,
-           interner.resolve(ownerInfo.name) == interner.resolve(interfaceQualifier)
-        {
-            qualifiedSuperType = ownerSymbol
-        }
         let chosen: SymbolID? = if let chosenCallee = callBinding?.chosenCallee, chosenCallee != .invalid {
             chosenCallee
         } else {

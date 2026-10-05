@@ -190,6 +190,7 @@ extension CallLowerer {
         prefixArguments: [KIRExprID] = [],
         loweredArgID: KIRExprID,
         argExprID: ExprID,
+        returnsErasedValue: Bool = false,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -198,12 +199,12 @@ extension CallLowerer {
         var finalArgs = prefixArguments
         var lambdaID = loweredArgID
         var resolvedCallableInfo = driver.ctx.callableValueInfo(for: lambdaID)
-        if let callableInfo = resolvedCallableInfo,
-           !callableInfo.hasClosureParam,
+        if returnsErasedValue || resolvedCallableInfo.map({ !$0.hasClosureParam }) == true,
            let adaptedInfo = makeClosureThunkCallableAdapter(
-               callableInfo: callableInfo,
+               callableInfo: resolvedCallableInfo,
                loweredArgID: lambdaID,
                argExprID: argExprID,
+               returnsErasedValue: returnsErasedValue,
                sema: sema,
                arena: arena,
                interner: interner,
@@ -566,7 +567,8 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction],
         arguments: inout [KIRExprID],
-        valueArgOffsetOverride: Int? = nil
+        valueArgOffsetOverride: Int? = nil,
+        parameterMapping: [Int: Int]? = nil
     ) {
         guard let chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
@@ -577,6 +579,16 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
+
+        // Synthetic launchers consume a suspend entry reference plus captures,
+        // not the boxed function-value ABI used by ordinary Kotlin functions.
+        if let symbol,
+           symbol.flags.contains(.synthetic), !isImported,
+           symbol.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern)),
+           ["runBlocking", "launch", "async", "produce"].contains(interner.resolve(symbol.name))
+        {
+            return
+        }
 
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
@@ -616,9 +628,17 @@ extension CallLowerer {
             && !sourceArgExprs.isEmpty
         for parameterIndex in signature.parameterTypes.indices {
             let finalArgIndex = valueArgOffset + parameterIndex
-            let sourceArgExprIndex = (hasTrailingLambdaGap && parameterIndex == lastParameterIndex)
-                ? sourceArgExprs.count - 1
-                : parameterIndex
+            let sourceArgExprIndex: Int
+            if let parameterMapping {
+                guard let argumentIndex = parameterMapping.first(where: { $0.value == parameterIndex })?.key else {
+                    continue
+                }
+                sourceArgExprIndex = argumentIndex
+            } else {
+                sourceArgExprIndex = (hasTrailingLambdaGap && parameterIndex == lastParameterIndex)
+                    ? sourceArgExprs.count - 1
+                    : parameterIndex
+            }
             guard finalArgIndex < arguments.count,
                   sourceArgExprs.indices.contains(sourceArgExprIndex),
                   !signature.valueParameterIsVararg.indices.contains(parameterIndex)
@@ -675,17 +695,23 @@ extension CallLowerer {
                     receiver: concreteFunctionType.receiver.map { _ in sema.types.anyType },
                     params: concreteFunctionType.params.map { _ in sema.types.anyType },
                     returnType: sema.types.anyType,
-                    isSuspend: concreteFunctionType.isSuspend
+                    isSuspend: concreteFunctionType.isSuspend,
+                    isCallableReference: concreteFunctionType.isCallableReference
                 )
             default:
                 continue
             }
-            // Keep eligible inline arguments visible to imported expansion,
-            // including normal returns and nested non-local returns.
+            // Imported bodies can store callbacks in escaping closures. Without
+            // explicit inline-parameter metadata, preserve the function environment.
+            let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                : !isImported
+            // Keep eligible inline arguments visible to expansion, including
+            // normal returns and nested non-local returns.
             if isInline,
+               case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
-                   || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+               (allowsRawInlineArgument
                    || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
                 continue
@@ -874,6 +900,7 @@ extension CallLowerer {
     func expandGenerateSequenceNextFunction(
         loweredArgID: KIRExprID,
         argExprID: ExprID,
+        valueParameterCount: Int = 1,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -886,29 +913,48 @@ extension CallLowerer {
         // callable metadata directly from the materialized function value.
         var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if callableInfo == nil {
-            // A function-typed argument can already be boxed as a Kotlin
-            // function value before this bridge is lowered. Recover its ABI
-            // pair instead of passing the object handle as a C function pointer.
-            let intType = sema.types.intType
-            let fnPtr = arena.appendTemporary(type: intType)
-            instructions.append(.call(
+            // Forwarded function values can be raw noncapturing functions or
+            // boxed closures. Let the erased invoke ABI dispatch either shape.
+            let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+            let adapterName = interner.intern("kk_generate_sequence_invoke_adapter_\(adapterSymbol.rawValue)")
+            let params = (0 ... valueParameterCount).map { _ in
+                KIRParameter(symbol: driver.ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.anyType)
+            }
+            var body: [KIRInstruction] = [.beginBlock]
+            let arguments = params.map { param in
+                let ref = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+                body.append(.constValue(result: ref, value: .symbolRef(param.symbol)))
+                return ref
+            }
+            let result = arena.appendTemporary(type: sema.types.nullableAnyType)
+            let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
+            body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_function_value_fn_ptr"),
-                arguments: [loweredArgID],
-                result: fnPtr,
-                canThrow: false,
-                thrownResult: nil
+                callee: interner.intern(valueParameterCount == 0 ? "kk_function_invoke_0" : "kk_function_invoke"),
+                arguments: arguments,
+                result: result,
+                canThrow: true,
+                thrownResult: thrown
             ))
-            let closureRaw = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_function_value_closure_raw"),
-                arguments: [loweredArgID],
-                result: closureRaw,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return (fnPtr, closureRaw)
+            let rethrowLabel = driver.ctx.makeLoopLabel()
+            body.append(.jumpIfNotNull(value: thrown, target: rethrowLabel))
+            body.append(.returnValue(result))
+            body.append(.label(rethrowLabel))
+            body.append(.rethrow(value: thrown))
+            body.append(.endBlock)
+            let decl = arena.appendDecl(.function(KIRFunction(
+                symbol: adapterSymbol,
+                name: adapterName,
+                params: params,
+                returnType: sema.types.nullableAnyType,
+                body: body,
+                isSuspend: false,
+                isInline: false
+            )))
+            driver.ctx.appendGeneratedCallableDecl(decl)
+            let fnPtr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
+            instructions.append(.constValue(result: fnPtr, value: .symbolRef(adapterSymbol)))
+            return (fnPtr, loweredArgID)
         }
         if let originalCallableInfo = callableInfo,
            let nextFunctionType = sema.bindings.exprTypes[argExprID],
@@ -1028,6 +1074,28 @@ extension CallLowerer {
             return loweredArguments
         }
 
+        if externalLinkName == "__kk_job_invoke_on_completion", loweredArguments.count == 4 {
+            let handler = loweredArguments[3]
+            if driver.ctx.callableValueInfo(for: handler) != nil {
+                return Array(loweredArguments.prefix(3)) + makeCollectionHOFExpandedArguments(
+                    loweredArgID: handler,
+                    argExprID: originalArgs[3].expr,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            let (fnPtr, closureRaw) = splitCallableLambdaArgument(
+                handler,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return Array(loweredArguments.prefix(3)) + [fnPtr, closureRaw]
+        }
+
         if externalLinkName == "kk_suspend_coroutine", loweredArguments.count == 1 {
             return makeClosureThunkExpandedArguments(
                 loweredArgID: loweredArguments[0],
@@ -1044,6 +1112,7 @@ extension CallLowerer {
             let expanded = expandGenerateSequenceNextFunction(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,
+                valueParameterCount: 0,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -1188,6 +1257,7 @@ extension CallLowerer {
             return makeClosureThunkExpandedArguments(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,
+                returnsErasedValue: externalLinkName == "kk_runtime_result_run_catching",
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -1215,7 +1285,20 @@ extension CallLowerer {
         if externalLinkName == "__kk_deep_recursive_function_new",
            let loweredArgID = loweredArguments.last
         {
+            var blockID = loweredArgID
             var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+            if let unboxedSymbol = callableInfo?.unboxedSymbol,
+               let function = arena.function(for: unboxedSymbol)
+            {
+                blockID = arena.appendExpr(.symbolRef(unboxedSymbol), type: arena.exprType(loweredArgID))
+                instructions.append(.constValue(result: blockID, value: .symbolRef(unboxedSymbol)))
+                callableInfo = KIRCallableValueInfo(
+                    symbol: unboxedSymbol,
+                    callee: function.name,
+                    captureArguments: arena.lambdaCaptureArgsBySymbol[unboxedSymbol] ?? [],
+                    hasClosureParam: false
+                )
+            }
             if callableInfo == nil,
                case let .symbolRef(symbol)? = arena.expr(loweredArgID),
                let function = arena.function(for: symbol)
@@ -1234,7 +1317,7 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions
             )
-            return Array(loweredArguments.dropLast()) + [loweredArgID, closureRaw]
+            return Array(loweredArguments.dropLast()) + [blockID, closureRaw]
         }
 
         return loweredArguments
@@ -1263,9 +1346,10 @@ extension CallLowerer {
     }
 
     func makeClosureThunkCallableAdapter(
-        callableInfo: KIRCallableValueInfo,
+        callableInfo: KIRCallableValueInfo?,
         loweredArgID: KIRExprID,
         argExprID: ExprID,
+        returnsErasedValue: Bool = false,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -1290,16 +1374,21 @@ extension CallLowerer {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
-        let callArguments = appendCallableCaptureLoads(
-            callableInfo: callableInfo,
-            closureExpr: closureExpr,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            body: &body
-        )
+        let callArguments: [KIRExprID]
+        if let callableInfo, !callableInfo.hasClosureParam {
+            callArguments = appendCallableCaptureLoads(
+                callableInfo: callableInfo,
+                closureExpr: closureExpr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                body: &body
+            )
+        } else {
+            callArguments = [closureExpr]
+        }
 
-        let lambdaCanThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
+        let lambdaCanThrow = callableInfo.map { callableRequiresThrownChannel($0.symbol, arena: arena) } ?? true
         let callResult = arena.appendTemporary(type: functionType.returnType
         )
         let thrownResult = lambdaCanThrow
@@ -1307,8 +1396,8 @@ extension CallLowerer {
             )
             : nil
         body.append(.call(
-            symbol: callableInfo.symbol,
-            callee: callableInfo.callee,
+            symbol: callableInfo?.symbol,
+            callee: callableInfo?.callee ?? interner.intern("kk_function_invoke_0"),
             arguments: callArguments,
             result: callResult,
             canThrow: lambdaCanThrow,
@@ -1324,7 +1413,9 @@ extension CallLowerer {
             body.append(.label(continueLabel))
         }
 
-        switch sema.types.kind(of: functionType.returnType) {
+        // Result stores an erased payload; ABI lowering boxes concrete return values.
+        let adapterReturnType = returnsErasedValue ? sema.types.anyType : functionType.returnType
+        switch sema.types.kind(of: adapterReturnType) {
         case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
@@ -1338,7 +1429,7 @@ extension CallLowerer {
                     symbol: adapterSymbol,
                     name: adapterName,
                     params: [closureParam],
-                    returnType: functionType.returnType,
+                    returnType: adapterReturnType,
                     body: body,
                     isSuspend: functionType.isSuspend,
                     isInline: false
@@ -1347,13 +1438,18 @@ extension CallLowerer {
         )
         driver.ctx.appendGeneratedCallableDecl(adapterDecl)
 
-        let adapterCaptureArguments = makeBoxedCallableCaptureArguments(
-            callableInfo: callableInfo,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        )
+        let adapterCaptureArguments: [KIRExprID]
+        if let callableInfo {
+            adapterCaptureArguments = makeBoxedCallableCaptureArguments(
+                callableInfo: callableInfo,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        } else {
+            adapterCaptureArguments = [loweredArgID]
+        }
 
         return KIRCallableValueInfo(
             symbol: adapterSymbol,

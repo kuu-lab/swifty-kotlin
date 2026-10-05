@@ -7,6 +7,7 @@ public struct ASTArenaSnapshot: Codable {
     public let loopLabels: [ExprID: InternedString]
     public let whenSubjectVarNames: [ExprID: InternedString]
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
+    public let callableRefReceiverTypeRefs: [ExprID: TypeRefID]
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
@@ -18,6 +19,7 @@ public struct ASTArenaSnapshot: Codable {
         case loopLabels
         case whenSubjectVarNames
         case lambdaParamTypeRefs
+        case callableRefReceiverTypeRefs
         case explicitCallExpressions
         case incrementDecrementExpressions
         case incrementDecrementCachedValues
@@ -30,6 +32,7 @@ public struct ASTArenaSnapshot: Codable {
         loopLabels: [ExprID: InternedString],
         whenSubjectVarNames: [ExprID: InternedString],
         lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
+        callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:],
         explicitCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
         incrementDecrementCachedValues: [ExprID: ExprID] = [:]
@@ -40,6 +43,7 @@ public struct ASTArenaSnapshot: Codable {
         self.loopLabels = loopLabels
         self.whenSubjectVarNames = whenSubjectVarNames
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
+        self.callableRefReceiverTypeRefs = callableRefReceiverTypeRefs
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
@@ -53,6 +57,10 @@ public struct ASTArenaSnapshot: Codable {
         loopLabels = try container.decode([ExprID: InternedString].self, forKey: .loopLabels)
         whenSubjectVarNames = try container.decode([ExprID: InternedString].self, forKey: .whenSubjectVarNames)
         lambdaParamTypeRefs = try container.decode([ExprID: [TypeRefID?]].self, forKey: .lambdaParamTypeRefs)
+        callableRefReceiverTypeRefs = try container.decodeIfPresent(
+            [ExprID: TypeRefID].self,
+            forKey: .callableRefReceiverTypeRefs
+        ) ?? [:]
         explicitCallExpressions = try container.decode(Set<ExprID>.self, forKey: .explicitCallExpressions)
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
@@ -129,6 +137,8 @@ public final class ASTArena: @unchecked Sendable {
     /// Maps lambdaLiteral expression IDs to their explicit parameter type
     /// annotations (`{ a: Int, b: Int -> ... }`); nil entries are unannotated.
     private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
+    /// Preserves explicit type receivers such as `Box<String>::echo`.
+    private var _callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:]
     /// Tracks member-call expressions written with parentheses so zero-argument
     /// function calls remain distinct from bare property access in the AST.
     private var _explicitCallExpressions: Set<ExprID> = []
@@ -158,6 +168,7 @@ public final class ASTArena: @unchecked Sendable {
         _loopLabels = snapshot.loopLabels
         _whenSubjectVarNames = snapshot.whenSubjectVarNames
         _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
+        _callableRefReceiverTypeRefs = snapshot.callableRefReceiverTypeRefs
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
@@ -173,6 +184,7 @@ public final class ASTArena: @unchecked Sendable {
             loopLabels: _loopLabels,
             whenSubjectVarNames: _whenSubjectVarNames,
             lambdaParamTypeRefs: _lambdaParamTypeRefs,
+            callableRefReceiverTypeRefs: _callableRefReceiverTypeRefs,
             explicitCallExpressions: _explicitCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
             incrementDecrementCachedValues: _incrementDecrementCachedValues
@@ -185,6 +197,18 @@ public final class ASTArena: @unchecked Sendable {
         let id = Int32(_decls.count)
         _decls.append(decl)
         return DeclID(rawValue: id)
+    }
+
+    public func setCallableRefReceiverTypeRef(_ exprID: ExprID, typeRef: TypeRefID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _callableRefReceiverTypeRefs[exprID] = typeRef
+    }
+
+    public func callableRefReceiverTypeRef(for exprID: ExprID) -> TypeRefID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _callableRefReceiverTypeRefs[exprID]
     }
 
     public func decl(_ id: DeclID) -> Decl? {

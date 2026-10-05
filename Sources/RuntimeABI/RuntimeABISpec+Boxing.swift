@@ -217,6 +217,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_unbox_double_nonnull",
+            parameters: [
+                RuntimeABIParameter(name: "obj", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Boxing",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_unbox_char",
             parameters: [
                 RuntimeABIParameter(name: "obj", type: .intptr),

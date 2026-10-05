@@ -17,6 +17,38 @@ struct CoroutineSyntheticStubTests {
     // MARK: - Path-aware expression search helpers
 
     @Test
+    func suspendFunctionTypeLocalInsideRunBlockingResolvesAndInvokes() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        fun main() = runBlocking {
+            val block: suspend () -> Int = { 42 }
+            println(block())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let initializer = try #require(ast.arena.exprs.compactMap { expr -> ExprID? in
+                guard case let .localDecl(name, _, _, initializer, _, _) = expr,
+                      ctx.interner.resolve(name) == "block" else { return nil }
+                return initializer
+            }.first)
+            let type = try #require(sema.bindings.exprType(for: initializer))
+            guard case let .functionType(function) = sema.types.kind(of: type) else {
+                Issue.record("Expected a suspend function type for block's initializer")
+                return
+            }
+            #expect(function.isSuspend)
+            #expect(function.receiver == nil)
+            #expect(function.params.isEmpty)
+            #expect(function.returnType == sema.types.intType)
+        }
+    }
+
+    @Test
     func coroutineLauncherFunctionValueResultTypesAreNotOverriddenByExpectedType() throws {
         let source = """
         import kotlinx.coroutines.*
