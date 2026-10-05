@@ -799,6 +799,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_context_get_dispatch",
+            parameters: [
+                RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "keyRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_context_fold",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
@@ -819,6 +829,16 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_context_minusKey_dispatch",
+            parameters: [
+                RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "keyRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_context_get_dispatcher",

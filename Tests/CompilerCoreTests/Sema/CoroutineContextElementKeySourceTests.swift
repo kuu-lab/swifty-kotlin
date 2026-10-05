@@ -4,6 +4,37 @@ import Testing
 @Suite
 struct CoroutineContextElementKeySourceTests {
     @Test
+    func baseContextBridgeSlotsAndSignatures() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.coroutines.CoroutineContext
+        object Key : CoroutineContext.Key<Element>
+        class Element : CoroutineContext.Element {
+            override val key: CoroutineContext.Key<*> = Key
+        }
+        fun lookup(context: CoroutineContext) {
+            val indexed: Element? = context[Key]
+            val explicit: Element? = context.get(Key)
+            val removed: CoroutineContext = context.minusKey(Key)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let context = try #require(sema.symbols.lookup(
+            fqName: ["kotlin", "coroutines", "CoroutineContext"].map(ctx.interner.intern)
+        ))
+        let layout = try #require(sema.symbols.nominalLayout(for: context))
+        for (name, slot) in [("get", 0), ("minusKey", 3)] {
+            let member = try #require(sema.symbols.lookup(
+                fqName: ["kotlin", "coroutines", "CoroutineContext", name].map(ctx.interner.intern)
+            ))
+            #expect(layout.vtableSlots[member] == slot)
+            #expect(sema.symbols.externalLinkName(for: member) == "__kk_context_\(name)_dispatch")
+            #expect(sema.symbols.functionSignature(for: member)?.receiverType != nil)
+        }
+    }
+
+    @Test
     func contextIndexInfersElementFromCompanionKey() throws {
         let source = """
         import kotlin.coroutines.*
