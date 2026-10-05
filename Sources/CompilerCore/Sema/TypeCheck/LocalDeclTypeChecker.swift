@@ -149,6 +149,9 @@ final class LocalDeclTypeChecker {
         {
             ctx.dataFlow.stableMutableReceivers.insert(localSymbol)
         }
+        if isMutable {
+            ctx.dataFlow.localDeclarations[localSymbol] = id
+        }
         sema.bindings.bindIdentifier(id, symbol: localSymbol)
         // Propagate collection marks through local variable declarations
         // so that `val list = listOf(1,2,3); list.size` still recognizes
