@@ -205,6 +205,9 @@ final class ExprTypeChecker {
             return driver.localDeclChecker.inferIndexedAssignExpr(id, receiverExpr: receiverExpr, indices: indices, valueExpr: valueExpr, range: range, ctx: ctx, locals: &locals)
 
         case let .returnExpr(value, label, range):
+            let lambdaReturnScope = label.flatMap { label in
+                ctx.lambdaReturnScopes.last { $0.label == label }
+            }
             let targetsFunction = label.map { label in
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
@@ -233,11 +236,14 @@ final class ExprTypeChecker {
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
             {
                 enclosingFunctionReturnType
+            } else if let lambdaReturnScope {
+                lambdaReturnScope.expectedReturnType
             } else {
                 expectedType
             }
             if let value {
                 let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: returnExpectedType)
+                lambdaReturnScope?.returnValueTypes[id] = resolved
                 // Emit subtype constraint: return value must conform to expected (function) return type.
                 // Range expressions keep their runtime representation separate from the
                 // source-level range interface (they infer as the scalar element type),
@@ -264,18 +270,21 @@ final class ExprTypeChecker {
                         suppressPlatformWarning: ctx.suppressPlatformReturnWarning
                     )
                 }
-            } else if let returnExpectedType {
-                // Bare `return` is equivalent to `return Unit`; check Unit <: expectedType
-                driver.emitSubtypeConstraint(
-                    left: sema.types.unitType,
-                    right: returnExpectedType,
-                    range: range,
-                    solver: ConstraintSolver(),
-                    sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics,
-                    secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
-                    suppressPlatformWarning: ctx.suppressPlatformReturnWarning
-                )
+            } else {
+                lambdaReturnScope?.returnValueTypes[id] = sema.types.unitType
+                if let returnExpectedType {
+                    // Bare `return` is equivalent to `return Unit`; check Unit <: expectedType
+                    driver.emitSubtypeConstraint(
+                        left: sema.types.unitType,
+                        right: returnExpectedType,
+                        range: range,
+                        solver: ConstraintSolver(),
+                        sema: sema,
+                        diagnostics: ctx.semaCtx.diagnostics,
+                        secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
+                        suppressPlatformWarning: ctx.suppressPlatformReturnWarning
+                    )
+                }
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType

@@ -1,3 +1,14 @@
+/// Shared by copied contexts so nested returns contribute to their actual target.
+final class LambdaReturnInferenceScope {
+    let label: InternedString?
+    let expectedReturnType: TypeID?
+    var returnValueTypes: [ExprID: TypeID] = [:]
+
+    init(label: InternedString?, expectedReturnType: TypeID?) {
+        self.label = label
+        self.expectedReturnType = expectedReturnType
+    }
+}
 
 struct TypeInferenceContext: CustomStringConvertible {
     let ast: ASTModule
@@ -16,6 +27,7 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Stack of labels attached to enclosing lambda literals.
     /// Used by `return@label` to verify that the label references a valid lambda.
     var lambdaLabelStack: [InternedString]
+    var lambdaReturnScopes: [LambdaReturnInferenceScope] = []
     /// Number of lambda bodies enclosing the expression currently being inferred.
     /// An unlabeled return inside such a body is a non-local return and is checked
     /// against the surrounding named function's return type rather than the
@@ -149,6 +161,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         loopDepth: Int? = nil,
         loopLabelStack: [InternedString]? = nil,
         lambdaLabelStack: [InternedString]? = nil,
+        lambdaReturnScopes: [LambdaReturnInferenceScope]? = nil,
         lambdaDepth: Int? = nil,
         enclosingFunctionReturnType: TypeID?? = nil,
         enclosingFunctionSymbol: SymbolID?? = nil,
@@ -174,6 +187,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         if let loopDepth { copy.loopDepth = loopDepth }
         if let loopLabelStack { copy.loopLabelStack = loopLabelStack }
         if let lambdaLabelStack { copy.lambdaLabelStack = lambdaLabelStack }
+        if let lambdaReturnScopes { copy.lambdaReturnScopes = lambdaReturnScopes }
         if let lambdaDepth { copy.lambdaDepth = lambdaDepth }
         if let enclosingFunctionReturnType {
             copy.enclosingFunctionReturnType = enclosingFunctionReturnType

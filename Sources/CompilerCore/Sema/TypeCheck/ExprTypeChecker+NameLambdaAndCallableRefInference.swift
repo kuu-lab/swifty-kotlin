@@ -1487,12 +1487,21 @@ extension ExprTypeChecker {
             }
             return expectedReturnType
         }()
-        let inferredBodyType = driver.inferExpr(
+        let returnScope = LambdaReturnInferenceScope(
+            label: label,
+            expectedReturnType: expectedFunctionType?.returnType == sema.types.unitType
+                ? sema.types.unitType : bodyExpectedType
+        )
+        bodyCtx.lambdaReturnScopes.append(returnScope)
+        let fallthroughType = driver.inferExpr(
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
             expectedType: bodyExpectedType,
             isStatementContext: expectedFunctionType?.returnType == sema.types.unitType
+        )
+        let inferredBodyType = sema.types.lub(
+            [fallthroughType] + returnScope.returnValueTypes.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value)
         )
         // STDLIB-592 definite assignment: record which outer-scope locals this
         // lambda body unconditionally initializes, mirroring the blockExpr merge
@@ -1559,8 +1568,6 @@ extension ExprTypeChecker {
             let optimizedReturnType = inferOptimizedReturnType(
                 inferredBodyType: inferredBodyType,
                 expectedReturnType: expectedFunctionType.returnType,
-                bodyExpr: body,
-                ast: ast,
                 sema: sema
             )
 
@@ -3178,19 +3185,10 @@ extension ExprTypeChecker {
     private func inferOptimizedReturnType(
         inferredBodyType: TypeID,
         expectedReturnType: TypeID,
-        bodyExpr: ExprID,
-        ast: ASTModule,
         sema: SemaModule
     ) -> TypeID {
         // Unit optimization: if expected type is Unit, always return Unit
         if expectedReturnType == sema.types.unitType {
-            return sema.types.unitType
-        }
-
-        // If the body is a block expression with no trailing expression, infer Unit
-        if let bodyExprNode = ast.arena.expr(bodyExpr),
-           case let .blockExpr(_, trailingExpr, _) = bodyExprNode,
-           trailingExpr == nil {
             return sema.types.unitType
         }
 

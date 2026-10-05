@@ -609,6 +609,7 @@ extension LocalDeclTypeChecker {
             loopDepth: 0,
             loopLabelStack: [],
             lambdaLabelStack: [],
+            lambdaReturnScopes: [],
             lambdaDepth: 0,
             enclosingFunctionReturnType: resolvedReturnType,
             enclosingFunctionSymbol: funSymbol,
