@@ -295,7 +295,7 @@ struct CaptureAnalyzer {
                 // `this@describe` are bound to the receiver parameter symbol.
                 recordCapture(for: currentExprID)
 
-            case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
+            case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
                  .charLiteral, .boolLiteral, .stringLiteral,
                  .breakExpr, .continueExpr, .superRef:
                 break

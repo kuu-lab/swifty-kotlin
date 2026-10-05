@@ -71,6 +71,10 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: charType)
             return charType
 
+        case .nullLiteral:
+            sema.bindings.bindExprType(id, type: sema.types.nullableNothingType)
+            return sema.types.nullableNothingType
+
         case .boolLiteral:
             sema.bindings.bindExprType(id, type: boolType)
             return boolType

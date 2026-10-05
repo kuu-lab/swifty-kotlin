@@ -191,7 +191,7 @@ final class LocalVariableStabilityAnalyzer {
             closureScopes.append(id)
             visitNominal(declaration, ast: ast, locals: locals)
             closureScopes.removeLast()
-        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
+        case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
              .charLiteral, .boolLiteral, .stringLiteral, .nameRef, .breakExpr, .continueExpr, .superRef, .thisRef:
             break
         }

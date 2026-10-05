@@ -1,6 +1,7 @@
 
 public struct IncrementalFrontendState: Codable {
-    public static let supportedVersion = 1
+    // Version 2 distinguishes null literals from escaped identifier references.
+    public static let supportedVersion = 2
 
     public let version: Int
     public let buildConfigurationHash: String
