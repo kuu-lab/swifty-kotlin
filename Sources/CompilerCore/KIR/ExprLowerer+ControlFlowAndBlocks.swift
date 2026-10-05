@@ -3081,11 +3081,25 @@ extension ExprLowerer {
             if memberName == KnownCompilerNames(interner: interner).className,
                let classRefTargetType = sema.bindings.classRefTargetType(for: exprID)
             {
+                let boundReceiver: KIRExprID?
+                if sema.bindings.boundClassRefExprs.contains(exprID), let receiverExpr {
+                    let value = driver.lowerExpr(
+                        receiverExpr, ast: ast, sema: sema, arena: arena, interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    )
+                    let boxed = arena.appendTemporary(type: sema.types.anyType)
+                    instructions.append(.copy(from: value, to: boxed))
+                    boundReceiver = boxed
+                } else {
+                    boundReceiver = nil
+                }
                 let intType = sema.types.make(.primitive(.int, .nonNull))
 
                 // 1. Emit the type token.
                 let tokenExpr: KIRExprID
-                if case let .typeParam(typeParam) = sema.types.kind(of: classRefTargetType) {
+                if boundReceiver == nil,
+                   case let .typeParam(typeParam) = sema.types.kind(of: classRefTargetType) {
                     let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParam.symbol)
                     tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
                     instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
@@ -3120,8 +3134,8 @@ extension ExprLowerer {
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("__kk_kclass_create"),
-                    arguments: [tokenExpr, nameHintExpr],
+                    callee: interner.intern(boundReceiver == nil ? "__kk_kclass_create" : "__kk_kclass_of"),
+                    arguments: (boundReceiver.map { [$0] } ?? []) + [tokenExpr, nameHintExpr],
                     result: result,
                     canThrow: false,
                     thrownResult: nil

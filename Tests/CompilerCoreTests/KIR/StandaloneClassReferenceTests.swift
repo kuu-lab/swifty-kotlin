@@ -163,7 +163,7 @@ struct StandaloneClassReferenceTests {
         )
     }
 
-    @Test func testThisClassRefEmitsKClassCreate() throws {
+    @Test func testThisClassRefEmitsDynamicKClassLookup() throws {
         let source = """
         class Foo {
             fun getKClass(): Any = this::class
@@ -180,9 +180,49 @@ struct StandaloneClassReferenceTests {
         let body = try findKIRFunctionBody(named: "getKClass", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("__kk_kclass_create"),
-            "Expected __kk_kclass_create for this::class, got: \(callees)"
+            callees.contains("__kk_kclass_of"),
+            "Expected __kk_kclass_of for this::class, got: \(callees)"
         )
+    }
+
+    @Test func testBoundClassRefsEmitDynamicLookupAndEvaluateReceiverOnce() throws {
+        let ctx = makeContextFromSource("""
+        class Foo
+        fun makeFoo(): Foo = Foo()
+        fun <T : Any> classOf(value: T) = value::class
+        fun main() {
+            val f = Foo()
+            val Foo = f
+            println(f::class.simpleName)
+            println(Foo::class.simpleName)
+            println(1::class.simpleName)
+            println("x"::class.simpleName)
+            println(makeFoo()::class.simpleName)
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.filter { $0 == "__kk_kclass_of" }.count == 5)
+        #expect(callees.filter { $0 == "makeFoo" }.count == 1)
+        let genericBody = try findKIRFunctionBody(named: "classOf", in: module, interner: ctx.interner)
+        #expect(extractCallees(from: genericBody, interner: ctx.interner).contains("__kk_kclass_of"))
+    }
+
+    @Test func testNullableBoundClassRefsAreRejected() throws {
+        let ctx = makeContextFromSource("""
+        fun nullableClass(value: Any?) = value::class
+        fun nullClass() = null::class
+        fun <T> unconstrainedClass(value: T) = value::class
+        fun <T : Any?> nullableBoundClass(value: T) = value::class
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-CLASS-REF-NULLABLE"
+        }.count == 4)
     }
 
     @Test func testRuntimeTypeCheckTokenEncodesAdditionalPrimitives() {
