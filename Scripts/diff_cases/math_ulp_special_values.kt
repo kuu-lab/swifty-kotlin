@@ -1,0 +1,36 @@
+import kotlin.math.ulp
+
+fun main() {
+    println(Double.POSITIVE_INFINITY.ulp)
+    println(Double.NEGATIVE_INFINITY.ulp)
+    println(Float.POSITIVE_INFINITY.ulp)
+    println(Float.NEGATIVE_INFINITY.ulp)
+    println(Double.NaN.ulp.isNaN())
+    println(Float.NaN.ulp.isNaN())
+
+    println(0.0.ulp.toRawBits())
+    println((-0.0).ulp.toRawBits())
+    println(Double.MIN_VALUE.ulp.toRawBits())
+    println((-Double.MIN_VALUE).ulp.toRawBits())
+    println(Double.fromBits(0x0010000000000000L).ulp.toRawBits())
+    println((-Double.fromBits(0x0010000000000000L)).ulp.toRawBits())
+    println(1.0.ulp.toRawBits())
+    println((-1.0).ulp.toRawBits())
+    println(1.5.ulp.toRawBits())
+    println((-1.5).ulp.toRawBits())
+    println(Double.MAX_VALUE.ulp.toRawBits())
+    println((-Double.MAX_VALUE).ulp.toRawBits())
+
+    println(0.0f.ulp.toRawBits())
+    println((-0.0f).ulp.toRawBits())
+    println(Float.MIN_VALUE.ulp.toRawBits())
+    println((-Float.MIN_VALUE).ulp.toRawBits())
+    println(Float.fromBits(0x00800000).ulp.toRawBits())
+    println((-Float.fromBits(0x00800000)).ulp.toRawBits())
+    println(1.0f.ulp.toRawBits())
+    println((-1.0f).ulp.toRawBits())
+    println(1.5f.ulp.toRawBits())
+    println((-1.5f).ulp.toRawBits())
+    println(Float.MAX_VALUE.ulp.toRawBits())
+    println((-Float.MAX_VALUE).ulp.toRawBits())
+}

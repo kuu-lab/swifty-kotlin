@@ -1,0 +1,36 @@
+import kotlinx.io.*
+
+fun main() {
+    val buffer = Buffer()
+    val source: Source = buffer
+    buffer.writeByte((-1).toByte())
+    buffer.writeShort((-1).toShort())
+    buffer.writeInt(-1)
+    buffer.writeLong(-1L)
+    println(source.readUByte())
+    println(source.readUShort())
+    println(source.readUInt())
+    println(source.readULong())
+    buffer.writeShortLe(0x1234.toShort())
+    buffer.writeIntLe(0x12345678)
+    buffer.writeLongLe(0x123456789abcdefL)
+    println(source.readShortLe())
+    println(source.readIntLe())
+    println(source.readLongLe())
+    buffer.writeShortLe((-1).toShort())
+    buffer.writeIntLe(-1)
+    buffer.writeLongLe(-1L)
+    println(source.readUShortLe())
+    println(source.readUIntLe())
+    println(source.readULongLe())
+    buffer.writeInt(1.5f.toBits())
+    buffer.writeLong((-2.5).toBits())
+    buffer.writeIntLe((-0.0f).toBits())
+    buffer.writeLongLe(Double.POSITIVE_INFINITY.toBits())
+    println(source.readFloat())
+    println(source.readDouble())
+    println(source.readFloatLe().toBits())
+    println(source.readDoubleLe())
+    println(source.exhausted())
+    try { source.readUByte() } catch (e: EOFException) { println("eof") }
+}

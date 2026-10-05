@@ -320,37 +320,26 @@ extension CoroutineLoweringPass {
                         loweredSuspendArguments = suspendCallInfo.arguments
                         // KSP-1566: `delay(duration)` binds the bundled Duration
                         // overload straight to `kk_kxmini_delay`; the argument
-                        // carries nanoseconds, so convert it to milliseconds
-                        // inline (`inWholeMilliseconds`). KUU-1093: Duration is
-                        // now a boxed object (it implements
-                        // Comparable<Duration>), so read the payload through
-                        // kk_duration_inWholeNanoseconds — it accepts every
-                        // Duration representation — before dividing.
+                        // arrives as a tagged payload, so convert it to the
+                        // runtime's millisecond ABI. KUU-1093: Duration is now
+                        // a boxed object (it implements Comparable<Duration>) —
+                        // kk_duration_inWholeMilliseconds accepts every
+                        // representation, boxed or tagged raw.
                         if suspendCallInfo.callee == runtimeDelayCallee,
                            let firstArg = loweredSuspendArguments.first,
                            let argType = module.arena.exprType(firstArg),
                            argType != longType, argType != intType, let longType
                         {
-                            let nanosExpr = module.arena.appendTemporary(type: longType)
-                            lowered.append(.call(
-                                symbol: nil,
-                                callee: interner.intern("kk_duration_inWholeNanoseconds"),
-                                arguments: [firstArg],
-                                result: nanosExpr,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
-                            let divisorExpr = module.arena.appendExpr(
-                                .intLiteral(1_000_000),
-                                type: longType
-                            )
                             let millisExpr = module.arena.appendTemporary(type: longType
                             )
-                            lowered.append(.binary(
-                                op: .divide,
-                                lhs: nanosExpr,
-                                rhs: divisorExpr,
-                                result: millisExpr
+                            lowered.append(.call(
+                                symbol: nil,
+                                callee: interner.intern("kk_duration_inWholeMilliseconds"),
+                                arguments: [firstArg],
+                                result: millisExpr,
+                                canThrow: false,
+                                thrownResult: nil,
+                                isSuperCall: false
                             ))
                             loweredSuspendArguments[0] = millisExpr
                             // The emitted call targets the raw-milliseconds

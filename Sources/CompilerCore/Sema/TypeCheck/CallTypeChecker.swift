@@ -1656,7 +1656,7 @@ final class CallTypeChecker {
                 lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
                     ?? sema.types.nullableAnyType
             } else {
-                lambdaReturnType = expectedType ?? sema.types.anyType
+                lambdaReturnType = expectedType ?? sema.types.nullableAnyType
             }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
                 receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
@@ -1699,7 +1699,7 @@ final class CallTypeChecker {
             sema.types.make(.functionType(FunctionType(
                 receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
-                returnType: expectedType ?? sema.types.anyType,
+                returnType: expectedType ?? sema.types.nullableAnyType,
                 isSuspend: true,
                 nullability: .nonNull
             )))
@@ -2136,6 +2136,28 @@ final class CallTypeChecker {
             return implicitReceiverResult
         }
 
+        if let calleeName,
+           let local = locals[calleeName],
+           case .classType = sema.types.kind(of: sema.types.makeNonNullable(local.type))
+        {
+            let invokeName = interner.intern("invoke")
+            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: invokeName,
+                receiverType: local.type,
+                sema: sema,
+                interner: interner
+            ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
+            if !invokeCandidates.isEmpty {
+                let returnType = inferMemberCallExpr(
+                    id, receiverID: calleeID, calleeName: invokeName,
+                    args: args, range: range, ctx: ctx, locals: &locals,
+                    expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+                )
+                sema.bindings.markInvokeOperatorCall(id)
+                return returnType
+            }
+        }
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         // A generic destination parameter can be constrained from the call's
@@ -2170,8 +2192,8 @@ final class CallTypeChecker {
         // lambda argument is inferred. Without this, `val xs: List<(Int) ->
         // Int> = listOf({ it + 1 }, ...)` leaves every vararg slot's expected
         // type as the bare, unsubstituted `T`, so a lambda argument's implicit
-        // `it` never resolves. Scoped to lambda-literal arguments only, since
-        // other argument kinds already have their own contextual inference.
+        // `it` never resolves. Nested generic calls need the same context before
+        // checking their own lambdas, e.g. `nullsFirst(compareBy { it.k })`.
         // An explicit call-site type argument (`Array<Int>(3) { it }`) always
         // wins over the expected type (`Array<out Any>` here), matching
         // Kotlin's own precedence -- skip this substitution when one is given.
@@ -2207,11 +2229,17 @@ final class CallTypeChecker {
                     else {
                         continue
                     }
-                    substitution[typeVar] = expectedArgType
+                    substitution[typeVar] = returnTypeParam.nullability == .nonNull
+                        ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
                 }
                 guard !substitution.isEmpty else { continue }
                 for index in args.indices {
-                    guard case .lambdaLiteral = ast.arena.expr(args[index].expr),
+                    let isLambda: Bool = if case .lambdaLiteral = ast.arena.expr(args[index].expr) {
+                        true
+                    } else {
+                        false
+                    }
+                    guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast),
                           let parameterType = parameterTypeForArgument(at: index, in: signature)
                     else {
                         continue
@@ -2866,21 +2894,7 @@ final class CallTypeChecker {
                     }
                 }
             }
-            // Resolution may narrow a literal only after choosing a vararg
-            // element type. Persist that type for KIR lowering and codegen.
-            if let signature = sema.symbols.functionSignature(for: chosen) {
-                for (index, argument) in args.enumerated() where !argument.isSpread {
-                    guard let parameterIndex = resolved.parameterMapping[index],
-                          signature.valueParameterIsVararg.indices.contains(parameterIndex),
-                          signature.valueParameterIsVararg[parameterIndex],
-                          parameterIndex < signature.parameterTypes.count
-                    else { continue }
-                    let parameterType = signature.parameterTypes[parameterIndex]
-                    let literal = integerLiteralValues(argument.expr, ast: ast)
-                    guard literal.signed != nil || literal.unsigned != nil else { continue }
-                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
-                }
-            }
+            contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
             // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern uses
@@ -2942,6 +2956,7 @@ final class CallTypeChecker {
                 )
             }
             applyContractEffects(
+                id: id,
                 chosen: chosen,
                 args: args,
                 ctx: ctx,
@@ -3117,6 +3132,7 @@ final class CallTypeChecker {
                 if let chosen = resolved.chosenCallee {
                     let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
                     applyContractEffects(
+                        id: id,
                         chosen: chosen,
                         args: args,
                         ctx: ctx,

@@ -139,10 +139,10 @@ private func runtimeRenderTaggedChar(_ value: Int) -> String {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if isObjectPointer, let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-            return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+            return runtimeCharacterFromRaw(charBox.value)
         }
     }
-    return UnicodeScalar(value).map(String.init) ?? "?"
+    return runtimeCharacterFromRaw(value)
 }
 
 private func runtimeTaggedFloatValue(_ value: Int) -> Float {
@@ -190,7 +190,7 @@ private func runtimeTaggedULongValue(_ value: Int) -> UInt {
 
 private func runtimeStringHashCode(_ value: String) -> Int {
     var hash: Int32 = 0
-    for codeUnit in value.utf16 {
+    for codeUnit in runtimeKotlinStringUTF16CodeUnits(value) {
         hash = 31 &* hash &+ Int32(truncatingIfNeeded: codeUnit)
     }
     return Int(hash)
@@ -340,9 +340,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return runtimeStringHashCode(value)
     }
     if let durationBox = tryCast(pointer, to: RuntimeDurationBox.self) {
-        // Duration.hashCode() is Long.hashCode of the nanosecond payload
+        // Duration.hashCode() is Long.hashCode of the tagged payload
         // (KUU-645); keep the boxed/Any path on the same xor-fold.
-        return runtimeXorFoldHashCode(durationBox.nanoseconds)
+        return runtimeXorFoldHashCode(durationBox.rawValue)
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
         let epochHash = Int32(truncatingIfNeeded: instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32))
@@ -1180,7 +1180,8 @@ public func __kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePoin
 
 @_cdecl("__kk_double_ulp")
 public func __kk_double_ulp(_ value: Int) -> Int {
-    kk_double_to_bits(kk_bits_to_double(value).ulp)
+    let raw = kk_bits_to_double(value)
+    return kk_double_to_bits(raw.isInfinite ? Double.infinity : raw.ulp)
 }
 
 @_cdecl("__kk_double_nextUp")
@@ -1195,7 +1196,8 @@ public func __kk_double_nextDown(_ value: Int) -> Int {
 
 @_cdecl("__kk_float_ulp")
 public func __kk_float_ulp(_ value: Int) -> Int {
-    kk_float_to_bits(kk_bits_to_float(value).ulp)
+    let raw = kk_bits_to_float(value)
+    return kk_float_to_bits(raw.isInfinite ? Float.infinity : raw.ulp)
 }
 
 @_cdecl("__kk_float_nextUp")

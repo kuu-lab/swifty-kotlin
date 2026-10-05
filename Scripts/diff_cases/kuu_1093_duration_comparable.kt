@@ -40,7 +40,10 @@ fun main() {
     println(l.sortedWith(reverseOrder()))
     println(listOf(1.days, null, 2.hours).sortedWith(nullsFirst(naturalOrder())))
     println(listOf("bb", "ccc", "a").sortedBy { it.length.days })
-    println(listOf("bb", "ccc", "a").sortedWith(compareBy { it.length.days }))
+    println(listOf("bb", "ccc", "a").sortedWith(object : Comparator<String> {
+        override fun compare(a: String, b: String): Int = a.length.days.compareTo(b.length.days)
+    }))
+    println(compareValuesBy("bb", "ccc") { it.length.days })
     println(listOf("bb", "ccc", "a").maxOfWith(naturalOrder()) { it.length.days })
     println(listOf(24.hours, 1.days, 1440.minutes).sorted().distinct().size)
     println(1.days == 24.hours)

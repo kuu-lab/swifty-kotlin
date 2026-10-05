@@ -1109,36 +1109,22 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        // KSP-1566: a Duration argument carries nanoseconds; convert to
-        // milliseconds inline (`inWholeMilliseconds`). Millis arguments
-        // (Long/Int) pass through untouched. KUU-1093: Duration is now a boxed
-        // object (it implements Comparable<Duration>), so read the nanosecond
-        // payload through kk_duration_inWholeNanoseconds — it accepts every
-        // Duration representation — before dividing.
+        // KSP-1566: adapt Duration's tagged payload to the coroutine runtime's
+        // millisecond ABI. Long/Int arguments already contain milliseconds.
         var timeMillisExpr = call.arguments[0]
         var rewritten: [KIRInstruction] = []
         if let argType = rewrite.module.arena.exprType(timeMillisExpr) {
             let longType = rewrite.ctx.sema?.types.make(.primitive(.long, .nonNull))
             if argType != longType, argType != rewrite.intType {
-                let nanosExpr = rewrite.module.arena.appendTemporary(type: longType)
+                let millisExpr = rewrite.module.arena.appendTemporary(type: longType)
                 rewritten.append(.call(
                     symbol: nil,
-                    callee: rewrite.ctx.interner.intern("kk_duration_inWholeNanoseconds"),
+                    callee: rewrite.ctx.interner.intern("kk_duration_inWholeMilliseconds"),
                     arguments: [timeMillisExpr],
-                    result: nanosExpr,
+                    result: millisExpr,
                     canThrow: false,
-                    thrownResult: nil
-                ))
-                let divisorExpr = rewrite.module.arena.appendExpr(
-                    .intLiteral(1_000_000),
-                    type: longType
-                )
-                let millisExpr = rewrite.module.arena.appendTemporary(type: longType)
-                rewritten.append(.binary(
-                    op: .divide,
-                    lhs: nanosExpr,
-                    rhs: divisorExpr,
-                    result: millisExpr
+                    thrownResult: nil,
+                    isSuperCall: false
                 ))
                 timeMillisExpr = millisExpr
             }

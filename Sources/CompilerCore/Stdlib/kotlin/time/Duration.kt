@@ -9,15 +9,20 @@ import kotlin.math.roundToLong
 // KSP-683
 // Duration's public representation and pure operations are Kotlin source. The
 // runtime only owns parsing and platform interop; the value class payload is the
-// signed nanosecond count used by those bridges.
+// signed count shifted left by one, with a low-bit tag (0 = ns, 1 = ms).
 
 @JvmInline
 public value class Duration internal constructor(internal val rawValue: Long) : Comparable<Duration> {
     public val inWholeNanoseconds: Long
-        get() = rawValue
+        get() = toLong(DurationUnit.NANOSECONDS)
 
-    public override fun compareTo(other: Duration): Int =
-        rawValue.compareTo(other.rawValue)
+    public override fun compareTo(other: Duration): Int {
+        if ((rawValue < 0L) != (other.rawValue < 0L) || durationIsMillis(rawValue) == durationIsMillis(other.rawValue)) {
+            return rawValue.compareTo(other.rawValue)
+        }
+        val result = if (durationIsMillis(rawValue)) 1 else -1
+        return if (rawValue < 0L) -result else result
+    }
 
     public override fun equals(other: Any?): Boolean {
         if (other !is Duration) return false
@@ -25,7 +30,7 @@ public value class Duration internal constructor(internal val rawValue: Long) : 
         return rawValue == that.rawValue
     }
 
-    // Long.hashCode() of the nanosecond payload. `toInt()` only keeps the low
+    // Long.hashCode() of the tagged payload. `toInt()` only keeps the low
     // 32 bits, so a typed call disagreed with the boxed/Any path and broke the
     // equals/hashCode contract (KUU-645).
     public override fun hashCode(): Int = rawValue.hashCode()
@@ -98,9 +103,24 @@ private const val NANOS_PER_SECOND: Long = 1_000_000_000L
 private const val NANOS_PER_MINUTE: Long = 60_000_000_000L
 private const val NANOS_PER_HOUR: Long = 3_600_000_000_000L
 private const val NANOS_PER_DAY: Long = 86_400_000_000_000L
+private const val MAX_NANOS: Long = 4_611_686_018_426_999_999L
+private const val MAX_MILLIS: Long = 4_611_686_018_427_387_903L
+private const val MAX_NANOS_IN_MILLIS: Long = 4_611_686_018_426L
+private const val NEGATIVE_INFINITY: Long = -9_223_372_036_854_775_805L
+
+private fun durationValue(raw: Long): Long = raw shr 1
+private fun durationIsMillis(raw: Long): Boolean = (raw and 1L) != 0L
+private fun durationStorageScale(raw: Long): Long = if (durationIsMillis(raw)) NANOS_PER_MILLISECOND else 1L
+private fun durationOfNanos(value: Long): Duration =
+    if (value >= -MAX_NANOS && value <= MAX_NANOS) Duration(value shl 1)
+    else Duration(((value / NANOS_PER_MILLISECOND) shl 1) + 1L)
+
+private fun durationOfMillis(value: Long): Duration =
+    if (value >= -MAX_NANOS_IN_MILLIS && value <= MAX_NANOS_IN_MILLIS) durationOfNanos(value * NANOS_PER_MILLISECOND)
+    else Duration((value.coerceIn(-MAX_MILLIS, MAX_MILLIS) shl 1) + 1L)
 
 private fun durationIsInfinite(value: Long): Boolean {
-    return value == Long.MAX_VALUE || value == Long.MIN_VALUE
+    return value == Long.MAX_VALUE || value == NEGATIVE_INFINITY
 }
 
 private fun saturatingAdd(lhs: Long, rhs: Long): Long {
@@ -108,13 +128,6 @@ private fun saturatingAdd(lhs: Long, rhs: Long): Long {
     if (rhs < 0L && lhs < Long.MIN_VALUE - rhs) return Long.MIN_VALUE
     return lhs + rhs
 }
-
-private fun saturatingSubtract(lhs: Long, rhs: Long): Long =
-    if (rhs == Long.MIN_VALUE) {
-        if (lhs >= 0L) Long.MAX_VALUE else saturatingAdd(lhs, Long.MAX_VALUE) + 1L
-    } else {
-        saturatingAdd(lhs, -rhs)
-    }
 
 private fun saturatingMultiply(lhs: Long, rhs: Long): Long {
     if (lhs == 0L || rhs == 0L) return 0L
@@ -142,17 +155,9 @@ private fun durationUnitScale(unit: DurationUnit): Long = when (unit) {
 
 private fun durationFromDouble(value: Double, scale: Long): Duration {
     require(!value.isNaN()) { "Duration value cannot be NaN." }
-    if (value.isInfinite()) return Duration(if (value < 0.0) Long.MIN_VALUE else Long.MAX_VALUE)
-    val scaled = value * scale.toDouble()
-    if (scaled >= Long.MAX_VALUE.toDouble()) return Duration(Long.MAX_VALUE)
-    if (scaled <= Long.MIN_VALUE.toDouble()) return Duration(Long.MIN_VALUE)
-    return Duration(scaled.roundToLong())
-}
-
-private fun durationToDouble(value: Long): Double = when {
-    value == Long.MAX_VALUE -> Double.POSITIVE_INFINITY
-    value == Long.MIN_VALUE -> Double.NEGATIVE_INFINITY
-    else -> value.toDouble()
+    val nanos = (value * scale.toDouble()).roundToLong()
+    if (nanos >= -MAX_NANOS && nanos <= MAX_NANOS) return durationOfNanos(nanos)
+    return durationOfMillis((value * (scale.toDouble() / NANOS_PER_MILLISECOND.toDouble())).roundToLong())
 }
 
 private fun durationUnitShortName(unit: DurationUnit): String = when (unit) {
@@ -201,24 +206,28 @@ private fun durationFraction(value: Long, width: Int): String {
     var result = value.toString()
     while (result.length < width) result = "0" + result
     while (result.endsWith("0")) result = result.substring(0, result.length - 1)
+    if (result.length >= 3) {
+        while (result.length % 3 != 0) result += "0"
+    }
     return result
 }
 
 private fun durationToString(value: Long): String {
     if (value == Long.MAX_VALUE) return "Infinity"
-    if (value == Long.MIN_VALUE) return "-Infinity"
+    if (value == NEGATIVE_INFINITY) return "-Infinity"
     if (value == 0L) return "0s"
 
     val negative = value < 0L
-    var remaining = if (negative) -value else value
-    val days = remaining / NANOS_PER_DAY
-    remaining %= NANOS_PER_DAY
-    val hours = remaining / NANOS_PER_HOUR
-    remaining %= NANOS_PER_HOUR
-    val minutes = remaining / NANOS_PER_MINUTE
-    remaining %= NANOS_PER_MINUTE
-    val seconds = remaining / NANOS_PER_SECOND
-    val nanos = remaining % NANOS_PER_SECOND
+    val scale = durationStorageScale(value)
+    var remaining = if (negative) -durationValue(value) else durationValue(value)
+    val days = remaining / (NANOS_PER_DAY / scale)
+    remaining %= NANOS_PER_DAY / scale
+    val hours = remaining / (NANOS_PER_HOUR / scale)
+    remaining %= NANOS_PER_HOUR / scale
+    val minutes = remaining / (NANOS_PER_MINUTE / scale)
+    remaining %= NANOS_PER_MINUTE / scale
+    val seconds = remaining / (NANOS_PER_SECOND / scale)
+    val nanos = (remaining % (NANOS_PER_SECOND / scale)) * scale
 
     val parts = StringBuilder()
     var count = 0
@@ -268,68 +277,102 @@ private fun durationToString(value: Long): String {
     return if (!negative) body else if (count > 1) "-($body)" else "-$body"
 }
 
-public operator fun Duration.plus(other: Duration): Duration =
-    Duration(saturatingAdd(rawValue, other.rawValue))
+public operator fun Duration.plus(other: Duration): Duration {
+    if (isInfinite() || other.isInfinite()) {
+        require(!(isInfinite() && other.isInfinite() && (rawValue < 0L) != (other.rawValue < 0L))) {
+            "Summing infinite durations of different signs yields an undefined result."
+        }
+        return if (isInfinite()) this else other
+    }
+    val value = durationValue(rawValue)
+    val otherValue = durationValue(other.rawValue)
+    if (durationIsMillis(rawValue) == durationIsMillis(other.rawValue)) {
+        val sum = value + otherValue
+        return if (durationIsMillis(rawValue)) durationOfMillis(sum) else durationOfNanos(sum)
+    }
+    val millis = if (durationIsMillis(rawValue)) value else otherValue
+    val nanos = if (durationIsMillis(rawValue)) otherValue else value
+    val sumMillis = millis + nanos / NANOS_PER_MILLISECOND
+    return if (sumMillis >= -MAX_NANOS_IN_MILLIS && sumMillis <= MAX_NANOS_IN_MILLIS) {
+        durationOfNanos(sumMillis * NANOS_PER_MILLISECOND + nanos % NANOS_PER_MILLISECOND)
+    } else durationOfMillis(sumMillis)
+}
 
 public operator fun Duration.minus(other: Duration): Duration =
-    Duration(saturatingSubtract(rawValue, other.rawValue))
+    this + (-other)
 
-public operator fun Duration.times(scale: Int): Duration =
-    Duration(saturatingMultiply(rawValue, scale.toLong()))
+public operator fun Duration.times(scale: Int): Duration {
+    if (isInfinite()) {
+        require(scale != 0) { "Multiplying infinite duration by zero yields an undefined result." }
+        return if (scale > 0) this else -this
+    }
+    val value = durationValue(rawValue)
+    val result = saturatingMultiply(value, scale.toLong())
+    if (durationIsMillis(rawValue)) return durationOfMillis(result)
+    if (result != Long.MAX_VALUE && result != Long.MIN_VALUE) return durationOfNanos(result)
+    val millis = saturatingMultiply(value / NANOS_PER_MILLISECOND, scale.toLong())
+    val remainder = (value % NANOS_PER_MILLISECOND) * scale.toLong() / NANOS_PER_MILLISECOND
+    return durationOfMillis(saturatingAdd(millis, remainder))
+}
 
 public operator fun Duration.times(scale: Double): Duration {
     val intScale = scale.roundToInt()
     if (intScale.toDouble() == scale) return this * intScale
-    return durationFromDouble(durationToDouble(rawValue) * scale, 1L)
+    val unit = if (durationIsMillis(rawValue)) DurationUnit.MILLISECONDS else DurationUnit.NANOSECONDS
+    return durationFromDouble(toDouble(unit) * scale, durationUnitScale(unit))
 }
 
-public operator fun Duration.div(scale: Int): Duration =
+public operator fun Duration.div(scale: Int): Duration {
     if (scale == 0) {
-        Duration(if (rawValue < 0L) Long.MIN_VALUE else Long.MAX_VALUE)
-    } else if (rawValue == Long.MIN_VALUE && scale == -1) {
-        Duration(Long.MAX_VALUE)
-    } else {
-        Duration(rawValue / scale.toLong())
+        require(rawValue != 0L) { "Dividing zero duration by zero yields an undefined result." }
+        return Duration(if (rawValue < 0L) NEGATIVE_INFINITY else Long.MAX_VALUE)
     }
+    if (isInfinite()) return if (scale > 0) this else -this
+    val value = durationValue(rawValue)
+    val result = value / scale.toLong()
+    if (!durationIsMillis(rawValue)) return durationOfNanos(result)
+    return if (result >= -MAX_NANOS_IN_MILLIS && result <= MAX_NANOS_IN_MILLIS) {
+        durationOfNanos(result * NANOS_PER_MILLISECOND + (value % scale.toLong()) * NANOS_PER_MILLISECOND / scale.toLong())
+    } else durationOfMillis(result)
+}
 
 public operator fun Duration.div(scale: Double): Duration {
     val intScale = scale.roundToInt()
     if (intScale.toDouble() == scale && intScale != 0) return this / intScale
-    return durationFromDouble(durationToDouble(rawValue) / scale, 1L)
+    val unit = if (durationIsMillis(rawValue)) DurationUnit.MILLISECONDS else DurationUnit.NANOSECONDS
+    return durationFromDouble(toDouble(unit) / scale, durationUnitScale(unit))
 }
 
-public operator fun Duration.div(other: Duration): Double =
-    durationToDouble(rawValue) / durationToDouble(other.rawValue)
+public operator fun Duration.div(other: Duration): Double {
+    val unit = if (durationIsMillis(rawValue) || durationIsMillis(other.rawValue)) DurationUnit.MILLISECONDS else DurationUnit.NANOSECONDS
+    return toDouble(unit) / other.toDouble(unit)
+}
 
 public operator fun Duration.unaryMinus(): Duration =
-    Duration(when (rawValue) {
-        Long.MIN_VALUE -> Long.MAX_VALUE
-        Long.MAX_VALUE -> Long.MIN_VALUE
-        else -> -rawValue
-    })
+    Duration((-durationValue(rawValue) shl 1) + (rawValue and 1L))
 
 public val Duration.absoluteValue: Duration
-    get() = Duration(if (rawValue < 0L) -rawValue else rawValue)
+    get() = if (rawValue < 0L) -this else this
 
-public fun Duration.isNegative(): Boolean = rawValue < 0L && rawValue != Long.MIN_VALUE
+public fun Duration.isNegative(): Boolean = rawValue < 0L
 
-public fun Duration.isPositive(): Boolean = rawValue > 0L && rawValue != Long.MAX_VALUE
+public fun Duration.isPositive(): Boolean = rawValue > 0L
 
 public fun Duration.isInfinite(): Boolean = durationIsInfinite(rawValue)
 
 public fun Duration.isFinite(): Boolean = !this.isInfinite()
 
-val Duration.inWholeMilliseconds: Long get() = rawValue / NANOS_PER_MILLISECOND
+val Duration.inWholeMilliseconds: Long get() = toLong(DurationUnit.MILLISECONDS)
 
-val Duration.inWholeMicroseconds: Long get() = rawValue / NANOS_PER_MICROSECOND
+val Duration.inWholeMicroseconds: Long get() = toLong(DurationUnit.MICROSECONDS)
 
-val Duration.inWholeSeconds: Long get() = rawValue / NANOS_PER_SECOND
+val Duration.inWholeSeconds: Long get() = toLong(DurationUnit.SECONDS)
 
-val Duration.inWholeMinutes: Long get() = rawValue / NANOS_PER_MINUTE
+val Duration.inWholeMinutes: Long get() = toLong(DurationUnit.MINUTES)
 
-val Duration.inWholeHours: Long get() = rawValue / NANOS_PER_HOUR
+val Duration.inWholeHours: Long get() = toLong(DurationUnit.HOURS)
 
-val Duration.inWholeDays: Long get() = rawValue / NANOS_PER_DAY
+val Duration.inWholeDays: Long get() = toLong(DurationUnit.DAYS)
 
 public val Duration.hoursComponent: Int
     get() = if (durationIsInfinite(rawValue)) 0 else (inWholeHours % 24L).toInt()
@@ -341,40 +384,34 @@ public val Duration.secondsComponent: Int
     get() = if (durationIsInfinite(rawValue)) 0 else (inWholeSeconds % 60L).toInt()
 
 public val Duration.nanosecondsComponent: Int
-    get() = if (durationIsInfinite(rawValue)) 0 else (rawValue % NANOS_PER_SECOND).toInt()
+    get() = if (durationIsInfinite(rawValue)) 0 else ((durationValue(rawValue) % (NANOS_PER_SECOND / durationStorageScale(rawValue))) * durationStorageScale(rawValue)).toInt()
 
 public fun Duration.toDouble(unit: DurationUnit): Double {
-    return when (rawValue) {
-        Long.MAX_VALUE -> Double.POSITIVE_INFINITY
-        Long.MIN_VALUE -> Double.NEGATIVE_INFINITY
-        else -> rawValue.toDouble() / durationUnitScale(unit).toDouble()
-    }
+    if (isInfinite()) return if (rawValue < 0L) Double.NEGATIVE_INFINITY else Double.POSITIVE_INFINITY
+    val sourceScale = durationStorageScale(rawValue)
+    val targetScale = durationUnitScale(unit)
+    val value = durationValue(rawValue).toDouble()
+    return if (sourceScale <= targetScale) value / (targetScale / sourceScale).toDouble()
+        else value * (sourceScale / targetScale).toDouble()
 }
 
 public fun Duration.toLong(unit: DurationUnit): Long {
-    return when (rawValue) {
-        Long.MAX_VALUE -> Long.MAX_VALUE
-        Long.MIN_VALUE -> Long.MIN_VALUE
-        else -> rawValue / durationUnitScale(unit)
-    }
+    if (isInfinite()) return if (rawValue < 0L) Long.MIN_VALUE else Long.MAX_VALUE
+    val sourceScale = durationStorageScale(rawValue)
+    val targetScale = durationUnitScale(unit)
+    val value = durationValue(rawValue)
+    return if (sourceScale <= targetScale) value / (targetScale / sourceScale)
+        else saturatingMultiply(value, sourceScale / targetScale)
 }
 
 public fun Duration.toInt(unit: DurationUnit): Int {
-    val wholeValue = when (rawValue) {
-        Long.MAX_VALUE -> Long.MAX_VALUE
-        Long.MIN_VALUE -> Long.MIN_VALUE
-        else -> rawValue / durationUnitScale(unit)
-    }
+    val wholeValue = toLong(unit)
     return wholeValue.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
 }
 
 public fun Duration.toString(unit: DurationUnit, decimals: Int = 0): String {
     require(decimals >= 0) { "decimals must be not negative, but was $decimals" }
-    val number = when (rawValue) {
-        Long.MAX_VALUE -> Double.POSITIVE_INFINITY
-        Long.MIN_VALUE -> Double.NEGATIVE_INFINITY
-        else -> rawValue.toDouble() / durationUnitScale(unit).toDouble()
-    }
+    val number = toDouble(unit)
     if (number.isInfinite()) return number.toString()
     return durationFormatToDecimals(number, decimals.coerceAtMost(12)) + durationUnitShortName(unit)
 }
@@ -382,15 +419,16 @@ public fun Duration.toString(unit: DurationUnit, decimals: Int = 0): String {
 fun Duration.toIsoString(): String {
     val ns = rawValue
     if (ns == Long.MAX_VALUE) return "PT9999999999999H"
-    if (ns == Long.MIN_VALUE) return "-PT9999999999999H"
+    if (ns == NEGATIVE_INFINITY) return "-PT9999999999999H"
     val isNeg = ns < 0L
-    var rem = if (isNeg) -ns else ns
-    val hours = rem / 3_600_000_000_000L
-    rem %= 3_600_000_000_000L
-    val minutes = rem / 60_000_000_000L
-    rem %= 60_000_000_000L
-    val seconds = rem / 1_000_000_000L
-    val nanos = rem % 1_000_000_000L
+    val scale = durationStorageScale(ns)
+    var rem = if (isNeg) -durationValue(ns) else durationValue(ns)
+    val hours = rem / (NANOS_PER_HOUR / scale)
+    rem %= NANOS_PER_HOUR / scale
+    val minutes = rem / (NANOS_PER_MINUTE / scale)
+    rem %= NANOS_PER_MINUTE / scale
+    val seconds = rem / (NANOS_PER_SECOND / scale)
+    val nanos = (rem % (NANOS_PER_SECOND / scale)) * scale
     val sb = StringBuilder()
     if (isNeg) sb.append('-')
     sb.append('P')
@@ -428,74 +466,38 @@ fun Duration.toIsoString(): String {
 @OptIn(ExperimentalContracts::class)
 public inline fun <T> Duration.toComponents(action: (Long, Int) -> T): T {
     contract { callsInPlace(action, InvocationKind.EXACTLY_ONCE) }
-    val totalNs = rawValue
-    if (totalNs == Long.MAX_VALUE || totalNs == Long.MIN_VALUE) {
-        return action(totalNs, 0)
-    }
-    return action(totalNs / NANOS_PER_SECOND, (totalNs % NANOS_PER_SECOND).toInt())
+    return action(inWholeSeconds, nanosecondsComponent)
 }
 
 @OptIn(ExperimentalContracts::class)
 public inline fun <T> Duration.toComponents(action: (Long, Int, Int) -> T): T {
     contract { callsInPlace(action, InvocationKind.EXACTLY_ONCE) }
-    val totalNs = rawValue
-    if (totalNs == Long.MAX_VALUE || totalNs == Long.MIN_VALUE) {
-        return action(totalNs, 0, 0)
-    }
-    var remaining = totalNs
-    val minutes = remaining / NANOS_PER_MINUTE
-    remaining %= NANOS_PER_MINUTE
-    return action(minutes, (remaining / NANOS_PER_SECOND).toInt(), (remaining % NANOS_PER_SECOND).toInt())
+    return action(inWholeMinutes, secondsComponent, nanosecondsComponent)
 }
 
 @OptIn(ExperimentalContracts::class)
 public inline fun <T> Duration.toComponents(action: (Long, Int, Int, Int) -> T): T {
     contract { callsInPlace(action, InvocationKind.EXACTLY_ONCE) }
-    val totalNs = rawValue
-    if (totalNs == Long.MAX_VALUE || totalNs == Long.MIN_VALUE) {
-        return action(totalNs, 0, 0, 0)
-    }
-    var remaining = totalNs
-    val hours = remaining / NANOS_PER_HOUR
-    remaining %= NANOS_PER_HOUR
-    val minutes = (remaining / NANOS_PER_MINUTE).toInt()
-    remaining %= NANOS_PER_MINUTE
-    return action(
-        hours,
-        minutes,
-        (remaining / NANOS_PER_SECOND).toInt(),
-        (remaining % NANOS_PER_SECOND).toInt()
-    )
+    return action(inWholeHours, minutesComponent, secondsComponent, nanosecondsComponent)
 }
 
 @OptIn(ExperimentalContracts::class)
 public inline fun <T> Duration.toComponents(action: (Long, Int, Int, Int, Int) -> T): T {
     contract { callsInPlace(action, InvocationKind.EXACTLY_ONCE) }
-    val totalNs = rawValue
-    if (totalNs == Long.MAX_VALUE || totalNs == Long.MIN_VALUE) {
-        return action(totalNs, 0, 0, 0, 0)
-    }
-    var remaining = totalNs
-    val days = remaining / NANOS_PER_DAY
-    remaining %= NANOS_PER_DAY
-    val hours = (remaining / NANOS_PER_HOUR).toInt()
-    remaining %= NANOS_PER_HOUR
-    val minutes = (remaining / NANOS_PER_MINUTE).toInt()
-    remaining %= NANOS_PER_MINUTE
-    return action(
-        days,
-        hours,
-        minutes,
-        (remaining / NANOS_PER_SECOND).toInt(),
-        (remaining % NANOS_PER_SECOND).toInt()
-    )
+    return action(inWholeDays, hoursComponent, minutesComponent, secondsComponent, nanosecondsComponent)
 }
 
 public fun Int.toDuration(unit: DurationUnit): Duration =
-    Duration(saturatingMultiply(toLong(), durationUnitScale(unit)))
+    toLong().toDuration(unit)
 
-public fun Long.toDuration(unit: DurationUnit): Duration =
-    Duration(saturatingMultiply(this, durationUnitScale(unit)))
+public fun Long.toDuration(unit: DurationUnit): Duration {
+    val scale = durationUnitScale(unit)
+    val maxNanosInUnit = MAX_NANOS / scale
+    if (this >= -maxNanosInUnit && this <= maxNanosInUnit) return durationOfNanos(this * scale)
+    val millis = if (scale < NANOS_PER_MILLISECOND) this / (NANOS_PER_MILLISECOND / scale)
+        else saturatingMultiply(this, scale / NANOS_PER_MILLISECOND)
+    return durationOfMillis(millis)
+}
 
 public fun Double.toDuration(unit: DurationUnit): Duration =
     durationFromDouble(this, durationUnitScale(unit))
@@ -503,22 +505,15 @@ public fun Double.toDuration(unit: DurationUnit): Duration =
 // Companion-scoped constants and parsing entry points. These use the Companion
 // short-form dispatch fallback (CallTypeChecker+MemberCallInferenceRegularResolution)
 // so both `Duration.ZERO` and `Duration.Companion.ZERO` resolve. The __kk_duration_*
-// parse bridges are receiver-less package-scope functions returning the parsed
-// nanosecond payload as a raw `Long` (`Long?` for the OrNull variants); the Kotlin
-// layer wraps them in `Duration(...)` so every `Duration` value stays a real
-// boxed object, as `Comparable<Duration>` requires (KUU-1093).
+// bridges are receiver-less package-scope functions, called without `this.`.
 public val Duration.Companion.ZERO: Duration get() = Duration(0L)
 
 public val Duration.Companion.INFINITE: Duration get() = Duration(Long.MAX_VALUE)
 
-public fun Duration.Companion.parse(value: String): Duration =
-    Duration(__kk_duration_parse(value))
+public fun Duration.Companion.parse(value: String): Duration = Duration(__kk_duration_parse(value))
 
-public fun Duration.Companion.parseOrNull(value: String): Duration? =
-    __kk_duration_parseOrNull(value)?.let { Duration(it) }
+public fun Duration.Companion.parseOrNull(value: String): Duration? = __kk_duration_parseOrNull(value)?.let { Duration(it) }
 
-public fun Duration.Companion.parseIsoString(value: String): Duration =
-    Duration(__kk_duration_parseIsoString(value))
+public fun Duration.Companion.parseIsoString(value: String): Duration = Duration(__kk_duration_parseIsoString(value))
 
-public fun Duration.Companion.parseIsoStringOrNull(value: String): Duration? =
-    __kk_duration_parseIsoStringOrNull(value)?.let { Duration(it) }
+public fun Duration.Companion.parseIsoStringOrNull(value: String): Duration? = __kk_duration_parseIsoStringOrNull(value)?.let { Duration(it) }

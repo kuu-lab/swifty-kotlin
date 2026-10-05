@@ -467,7 +467,6 @@ extension CallLowerer {
         if functionType.isSuspend,
            !resolvedCallableInfo.hasClosureParam,
            sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
-               || (functionType.receiver == nil && !hasStringSignature)
         {
             return loweredArgID
         }
@@ -541,6 +540,14 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_function_copy_description"),
+            arguments: [loweredArgID, materialized],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
         driver.ctx.registerCallableValue(
             materialized,
             symbol: resolvedCallableInfo.symbol,
@@ -570,12 +577,6 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
-
-        // Source-backed inline functions are fully expanded in the same
-        // module, so lambda arguments can be consumed directly there.
-        if isInline, !isImported {
-            return
-        }
 
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
@@ -625,6 +626,13 @@ extension CallLowerer {
             else {
                 continue
             }
+            // Same-module inline expansion can consume raw symbols directly,
+            // but tagged callable references still cross the erased invoke ABI.
+            if isInline, !isImported,
+               case .symbolRef? = arena.expr(arguments[finalArgIndex])
+            {
+                continue
+            }
             let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
             let functionType: FunctionType
             switch sema.types.kind(of: parameterType) {
@@ -672,12 +680,13 @@ extension CallLowerer {
             default:
                 continue
             }
-            // A non-local return must be expanded into its caller. Wrapping
-            // that lambda in a Function object hides its body from imported
-            // inline expansion and turns the return into a runtime callback.
+            // Keep eligible inline arguments visible to imported expansion,
+            // including normal returns and nested non-local returns.
             if isInline,
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               arena.function(for: callable.symbol)?.isInlineOnly == true
+               (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                   || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                   || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
                 continue
             }
