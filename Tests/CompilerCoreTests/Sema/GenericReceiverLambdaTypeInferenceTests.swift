@@ -71,6 +71,41 @@ struct GenericReceiverLambdaTypeInferenceTests {
         }
 
         fun useConcrete(): ConcreteBox = ConcreteBox().apply2 { myValue = 42 }
+        """,
+        """
+        package sample4
+        class Holder {
+            fun <T : Any> get(key: T): T = key
+            fun <T : Any> getOrNull(key: T): T? = key
+            fun <T : Any> remove(key: T) {}
+        }
+        fun <T : Any> Holder.take(key: T): T = get(key).also { remove(key) }
+        fun <T : Any> Holder.takeOrNull(key: T): T? = getOrNull(key).also { remove(key) }
+        fun <T : Any> Holder.takeSafe(key: T): T? = getOrNull(key)?.also { remove(key) }
+        """,
+        """
+        package sample5
+        class Key<T : Any>(val value: T)
+        class Holder {
+            fun <T : Any> get(key: Key<T>): T = key.value
+            fun <T : Any> getOrNull(key: Key<T>): T? = key.value
+            fun <T : Any> remove(key: Key<T>) {}
+        }
+        fun <T : Any> Holder.take(key: Key<T>): T = get(key).also { remove(key) }
+        fun <T : Any> Holder.takeOrNull(key: Key<T>): T? = getOrNull(key).also { remove(key) }
+        """,
+        """
+        package sample6
+        fun <T> T.observe(block: (T) -> Unit): T { block(this); return this }
+        fun <T : Any> T?.observeNonNull(block: (T) -> Unit): T? {
+            if (this != null) block(this)
+            return this
+        }
+        fun <T : Any> preserve(value: T?): T? = value.observe { val copy: T? = it }
+        fun <T : Any> project(value: T?): T? = value.observeNonNull { val copy: T = it }
+        fun <T : Any> chained(value: T?): T? = value.also { val copy: T? = it }
+            .apply { val copy: T? = this }
+            .let { it }
         """
     ]
 
@@ -123,6 +158,14 @@ struct GenericReceiverLambdaTypeInferenceTests {
         #expect(
             !ctx.diagnostics.hasError,
             "Concrete receiver lambda should still resolve members, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testGenericScopeChainsPreserveReceiverTypeAndNullability() throws {
+        let ctx = try sharedCtx()
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Generic scope chains must retain T and T? rather than widen to Any, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 }

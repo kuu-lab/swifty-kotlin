@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -133,7 +134,7 @@ private func runtimeOptionalFileIOStringArgument(_ raw: Int) -> String? {
     else {
         return nil
     }
-    return extractString(from: ptr)
+    return extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString)
 }
 
 private func runtimeOptionalFileBoxArgument(_ raw: Int) -> RuntimeFileBox? {
@@ -288,7 +289,7 @@ public func __kk_io_createTempFile(_ prefixRaw: Int, _ suffixRaw: Int, _ directo
 @_cdecl("__kk_file_new")
 public func __kk_file_new(_ pathRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pathRaw),
-          let path = extractString(from: ptr)
+          let path = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_new received invalid path")
     }
@@ -298,12 +299,12 @@ public func __kk_file_new(_ pathRaw: Int) -> Int {
 @_cdecl("__kk_file_new_parent_child")
 public func __kk_file_new_parent_child(_ parentRaw: Int, _ childRaw: Int) -> Int {
     guard let parentPtr = UnsafeMutableRawPointer(bitPattern: parentRaw),
-          let parent = extractString(from: parentPtr)
+          let parent = extractString(from: parentPtr).map(KotlinStringSurrogateEncoding.unicodeString)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_new_parent_child received invalid parent")
     }
     guard let childPtr = UnsafeMutableRawPointer(bitPattern: childRaw),
-          let child = extractString(from: childPtr)
+          let child = extractString(from: childPtr).map(KotlinStringSurrogateEncoding.unicodeString)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_new_parent_child received invalid child")
     }
@@ -340,7 +341,7 @@ public func __kk_classloader_getResource(_ loaderRaw: Int, _ nameRaw: Int) -> In
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_classloader_getResource received invalid ClassLoader handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
-          let name = extractString(from: ptr),
+          let name = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString),
           let url = existingResourceURL(named: name)
     else {
         return runtimeNullSentinelInt
@@ -354,7 +355,7 @@ public func __kk_classloader_getResourceAsStream(_ loaderRaw: Int, _ nameRaw: In
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_classloader_getResourceAsStream received invalid ClassLoader handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
-          let name = extractString(from: ptr),
+          let name = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString),
           let opened = openResourceFileDescriptor(named: name)
     else {
         return runtimeNullSentinelInt
@@ -369,7 +370,7 @@ public func __kk_classloader_getResourceAsStream(_ loaderRaw: Int, _ nameRaw: In
 @_cdecl("__kk_resource_exists")
 public func __kk_resource_exists(_ nameRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
-          let name = extractString(from: ptr)
+          let name = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_resource_exists received invalid name")
     }
@@ -380,7 +381,7 @@ public func __kk_resource_exists(_ nameRaw: Int) -> Int {
 public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
-          let name = extractString(from: ptr)
+          let name = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_readResourceAsText received invalid name")
     }
@@ -688,7 +689,7 @@ public func __kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outTh
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid BufferedWriter handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
-          let text = extractString(from: ptr)
+          let text = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid text")
     }
@@ -835,7 +836,7 @@ public func __kk_string_byteInputStream_charset_flat(
 }
 
 private func runtimeStringByteInputStream(_ source: String) -> Int {
-    let bytes = source.utf8.map { UInt8($0) }
+    let bytes = KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { UInt8($0) }
     return registerRuntimeObject(RuntimeInputStreamBox(data: Data(bytes)))
 }
 

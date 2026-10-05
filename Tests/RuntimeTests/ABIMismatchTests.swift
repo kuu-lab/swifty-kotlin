@@ -50,6 +50,7 @@ struct ABIMismatchTests {
     func collectionMutationSignaturesIncludeThrowingChannel() throws {
         let expected: [(name: String, parameters: [String])] = [
             ("__kk_mutable_list_add", ["listRaw", "elem", "outThrown"]),
+            ("__kk_mutable_list_remove_dispatch", ["listRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_add", ["setRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_remove", ["setRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_clear", ["setRaw", "outThrown"]),
@@ -73,6 +74,16 @@ struct ABIMismatchTests {
                 "Generated C header must expose the throwing collection mutation ABI for \(item.name)"
             )
         }
+    }
+
+    @Test
+    func legacyMutableListRemoveKeepsNonThrowingABI() throws {
+        let spec = try requireSpec("__kk_mutable_list_remove")
+        #expect(spec.parameters.map(\.name) == ["listRaw", "elem"])
+        #expect(spec.parameters.allSatisfy { $0.type == .intptr })
+        #expect(!spec.isThrowing)
+        let extern = try #require(RuntimeABIExterns.externDecl(named: spec.name))
+        #expect(extern.parameterTypes == spec.parameterTypeStrings)
     }
 
     @Test

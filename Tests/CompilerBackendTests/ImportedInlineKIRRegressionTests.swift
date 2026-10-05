@@ -40,6 +40,47 @@ struct ImportedInlineKIRRegressionTests {
     }
 
     @Test
+    func importedInlineFinallyRunsBeforeCallerFinally() throws {
+        try withCompiledLibrary(
+            source: """
+            package cleanup
+            inline fun guarded(block: () -> Unit) {
+                try { block() } finally { println("imported-finally") }
+            }
+            """,
+            moduleName: "InlineCleanup"
+        ) { libraryPath in
+            let inlineDirectory = URL(fileURLWithPath: libraryPath).appendingPathComponent("inline-kir")
+            let artifacts = try FileManager.default.contentsOfDirectory(at: inlineDirectory, includingPropertiesForKeys: nil)
+            let serialized = try artifacts.map { try String(contentsOf: $0, encoding: .utf8) }.joined()
+            #expect(serialized.contains("beginNonLocalReturnScope"))
+            #expect(serialized.contains("resumeNonLocalReturn"))
+            let source = """
+            import cleanup.guarded
+            fun escape(): Int {
+                try { guarded { return 31 } } finally { println("caller-finally") }
+                return -1
+            }
+            fun main() { println(escape()) }
+            """
+            try withTemporaryFile(contents: source) { path in
+                let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: output) }
+                let context = makeCompilationContext(
+                    inputs: [path], emit: .executable, outputPath: output, searchPaths: [libraryPath]
+                )
+                try runToLowering(context)
+                #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+                try CodegenPhase().run(context)
+                try LinkPhase().run(context)
+                let result = try CommandRunner.run(executable: output, arguments: [])
+                #expect(result.exitCode == 0)
+                #expect(result.stdout == "imported-finally\ncaller-finally\n31\n")
+            }
+        }
+    }
+
+    @Test
     func importedFirstPredicateFalseBranchRunsThroughArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
         let source = """

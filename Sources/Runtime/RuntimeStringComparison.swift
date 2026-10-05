@@ -1,6 +1,8 @@
 // Generic value comparison (kk_compare_any) and its helpers.
 // Split out from `RuntimeStringStdlib.swift`.
 
+import RuntimeABI
+
 @_cdecl("kk_compare_any")
 public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     if lhsRaw == rhsRaw {
@@ -102,8 +104,8 @@ private func runtimeComparableScalar(from raw: Int) -> RuntimeComparableScalar? 
 }
 
 func runtimeCompareStrings(_ lhs: String, _ rhs: String) -> Int {
-    var lhsIterator = lhs.utf16.makeIterator()
-    var rhsIterator = rhs.utf16.makeIterator()
+    var lhsIterator = KotlinStringSurrogateEncoding.UTF16CodeUnits(lhs).makeIterator()
+    var rhsIterator = KotlinStringSurrogateEncoding.UTF16CodeUnits(rhs).makeIterator()
     while true {
         switch (lhsIterator.next(), rhsIterator.next()) {
         case let (lhsUnit?, rhsUnit?):
@@ -121,7 +123,7 @@ func runtimeCompareStrings(_ lhs: String, _ rhs: String) -> Int {
     }
 }
 
-private func countRemaining(_ iterator: String.UTF16View.Iterator) -> Int {
+private func countRemaining(_ iterator: KotlinStringSurrogateEncoding.UTF16CodeUnits.Iterator) -> Int {
     var iterator = iterator
     var count = 0
     while iterator.next() != nil {

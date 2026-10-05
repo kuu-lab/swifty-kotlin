@@ -1656,7 +1656,7 @@ final class CallTypeChecker {
                 lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
                     ?? sema.types.nullableAnyType
             } else {
-                lambdaReturnType = expectedType ?? sema.types.anyType
+                lambdaReturnType = expectedType ?? sema.types.nullableAnyType
             }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
                 receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
@@ -1699,7 +1699,7 @@ final class CallTypeChecker {
             sema.types.make(.functionType(FunctionType(
                 receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
-                returnType: expectedType ?? sema.types.anyType,
+                returnType: expectedType ?? sema.types.nullableAnyType,
                 isSuspend: true,
                 nullability: .nonNull
             )))
@@ -2895,21 +2895,7 @@ final class CallTypeChecker {
                     }
                 }
             }
-            // Resolution may narrow a literal only after choosing a vararg
-            // element type. Persist that type for KIR lowering and codegen.
-            if let signature = sema.symbols.functionSignature(for: chosen) {
-                for (index, argument) in args.enumerated() where !argument.isSpread {
-                    guard let parameterIndex = resolved.parameterMapping[index],
-                          signature.valueParameterIsVararg.indices.contains(parameterIndex),
-                          signature.valueParameterIsVararg[parameterIndex],
-                          parameterIndex < signature.parameterTypes.count
-                    else { continue }
-                    let parameterType = signature.parameterTypes[parameterIndex]
-                    let literal = integerLiteralValues(argument.expr, ast: ast)
-                    guard literal.signed != nil || literal.unsigned != nil else { continue }
-                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
-                }
-            }
+            contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
             // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern uses
@@ -2971,6 +2957,7 @@ final class CallTypeChecker {
                 )
             }
             applyContractEffects(
+                id: id,
                 chosen: chosen,
                 args: args,
                 ctx: ctx,
@@ -3146,6 +3133,7 @@ final class CallTypeChecker {
                 if let chosen = resolved.chosenCallee {
                     let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
                     applyContractEffects(
+                        id: id,
                         chosen: chosen,
                         args: args,
                         ctx: ctx,

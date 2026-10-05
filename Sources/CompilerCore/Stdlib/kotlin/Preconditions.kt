@@ -1,5 +1,7 @@
 package kotlin
 
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
 import kotlin.internal.KsSymbolName
 
 /**
@@ -65,25 +67,33 @@ public fun assert(value: Boolean, lazyMessage: () -> Any): Unit {
 }
 
 /** Throws [IllegalArgumentException] if [value] is null. Returns the non-null [value]. */
+@OptIn(ExperimentalContracts::class)
 public fun <T : Any> requireNotNull(value: T?): T {
+    contract { returns() implies (value != null) }
     if (value == null) throw IllegalArgumentException("Required value was null.")
     return value as T
 }
 
 /** Throws [IllegalArgumentException] with the result of [lazyMessage] if [value] is null. Returns the non-null [value]. */
+@OptIn(ExperimentalContracts::class)
 public fun <T : Any> requireNotNull(value: T?, lazyMessage: () -> Any): T {
+    contract { returns() implies (value != null) }
     if (value == null) throw IllegalArgumentException(lazyMessage().toString())
     return value as T
 }
 
 /** Throws [IllegalStateException] if [value] is null. Returns the non-null [value]. */
+@OptIn(ExperimentalContracts::class)
 public inline fun <T : Any> checkNotNull(value: T?): T {
+    contract { returns() implies (value != null) }
     if (value == null) throw IllegalStateException("Required value was null.")
     return value as T
 }
 
 /** Throws [IllegalStateException] with the result of [lazyMessage] if [value] is null. Returns the non-null [value]. */
+@OptIn(ExperimentalContracts::class)
 public inline fun <T : Any> checkNotNull(value: T?, lazyMessage: () -> Any): T {
+    contract { returns() implies (value != null) }
     if (value == null) throw IllegalStateException(lazyMessage().toString())
     return value as T
 }

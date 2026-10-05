@@ -36,13 +36,12 @@ fun main() = runBlocking {
     cancelled.cancelAndJoin()
     println("cancelJoined=${cancelled.isCancelled}")
 
-    // yield() reschedules deterministically inside runBlocking.
-    val child = launch {
+    // yield() reschedules deterministically; runBlocking waits without a join.
+    launch {
         println("child-1")
         yield()
         println("child-2")
     }
     yield()
     println("parent")
-    child.join()
 }

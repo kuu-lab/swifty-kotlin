@@ -386,6 +386,65 @@ struct BuildASTBodyParsingRegressionTests {
         }
     }
 
+    /// A newline-leading `::` starts a new statement: `x\n::prop` parses as
+    /// `x; ::prop` (unbound callable reference), never `x::prop`. Kotlin only
+    /// continues `.`/`?.` across a newline, so the statement splitter must not
+    /// glue a `::`-led line onto the previous expression (KUU-1083).
+    @Test
+    func testLeadingCallableReferenceStartsNewStatement() throws {
+        let sources = [
+            """
+            package buildast.leadingref
+            var topVar = 9
+            fun f() {
+                println("start")
+                ::topVar.set(11)
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runFrontend(ctx)
+
+            for path in paths {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "Leading `::` statement should have no errors for \(path): \(errors.map(\.message))")
+            }
+
+            let ast = try #require(ctx.ast)
+            let fileID = try #require(ctx.sourceManager.fileID(forPath: paths[0]))
+            let file = try #require(ast.files.first { $0.fileID == fileID })
+            let funDecl = try #require(file.topLevelDecls.compactMap { declID -> FunDecl? in
+                guard let decl = ast.arena.decl(declID),
+                      case let .funDecl(funDecl) = decl,
+                      ctx.interner.resolve(funDecl.name) == "f"
+                else {
+                    return nil
+                }
+                return funDecl
+            }.first)
+
+            guard case let .block(bodyExprs, _) = funDecl.body else {
+                Issue.record("f should have a block body")
+                return
+            }
+            #expect(bodyExprs.count == 2)
+
+            guard bodyExprs.count == 2,
+                  case let .memberCall(receiver, callee, _, _, _) = ast.arena.expr(bodyExprs[1]),
+                  ctx.interner.resolve(callee) == "set",
+                  let receiverExpr = ast.arena.expr(receiver),
+                  case let .callableRef(refReceiver, member, _) = receiverExpr,
+                  refReceiver == nil,
+                  ctx.interner.resolve(member) == "topVar"
+            else {
+                Issue.record("Expected `::topVar.set(11)` as an unbound-reference member call statement")
+                return
+            }
+        }
+    }
+
     // MARK: - Shared KIR fixture
 
     @Test
