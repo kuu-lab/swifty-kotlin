@@ -17,7 +17,7 @@ extension BuildASTPhase.ExpressionParser {
         }
         index = startIndex + parsed.consumed
         let range = SourceRange(start: tokens[startIndex].range.start, end: tokens[index - 1].range.end)
-        let receiver = astArena.appendExpr(.nameRef(name, range: range))
+        let receiver = astArena.appendExpr(.nameRef(name, range))
         return (receiver, parsed.ref)
     }
 

@@ -1668,16 +1668,17 @@ extension ExprTypeChecker {
             }
         }
 
-        let receiverType: TypeID? = if let receiver, let unboundClassType {
+        let receiverType: TypeID?
+        if let receiver, let unboundClassType {
             sema.bindings.bindExprType(receiver, type: unboundClassType)
             if let (_, symbol) = resolveClassTypeSymbol(unboundClassType, sema: sema) {
                 sema.bindings.bindIdentifier(receiver, symbol: symbol.id)
             }
-            unboundClassType
+            receiverType = unboundClassType
         } else if let receiver {
-            driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+            receiverType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
         } else {
-            nil
+            receiverType = nil
         }
 
         // For unbound type references, use the resolved class type for
