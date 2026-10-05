@@ -1945,8 +1945,8 @@ extension CallTypeChecker {
         // candidates. Keep the mutable-aware collection fallback when lookup is
         // ambiguous, while a unique source member retains normal dispatch.
         let isUniqueIteratorSource = memberNameText == "iterator" && candidates.count == 1
-        let isListSearchOrSubListMember: Bool = {
-            guard ["indexOf", "lastIndexOf", "subList"].contains(memberNameText),
+        let isListSourceBackedMember: Bool = {
+            guard ["get", "indexOf", "lastIndexOf", "subList"].contains(memberNameText),
                   let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName)
             else { return false }
             return driver.helpers.allNominalSymbols(of: memberLookupType, types: sema.types, symbols: sema.symbols).contains {
@@ -1972,7 +1972,7 @@ extension CallTypeChecker {
             || isArraySourceBackedMember
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
-            || isListSearchOrSubListMember
+            || isListSourceBackedMember
         let hasSourceBackedCandidate = isSourceBackedMemberName
             && (!Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
