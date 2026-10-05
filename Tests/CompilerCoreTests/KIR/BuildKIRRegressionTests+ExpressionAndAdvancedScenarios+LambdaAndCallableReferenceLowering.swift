@@ -292,10 +292,40 @@ extension BuildKIRRegressionTests {
             ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
                 && extractCallees(from: function.body, interner: ctx.interner).contains("step")
         })
-        #expect(
-            lambdaFunction.params.count == 2,
-            "Unqualified member call inside a lambda is `this.step()`, so the receiver must be captured."
-        )
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        // The owner-class capture and implicit `this` capture precede the value parameter.
+        #expect(lambdaFunction.params.count == 3)
+        #expect(lambdaFunction.params.last?.type == sema.types.intType)
+        let receiverParams = Array(lambdaFunction.params.dropLast())
+        #expect(receiverParams.count == 2)
+        #expect(receiverParams.allSatisfy { parameter in
+            guard case let .classType(type) = sema.types.kind(of: parameter.type) else { return false }
+            return sema.symbols.symbol(type.classSymbol).map { ctx.interner.resolve($0.name) == "Counter" } == true
+        })
+        let stepArguments = try #require(lambdaFunction.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "step"
+            else { return nil }
+            return arguments
+        }.first)
+        #expect(stepArguments.count == 1)
+        let stepReceiver = try #require(stepArguments.first)
+        guard case let .symbolRef(receiverSymbol)? = module.arena.expr(stepReceiver) else {
+            Issue.record("Expected step() to receive a captured Counter parameter.")
+            return
+        }
+        #expect(receiverParams.contains { $0.symbol == receiverSymbol })
+
+        let runBody = try findKIRFunctionBody(named: "run", in: module, interner: ctx.interner)
+        let storedCaptures = runBody.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_array_set", arguments.count == 3
+            else { return nil }
+            return arguments[2]
+        }
+        #expect(storedCaptures.count == 2)
+        #expect(storedCaptures.first == storedCaptures.last, "Both receiver captures must store the same Counter instance.")
     }
 
     @Test func testBuildKIRCollectionSourceHOFLambdaHasElementParameter() throws {
@@ -715,36 +745,79 @@ extension BuildKIRRegressionTests {
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
         let plusSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "plus"
+            guard symbol.kind == .function, ctx.interner.resolve(symbol.name) == "plus",
+                  let ownerID = sema.symbols.parentSymbol(for: symbol.id),
+                  let owner = sema.symbols.symbol(ownerID)
+            else { return false }
+            return ctx.interner.resolve(owner.name) == "Box"
         })?.id)
 
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        // REFL-003: After callable ref tagging, look for the plus call
-        // by either symbol match or callee name match.
-        let plusCall = try #require(mainBody.first { instruction in
-            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else {
-                return false
-            }
-            return symbol == plusSymbol || ctx.interner.resolve(callee) == "plus"
+        #expect(!ctx.diagnostics.hasError)
+        // Bound references store their receiver in a closure and invoke a generated adapter.
+        let adapter = try #require(findAllKIRFunctions(in: module).first { function in
+            ctx.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+                && function.body.contains { instruction in
+                    guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+                    return symbol == plusSymbol
+                }
         })
-
-        guard case let .call(_, callee, arguments, _, _, _, _, _) = plusCall else {
-            Issue.record("Expected bound callable reference to lower to plus call.")
+        try #require(adapter.params.count == 2, "closure object + explicit argument")
+        let invocation = try #require(mainBody.first { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == adapter.symbol
+        })
+        guard case let .call(_, _, invocationArguments, _, _, _, _, _) = invocation else { return }
+        try #require(invocationArguments.count == 2)
+        guard case .intLiteral(7)? = module.arena.expr(invocationArguments[1]) else {
+            Issue.record("Expected the explicit call-site argument to remain 7.")
             return
         }
-        #expect(ctx.interner.resolve(callee) == "plus")
-        #expect(arguments.count == 2)
-        guard case let .symbolRef(receiverSymbol)? = module.arena.expr(arguments[0]),
+        let storedCapture = try #require(mainBody.first { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == "kk_array_set"
+                && arguments.count == 3 && arguments[0] == invocationArguments[0]
+        })
+        guard case let .call(_, _, storedArguments, _, _, _, _, _) = storedCapture,
+              case .intLiteral(2)? = module.arena.expr(storedArguments[1]),
+              case let .symbolRef(receiverSymbol)? = module.arena.expr(storedArguments[2]),
               let receiver = sema.symbols.symbol(receiverSymbol)
         else {
-            Issue.record("Expected first argument to be captured receiver symbol.")
+            Issue.record("Expected closure slot 2 to store the bound receiver.")
             return
         }
         #expect(ctx.interner.resolve(receiver.name) == "box")
-        guard case .intLiteral(7)? = module.arena.expr(arguments[1]) else {
-            Issue.record("Expected second argument to be call-site argument.")
+        let loadedCapture = try #require(adapter.body.first { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+        })
+        guard case let .call(_, _, loadArguments, loadedReceiver, _, _, _, _) = loadedCapture,
+              case let .symbolRef(closureSymbol)? = module.arena.expr(loadArguments[0]),
+              case .intLiteral(2)? = module.arena.expr(loadArguments[1])
+        else {
+            Issue.record("Expected the adapter to reload receiver slot 2 from its closure parameter.")
             return
         }
+        #expect(closureSymbol == adapter.params[0].symbol)
+        let plusArguments = try #require(adapter.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                  symbol == plusSymbol
+            else { return nil }
+            return arguments
+        }.first)
+        try #require(plusArguments.count == 2)
+        #expect(plusArguments[0] == loadedReceiver)
+        let unbox = try #require(adapter.body.first { instruction in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == "kk_unbox_int" && result == plusArguments[1]
+        })
+        guard case let .call(_, _, unboxArguments, _, _, _, _, _) = unbox,
+              case let .symbolRef(valueSymbol)? = module.arena.expr(unboxArguments[0])
+        else {
+            Issue.record("Expected plus() to receive the unboxed adapter value parameter.")
+            return
+        }
+        #expect(valueSymbol == adapter.params[1].symbol)
     }
 
     // MARK: - P5-39: vararg call lowering / ABI regression tests
