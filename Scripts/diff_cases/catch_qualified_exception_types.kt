@@ -1,3 +1,5 @@
+import kotlinx.io.EOFException
+
 fun main() {
     val message: kotlin.String = "state"
     try {

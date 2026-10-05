@@ -107,7 +107,7 @@ private func sharedCatchTypeResolutionCtx() throws -> (ctx: CompilationContext, 
     return pair
 }
 
-@Suite
+@Suite(.serialized)
 struct CatchClauseTypeResolutionTests {
     private func catchParamClassSymbol(
         in ctx: CompilationContext,
@@ -214,7 +214,12 @@ struct CatchClauseTypeResolutionTests {
         #expect(diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }.isEmpty)
     }
 
-    @Test(arguments: ["NonExistentException", "kotlin.NonExistentException", "missing.IllegalStateException", "missing.io.IOException"])
+    @Test(arguments: [
+        "NonExistentException",
+        "kotlin.NonExistentException",
+        "missing.IllegalStateException",
+        "missing.io.IOException",
+    ])
     func testUnresolvedCatchTypeStillEmitsSema0085(typeName: String) throws {
         var diagnosticsByPath: [Diagnostic] = []
         try withTemporaryFiles(contents: [
