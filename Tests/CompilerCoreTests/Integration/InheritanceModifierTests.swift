@@ -9,6 +9,7 @@ import TestStdlibCache
     @Test(arguments: [false, true], [false, true])
     func testOverloadedOverrideUsesDeclarationSymbol(useLibrary: Bool, overrideFirst: Bool) throws {
         if useLibrary { TestStdlibCache.shared.prepare() }
+        let libraryPath = useLibrary ? try #require(CompilerOptions.defaultStdlibLibraryPath) : nil
         let removeDeclarations = [
             "fun remove(key: K, value: V): Boolean",
             "override fun remove(key: K): V?",
@@ -37,7 +38,7 @@ import TestStdlibCache
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
-                stdlibLibraryPath: useLibrary ? CompilerOptions.defaultStdlibLibraryPath : nil
+                stdlibLibraryPath: libraryPath
             )
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
@@ -93,7 +94,7 @@ import TestStdlibCache
             )
             let internalErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-INTERNAL" }
             #expect(internalErrors.count == 1)
-            #expect(internalErrors.first?.range == member.declSite)
+            #expect(internalErrors.first?.primaryRange == member.declSite)
         }
     }
 
