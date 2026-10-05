@@ -1,6 +1,8 @@
 import Foundation
 
 struct ConstantCollector {
+    var resolvedConstant: ((ExprID) -> KIRExprKind?)? = nil
+
     func collectPropertyConstantInitializers(
         ast: ASTModule,
         sema: SemaModule,
@@ -169,6 +171,9 @@ struct ConstantCollector {
     }
 
     func literalConstantExpr(_ exprID: ExprID, ast: ASTModule, interner: StringInterner? = nil) -> KIRExprKind? {
+        if let constant = resolvedConstant?(exprID) {
+            return constant
+        }
         guard let expr = ast.arena.expr(exprID) else {
             return nil
         }
@@ -221,7 +226,7 @@ struct ConstantCollector {
         }
         switch (lhsConst, rhsConst) {
         case let (.intLiteral(l), .intLiteral(r)):
-            return integerBinaryOp(op, l, r).map { .intLiteral($0) }
+            return integerBinaryOp(op, l, r, width: 32).map { .intLiteral($0) }
         case let (.longLiteral(l), .longLiteral(r)):
             return integerBinaryOp(op, l, r).map { .longLiteral($0) }
         case let (.intLiteral(l), .longLiteral(r)):
@@ -233,8 +238,9 @@ struct ConstantCollector {
         }
     }
 
-    private func integerBinaryOp(_ op: BinaryOp, _ lhs: Int64, _ rhs: Int64) -> Int64? {
-        switch op {
+    private func integerBinaryOp(_ op: BinaryOp, _ lhs: Int64, _ rhs: Int64, width: Int = 64) -> Int64? {
+        let shift = rhs & Int64(width - 1)
+        let result: Int64? = switch op {
         case .add: lhs &+ rhs
         case .subtract: lhs &- rhs
         case .multiply: lhs &* rhs
@@ -243,11 +249,15 @@ struct ConstantCollector {
         case .bitwiseAnd: lhs & rhs
         case .bitwiseOr: lhs | rhs
         case .bitwiseXor: lhs ^ rhs
-        case .shl: lhs << (rhs & 63)
-        case .shr: lhs >> (rhs & 63)
-        case .ushr: Int64(bitPattern: UInt64(bitPattern: lhs) >> (UInt64(rhs) & 63))
+        case .shl: lhs << shift
+        case .shr: lhs >> shift
+        case .ushr:
+            width == 32
+                ? Int64(UInt32(truncatingIfNeeded: lhs) >> shift)
+                : Int64(bitPattern: UInt64(bitPattern: lhs) >> shift)
         default: nil
         }
+        return result.map { width == 32 ? Int64(Int32(truncatingIfNeeded: $0)) : $0 }
     }
 
     /// Handle the handful of no-argument member calls that appear in
@@ -259,10 +269,26 @@ struct ConstantCollector {
     private func literalConstantMemberCall(
         receiver: ExprID, callee: InternedString, args: [CallArgument], ast: ASTModule, interner: StringInterner
     ) -> KIRExprKind? {
-        guard args.isEmpty, let receiverConst = literalConstantExpr(receiver, ast: ast, interner: interner) else {
+        guard let receiverConst = literalConstantExpr(receiver, ast: ast, interner: interner) else {
             return nil
         }
         let name = interner.resolve(callee)
+        if args.count == 1,
+           let op = constantBitwiseOperator(name),
+           let argument = literalConstantExpr(args[0].expr, ast: ast, interner: interner)
+        {
+            switch (receiverConst, argument) {
+            case let (.intLiteral(lhs), .intLiteral(rhs)):
+                return integerBinaryOp(op, lhs, rhs, width: 32).map { .intLiteral($0) }
+            case let (.longLiteral(lhs), .intLiteral(rhs)) where op == .shl || op == .shr || op == .ushr:
+                return integerBinaryOp(op, lhs, rhs).map { .longLiteral($0) }
+            case let (.longLiteral(lhs), .longLiteral(rhs)) where op == .bitwiseAnd || op == .bitwiseOr || op == .bitwiseXor:
+                return integerBinaryOp(op, lhs, rhs).map { .longLiteral($0) }
+            default:
+                return nil
+            }
+        }
+        guard args.isEmpty else { return nil }
         switch name {
         case "code":
             if case let .charLiteral(scalar) = receiverConst {
@@ -277,6 +303,31 @@ struct ConstantCollector {
             return .longLiteral(value)
         default:
             return nil
+        }
+    }
+
+    private func constantBitwiseOperator(_ name: String) -> BinaryOp? {
+        switch name {
+        case "and": .bitwiseAnd
+        case "or": .bitwiseOr
+        case "xor": .bitwiseXor
+        case "shl": .shl
+        case "shr": .shr
+        case "ushr": .ushr
+        default: nil
+        }
+    }
+
+    func convertConstant(_ constant: KIRExprKind, to type: TypeID, types: TypeSystem) -> KIRExprKind {
+        guard let value = integerValue(of: constant),
+              case let .primitive(primitive, _) = types.kind(of: type)
+        else { return constant }
+        switch primitive {
+        case .byte: return .intLiteral(Int64(Int8(truncatingIfNeeded: value)))
+        case .short: return .intLiteral(Int64(Int16(truncatingIfNeeded: value)))
+        case .int: return .intLiteral(Int64(Int32(truncatingIfNeeded: value)))
+        case .long: return .longLiteral(value)
+        default: return constant
         }
     }
 
@@ -323,7 +374,7 @@ struct ConstantCollector {
     private func negatedConstant(_ inner: KIRExprKind) -> KIRExprKind? {
         switch inner {
         // Kotlin integer negation wraps at the type's minimum value.
-        case let .intLiteral(v): .intLiteral(0 &- v)
+        case let .intLiteral(v): .intLiteral(Int64(Int32(truncatingIfNeeded: 0 &- v)))
         case let .longLiteral(v): .longLiteral(0 &- v)
         case let .floatLiteral(v): .floatLiteral(-v)
         case let .doubleLiteral(v): .doubleLiteral(-v)
