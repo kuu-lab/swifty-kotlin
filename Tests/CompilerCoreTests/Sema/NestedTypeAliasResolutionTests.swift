@@ -4,9 +4,9 @@ import Testing
 
 @Suite
 struct NestedTypeAliasResolutionTests {
-    private func context(_ sources: [String]) throws -> CompilationContext {
+    private func context(_ sources: [String], includeStdlib: Bool = false) throws -> CompilationContext {
         let paths = sources.indices.map { "/nested-typealias/input\($0).kt" }
-        let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+        let ctx = makeCompilationContext(inputs: paths, includeStdlib: includeStdlib)
         for (path, source) in zip(paths, sources) {
             _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
         }
@@ -88,7 +88,7 @@ struct NestedTypeAliasResolutionTests {
         enum class Choice { ONLY; class Nested }
         class Outer { companion object { class Nested } }
         class Named { companion object Factory { class Nested } }
-        """])
+        """], includeStdlib: true)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         for (alias, target) in [
             ("InInterface", ["Holder", "Nested"]),
@@ -114,5 +114,13 @@ struct NestedTypeAliasResolutionTests {
     @Test func duplicateNestedDeclarationsRemainErrors() throws {
         let ctx = try context(["class Outer { class Nested; class Nested }"])
         #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0001" })
+    }
+
+    @Test func nestedConstructorsDoNotLeakIntoFileScope() throws {
+        let ctx = try context(["""
+        class Outer { class Nested }
+        fun wrong() = Nested()
+        """])
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
     }
 }
