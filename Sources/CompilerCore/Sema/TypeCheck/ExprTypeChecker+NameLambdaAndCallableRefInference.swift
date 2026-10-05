@@ -2651,6 +2651,7 @@ extension ExprTypeChecker {
             guard let sym = ctx.cachedSymbol(candidateID),
                   sym.kind == .class || sym.kind == .interface
                   || sym.kind == .object || sym.kind == .enumClass
+                  || sym.kind == .annotationClass
             else { continue }
             let classType = sema.types.make(.classType(ClassType(classSymbol: sym.id)))
             sema.bindings.bindClassRefTargetType(id, type: classType)
