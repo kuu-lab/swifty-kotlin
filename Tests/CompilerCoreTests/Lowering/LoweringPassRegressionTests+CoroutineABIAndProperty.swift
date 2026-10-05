@@ -860,8 +860,8 @@ extension LoweringPassRegressionTests {
 
     // MARK: - produce/actor Function-Value Block Tests
 
-    @Test(arguments: [false, true])
-    func testProduceLaunchFunctionValuePreservesCallableLayout(hasClosureParam: Bool) throws {
+    @Test(arguments: [false, true], [0, 42])
+    func testProduceLaunchFunctionValuePreservesCallableLayout(hasClosureParam: Bool, captureValue: Int64) throws {
         // Raw capture-first values use (fnPtr, env); known closure-first
         // suspend adapters use a continuation with [env, receiver] slots.
         let interner = StringInterner()
@@ -873,7 +873,7 @@ extension LoweringPassRegressionTests {
         let suspendParamSymbol = SymbolID(rawValue: 832)
 
         let channelExpr = arena.appendExpr(.intLiteral(7))
-        let captureExpr = arena.appendExpr(.intLiteral(42))
+        let captureExpr = arena.appendExpr(.intLiteral(captureValue))
         let suspendRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
         let produceResult = arena.appendExpr(.temporary(3))
 
@@ -884,7 +884,7 @@ extension LoweringPassRegressionTests {
             returnType: types.nullableAnyType,
             body: [
                 .constValue(result: channelExpr, value: .intLiteral(7)),
-                .constValue(result: captureExpr, value: .intLiteral(42)),
+                .constValue(result: captureExpr, value: .intLiteral(captureValue)),
                 .constValue(result: suspendRefExpr, value: .symbolRef(suspendSymbol)),
                 .call(
                     symbol: nil,
@@ -947,7 +947,18 @@ extension LoweringPassRegressionTests {
             }
             #expect(launcherSlots == [captureExpr, channelExpr])
         } else {
-            #expect(launchArgs[2] == captureExpr)
+            #expect(arena.expr(launchArgs[1]) == .symbolRef(suspendSymbol))
+            let envAllocations = loweredMain.body.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                      interner.resolve(callee) == "kk_object_new" else { return nil }
+                return result
+            }
+            #expect(envAllocations == [launchArgs[2]])
+            #expect(loweredMain.body.contains { instruction in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      interner.resolve(callee) == "kk_array_set" else { return false }
+                return arguments.first == launchArgs[2] && arguments.last == captureExpr
+            })
             #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
         }
         #expect(!mainCallees.contains("kk_function_value_fn_ptr"))
@@ -955,10 +966,7 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
-    func testProduceLaunchOpaqueFunctionValueUsesRuntimeAccessors() throws {
-        // Same call shape but with no callable info recorded for the value:
-        // (fnPtr, env) must be recovered at runtime through the
-        // `kk_function_value_*` accessors.
+    func testProduceLaunchOpaqueFunctionValuePreservesRuntimeABI() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -1013,8 +1021,8 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_function_value_fn_ptr"))
-        #expect(mainCallees.contains("kk_function_value_closure_raw"))
+        #expect(!mainCallees.contains("kk_function_value_fn_ptr"))
+        #expect(!mainCallees.contains("kk_function_value_closure_raw"))
         #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
 
         let launchCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
@@ -1023,7 +1031,10 @@ extension LoweringPassRegressionTests {
             else { return nil }
             return arguments
         }
-        #expect(launchCalls.first?.count == 3)
+        let launchArgs = try #require(launchCalls.first)
+        #expect(launchArgs.count == 3)
+        #expect(launchArgs[1] == suspendRefExpr)
+        #expect(arena.expr(launchArgs[2]) == .intLiteral(0))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 

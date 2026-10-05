@@ -3578,7 +3578,7 @@ extension NativeEmitter {
                 assertionFailure("resumeNonLocalReturn reached codegen -- InlineLoweringPass should have converted it")
                 continue
 
-            case let .nonLocalReturn(value):
+            case let .nonLocalReturn(value, _):
                 // Non-local returns should have been lowered by InlineLoweringPass.
                 // If one reaches codegen, it indicates a lowering bug. Emit a
                 // trap in debug builds; in release builds fall back to a return

@@ -1173,6 +1173,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var failure: Int = 0
     private var cancelCause: Int = 0
     private var cancelMessage: String = "CancellationException"
+    private let defaultCancellationMessage: String
     weak var continuationState: RuntimeContinuationState?
     var producerChannel: Int?
     private var childJobHandles: [Int] = []
@@ -1215,7 +1216,8 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// Set when `kk_kxmini_launch_lazy` returns; `startIfNeeded()` runs it once.
     private var lazyStartBody: (@Sendable () -> Void)?
 
-    init() {
+    init(defaultCancellationMessage: String = "CancellationException") {
+        self.defaultCancellationMessage = defaultCancellationMessage
         RuntimeLiveHandles.register(self)
     }
 
@@ -1514,7 +1516,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     func cancel(cause: Int = 0) -> Bool {
-        cancel(message: "CancellationException", cause: cause)
+        cancel(message: defaultCancellationMessage, cause: cause)
     }
 
     @discardableResult
@@ -1723,6 +1725,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// context's Job element instead.
     private(set) var job: RuntimeJobHandle?
     fileprivate var parent: RuntimeCoroutineScope?
+    fileprivate var enclosingJob: RuntimeJobHandle?
     /// Optional debug name assigned via CoroutineName context element (STDLIB-CORO-077).
     var name: String?
 
@@ -1813,8 +1816,8 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// leak `kk_job_new` accepts) so a `CoroutineContext` handle that outlives
     /// the scope still resolves to a valid job object.
     @discardableResult
-    func installJob() -> RuntimeJobHandle {
-        let scopeJob = RuntimeJobHandle()
+    func installJob(defaultCancellationMessage: String = "CancellationException") -> RuntimeJobHandle {
+        let scopeJob = RuntimeJobHandle(defaultCancellationMessage: defaultCancellationMessage)
         scopeJob.isSupervisorMarker = isSupervisor
         scopeJob.markStarted()
         job = scopeJob
@@ -3649,9 +3652,11 @@ public func kk_kxmini_delay(_ milliseconds: Int, _ continuation: Int) -> Int {
 /// continuation (see `kk_coroutine_call_direct_suspend`), so binding the scope
 /// here is what lets children launched inside a Kotlin-level `coroutineScope { }`
 /// block register with the freshly created scope rather than the outer one.
-private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?) {
+private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?, job: RuntimeJobHandle?) {
     RuntimeCoroutineScope.current = scope
     RuntimeContinuationState.current?.scope = scope
+    RuntimeContinuationState.current?.jobHandle = job
+    RuntimeJobHandle.current = job
 }
 
 /// Creates a new coroutine scope and installs it as the current scope in the
@@ -3666,11 +3671,12 @@ public func kk_coroutine_scope_new() -> Int {
 
     // KUU-964: the scope's own Job — installed into the block's context so
     // `currentCoroutineContext().job` resolves there.
-    scope.installJob()
+    scope.installJob(defaultCancellationMessage: "ScopeCoroutine was cancelled")
 
     // Push: save parent scope and set this as current via the task-scope map
     scope.parent = RuntimeCoroutineScope.current
-    enterScopeOnCurrentContinuation(scope)
+    scope.enclosingJob = RuntimeContinuationState.current?.jobHandle ?? RuntimeJobHandle.current
+    enterScopeOnCurrentContinuation(scope, job: scope.job)
 
     return Int(bitPattern: ptr)
 }
@@ -3686,13 +3692,14 @@ public func kk_supervisor_scope_new() -> Int {
     // KUU-964: the scope's own SupervisorJob — installed into the block's
     // context so `currentCoroutineContext().job` resolves there. Children's
     // failures never complete this job (supervisor failure isolation).
-    scope.installJob()
+    scope.installJob(defaultCancellationMessage: "SupervisorCoroutine was cancelled")
 
     // Push: save parent scope and set this as current via the task-scope map,
     // mirroring kk_coroutine_scope_new so the running continuation observes
     // the same ambient scope the task-scope map reports.
     scope.parent = RuntimeCoroutineScope.current
-    enterScopeOnCurrentContinuation(scope)
+    scope.enclosingJob = RuntimeContinuationState.current?.jobHandle ?? RuntimeJobHandle.current
+    enterScopeOnCurrentContinuation(scope, job: scope.job)
 
     return Int(bitPattern: ptr)
 }
@@ -3729,7 +3736,7 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
 
     // Pop: restore parent scope in the task-scope map (CORO-003) and on the
     // running continuation, mirroring enterScopeOnCurrentContinuation.
-    enterScopeOnCurrentContinuation(scope.parent)
+    enterScopeOnCurrentContinuation(scope.parent, job: scope.enclosingJob)
 
     // Release the scope
     _ = runtimeReleaseObject(scopeHandle)
@@ -4299,14 +4306,21 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     // packed env object (kk_object_new(2+N, classID: 0), captures at slots
     // 2..) → N captures, anything else → a single raw capture.
     let captures: [Int]
-    if envRaw == 0 {
+    let resolvedEntryPointRaw: Int
+    if let functionValue = runtimeFunctionValueBox(from: entryPointRaw) {
+        resolvedEntryPointRaw = functionValue.fnPtr
+        captures = [functionValue.closureRaw]
+    } else if envRaw == 0 {
+        resolvedEntryPointRaw = entryPointRaw
         captures = []
     } else if let envBox = resolveRuntimeHandle(envRaw, as: RuntimeObjectBox.self),
               envBox.classID == 0,
               envBox.elements.count > 2
     {
+        resolvedEntryPointRaw = entryPointRaw
         captures = Array(envBox.elements.dropFirst(2))
     } else {
+        resolvedEntryPointRaw = entryPointRaw
         captures = [envRaw]
     }
 
@@ -4316,11 +4330,19 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
             _ = job.complete(with: 0)
             return
         }
+        let outerTaskKey = RuntimeCoroutineScopeTaskKey.installedKey
+        let taskKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        defer {
+            RuntimeCoroutineScope.removeScope(forTask: taskKey)
+            RuntimeContinuationState.removeState(forTask: taskKey)
+            RuntimeJobHandle.current = nil
+            RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
+        }
         RuntimeCoroutineScope.current = callerScope
         RuntimeJobHandle.current = job
         var thrown = 0
         let result = runtimeInvokeSuspendLauncherThunk(
-            entryPointRaw: entryPointRaw,
+            entryPointRaw: resolvedEntryPointRaw,
             receiver: channelHandle,
             captures: captures,
             outThrown: &thrown

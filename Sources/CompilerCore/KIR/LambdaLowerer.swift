@@ -326,6 +326,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
         for capture in functionCaptureBindings {
@@ -646,8 +647,27 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        guard functionType.receiver == nil || functionType.isSuspend else {
-            return nil
+        if functionType.receiver != nil, !functionType.isSuspend {
+            // Generic receiver callbacks already use the callee's erased return ABI.
+            guard lambdaReturnType == functionType.returnType else { return nil }
+            let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
+            instructions.append(.constValue(result: callable, value: .symbolRef(lambdaSymbol)))
+            driver.ctx.registerCallableValue(
+                callable,
+                symbol: lambdaSymbol,
+                callee: syntheticLambdaName(for: exprID, interner: interner),
+                captureArguments: captureArguments,
+                hasClosureParam: false
+            )
+            return driver.callLowerer.materializeFunctionValueArgument(
+                loweredArgID: callable,
+                argExprID: exprID,
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         let valueTypes = functionType.receiver.map { [$0] } ?? []
         let allValueTypes = valueTypes + functionType.params
@@ -2321,6 +2341,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 

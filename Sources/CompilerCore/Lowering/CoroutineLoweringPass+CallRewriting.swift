@@ -918,7 +918,7 @@ extension CoroutineLoweringPass {
                   for: call.arguments[1],
                   module: rewrite.module,
                   propagatedSymbols: symbolByExprRaw
-              ),
+              ) ?? functionValueInfoByExprRaw[call.arguments[1].rawValue]?.symbol,
               let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
             return nil

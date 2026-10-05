@@ -265,7 +265,7 @@ extension CoroutineLoweringPass {
             case let .jumpIfNotNull(value, _), let .rethrow(value),
                  let .returnValue(value), let .storeGlobal(value, _):
                 return [value]
-            case let .nonLocalReturn(value):
+            case let .nonLocalReturn(value, _):
                 return value.map { [$0] } ?? []
             default:
                 return []
