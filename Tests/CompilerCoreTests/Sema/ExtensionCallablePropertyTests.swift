@@ -77,6 +77,22 @@ struct ExtensionCallablePropertyTests {
         #expect(extractCallees(from: body, interner: ctx.interner).contains("kk_function_create_2"))
     }
 
+    @Test(arguments: [
+        ("Int", "2"),
+        ("Owner<T>", "this"),
+        ("Collection<T>", "listOf(value)")
+    ])
+    func genericMemberExtensionUsesExtensionReceiverConstraints(receiver: String, expression: String) throws {
+        let ctx = makeContextFromSource("""
+        class Owner<T>(private val value: T) {
+            fun \(receiver).read(): T = value
+            fun run(): T = \(expression).read()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func localParameterAndNullableReceiverFunctionValuesAreAccepted() throws {
         let ctx = makeContextFromSource("""
