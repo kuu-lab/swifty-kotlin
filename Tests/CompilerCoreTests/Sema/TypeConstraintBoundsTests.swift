@@ -12,6 +12,41 @@ private struct MissingFunctionDeclaration: Error, CustomStringConvertible {
 @Suite
 struct TypeConstraintBoundsTests {
 
+    @Test
+    func nullableTypeArgumentsSatisfyImplicitAndNullableUpperBounds() throws {
+        let ctx = makeContextFromSource("""
+        fun <T> identity(value: T): T = value
+        fun <T : Any?> nullableBound(value: T): T = value
+        class Box<T>(val value: T) {
+            fun <U> echo(value: U): U = value
+        }
+        fun probe() {
+            val explicit: Int? = identity<Int?>(null)
+            val inferred: Int? = identity(null)
+            val nullable: Int? = nullableBound<Int?>(null)
+            val box = Box<Int?>(null)
+            val member: String? = box.echo<String?>(null)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "fun <T : Any> bounded(value: T): T = value",
+        "fun <T> bounded(value: T): T where T : Any = value",
+    ])
+    func nullableTypeArgumentsStillViolateExplicitNonNullBounds(declaration: String) throws {
+        let ctx = makeContextFromSource("""
+        \(declaration)
+        fun probe() = bounded<Int?>(null)
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-BOUND"
+        }, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testTypeConstraintBoundsSema() throws {
         let sources: [String] = [
             // upperBoundViolationEmitsBoundDiagnostic
