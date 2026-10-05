@@ -175,7 +175,7 @@ extension CallLowerer {
         case "removeAt":
             return interner.intern("__kk_mutable_list_removeAt")
         case "remove":
-            return interner.intern("__kk_mutable_list_remove")
+            return interner.intern("__kk_mutable_list_remove_dispatch")
         case "listIterator":
             let arity = chosenCallee.flatMap {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes.count
@@ -228,7 +228,7 @@ extension CallLowerer {
                 return interner.intern("__kk_mutable_list_add")
             }
             if memberName == "minusAssign" {
-                return interner.intern("__kk_mutable_list_remove")
+                return interner.intern("__kk_mutable_list_remove_dispatch")
             }
             return nil
         }
@@ -478,7 +478,7 @@ extension CallLowerer {
             case "plusAssign":
                 return interner.intern("__kk_mutable_list_add")
             case "minusAssign":
-                return interner.intern("__kk_mutable_list_remove")
+                return interner.intern("__kk_mutable_list_remove_dispatch")
             default:
                 break
             }

@@ -1535,6 +1535,17 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_remove_dispatch",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "elem", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_mutable_collection_addAll",
             parameters: [
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
