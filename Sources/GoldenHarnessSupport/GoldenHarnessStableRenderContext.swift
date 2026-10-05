@@ -6,21 +6,21 @@ final class StableRenderContext {
     let interner: StringInterner
     let arena: ASTArena
     /// The contract the ordinary `symbol`/`expr`/`decl` body is rendered
-    /// under (RF-GOLDEN-007). `.current` keeps the committed format;
-    /// `.fixtureOwned` limits `symbol` rows to fixture-owned declarations and
-    /// spells every reference with the RF-GOLDEN-006 public key.
+    /// under (RF-GOLDEN-007). `.fixtureOwned` — the RF-GOLDEN-008 default —
+    /// limits `symbol` rows to fixture-owned declarations and spells every
+    /// reference with the RF-GOLDEN-006 public key. `.current` keeps the
+    /// legacy committed format for tests that compare both contracts.
     let contract: GoldenSemaRenderingContract
 
     private let sourceManager: SourceManager
     private let symbolFQ: [Int32: String]
     /// FQ names projected onto the public declaration when a symbol is a
-    /// source-backed member alias. This is kept separate from `symbolFQ` so
-    /// the existing implementation-topology key remains unchanged until the
-    /// ordinary Golden output is switched by RF-GOLDEN-008.
+    /// source-backed member alias. RF-GOLDEN-008 made this the spelling the
+    /// ordinary Golden body uses; `symbolFQ` still feeds the legacy `.current`
+    /// topology key for tests that render it explicitly.
     private let publicSymbolFQ: [Int32: String]
-    /// Maps `SymbolID.rawValue` to the opt-in public reference key. Ordinary
-    /// Golden rendering deliberately continues to use `symbolKeys` until
-    /// RF-GOLDEN-008 wires this projection into the default output.
+    /// Maps `SymbolID.rawValue` to the public reference key — the ordinary
+    /// Golden body's default spelling since RF-GOLDEN-008.
     private let publicReferenceKeys: [Int32: String]
     /// Maps `SymbolID.rawValue` to the RF-GOLDEN-002 origin — the ownership
     /// evidence the fixture-owned contract filters `symbol` rows by.
@@ -55,7 +55,7 @@ final class StableRenderContext {
         interner: StringInterner,
         ast: ASTModule,
         sourceManager: SourceManager,
-        contract: GoldenSemaRenderingContract = .current
+        contract: GoldenSemaRenderingContract = .fixtureOwned
     ) {
         self.sema = sema
         self.interner = interner
@@ -241,7 +241,8 @@ final class StableRenderContext {
     /// Spelling of a symbol reference inside the ordinary
     /// `decl`/`expr`/`symbol` body under this context's contract: the
     /// RF-GOLDEN-010 implementation-topology key under `.current`, the
-    /// RF-GOLDEN-006 public declaration key under `.fixtureOwned`.
+    /// RF-GOLDEN-006 public declaration key under `.fixtureOwned` (the
+    /// RF-GOLDEN-008 default).
     func ordinarySymbolKey(for symbolID: SymbolID) -> String {
         switch contract {
         case .current:
@@ -706,7 +707,8 @@ private final class StableSemanticKeyComputer {
             if signature.valueParameterIsVararg.contains(true) {
                 parts.append("vararg=[\(signature.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined(separator: ","))]")
             }
-            if signature.valueParameterAllowsNonLocalReturn.contains(false) {
+            if symbol.flags.contains(.inlineFunction)
+                && signature.valueParameterAllowsNonLocalReturn.contains(false) {
                 parts.append("nonlocal=[\(signature.valueParameterAllowsNonLocalReturn.map { $0 ? "1" : "0" }.joined(separator: ","))]")
             }
             let names = signature.valueParameterSymbols.compactMap { parameter in

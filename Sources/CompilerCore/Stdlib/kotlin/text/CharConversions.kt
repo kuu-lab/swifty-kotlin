@@ -57,6 +57,29 @@ public fun Char.uppercase(locale: java.util.Locale): String = __charUppercaseLoc
 
 public fun Char.lowercase(locale: java.util.Locale): String = __charLowercaseLocale(this.code, locale)
 
+/**
+ * Converts this character to title case using Unicode mapping rules of the specified [locale].
+ *
+ * This function supports one-to-many character mapping, thus the length of the returned
+ * string can be greater than one. If this character has no title case mapping, the result
+ * of `uppercase(locale)` is returned instead.
+ */
+@SinceKotlin("1.5")
+public fun Char.titlecase(locale: java.util.Locale): String {
+    val localizedUppercase = uppercase(locale)
+    if (localizedUppercase.length > 1) {
+        return if (this == 'ŉ') {
+            localizedUppercase
+        } else {
+            localizedUppercase.substring(0, 1) + localizedUppercase.substring(1).lowercase()
+        }
+    }
+    if (localizedUppercase != uppercase()) {
+        return localizedUppercase
+    }
+    return titlecaseChar().toString()
+}
+
 public fun Char.uppercaseChar(): Char {
     val mapped = __charUppercaseCode(this.code)
     return if (mapped < 0) this else __charFromCode(mapped)

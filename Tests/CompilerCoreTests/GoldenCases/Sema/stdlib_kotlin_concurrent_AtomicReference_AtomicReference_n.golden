@@ -1,27 +1,27 @@
-symbol fq=__local_0.exchanged[kind=local] kind=local vis=private flags=_ type=String
-symbol fq=__local_1.oldValue[kind=local] kind=local vis=private flags=_ type=String
-symbol fq=__local_2.current[kind=local] kind=local vis=private flags=_ type=String
-symbol fq=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicReferenceReceiverSurface.$0.expectedValue[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicReferenceReceiverSurface.$0.newValue[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicReferenceReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicReference<String>,String,String] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicReference<String>,String,String] ret=String
+symbol fq=__local_0.exchanged[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=__local_1.oldValue[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=__local_2.current[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceReceiverSurface.$0.expectedValue[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceReceiverSurface.$0.newValue[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicReference<String>,String,String;ret=String;names=[atomic,expectedValue,newValue];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.AtomicReference<String>,String,String] ret=String
 file fstdlib_kotlin_concurrent_AtomicReference_AtomicReference_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
-  decl golden.sema.atomicReferenceReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicReference<String>,String,String] fun atomicReferenceReceiverSurface sym=golden.sema.atomicReferenceReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicReference<String>,String,String]
-expr e@12:29 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam]
-expr e@12:55 name(expectedValue) type=String ref=golden.sema.atomicReferenceReceiverSurface.$0.expectedValue[kind=vparam]
-expr e@12:70 name(newValue) type=String ref=golden.sema.atomicReferenceReceiverSurface.$0.newValue[kind=vparam]
-expr e@12:29#1 memberCall recv=e@12:29 callee=compareAndExchange args=[_:e@12:55,_:e@12:70] type=String call=kotlin.concurrent.AtomicReference.compareAndExchange[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=T0,T0;gen=1] targs=[String]
-expr e@12:5 localDecl exchanged mutable=0 type=String init=e@12:29#1 type=Unit ref=__local_0.exchanged[kind=local]
-expr e@13:28 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam]
-expr e@13:45 name(newValue) type=String ref=golden.sema.atomicReferenceReceiverSurface.$0.newValue[kind=vparam]
-expr e@13:28#1 memberCall recv=e@13:28 callee=getAndSet args=[_:e@13:45] type=String call=kotlin.concurrent.AtomicReference.getAndSet[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=T0;gen=1] targs=[String]
-expr e@13:5 localDecl oldValue mutable=0 type=String init=e@13:28#1 type=Unit ref=__local_1.oldValue[kind=local]
-expr e@14:27 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam]
-expr e@14:27#1 memberCall recv=e@14:27 callee=value args=[] type=String ref=kotlin.concurrent.AtomicReference.value[kind=prop]
-expr e@14:5 localDecl current mutable=0 type=String init=e@14:27#1 type=Unit ref=__local_2.current[kind=local]
-expr e@15:5 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam]
-expr e@15:20 name(newValue) type=String ref=golden.sema.atomicReferenceReceiverSurface.$0.newValue[kind=vparam]
-expr e@15:5#1 memberAssign recv=e@15:5 callee=value value=e@15:20 type=Unit ref=kotlin.concurrent.AtomicReference.value[kind=prop]
-expr e@16:12 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam]
-expr e@16:12#1 memberCall recv=e@16:12 callee=toString args=[] type=String call=kotlin.concurrent.AtomicReference.toString[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=;gen=1] targs=[String]
+  decl golden.sema.atomicReferenceReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicReference<String>,String,String;ret=String;names=[atomic,expectedValue,newValue];origin=fixture] fun atomicReferenceReceiverSurface sym=golden.sema.atomicReferenceReceiverSurface[kind=fun;params=kotlin.concurrent.AtomicReference<String>,String,String;ret=String;names=[atomic,expectedValue,newValue];origin=fixture]
+expr e@12:29 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam;origin=fixture]
+expr e@12:55 name(expectedValue) type=String ref=golden.sema.atomicReferenceReceiverSurface.$0.expectedValue[kind=vparam;origin=fixture]
+expr e@12:70 name(newValue) type=String ref=golden.sema.atomicReferenceReceiverSurface.$0.newValue[kind=vparam;origin=fixture]
+expr e@12:29#1 memberCall recv=e@12:29 callee=compareAndExchange args=[_:e@12:55,_:e@12:70] type=String call=kotlin.concurrent.AtomicReference.compareAndExchange[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=T0,T0;ret=T0;gen=1;classGen=1;names=[expectedValue,newValue]] targs=[String]
+expr e@12:5 localDecl exchanged mutable=0 type=String init=e@12:29#1 type=Unit ref=__local_0.exchanged[kind=local;type=String;origin=fixture]
+expr e@13:28 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam;origin=fixture]
+expr e@13:45 name(newValue) type=String ref=golden.sema.atomicReferenceReceiverSurface.$0.newValue[kind=vparam;origin=fixture]
+expr e@13:28#1 memberCall recv=e@13:28 callee=getAndSet args=[_:e@13:45] type=String call=kotlin.concurrent.AtomicReference.getAndSet[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=T0;ret=T0;gen=1;classGen=1;names=[newValue]] targs=[String]
+expr e@13:5 localDecl oldValue mutable=0 type=String init=e@13:28#1 type=Unit ref=__local_1.oldValue[kind=local;type=String;origin=fixture]
+expr e@14:27 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam;origin=fixture]
+expr e@14:27#1 memberCall recv=e@14:27 callee=value args=[] type=String ref=kotlin.concurrent.AtomicReference.value[kind=prop;type=T0;mutable]
+expr e@14:5 localDecl current mutable=0 type=String init=e@14:27#1 type=Unit ref=__local_2.current[kind=local;type=String;origin=fixture]
+expr e@15:5 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam;origin=fixture]
+expr e@15:20 name(newValue) type=String ref=golden.sema.atomicReferenceReceiverSurface.$0.newValue[kind=vparam;origin=fixture]
+expr e@15:5#1 memberAssign recv=e@15:5 callee=value value=e@15:20 type=Unit ref=kotlin.concurrent.AtomicReference.value[kind=prop;type=T0;mutable]
+expr e@16:12 name(atomic) type=kotlin.concurrent.AtomicReference<String> ref=golden.sema.atomicReferenceReceiverSurface.$0.atomic[kind=vparam;origin=fixture]
+expr e@16:12#1 memberCall recv=e@16:12 callee=toString args=[] type=String call=kotlin.concurrent.AtomicReference.toString[kind=fun;recv=kotlin.concurrent.AtomicReference<T0>;params=;ret=String;gen=1;classGen=1] targs=[String]
 expr e@16:5 return value=e@16:12#1 type=Nothing

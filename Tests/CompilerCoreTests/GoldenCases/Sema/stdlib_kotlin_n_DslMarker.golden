@@ -1,9 +1,9 @@
-symbol fq=golden.sema.HTML.<init>[kind=ctor;recv=golden.sema.HTML;params=] kind=constructor vis=public flags=_ sig=recv=golden.sema.HTML params=[] ret=golden.sema.HTML
-symbol fq=golden.sema.HTML[kind=class] kind=class vis=public flags=_
-symbol fq=golden.sema.HtmlDsl[kind=anno] kind=annotationClass vis=public flags=_
-symbol fq=golden.sema.useDslMarker[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=golden.sema.HTML
+symbol fq=golden.sema.HTML.<init>[kind=ctor;recv=golden.sema.HTML;params=;ret=golden.sema.HTML;origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.HTML params=[] ret=golden.sema.HTML
+symbol fq=golden.sema.HTML[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.HtmlDsl[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.useDslMarker[kind=fun;params=;ret=golden.sema.HTML;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=golden.sema.HTML
 file fstdlib_kotlin_n_DslMarker package=golden.sema
-  decl golden.sema.HtmlDsl[kind=anno] class HtmlDsl sym=golden.sema.HtmlDsl[kind=anno]
-  decl golden.sema.HTML[kind=class] class HTML sym=golden.sema.HTML[kind=class]
-  decl golden.sema.useDslMarker[kind=fun;params=] fun useDslMarker sym=golden.sema.useDslMarker[kind=fun;params=]
-expr e@9:28 call callee=e@9:28#1 args=[] type=golden.sema.HTML call=golden.sema.HTML.<init>[kind=ctor;recv=golden.sema.HTML;params=]
+  decl golden.sema.HtmlDsl[kind=anno;origin=fixture] class HtmlDsl sym=golden.sema.HtmlDsl[kind=anno;origin=fixture]
+  decl golden.sema.HTML[kind=class;origin=fixture] class HTML sym=golden.sema.HTML[kind=class;origin=fixture]
+  decl golden.sema.useDslMarker[kind=fun;params=;ret=golden.sema.HTML;origin=fixture] fun useDslMarker sym=golden.sema.useDslMarker[kind=fun;params=;ret=golden.sema.HTML;origin=fixture]
+expr e@9:28 call callee=e@9:28#1 args=[] type=golden.sema.HTML call=golden.sema.HTML.<init>[kind=ctor;recv=golden.sema.HTML;params=;ret=golden.sema.HTML;origin=fixture]
