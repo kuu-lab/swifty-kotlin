@@ -298,7 +298,7 @@ struct KIRBuildClassLoweringTests {
             }
             return arguments.count
         }
-        #expect(abortCallArgumentCounts == [1], "Expected kk_abort_unreachable to receive null outThrown.")
+        #expect(abortCallArgumentCounts == [0], "The backend supplies kk_abort_unreachable's outThrown channel.")
     }
 
     @Test func testClassLoweringResolvesDelegationDispatchByExactSignature() throws {
