@@ -318,15 +318,25 @@ enum TypeRefParserCore {
             }
         }
 
+        var nullable = false
+        if next < tokens.count, tokens[next].kind == .symbol(.question) {
+            nullable = true
+            next += 1
+        }
+
         // Check for receiver function type: ReceiverType.() -> ReturnType
         // After parsing a named type, if we see `.` followed by `(` and eventually `) ->`,
         // this is a receiver-based function type like `StringBuilder.() -> Unit`.
         if options.allowFunctionType,
            next + 1 < tokens.count,
-           tokens[next].kind == .symbol(.dot),
+           tokens[next].kind == .symbol(.dot) || tokens[next].kind == .symbol(.questionDot),
            tokens[next + 1].kind == .symbol(.lParen)
         {
-            let receiverRef = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+            let receiverRef = astArena.appendTypeRef(.named(
+                path: path,
+                args: typeArgs,
+                nullable: nullable || tokens[next].kind == .symbol(.questionDot)
+            ))
             if let receiverFnType = parseReceiverFunctionTypeRefSuffix(
                 tokens,
                 from: next + 1,
@@ -341,12 +351,6 @@ enum TypeRefParserCore {
             ) {
                 return receiverFnType
             }
-        }
-
-        var nullable = false
-        if next < tokens.count, tokens[next].kind == .symbol(.question) {
-            nullable = true
-            next += 1
         }
 
         let named = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: nullable))
@@ -496,14 +500,17 @@ enum TypeRefParserCore {
                 tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
             ),
                receiverParse.next + 1 < tokens.count,
-               tokens[receiverParse.next].kind == .symbol(.dot),
+               tokens[receiverParse.next].kind == .symbol(.dot) || tokens[receiverParse.next].kind == .symbol(.questionDot),
                tokens[receiverParse.next + 1].kind == .symbol(.lParen)
             {
+                let receiver = tokens[receiverParse.next].kind == .symbol(.questionDot)
+                    ? wrapTypeRefInGroup(receiverParse.ref, astArena: astArena, contextReceivers: [], isSuspend: false, nullable: true) ?? receiverParse.ref
+                    : receiverParse.ref
                 return parseReceiverFunctionTypeRefSuffix(
                     tokens,
                     from: receiverParse.next + 1,
                     contextReceivers: contextReceivers,
-                    receiver: receiverParse.ref,
+                    receiver: receiver,
                     isSuspend: true,
                     interner: interner,
                     astArena: astArena,
@@ -995,7 +1002,12 @@ enum TypeRefParserCore {
             }
         }
 
-        let ref = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+        var nullable = false
+        if next < tokens.count, tokens[next].kind == .symbol(.question) {
+            nullable = true
+            next += 1
+        }
+        let ref = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: nullable))
         return (ref, next)
     }
 

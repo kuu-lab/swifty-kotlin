@@ -14,6 +14,12 @@ struct ASTContextFunctionTypeTests {
         return renderTypeRef(underlyingType, in: ast, interner: ctx.interner)
     }
 
+    @Test(arguments: ["String?.() -> Int", "String? .() -> Int", "suspend String?.() -> Int", "suspend String? .() -> Int"])
+    func testNullableFunctionReceiverIsNotANullableFunction(_ type: String) throws {
+        let rendered = try renderedHandlerType(from: "typealias Handler = \(type)")
+        #expect(rendered == type.replacingOccurrences(of: "? .", with: "?."))
+    }
+
     @Test
     func testBuildASTParsesContextFunctionTypeAlias() throws {
         let rendered = try renderedHandlerType(from: """

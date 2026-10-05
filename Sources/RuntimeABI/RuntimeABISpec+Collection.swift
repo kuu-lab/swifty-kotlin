@@ -48,6 +48,15 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_array_list_is_read_only",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_list_size",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),

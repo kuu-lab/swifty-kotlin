@@ -598,6 +598,8 @@ struct LoweringFlowCodegenTests {
     @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
+        fun println(value: Any?) {}
+
         fun main() {
             runBlocking {
                 flow {
@@ -619,9 +621,11 @@ struct LoweringFlowCodegenTests {
         try withTemporaryFile(contents: source) { path in
             // Exercise intrinsic lowering without bundled Flow declarations.
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump, includeStdlib: false
+                inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump,
+                includeStdlib: false, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
@@ -641,6 +645,8 @@ struct LoweringFlowCodegenTests {
     @Test
     func testCoroutineLoweringFlowCollectInjectsSuspendCollectorFunctionID() throws {
         let source = """
+        fun println(value: Any?) {}
+
         fun main() {
             runBlocking {
                 flow {
@@ -655,9 +661,11 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump, includeStdlib: false
+                inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump,
+                includeStdlib: false, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allFunctions = findAllKIRFunctions(in: module)
@@ -758,6 +766,8 @@ struct LoweringFlowCodegenTests {
     @Test
     func testFlowCollectTwiceLowersBothCollectCalls() throws {
         let source = """
+        fun println(value: Any?) {}
+
         suspend fun runFlowCollectTwice() {
             val stream = flow {
                 emit(1)
@@ -774,9 +784,11 @@ struct LoweringFlowCodegenTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump, includeStdlib: false
+                inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump,
+                includeStdlib: false, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let collectCalls = findAllKIRFunctions(in: module).compactMap { function -> Int? in
@@ -795,6 +807,8 @@ struct LoweringFlowCodegenTests {
     @Test
     func testFlowLoweringInsertsFlowHandleReleaseCalls() throws {
         let source = """
+        fun println(value: Any?) {}
+
         suspend fun runFlowOwnership() {
             val stream = flow {
                 emit(1)
@@ -813,9 +827,11 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowOwnership", emit: .kirDump, includeStdlib: false
+                inputs: [path], moduleName: "FlowOwnership", emit: .kirDump,
+                includeStdlib: false, allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
