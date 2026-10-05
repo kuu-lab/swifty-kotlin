@@ -5117,20 +5117,8 @@ public func kk_job_get_cancellation_exception(_ jobHandle: Int) -> Int {
 /// `(Throwable?) -> Unit` crosses this bundled `external fun` boundary as a
 /// (fnPtr, closureRaw) pair (it may capture locals) -- see
 /// [[function-type-param-abi-split-convention]]. Registers it and returns a
-/// disposal id for `kk_job_dispose_completion_handler` (0 if the handler
+/// disposal id for `__kk_job_dispose_handle` (0 if the handler
 /// already ran inline because the job was already terminal).
-/// `RuntimeAsyncTask` (`Deferred`) is not supported yet -- returns 0 without
-/// registering anything.
-@_cdecl("kk_job_invoke_on_completion")
-public func kk_job_invoke_on_completion(
-    _ jobHandle: Int,
-    _ onCancelling: Int,
-    _ handlerFnPtr: Int,
-    _ handlerClosureRaw: Int
-) -> Int {
-    __kk_job_invoke_on_completion(jobHandle, onCancelling, 1, handlerFnPtr, handlerClosureRaw)
-}
-
 @_cdecl("__kk_job_invoke_on_completion")
 public func __kk_job_invoke_on_completion(
     _ jobHandle: Int,
@@ -5159,12 +5147,7 @@ public func __kk_job_invoke_on_completion(
 }
 
 /// KUU-CORO-101: ABI backing for the `DisposableHandle` returned by
-/// `Job.invokeOnCompletion` (via `__kk_job_dispose_completion_handler`).
-@_cdecl("kk_job_dispose_completion_handler")
-public func kk_job_dispose_completion_handler(_ jobHandle: Int, _ handlerID: Int) {
-    __kk_job_dispose_handle(jobHandle, handlerID)
-}
-
+/// `Job.invokeOnCompletion` (via `__kk_job_dispose_handle`).
 @_cdecl("__kk_job_dispose_handle")
 public func __kk_job_dispose_handle(_ jobHandle: Int, _ handlerID: Int) {
     let job = runtimeJobHandle(from: jobHandle) ?? runtimeAsyncTask(from: jobHandle)?.completionJob
