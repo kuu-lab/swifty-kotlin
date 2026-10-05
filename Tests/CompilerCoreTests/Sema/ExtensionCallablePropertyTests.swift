@@ -15,7 +15,9 @@ struct ExtensionCallablePropertyTests {
         #expect(!ctx.diagnostics.hasError)
         let sema = try #require(ctx.sema)
         let ast = try #require(ctx.ast)
-        let bindings = sema.bindings.callableValueCalls.values.filter { $0.extensionCallableExpr != nil }
+        let bindings = sema.bindings.callableValueCalls.compactMap { exprID, binding in
+            isUserSourceExpr(exprID, in: ctx) && binding.extensionCallableExpr != nil ? binding : nil
+        }
         #expect(bindings.count == 2)
         for binding in bindings {
             let calleeExpr = try #require(binding.extensionCallableExpr)
@@ -45,7 +47,34 @@ struct ExtensionCallablePropertyTests {
         }
         """)
         try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func memberExtensionWithSameNameAsGenericPropertyIsAccepted() throws {
+        let ctx = makeContextFromSource("""
+        class Converter<From, To>(private val convert: To.() -> From) {
+            fun Collection<To>.convert(): List<From> = map { it.convert() }
+            fun all(elements: Collection<To>): List<From> = elements.convert()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func receiverLambdaPropertyInitializerMaterializesCaptures() throws {
+        let ctx = makeContextFromSource("""
+        class Owner(private val offset: Int) {
+            private val action: Int.(Int) -> Int = { n -> this + n + offset }
+            fun use(i: Int): Int = i.action(3)
+        }
+        """)
+        try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "Owner", in: module, interner: ctx.interner)
+        #expect(extractCallees(from: body, interner: ctx.interner).contains("kk_function_create_2"))
     }
 
     @Test
