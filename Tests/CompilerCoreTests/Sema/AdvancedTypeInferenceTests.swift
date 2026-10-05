@@ -105,6 +105,38 @@ struct AdvancedTypeInferenceTests {
         #expect(!ctx.diagnostics.hasError, "Expected yieldAll(List<Int>) to select Iterable<T>, got: \(diagnostics)")
     }
 
+    @Test(arguments: [
+        ("MutableList<T>", "List<T>", "buildList<T>(action)", "add(1); add(2)", "xs[0]"),
+        ("MutableSet<T>", "Set<T>", "buildSet<T>(action)", "add(1); add(2)", "xs.first()"),
+        ("MutableMap<String, T>", "Map<String, T>", "TODO()", "put(\"one\", 1)", "xs.getValue(\"one\")"),
+    ])
+    func testGenericCollectionBuildersUseMutationInference(
+        receiver: String, result: String, implementation: String, body: String, access: String
+    ) throws {
+        let source = """
+        fun <T> gather(action: \(receiver).() -> Unit): \(result) = \(implementation)
+        fun demo(): Int {
+            val xs = gather { \(body) }
+            return \(access)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "gather"
+            })
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            #expect(binding.substitutedTypeArguments == [sema.types.intType])
+        }
+    }
+
     @Test func testExperimentalTypeInferenceInfersCustomBuilderElementTypeWithoutExpectedType() throws {
         let source = """
         import kotlin.experimental.ExperimentalTypeInference
@@ -141,6 +173,24 @@ struct AdvancedTypeInferenceTests {
             !ctx.diagnostics.hasError,
             "Expected custom builder inference to succeed, got: \(diagnostics)"
         )
+    }
+
+    @Test func testGenericCollectionBuilderPreservesOtherTypeEvidence() throws {
+        let ctx = makeContextFromSource("""
+        fun <T> gather(action: MutableList<T>.() -> Unit): List<T> = buildList<T>(action)
+        fun <T> gatherSeed(seed: T, action: MutableList<T>.() -> Unit): List<T> = buildList<T>(action)
+        fun demo() {
+            val fromSeed = gatherSeed(1) {}
+            val seedAndMutation = gatherSeed(1) { add(2) }
+            val expected: List<Int> = gather {}
+            val explicit = gather<Int> { add(3) }
+            val checkedSeed: List<Int> = fromSeed
+            val checkedMutation: List<Int> = seedAndMutation
+            val checkedExplicit: List<Int> = explicit
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
     @Test func testBuildListWithNamedCapacityArgumentInfersElementType() throws {
