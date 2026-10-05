@@ -671,12 +671,13 @@ extension CallLowerer {
             default:
                 continue
             }
-            // A non-local return must be expanded into its caller. Wrapping
-            // that lambda in a Function object hides its body from imported
-            // inline expansion and turns the return into a runtime callback.
+            // Keep eligible inline arguments visible to imported expansion,
+            // including normal returns and nested non-local returns.
             if isInline,
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               arena.function(for: callable.symbol)?.isInlineOnly == true
+               (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                   || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                   || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
                 continue
             }

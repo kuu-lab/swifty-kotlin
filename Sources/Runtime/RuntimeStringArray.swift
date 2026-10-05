@@ -533,7 +533,7 @@ func runtimeStructuredPanic(_ message: @autoclosure () -> String) -> Never {
     fatalError(runtimeStructuredPanicMessage(message()))
 }
 
-private enum RuntimeTypeTokenEncoding {
+enum RuntimeTypeTokenEncoding {
     static let baseMask: Int64 = 0xFF
     static let nullableBit: Int64 = 0x100
     static let payloadShift: Int64 = 9
@@ -557,6 +557,14 @@ private enum RuntimeTypeTokenEncoding {
     static let charBase: Int64 = 14
     // STDLIB-REFLECT-ABI-001: Unit::class token base.
     static let unitBase: Int64 = 15
+    // KUU-1084: Function-type token base. Payload packs the FunctionN arity
+    // in bits 0-7 and the suspend flag in bit 8.
+    static let functionBase: Int64 = 18
+
+    /// Decodes a function-type token payload into its parts.
+    static func functionPayloadParts(_ payload: Int64) -> (arity: Int, isSuspend: Bool) {
+        (Int(payload & 0xFF), (payload & 0x100) != 0)
+    }
 }
 
 func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
@@ -1135,6 +1143,28 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
 
+    case RuntimeTypeTokenEncoding.functionBase:
+        // KUU-1084: function-type tokens encode the FunctionN arity in the
+        // low payload byte; a value matches when it is a function value of
+        // the same arity (the suspend bit does not change `is` semantics).
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
+              runtimeStorage.withGCLock({ state in
+                  state.objectPointers.contains(UInt(bitPattern: ptr))
+              })
+        else {
+            return 0
+        }
+        let (arity, _) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+        if let fnBox = tryCast(ptr, to: RuntimeFunctionValueBox.self) {
+            return fnBox.arity == arity ? 1 : 0
+        }
+        // Callable references (`::foo`) also satisfy function-type checks at
+        // their declared arity.
+        if let kfnBox = tryCast(ptr, to: RuntimeKFunctionBox.self) {
+            return kfnBox.arity == arity ? 1 : 0
+        }
+        return 0
+
     case RuntimeTypeTokenEncoding.longBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
@@ -1441,12 +1471,24 @@ public func kk_object_type_id(_ objectRaw: Int) -> Int {
 /// was known at compile-time after inline expansion).
 @_cdecl("__kk_type_token_simple_name")
 public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
+    let token = Int64(truncatingIfNeeded: typeToken)
+    let base = token & RuntimeTypeTokenEncoding.baseMask
+    // KUU-1084: function-type names derive from the token payload itself so
+    // they stay stable regardless of which call site interned the KClass or
+    // what name hint it passed.
+    if base == RuntimeTypeTokenEncoding.functionBase {
+        let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+        let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+        let name = isSuspend ? "SuspendFunction\(arity)" : "Function\(arity)"
+        let utf8 = Array(name.utf8)
+        return utf8.withUnsafeBufferPointer { buf in
+            Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
+        }
+    }
     // If a compiler-provided name hint is available, use it directly.
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
         return nameHint
     }
-    let token = Int64(truncatingIfNeeded: typeToken)
-    let base = token & RuntimeTypeTokenEncoding.baseMask
     let name = switch base {
     case RuntimeTypeTokenEncoding.anyBase:
         "Any"
@@ -1500,7 +1542,13 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
     // Built-in stdlib types always live in the `kotlin` package.
+    let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    let (functionArity, isSuspendFunction) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
     let qualifiedName: String? = switch base {
+    case RuntimeTypeTokenEncoding.functionBase:
+        isSuspendFunction
+            ? "kotlin.coroutines.intrinsics.SuspendFunction\(functionArity)"
+            : "kotlin.Function\(functionArity)"
     case RuntimeTypeTokenEncoding.anyBase:     "kotlin.Any"
     case RuntimeTypeTokenEncoding.stringBase:  "kotlin.String"
     case RuntimeTypeTokenEncoding.intBase:     "kotlin.Int"
