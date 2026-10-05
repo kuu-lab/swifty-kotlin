@@ -139,10 +139,10 @@ private func runtimeRenderTaggedChar(_ value: Int) -> String {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if isObjectPointer, let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-            return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+            return runtimeCharacterFromRaw(charBox.value)
         }
     }
-    return UnicodeScalar(value).map(String.init) ?? "?"
+    return runtimeCharacterFromRaw(value)
 }
 
 private func runtimeTaggedFloatValue(_ value: Int) -> Float {
@@ -190,7 +190,7 @@ private func runtimeTaggedULongValue(_ value: Int) -> UInt {
 
 private func runtimeStringHashCode(_ value: String) -> Int {
     var hash: Int32 = 0
-    for codeUnit in value.utf16 {
+    for codeUnit in runtimeKotlinStringUTF16CodeUnits(value) {
         hash = 31 &* hash &+ Int32(truncatingIfNeeded: codeUnit)
     }
     return Int(hash)

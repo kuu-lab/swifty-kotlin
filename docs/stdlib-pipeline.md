@@ -600,6 +600,28 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 
 #### (c) 残留（`__kk_` 降格のみ）— 118 関数
 
+##### `Continuation.intercepted` source owner と実行モデル（KUU-975）
+
+公開拡張 `fun <T> Continuation<T>.intercepted(): Continuation<T>` の唯一の owner は
+`kotlin/coroutines/intrinsics/IntrinsicsNative.kt`。synthetic 宣言を削除し、Kotlin 本体から
+private `@KsSymbolName("__kk_continuation_intercepted")` bridge を呼ぶ。
+理由コードは **GC・continuation / メモリ表現**: KSwiftK の生成 continuation は Swift 所有の
+`RuntimeContinuationState` であり、Kotlin/Native の `ContinuationImpl` ではない。
+Kotlin heap の通常の Continuation は Swift object として cast せず同一 handle を返す。
+既存の Swift `KKContinuation` の dispatcher adaptation は runtime に残す。
+`kk_*` → `__kk_*` は 1 対 1 の降格であり ABI 関数総数は増えない。
+`RuntimeABISpec.specVersion` は登録変更から自動再計算される。
+
+これは公開 API の source 化であり、Kotlin/Native の interception 機構全体の移植ではない。
+既存 `RuntimeContinuationState` には `ContinuationImpl` の context interceptor lookup・
+intercepted result cache・release lifecycle がなく、この移行でもその制約は維持する。
+Swift `KKContinuation` の dispatcher wrapper は wrapper 自身の再 interception は identity だが、
+元 continuation に対する複数回の呼び出しの cache は持たない。
+生成 continuation の custom `ContinuationInterceptor` 対応には state/context/lifecycle の整備が必要
+（再現・整備範囲: [KUU-1164](https://linear.app/kuu/issue/KUU-1164/生成-coroutine-の-intercepted-が-completion-context-の)）。
+通常の source Continuation の identity、context getter 非評価、空 context の生成 continuation、
+既存 native dispatcher の resume は Sema/source+artifact 実行テストと kotlinc diff で固定する。
+
 | 系統 | 代表シンボル | 数 | ファイル |
 |---|---|---:|---|
 | suspend 機構・continuation | `kk_suspend_coroutine`, `kk_coroutine_suspended`, `kk_coroutine_continuation_{context,factory,new,resume,resume_with,resume_with_exception}`, `kk_coroutine_state_{enter,exit,get_completion,get_spill,get_thrown_exception,set_completion,set_label,set_spill}`, `kk_create_coroutine_unintercepted`, `kk_start_coroutine_unintercepted_or_return`, `kk_continuation_intercepted`, `kk_continuation_interceptor_intercept_continuation`, `kk_exception_handler_{new,create,invoke}`, `kk_is_cancellation_exception` | 24 | Coroutine / Context |

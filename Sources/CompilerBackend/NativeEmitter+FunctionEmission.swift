@@ -881,7 +881,9 @@ extension NativeEmitter {
             case .jump, .label, .jumpIfEqual, .jumpIfNotNull,
                  .storeGlobal, .rethrow, .returnIfEqual, .returnUnit, .returnValue,
                  .beginBlock, .endBlock, .nop, .nonLocalReturn,
-                 .beginFinallyGuard, .endFinallyGuard:
+                 .beginFinallyGuard, .endFinallyGuard,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope, .resumeNonLocalReturn,
+                 .beginFinallyCleanup, .endFinallyCleanup:
                 return []
             }
         }
@@ -1831,6 +1833,41 @@ extension NativeEmitter {
                         appendThrownChannel: appendThrown
                     )
                 },
+                declareExternalSymbolFunction: { symbol in
+                    guard let signature = symbols?.functionSignature(for: symbol),
+                          let linkName = symbols?.externalLinkName(for: symbol),
+                          !linkName.isEmpty
+                    else {
+                        return nil
+                    }
+                    let runtimeSpec = Self.runtimeABIFunctionByName[linkName]
+                    let argumentCount = (signature.receiverType == nil ? 0 : 1)
+                        + signature.parameterTypes.count
+                    let appendThrown = runtimeSpec?.isThrowing ?? true
+                    // Runtime aliases retain their raw-handle declaration path.
+                    if runtimeSpec == nil,
+                       let sourceSignature = sourceExternalSignature(for: symbol, argumentCount: argumentCount)
+                    {
+                        var parameterTypes = loweredLLVMTypes(for: sourceSignature.parameters)
+                        if appendThrown {
+                            parameterTypes.append(outThrownPointerType)
+                        }
+                        return declareExternalFunction(
+                            named: linkName,
+                            parameterTypes: parameterTypes,
+                            returnType: loweredLLVMType(
+                                for: sourceSignature.returnType,
+                                lowering: typeLowering,
+                                defaultType: int64Type
+                            )
+                        )
+                    }
+                    return declareExternalFunction(
+                        named: linkName,
+                        argumentCount: argumentCount,
+                        appendThrownChannel: appendThrown
+                    )
+                },
                 interner: interner
             )
         }
@@ -2073,7 +2110,8 @@ extension NativeEmitter {
             }
 
             switch instruction {
-            case .nop, .beginBlock, .endBlock, .beginFinallyGuard, .endFinallyGuard:
+            case .nop, .beginBlock, .endBlock, .beginFinallyGuard, .endFinallyGuard,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup:
                 continue
 
             case let .label(id):
@@ -3539,6 +3577,10 @@ extension NativeEmitter {
                     )
                 }
                 _ = bindings.buildRet(builder, value: returnValue)
+
+            case .resumeNonLocalReturn:
+                assertionFailure("resumeNonLocalReturn reached codegen -- InlineLoweringPass should have converted it")
+                continue
 
             case let .nonLocalReturn(value):
                 // Non-local returns should have been lowered by InlineLoweringPass.

@@ -72,6 +72,12 @@ enum InlineExprAliasing {
         case let .nonLocalReturn(value):
             .nonLocalReturn(value.map { resolveAlias(of: $0, aliases: aliases) })
 
+        case let .beginNonLocalReturnScope(value, target):
+            .beginNonLocalReturnScope(value: resolveAlias(of: value, aliases: aliases), target: target)
+
+        case let .resumeNonLocalReturn(value):
+            .resumeNonLocalReturn(resolveAlias(of: value, aliases: aliases))
+
         case let .returnIfEqual(lhs, rhs):
             .returnIfEqual(
                 lhs: resolveAlias(of: lhs, aliases: aliases),
