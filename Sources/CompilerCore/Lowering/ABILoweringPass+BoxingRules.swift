@@ -53,6 +53,7 @@ extension ABILoweringPass {
         "__kk_pair_new",
         "__kk_triple_new",
         "__kk_mutable_collection_add",
+        "__kk_mutable_collection_add_throwing",
         "__kk_mutable_list_add",
         "__kk_mutable_list_add_at",
         "__kk_mutable_list_set",
@@ -252,10 +253,22 @@ extension ABILoweringPass {
         if let kind = arena.expr(argExprID) {
             switch kind {
             case .intLiteral:
+                if let annotatedType = arena.exprType(argExprID),
+                   case let .primitive(primitive, _) = types.kind(of: annotatedType),
+                   primitive == .byte || primitive == .short
+                {
+                    return types.make(.primitive(primitive, .nonNull))
+                }
                 return types.make(.primitive(.int, .nonNull))
             case .longLiteral:
                 return types.make(.primitive(.long, .nonNull))
             case .uintLiteral:
+                if let annotatedType = arena.exprType(argExprID),
+                   case let .primitive(primitive, _) = types.kind(of: annotatedType),
+                   primitive == .ubyte || primitive == .ushort
+                {
+                    return types.make(.primitive(primitive, .nonNull))
+                }
                 return types.make(.primitive(.uint, .nonNull))
             case .ulongLiteral:
                 return types.make(.primitive(.ulong, .nonNull))

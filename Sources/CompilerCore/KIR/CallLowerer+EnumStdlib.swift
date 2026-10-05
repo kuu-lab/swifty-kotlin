@@ -158,7 +158,9 @@ extension CallLowerer {
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(runtimeCalleeName),
-            arguments: [enumValuesArray, countExpr, cachedClassIDExpr],
+            arguments: kind == .enumEntries
+                ? [enumValuesArray, countExpr, cachedClassIDExpr]
+                : [enumValuesArray, countExpr],
             result: result,
             canThrow: false,
             thrownResult: nil

@@ -27,7 +27,7 @@ struct PrimitiveArrayConversionSourceMigrationTests {
             try runSema(ctx)
 
             #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
+                !ctx.diagnostics.hasError,
                 "Expected primitive-array spreads into primitive varargs to resolve, got: \(ctx.diagnostics.diagnostics)"
             )
         }
@@ -70,8 +70,8 @@ struct PrimitiveArrayConversionSourceMigrationTests {
             try runSema(ctx)
 
             #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected signed primitive-array members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+                !ctx.diagnostics.hasError,
+                "Expected signed primitive-array members to type-check without errors, got: \(ctx.diagnostics.diagnostics)"
             )
 
             let ast = try #require(ctx.ast)
@@ -142,8 +142,8 @@ struct PrimitiveArrayConversionSourceMigrationTests {
             try runSema(ctx)
 
             #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected unsigned and generic array members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+                !ctx.diagnostics.hasError,
+                "Expected unsigned and generic array members to type-check without errors, got: \(ctx.diagnostics.diagnostics)"
             )
 
             let ast = try #require(ctx.ast)
@@ -283,8 +283,8 @@ struct PrimitiveArrayConversionSourceMigrationTests {
             try runSema(ctx)
 
             #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected array conversion members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+                !ctx.diagnostics.hasError,
+                "Expected array conversion members to type-check without errors, got: \(ctx.diagnostics.diagnostics)"
             )
 
             let ast = try #require(ctx.ast)

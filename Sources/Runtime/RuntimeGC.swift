@@ -89,6 +89,7 @@ struct ThreadLocalState {
 
 struct DelegateState {
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
+    var functionDescriptionsByValue: [Int: String] = [:]
 }
 
 final class RuntimeStorageBox: @unchecked Sendable {
@@ -312,8 +313,9 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
     let threadLocalRoots = runtimeStorage.withThreadLocalLock { state in
         state.threadLocalValues
     }
+    let callableRoots = runtimeCallableReflectionRoots()
     runtimeStorage.withGCLock { state in
-        performMarkAndSweepLocked(state: &state, threadLocalValues: threadLocalRoots)
+        performMarkAndSweepLocked(state: &state, threadLocalValues: threadLocalRoots, callableRoots: callableRoots)
     }
 }
 
@@ -589,6 +591,9 @@ func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
         state.objectItableMethods.removeValue(forKey: key)
         state.objectInterfaceSlots.removeValue(forKey: key)
     }
+    runtimeStorage.withDelegateLock { state in
+        state.functionDescriptionsByValue.removeValue(forKey: Int(bitPattern: key))
+    }
 }
 
 func kk_runtime_reset_flow() {
@@ -640,10 +645,11 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
 func kk_runtime_reset_delegate() {
     runtimeStorage.withDelegateLock { state in
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
+        state.functionDescriptionsByValue.removeAll(keepingCapacity: false)
     }
 }
 
-func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:]) {
+func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:], callableRoots: [Int] = []) {
     guard !state.heapObjects.isEmpty else {
         return
     }
@@ -651,6 +657,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
     var worklist: [UnsafeMutableRawPointer] = []
     worklist.reserveCapacity(state.heapObjects.count)
     collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, into: &worklist)
+    worklist.append(contentsOf: callableRoots.compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
 
     while let current = worklist.popLast() {
         let key = UInt(bitPattern: current)

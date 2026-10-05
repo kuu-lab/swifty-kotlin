@@ -75,6 +75,10 @@ final class LocalDeclTypeChecker {
                     sema.bindings.markSourceDeclaredExpectedType(initializer)
                 }
                 initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
+                if declaredType == nil,
+                   sema.bindings.callableRefKind(for: initializer) != nil {
+                    sema.bindings.inferredCallableReferenceSymbols.insert(localSymbol)
+                }
             }
 
             if let declaredType {
@@ -237,6 +241,7 @@ final class LocalDeclTypeChecker {
                     diagnostics: ctx.semaCtx.diagnostics
                 )
                 locals[name] = (declaredType, local.symbol, local.isMutable, true)
+                locals.invalidateMembers(root: local.symbol)
                 if ctx.sema.bindings.isFlowExpr(value) {
                     ctx.sema.bindings.markFlowSymbol(local.symbol)
                     if let flowElementType = ctx.sema.bindings.flowElementType(forExpr: value) {

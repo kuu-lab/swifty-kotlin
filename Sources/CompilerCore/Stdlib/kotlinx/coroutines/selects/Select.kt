@@ -38,6 +38,7 @@ internal external fun __kkSelectBuilderExchange(builder: Any?): Any?
 @KsSymbolName("__kk_select_builder_current")
 internal external fun __kkSelectBuilderCurrent(): Any?
 
+@Suppress("UNCHECKED_CAST")
 internal fun <R> currentSelectBuilder(): SelectBuilder<R> =
     (__kkSelectBuilderCurrent() ?: error("Select clauses require a select builder")) as SelectBuilder<R>
 

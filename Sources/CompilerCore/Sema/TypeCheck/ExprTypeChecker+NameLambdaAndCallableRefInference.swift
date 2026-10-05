@@ -1206,7 +1206,7 @@ extension ExprTypeChecker {
         // though the enclosing member's `this` shadows them in `locals` — the
         // enclosing context (e.g. an object literal) captured them, so the
         // lambda can capture them through the same chain.
-        let outerSymbols = Set(locals.values.map(\.symbol))
+        let outerSymbols = Set(locals.values.map(\.symbol) + ctx.implicitReceiverStack.map(\.symbol))
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
         let inferredImplicitItType = params.isEmpty
             ? inferItParameterType(ctx: ctx, id: id, sema: sema)
@@ -1306,6 +1306,12 @@ extension ExprTypeChecker {
             ctx
         }
         bodyCtx = bodyCtx.enteringLambdaBody()
+        if let receiverType = ctx.implicitReceiverType,
+           let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
+           bodyCtx.implicitReceiverStack.last?.symbol != receiverSymbol
+        {
+            bodyCtx.implicitReceiverStack.append((receiverType, receiverSymbol))
+        }
         // When the expected function type has a receiver (e.g. StringBuilder.() -> Unit),
         // set the implicit receiver so that unqualified member calls resolve correctly.
         if let receiverType = expectedFunctionType?.receiver
@@ -1317,6 +1323,7 @@ extension ExprTypeChecker {
             // first) and address it through a per-lambda symbol so that
             // `this@callee` from a nested lambda can capture it.
             let receiverSymbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: id)
+            bodyCtx.implicitReceiverStack.append((receiverType, receiverSymbol))
             lambdaLocals[ctx.interner.intern("this")] = (
                 type: receiverType,
                 symbol: receiverSymbol,
@@ -1385,7 +1392,8 @@ extension ExprTypeChecker {
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
-            expectedType: bodyExpectedType
+            expectedType: bodyExpectedType,
+            isStatementContext: expectedFunctionType?.returnType == sema.types.unitType
         )
         // STDLIB-592 definite assignment: record which outer-scope locals this
         // lambda body unconditionally initializes, mirroring the blockExpr merge
@@ -1558,6 +1566,18 @@ extension ExprTypeChecker {
 
         // ── T::class  — reified type-parameter class reference ──────────
         if member == KnownCompilerNames(interner: interner).className,
+           ast.arena.callableRefReceiverTypeRef(for: id) != nil
+        {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0022",
+                "Type arguments are not allowed on the left-hand side of '::class'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+
+        if member == KnownCompilerNames(interner: interner).className,
            let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver)
         {
@@ -1594,6 +1614,7 @@ extension ExprTypeChecker {
         // primitive receiver name never introduces real function/constructor
         // candidates that this could shadow.
         if let receiver,
+           ast.arena.callableRefReceiverTypeRef(for: id) == nil,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil,
            let result = inferPrimitiveOperatorCallableRefExpr(
@@ -1610,7 +1631,39 @@ extension ExprTypeChecker {
         // The resulting function type includes the receiver type as the
         // first parameter: `Type::method` becomes `(Type) -> ReturnType`.
         var unboundClassType: TypeID?
-        if let receiver,
+        if let receiverTypeRef = ast.arena.callableRefReceiverTypeRef(for: id) {
+            unboundClassType = driver.helpers.resolveTypeRef(
+                receiverTypeRef,
+                ast: ast,
+                sema: sema,
+                interner: interner,
+                scope: ctx.scope,
+                diagnostics: ctx.semaCtx.diagnostics,
+                inferenceContext: ctx,
+                usageRange: range
+            )
+            if let unboundClassType {
+                let argumentCounts: (expected: Int, actual: Int)?
+                if case let .classType(owner) = sema.types.kind(of: unboundClassType) {
+                    argumentCounts = (sema.types.nominalTypeParameterSymbols(for: owner.classSymbol).count, owner.args.count)
+                } else if case let .named(path, arguments, _) = ast.arena.typeRef(receiverTypeRef),
+                          let name = path.last,
+                          driver.helpers.resolveBuiltinTypeName(name, types: sema.types, interner: interner) != nil
+                {
+                    argumentCounts = (0, arguments.count)
+                } else {
+                    argumentCounts = nil
+                }
+                if let argumentCounts, argumentCounts.expected != argumentCounts.actual {
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0062",
+                        "Type argument count mismatch: expected \(argumentCounts.expected) but got \(argumentCounts.actual).",
+                        range: range
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+            }
+        } else if let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil
         {
@@ -1645,10 +1698,17 @@ extension ExprTypeChecker {
             }
         }
 
-        let receiverType: TypeID? = if let receiver {
-            driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+        let receiverType: TypeID?
+        if let receiver, let unboundClassType {
+            sema.bindings.bindExprType(receiver, type: unboundClassType)
+            if let (_, symbol) = resolveClassTypeSymbol(unboundClassType, sema: sema) {
+                sema.bindings.bindIdentifier(receiver, symbol: symbol.id)
+            }
+            receiverType = unboundClassType
+        } else if let receiver {
+            receiverType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
         } else {
-            nil
+            receiverType = nil
         }
 
         // For unbound type references, use the resolved class type for
@@ -1661,56 +1721,122 @@ extension ExprTypeChecker {
         // a package `val flush` must not hide `Writer.flush` for `::flush` in
         // implicit-receiver scope. Local declarations retain lexical priority.
         let hasLocalDeclaration = locals[member] != nil
+        var implicitBoundReceiver: (type: TypeID, symbol: SymbolID)?
+        var implicitPropertyCandidate: SymbolID?
         let implicitMemberCandidates: [SymbolID] = {
-            guard receiver == nil, !hasLocalDeclaration,
-                  let implicitReceiver = ctx.implicitReceiverType
+            guard receiver == nil, !hasLocalDeclaration
             else { return [] }
-            let nonNullImplicitReceiver = sema.types.makeNonNullable(implicitReceiver)
-            let members = driver.helpers.collectMemberFunctionCandidates(
-                named: member,
-                receiverType: nonNullImplicitReceiver,
-                sema: sema,
-                interner: interner
-            ).filter { candidate in
-                // Kotlin rejects every `::` form for member-extensions
-                // ("member and an extension at the same time"), including
-                // the implicitly-bound `::name` form inside the owner.
-                !driver.helpers.declaresExtensionReceiver(
-                    candidate,
+            var receivers = ctx.implicitReceiverStack
+            if let type = ctx.implicitReceiverType,
+               let symbol = locals[interner.intern("this")]?.symbol,
+               receivers.last?.symbol != symbol
+            {
+                receivers.append((type, symbol))
+            }
+            var hiddenDslMarkers = Set<String>()
+            for implicitReceiver in receivers.reversed() {
+                let markers = ctx.collectDslMarkerAnnotations(for: implicitReceiver.type)
+                let isHidden = !hiddenDslMarkers.isDisjoint(with: markers)
+                hiddenDslMarkers.formUnion(markers)
+                if isHidden { continue }
+                let nonNullImplicitReceiver = sema.types.makeNonNullable(implicitReceiver.type)
+                let members = driver.helpers.collectMemberFunctionCandidates(
+                    named: member,
+                    receiverType: nonNullImplicitReceiver,
                     sema: sema,
                     interner: interner
-                )
+                ).filter { candidate in
+                    // Kotlin rejects every `::` form for member-extensions
+                    // ("member and an extension at the same time"), including
+                    // the implicitly-bound `::name` form inside the owner.
+                    !driver.helpers.declaresExtensionReceiver(
+                        candidate,
+                        sema: sema,
+                        interner: interner
+                    )
+                }
+                // A bare `::ext` inside a receiver scope is a *bound* reference
+                // (`with("s") { ::ext }` means `this::ext`), so package-level
+                // extensions whose declared receiver accepts the implicit
+                // receiver are bound `() -> R` candidates as well — kotlinc
+                // resolves `with("42") { ::toInt }` to `() -> Int`.
+                let implicitExtensionCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
+                    let owner = sema.symbols.parentSymbol(for: symbolID).flatMap { ctx.cachedSymbol($0) }
+                    guard let symbol = ctx.cachedSymbol(symbolID),
+                          symbol.kind == .function,
+                          owner == nil || owner?.kind == .package
+                              || Array(symbol.fqName.dropLast()) != owner?.fqName,
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          let declaredReceiver = signature.receiverType,
+                          driver.helpers.declaresExtensionReceiver(
+                              symbolID,
+                              sema: sema,
+                              interner: interner
+                          )
+                    else { return false }
+                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullImplicitReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+                // Members of the implicit receiver outrank same-named package
+                // extensions, mirroring member-call resolution in Kotlin.
+                let visibleMembers = ctx.filterByVisibility(members).0
+                if !visibleMembers.isEmpty {
+                    implicitBoundReceiver = implicitReceiver
+                    return visibleMembers
+                }
+                let memberProperties: [SymbolID] = if let (_, owner) = resolveClassTypeSymbol(nonNullImplicitReceiver, sema: sema) {
+                    sema.symbols.lookupAll(fqName: owner.fqName + [member]).filter { symbolID in
+                        let kind = ctx.cachedSymbol(symbolID)?.kind
+                        return (kind == .property || kind == .field)
+                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
+                    }
+                } else { [] }
+                let extensionProperties = ctx.cachedScopeLookup(member).filter { symbolID in
+                    let ownerKind = sema.symbols.parentSymbol(for: symbolID).flatMap { ctx.cachedSymbol($0)?.kind }
+                    guard ctx.cachedSymbol(symbolID)?.kind == .property,
+                          let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: symbolID),
+                          ownerKind == nil || ownerKind == .package
+                    else { return false }
+                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullImplicitReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+                if let property = ctx.filterByVisibility(memberProperties).0.first {
+                    implicitBoundReceiver = implicitReceiver
+                    implicitPropertyCandidate = property
+                    return []
+                }
+                let visibleExtensions = ctx.filterByVisibility(implicitExtensionCandidates).0
+                if !visibleExtensions.isEmpty {
+                    implicitBoundReceiver = implicitReceiver
+                    return visibleExtensions
+                }
+                if let property = ctx.filterByVisibility(extensionProperties).0.first {
+                    implicitBoundReceiver = implicitReceiver
+                    implicitPropertyCandidate = property
+                    return []
+                }
             }
-            // A bare `::ext` inside a receiver scope is a *bound* reference
-            // (`with("s") { ::ext }` means `this::ext`), so package-level
-            // extensions whose declared receiver accepts the implicit
-            // receiver are bound `() -> R` candidates as well — kotlinc
-            // resolves `with("42") { ::toInt }` to `() -> Int`.
-            let implicitExtensionCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
-                guard let symbol = ctx.cachedSymbol(symbolID),
-                      symbol.kind == .function,
-                      let signature = sema.symbols.functionSignature(for: symbolID),
-                      let declaredReceiver = signature.receiverType,
-                      driver.helpers.declaresExtensionReceiver(
-                          symbolID,
-                          sema: sema,
-                          interner: interner
-                      )
-                else { return false }
-                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: nonNullImplicitReceiver,
-                    declaredReceiver: declaredReceiver,
-                    sema: sema
-                )
-            }
-            // Members of the implicit receiver outrank same-named package
-            // extensions, mirroring member-call resolution in Kotlin.
-            let visibleMembers = ctx.filterByVisibility(members).0
-            if !visibleMembers.isEmpty {
-                return visibleMembers
-            }
-            return ctx.filterByVisibility(implicitExtensionCandidates).0
+            return []
         }()
+        if let property = implicitPropertyCandidate, let implicitBoundReceiver {
+            sema.bindings.markImplicitReceiverMember(id, name: member)
+            sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
+            return bindPropertyCallableRef(
+                id,
+                propertySymbol: property,
+                ownerType: nil,
+                isUnbound: false,
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner
+            )
+        }
         // REFL-CTOR: set when `candidates` were filled with constructor
         // symbols for a bare `::Foo` reference below. A constructor
         // signature's `receiverType` field carries the class type for the
@@ -1817,7 +1943,11 @@ extension ExprTypeChecker {
                     else {
                         return false
                     }
-                    return sema.types.isSubtype(nonNullReceiver, declaredReceiver)
+                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
                 }
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
@@ -2079,11 +2209,14 @@ extension ExprTypeChecker {
             return resultType
         }
 
-        // Only a bound `value::member` reference has a concrete receiver
-        // instantiation to substitute into the member's signature.
-        let boundReceiverType: TypeID? = (receiver != nil && unboundClassType == nil && !isConstructorReference)
-            ? effectiveReceiverType.map { sema.types.makeNonNullable($0) }
-            : nil
+        // Concrete value and type receivers specialize the owner's type parameters.
+        let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
+            implicitBoundReceiver?.type
+        } else if receiver != nil && !isConstructorReference {
+            effectiveReceiverType.map { sema.types.makeNonNullable($0) }
+        } else {
+            nil
+        }
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
             expectedType: expectedFunctionType,
@@ -2095,7 +2228,7 @@ extension ExprTypeChecker {
         if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen)
         {
-            let inferredType = driver.helpers.callableFunctionType(
+            var inferredType = driver.helpers.callableFunctionType(
                 for: signature,
                 bindReceiver: isBoundReceiver,
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
@@ -2110,14 +2243,21 @@ extension ExprTypeChecker {
             if let expectedFunctionType {
                 let concreteResult = expectedSamInterfaceType ?? expectedFunctionType
                 if !sema.types.typeContainsAnyTypeParam(concreteResult) {
-                    driver.emitSubtypeConstraint(
-                        left: inferredType,
-                        right: expectedFunctionType,
-                        range: range,
-                        solver: ConstraintSolver(),
-                        sema: sema,
-                        diagnostics: ctx.semaCtx.diagnostics
-                    )
+                    if let specializedType = driver.helpers.contextualCallableFunctionType(
+                        for: signature,
+                        bindReceiver: isBoundReceiver,
+                        boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        expectedFunctionType: expectedFunctionType,
+                        sema: sema
+                    ) {
+                        inferredType = specializedType
+                    } else {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-TYPE-0001",
+                            "Type constraint could not be satisfied.",
+                            range: range
+                        )
+                    }
                     resultType = concreteResult
                 } else {
                     resultType = inferredType
@@ -2148,6 +2288,9 @@ extension ExprTypeChecker {
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)
             if isImplicitlyBoundMember {
                 sema.bindings.markImplicitReceiverMember(id, name: member)
+                if let implicitBoundReceiver {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
+                }
             }
             if unboundClassType != nil && !isConstructorReference {
                 sema.bindings.markUnboundCallableRef(id)
@@ -2195,9 +2338,9 @@ extension ExprTypeChecker {
     }
 
     /// REFL-PRIMOP: `Int::plus` / `Int::times` (and the other primitive
-    /// numeric types where the homogeneous `(T, T) -> T` overload is
-    /// unambiguous -- Byte/Short/Char are excluded because their real
-    /// stdlib `plus`/`times` overloads promote the result to `Int`, unlike
+    /// numeric types where an expected function type selects the
+    /// homogeneous `(T, T) -> T` overload -- Byte/Short/Char are excluded
+    /// because their real stdlib `plus`/`times` overloads promote the result to `Int`, unlike
     /// Int/Long/UInt/ULong/Float/Double's own-type result) have no real
     /// `plus`/`times` member symbol to resolve: arithmetic on primitives is
     /// a table-driven type-inference special case
@@ -2235,6 +2378,15 @@ extension ExprTypeChecker {
         default:
             return nil
         }
+        guard let expectedType, case .functionType = sema.types.kind(of: expectedType) else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0003",
+                "Ambiguous overload resolution for '\(interner.resolve(receiverName))::\(interner.resolve(member))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         let operandType = sema.types.make(.primitive(primitive, .nonNull))
         let functionType = sema.types.make(.functionType(FunctionType(
             params: [operandType, operandType],
@@ -2242,28 +2394,18 @@ extension ExprTypeChecker {
             isSuspend: false,
             nullability: .nonNull
         )))
-        let resultType: TypeID
-        if let expectedType, case .functionType = sema.types.kind(of: expectedType) {
-            // Mirrors the symbol-backed branch below: an expected function
-            // type wins over the reference's own inferred type as long as
-            // it's compatible (`fold(0, Int::plus)`'s expected `(Int, Int)
-            // -> Int` accumulator type).
-            driver.emitSubtypeConstraint(
-                left: functionType,
-                right: expectedType,
-                range: range,
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
-            )
-            resultType = expectedType
-        } else {
-            resultType = functionType
-        }
+        driver.emitSubtypeConstraint(
+            left: functionType,
+            right: expectedType,
+            range: range,
+            solver: ConstraintSolver(),
+            sema: sema,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
         sema.bindings.bindPrimitiveOperatorCallableRef(id, op: op)
         sema.bindings.bindCallableRefKind(id, kind: .functionRef)
-        sema.bindings.bindExprType(id, type: resultType)
-        return resultType
+        sema.bindings.bindExprType(id, type: expectedType)
+        return expectedType
     }
 
     /// Binds an unbound `Type::property` (or, when `ownerType` is `nil`, a
@@ -2281,7 +2423,15 @@ extension ExprTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
+        var propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
+        if let ownerType, let owner = sema.symbols.parentSymbol(for: propertySymbol) {
+            propertyType = driver.helpers.resolveMemberPropertyType(
+                propertyType,
+                receiverType: ownerType,
+                ownerSymbol: owner,
+                sema: sema
+            )
+        }
         let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
         let inferredType = kPropertyReferenceType(
             ownerType: ownerType,

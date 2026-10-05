@@ -919,7 +919,7 @@ struct TypeCheckHelpers {
                     }
                     let resolvedArgs = resolveTypeArgRefsForTypeCheck(
                         argRefs, ast: ast, sema: sema, interner: interner,
-                        scope: scope, diagnostics: diagnostics
+                        scope: scope, diagnostics: diagnostics, usageRange: usageRange
                     )
                     // Expand typealias at call-site
                     if let sym = sema.symbols.symbol(symbolID), sym.kind == .typeAlias {
@@ -988,11 +988,11 @@ struct TypeCheckHelpers {
         case let .functionType(contextReceiverRefIDs, receiverRefID, paramRefIDs, returnRefID, isSuspend, nullable):
             let nullability: Nullability = nullable ? .nullable : .nonNull
             let contextReceiverTypes = contextReceiverRefIDs.map {
-                resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+                resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
             }
-            let receiverType: TypeID? = receiverRefID.flatMap { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics) }
-            let paramTypes = paramRefIDs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics) }
-            let returnType = resolveTypeRef(returnRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+            let receiverType: TypeID? = receiverRefID.flatMap { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange) }
+            let paramTypes = paramRefIDs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange) }
+            let returnType = resolveTypeRef(returnRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
             return sema.types.make(.functionType(FunctionType(
                 contextReceivers: contextReceiverTypes,
                 receiver: receiverType,
@@ -1003,11 +1003,11 @@ struct TypeCheckHelpers {
             )))
 
         case let .intersection(partRefs):
-            let partTypes = partRefs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics) }
+            let partTypes = partRefs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange) }
             return sema.types.make(.intersection(partTypes))
 
         case let .annotated(base, annotations):
-            let baseType = resolveTypeRef(base, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+            let baseType = resolveTypeRef(base, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
             return ExtensionFunctionTypeSupport.normalizeAnnotatedType(
                 baseType: baseType,
                 annotations: annotations,
@@ -1026,16 +1026,17 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner,
         scope: Scope? = nil,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        usageRange: SourceRange? = nil
     ) -> [TypeArg] {
         argRefs.map { argRef in
             switch argRef {
             case let .invariant(innerRef):
-                .invariant(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics))
+                .invariant(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange))
             case let .out(innerRef):
-                .out(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics))
+                .out(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange))
             case let .in(innerRef):
-                .in(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics))
+                .in(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange))
             case .star:
                 .star
             }

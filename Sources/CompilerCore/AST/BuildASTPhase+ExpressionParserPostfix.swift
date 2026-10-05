@@ -37,11 +37,19 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     func parsePostfixOrPrimary() -> ExprID? {
+        let receiverStartIndex = index
         guard var expr = parsePrimary() else {
             return nil
         }
         while true {
             if matches(.symbol(.lessThan)) {
+                if let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
+                    guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {
+                        break
+                    }
+                    expr = reference
+                    continue
+                }
                 let savedIndex = index
                 if let typeArgs = tryParseExplicitTypeArgs() {
                     if matches(.symbol(.lParen)) {
@@ -167,6 +175,13 @@ extension BuildASTPhase.ExpressionParser {
             var memberEndRange = memberToken.range
             var hasExplicitCall = false
             if matches(.symbol(.lessThan)) {
+                if let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
+                    guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {
+                        break
+                    }
+                    expr = reference
+                    continue
+                }
                 let savedIndex = index
                 if let ta = tryParseExplicitTypeArgs() {
                     typeArgs = ta

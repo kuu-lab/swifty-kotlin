@@ -10,11 +10,29 @@ package kotlin.reflect
 /**
  * Represents a callable entity, such as a function or a property.
  *
- * The runtime supplies the metadata for these two Native reflection properties;
- * the declarations remain source-backed so inheritance and member lookup use
- * the same contract as the Kotlin/Native stdlib.
+ * The runtime supplies metadata for compiler-generated callable references.
  */
 public interface KCallable<out R> : KAnnotatedElement {
     public val name: String
+    public val parameters: List<KParameter>
     public val returnType: KType
+    public val typeParameters: List<KTypeParameter>
+    public fun call(vararg args: Any?): R
+    public fun callBy(args: Map<KParameter, Any?>): R
+    public val visibility: KVisibility?
+    public val isFinal: Boolean
+    public val isOpen: Boolean
+    public val isAbstract: Boolean
+    public val isSuspend: Boolean
 }
+
+internal class CallableTypeParameter(
+    override val name: String,
+    override val upperBounds: List<KType>,
+    override val variance: KVariance,
+    override val isReified: Boolean
+) : KTypeParameter
+
+internal fun callableTypeParameter(
+    name: String, upperBounds: List<KType>, variance: KVariance, isReified: Boolean
+): KTypeParameter = CallableTypeParameter(name, upperBounds, variance, isReified)

@@ -47,6 +47,20 @@ private func withDummyTypeInfo(_ body: (UnsafeRawPointer) -> Void) {
 
 @Suite(.runtimeIsolation(.gcAndMetadata))
 struct RuntimeGCTests {
+    @Test func callableReflectionKeepsCapturedReceiverAlive() {
+        withDummyTypeInfo { ti in
+            let captured = Int(bitPattern: kk_alloc(16, ti))
+            let callable = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: 0, closureRaw: 0, arity: 0))
+            let tagged = kk_callable_ref_tag_kfunction(callable, runtimeMakeStringRaw("bound"), runtimeMakeStringRaw("kotlin.Int"), 0, 0)
+            let environment = registerRuntimeObject(RuntimeListBox(elements: [captured]))
+            let empty = registerRuntimeObject(RuntimeListBox(elements: []))
+            _ = __kk_kcallable_register(tagged, 0, environment, empty, empty, 1, 0, 0, empty)
+            defer { runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue.removeValue(forKey: tagged) } }
+            kk_gc_collect()
+            #expect(kk_runtime_heap_object_count() == 1)
+        }
+    }
+
     @Test func testGCCollectsUnreachableAllocation() {
         withDummyTypeInfo { ti in
             _ = kk_alloc(16, ti)
