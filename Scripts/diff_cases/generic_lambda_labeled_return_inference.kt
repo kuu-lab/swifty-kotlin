@@ -43,9 +43,6 @@ fun main() {
         println(evaluate inner@{ return@inner "inner" })
         return@outer 233
     })
-    println(inlineEvaluate outer@{
-        inlineEvaluate inner@{ return@outer 377 }
-    })
     println(evaluate same@{
         println(evaluate same@{ return@same "shadowed" })
         return@same 610

@@ -83,6 +83,12 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseLambdaBodyStatement(from group: ArraySlice<Token>) -> ExprID? {
+        let phase = BuildASTPhase(diagnostics: diagnostics)
+        if let localFun = phase.parseLocalFunDeclExpr(
+            from: Array(group), interner: interner, astArena: astArena
+        ) {
+            return localFun
+        }
         if let localDecl = parseLocalDeclFromSlice(group) {
             return localDecl
         }

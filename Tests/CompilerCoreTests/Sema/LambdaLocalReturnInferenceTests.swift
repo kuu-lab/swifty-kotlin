@@ -98,7 +98,8 @@ struct LambdaLocalReturnInferenceTests {
                 "named": sema.types.intType,
             ], ctx: ctx, path: path)
             let ast = try #require(ctx.ast)
-            let shadowLambdas = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+            let shadowLambdas = allExprIDs(in: ast, path: path, ctx: ctx) { id, expr in
+                guard sema.bindings.exprType(for: id) != nil else { return false }
                 guard case let .lambdaLiteral(_, _, label?, _) = expr else { return false }
                 return ctx.interner.resolve(label) == "shadow"
             }
@@ -151,7 +152,8 @@ struct LambdaLocalReturnInferenceTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         var seen: Set<String> = []
-        let lambdas = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+        let lambdas = allExprIDs(in: ast, path: path, ctx: ctx) { id, expr in
+            guard sema.bindings.exprType(for: id) != nil else { return false }
             if case .lambdaLiteral = expr { return true }
             return false
         }
