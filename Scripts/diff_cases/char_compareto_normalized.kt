@@ -2,6 +2,8 @@ fun compareChars(lhs: Char, rhs: Char): Int = lhs.compareTo(rhs)
 
 fun <T : Comparable<T>> compareGeneric(lhs: T, rhs: T): Int = lhs.compareTo(rhs)
 
+fun compareComparable(lhs: Comparable<Char>, rhs: Char): Int = lhs.compareTo(rhs)
+
 fun main() {
     println('z'.compareTo('a'))
     println('a'.compareTo('z'))
@@ -28,7 +30,11 @@ fun main() {
     println(compareGeneric('z', 'a'))
     println(compareGeneric('a', 'z'))
     println(compareGeneric(Char.MAX_VALUE, Char.MIN_VALUE))
+    println(compareGeneric(Char.MIN_VALUE, Char.MAX_VALUE))
     println(compareGeneric('\uD800', '\uD800'))
+    println(compareComparable('z', 'a'))
+    println(compareComparable('a', 'z'))
+    println(compareGeneric(122, 97))
 
     println('z' - 'a')
     println('a' - 'z')

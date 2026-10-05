@@ -91,5 +91,29 @@ struct CodegenBackendCharCompareToTests {
             expected: "1\n-1\n0\n-1\n-1\n1\n0\n25\n65535\ntrue\ntrue\n"
         )
     }
+
+    @Test
+    func testCodegenCharCompareToDistinguishesGenericDispatch() throws {
+        let source = """
+        fun <T : Comparable<T>> compareGeneric(lhs: T, rhs: T): Int = lhs.compareTo(rhs)
+        fun compareComparable(lhs: Comparable<Char>, rhs: Char): Int = lhs.compareTo(rhs)
+
+        fun main() {
+            println('z'.compareTo('a'))
+            println(compareGeneric('z', 'a'))
+            println(compareGeneric('a', 'z'))
+            println(compareGeneric(Char.MAX_VALUE, Char.MIN_VALUE))
+            println(compareGeneric(Char.MIN_VALUE, Char.MAX_VALUE))
+            println(compareGeneric('a', 'a'))
+            println(compareComparable('z', 'a'))
+            println(compareGeneric(122, 97))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharCompareToGeneric",
+            expected: "1\n25\n-25\n65535\n-65535\n0\n25\n1\n"
+        )
+    }
 }
 #endif
