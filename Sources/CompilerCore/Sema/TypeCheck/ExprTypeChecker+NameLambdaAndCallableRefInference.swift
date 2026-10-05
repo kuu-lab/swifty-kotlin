@@ -1891,7 +1891,11 @@ extension ExprTypeChecker {
                     else {
                         return false
                     }
-                    return sema.types.isSubtype(nonNullReceiver, declaredReceiver)
+                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
                 }
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
@@ -2170,7 +2174,7 @@ extension ExprTypeChecker {
         if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen)
         {
-            let inferredType = driver.helpers.callableFunctionType(
+            var inferredType = driver.helpers.callableFunctionType(
                 for: signature,
                 bindReceiver: isBoundReceiver,
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
@@ -2185,14 +2189,21 @@ extension ExprTypeChecker {
             if let expectedFunctionType {
                 let concreteResult = expectedSamInterfaceType ?? expectedFunctionType
                 if !sema.types.typeContainsAnyTypeParam(concreteResult) {
-                    driver.emitSubtypeConstraint(
-                        left: inferredType,
-                        right: expectedFunctionType,
-                        range: range,
-                        solver: ConstraintSolver(),
-                        sema: sema,
-                        diagnostics: ctx.semaCtx.diagnostics
-                    )
+                    if let specializedType = driver.helpers.contextualCallableFunctionType(
+                        for: signature,
+                        bindReceiver: isBoundReceiver,
+                        boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        expectedFunctionType: expectedFunctionType,
+                        sema: sema
+                    ) {
+                        inferredType = specializedType
+                    } else {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-TYPE-0001",
+                            "Type constraint could not be satisfied.",
+                            range: range
+                        )
+                    }
                     resultType = concreteResult
                 } else {
                     resultType = inferredType
