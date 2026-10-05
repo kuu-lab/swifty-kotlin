@@ -2192,8 +2192,8 @@ final class CallTypeChecker {
         // lambda argument is inferred. Without this, `val xs: List<(Int) ->
         // Int> = listOf({ it + 1 }, ...)` leaves every vararg slot's expected
         // type as the bare, unsubstituted `T`, so a lambda argument's implicit
-        // `it` never resolves. Scoped to lambda-literal arguments only, since
-        // other argument kinds already have their own contextual inference.
+        // `it` never resolves. Nested generic calls need the same context before
+        // checking their own lambdas, e.g. `nullsFirst(compareBy { it.k })`.
         // An explicit call-site type argument (`Array<Int>(3) { it }`) always
         // wins over the expected type (`Array<out Any>` here), matching
         // Kotlin's own precedence -- skip this substitution when one is given.
@@ -2229,11 +2229,17 @@ final class CallTypeChecker {
                     else {
                         continue
                     }
-                    substitution[typeVar] = expectedArgType
+                    substitution[typeVar] = returnTypeParam.nullability == .nonNull
+                        ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
                 }
                 guard !substitution.isEmpty else { continue }
                 for index in args.indices {
-                    guard case .lambdaLiteral = ast.arena.expr(args[index].expr),
+                    let isLambda: Bool = if case .lambdaLiteral = ast.arena.expr(args[index].expr) {
+                        true
+                    } else {
+                        false
+                    }
+                    guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast),
                           let parameterType = parameterTypeForArgument(at: index, in: signature)
                     else {
                         continue

@@ -325,24 +325,23 @@ extension CoroutineLoweringPass {
                         loweredSuspendArguments = suspendCallInfo.arguments
                         // KSP-1566: `delay(duration)` binds the bundled Duration
                         // overload straight to `kk_kxmini_delay`; the argument
-                        // arrives unboxed as nanoseconds, so convert it to
-                        // milliseconds inline (`inWholeMilliseconds`).
+                        // arrives as a tagged payload, so convert it to the
+                        // runtime's millisecond ABI.
                         if suspendCallInfo.callee == runtimeDelayCallee,
                            let firstArg = loweredSuspendArguments.first,
                            let argType = module.arena.exprType(firstArg),
                            argType != longType, argType != intType, let longType
                         {
-                            let divisorExpr = module.arena.appendExpr(
-                                .intLiteral(1_000_000),
-                                type: longType
-                            )
                             let millisExpr = module.arena.appendTemporary(type: longType
                             )
-                            lowered.append(.binary(
-                                op: .divide,
-                                lhs: firstArg,
-                                rhs: divisorExpr,
-                                result: millisExpr
+                            lowered.append(.call(
+                                symbol: nil,
+                                callee: interner.intern("kk_duration_inWholeMilliseconds"),
+                                arguments: [firstArg],
+                                result: millisExpr,
+                                canThrow: false,
+                                thrownResult: nil,
+                                isSuperCall: false
                             ))
                             loweredSuspendArguments[0] = millisExpr
                         }

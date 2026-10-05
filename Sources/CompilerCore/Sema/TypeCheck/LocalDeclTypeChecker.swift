@@ -75,6 +75,10 @@ final class LocalDeclTypeChecker {
                     sema.bindings.markSourceDeclaredExpectedType(initializer)
                 }
                 initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
+                if declaredType == nil,
+                   sema.bindings.callableRefKind(for: initializer) != nil {
+                    sema.bindings.inferredCallableReferenceSymbols.insert(localSymbol)
+                }
             }
 
             if let declaredType {
