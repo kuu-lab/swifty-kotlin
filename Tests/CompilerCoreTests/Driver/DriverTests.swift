@@ -106,6 +106,27 @@ struct DriverTests {
         }
     }
 
+    @Test(arguments: ["\n", "\r", "\r\n"], ["", "$$"])
+    func testRunForTestingRejectsUnescapedStringLineBreaks(lineBreak: String, prefix: String) throws {
+        let source = "fun main() { println(\(prefix)\"  indented" + lineBreak + "  text\") }"
+        try withTemporaryFile(contents: source) { path in
+            let outputPath = NSTemporaryDirectory() + "invalid_string_\(UUID().uuidString).kir"
+            let options = CompilerOptions(
+                moduleName: "Test",
+                inputs: [path],
+                outputPath: outputPath,
+                emit: .kirDump,
+                target: defaultTargetTriple(),
+                includeStdlib: false
+            )
+            let result = CompilerDriver().runForTesting(options: options)
+
+            #expect(result.exitCode == 1)
+            #expect(result.diagnostics.contains { $0.code == "KSWIFTK-LEX-0004" && $0.severity == .error })
+            #expect(!FileManager.default.fileExists(atPath: outputPath))
+        }
+    }
+
     @Test
     func testRunFrontendDefaultStopsAfterParseError() {
         let path = NSTemporaryDirectory() + "frontend_parse_error_\(UUID().uuidString).kt"
