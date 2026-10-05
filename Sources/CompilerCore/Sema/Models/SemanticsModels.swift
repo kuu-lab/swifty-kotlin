@@ -750,6 +750,12 @@ public final class SymbolTable {
                 if isExtensionProperty { declaredExtensionProperties.insert(id) }
                 return id
             }
+            // When a classifier coexists with a factory, a duplicate classifier
+            // must reuse the classifier rather than the first (possibly callable) entry.
+            if isNominalType(kind) || kind == .typeAlias,
+               let matching = existingSymbols.first(where: { $0.kind == kind }) {
+                return matching.id
+            }
             return existing[0]
         }
         let id = appendNewSymbol(
@@ -864,6 +870,10 @@ public final class SymbolTable {
             return existingNonPackageKinds.allSatisfy {
                 isCallableLike($0) || isNominalType($0) || $0 == .typeAlias || $0 == .property
             }
+        }
+        // Classifiers and factory functions must coexist in either registration order.
+        if isNominalType(kind) || kind == .typeAlias {
+            return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
         }
         guard isOverloadable(kind) else {
             return false
