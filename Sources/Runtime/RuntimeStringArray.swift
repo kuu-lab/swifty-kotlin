@@ -1619,6 +1619,50 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     return winner
 }
 
+// Metadata / memory representation: bound literals inspect the boxed value's classifier.
+@_cdecl("__kk_kclass_of")
+public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) -> Int {
+    if let typeID = runtimeObjectTypeID(rawValue: value) {
+        let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+        return __kk_kclass_create(Int(truncatingIfNeeded: token), 0)
+    }
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value),
+       runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }) {
+        let base: Int64?
+        if let box = tryCast(ptr, to: RuntimeIntBox.self) {
+            if let enumID = box.enumClassID {
+                let token = (enumID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+                    | RuntimeTypeTokenEncoding.nominalBase
+                return __kk_kclass_create(Int(truncatingIfNeeded: token), 0)
+            }
+            base = box.primitiveTypeBase
+        } else if tryCast(ptr, to: RuntimeStringBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.stringBase
+        } else if tryCast(ptr, to: RuntimeLongBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.longBase
+        } else if tryCast(ptr, to: RuntimeULongBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.ulongBase
+        } else if tryCast(ptr, to: RuntimeDoubleBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.doubleBase
+        } else if tryCast(ptr, to: RuntimeFloatBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.floatBase
+        } else if tryCast(ptr, to: RuntimeCharBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.charBase
+        } else if tryCast(ptr, to: RuntimeBoolBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.booleanBase
+        } else if tryCast(ptr, to: RuntimeUnitBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.unitBase
+        } else {
+            base = nil
+        }
+        if let base {
+            return __kk_kclass_create(Int(base), 0)
+        }
+    }
+    return __kk_kclass_create(fallbackToken, nameHint)
+}
+
 // MARK: - KSP-496: KClass-handle-based simpleName / qualifiedName bridges
 //
 // Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
@@ -1633,6 +1677,9 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
     }
+    if let metadata = box.metadata {
+        return runtimeMakeStringRaw(metadata.simpleName)
+    }
     return __kk_type_token_simple_name(box.typeToken, box.nameHint)
 }
 
@@ -1640,6 +1687,9 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
 public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
+    }
+    if let metadata = box.metadata {
+        return runtimeMakeStringRaw(metadata.qualifiedName)
     }
     return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
 }

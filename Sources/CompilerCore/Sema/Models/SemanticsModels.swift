@@ -1649,6 +1649,7 @@ public final class BindingTable {
     /// `T` refers to.  Used by KIR lowering to emit the correct type token
     /// and name hint for `T::class.simpleName` / `.qualifiedName`.
     public private(set) var classRefTargetTypes: [ExprID: TypeID] = [:]
+    public private(set) var boundClassRefExprs: Set<ExprID> = []
     /// Maps expression IDs to their compile-time constant values when the
     /// expression references a `const val` property.  This allows downstream
     /// passes (KIR lowering, codegen) to fold constant references without
@@ -2075,6 +2076,10 @@ public final class BindingTable {
 
     public func classRefTargetType(for expr: ExprID) -> TypeID? {
         classRefTargetTypes[expr]
+    }
+
+    public func bindBoundClassRef(_ expr: ExprID) {
+        boundClassRefExprs.insert(expr)
     }
 
     public func exprType(for expr: ExprID) -> TypeID? {

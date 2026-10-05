@@ -343,6 +343,7 @@ extension CallLowerer {
         // CallLowerer.kclassMembers for why.
         if case let .callableRef(_, refMember, _) = ast.arena.expr(receiverExpr),
            refMember == KnownCompilerNames(interner: interner).className,
+           !sema.bindings.boundClassRefExprs.contains(receiverExpr),
            let classRefTargetType = sema.bindings.classRefTargetType(for: receiverExpr)
         {
             let callee = interner.resolve(calleeName)
