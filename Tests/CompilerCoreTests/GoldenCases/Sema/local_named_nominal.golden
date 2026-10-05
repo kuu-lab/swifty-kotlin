@@ -1,5 +1,5 @@
 symbol fq=__local_0.l[kind=local;type=__localdecl_0.Local;origin=fixture] kind=local vis=private flags=_ type=__localdecl_0.Local
-symbol fq=__localdecl_0.Local.<init>.v[kind=vparam;type=Int;origin=fixture] kind=valueParameter vis=private flags=synthetic type=Int
+symbol fq=__localdecl_0.Local.<init>.$0.v[kind=vparam;type=Int;origin=fixture] kind=valueParameter vis=private flags=synthetic type=Int
 symbol fq=__localdecl_0.Local.<init>[kind=ctor;recv=__localdecl_0.Local;params=Int;ret=__localdecl_0.Local;names=[v];origin=fixture] kind=constructor vis=public flags=synthetic sig=recv=__localdecl_0.Local params=[Int] ret=__localdecl_0.Local
 symbol fq=__localdecl_0.Local.v[kind=prop;type=Int;origin=fixture] kind=property vis=public flags=synthetic type=Int
 symbol fq=__localdecl_0.Local[kind=class;origin=fixture] kind=class vis=private flags=synthetic

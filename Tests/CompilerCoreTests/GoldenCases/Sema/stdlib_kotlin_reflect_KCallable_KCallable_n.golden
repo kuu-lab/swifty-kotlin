@@ -48,7 +48,7 @@ expr e@19:78 name(null) type=Nothing?
 expr e@19:54#2 binary(equal) lhs=e@19:54#1 rhs=e@19:78 type=Boolean
 expr e@22:34 callableRef recv=_ member=answer type=() -> String ref=answer[kind=fun;params=;ret=String;origin=fixture]
 expr e@22:5 localDecl function mutable=0 type=KFunction<*> init=e@22:34 type=Unit ref=__local_2.function[kind=local;type=kotlin.reflect.KFunction<*>;origin=fixture]
-expr e@23:34 name(Sample) type=Any ref=Sample[kind=class;origin=fixture]
+expr e@23:34 name(Sample) type=Sample ref=Sample[kind=class;origin=fixture]
 expr e@23:34#1 callableRef recv=e@23:34 member=value type=kotlin.reflect.KProperty1<Sample, Int> ref=Sample.value[kind=prop;type=Int;origin=fixture]
 expr e@23:5 localDecl property mutable=0 type=KProperty<*> init=e@23:34#1 type=Unit ref=__local_3.property[kind=local;type=kotlin.reflect.KProperty<*>;origin=fixture]
 expr e@24:18 name(function) type=kotlin.reflect.KFunction<*> ref=__local_2.function[kind=local;type=kotlin.reflect.KFunction<*>;origin=fixture]

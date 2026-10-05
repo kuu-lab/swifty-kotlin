@@ -839,12 +839,10 @@ extension DataEnumSealedSynthesisPass {
                     thrownResult: nil
                 ))
             } else {
-                let nullOutThrown = module.arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                body.append(.constValue(result: nullOutThrown, value: .null))
                 body.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_abort_unreachable"),
-                    arguments: [nullOutThrown],
+                    arguments: [],
                     result: propValue,
                     canThrow: false,
                     thrownResult: nil
@@ -1185,12 +1183,10 @@ extension DataEnumSealedSynthesisPass {
                         thrownResult: nil
                     ))
                 } else {
-                    let nullOutThrown = module.arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                    body.append(.constValue(result: nullOutThrown, value: .null))
                     body.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_abort_unreachable"),
-                        arguments: [nullOutThrown],
+                        arguments: [],
                         result: selfProp,
                         canThrow: false,
                         thrownResult: nil
@@ -1198,7 +1194,7 @@ extension DataEnumSealedSynthesisPass {
                     body.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_abort_unreachable"),
-                        arguments: [nullOutThrown],
+                        arguments: [],
                         result: otherProp,
                         canThrow: false,
                         thrownResult: nil

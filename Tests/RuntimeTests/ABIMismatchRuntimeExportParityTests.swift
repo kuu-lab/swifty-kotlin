@@ -59,6 +59,18 @@ struct ABIMismatchRuntimeExportParityTests {
     }
 
     @Test
+    func testSchedulerClockUsesWordABI() throws {
+        let specs = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
+        for name in ["kk_test_scope_current_time", "kk_test_scheduler_current_time"] {
+            let spec = try #require(specs[name])
+            #expect(spec.returnType == .intptr)
+            #expect(spec.parameters.map(\.type) == [.intptr])
+        }
+        let advance = try #require(specs["kk_test_scheduler_advance_time_by"])
+        #expect(advance.parameters.map(\.type) == [.intptr, .intptr])
+    }
+
+    @Test
     func testMigratedBridgeExportsPreserveThrowingChannelContract() throws {
         let expected: [(name: String, isThrowing: Bool)] = [
             ("kk_duration_parse", true),

@@ -18,7 +18,7 @@ expr e@9:5 name(property) type=kotlin.reflect.KProperty1<golden.sema.read.$1.T, 
 expr e@9:23 name(receiver) type=golden.sema.read.$1.T ref=golden.sema.read.$1.receiver[kind=vparam;origin=fixture]
 expr e@9:33 name(metadata) type=kotlin.reflect.KProperty<*> ref=golden.sema.read.$1.metadata[kind=vparam;origin=fixture]
 expr e@9:5#1 memberCall recv=e@9:5 callee=getValue args=[_:e@9:23,_:e@9:33] type=golden.sema.read.$1.V call=kotlin.getValue[kind=fun;recv=kotlin.reflect.KProperty1<T0,T1>;params=T0,kotlin.reflect.KProperty<*>;ret=T1;gen=2;names=[thisRef,property]] targs=[golden.sema.read.$1.T,golden.sema.read.$1.V]
-expr e@12:48 name(Person) type=Any ref=golden.sema.Person[kind=class;origin=fixture]
+expr e@12:48 name(Person) type=golden.sema.Person ref=golden.sema.Person[kind=class;origin=fixture]
 expr e@12:48#1 callableRef recv=e@12:48 member=name type=kotlin.reflect.KProperty1<golden.sema.Person, String> ref=golden.sema.Person.name[kind=prop;type=String;origin=fixture]
 expr e@12:5 localDecl property mutable=0 type=KProperty1<Person,String> init=e@12:48#1 type=Unit ref=__local_0.property[kind=local;type=kotlin.reflect.KProperty1<golden.sema.Person,String>;origin=fixture]
 expr e@13:18 name(property) type=kotlin.reflect.KProperty1<golden.sema.Person, String> ref=__local_0.property[kind=local;type=kotlin.reflect.KProperty1<golden.sema.Person,String>;origin=fixture]

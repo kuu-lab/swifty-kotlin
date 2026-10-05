@@ -628,13 +628,15 @@ Kotlin heap の通常の Continuation は Swift object として cast せず同�
 `kk_*` → `__kk_*` は 1 対 1 の降格であり ABI 関数総数は増えない。
 `RuntimeABISpec.specVersion` は登録変更から自動再計算される。
 
-これは公開 API の source 化であり、Kotlin/Native の interception 機構全体の移植ではない。
-既存 `RuntimeContinuationState` には `ContinuationImpl` の context interceptor lookup・
-intercepted result cache・release lifecycle がなく、この移行でもその制約は維持する。
+KUU-1164 で生成 state に completion context の保持、source-defined interceptor の
+interface dispatch、intercepted result cache、完了時の release を追加した。
+private bridge は Kotlin source の `ContinuationInterceptor.Key` を受け取り、通常の
+source Continuation の context は読まず、生成 state のみ context lookup を行う。
+native dispatcher wrapper の resume は元の生成 state に戻る。
 Swift `KKContinuation` の dispatcher wrapper は wrapper 自身の再 interception は identity だが、
 元 continuation に対する複数回の呼び出しの cache は持たない。
-生成 continuation の custom `ContinuationInterceptor` 対応には state/context/lifecycle の整備が必要
-（再現・整備範囲: [KUU-1164](https://linear.app/kuu/issue/KUU-1164/生成-coroutine-の-intercepted-が-completion-context-の)）。
+生成 continuation の custom `ContinuationInterceptor` は
+[KUU-1164](https://linear.app/kuu/issue/KUU-1164/生成-coroutine-の-intercepted-が-completion-context-の) で対応済み。
 通常の source Continuation の identity、context getter 非評価、空 context の生成 continuation、
 既存 native dispatcher の resume は Sema/source+artifact 実行テストと kotlinc diff で固定する。
 

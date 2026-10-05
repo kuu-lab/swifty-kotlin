@@ -297,12 +297,10 @@ extension KIRLoweringDriver {
                     isSuperCall: false
                 ))
             } else {
-                let nullOutThrown = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                body.append(.constValue(result: nullOutThrown, value: .null))
                 body.append(.call(
                     symbol: nil,
                     callee: shared.interner.intern("kk_abort_unreachable"),
-                    arguments: [nullOutThrown],
+                    arguments: [],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil,
@@ -565,12 +563,10 @@ extension KIRLoweringDriver {
                 isSuperCall: false
             ))
         } else {
-            let nullOutThrown = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-            body.append(.constValue(result: nullOutThrown, value: .null))
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_abort_unreachable"),
-                arguments: [nullOutThrown],
+                arguments: [],
                 result: nil,
                 canThrow: false,
                 thrownResult: nil,
@@ -1167,13 +1163,11 @@ extension KIRLoweringDriver {
                     body.append(.label(nextLabel))
                 }
 
-                let nullOutThrown = arena.appendExpr(.null, type: nullableAnyType)
-                body.append(.constValue(result: nullOutThrown, value: .null))
                 let fallbackResult = arena.appendTemporary(type: propertyType)
                 body.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_abort_unreachable"),
-                    arguments: [nullOutThrown],
+                    arguments: [],
                     result: fallbackResult,
                     canThrow: false,
                     thrownResult: nil,
