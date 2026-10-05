@@ -11,8 +11,8 @@ func runtimeSequenceBuilderBox(from rawValue: Int) -> RuntimeSequenceBuilderBox?
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
 
-/// Runtime box that materializes a `RuntimeSequenceBox` on first use and then
-/// serves elements one-by-one. This lets source-implemented `Sequence<T>` and
+/// Runtime box that pulls factories on demand and materializes other sources
+/// on first use. This lets source-implemented `Sequence<T>` and
 /// `Iterator<T>` wrappers chain with runtime-backed lazy sequences through the
 /// normal `Sequence`/`Iterator` itable dispatch path.
 final class RuntimeSequenceIteratorBox {
@@ -35,6 +35,11 @@ final class RuntimeSequenceIteratorBox {
                 generatorCursor = RuntimeSequenceGeneratorIteratorCursor(
                     seq: seq,
                     source: .nullable(fnPtr: fnPtr, closureRaw: closureRaw)
+                )
+            case let .lazyBuilder(coroutine):
+                generatorCursor = RuntimeSequenceGeneratorIteratorCursor(
+                    seq: seq,
+                    source: .builder(coroutine.freshIterator())
                 )
             default:
                 break
@@ -77,6 +82,7 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
     fileprivate enum Source {
         case seeded(seed: Int, fnPtr: Int, closureRaw: Int)
         case nullable(fnPtr: Int, closureRaw: Int)
+        case builder(RuntimeSequenceCoroutine)
     }
 
     private let seq: RuntimeSequenceBox
@@ -85,7 +91,6 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
     private let state = SequenceTraversalState()
     private var seededPending = true
     private var current: Int?
-    private var generatedCount = 0
     private var bufferedElements: [Int] = []
     private var bufferedIndex = 0
     private var exhausted = false
@@ -154,14 +159,18 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
 
     private func nextSourceElement(outThrown: UnsafeMutablePointer<Int>?) -> Int? {
         switch source {
+        case let .builder(coroutine):
+            switch coroutine.nextElement(outThrown: outThrown) {
+            case let .value(value): return value
+            case .done: return nil
+            }
         case let .seeded(seed, fnPtr, closureRaw):
             if seededPending {
                 seededPending = false
                 current = seed
-                generatedCount = 1
                 return seed
             }
-            guard generatedCount < kSequenceGeneratorHardLimit, let previous = current else {
+            guard let previous = current else {
                 exhausted = true
                 return nil
             }
@@ -178,13 +187,8 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
                 return nil
             }
             current = nextValue
-            generatedCount += 1
             return nextValue
         case let .nullable(fnPtr, closureRaw):
-            guard generatedCount < kSequenceGeneratorHardLimit else {
-                exhausted = true
-                return nil
-            }
             let nextFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
             var thrown = 0
             let nextValue = nextFn(closureRaw, &thrown)
@@ -197,7 +201,6 @@ fileprivate final class RuntimeSequenceGeneratorIteratorCursor {
                 exhausted = true
                 return nil
             }
-            generatedCount += 1
             return nextValue
         }
     }
@@ -459,16 +462,7 @@ final class SequenceTraversalState {
 
 // MARK: - Shared constants
 
-/// Hard limit for generator-backed sequence traversal.
-///
-/// Generator sequences (created via `generateSequence`) are potentially infinite,
-/// so we cap evaluation at this many elements to prevent unbounded computation.
-/// Terminal operations like `last()` and `count()` that must consume the entire
-/// sequence will report a `kSequenceGeneratorLimitReached` error via `outThrown`
-/// when this limit is hit.
-///
-/// This limit only applies to generator steps; source-backed sequences (from lists,
-/// arrays, or `sequenceOf`) are not affected.
+/// Historical value used by retained terminal diagnostics; traversal is no longer capped.
 private let kSequenceGeneratorHardLimit = 100_000
 
 /// Error message for `first()` / `last()` on an empty sequence.
@@ -1115,11 +1109,11 @@ func runtimeTraverseSequenceWithState(
             // Request one element at a time from the coroutine so that
             // short-circuiting operations (take, first, etc.) only
             // compute the elements they actually need.
-            coroutine.resetIteration()
+            let coroutine = coroutine.freshIterator()
             var done = false
             while true {
                 if state.stop || done { break }
-                let next = coroutine.nextElement()
+                let next = coroutine.nextElement(outThrown: outThrown)
                 switch next {
                 case let .value(element):
                     emit(element)
@@ -1163,8 +1157,7 @@ func runtimeTraverseSequenceWithState(
             emit(current)
             if state.stop { return }
 
-            var generatedCount = 1
-            while generatedCount < kSequenceGeneratorHardLimit, !state.stop {
+            while !state.stop {
                 var thrown = 0
                 let next = nextFn(closureRaw, current, &thrown)
                 if thrown != 0 {
@@ -1183,11 +1176,6 @@ func runtimeTraverseSequenceWithState(
                 if next == runtimeNullSentinelInt { break }
                 emit(next)
                 current = next
-                generatedCount += 1
-            }
-            if generatedCount >= kSequenceGeneratorHardLimit, !state.stop {
-                state.limitReached = true
-                return
             }
             if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
                 runtimeSequenceFlushChunkedTransforms(
@@ -1201,8 +1189,7 @@ func runtimeTraverseSequenceWithState(
         case let .nullableGenerator(fnPtr, closureRaw):
             // STDLIB-SEQ-002: 1-arg form — calls no-arg nextFunction repeatedly until null.
             let noArgFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-            var generatedCount = 0
-            while generatedCount < kSequenceGeneratorHardLimit, !state.stop {
+            while !state.stop {
                 var thrown = 0
                 let next = noArgFn(closureRaw, &thrown)
                 if thrown != 0 {
@@ -1215,11 +1202,6 @@ func runtimeTraverseSequenceWithState(
                 // don't strip that here.
                 if next == runtimeNullSentinelInt { break }
                 emit(next)
-                generatedCount += 1
-            }
-            if generatedCount >= kSequenceGeneratorHardLimit, !state.stop {
-                state.limitReached = true
-                return
             }
             if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
                 runtimeSequenceFlushChunkedTransforms(
@@ -1282,7 +1264,7 @@ func runtimeTraverseSequenceSource(
 /// Extracts source elements from a sequence step, if applicable.
 /// `.stringSource` is NOT extracted here — it is handled lazily in evaluateSequence
 /// and runtimeTraverseSequence to avoid eager materialization.
-private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
+private func extractSourceElements(from step: SequenceStepKind, outThrown: UnsafeMutablePointer<Int>? = nil) -> [Int]? {
     switch step {
     case let .source(sourceElements):
         return sourceElements
@@ -1292,7 +1274,12 @@ private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
         return builderElements
     case let .lazyBuilder(coroutine):
         // STDLIB-563: Materialize the lazy coroutine into an element array.
-        return coroutine.materializeAll()
+        let iterator = coroutine.freshIterator()
+        var elements: [Int] = []
+        while case let .value(element) = iterator.nextElement(outThrown: outThrown) {
+            elements.append(element)
+        }
+        return elements
     case let .pullSource(produce):
         var elements: [Int] = []
         while let element = produce() {
@@ -1548,7 +1535,7 @@ private func evaluateSequence(
     // Find the source elements
     var elements: [Int] = []
     for step in seq.steps {
-        if let source = extractSourceElements(from: step) {
+        if let source = extractSourceElements(from: step, outThrown: outThrown) {
             elements = source
             break
         }
@@ -1569,10 +1556,13 @@ private func evaluateSequence(
             // .generator case for why the closure's boxed return must survive.
             var current = seed
             var generated: [Int] = [current]
-            while generated.count < kSequenceGeneratorHardLimit {
+            while true {
                 var thrown = 0
                 let next = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: current, outThrown: &thrown)
-                if thrown != 0 { break }
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    break
+                }
                 if next == runtimeNullSentinelInt { break }
                 generated.append(next)
                 current = next
@@ -1586,10 +1576,13 @@ private func evaluateSequence(
             // .nullableGenerator case for why the closure's boxed return must survive.
             let noArgFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
             var generated: [Int] = []
-            while generated.count < kSequenceGeneratorHardLimit {
+            while true {
                 var thrown = 0
                 let next = noArgFn(closureRaw, &thrown)
-                if thrown != 0 { break }
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    break
+                }
                 if next == runtimeNullSentinelInt { break }
                 generated.append(next)
             }
@@ -1726,7 +1719,7 @@ private func evaluateSequenceValues(
         case .generator, .nullableGenerator:
             return evaluateSequence(seq, outThrown: outThrown, markConsumption: false).map { RuntimeValue(raw: $0) }
         default:
-            if let source = extractSourceElements(from: step) {
+            if let source = extractSourceElements(from: step, outThrown: outThrown) {
                 return source.map { RuntimeValue(raw: $0) }
             }
         }
@@ -3889,7 +3882,11 @@ public func kk_sequence_box_iterator(_ seqRaw: Int, _ outThrown: UnsafeMutablePo
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         return 0
     }
-    let iterator = RuntimeSequenceIteratorBox(seq: seq)
+    guard runtimeSequenceBeginTraversal(seq, outThrown: outThrown) else {
+        return 0
+    }
+    let iteratorSource = seq.constrainOnceState == nil ? seq : RuntimeSequenceBox(steps: seq.steps)
+    let iterator = RuntimeSequenceIteratorBox(seq: iteratorSource)
     return registerRuntimeObject(iterator)
 }
 

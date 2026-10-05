@@ -626,9 +626,11 @@ extension CallLowerer {
             else {
                 continue
             }
-            // Same-module inline expansion can consume raw symbols directly,
-            // but tagged callable references still cross the erased invoke ABI.
+            // Ordinary same-module inline callbacks consume raw symbols directly.
+            // Restricted callbacks may escape; tagged references use the erased ABI.
             if isInline, !isImported,
+               signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex),
+               signature.valueParameterAllowsNonLocalReturn[parameterIndex],
                case .symbolRef? = arena.expr(arguments[finalArgIndex])
             {
                 continue
@@ -680,13 +682,11 @@ extension CallLowerer {
             default:
                 continue
             }
-            // Keep eligible inline arguments visible to imported expansion,
-            // including normal returns and nested non-local returns.
+            // Non-local returns must expand into the caller. Other callbacks
+            // can escape through a factory's object or closure.
             if isInline,
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
-                   || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
-                   || arena.function(for: callable.symbol)?.isInlineOnly == true)
+               arena.function(for: callable.symbol)?.isInlineOnly == true
             {
                 continue
             }
@@ -909,6 +909,10 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             return (fnPtr, closureRaw)
+        }
+        if let callableInfo {
+            fnPtr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
+            instructions.append(.constValue(result: fnPtr, value: .symbolRef(callableInfo.symbol)))
         }
         if let originalCallableInfo = callableInfo,
            let nextFunctionType = sema.bindings.exprTypes[argExprID],
