@@ -351,7 +351,12 @@ final class ExprTypeChecker {
                         defaultType: intType,
                         literalValue: foldedValue
                     )
-                    _ = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: nil)
+                    // Unary plus reuses the operand in KIR, so its binding must
+                    // carry the contextual type used for boxing the result.
+                    _ = driver.inferExpr(
+                        operandID, ctx: ctx, locals: &locals,
+                        expectedType: op == .unaryPlus ? type : nil
+                    )
                 } else {
                     let operandType = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: expectedType)
                     if let overloadedType = inferUnaryOperatorExpr(
