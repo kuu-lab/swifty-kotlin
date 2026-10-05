@@ -2,6 +2,25 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testProduceRetainsCapturedFlow(useArtifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.channels.*
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                val source = flowOf(4)
+                val channel = produce<Int> { source.collect { send(it) } }
+                println(channel.receive())
+            }
+            """,
+            expectedOutput: "4\n",
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testFlowSuspendCollectorFailureReachesCatchOutsideRunBlockingHelper(useArtifact: Bool) throws {
         try compileAndRunKotlin(
             """
