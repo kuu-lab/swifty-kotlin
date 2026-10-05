@@ -767,7 +767,7 @@ enum ParserBoundaryPolicy {
     }
 
     /// Tokens that can only continue an expression when they begin a line:
-    /// `.member`, `?.member`, `?: fallback`, `&&`, `||`, and the `else` /
+    /// `.member`, `?.member`, `?: fallback`, `&&`, `||`, `as`, and the `else` /
     /// `catch` / `finally` continuation keywords never start a statement, so a
     /// newline before one of them keeps the current declaration going
     /// (`fun f() =\n    xs\n        .map { ... }`).
@@ -795,7 +795,6 @@ enum ParserBoundaryPolicy {
         }
         return true
     }
-
 }
 
 extension Token {

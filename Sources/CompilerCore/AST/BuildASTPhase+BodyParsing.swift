@@ -197,7 +197,7 @@ extension BuildASTPhase {
         var sawDeclaration = false
         for token in tokens {
             if depth.isBracketBraceParenTopLevel {
-                if token.kind == .symbol(.assign) { return false }
+                if token.kind == .symbol(.assign) || token.kind == .symbol(.lBrace) { return false }
                 switch token.kind {
                 case .keyword(.fun), .keyword(.val), .keyword(.var):
                     sawDeclaration = true

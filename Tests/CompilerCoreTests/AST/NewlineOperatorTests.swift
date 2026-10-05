@@ -32,7 +32,7 @@ struct NewlineOperatorTests {
         }
         """)
         try runFrontend(context)
-        #expect(!context.diagnostics.hasError)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics.map(\.message))")
         let ast = try #require(context.ast)
         let function = try #require(ast.arena.declarations().compactMap { declaration -> FunDecl? in
             guard case let .funDecl(function) = declaration else { return nil }
@@ -83,7 +83,7 @@ struct NewlineOperatorTests {
         for header in ["fun f()", "fun f(): Int", "val n: Int", "var n", "fun f(x: Int = 1): Int"] {
             #expect(BuildASTPhase.isContinuationBoundary(previousTail: lex(header).tokens.dropLast(), nextHead: next))
         }
-        for expression in ["n", "val n = 1", "fun f() = 1"] {
+        for expression in ["n", "val n = 1", "fun f() = 1", "fun f() {}"] {
             #expect(!BuildASTPhase.isContinuationBoundary(previousTail: lex(expression).tokens.dropLast(), nextHead: next))
         }
     }

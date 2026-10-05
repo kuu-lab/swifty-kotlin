@@ -117,9 +117,18 @@ extension BuildASTPhase {
         func parse() -> ExprID? {
             let expression = parseAssignmentOrExpression()
             if expression == nil, let first = tokens.first {
-                diagnostics?.error(
-                    "KSWIFTK-PARSE-0001", "Expected expression.", range: first.range
-                )
+                switch first.kind {
+                case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
+                     .symbol(.equalEqual), .symbol(.bangEqual), .symbol(.tripleEqual), .symbol(.notTripleEqual),
+                     .symbol(.lessThan), .symbol(.greaterThan), .symbol(.lessOrEqual), .symbol(.greaterOrEqual),
+                     .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign), .symbol(.starAssign),
+                     .symbol(.slashAssign), .symbol(.percentAssign), .symbol(.dotDot), .symbol(.dotDotLt),
+                     .symbol(.arrow), .symbol(.plusPlus), .symbol(.minusMinus), .symbol(.bang),
+                     .keyword(.in), .keyword(.is), .keyword(.as):
+                    diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: first.range)
+                default:
+                    break
+                }
             }
             return expression
         }
