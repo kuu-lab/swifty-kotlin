@@ -2,6 +2,7 @@ import Foundation
 
 struct ConstantCollector {
     var resolvedConstant: ((ExprID) -> KIRExprKind?)? = nil
+    var canFoldMemberCall: ((ExprID) -> Bool)? = nil
 
     func collectPropertyConstantInitializers(
         ast: ASTModule,
@@ -201,7 +202,7 @@ struct ConstantCollector {
         case let .binary(op, lhs, rhs, _):
             return literalConstantBinaryExpr(op: op, lhs: lhs, rhs: rhs, ast: ast, interner: interner)
         case let .memberCall(receiver, callee, _, args, _):
-            guard let interner else { return nil }
+            guard let interner, canFoldMemberCall?(exprID) != false else { return nil }
             return literalConstantMemberCall(receiver: receiver, callee: callee, args: args, ast: ast, interner: interner)
         case let .stringTemplate(parts, _):
             return literalConstantStringTemplate(parts, ast: ast)
@@ -274,6 +275,7 @@ struct ConstantCollector {
         }
         let name = interner.resolve(callee)
         if args.count == 1,
+           canFoldMemberCall != nil,
            let op = constantBitwiseOperator(name),
            let argument = literalConstantExpr(args[0].expr, ast: ast, interner: interner)
         {

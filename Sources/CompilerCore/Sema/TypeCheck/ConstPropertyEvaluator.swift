@@ -67,9 +67,10 @@ final class ConstPropertyEvaluator {
               evaluating.insert(symbol).inserted
         else { return nil }
         defer { evaluating.remove(symbol) }
-        let collector = ConstantCollector(resolvedConstant: { [self] expr in
-            resolvedConstant(for: expr)
-        })
+        let collector = ConstantCollector(
+            resolvedConstant: { [self] expr in resolvedConstant(for: expr) },
+            canFoldMemberCall: { [self] expr in canFoldMemberCall(expr) }
+        )
         guard let value = collector.literalConstantExpr(initializer, ast: ast, interner: interner) else {
             failed.insert(symbol)
             return nil
@@ -99,6 +100,18 @@ final class ConstPropertyEvaluator {
             return ConstantCollector().convertConstant(.intLiteral(value), to: type, types: sema.types)
         }
         return nil
+    }
+
+    private func canFoldMemberCall(_ expr: ExprID) -> Bool {
+        guard case let .memberCall(receiver, callee, _, args, _) = ast.arena.expr(expr) else { return false }
+        let name = interner.resolve(callee)
+        guard ["and", "or", "xor", "shl", "shr", "ushr"].contains(name) else { return true }
+        guard args.count == 1,
+              let receiverType = sema.bindings.exprType(for: receiver),
+              receiverType == sema.types.intType || receiverType == sema.types.longType,
+              let argumentType = sema.bindings.exprType(for: args[0].expr)
+        else { return false }
+        return argumentType == (["shl", "shr", "ushr"].contains(name) ? sema.types.intType : receiverType)
     }
 
     // Kotlin's primitive companion constants remain compile-time constants

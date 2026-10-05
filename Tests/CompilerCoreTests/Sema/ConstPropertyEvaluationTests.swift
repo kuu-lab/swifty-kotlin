@@ -83,17 +83,22 @@ struct ConstPropertyEvaluationTests {
         }
         fun compute(): Int = 65
         infix fun Int.custom(other: Int): Int = this + other
+        infix fun Byte.ushr(other: Int): Int = 999
+        infix fun Int.shl(other: Byte): Int = 999
+        const val SMALL: Byte = 1
         const val PLAIN: Int = Source.plain
         const val COMPUTED: Int = Source.computed
         const val CALL: Int = compute()
         const val INFIX: Int = 1 custom 2
+        const val CUSTOM_SHIFT: Int = SMALL ushr 1
+        const val CUSTOM_ARGUMENT: Int = 1 shl SMALL
         const val ZERO: Int = 1 / 0
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0083" }
-        #expect(errors.count == 7, "Expected all nonconstant initializers to be rejected: \(errors)")
+        #expect(errors.count == 9, "Expected all nonconstant initializers to be rejected: \(errors)")
         let sema = try #require(ctx.sema)
-        for name in ["PLAIN", "COMPUTED", "CALL", "INFIX", "ZERO"] {
+        for name in ["PLAIN", "COMPUTED", "CALL", "INFIX", "CUSTOM_SHIFT", "CUSTOM_ARGUMENT", "ZERO"] {
             let symbol = try #require(sema.symbols.lookup(fqName: ["invalidConstants", name].map { ctx.interner.intern($0) }))
             #expect(sema.symbols.constValueExprKind(for: symbol) == nil)
         }
