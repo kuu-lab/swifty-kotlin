@@ -5,6 +5,34 @@ import Testing
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeRangeValueSemanticsTests {
     @Test
+    func floatingPointRangeGettersPreserveEndpointBits() {
+        let doubleEndpoints: [(Double, Double)] = [
+            (-1.25, 2.5), (1.0, 0.0), (-0.0, 0.0),
+            (-.infinity, .infinity), (.nan, 1.0), (0.0, .nan),
+        ]
+        for (start, end) in doubleEndpoints {
+            let startBits = Int(bitPattern: UInt(start.bitPattern))
+            let endBits = Int(bitPattern: UInt(end.bitPattern))
+            let range = __kk_double_rangeTo(startBits, endBits)
+            #expect(__kk_double_range_start(range) == startBits)
+            #expect(__kk_double_range_endInclusive(range) == endBits)
+            #expect(__kk_double_range_isEmpty(range) == (start <= end ? 0 : 1))
+        }
+        let floatEndpoints: [(Float, Float)] = [
+            (-1.25, 2.5), (1.0, 0.0), (-0.0, 0.0),
+            (-.infinity, .infinity), (.nan, 1.0), (0.0, .nan),
+        ]
+        for (start, end) in floatEndpoints {
+            let startBits = Int(Int32(bitPattern: start.bitPattern))
+            let endBits = Int(Int32(bitPattern: end.bitPattern))
+            let range = __kk_float_rangeTo(startBits, endBits)
+            #expect(__kk_float_range_start(range) == startBits)
+            #expect(__kk_float_range_endInclusive(range) == endBits)
+            #expect(__kk_float_range_isEmpty(range) == (start <= end ? 0 : 1))
+        }
+    }
+
+    @Test
     func rangesCompareByValueAndEmptyRangesCompareEqual() {
         let range = kk_op_rangeTo(1, 3)
         let sameRange = kk_op_rangeTo(1, 3)

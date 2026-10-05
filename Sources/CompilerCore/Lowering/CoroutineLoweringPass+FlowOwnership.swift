@@ -177,7 +177,7 @@ extension CoroutineLoweringPass {
             case let .virtualCall(symbol, callee, receiver, arguments, _, _, _, _):
                 escaping = isFlowBorrowingCall(symbol, callee, ctx: ctx) ? [] : Set([receiver] + arguments)
             case let .storeGlobal(value, _), let .returnValue(value), let .rethrow(value): escaping = [value]
-            case let .nonLocalReturn(value): escaping = Set(value.map { [$0] } ?? [])
+            case let .nonLocalReturn(value, _): escaping = Set(value.map { [$0] } ?? [])
             case let .unary(_, operand, _), let .nullAssert(operand, _): escaping = [operand]
             case let .binary(_, lhs, rhs, _), let .returnIfEqual(lhs, rhs): escaping = [lhs, rhs]
             default: escaping = []

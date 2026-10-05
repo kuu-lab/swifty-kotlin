@@ -1144,7 +1144,7 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.arguments.count >= 2 else {
+        guard call.arguments.count == 2 else {
             return nil
         }
         let channelExpr = call.arguments[0]
@@ -1157,7 +1157,12 @@ extension CoroutineLoweringPass {
               let loweredTarget = rewrite.loweredBySymbol[suspendSymbol],
               let thunk = rewrite.launcherThunkByOriginalSymbol[suspendSymbol]
         else {
-            return nil
+            return rewriteProduceLaunchFunctionValueCall(
+                call: call,
+                channelExpr: channelExpr,
+                suspendArgExpr: suspendArgExpr,
+                using: rewrite
+            )
         }
 
         guard isCoroutineLauncherMarkedBlock(suspendSymbol, using: rewrite) else {
@@ -1371,11 +1376,9 @@ extension CoroutineLoweringPass {
     /// The value's env slot is materialized here because the value itself
     /// crosses `block` as a bare fnPtr: its captures live only in the
     /// callable info registered for the argument expression. With callable
-    /// info, env packs the captures exactly like
-    /// `CallLowerer.splitCallableLambdaArgument` (0 → `0`, one → the raw
-    /// capture, several → a `kk_object_new(2+N, classID: 0)` box). Without
-    /// it the argument is an opaque (possibly boxed) value and the pair is
-    /// recovered at runtime via the `kk_function_value_*` accessors.
+    /// info, env packs every non-empty capture list in a
+    /// `kk_object_new(2+N, classID: 0)` box, preserving zero and nested closures.
+    /// Without it, the runtime resolves the opaque value's boxed or raw ABI.
     func rewriteProduceLaunchFunctionValueCall(
         call: CallRewriteInput,
         channelExpr: KIRExprID,
@@ -1383,19 +1386,17 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction] {
         let arena = rewrite.module.arena
-        let interner = rewrite.ctx.interner
         var instructions: [KIRInstruction] = []
 
         let entryExpr: KIRExprID
         let envExpr: KIRExprID
         if let callableInfo = arena.callableValueInfo(for: suspendArgExpr) {
-            entryExpr = suspendArgExpr
+            entryExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: rewrite.intType)
+            instructions.append(.constValue(result: entryExpr, value: .symbolRef(callableInfo.symbol)))
             switch callableInfo.captureArguments.count {
             case 0:
                 envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
                 instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
-            case 1:
-                envExpr = callableInfo.captureArguments[0]
             default:
                 envExpr = emitPackedCaptureEnvironment(
                     callableInfo.captureArguments,
@@ -1404,26 +1405,9 @@ extension CoroutineLoweringPass {
                 )
             }
         } else {
-            let fnPtrExpr = arena.appendTemporary(type: rewrite.intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_function_value_fn_ptr"),
-                arguments: [suspendArgExpr],
-                result: fnPtrExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            entryExpr = fnPtrExpr
-            let closureExpr = arena.appendTemporary(type: rewrite.intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_function_value_closure_raw"),
-                arguments: [suspendArgExpr],
-                result: closureExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            envExpr = closureExpr
+            entryExpr = suspendArgExpr
+            envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+            instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
         }
 
         instructions.append(

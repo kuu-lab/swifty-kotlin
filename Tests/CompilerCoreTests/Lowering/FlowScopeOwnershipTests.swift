@@ -66,7 +66,7 @@ struct FlowScopeOwnershipTests {
         #expect(execution.releases == 2)
     }
 
-    @Test(arguments: [Escape.returned, .global, .captured, .unknownCall])
+    @Test(arguments: [Escape.returned, .nonLocalReturned, .global, .captured, .unknownCall])
     func preservesEscapedHandles(escape: Escape) throws {
         let execution = try execute(iterations: 2, escape: escape)
         #expect(execution.collections == 2)
@@ -121,7 +121,7 @@ struct FlowScopeOwnershipTests {
         #expect(cleaned.instructions.count == body.instructions.count)
     }
 
-    enum Escape: CaseIterable { case returned, global, captured, unknownCall }
+    enum Escape: CaseIterable { case returned, nonLocalReturned, global, captured, unknownCall }
     private enum Exit { case normal, exceptional }
     private struct Execution {
         var collections = 0
@@ -179,6 +179,7 @@ struct FlowScopeOwnershipTests {
         if finalConsume { body.append(collect) }
         switch escape {
         case .returned: body.append(.returnValue(use))
+        case .nonLocalReturned: body.append(.nonLocalReturn(use, target: .function(SymbolID(rawValue: 1))))
         case .global: body.append(.storeGlobal(value: use, symbol: SymbolID(rawValue: 100)))
         case .captured:
             body.append(.call(symbol: nil, callee: interner.intern("kk_coroutine_launcher_arg_set"), arguments: [callback, zero, use], result: nil, canThrow: false, thrownResult: nil))
@@ -199,6 +200,9 @@ struct FlowScopeOwnershipTests {
             return Execution()
         }
         #expect(function.body.count == function.instructionLocations.count)
+        if escape == .nonLocalReturned {
+            #expect(function.body.contains(.nonLocalReturn(use, target: .function(SymbolID(rawValue: 1)))))
+        }
         let labels = Dictionary(uniqueKeysWithValues: function.body.enumerated().compactMap { index, instruction -> (Int32, Int)? in
             if case let .label(label) = instruction { return (label, index) }
             return nil

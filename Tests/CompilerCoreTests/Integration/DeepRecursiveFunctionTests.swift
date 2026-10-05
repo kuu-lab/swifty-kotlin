@@ -99,6 +99,40 @@ import Testing
     }
 
 
+    @Test func testCapturingReceiverFactoryPreservesErasedCallableABI() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val step = 3
+            val countDown = DeepRecursiveFunction<Int, Int> { n ->
+                if (n <= 0) 0 else callRecursive(n - step) + 1
+            }
+            println(countDown(9))
+        }
+        """)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let main = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "main"
+        })
+        let constructorArgs = try #require(main.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "__kk_deep_recursive_function_new" else { return nil }
+            return arguments
+        }.first)
+        let callable = try #require(constructorArgs.first)
+        guard case let .symbolRef(symbol)? = module.arena.expr(callable) else {
+            Issue.record("Expected the original receiver callable, not a boxed value")
+            return
+        }
+        let lambda = try #require(module.arena.function(for: symbol))
+        #expect(ctx.interner.resolve(lambda.name).hasPrefix("kk_lambda_"))
+        #expect(lambda.returnType == sema.types.anyType)
+        #expect(lambda.isSuspend)
+        #expect(constructorArgs.last.map { module.arena.expr($0) == .intLiteral(3) } == true)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
     @Test func testDeepRecursiveSymbolsExposeExpectedSignatures() throws {
         let (sema, interner) = try makeSema()
         let invokeFQName = ["kotlin", "DeepRecursiveFunction", "invoke"].map { interner.intern($0) }
