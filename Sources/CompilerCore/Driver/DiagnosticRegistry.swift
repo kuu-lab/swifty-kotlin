@@ -144,7 +144,7 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-LEX-0004",
             pass: "LEX",
             defaultSeverity: .error,
-            summary: "Invalid escape sequence in string."
+            summary: "Unescaped line break in string literal."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-LEX-0006",
