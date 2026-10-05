@@ -14,13 +14,11 @@ package kotlinx.coroutines.flow
 // bundled Kotlin source. MutableStateFlow keeps a single-element replay buffer
 // over a MutableList and exposes value / replayCache / collect / tryEmit / emit.
 
-public interface StateFlow<out T> {
+public interface StateFlow<out T> : SharedFlow<T> {
     public val value: T
-    public val replayCache: List<T>
-    public suspend fun collect(collector: suspend (T) -> Unit)
 }
 
-public class MutableStateFlow<T>(initialValue: T) : StateFlow<T> {
+public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, FlowCollector<T> {
     private var _value: T = initialValue
     private val _buffer: MutableList<T> = mutableListOf(initialValue)
 
@@ -41,7 +39,7 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T> {
         tryEmit(value)
     }
 
-    public suspend fun emit(value: T) {
+    override suspend fun emit(value: T) {
         tryEmit(value)
     }
 

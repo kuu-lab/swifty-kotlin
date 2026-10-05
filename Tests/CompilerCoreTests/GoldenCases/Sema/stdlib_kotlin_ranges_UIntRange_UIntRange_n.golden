@@ -7,7 +7,7 @@ expr e@2:17 name(ranges) type=kotlin.collections.List<kotlin.ranges.UIntRange> r
 expr e@2:17#1 memberCall recv=e@2:17 callee=first args=[] type=kotlin.ranges.UIntRange call=kotlin.collections.first[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=T0;gen=1] targs=[kotlin.ranges.UIntRange]
 expr e@2:5 localDecl range mutable=0 type=_ init=e@2:17#1 type=Unit ref=__local_0.range[kind=local;type=kotlin.ranges.UIntRange;origin=fixture]
 expr e@3:16 name(range) type=kotlin.ranges.UIntRange ref=__local_0.range[kind=local;type=kotlin.ranges.UIntRange;origin=fixture]
-expr e@3:16#1 memberCall recv=e@3:16 callee=start args=[] type=UInt ref=kotlin.ranges.ClosedRange.start[kind=prop;type=T0]
+expr e@3:16#1 memberCall recv=e@3:16 callee=start args=[] type=UInt ref=kotlin.ranges.UIntRange.start[kind=prop;type=UInt]
 expr e@3:31 name(range) type=kotlin.ranges.UIntRange ref=__local_0.range[kind=local;type=kotlin.ranges.UIntRange;origin=fixture]
 expr e@3:31#1 memberCall recv=e@3:31 callee=endInclusive args=[] type=UInt ref=kotlin.ranges.UIntRange.endInclusive[kind=prop;type=UInt]
 expr e@3:53 name(range) type=kotlin.ranges.UIntRange ref=__local_0.range[kind=local;type=kotlin.ranges.UIntRange;origin=fixture]

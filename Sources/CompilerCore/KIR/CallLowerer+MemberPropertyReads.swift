@@ -3,6 +3,38 @@
 /// members, class-name member values, const-folding) split out of
 /// `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
+    /// Bridge the canonical scope context property across runtime handles and
+    /// source objects. The helper's source-object branch performs the actual
+    /// interface getter read, so it must bypass this redirection itself.
+    func tryLowerCoroutineScopeContextRead(
+        propertySymbol: SymbolID,
+        loweredReceiverID: KIRExprID,
+        resultType: TypeID,
+        existingResult: KIRExprID? = nil,
+        arena: KIRArena? = nil,
+        sema: SemaModule,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard sema.symbols.symbol(propertySymbol)?.fqName == [
+            interner.intern("kotlinx"), interner.intern("coroutines"),
+            interner.intern("CoroutineScope"), interner.intern("coroutineContext"),
+        ],
+        let helperSymbol = sema.symbols.lookupAll(fqName: [
+            interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("__kkScopeContext"),
+        ]).first(where: { sema.symbols.symbol($0)?.kind == .function }),
+        driver.ctx.activeFunctionSymbol() != helperSymbol,
+        let helperInfo = sema.symbols.symbol(helperSymbol)
+        else { return nil }
+        guard let result = existingResult ?? arena?.appendTemporary(type: resultType) else { return nil }
+        instructions.append(.call(
+            symbol: helperSymbol, callee: helperInfo.name,
+            arguments: [loweredReceiverID], result: result,
+            canThrow: true, thrownResult: nil
+        ))
+        return result
+    }
+
     /// BUG-227: whether a class member-property read/write should dispatch
     /// through the getter/setter accessor slot LayoutSynthesis assigned it,
     /// rather than the statically-resolved declaration's own field
@@ -367,6 +399,11 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        if let result = tryLowerCoroutineScopeContextRead(
+            propertySymbol: propertySymbol, loweredReceiverID: loweredReceiverID,
+            resultType: resultType, arena: arena, sema: sema, interner: interner,
+            instructions: &instructions
+        ) { return result }
         guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol)
         else {
@@ -506,6 +543,27 @@ extension CallLowerer {
                 interner.intern("size"), interner.intern("keys"),
                 interner.intern("values"), interner.intern("entries"),
             ].contains(sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""))
+        // Dispatchers.Main is an opaque scheduler tag; source subclasses still
+        // need their own immediate getter. Pass the synthesized slot to a bridge
+        // that distinguishes the tag from a Kotlin object before dispatching.
+        if !isSuperQualifiedReceiver,
+           ownerInfo.fqName == ["kotlinx", "coroutines", "MainCoroutineDispatcher"].map(interner.intern),
+           sema.symbols.symbol(propertySymbol)?.name == interner.intern("immediate"),
+           let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
+               SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+           ]
+        {
+            let slot = arena.appendExpr(.intLiteral(Int64(getterSlot)), type: sema.types.intType)
+            instructions.append(.constValue(result: slot, value: .intLiteral(Int64(getterSlot))))
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("__kk_dispatcher_immediate"),
+                arguments: [loweredReceiverID, slot], result: result,
+                canThrow: true, thrownResult: nil
+            ))
+            return result
+        }
+
         if ownerInfo.kind == .class,
            !isSuperQualifiedReceiver,
            !isRuntimeRangeReceiver,
@@ -684,6 +742,11 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        if let result = tryLowerCoroutineScopeContextRead(
+            propertySymbol: propertySymbol, loweredReceiverID: loweredReceiverID,
+            resultType: resultType, arena: arena, sema: sema, interner: interner,
+            instructions: &instructions
+        ) { return result }
         // Synthetic stdlib interface properties (e.g. `Collection.size`) are
         // backed by runtime objects that do not register itable property
         // getters, so their reads remain on the runtime fallback path.
@@ -803,6 +866,14 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        if args.isEmpty,
+           let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let contextRead = tryLowerCoroutineScopeContextRead(
+               propertySymbol: propertySymbol, loweredReceiverID: loweredReceiverID,
+               resultType: sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType,
+               existingResult: result, sema: sema, interner: interner,
+               instructions: &instructions
+           ) { return contextRead }
         guard args.isEmpty,
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
@@ -825,6 +896,15 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             return result
+        }
+
+        // Let the stored-property path distinguish opaque dispatcher tags from
+        // source implementations before attempting a normal virtual getter.
+        if sema.symbols.symbol(propertySymbol)?.name == interner.intern("immediate"),
+           let owner = sema.symbols.parentSymbol(for: propertySymbol),
+           sema.symbols.symbol(owner)?.fqName == ["kotlinx", "coroutines", "MainCoroutineDispatcher"].map(interner.intern)
+        {
+            return nil
         }
 
         if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(

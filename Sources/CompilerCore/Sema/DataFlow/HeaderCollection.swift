@@ -173,7 +173,7 @@ extension DataFlowSemaPhase {
         } else {
             newIsExtensionProperty = false
         }
-        let reusableSyntheticSymbol = reusableSyntheticDeclarationSymbol(
+        let reusableSyntheticSymbol = newIsExtensionProperty ? nil : reusableSyntheticDeclarationSymbol(
             kind: declaration.kind,
             fqName: fqName,
             declarationFlags: declaration.flags,

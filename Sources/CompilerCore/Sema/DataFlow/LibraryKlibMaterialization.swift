@@ -9,11 +9,14 @@ extension DataFlowSemaPhase {
     /// Type parameters are encoded as `T<n>` signature tokens using a
     /// module-global counter keyed by the type parameter's signature table
     /// entry, mirroring how `.kklib` emits the producer's raw symbol IDs.
+    ///
+    /// Returns the materialized records plus the decoded IR module so the
+    /// caller can keep it for body materialization during KIR lowering.
     func materializeKlibRecords(
         module: KlibModule,
         interner: StringInterner,
         diagnostics: DiagnosticEngine
-    ) -> [DataFlowSemaPhase.ImportedLibrarySymbolRecord] {
+    ) -> (records: [DataFlowSemaPhase.ImportedLibrarySymbolRecord], ir: KlibIrModule?) {
         let ir: KlibIrModule
         do {
             ir = try KlibIrModule(container: module.container)
@@ -23,9 +26,9 @@ extension DataFlowSemaPhase {
                 "Cannot decode serialized IR in \(module.path): \(error)",
                 range: nil
             )
-            return []
+            return ([], nil)
         }
-        guard ir.hasIR else { return [] }
+        guard ir.hasIR else { return ([], nil) }
 
         var materializer = KlibRecordMaterializer(module: ir, interner: interner)
         for fileIndex in 0 ..< ir.fileCount {
@@ -46,15 +49,8 @@ extension DataFlowSemaPhase {
                 range: nil
             )
         }
-        return materializer.records
+        return (materializer.records, ir)
     }
-}
-
-/// Signature-table identity used as the type-parameter index key: tables are
-/// file-local, so the pair `(fileIndex, signatureIndex)` is required.
-private struct KlibSignatureKey: Hashable {
-    let fileIndex: Int
-    let signatureIndex: Int
 }
 
 /// Converts decoded Kotlin IR declarations into `ImportedLibrarySymbolRecord`s.
@@ -450,7 +446,12 @@ private struct KlibRecordMaterializer {
                 kind: .property,
                 mangledName: mangledName(of: property.base.symbol, fileIndex: fileIndex),
                 fqName: fqName.map { interner.intern($0) },
+                // Override-ness lives on the serialized accessors, not the
+                // property itself.
+                isOverride: property.getter?.overridden.isEmpty == false
+                    || property.setter?.overridden.isEmpty == false,
                 typeSignature: propertySignature,
+                modality: metadataModality(property.base.flags.modality),
                 isExpect: property.base.flags.isExpectProperty,
                 annotations: annotationRecords(property.base.annotations, fileIndex: fileIndex),
                 propertyReceiverTypeSignature: property.getter?.base.extensionReceiver

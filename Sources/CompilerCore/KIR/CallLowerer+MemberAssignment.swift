@@ -394,6 +394,8 @@ extension CallLowerer {
             guard let propertySymbol else { return false }
             return sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
                 || memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
+                || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
+                || sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
         }()
 
         // Direct field-offset storage for ordinary stored properties on
@@ -444,7 +446,14 @@ extension CallLowerer {
 
         // ── Load ─────────────────────────────────────────────────────────
         let currentValue: KIRExprID
-        if let syntheticLinks {
+        if let cachedValue = ast.arena.incrementDecrementCachedValue(for: exprID) {
+            currentValue = driver.lowerExpr(
+                cachedValue,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        } else if let syntheticLinks {
             let result = arena.appendTemporary(type: propType)
             emitNonThrowingCall(
                 callee: interner.intern(syntheticLinks.load),

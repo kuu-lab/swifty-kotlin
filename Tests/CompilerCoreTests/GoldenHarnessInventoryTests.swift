@@ -27,7 +27,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/kotlinx_coroutines_completable.kt",
     ]
 
-    private static let requiredArtifactTargetedCases: Set<String> = [
+    private static let requiredArtifactProfileCases: Set<String> = [
         "Sema/stdlib_kotlin_Any_n_n.kt",
         "Sema/stdlib_kotlin_Pair_n_n.kt",
         "Sema/stdlib_kotlin_Triple_Triple_n.kt",
@@ -39,6 +39,7 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
         "Sema/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt",
         "Sema/kotlinx_coroutines_completable.kt",
+        "Sema/kotlinx_io_bytestring_io_api.kt",
     ]
 
     private static let requiredTargetContracts: Set<String> = [
@@ -78,7 +79,7 @@ struct GoldenHarnessInventoryTests {
         #expect(inventory.caseCountBySuite.count == GoldenHarnessGoldenSuite.allCases.count)
         #expect(inventory.caseCount > 0)
         #expect(inventory.caseCountByProfile["implicit"] ?? 0 > 0)
-        #expect((inventory.caseCountByProfile["artifact"] ?? 0) == Self.requiredArtifactTargetedCases.count)
+        #expect((inventory.caseCountByProfile["artifact"] ?? 0) == Self.requiredArtifactProfileCases.count)
         #expect((inventory.caseCountByProfile["source"] ?? 0) == 2)
         #expect(inventory.targetedCaseKeys == Self.requiredTargetedCases)
         #expect(inventory.targetContracts == Self.requiredTargetContracts)

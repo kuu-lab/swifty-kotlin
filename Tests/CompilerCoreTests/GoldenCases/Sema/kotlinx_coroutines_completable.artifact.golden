@@ -49,4 +49,4 @@ expr e@22:5 return value=e@22:12#1 type=Nothing
 section stdlib-targets
 target fq=kotlinx.coroutines.CompletableDeferred[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0] supertypes=[kotlinx.coroutines.Deferred<T0>]
 target fq=kotlinx.coroutines.CompletableJob[kind=iface] origin=importedLibrary kind=interface vis=public flags=synthetic supertypes=[kotlinx.coroutines.Job]
-target fq=kotlinx.coroutines.Deferred[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0(out)] supertypes=[kotlinx.coroutines.Job] type=kotlinx.coroutines.Deferred<out Any>
+target fq=kotlinx.coroutines.Deferred[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0(out)] supertypes=[kotlinx.coroutines.Job] type=kotlinx.coroutines.Deferred<out Any?>

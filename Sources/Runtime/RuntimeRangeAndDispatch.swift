@@ -1641,7 +1641,7 @@ public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
 
 // MARK: - ULongRange properties (STDLIB-RANGE-037)
 
-@_cdecl("kk_ulong_range_first_orThrow")
+@_cdecl("__kk_ulong_range_first_orThrow")
 public func kk_ulong_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeFirstOrLastOrThrow(
         RuntimeUnsignedRangeHOFKind.self,
@@ -1652,7 +1652,7 @@ public func kk_ulong_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMut
     )
 }
 
-@_cdecl("kk_ulong_range_last_orThrow")
+@_cdecl("__kk_ulong_range_last_orThrow")
 public func kk_ulong_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeFirstOrLastOrThrow(
         RuntimeUnsignedRangeHOFKind.self,
@@ -1663,7 +1663,7 @@ public func kk_ulong_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMuta
     )
 }
 
-@_cdecl("kk_ulong_range_step")
+@_cdecl("__kk_ulong_range_step")
 public func kk_ulong_range_step(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_step")
