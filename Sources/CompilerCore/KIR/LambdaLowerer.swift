@@ -334,6 +334,7 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema)
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
+                driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.param.symbol)
                 bindCapturedOuterLambdaReceiver(captureExpr, type: capture.param.type, sema: sema, overwriteExisting: false)
                 if capturesRuntimeScopeReceiver {
                     driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(captureExpr)
@@ -375,6 +376,7 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
+                driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureParam.symbol)
                 bindCapturedOuterLambdaReceiver(closureExpr, type: closureCapture.param.type, sema: sema, overwriteExisting: false)
                 if capturesRuntimeScopeReceiver {
                     driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(closureExpr)
@@ -404,6 +406,7 @@ final class LambdaLowerer {
                 bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
+                    driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.param.symbol)
                     bindCapturedOuterLambdaReceiver(loadedExpr, type: capture.param.type, sema: sema, overwriteExisting: false)
                     if capturesRuntimeScopeReceiver {
                         driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(loadedExpr)
