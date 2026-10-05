@@ -225,7 +225,9 @@ extension CallTypeChecker {
                             contextReceivers: fn.contextReceivers,
                             receiver: fn.receiver,
                             params: fn.params,
-                            returnType: contextualCallResultType,
+                            returnType: lambdaResultParam.nullability == .nullable
+                                ? sema.types.makeNullable(contextualCallResultType)
+                                : contextualCallResultType,
                             isSuspend: fn.isSuspend,
                             nullability: fn.nullability,
                             throws: fn.throws
