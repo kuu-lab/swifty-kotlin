@@ -251,6 +251,9 @@ extension CallTypeChecker {
         }
         if isMapReceiver {
             activeCollectionHOFNames.formUnion(Self.mapOnlyCollectionHOFNames)
+            // The entry and key/value forEach overloads require contextual
+            // lambda arity resolution, not the single-entry fast path.
+            activeCollectionHOFNames.remove("forEach")
             // Map.flatMapTo has Iterable- and Sequence-return overloads. Let
             // the source-backed declarations reach regular overload
             // resolution instead of the collection fast path, which assumes
