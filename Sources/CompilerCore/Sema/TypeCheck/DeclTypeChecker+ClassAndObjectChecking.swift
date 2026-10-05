@@ -78,6 +78,16 @@ extension DeclTypeChecker {
         // inserted into `classScope`.
         let primaryCtorLocals = primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
 
+        typeCheckClassLikeMembers(
+            memberFunctions: classDecl.memberFunctions,
+            memberProperties: classDecl.memberProperties,
+            nestedClasses: classDecl.nestedClasses,
+            nestedObjects: allNestedObjects,
+            ctx: classCtx,
+            propertyInitializerLocals: primaryCtorLocals,
+            solver: solver,
+            diagnostics: diagnostics
+        )
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckEnumEntryConstructorArguments(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
@@ -93,16 +103,6 @@ extension DeclTypeChecker {
             explicitSuperclassSymbol: explicitSuperclassSymbol
         )
         typeCheckClassDelegation(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
-        typeCheckClassLikeMembers(
-            memberFunctions: classDecl.memberFunctions,
-            memberProperties: classDecl.memberProperties,
-            nestedClasses: classDecl.nestedClasses,
-            nestedObjects: allNestedObjects,
-            ctx: classCtx,
-            propertyInitializerLocals: primaryCtorLocals,
-            solver: solver,
-            diagnostics: diagnostics
-        )
         typeCheckEnumEntryMemberBodies(
             classDecl,
             enumSymbol: symbol,
@@ -296,7 +296,6 @@ extension DeclTypeChecker {
             ctx: ctx
         )
 
-        typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
         typeCheckClassLikeMembers(
             memberFunctions: objectDecl.memberFunctions,
             memberProperties: objectDecl.memberProperties,
@@ -306,6 +305,7 @@ extension DeclTypeChecker {
             solver: solver,
             diagnostics: diagnostics
         )
+        typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
     }
 
     /// Resolves the superclass constructor named by `object O : Base(args)`
@@ -468,6 +468,28 @@ extension DeclTypeChecker {
                 continue
             }
         }
+
+        // Infer companion types before the authoritative function pass;
+        // companion bodies can in turn depend on those function return types.
+        let diagnosticSnapshot = diagnostics.count
+        for declID in nestedObjects {
+            guard let decl = ast.arena.decl(declID),
+                  case let .objectDecl(objectDecl) = decl,
+                  let symbol = sema.bindings.declSymbols[declID],
+                  let ownerSymbol = ctx.enclosingClassSymbol,
+                  sema.symbols.companionObjectSymbol(for: ownerSymbol) == symbol
+            else {
+                continue
+            }
+            typeCheckObjectDecl(
+                objectDecl,
+                symbol: symbol,
+                ctx: ctx.with(currentDeclSymbol: symbol),
+                solver: solver,
+                diagnostics: diagnostics
+            )
+        }
+        diagnostics.truncate(to: diagnosticSnapshot)
 
         for declID in memberFunctions {
             guard let decl = ast.arena.decl(declID),
