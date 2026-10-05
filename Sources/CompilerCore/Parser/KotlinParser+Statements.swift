@@ -955,6 +955,11 @@ extension KotlinParser {
                 }
                 if sawIfKeyword, case .keyword(.else) = nextAfterBlock.kind { continue }
                 if ParserBoundaryPolicy.continuesExpressionAfterNewline(nextAfterBlock.kind) { continue }
+                if nextAfterBlock.kind == .symbol(.lParen),
+                   !hasLeadingNewline(nextAfterBlock)
+                {
+                    continue
+                }
                 break
             }
             if case .keyword(.try) = token.kind {
