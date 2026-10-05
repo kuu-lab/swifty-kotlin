@@ -1962,7 +1962,8 @@ final class LambdaLowerer {
             callableExpr,
             symbol: callableSymbol,
             callee: callableName,
-            captureArguments: captureArguments
+            captureArguments: captureArguments,
+            hasClosureParam: needsHOFWrapper && callTargetSymbol != nil
         )
 
         // Collection HOF runtimes expect a raw function pointer plus closure payload.

@@ -38,6 +38,54 @@ struct ComparatorOverloadResolutionTests {
 
     // MARK: - Consolidated overload resolution tests
 
+    @Test(arguments: [
+        "compareBy<P>(first, second)",
+        "compareBy<P>(first, { it.s })",
+        "compareBy<P>({ it.g }, second)",
+        "compareBy<P>(first, second, first)",
+        "compareBy<P, Int>(keyComparator, first)",
+    ])
+    func testStoredSelectorsChooseFunctionParameters(call: String) throws {
+        let source = """
+        data class P(val g: Int, val s: Int)
+        fun main() {
+            val first: (P) -> Int = { it.g }
+            val second: (P) -> Int = { it.s }
+            val keyComparator = naturalOrder<Int>()
+            val comparator = \(call)
+            println(comparator.compare(P(2, 1), P(1, 2)))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        #expect(!ctx.diagnostics.hasError)
+        let callID = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(name, _) = ast.arena.expr(callee)
+            else { return false }
+            return ctx.interner.resolve(name) == "compareBy"
+        })
+        let chosen = try #require(sema.bindings.callBindings[callID]?.chosenCallee)
+        let signature = try #require(sema.symbols.functionSignature(for: chosen))
+        let hasComparatorArgument = call.contains("keyComparator")
+        for (index, type) in signature.parameterTypes.enumerated() {
+            if index == 0 && hasComparatorArgument {
+                guard case .classType = sema.types.kind(of: type) else {
+                    Issue.record("The key comparator must retain the comparator-taking overload.")
+                    return
+                }
+            } else {
+                guard case let .functionType(functionType) = sema.types.kind(of: type) else {
+                    Issue.record("A stored selector must bind to a function parameter, not Comparator.")
+                    return
+                }
+                #expect(functionType.params.count == 1)
+            }
+        }
+    }
+
     @Test
     func testComparatorOverloadResolutions() throws {
 
