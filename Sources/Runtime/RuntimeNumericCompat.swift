@@ -418,6 +418,13 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             }
             return Int(hash)
         }
+        // A user hashCode override wins over the structural fallbacks below:
+        // hashed collections already honor it via runtimeElementKeyHash, and
+        // Any.hashCode() must agree with them (KUU-1093 — e.g. boxed Duration,
+        // whose member hashCode is rawValue.hashCode(), not a structural fold).
+        if let overridden = runtimeObjectHashCodeOverride(value) {
+            return overridden
+        }
         if runtimeIsDataClass(classID: objBox.classID) {
             // The first two slots are the runtime object header. Data-class
             // constructor fields are the tagged slots that follow it; plain
