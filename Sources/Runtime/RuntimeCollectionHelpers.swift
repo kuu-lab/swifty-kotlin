@@ -1547,7 +1547,7 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if let lhsDuration = tryCast(lhsPtr, to: RuntimeDurationBox.self),
        let rhsDuration = tryCast(rhsPtr, to: RuntimeDurationBox.self)
     {
-        return lhsDuration.nanoseconds == rhsDuration.nanoseconds
+        return lhsDuration.rawValue == rhsDuration.rawValue
     }
     if let lhsInstant = tryCast(lhsPtr, to: RuntimeInstantBox.self),
        let rhsInstant = tryCast(rhsPtr, to: RuntimeInstantBox.self)
