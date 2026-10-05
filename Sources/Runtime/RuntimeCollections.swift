@@ -958,10 +958,15 @@ public func kk_mutable_list_add(
 }
 
 @_cdecl("__kk_mutable_list_remove")
-public func kk_mutable_list_remove(
+public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
+    kk_mutable_list_remove_dispatch(listRaw, elem, nil)
+}
+
+@_cdecl("__kk_mutable_list_remove_dispatch")
+public func kk_mutable_list_remove_dispatch(
     _ listRaw: Int,
     _ elem: Int,
-    _ outThrown: UnsafeMutablePointer<Int>? = nil
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     if runtimeListBox(from: listRaw) == nil,

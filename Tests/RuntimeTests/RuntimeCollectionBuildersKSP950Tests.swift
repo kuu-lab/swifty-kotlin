@@ -12,7 +12,7 @@ struct RuntimeCollectionBuildersKSP950Tests {
             _ = __kk_builder_list_freeze(list)
             for element in [1, 2] {
                 var thrown = 0
-                #expect(kk_unbox_bool(kk_mutable_list_remove(list, element, &thrown)) == 0)
+                #expect(kk_unbox_bool(kk_mutable_list_remove_dispatch(list, element, &thrown)) == 0)
                 let throwable = try #require(runtimeThrowableBox(from: thrown))
                 #expect(runtimeThrowableBoxHasExactType(throwable, RuntimeUnsupportedOperationExceptionBox.self))
                 #expect(kk_list_size(list) == (populated ? 1 : 0))
@@ -26,13 +26,15 @@ struct RuntimeCollectionBuildersKSP950Tests {
         _ = kk_mutable_list_add(list, 1, nil)
         _ = kk_mutable_list_add(list, 1, nil)
         var thrown = 123
-        #expect(kk_unbox_bool(kk_mutable_list_remove(list, 2, &thrown)) == 0)
+        #expect(kk_unbox_bool(kk_mutable_list_remove_dispatch(list, 2, &thrown)) == 0)
         #expect(thrown == 0)
         #expect(kk_list_size(list) == 2)
         thrown = 123
-        #expect(kk_unbox_bool(kk_mutable_list_remove(list, 1, &thrown)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_list_remove_dispatch(list, 1, &thrown)) == 1)
         #expect(thrown == 0)
         #expect(kk_list_size(list) == 1)
+        #expect(kk_unbox_bool(kk_mutable_list_remove(list, 1)) == 1)
+        #expect(kk_list_size(list) == 0)
     }
 
     @Test

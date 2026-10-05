@@ -178,7 +178,7 @@ struct CodegenBackendMutableListDispatchTests {
             signature + " { throw IllegalStateException(\"arraylist-remove\") }"
         )
         let method = try #require(source.range(of: signature))
-        let annotation = "@KsSymbolName(\"__kk_mutable_list_remove\")"
+        let annotation = "@KsSymbolName(\"__kk_mutable_list_remove_dispatch\")"
         if let link = source[..<method.lowerBound].range(of: annotation, options: .backwards),
            source[link.upperBound ..< method.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
