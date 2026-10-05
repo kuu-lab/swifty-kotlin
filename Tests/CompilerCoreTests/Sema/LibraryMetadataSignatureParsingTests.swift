@@ -55,6 +55,56 @@ struct LibraryMetadataSignatureParsingTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func importedInlineParameterReturnPermissionsSurviveNormalization(indexed: Bool) throws {
+        let fm = FileManager.default
+        let libDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: libDir) }
+
+        let manifest = """
+        {"formatVersion": 1, "moduleName": "InlinePermissions", "metadata": "metadata.bin"}
+        """
+        let record = MetadataRecord(
+            kind: .function,
+            mangledName: "_kk_inline_permissions",
+            fqName: "permissions.apply",
+            arity: 3,
+            isSuspend: false,
+            isInline: true,
+            typeSignature: "F3<F0<I>,F0<I>,F0<I>,I>",
+            valueParameterAllowsNonLocalReturn: [false, false, true]
+        )
+        let encoder = MetadataEncoder()
+        let metadata = indexed ? encoder.serializeIndexed([record]) : encoder.serialize([record])
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, searchPaths: [libDir.path])
+            let symbols = SymbolTable()
+            let types = TypeSystem()
+            let diagnostics = DiagnosticEngine()
+            let interner = StringInterner()
+            let phase = DataFlowSemaPhase()
+            let work = phase.loadImportedLibrarySymbols(
+                options: ctx.options,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner,
+                importedInlineFunctions: ImportedInlineFunctionStore()
+            )
+            let symbol = try #require(symbols.lookup(fqName: ["permissions", "apply"].map(interner.intern)))
+            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == [false, false, true])
+            phase.normalizeImportedLibraryMemberSignatures(
+                work, symbols: symbols, types: types, diagnostics: diagnostics, interner: interner
+            )
+            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == [false, false, true])
+            #expect(!diagnostics.hasError)
+        }
+    }
+
     @Test func testDeeplyNestedNullableSignatureDoesNotCrashAndEmitsWarning() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)

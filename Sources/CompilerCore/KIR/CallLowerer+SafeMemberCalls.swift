@@ -1030,6 +1030,13 @@ extension CallLowerer {
             finalArguments.insert(dispatchReceiver, at: 0)
         }
 
+        if let chosen,
+           let localValue = driver.ctx.localValue(for: chosen),
+           let callable = driver.ctx.callableValueInfo(for: localValue)
+        {
+            finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
+        }
+
         // Safe-call collection fallback can resolve the source-backed
         // joinToString declaration without retaining its default-value flags.
         // In that case normalizedCallArguments leaves zero sentinels for the

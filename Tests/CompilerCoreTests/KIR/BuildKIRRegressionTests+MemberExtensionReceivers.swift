@@ -18,6 +18,7 @@ extension BuildKIRRegressionTests {
         })
         #expect(function.params.count == 2)
         let sema = try #require(ctx.sema)
+        #expect(sema.symbols.symbol(function.symbol)?.flags.contains(.localFunction) == false)
         #expect(sema.types.kind(of: function.params[1].type) == .primitive(.int, .nonNull))
         let owner = try #require(sema.symbols.parentSymbol(for: function.symbol))
         #expect(sema.types.kind(of: function.params[0].type) == .classType(ClassType(

@@ -252,6 +252,12 @@ extension CallLowerer {
             finalArguments.insert(memberExtensionDispatchReceiver, at: 0)
         }
         if let chosenCallee,
+           let localValue = driver.ctx.localValue(for: chosenCallee),
+           let callable = driver.ctx.callableValueInfo(for: localValue)
+        {
+            finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
+        }
+        if let chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "kk_coroutine_scope_async",
            finalArguments.count == 4
         {
