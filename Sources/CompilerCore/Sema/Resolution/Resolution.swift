@@ -372,25 +372,15 @@ extension OverloadResolver {
             return .rejected
         }
 
-        guard appendArgumentConstraints(
-            to: &constraints,
-            call: call,
-            parameterMapping: parameterMapping,
-            signature: signature,
-            typeVarBySymbol: typeVarBySymbol,
-            ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
-            sema: ctx
-        ) else {
-            return .rejected
-        }
-
         // Add equality constraints for explicit type arguments.
         // For constructors, explicit type args bind class type params (offset 0).
         // For regular functions, map to function-own type params (after class type params).
         let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
+        var explicitTypeSubstitution: [TypeVarID: TypeID] = [:]
         for (index, explicitArg) in call.explicitTypeArgs.enumerated() {
             let typeParamSymbol = signature.typeParameterSymbols[typeArgOffset + index]
             if let typeVar = typeVarBySymbol[typeParamSymbol] {
+                explicitTypeSubstitution[typeVar] = explicitArg
                 constraints.append(
                     VariableConstraint(
                         kind: .equal,
@@ -400,6 +390,18 @@ extension OverloadResolver {
                     )
                 )
             }
+        }
+        guard appendArgumentConstraints(
+            to: &constraints,
+            call: call,
+            parameterMapping: parameterMapping,
+            signature: signature,
+            typeVarBySymbol: typeVarBySymbol,
+            explicitTypeSubstitution: explicitTypeSubstitution,
+            ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
+            sema: ctx
+        ) else {
+            return .rejected
         }
         var inputConstraints = constraints
 
@@ -701,6 +703,7 @@ extension OverloadResolver {
         parameterMapping: [Int: Int],
         signature: FunctionSignature,
         typeVarBySymbol: [SymbolID: TypeVarID],
+        explicitTypeSubstitution: [TypeVarID: TypeID],
         ignoredLambdaReturnTypeArgumentIndices: Set<Int>,
         sema: SemaModule
     ) -> Bool {
@@ -718,8 +721,15 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
+            // Explicit type arguments supply a concrete literal expectation,
+            // while constraints still target the original type parameter.
+            let literalParameterType = typeSystem.substituteTypeParameters(
+                in: paramType,
+                substitution: explicitTypeSubstitution,
+                typeVarBySymbol: typeVarBySymbol
+            )
             let inferredArgType = !arg.isSpread
-                ? (integerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
+                ? (integerLiteralType(arg, parameterType: literalParameterType, types: typeSystem) ?? arg.type)
                 : arg.type
             let argType = !arg.isSpread
                 ? (typeSystem.suspendConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
