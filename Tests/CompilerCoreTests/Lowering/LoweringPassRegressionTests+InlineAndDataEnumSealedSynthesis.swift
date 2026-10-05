@@ -474,7 +474,7 @@ extension LoweringPassRegressionTests {
         let callees = extractCallees(from: hashCodeFn.body, interner: interner)
         if let expectedArrayHashSymbol {
             let arrayHashCalls = hashCodeFn.body.compactMap { instruction -> [KIRExprID]? in
-                guard case let .call(symbol, _, arguments, _, _, _) = instruction,
+                guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
                       symbol == expectedArrayHashSymbol else { return nil }
                 return arguments
             }
