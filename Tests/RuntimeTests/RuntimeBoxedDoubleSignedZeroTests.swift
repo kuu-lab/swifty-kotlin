@@ -13,6 +13,21 @@ struct RuntimeBoxedDoubleSignedZeroTests {
     }
 
     @Test
+    func testNonNullDoubleUnboxingPreservesRawAndBoxedBits() {
+        for value in [-0.0, 0.0, 1.5, -3.25, Double.infinity, -Double.infinity, Double.nan] {
+            let raw = bits(value)
+            #expect(kk_unbox_double_nonnull(raw) == raw)
+            #expect(kk_unbox_double_nonnull_static(raw) == raw)
+            for boxed in [kk_box_double_nonnull(raw), kk_box_double_nonnull_static(raw)] {
+                #expect(kk_unbox_double_nonnull(boxed) == raw)
+                #expect(kk_unbox_double_nonnull_static(boxed) == raw)
+            }
+        }
+        #expect(kk_unbox_double(runtimeNullSentinelInt) == 0)
+        #expect(kk_unbox_double_static(runtimeNullSentinelInt) == 0)
+    }
+
+    @Test
     func testBoxDoubleNonNullPreservesNegativeZero() {
         let boxed = kk_box_double_nonnull(bits(-0.0))
         #expect(boxed != runtimeNullSentinelInt)

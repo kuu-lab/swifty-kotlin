@@ -6,4 +6,5 @@
  */
 package kotlin
 
+@PublishedApi
 internal inline fun ULong(value: Long): ULong = value.toULong()

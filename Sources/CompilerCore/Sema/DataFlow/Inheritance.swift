@@ -69,7 +69,10 @@ extension DataFlowSemaPhase {
         // Without this, a supertype argument that names an own type parameter fails
         // to resolve and the supertype is recorded with no type arguments, which
         // breaks override covariance and polymorphic subtyping for the subclass.
-        var mergedEnclosingTypeParameters = enclosingTypeParameters
+        var mergedEnclosingTypeParameters: [InternedString: SymbolID] = [:]
+        if case let .classDecl(classDecl) = decl, classDecl.isInner {
+            mergedEnclosingTypeParameters = enclosingTypeParameters
+        }
         for (name, paramSymbol) in buildTypeParameterMap(for: symbol, types: types, symbols: symbols) {
             mergedEnclosingTypeParameters[name] = paramSymbol
         }
@@ -810,6 +813,7 @@ extension DataFlowSemaPhase {
         // An expect class may declare its abstract contract only in the actual
         // implementation; an empty expect body is therefore not suspicious.
         if !hasAbstractMember,
+           !symbolInfo.flags.contains(.sealedType),
            !symbolInfo.flags.contains(.expectDeclaration),
            !inheritsFromAbstractSet(symbol, symbols: symbols, interner: interner)
         {

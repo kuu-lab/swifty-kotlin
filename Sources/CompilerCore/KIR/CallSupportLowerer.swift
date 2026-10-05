@@ -679,6 +679,24 @@ final class CallSupportLowerer {
                         sema: sema,
                         interner: interner
                     )
+                    if (externalLinkName == nil || externalLinkName?.hasPrefix("kk_fn_") == true),
+                       case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[paramIndex]))
+                    {
+                        for argIndex in argIndices {
+                            guard sourceArgExprs.indices.contains(argIndex),
+                                  !(argIndex < spreadFlags.count && spreadFlags[argIndex]),
+                                  let materialized = driver.callLowerer.materializeCollectionFactoryFunctionValueElementIfNeeded(
+                                      boxedArguments[argIndex],
+                                      sourceArgExprID: sourceArgExprs[argIndex],
+                                      sema: sema,
+                                      arena: arena,
+                                      interner: interner,
+                                      instructions: &instructions
+                                  )
+                            else { continue }
+                            boxedArguments[argIndex] = materialized
+                        }
+                    }
                     boxNonSpreadVarargArguments(
                         argIndices,
                         in: &boxedArguments,

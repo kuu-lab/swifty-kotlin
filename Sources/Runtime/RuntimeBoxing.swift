@@ -407,6 +407,13 @@ public func kk_unbox_double(_ obj: Int) -> Int {
     return obj
 }
 
+/// Non-null Double words may contain -0.0, whose bits match the null sentinel.
+@_cdecl("kk_unbox_double_nonnull")
+public func kk_unbox_double_nonnull(_ obj: Int) -> Int {
+    if obj == runtimeNullSentinelInt { return obj }
+    return kk_unbox_double(obj)
+}
+
 @_cdecl("kk_box_char")
 public func kk_box_char(_ value: Int) -> Int {
     // If the value is already a registered runtime object, pass it through
@@ -584,6 +591,12 @@ public func kk_unbox_double_static(_ value: Int) -> Int {
         as: RuntimeDoubleBox.self,
         extract: { Int(bitPattern: UInt(truncatingIfNeeded: $0.value.bitPattern)) }
     )
+}
+
+@_cdecl("kk_unbox_double_nonnull_static")
+public func kk_unbox_double_nonnull_static(_ value: Int) -> Int {
+    if value == runtimeNullSentinelInt { return value }
+    return kk_unbox_double_static(value)
 }
 
 @_cdecl("kk_unbox_char_static")

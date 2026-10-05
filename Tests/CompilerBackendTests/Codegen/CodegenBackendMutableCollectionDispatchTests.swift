@@ -5,6 +5,34 @@ import Testing
 @Suite
 struct CodegenBackendMutableCollectionDispatchTests {
     @Test(arguments: [true, false])
+    func nestedGenericOverridesPreserveExactClassMatching(useArtifact: Bool) throws {
+        let source = """
+        interface Reader<T> {
+            fun read(values: List<List<T>>): String = "default"
+        }
+        class IntReader : Reader<Int> {
+            fun read(values: Set<List<Int>>): String = "wrong"
+            override fun read(values: List<List<Int>>): String = "nested"
+        }
+        class DefaultReader : Reader<Int> {
+            fun read(values: Set<List<Int>>): String = "wrong"
+        }
+        fun main() {
+            val reader: Reader<Int> = IntReader()
+            val inherited: Reader<Int> = DefaultReader()
+            println(reader.read(listOf(listOf(1))))
+            println(inherited.read(listOf(listOf(1))))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NestedGenericOverrideDispatch",
+            expected: "nested\ndefault\n",
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
+
+    @Test(arguments: [true, false])
     func mutationExceptionsReachCatch(useArtifact: Bool) throws {
         let source = """
         class ThrowingCollection : MutableCollection<Int> {

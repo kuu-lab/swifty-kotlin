@@ -197,6 +197,22 @@ struct LLVMOptimizationRegressionTests {
     }
 
     @Test(arguments: [0, 2])
+    func nestedConstructorPropertiesDoNotPanicAtEachOptimizationLevel(optimization: Int) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_994_nested_constructor_properties.kt"
+        ), encoding: .utf8)
+        try assertOutput(
+            source,
+            moduleName: "LLVMOptimizationNestedConstructorProperties",
+            expected: "a\nb 1\n2\n3\n9\n3\n6\n9\ncircle=5\nrect=21\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
     func virtualPropertyGetterArityDoesNotCollideWithSameNamedMethodAtEachOptimizationLevel(optimization: Int) throws {
         let source = """
         abstract class Base {
@@ -434,6 +450,7 @@ struct LLVMOptimizationRegressionTests {
             try LinkPhase().run(context)
 
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0, "Unexpected runtime failure: \(result.stderr)")
             let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalized == expected)
         }

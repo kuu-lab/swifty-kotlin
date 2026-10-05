@@ -5,6 +5,24 @@ import Testing
 
 @Suite
 struct RuntimeABIExternalLinkValidationTests {
+    @Test func testObjectBridgeIsAZeroArgumentHandleGetter() {
+        let declarations = bundledKsSymbolNameDeclarations(in: """
+        class Element {
+            @KsSymbolName("get_key")
+            companion object Key : Context.Key<Element>
+            @KsSymbolName("get_name")
+            val name: String
+        }
+        """, relativePath: "element.kt")
+        #expect(declarations.map(\.linkName) == ["get_key", "get_name"])
+        let key = declarations[0]
+        #expect(!key.hasReceiver)
+        #expect(!key.isInObjectScope)
+        #expect(expectedRuntimeABIParameterTypes(for: key).isEmpty)
+        #expect(expectedRuntimeABIReturnType(for: key) == RuntimeABICType.intptr.rawValue)
+        #expect(declarations[1].hasReceiver)
+    }
+
     @Test func testPropertyBridgeAnnotationDoesNotLeakToFollowingFunction() throws {
         let declarations = bundledKsSymbolNameDeclarations(in: """
         interface Contract {
@@ -188,7 +206,7 @@ struct RuntimeABIExternalLinkValidationTests {
             let sema = try #require(context.sema)
 
             let annotatedSymbols = sema.symbols.allSymbols().filter { symbol in
-                guard symbol.kind == .function || symbol.kind == .constructor || symbol.kind == .property,
+                guard symbol.kind == .function || symbol.kind == .constructor || symbol.kind == .property || symbol.kind == .object,
                       let fileID = sema.symbols.sourceFileID(for: symbol.id),
                       context.sourceManager.origin(of: fileID)?.isBundledStdlib == true
                 else {
@@ -425,7 +443,29 @@ struct RuntimeABIExternalLinkValidationTests {
                     pendingLinkNames.removeAll()
                     pendingScope = nil
                 }
-                if propertyFunctionHeader(in: line) == nil { continue }
+                if propertyFunctionHeader(in: line) == nil, kind != .objectLike { continue }
+            }
+
+            if kind == .objectLike, !pendingLinkNames.isEmpty {
+                for linkName in pendingLinkNames {
+                    declarations.append(BundledKsSymbolNameDeclaration(
+                        linkName: linkName,
+                        arity: 0,
+                        functionTypedParameterCount: 0,
+                        hasReceiver: false,
+                        isInObjectScope: false,
+                        isSuspend: false,
+                        receiverType: nil,
+                        valueParameterTypes: [],
+                        valueParameterIsVararg: [],
+                        returnType: "Any",
+                        isConstructor: false,
+                        relativePath: relativePath
+                    ))
+                }
+                pendingLinkNames.removeAll()
+                pendingScope = nil
+                continue
             }
 
             // Constructors carry their own lowering (the runtime allocates the
