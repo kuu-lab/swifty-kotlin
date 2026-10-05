@@ -1,6 +1,6 @@
 @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
 
-import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.*
 
 // Exercise the canonical Kotlin names, not Java getAnd* aliases.
 fun main() {
