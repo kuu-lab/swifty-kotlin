@@ -1020,11 +1020,6 @@ extension CallLowerer {
         switch memberName {
         case "count":
             return argumentCount == 0 ? interner.intern("__kk_map_size") : nil
-        case "putAll":
-            guard knownNames.isMutableMapSymbol(symbol) else {
-                return nil
-            }
-            return interner.intern("__kk_mutable_map_putAll")
         default:
             return nil
         }
