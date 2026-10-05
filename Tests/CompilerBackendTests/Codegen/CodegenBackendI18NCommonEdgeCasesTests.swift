@@ -7,6 +7,34 @@ import Testing
 @Suite
 struct CodegenBackendI18NCommonEdgeCasesTests {
 
+    @Test(arguments: [true, false])
+    func testLocaleToStringAcrossAnyAndCollections(allowDefaultStdlibLibrary: Bool) throws {
+        let source = try diffCaseSource("locale_to_string.kt")
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocaleToString",
+            expected: """
+            en_US
+            tr_TR
+            en_US
+            en
+            _US
+            root=[]
+            en
+            en_us
+            en_us_GB
+            en_US
+            en_US
+            tr_TR
+            locale=en_US
+            [en_US, tr_TR]
+            en_US|tr_TR
+            en_US
+            """ + "\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testCodegenCompilesI18NCommonEdgeCases() throws {
         let source = """

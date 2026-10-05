@@ -488,7 +488,7 @@ extension CallTypeChecker {
         }
     }
 
-    private func hasGenericCollectionReceiverLambda(
+    func hasGenericCollectionReceiverLambda(
         signature: FunctionSignature,
         sema: SemaModule,
         interner: StringInterner

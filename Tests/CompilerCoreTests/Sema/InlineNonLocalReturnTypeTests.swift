@@ -8,6 +8,50 @@ import TestStdlibCache
 @Suite
 struct InlineNonLocalReturnTypeTests {
     @Test(arguments: [
+        "plain { return@outer }",
+        "cross { return@outer }",
+        "no { return@outer }",
+        "inlineBlock { plain { return@outer } }",
+        "val block = { return@outer }",
+    ])
+    func illegalOuterLambdaReturnIsRejected(statement: String) throws {
+        let ctx = makeContextFromSource("""
+        fun plain(block: () -> Unit) { block() }
+        inline fun inlineBlock(block: () -> Unit) { block() }
+        inline fun cross(crossinline block: () -> Unit) { block() }
+        inline fun no(noinline block: () -> Unit) { block() }
+        fun test() { inlineBlock outer@ { \(statement) } }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
+    }
+
+    @Test func outerLambdaDestinationExcludesItsOwnBoundary() throws {
+        let ctx = makeContextFromSource("""
+        fun plain(block: () -> Unit) { block() }
+        inline fun inlineBlock(block: () -> Unit) { block() }
+        fun test() {
+            plain outer@ {
+                inlineBlock { return@outer }
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        let bindings = try #require(ctx.sema?.bindings)
+        let returns = bindings.lambdaReturnTargets.keys.filter { exprID in
+            guard case let .returnExpr(_, label?, _) = ctx.ast?.arena.expr(exprID) else { return false }
+            return ctx.interner.resolve(label) == "outer"
+        }
+        #expect(returns.count == 1)
+        let returnExpr = try #require(returns.first)
+        let target = try #require(bindings.lambdaReturnTargets[returnExpr])
+        let path = try #require(bindings.lambdaReturnLambdaPaths[returnExpr])
+        #expect(path.count == 1)
+        #expect(!path.contains(target))
+    }
+
+    @Test(arguments: [
         "plain { return }",
         "cross { return }",
         "no { return }",

@@ -675,6 +675,48 @@ struct LibMetadataImportIntegrationTests {
         return result
     }
 
+    @Test(arguments: [false, true])
+    func testClassAndFactoryAcrossLibrariesKeepDistinctKinds(indexed: Bool) throws {
+        let fm = FileManager.default
+        let directory = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: directory) }
+
+        func library(_ module: String, records: [MetadataRecord]) throws -> String {
+            let path = directory.appendingPathComponent(module).appendingPathExtension("kklib")
+            try fm.createDirectory(at: path, withIntermediateDirectories: true)
+            try "{\"formatVersion\":1,\"moduleName\":\"\(module)\",\"metadata\":\"metadata.bin\"}"
+                .write(to: path.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+            let encoder = MetadataEncoder()
+            let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+            try metadata.write(to: path.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+            return path.path
+        }
+
+        let classLibrary = try library("ClassLib", records: [
+            MetadataRecord(kind: .class, mangledName: "_Foo", fqName: "dup.Foo"),
+            MetadataRecord(kind: .constructor, mangledName: "_Foo_init", fqName: "dup.Foo.<init>",
+                           arity: 1, typeSignature: "F1<I,Ldup.Foo;>"),
+        ])
+        let factoryLibrary = try library("FactoryLib", records: [
+            MetadataRecord(kind: .function, mangledName: "_Foo_factory", fqName: "dup.Foo",
+                           arity: 0, typeSignature: "F0<I>"),
+        ])
+        for paths in [[classLibrary, factoryLibrary], [factoryLibrary, classLibrary]] {
+            try withTemporaryFile(contents: "fun constructor(): dup.Foo = dup.Foo(3)\nfun factory(): Int = dup.Foo()") { path in
+                let ctx = makeCompilationContext(inputs: [path], searchPaths: paths, includeStdlib: false)
+                try runSema(ctx)
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+                #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0031" })
+                let sema = try #require(ctx.sema)
+                let candidates = sema.symbols.lookupAll(fqName: ["dup", "Foo"].map(ctx.interner.intern))
+                let kinds = candidates.compactMap { sema.symbols.symbol($0)?.kind }
+                #expect(kinds.contains(.class))
+                #expect(kinds.contains(.function))
+            }
+        }
+    }
+
     // KUU-1213: two libraries exporting the same class FQName used to trap
     // building the per-symbol binding map (duplicate SymbolID → SIGILL).
     // The first library on the search path now wins and the shadowed

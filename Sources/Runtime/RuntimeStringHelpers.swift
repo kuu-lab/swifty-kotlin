@@ -270,6 +270,43 @@ private func runtimeStringIndexOfLast(
     return lastIdx
 }
 
+/// Applies full case mapping only to valid Unicode runs. NUL and isolated
+/// surrogate units are uncased boundaries and must survive foreign string APIs.
+/// Decode before mapping and re-encode afterwards so literal private-use scalars
+/// cannot be confused with the runtime's escaped surrogate representation.
+func runtimeKotlinCaseMapped(_ source: String, mapping: (String) -> String) -> String {
+    let units = runtimeKotlinStringUTF16CodeUnits(source)
+    var result: [UInt16] = []
+    result.reserveCapacity(units.count)
+    var start = 0
+    var index = 0
+
+    func appendMappedRun(endingAt end: Int) {
+        guard start < end else { return }
+        let run = String(decoding: units[start ..< end], as: UTF16.self)
+        result.append(contentsOf: mapping(run).utf16)
+    }
+
+    while index < units.count {
+        let unit = units[index]
+        if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
+           (0xDC00 ... 0xDFFF).contains(units[index + 1])
+        {
+            // Keep valid pairs together for supplementary-plane case mappings.
+            index += 2
+            continue
+        }
+        if unit == 0 || (0xD800 ... 0xDFFF).contains(unit) {
+            appendMappedRun(endingAt: index)
+            result.append(unit)
+            start = index + 1
+        }
+        index += 1
+    }
+    appendMappedRun(endingAt: units.count)
+    return runtimeKotlinStringFromUTF16CodeUnits(result)
+}
+
 /// `String.lowercase()` with the unconditional Unicode mappings plus the
 /// context-sensitive Final_Sigma rule (Σ -> ς at the end of a word, else σ),
 /// which `String.lowercased()` does not apply.

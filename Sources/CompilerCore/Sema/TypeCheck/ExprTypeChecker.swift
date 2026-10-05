@@ -215,6 +215,13 @@ final class ExprTypeChecker {
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
             } ?? (ctx.lambdaDepth > 0)
+            if let lambdaReturnScope,
+               let targetIndex = ctx.enclosingLambdaExprIDs.lastIndex(of: lambdaReturnScope.exprID) {
+                sema.bindings.bindLambdaReturn(
+                    id, target: lambdaReturnScope.exprID,
+                    lambdaPath: Array(ctx.enclosingLambdaExprIDs.dropFirst(targetIndex + 1))
+                )
+            }
             if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
                 sema.bindings.bindFunctionReturn(id, symbol: functionSymbol, lambdaPath: ctx.enclosingLambdaExprIDs)
             } else if label == nil, ctx.lambdaDepth > 0 {

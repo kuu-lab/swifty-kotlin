@@ -3964,15 +3964,22 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
     return runtimeRegisterObject(scope)
 }
 
+/// `scopeSlotRaw` names the suspend-entry receiver launcher slot — 0 for
+/// launcher-marked (receiver-first) literals, `params.count - 1` for
+/// unmarked (captures-first) suspend values — and the receiver scope lands
+/// there so `this` inside the block binds to a real RuntimeCoroutineScope,
+/// the same convention `kk_test_run_blocking_with_cont` uses.
 @_cdecl("kk_coroutine_scope_async_with_cont")
 public func kk_coroutine_scope_async_with_cont(
     _ scopeHandle: Int, _ contextRaw: Int, _ start: Int,
-    _ entryPointRaw: Int, _ continuation: Int
+    _ entryPointRaw: Int, _ continuation: Int, _ scopeSlotRaw: Int
 ) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle),
-          let state = runtimeContinuationState(from: continuation)
+          let state = runtimeContinuationState(from: continuation),
+          scopeSlotRaw >= 0
     else { runtimeStructuredPanic("CoroutineScope.async received an invalid scope or continuation") }
     let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
+    state.launcherArgs[Int64(scopeSlotRaw)] = Int64(scopeHandle)
     state.scope = scope
     state.builderContext = context
     if context.dispatcher == 0 {
@@ -3993,24 +4000,50 @@ public func kk_coroutine_scope_async(
     _ scopeHandle: Int, _ contextRaw: Int, _ start: Int,
     _ entryPointRaw: Int, _ closureRaw: Int
 ) -> Int {
-    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
-        runtimeStructuredPanic("CoroutineScope.async received an invalid scope")
+    guard let scope = runtimeCoroutineScope(from: scopeHandle),
+          entryPointRaw != 0
+    else {
+        runtimeStructuredPanic("CoroutineScope.async received an invalid scope or block")
     }
     let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
-    let hasEnvironment = closureRaw != 0 || runtimeFunctionValueBox(from: entryPointRaw) != nil
-        || runtimeCallableObjectPair(from: entryPointRaw) != nil
-    let function = resolveFunctionValuePair(fnPtr: entryPointRaw, closureRaw: closureRaw)
+
+    // The block is a `suspend CoroutineScope.() -> T` value whose thunk keeps
+    // the ordinary captured-lambda layout `(cap0..capN, receiver, outThrown)`.
+    // Expand the env slot into positional captures the same way
+    // `__kk_produce_launch` does — boxed value → its env, 0 → none, packed
+    // env object (kk_object_new(2+N, classID: 0), captures at slots 2..) → N
+    // captures, anything else → a single raw capture — and pass the receiver
+    // scope as the trailing receiver (the block's `this`).
+    let captures: [Int]
+    let resolvedEntryPointRaw: Int
+    if let functionValue = runtimeFunctionValueBox(from: entryPointRaw) {
+        resolvedEntryPointRaw = functionValue.fnPtr
+        captures = [functionValue.closureRaw]
+    } else if let object = runtimeCallableObjectPair(from: entryPointRaw) {
+        resolvedEntryPointRaw = object.fnPtr
+        captures = [object.closureRaw]
+    } else if closureRaw == 0 {
+        resolvedEntryPointRaw = entryPointRaw
+        captures = []
+    } else if let envBox = resolveRuntimeHandle(closureRaw, as: RuntimeObjectBox.self),
+              envBox.classID == 0,
+              envBox.elements.count > 2
+    {
+        resolvedEntryPointRaw = entryPointRaw
+        captures = Array(envBox.elements.dropFirst(2))
+    } else {
+        resolvedEntryPointRaw = entryPointRaw
+        captures = [closureRaw]
+    }
     return runtimeScopeAsync(scope: scope, context: context, start: start) { task in
         RuntimeCoroutineScope.current = scope
         var thrown = 0
-        let result: Int
-        if hasEnvironment {
-            let invoke = unsafeBitCast(function.fnPtr, to: KKClosureThunkEntryPoint.self)
-            result = invoke(function.closureRaw, &thrown)
-        } else {
-            let invoke = unsafeBitCast(function.fnPtr, to: KKThunkEntryPoint.self)
-            result = invoke(&thrown)
-        }
+        let result = runtimeInvokeSuspendLauncherThunk(
+            entryPointRaw: resolvedEntryPointRaw,
+            receiver: scopeHandle,
+            captures: captures,
+            outThrown: &thrown
+        )
         runtimeAsyncTaskCompletion(task)(result, thrown)
     }
 }

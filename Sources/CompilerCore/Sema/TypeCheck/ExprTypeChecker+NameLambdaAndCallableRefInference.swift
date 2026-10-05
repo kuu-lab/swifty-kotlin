@@ -473,15 +473,17 @@ extension ExprTypeChecker {
         // over lexically scope-visible candidates just like
         // inferNameRefExpr does for plain reads.
         var implicitReceiverMember: (symbol: SemanticSymbol, type: TypeID)?
-        if let receiverType = ctx.implicitReceiverType,
-           let member = driver.helpers.lookupMemberProperty(
-               named: name,
-               receiverType: sema.types.makeNonNullable(receiverType),
-               sema: sema
-           ),
-           let memberSymbol = ctx.cachedSymbol(member.symbol)
-        {
-            implicitReceiverMember = (memberSymbol, member.type)
+        for receiverType in ctx.implicitReceiverMemberLookupTypes() {
+            if let member = driver.helpers.lookupMemberProperty(
+                named: name,
+                receiverType: sema.types.makeNonNullable(receiverType),
+                sema: sema
+            ),
+               let memberSymbol = ctx.cachedSymbol(member.symbol)
+            {
+                implicitReceiverMember = (memberSymbol, member.type)
+                break
+            }
         }
 
         // Fall back to scope-visible property lookup for compound assignments
@@ -918,17 +920,30 @@ extension ExprTypeChecker {
             }
         }
 
-        if let receiverType = ctx.implicitReceiverType {
-            let memberType = resolveImplicitReceiverMember(
-                id: id,
-                name: name,
-                receiverType: receiverType,
-                ctx: ctx,
-                sema: sema,
-                interner: interner,
-                nameRange: nameRange,
-                emitDiagnosticOnFailure: candidates.isEmpty && invisibleSyms.isEmpty && dslBlockedIDs.isEmpty
-            )
+        // Implicit receiver member lookup walks the whole receiver tower
+        // (extension receiver, enclosing lambda receivers, `this@Owner`
+        // dispatch receivers, enclosing class) — a member extension body's
+        // `this` is the extension receiver, but the dispatch owner's members,
+        // inherited ones included, still resolve unqualified.
+        let implicitReceiverLookupTypes = ctx.implicitReceiverMemberLookupTypes()
+        if !implicitReceiverLookupTypes.isEmpty {
+            var memberType: TypeID?
+            for (index, receiverType) in implicitReceiverLookupTypes.enumerated() {
+                memberType = resolveImplicitReceiverMember(
+                    id: id,
+                    name: name,
+                    receiverType: receiverType,
+                    ctx: ctx,
+                    sema: sema,
+                    interner: interner,
+                    nameRange: nameRange,
+                    emitDiagnosticOnFailure: index == implicitReceiverLookupTypes.count - 1
+                        && candidates.isEmpty && invisibleSyms.isEmpty && dslBlockedIDs.isEmpty
+                )
+                if memberType != nil {
+                    break
+                }
+            }
             if let memberType, memberType != sema.types.errorType {
                 return memberType
             }
@@ -957,13 +972,18 @@ extension ExprTypeChecker {
             }
         }
         if candidates.isEmpty {
-            if let receiverType = ctx.implicitReceiverType,
-               let result = driver.helpers.lookupMemberProperty(
-                   named: name,
-                   receiverType: sema.types.makeNonNullable(receiverType),
-                   sema: sema
-               )
-            {
+            var implicitMemberResult: (symbol: SymbolID, type: TypeID)?
+            for receiverType in implicitReceiverLookupTypes {
+                if let result = driver.helpers.lookupMemberProperty(
+                    named: name,
+                    receiverType: sema.types.makeNonNullable(receiverType),
+                    sema: sema
+                ) {
+                    implicitMemberResult = result
+                    break
+                }
+            }
+            if let result = implicitMemberResult {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
                 sema.bindings.bindIdentifier(id, symbol: result.symbol)
                 driver.helpers.checkDeprecation(
@@ -1503,6 +1523,7 @@ extension ExprTypeChecker {
             return expectedReturnType
         }()
         let returnScope = LambdaReturnInferenceScope(
+            exprID: id,
             label: label,
             expectedReturnType: expectedFunctionType?.returnType == sema.types.unitType
                 ? sema.types.unitType : bodyExpectedType

@@ -6,6 +6,8 @@ import Testing
 extension MetadataSerializerTests {
     @Test func testContractImplicationsRoundTrip() throws {
         let effects = [
+            ContractImplicationEffect(parameterIndex: 2, returnCondition: .returnsFalse, argumentCondition: .isType,
+                                      targetTypeSignature: "Ltest_Pair<+Lkotlin_String;,-Lkotlin_String;>;"),
             ContractImplicationEffect(parameterIndex: 0, returnCondition: .returnsTrue, argumentCondition: .nonNull),
             ContractImplicationEffect(parameterIndex: 1, returnCondition: .returnsNotNull, argumentCondition: .booleanTrue),
         ]

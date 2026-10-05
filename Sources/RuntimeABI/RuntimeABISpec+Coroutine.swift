@@ -1170,6 +1170,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "start", type: .intptr),
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "scopeSlot", type: .intptr),
             ],
             returnType: .intptr, section: "Coroutine", isThrowing: false
         ),

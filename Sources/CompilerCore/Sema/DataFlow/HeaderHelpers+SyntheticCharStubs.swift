@@ -509,6 +509,12 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
+        // Bundled declarations own enum entries and the standard enum API.
+        // Keep only the nominal anchor needed by the Char.directionality stub.
+        if BundledSyntheticStubRegistration.bundledIndex.containsNominal(fqName: enumFQName) {
+            return enumType
+        }
+
         let entries = [
             "UNDEFINED",
             "LEFT_TO_RIGHT",

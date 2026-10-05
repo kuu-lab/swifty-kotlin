@@ -335,6 +335,46 @@ final class KIRLoweringContext {
         capturedOuterReceiverExprsByOwner[owner]
     }
 
+    /// A captured outer receiver whose declared owner is `owner` itself, a
+    /// nominal subtype of it (a member extension's `Derived` dispatch
+    /// receiver holds inherited `Base` members), or an inner-class receiver
+    /// whose `$outer` chain reaches it.
+    func capturedOuterReceiverExprID(reaching owner: SymbolID, sema: SemaModule) -> KIRExprID? {
+        capturedOuterReceiverOwner(reaching: owner, sema: sema).flatMap {
+            capturedOuterReceiverExprsByOwner[$0]
+        }
+    }
+
+    /// The owner a captured outer receiver is registered under that can reach
+    /// `owner` — see `capturedOuterReceiverExprID(reaching:)`. Entries are
+    /// probed in symbol order so codegen stays deterministic.
+    func capturedOuterReceiverOwner(reaching owner: SymbolID, sema: SemaModule) -> SymbolID? {
+        for registeredOwner in capturedOuterReceiverExprsByOwner.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            if receiverOwnerReaches(registeredOwner, target: owner, sema: sema) {
+                return registeredOwner
+            }
+        }
+        return nil
+    }
+
+    /// Whether a receiver registered under `candidate` can reach `target`:
+    /// `candidate` is `target` or a nominal subtype of it (inherited-member
+    /// owners), or `candidate` is an inner class whose `$outer` chain climbs
+    /// to `target` or to a subtype of it.
+    private func receiverOwnerReaches(_ candidate: SymbolID, target: SymbolID, sema: SemaModule) -> Bool {
+        var current: SymbolID? = candidate
+        var visited: Set<SymbolID> = []
+        while let owner = current, visited.insert(owner).inserted {
+            if owner == target || sema.types.isNominalSubtypeSymbol(owner, of: target) {
+                return true
+            }
+            current = sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true
+                ? sema.symbols.parentSymbol(for: owner)
+                : nil
+        }
+        return false
+    }
+
     func setCapturedOuterReceiver(_ exprID: KIRExprID, for owner: SymbolID) {
         capturedOuterReceiverExprsByOwner[owner] = exprID
     }
