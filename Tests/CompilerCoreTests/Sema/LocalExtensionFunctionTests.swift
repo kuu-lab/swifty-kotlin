@@ -116,6 +116,41 @@ struct LocalExtensionFunctionTests {
     }
 
     @Test
+    func localExtensionIsNotVisibleOutsideItsDeclarationScope() throws {
+        let ctx = makeContextFromSource("""
+        fun declare() {
+            fun Int.localOnly(): Int = this
+            println(2.localOnly())
+        }
+        fun probe(): Int = 3.localOnly()
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0051" })
+    }
+
+    @Test
+    func localExtensionIsConsideredWhenMemberIsInapplicable() throws {
+        let ctx = makeContextFromSource("""
+        class Choice { fun select(text: String): Int = 40 }
+        fun probe(): Int {
+            fun Choice.select(n: Int): Int = n + 1
+            return Choice().select(2)
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let localID = try #require(ast.arena.exprs.indices.first {
+            if case .localFunDecl = ast.arena.exprs[$0] { return true }
+            return false
+        })
+        let local = try #require(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(localID))))
+        #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == local })
+    }
+
+    @Test
     func bareLocalExtensionReferenceIsRejectedWithoutThisDiagnostic() throws {
         let ctx = makeContextFromSource("""
         fun probe() {

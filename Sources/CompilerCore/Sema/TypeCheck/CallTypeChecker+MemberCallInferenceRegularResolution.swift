@@ -1351,6 +1351,7 @@ extension CallTypeChecker {
                         isSuperCall: isSuperCall,
                         supertypeSymbols: supertypeSymbols,
                         ctx: ctx,
+                        locals: locals,
                         sema: sema,
                         interner: interner
                     )
@@ -1599,6 +1600,11 @@ extension CallTypeChecker {
         // two viable overloads and produce a false ambiguity.
         let candidateSet = Set(allCandidates)
         let resolvedCandidates = allCandidates.filter { candidate in
+            if ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true,
+               locals[calleeName]?.symbol != candidate
+            {
+                return false
+            }
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.flags.contains(.expectDeclaration)
             else {
@@ -2615,9 +2621,19 @@ extension CallTypeChecker {
         isSuperCall: Bool,
         supertypeSymbols: Set<SymbolID>,
         ctx: TypeInferenceContext,
+        locals: LocalBindings,
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
+        if !isSuperCall,
+           let local = locals[calleeName],
+           let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
+           extensionSyntheticFallbackReceiverMatches(
+               callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
+           )
+        {
+            return [local.symbol]
+        }
         let knownNames = KnownCompilerNames(interner: interner)
         let nonNullReceiverForScope = sema.types.makeNonNullable(memberLookupType)
         var scopeCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
@@ -2703,7 +2719,8 @@ extension CallTypeChecker {
                     }
                 }()
                 let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
-                guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
+                guard !symbol.flags.contains(.localFunction),
+                      symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
                     return false
                 }
                 // A member extension declared in a companion is
@@ -2841,12 +2858,14 @@ extension CallTypeChecker {
             isSuperCall: false,
             supertypeSymbols: [],
             ctx: ctx,
+            locals: locals,
             sema: sema,
             interner: interner
         ).filter { candidate in
             !usesOnlyInputTypes(candidate, sema: sema)
                 && (!sema.symbols.isSourceBackedSymbol(candidate)
                     || scopedExtensionCandidates.contains(candidate)
+                    || locals[calleeName]?.symbol == candidate
                     || allowsImportlessAtomicExtensions)
         }
         guard !allCandidates.isEmpty else {
@@ -2929,6 +2948,11 @@ extension CallTypeChecker {
         // Same expect/actual dedup and visibility gate as the primary path.
         let candidateSet = Set(allCandidates)
         let resolvedCandidates = allCandidates.filter { candidate in
+            if ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true,
+               locals[calleeName]?.symbol != candidate
+            {
+                return false
+            }
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.flags.contains(.expectDeclaration)
             else {

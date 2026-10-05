@@ -524,7 +524,7 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        var functionFlags: SymbolFlags = []
+        var functionFlags: SymbolFlags = [.localFunction]
         if isSuspend {
             functionFlags.insert(.suspendFunction)
         }

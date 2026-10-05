@@ -1,3 +1,10 @@
+class Choice {
+    fun select(): Int = 30
+    fun selectTyped(text: String): Int = 40
+}
+
+fun Int.twice(): Int = this * 100
+
 fun Int.outerReceiver(): Int {
     val bonus = 10
     fun Int.combine(extra: Int = 1): Int = this + this@outerReceiver + bonus + extra
@@ -42,4 +49,10 @@ fun main() {
 
     fun regular(n: Int): Int = n + 1
     println(regular(8))
+
+    fun Choice.select(): Int = 99
+    fun Choice.selectTyped(n: Int): Int = n + offset
+    val choice = Choice()
+    println(choice.select())
+    println(choice.selectTyped(2))
 }
