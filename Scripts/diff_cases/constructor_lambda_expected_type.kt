@@ -22,7 +22,11 @@ open class Overloaded {
 object OverloadDerived : Overloaded({ it + 2 }, 7)
 
 open class PairBase(val first: (Int) -> Int, val second: (String) -> String)
-object PairDerived : PairBase({ it * 2 }, { it + "?" })
+object PairDerived : PairBase(second = { it + "?" }, first = { it * 2 })
+
+class Entry(val value: Int)
+open class Holder(val transform: (Entry) -> Entry?)
+object Reject : Holder({ null })
 
 fun increment(value: Int): Int = value + 1
 fun increment(value: String): String = value + "!"
@@ -51,4 +55,7 @@ fun main() {
     println(Local().transform(13))
     println(Container.Named.transform(14))
     println(Mode.SECOND.ordinal)
+    val entry = Entry(7)
+    println(Reject.transform(entry) == null)
+    println(entry.value)
 }

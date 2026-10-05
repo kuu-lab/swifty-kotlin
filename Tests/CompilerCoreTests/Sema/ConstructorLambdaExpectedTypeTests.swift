@@ -72,7 +72,12 @@ struct ConstructorLambdaExpectedTypeTests {
         """,
         """
         open class Base(val first: (Int) -> Int, val second: (String) -> String)
-        object Derived : Base({ it + 1 }, { it + "!" })
+        object Derived : Base(second = { it + "!" }, first = { it + 1 })
+        """,
+        """
+        class Entry(val value: Int)
+        open class Base(val transform: (Entry) -> Entry?)
+        object Derived : Base({ null })
         """,
         """
         open class Base(val transform: (Int) -> Int)
