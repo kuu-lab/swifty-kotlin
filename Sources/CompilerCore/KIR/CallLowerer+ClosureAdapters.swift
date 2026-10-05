@@ -580,6 +580,16 @@ extension CallLowerer {
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
 
+        // Synthetic launchers consume a suspend entry reference plus captures,
+        // not the boxed function-value ABI used by ordinary Kotlin functions.
+        if let symbol,
+           symbol.flags.contains(.synthetic), !isImported,
+           symbol.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern)),
+           ["runBlocking", "launch", "async", "produce"].contains(interner.resolve(symbol.name))
+        {
+            return
+        }
+
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
         // function-value object. Imported Kotlin functions compiled to .kklib
