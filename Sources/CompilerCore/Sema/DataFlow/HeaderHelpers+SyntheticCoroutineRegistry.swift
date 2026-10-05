@@ -1634,8 +1634,12 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(coroutineNameType, for: coroutineNameSymbol)
-        symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineNameSymbol)
-        types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineNameSymbol)
+        let coroutineNameFQName = coroutinesPkg + [interner.intern("CoroutineName")]
+        let hasBundledCoroutineName = bundledIndex.containsNominal(fqName: coroutineNameFQName)
+        if !hasBundledCoroutineName {
+            symbols.setDirectSupertypes([coroutineContextElementSymbol], for: coroutineNameSymbol)
+            types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: coroutineNameSymbol)
+        }
 
         let coroutineExceptionHandlerSymbol = ensureClassSymbol(
             named: "CoroutineExceptionHandler",
@@ -1665,24 +1669,26 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // CoroutineName(name: String) constructor
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "CoroutineName",
-            packageFQName: coroutinesPkg,
-            parameters: [(name: "name", type: types.stringType)],
-            returnType: coroutineNameType,
-            externalLinkName: "kk_coroutine_name_create",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineConstructor(
-            ownerSymbol: coroutineNameSymbol,
-            ownerType: coroutineNameType,
-            externalLinkName: "kk_coroutine_name_create",
-            parameters: [(name: "name", type: types.stringType)],
-            symbols: symbols,
-            interner: interner
-        )
+        // The bundled constructor allocates the runtime-owned name handle.
+        if !hasBundledCoroutineName {
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "CoroutineName",
+                packageFQName: coroutinesPkg,
+                parameters: [(name: "name", type: types.stringType)],
+                returnType: coroutineNameType,
+                externalLinkName: "kk_coroutine_name_create",
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticCoroutineConstructor(
+                ownerSymbol: coroutineNameSymbol,
+                ownerType: coroutineNameType,
+                externalLinkName: "kk_coroutine_name_create",
+                parameters: [(name: "name", type: types.stringType)],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // CoroutineExceptionHandler { context, exception -> } factory
         registerSyntheticCoroutineTopLevelFunction(
@@ -1882,17 +1888,19 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineNameSymbol,
-            ownerType: coroutineNameType,
-            name: "plus",
-            externalLinkName: "kk_context_plus",
-            returnType: kotlinCoroutineContextType,
-            parameters: [(name: "context", type: kotlinCoroutineContextType)],
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
-        )
+        if !hasBundledCoroutineName {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: coroutineNameSymbol,
+                ownerType: coroutineNameType,
+                name: "plus",
+                externalLinkName: "kk_context_plus",
+                returnType: kotlinCoroutineContextType,
+                parameters: [(name: "context", type: kotlinCoroutineContextType)],
+                flags: [.synthetic, .operatorFunction],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineMember(
             ownerSymbol: coroutineExceptionHandlerSymbol,
             ownerType: coroutineExceptionHandlerType,
