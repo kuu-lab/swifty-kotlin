@@ -23,14 +23,29 @@ struct ImplicitPrimitiveConversionTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
             let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let propertySymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("codeProperty")]))
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let getter = try #require(findAllKIRFunctions(in: module).first { $0.symbol == getterSymbol })
+            var functions = try ["implicitCode", "explicitCode", "times"].map {
+                try findKIRFunction(named: $0, in: module, interner: ctx.interner)
+            }
+            functions.append(getter)
 
-            for name in ["implicitCode", "explicitCode", "times", "codeProperty$get"] {
-                let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
-                let calls = body.compactMap { instruction -> String? in
-                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-                    return ctx.interner.resolve(callee)
+            for function in functions {
+                let name = ctx.interner.resolve(function.name)
+                let reads = function.body.compactMap { instruction -> [KIRExprID]? in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_char_code"
+                    else { return nil }
+                    return arguments
                 }
-                #expect(calls.filter { $0 == "kk_char_code" }.count == 1, "\(name): \(calls)")
+                #expect(reads.count == 1, "\(name) must unbox Char.code exactly once")
+                let arguments = try #require(reads.first)
+                #expect(arguments.count == 1)
+                let receiver = try #require(arguments.first)
+                #expect(module.arena.exprType(receiver) == sema.types.charType)
             }
 
             for name in ["parameterCode", "localCode", "memberCode"] {
