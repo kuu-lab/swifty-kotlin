@@ -1,5 +1,6 @@
 import Dispatch
 import Foundation
+import RuntimeABI
 
 #if os(macOS)
 import Darwin
@@ -96,7 +97,7 @@ public func kk_cpointer_toKStringFromUtf32(_ handle: Int) -> Int {
         }
         index += 1
     }
-    return registerRuntimeObject(RuntimeStringBox(result))
+    return runtimeMakeStringRaw(KotlinStringSurrogateEncoding.encode(result))
 }
 
 @_cdecl("kk_cpointer_toKStringFromUtf16")

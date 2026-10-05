@@ -608,6 +608,11 @@ final class ObjectLiteralLowerer {
     }
 
     func implicitReceiverExprID(forProperty symbol: SymbolID, sema: SemaModule) -> KIRExprID? {
+        if let owner = sema.symbols.parentSymbol(for: symbol),
+           let receiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
+        {
+            return receiver
+        }
         guard let propertyOwner = sema.symbols.parentSymbol(for: symbol),
               let functionSymbol = driver.ctx.currentFunctionSymbol,
               let objectOwner = sema.symbols.parentSymbol(for: functionSymbol),

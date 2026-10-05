@@ -52,27 +52,16 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
         }
+        // 関数型 ⇔ FunctionN のサブタイプ判定が名前解決を要しないよう、
+        // arity → symbol を TypeSystem に登録する（KUU-1084）。
+        types.functionNInterfaceSymbols[arity] = interfaceSymbol
 
-        // 型パラメータの定義
+        // 型パラメータの定義。KUU-1084: Kotlin と同じ [P1..PN, R] の宣言順で
+        // 登録する — `Function1<Int, String>` が書かれた順に (Int) -> String
+        // を意味するようにする（以前は [R, P...] 順で、書かれた型引数と
+        // invoke のシグネチャが逆順に束縛されていた）。
         var typeParamSymbols: [SymbolID] = []
         var typeParamTypes: [TypeID] = []
-
-        // 戻り値型パラメータ R (out変位)
-        let returnParamName = interner.intern("R")
-        let returnParamFQName = interfaceFQName + [returnParamName]
-        let returnParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: returnParamName,
-            fqName: returnParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        typeParamSymbols.append(returnParamSymbol)
-        typeParamTypes.append(types.make(.typeParam(TypeParamType(
-            symbol: returnParamSymbol,
-            nullability: .nonNull
-        ))))
 
         // パラメータ型 P1-P22 (in変位)
         if arity > 0 {
@@ -95,13 +84,31 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // 型パラメータの変位指定を設定
-        var variances: [TypeVariance] = [.out] // 戻り値はout
+        // 戻り値型パラメータ R (out変位) は宣言順の最後
+        let returnParamName = interner.intern("R")
+        let returnParamFQName = interfaceFQName + [returnParamName]
+        let returnParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: returnParamName,
+            fqName: returnParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        typeParamSymbols.append(returnParamSymbol)
+        typeParamTypes.append(types.make(.typeParam(TypeParamType(
+            symbol: returnParamSymbol,
+            nullability: .nonNull
+        ))))
+
+        // 型パラメータの変位指定を設定: [in P1, .., in PN, out R]
+        var variances: [TypeVariance] = []
         if arity > 0 {
             for _ in 1...arity {
                 variances.append(.in) // パラメータはin
             }
         }
+        variances.append(.out) // 戻り値はout
         types.setNominalTypeParameterSymbols(typeParamSymbols, for: interfaceSymbol)
         types.setNominalTypeParameterVariances(variances, for: interfaceSymbol)
 
@@ -146,8 +153,9 @@ extension DataFlowSemaPhase {
 
         if arity > 0 {
             for i in 1...arity {
+                // [P1..PN, R] 宣言順では P_i は typeParamSymbols[i - 1]
                 let paramType = types.make(.typeParam(TypeParamType(
-                    symbol: typeParamSymbols[i],
+                    symbol: typeParamSymbols[i - 1],
                     nullability: .nonNull
                 )))
                 parameterTypes.append(paramType)
@@ -167,7 +175,7 @@ extension DataFlowSemaPhase {
         }
 
         let returnType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbols[0], // R
+            symbol: typeParamSymbols[arity], // R は宣言順の最後
             nullability: .nonNull
         )))
 
@@ -175,7 +183,7 @@ extension DataFlowSemaPhase {
         let receiverType = types.make(.classType(ClassType(
             classSymbol: ownerSymbol,
             args: typeParamSymbols.enumerated().map { index, symbol in
-                let variance: TypeVariance = index == 0 ? .out : .in
+                let variance: TypeVariance = index == arity ? .out : .in
                 let paramType = types.make(.typeParam(TypeParamType(
                     symbol: symbol,
                     nullability: .nonNull

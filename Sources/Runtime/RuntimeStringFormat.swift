@@ -757,17 +757,14 @@ private func runtimeTrimTrailingHexZeros(_ value: String) -> String {
 
 private func runtimeFormatCharacterValue(_ value: RuntimeValue) -> String {
     let scalarValue = UInt32(truncatingIfNeeded: runtimeFormatIntegerValue(value))
-    guard let scalar = UnicodeScalar(scalarValue) else {
-        return "?"
-    }
-    return String(scalar)
+    return runtimeCharacterFromRaw(Int(scalarValue))
 }
 
 private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSpecifier) -> String {
-    guard let width = specifier.width, value.count < width else {
+    guard let width = specifier.width, runtimeKotlinStringUTF16Length(value) < width else {
         return value
     }
-    let padding = String(repeating: " ", count: width - value.count)
+    let padding = String(repeating: " ", count: width - runtimeKotlinStringUTF16Length(value))
     if specifier.flags.contains("-") {
         return value + padding
     }
@@ -832,10 +829,10 @@ private func runtimeParenthesizeNegativeValue(
 }
 
 private func runtimeApplyNumericWidth(_ value: String, specifier: RuntimeFormatSpecifier) -> String {
-    guard let width = specifier.width, value.count < width else {
+    guard let width = specifier.width, runtimeKotlinStringUTF16Length(value) < width else {
         return value
     }
-    let paddingCount = width - value.count
+    let paddingCount = width - runtimeKotlinStringUTF16Length(value)
     if specifier.flags.contains("-") {
         return value + String(repeating: " ", count: paddingCount)
     }
@@ -885,9 +882,9 @@ private func runtimeRenderOrNull(
 private func runtimeFormatHashCode(_ value: RuntimeValue) -> Int {
     switch value.tag {
     case RuntimeValue.stringTag:
-        return runtimeElementToString(value).unicodeScalars.reduce(0) { partial, scalar in
-            31 &* partial &+ Int(Int32(bitPattern: scalar.value))
-        }
+        return Int(runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(value)).reduce(Int32(0)) { partial, unit in
+            31 &* partial &+ Int32(unit)
+        })
     case RuntimeValue.charTag:
         return value.payload0
     default:

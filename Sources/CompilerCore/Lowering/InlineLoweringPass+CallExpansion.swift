@@ -214,14 +214,11 @@ extension InlineLoweringPass {
                     localExprMap[result] = mapped
                     continue
                 }
-                if case let .symbolRef(symbol) = value,
-                   let captureArgs = module.arena.lambdaCaptureArgsBySymbol[symbol],
-                   !captureArgs.isEmpty
-                {
-                    let resolvedCaptureArgs = captureArgs.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                    module.arena.registerLambdaCaptureArgs(symbol, captureArgs: resolvedCaptureArgs)
-                }
                 let loweredResult = InlineExprCloning.cloneOrReuseExpr(result, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
+                recordClonedLambdaCaptures(
+                    source: result, cloned: loweredResult, value: value,
+                    aliases: localExprMap, arena: module.arena
+                )
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
@@ -259,7 +256,10 @@ extension InlineLoweringPass {
                    )
                 {
                     let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                    let captureArgs = module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? []
+                    let captureArgs = lambdaCaptureArguments(
+                        for: argExpr, symbol: lambdaFunction.symbol,
+                        aliases: localExprMap, arena: module.arena
+                    )
                     let valueArgs: [KIRExprID]
                     if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"]
                         .contains(calleeStr)
@@ -296,7 +296,8 @@ extension InlineLoweringPass {
                         )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
-                               exprIsDefined(lambdaReturn, in: lowered.instructions)
+                               (fullArgs.contains(lambdaReturn)
+                                   || exprIsDefined(lambdaReturn, in: lowered.instructions))
                             {
                                 localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
@@ -331,8 +332,10 @@ extension InlineLoweringPass {
                        callerBody: callerBody
                    )
                 {
-                    let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
-                        .map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
+                    let captureArgs = lambdaCaptureArguments(
+                        for: callableExpr, symbol: lambdaFunction.symbol,
+                        aliases: localExprMap, arena: module.arena
+                    )
                     let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                         arguments: captureArgs + Array(resolvedArgs.dropFirst()),
                         lambdaFunction: lambdaFunction,
@@ -361,7 +364,8 @@ extension InlineLoweringPass {
                         )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
-                               exprIsDefined(lambdaReturn, in: lowered.instructions)
+                               (fullArgs.contains(lambdaReturn)
+                                   || exprIsDefined(lambdaReturn, in: lowered.instructions))
                             {
                                 localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
@@ -639,6 +643,20 @@ extension InlineLoweringPass {
 
             case .beginFinallyGuard:
                 lowered.append(.beginFinallyGuard)
+
+            case .beginFinallyCleanup, .endFinallyCleanup:
+                lowered.append(instruction)
+
+            case let .beginNonLocalReturnScope(value, target):
+                let slot = InlineExprCloning.cloneOrReuseExpr(value, localExprMap: &localExprMap, in: module.arena)
+                lowered.append(.beginNonLocalReturnScope(value: slot, target: labelRemap[target] ?? target))
+
+            case .endNonLocalReturnScope:
+                lowered.append(.endNonLocalReturnScope)
+
+            case let .resumeNonLocalReturn(value):
+                hasNonLocalReturn = true
+                lowered.append(.resumeNonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap)))
 
             case .endFinallyGuard:
                 lowered.append(.endFinallyGuard)

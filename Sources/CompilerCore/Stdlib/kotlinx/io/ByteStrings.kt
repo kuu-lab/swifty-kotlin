@@ -3,7 +3,6 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  *
  * Derived from kotlinx-io core/common/src/ByteStrings.kt (tag 0.9.1).
- * The readByteArray helpers from Sources.kt are not bundled yet, so reads copy from the buffer here.
  */
 package kotlinx.io
 

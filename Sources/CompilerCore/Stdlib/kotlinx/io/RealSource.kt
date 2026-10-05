@@ -42,7 +42,7 @@ internal class RealSource(
 
     override fun request(byteCount: Long): Boolean {
         checkNotClosed()
-        checkByteCount(byteCount)
+        if (byteCount < 0L) throw IllegalArgumentException("byteCount: $byteCount")
         while (bufferField.size < byteCount) {
             if (source.readAtMostTo(bufferField, Segment.SIZE.toLong()) == -1L) return false
         }
