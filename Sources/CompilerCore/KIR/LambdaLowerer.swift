@@ -624,13 +624,27 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // The kk_function_create_N ABI has no receiver slot, so a receiver-bearing
-        // callable (e.g. `DeepRecursiveScope<T, R>.(T) -> R`) cannot be boxed here
-        // without dropping the receiver. Keep the raw lambda instead: call sites
-        // that consume such callables adapt them through
-        // makeCollectionHOFCallableAdapter, which forwards the receiver explicitly.
-        guard functionType.receiver == nil else {
-            return nil
+        if functionType.receiver != nil {
+            // Generic receiver callbacks already use the callee's erased return ABI.
+            guard lambdaReturnType == functionType.returnType else { return nil }
+            let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
+            instructions.append(.constValue(result: callable, value: .symbolRef(lambdaSymbol)))
+            driver.ctx.registerCallableValue(
+                callable,
+                symbol: lambdaSymbol,
+                callee: syntheticLambdaName(for: exprID, interner: interner),
+                captureArguments: captureArguments,
+                hasClosureParam: false
+            )
+            return driver.callLowerer.materializeFunctionValueArgument(
+                loweredArgID: callable,
+                argExprID: exprID,
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         let createCallee: InternedString
         switch functionType.params.count {
