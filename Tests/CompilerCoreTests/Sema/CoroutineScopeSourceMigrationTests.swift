@@ -5,6 +5,54 @@ import Testing
 @Suite
 struct CoroutineScopeSourceMigrationTests {
     @Test
+    func scopeBuildersAcceptReceiverFunctionValuesAndLiterals() throws {
+        let ctx = makeContextFromSource("""
+        import kotlinx.coroutines.*
+
+        suspend fun probe(block: suspend CoroutineScope.() -> Int) {
+            coroutineScope(block = block)
+            supervisorScope(block)
+            coroutineScope {
+                val scope: CoroutineScope = this
+                scope.ensureActive()
+                async { 7 }.await()
+            }
+            supervisorScope {
+                val scope: CoroutineScope = this
+                scope.launch { }.join()
+                coroutineContext.isActive
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let scopeSymbol = try #require(sema.symbols.lookupAll(
+            fqName: ["kotlinx", "coroutines", "CoroutineScope"].map(ctx.interner.intern)
+        ).first { sema.symbols.symbol($0)?.kind == .interface })
+        for name in ["coroutineScope", "supervisorScope"] {
+            let symbol = try #require(sema.symbols.lookupAll(
+                fqName: ["kotlinx", "coroutines", name].map(ctx.interner.intern)
+            ).first { sema.symbols.symbol($0)?.kind == .function })
+            #expect(sema.symbols.isSourceBackedSymbol(symbol))
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            let blockType = try #require(signature.parameterTypes.first)
+            guard case let .functionType(block) = sema.types.kind(of: blockType) else {
+                Issue.record("Expected a function-typed block")
+                continue
+            }
+            let receiver = try #require(block.receiver)
+            guard case let .classType(receiverClass) = sema.types.kind(of: receiver) else {
+                Issue.record("Expected a CoroutineScope receiver")
+                continue
+            }
+            #expect(receiverClass.classSymbol == scopeSymbol)
+            #expect(block.isSuspend)
+            #expect(block.params.isEmpty)
+        }
+    }
+
+    @Test
     func factoriesAndHelpersUseBundledDeclarations() throws {
         let ctx = makeContextFromSource("""
         import kotlin.coroutines.EmptyCoroutineContext

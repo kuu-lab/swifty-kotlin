@@ -1659,8 +1659,7 @@ final class CallTypeChecker {
                 lambdaReturnType = expectedType ?? sema.types.anyType
             }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
-                receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
-                    ? nil : coroutineScopeType(sema: sema, interner: interner),
+                receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
                 returnType: lambdaReturnType,
                 isSuspend: true,
