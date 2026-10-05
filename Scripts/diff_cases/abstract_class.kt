@@ -34,7 +34,7 @@ class Box : Container() {
     override var items: List<String> = emptyList()
 }
 
-// Test empty abstract class (should generate warning)
+// An abstract class with only concrete members is legal.
 abstract class EmptyAbstract {
     fun someMethod() {}
 }
