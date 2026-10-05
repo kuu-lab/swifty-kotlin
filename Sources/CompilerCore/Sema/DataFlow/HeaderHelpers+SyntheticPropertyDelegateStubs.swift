@@ -91,6 +91,7 @@ extension DataFlowSemaPhase {
         let kCallableSymbol = ensureInterfaceSymbol(
             named: "KCallable", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
+        types.kCallableInterfaceSymbol = kCallableSymbol
         // Keep KCallable's generic shell so early synthetic declarations can
         // refer to it before bundled headers are collected.
         let returnTypeParameterName = interner.intern("R")
@@ -252,7 +253,7 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types
         )
 
-        if let kFunctionInfo = symbols.symbol(kFunctionSymbol) {
+        if !hasSourceBackedKCallable, let kFunctionInfo = symbols.symbol(kFunctionSymbol) {
             let namePropName = interner.intern("name")
             let namePropFQ = kFunctionInfo.fqName + [namePropName]
             if symbols.lookup(fqName: namePropFQ) == nil {
@@ -1476,7 +1477,8 @@ extension DataFlowSemaPhase {
 
         guard let kFunctionInfo = symbols.symbol(kFunctionSymbol) else { return }
         let paramsPropFQ = kFunctionInfo.fqName + [interner.intern("parameters")]
-        if let paramsPropSymbol = symbols.lookup(fqName: paramsPropFQ) {
+        if let paramsPropSymbol = symbols.lookup(fqName: paramsPropFQ),
+           !symbols.isSourceBackedSymbol(paramsPropSymbol) {
             symbols.setPropertyType(listOfAnyNullable, for: paramsPropSymbol)
         }
     }

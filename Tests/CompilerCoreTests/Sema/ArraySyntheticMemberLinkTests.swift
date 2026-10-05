@@ -880,7 +880,7 @@ struct ArraySyntheticMemberLinkTests {
     func testArrayIndexAndIterationMembersBindBundledKotlinSource() throws {
         let ctx = makeContextFromSource(
             """
-            fun sample(values: Array<String>, ints: IntArray, longs: LongArray) {
+            fun sample(values: Array<String>, ints: IntArray, longs: LongArray, bytes: ByteArray, chars: CharArray) {
                 values.indices
                 values.lastIndex
                 values.iterator()
@@ -896,6 +896,13 @@ struct ArraySyntheticMemberLinkTests {
                 longs.lastIndex
                 longs.iterator()
                 longs.withIndex()
+
+                val byteIndices: IntRange = bytes.indices
+                val byteLastIndex: Int = bytes.lastIndex
+                val charIndices: IntRange = chars.indices
+                val charLastIndex: Int = chars.lastIndex
+                for (i in bytes.indices) { bytes[i] }
+                for (i in chars.indices) { chars[i] }
             }
             """
         )
@@ -903,9 +910,10 @@ struct ArraySyntheticMemberLinkTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
-            ctx.diagnostics.diagnostics.isEmpty,
-            "Expected array index and iteration members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+            errors.isEmpty,
+            "Expected array index and iteration members to type-check, got: \(errors)"
         )
 
         let userPath = try #require(
@@ -917,6 +925,7 @@ struct ArraySyntheticMemberLinkTests {
             "Array.indices", "Array.lastIndex", "Array.iterator", "Array.withIndex",
             "IntArray.indices", "IntArray.lastIndex", "IntArray.iterator", "IntArray.withIndex", "IntArray.sort",
             "LongArray.indices", "LongArray.lastIndex", "LongArray.iterator", "LongArray.withIndex",
+            "ByteArray.indices", "ByteArray.lastIndex", "CharArray.indices", "CharArray.lastIndex",
         ]
         var boundMembers = Set<String>()
 

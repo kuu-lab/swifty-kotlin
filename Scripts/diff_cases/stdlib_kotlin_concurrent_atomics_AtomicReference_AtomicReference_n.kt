@@ -4,9 +4,7 @@ import kotlin.concurrent.atomics.AtomicReference
 
 class Box(val s: String)
 
-// Kotlin's canonical reference lacks the legacy getAndSet alias and the
-// value property; those compatibility declarations are covered by the
-// Sema golden.
+// Exercise exchange, the canonical Kotlin name for Java's getAndSet.
 fun main() {
     val atomic = AtomicReference("initial")
     println(atomic.load())

@@ -268,7 +268,7 @@ extension LibraryMetadataImportIntegrationTests {
                         symbol.fqName.map { ctx.interner.resolve($0) } == ["wc", "util", "Widget"]
                 }
                 #expect(widgetSymbol != nil, "Wildcard import should resolve library class 'Widget'")
-                #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error && $0.code.hasPrefix("KSWIFTK-SEMA") })
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             }
         }
     }
@@ -302,7 +302,7 @@ extension LibraryMetadataImportIntegrationTests {
                         symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "collections", "listOf"]
                 }
                 #expect(listOfSymbol != nil, "Default import should resolve library function 'listOf' from kotlin.collections")
-                #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error && $0.code.hasPrefix("KSWIFTK-SEMA") })
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             }
         }
     }
@@ -354,7 +354,7 @@ extension LibraryMetadataImportIntegrationTests {
                         symbol.fqName.map { ctx.interner.resolve($0) } == ["mix", "api", "Gamma"]
                 }
                 #expect(gammaSymbol != nil, "Wildcard import should resolve library class 'Gamma'")
-                #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error && $0.code.hasPrefix("KSWIFTK-SEMA") })
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             }
         }
     }

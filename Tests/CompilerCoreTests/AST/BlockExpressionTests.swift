@@ -239,7 +239,7 @@ struct BlockExpressionTests {
                 return
             }
             let outerFirstStmtID = try #require(outerStmts.first)
-            guard case let .localFunDecl(_, _, _, innerBody, _, _) = try #require(ast.arena.expr(outerFirstStmtID)) else {
+            guard case let .localFunDecl(_, _, _, _, innerBody, _, _) = try #require(ast.arena.expr(outerFirstStmtID)) else {
                 Issue.record("Expected \(outerName)'s first statement to be a local fun declaration")
                 return
             }

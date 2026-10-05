@@ -9,4 +9,30 @@ fun main() {
     val m2 = mutableMapOf(1 to "a", 2 to "b"); m2.values.remove("a"); println(m2)
     val m3 = mutableMapOf(1 to "a", 2 to "b"); m3.entries.retainAll { it.key != 1 }; println(m3)
     val m4 = mutableMapOf(1 to "a"); m4.keys.clear(); println(m4)
+
+    val typed = mutableMapOf("a" to 1, "b" to 2)
+    val keys: MutableSet<String> = typed.keys
+    val values: MutableCollection<Int> = typed.values
+    val entries: MutableSet<MutableMap.MutableEntry<String, Int>> = typed.entries
+    typed["c"] = 2
+    println(keys.size)
+    println(values.size)
+    println(entries.size)
+    println(keys.remove("a"))
+    println(keys.remove("a"))
+    println(typed)
+    println(values.remove(2))
+    println(values.remove(99))
+    println(typed)
+    println(entries.remove(entries.first()))
+    println(typed.isEmpty())
+
+    val nullable: MutableMap<String?, Int?> = mutableMapOf(null to null, "a" to null, "b" to 2)
+    val nullableKeys: MutableSet<String?> = nullable.keys
+    val nullableValues: MutableCollection<Int?> = nullable.values
+    println(nullableKeys.remove(null))
+    println(nullableValues.remove(null))
+    println(nullable)
+    nullableValues.clear()
+    println(nullable.isEmpty())
 }

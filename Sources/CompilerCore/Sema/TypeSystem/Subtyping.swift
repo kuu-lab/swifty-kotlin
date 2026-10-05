@@ -308,6 +308,7 @@ extension TypeSystem {
             // interface as well as `kotlin.reflect.KFunction<R>`.
             guard rightClass.classSymbol == functionInterfaceSymbol
                 || rightClass.classSymbol == kFunctionInterfaceSymbol
+                || rightClass.classSymbol == kCallableInterfaceSymbol
             else {
                 // KUU-1084: `(P1..PN) -> R` also conforms to the synthetic
                 // `kotlin.Function.FunctionN` interface of matching arity.

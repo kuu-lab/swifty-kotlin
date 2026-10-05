@@ -1,5 +1,35 @@
 
-typealias LocalBindings = [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)]
+struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
+    typealias Value = (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)
+    private var bindings: [InternedString: Value]
+    var memberFlow: [DataFlowReference: VariableFlowState] = [:]
+
+    init(dictionaryLiteral elements: (InternedString, Value)...) {
+        bindings = Dictionary(uniqueKeysWithValues: elements)
+    }
+
+    subscript(name: InternedString) -> Value? {
+        get { bindings[name] }
+        set { bindings[name] = newValue }
+    }
+
+    var values: Dictionary<InternedString, Value>.Values { bindings.values }
+    var isEmpty: Bool { bindings.isEmpty }
+
+    func makeIterator() -> Dictionary<InternedString, Value>.Iterator {
+        bindings.makeIterator()
+    }
+
+    func merging(_ other: LocalBindings, uniquingKeysWith combine: (Value, Value) throws -> Value) rethrows -> LocalBindings {
+        var merged = self
+        merged.bindings = try bindings.merging(other.bindings, uniquingKeysWith: combine)
+        return merged
+    }
+
+    mutating func invalidateMembers(root: SymbolID) {
+        memberFlow = memberFlow.filter { $0.key.root != root }
+    }
+}
 
 /// Dispatch hub for type checking. Replaces the monolithic extension-based splitting
 /// of `TypeCheckSemaPhase` with independent delegate classes.

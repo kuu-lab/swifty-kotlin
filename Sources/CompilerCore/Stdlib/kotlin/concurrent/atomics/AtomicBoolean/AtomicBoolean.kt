@@ -59,8 +59,6 @@ public fun AtomicBoolean.store(value: Boolean): Unit {
 public fun AtomicBoolean.toString(): String =
     __kkAtomicBoolLoad().toString()
 
-// Compatibility update names retained from the former
-// kotlin.concurrent.AtomicBoolean typealias surface.
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public inline fun AtomicBoolean.fetchAndUpdate(transform: (Boolean) -> Boolean): Boolean {
@@ -80,13 +78,3 @@ public inline fun AtomicBoolean.updateAndFetch(transform: (Boolean) -> Boolean):
         if (compareAndSet(old, newValue)) return newValue
     }
 }
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public inline fun AtomicBoolean.getAndUpdate(transform: (Boolean) -> Boolean): Boolean =
-    fetchAndUpdate(transform)
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public inline fun AtomicBoolean.updateAndGet(transform: (Boolean) -> Boolean): Boolean =
-    updateAndFetch(transform)

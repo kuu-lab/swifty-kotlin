@@ -62,6 +62,15 @@ public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
 }
 
 /**
+ * Performs the given [action] on each key and value.
+ */
+public inline fun <K, V> Map<K, V>.forEach(action: (K, V) -> Unit) {
+    for (entry in this.entries) {
+        action(entry.key, entry.value)
+    }
+}
+
+/**
  * Returns `true` if map has at least one entry.
  */
 public fun <K, V> Map<out K, V>.any(): Boolean {

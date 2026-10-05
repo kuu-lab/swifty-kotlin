@@ -45,7 +45,7 @@ extension DataFlowSemaPhase {
     /// Describes the symbol a top-level declaration introduces, without touching
     /// the symbol table. Shared by the forward-declaration pass and `collectHeader`
     /// so both agree on kind/visibility/flags.
-    private func topLevelDeclarationDescriptor(
+    func topLevelDeclarationDescriptor(
         for decl: Decl,
         diagnostics: DiagnosticEngine?
     ) -> (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)? {
