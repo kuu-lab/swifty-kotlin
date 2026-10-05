@@ -39,7 +39,7 @@ expr e@18:58 int(2) type=Int
 expr e@18:48 call callee=e@18:48#1 args=[_:e@18:55,_:e@18:58] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@18:35 call callee=e@18:35#1 args=[_:e@18:48] type=UserIterator call=UserIterator.<init>[kind=ctor;recv=UserIterator;params=kotlin.collections.List<Int>;ret=UserIterator;names=[values];origin=fixture]
 expr e@18:33 lambda params=[] body=e@18:35 label=Sequence type=() -> UserIterator
-expr e@18:24 call callee=e@18:24#1 args=[_:e@18:33] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.Sequence[kind=fun;params=fn{p=;ret=kotlin.collections.Iterator<T0>};ret=kotlin.sequences.Sequence<T0>;gen=1;names=[iteratorProducer]] targs=[Int]
+expr e@18:24 call callee=e@18:24#1 args=[_:e@18:33] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.Sequence[kind=fun;params=fn{p=;ret=kotlin.collections.Iterator<T0>};ret=kotlin.sequences.Sequence<T0>;gen=1;nonlocal=[0];names=[iteratorProducer]] targs=[Int]
 expr e@18:5 localDecl fromIterator mutable=0 type=_ init=e@18:24 type=Unit ref=__local_1.fromIterator[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]
 expr e@19:17 call callee=e@19:17#1 args=[] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=;ret=kotlin.sequences.Sequence<T0>;gen=1] targs=[Int]
 expr e@19:5 localDecl empty mutable=0 type=_ init=e@19:17 type=Unit ref=__local_2.empty[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]

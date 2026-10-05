@@ -9,7 +9,7 @@ expr e@6:5 name(new) type=Int ref=s-0
 expr e@6:12 int(0) type=Int
 expr e@6:5#1 binary(greaterOrEqual) lhs=e@6:5 rhs=e@6:12 type=Boolean
 expr e@5:39 lambda params=[prop,old,new] body=e@6:5#1 label=vetoable type=(kotlin.reflect.KProperty<*>, Int, Int) -> Boolean
-expr e@5:17#1 memberCall recv=e@5:17 callee=vetoable args=[_:e@5:36,_:e@5:39] type=kotlin.properties.ReadWriteProperty<Any?, Int> call=kotlin.properties.Delegates.vetoable[kind=fun;recv=kotlin.properties.Delegates;params=T0,fn{p=kotlin.reflect.KProperty<*>,T0,T0;ret=Boolean};ret=kotlin.properties.ReadWriteProperty<Any?,T0>;gen=1;names=[initialValue,onChange]] targs=[Int]
+expr e@5:17#1 memberCall recv=e@5:17 callee=vetoable args=[_:e@5:36,_:e@5:39] type=kotlin.properties.ReadWriteProperty<Any?, Int> call=kotlin.properties.Delegates.vetoable[kind=fun;recv=kotlin.properties.Delegates;params=T0,fn{p=kotlin.reflect.KProperty<*>,T0,T0;ret=Boolean};ret=kotlin.properties.ReadWriteProperty<Any?,T0>;gen=1;nonlocal=[1,0];names=[initialValue,onChange]] targs=[Int]
 expr e@10:13 name(age) type=Int ref=golden.sema.age[kind=prop;type=Int;mutable;origin=fixture]
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@11:11 int(10) type=Int

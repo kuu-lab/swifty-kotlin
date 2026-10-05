@@ -9,7 +9,7 @@ file fstdlib_kotlin_coroutines_intrinsics_n_n package=golden.sema
   decl golden.sema.intercept[kind=fun;params=kotlin.coroutines.Continuation<T0>;ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[continuation];origin=fixture] fun intercept sym=golden.sema.intercept[kind=fun;params=kotlin.coroutines.Continuation<T0>;ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[continuation];origin=fixture]
 expr e@9:45 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop;type=Any]
 expr e@9:43 lambda params=[] body=e@9:45 label=suspendCoroutineUninterceptedOrReturn type=(kotlin.coroutines.Continuation<Any?>) -> Any?
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:43] type=Any? call=kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn[kind=fun;params=fn{p=kotlin.coroutines.Continuation<T0>;ret=Any?};ret=T0;susp;gen=1;names=[block]] targs=[Any?]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:43] type=Any? call=kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn[kind=fun;params=fn{p=kotlin.coroutines.Continuation<T0>;ret=Any?};ret=T0;susp;gen=1;nonlocal=[0];names=[block]] targs=[Any?]
 expr e@12:13 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop;type=Any]
 expr e@12:37 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop;type=Any]
 expr e@12:13#1 binary(identityEqual) lhs=e@12:13 rhs=e@12:37 type=Boolean

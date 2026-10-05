@@ -6,6 +6,19 @@
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 
+// KUU-1138: opaque returned values retain their closure ABI, including multiple captures.
+fun producerBlock(base: Int, step: Int): suspend ProducerScope<Int>.() -> Unit = {
+    send(base)
+    yield()
+    send(base + step)
+}
+
+fun actorBlock(done: Channel<Int>, bias: Int): suspend ActorScope<Int>.() -> Unit = {
+    var acc = bias
+    for (msg in channel) { acc += msg }
+    done.send(acc)
+}
+
 fun main() = runBlocking {
     // The annotation itself is a function type declared inside a lambda body.
     val f: suspend ProducerScope<Int>.() -> Unit = {
@@ -18,6 +31,9 @@ fun main() = runBlocking {
     total = 0
     for (v in produce(capacity = 2, block = f)) { total += v }
     println("capacity: $total")
+    total = 0
+    for (v in produce(block = producerBlock(3, 1))) { total += v }
+    println("opaque: $total")
 
     // actor with a function-value block; rendezvous keeps output order stable.
     val done = Channel<Int>(capacity = 1)
@@ -32,6 +48,12 @@ fun main() = runBlocking {
     a1.send(20)
     a1.close()
     done.receive()
+
+    val a2 = actor(capacity = 2, block = actorBlock(done, 10))
+    a2.send(4)
+    a2.send(5)
+    a2.close()
+    println("opaque actor: ${done.receive()}")
 
     println("done")
 }

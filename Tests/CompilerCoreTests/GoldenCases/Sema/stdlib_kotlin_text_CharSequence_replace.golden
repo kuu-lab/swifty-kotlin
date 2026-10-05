@@ -31,7 +31,7 @@ expr e@7:48 name(match) type=kotlin.text.MatchResult ref=s-0
 expr e@7:48#1 memberCall recv=e@7:48 callee=value args=[] type=String call=kotlin.text.value.$get[kind=fun;recv=kotlin.text.MatchResult;params=;ret=String]
 expr e@7:44 stringTemplate[lit([),expr(e@7:48#1),lit(])] type=String
 expr e@7:33 lambda params=[match] body=e@7:44 label=replace type=(kotlin.text.MatchResult) -> kotlin.CharSequence
-expr e@7:5#1 memberCall recv=e@7:5 callee=replace args=[_:e@7:20,_:e@7:33] type=String call=kotlin.text.replace[kind=fun;recv=kotlin.CharSequence;params=kotlin.text.Regex,fn{p=kotlin.text.MatchResult;ret=kotlin.CharSequence};ret=String;names=[regex,replacement]]
+expr e@7:5#1 memberCall recv=e@7:5 callee=replace args=[_:e@7:20,_:e@7:33] type=String call=kotlin.text.replace[kind=fun;recv=kotlin.CharSequence;params=kotlin.text.Regex,fn{p=kotlin.text.MatchResult;ret=kotlin.CharSequence};ret=String;nonlocal=[1,0];names=[regex,replacement]]
 expr e@10:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceFirstRegex.$0.source[kind=vparam;origin=fixture]
 expr e@10:31 string(a+) type=String
 expr e@10:25 call callee=e@10:25#1 args=[_:e@10:31] type=kotlin.text.Regex call=kotlin.text.Regex.<init>[kind=ctor;recv=kotlin.text.Regex;params=String;ret=kotlin.text.Regex;names=[pattern]]

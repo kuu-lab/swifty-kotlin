@@ -24,7 +24,7 @@ expr e@6:53 name(null) type=Nothing?
 expr e@6:63 name(value) type=String ref=s-0
 expr e@6:32 if cond=e@6:36#1 then=e@6:53 else=e@6:63 type=String?
 expr e@6:21 lambda params=[value] body=e@6:32 label=sortedBy type=(String) -> String?
-expr e@6:5#1 memberCall recv=e@6:5 callee=sortedBy args=[_:e@6:21] type=kotlin.collections.List<String> call=kotlin.collections.sortedBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1?};ret=kotlin.collections.List<T0>;gen=2;bounds=[_,kotlin.Comparable<T1>];names=[selector]] targs=[String,String]
+expr e@6:5#1 memberCall recv=e@6:5 callee=sortedBy args=[_:e@6:21] type=kotlin.collections.List<String> call=kotlin.collections.sortedBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1?};ret=kotlin.collections.List<T0>;gen=2;bounds=[_,kotlin.Comparable<T1>];nonlocal=[0];names=[selector]] targs=[String,String]
 expr e@9:5 name(values) type=kotlin.collections.Iterable<String> ref=golden.sema.useSortedByDescending.$2.values[kind=vparam;origin=fixture]
 expr e@9:46 name(value) type=String ref=s-1
 expr e@9:46#1 memberCall recv=e@9:46 callee=isEmpty args=[] type=Boolean call=kotlin.text.isEmpty[kind=fun;recv=kotlin.CharSequence;params=;ret=Boolean]
@@ -32,7 +32,7 @@ expr e@9:63 name(null) type=Nothing?
 expr e@9:73 name(value) type=String ref=s-1
 expr e@9:42 if cond=e@9:46#1 then=e@9:63 else=e@9:73 type=String?
 expr e@9:31 lambda params=[value] body=e@9:42 label=sortedByDescending type=(String) -> String?
-expr e@9:5#1 memberCall recv=e@9:5 callee=sortedByDescending args=[_:e@9:31] type=kotlin.collections.List<String> call=kotlin.collections.sortedByDescending[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1?};ret=kotlin.collections.List<T0>;gen=2;bounds=[_,kotlin.Comparable<T1>];names=[selector]] targs=[String,String]
+expr e@9:5#1 memberCall recv=e@9:5 callee=sortedByDescending args=[_:e@9:31] type=kotlin.collections.List<String> call=kotlin.collections.sortedByDescending[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1?};ret=kotlin.collections.List<T0>;gen=2;bounds=[_,kotlin.Comparable<T1>];nonlocal=[0];names=[selector]] targs=[String,String]
 expr e@11:61 name(values) type=kotlin.collections.Iterable<Int> ref=golden.sema.useSortedDescending.$3.values[kind=vparam;origin=fixture]
 expr e@11:61#1 memberCall recv=e@11:61 callee=sortedDescending args=[] type=kotlin.collections.List<Int> call=kotlin.collections.sortedDescending[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;ret=kotlin.collections.List<T0>;gen=1;bounds=[kotlin.Comparable<T0>]] targs=[Int]
 expr e@14:5 name(values) type=kotlin.collections.Iterable<String?> ref=golden.sema.useSortedWith.$4.values[kind=vparam;origin=fixture]

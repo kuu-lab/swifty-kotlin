@@ -13,7 +13,7 @@ expr e@4:46 int(0) type=Int
 expr e@4:53 int(1) type=Int
 expr e@4:31 if cond=e@4:35#1 then=e@4:46 else=e@4:53 type=Int
 expr e@4:23 lambda params=[ch] body=e@4:31 label=groupingBy type=(Char) -> Int
-expr e@4:5#1 memberCall recv=e@4:5 callee=groupingBy args=[_:e@4:23] type=kotlin.collections.Grouping<Char, Int> call=kotlin.text.groupingBy[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};ret=kotlin.collections.Grouping<Char,T0>;gen=1;names=[keySelector]] targs=[Int]
+expr e@4:5#1 memberCall recv=e@4:5 callee=groupingBy args=[_:e@4:23] type=kotlin.collections.Grouping<Char, Int> call=kotlin.text.groupingBy[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};ret=kotlin.collections.Grouping<Char,T0>;gen=1;nonlocal=[0];names=[keySelector]] targs=[Int]
 expr e@7:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceGroupingByEachCount.$1.source[kind=vparam;origin=fixture]
 expr e@7:35 name(ch) type=Char ref=s-1
 expr e@7:41 char(97) type=Char
@@ -22,5 +22,5 @@ expr e@7:46 int(0) type=Int
 expr e@7:53 int(1) type=Int
 expr e@7:31 if cond=e@7:35#1 then=e@7:46 else=e@7:53 type=Int
 expr e@7:23 lambda params=[ch] body=e@7:31 label=groupingBy type=(Char) -> Int
-expr e@7:5#1 memberCall recv=e@7:5 callee=groupingBy args=[_:e@7:23] type=kotlin.collections.Grouping<Char, Int> call=kotlin.text.groupingBy[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};ret=kotlin.collections.Grouping<Char,T0>;gen=1;names=[keySelector]] targs=[Int]
+expr e@7:5#1 memberCall recv=e@7:5 callee=groupingBy args=[_:e@7:23] type=kotlin.collections.Grouping<Char, Int> call=kotlin.text.groupingBy[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};ret=kotlin.collections.Grouping<Char,T0>;gen=1;nonlocal=[0];names=[keySelector]] targs=[Int]
 expr e@7:5#2 memberCall recv=e@7:5#1 callee=eachCount args=[] type=kotlin.collections.Map<Int, Int> call=kotlin.collections.eachCount[kind=fun;recv=kotlin.collections.Grouping<T0,T1>;params=;ret=kotlin.collections.Map<T1,Int>;gen=2] targs=[Char,Int]

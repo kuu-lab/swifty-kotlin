@@ -10,7 +10,7 @@ expr e@6:36 name(new) type=String ref=s-1
 expr e@6:13 stringTemplate[lit(changed from ),expr(e@6:28),lit( to ),expr(e@6:36)] type=String
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@5:53 lambda params=[prop,old,new] body=e@6:5 label=observable type=(kotlin.reflect.KProperty<*>, String, String) -> Unit
-expr e@5:21#1 memberCall recv=e@5:21 callee=observable args=[_:e@5:42,_:e@5:53] type=kotlin.properties.ReadWriteProperty<Any?, String> call=kotlin.properties.Delegates.observable[kind=fun;recv=kotlin.properties.Delegates;params=T0,fn{p=kotlin.reflect.KProperty<*>,T0,T0;ret=Unit};ret=kotlin.properties.ReadWriteProperty<Any?,T0>;gen=1;names=[initialValue,onChange]] targs=[String]
+expr e@5:21#1 memberCall recv=e@5:21 callee=observable args=[_:e@5:42,_:e@5:53] type=kotlin.properties.ReadWriteProperty<Any?, String> call=kotlin.properties.Delegates.observable[kind=fun;recv=kotlin.properties.Delegates;params=T0,fn{p=kotlin.reflect.KProperty<*>,T0,T0;ret=Unit};ret=kotlin.properties.ReadWriteProperty<Any?,T0>;gen=1;nonlocal=[1,0];names=[initialValue,onChange]] targs=[String]
 expr e@10:13 name(name) type=String ref=golden.sema.name[kind=prop;type=String;mutable;origin=fixture]
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@11:12 string(updated) type=String

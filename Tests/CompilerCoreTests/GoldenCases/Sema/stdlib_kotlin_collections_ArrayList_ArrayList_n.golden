@@ -33,7 +33,7 @@ expr e@12:17 name(elements) type=kotlin.collections.Collection<String?> ref=gold
 expr e@12:5#1 memberCall recv=e@12:5 callee=equals args=[_:e@12:17] type=Boolean call=kotlin.collections.ArrayList.equals[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=Any?;ret=Boolean;gen=1;classGen=1;names=[other]] targs=[String?]
 expr e@13:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam;origin=fixture]
 expr e@13:14 int(0) type=Int
-expr e@13:5#1 memberCall recv=e@13:5 callee=get args=[_:e@13:14] type=Any call=kotlin.collections.ArrayList.get[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]]
+expr e@13:5#1 memberCall recv=e@13:5 callee=get args=[_:e@13:14] type=String? call=kotlin.collections.ArrayList.get[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]] targs=[String?]
 expr e@14:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam;origin=fixture]
 expr e@14:5#1 memberCall recv=e@14:5 callee=hashCode args=[] type=Int call=kotlin.collections.ArrayList.hashCode[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=;ret=Int;gen=1;classGen=1] targs=[String?]
 expr e@15:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam;origin=fixture]
