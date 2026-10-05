@@ -13,10 +13,48 @@ import Testing
 /// treats the null sentinel correctly) instead of kk_op_eq/ne, while a
 /// non-null primitive comparison keeps using the cheaper kk_op_eq/ne path.
 extension LoweringPassRegressionTests {
-    private func loweredCallees(for source: String, function functionName: String) throws -> [String] {
+    @Test(arguments: ["raw", "amount", "amount()"])
+    func testNullableValueClassSafeAccessBoxesNonNullLongResult(member: String) throws {
+        let source = """
+        value class Counter(val raw: Long) {
+            val amount: Long get() = raw
+            fun amount(): Long = raw
+        }
+        fun sentinelSafeAccess(c: Counter?): Long? = c?.\(member)
+        """
+        let callees = try loweredCallees(for: source, function: "sentinelSafeAccess", includeStdlib: false)
+        #expect(callees.contains("kk_box_long_nonnull_static"), "Safe access must box its non-null Long before merging with null: \(callees)")
+        #expect(callees.contains("kk_unbox_long_static"), "Nullable value-class receiver must be unboxed on the non-null branch: \(callees)")
+    }
+
+    @Test
+    func testNullableValueClassReturnBoxesAndTagsPayload() throws {
+        let source = """
+        value class Counter(val raw: Long)
+        fun sentinelNullableReturn(c: Counter): Counter? = c
+        """
+        let callees = try loweredCallees(for: source, function: "sentinelNullableReturn", includeStdlib: false)
+        #expect(callees.contains("kk_box_long_nonnull_static"))
+        #expect(callees.contains("kk_tag_value_class_box"))
+    }
+
+    @Test(arguments: ["c == expected", "expected == c", "c != expected", "expected != c"])
+    func testNullableValueClassEqualityUsesSentinelSafeComparison(comparison: String) throws {
+        let source = """
+        value class Counter(val raw: Long)
+        fun sentinelEquality(c: Counter?, expected: Counter): Boolean = \(comparison)
+        """
+        let callees = try loweredCallees(for: source, function: "sentinelEquality", includeStdlib: false)
+        let expected = comparison.contains("!=") ? "kk_nullable_primitive_ne" : "kk_nullable_primitive_eq"
+        #expect(callees.contains(expected), "Value-class equality must preserve non-null sentinel payloads: \(callees)")
+        #expect(!callees.contains("kk_structural_eq"))
+        #expect(!callees.contains("kk_structural_ne"))
+    }
+
+    private func loweredCallees(for source: String, function functionName: String, includeStdlib: Bool = true) throws -> [String] {
         var callees: [String] = []
         try withTemporaryFiles(contents: [source]) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .object)
+            let ctx = makeCompilationContext(inputs: paths, emit: .object, includeStdlib: includeStdlib)
             try runToLowering(ctx)
 
             for path in paths {

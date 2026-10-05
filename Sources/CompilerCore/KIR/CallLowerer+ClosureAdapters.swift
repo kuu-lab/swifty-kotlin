@@ -20,7 +20,7 @@ extension CallLowerer {
                 .contains(interner.resolve(callee.name)),
               (callee.flags.contains(.synthetic)
                   && !callee.flags.contains(.importedLibrary))
-                || ["kk_with_timeout", "kk_with_timeout_or_null"].contains(
+                || ["kk_with_timeout", "kk_with_timeout_or_null_throwing"].contains(
                     sema.symbols.externalLinkName(for: chosenCallee)
                 ),
               let blockIndex = arguments.indices.first(where: { index in
@@ -580,6 +580,16 @@ extension CallLowerer {
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
 
+        // Synthetic launchers consume a suspend entry reference plus captures,
+        // not the boxed function-value ABI used by ordinary Kotlin functions.
+        if let symbol,
+           symbol.flags.contains(.synthetic), !isImported,
+           symbol.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern)),
+           ["runBlocking", "launch", "async", "produce"].contains(interner.resolve(symbol.name))
+        {
+            return
+        }
+
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
         // function-value object. Imported Kotlin functions compiled to .kklib
@@ -685,17 +695,23 @@ extension CallLowerer {
                     receiver: concreteFunctionType.receiver.map { _ in sema.types.anyType },
                     params: concreteFunctionType.params.map { _ in sema.types.anyType },
                     returnType: sema.types.anyType,
-                    isSuspend: concreteFunctionType.isSuspend
+                    isSuspend: concreteFunctionType.isSuspend,
+                    isCallableReference: concreteFunctionType.isCallableReference
                 )
             default:
                 continue
             }
-            // Keep eligible inline arguments visible to imported expansion,
-            // including normal returns and nested non-local returns.
+            // Imported bodies can store callbacks in escaping closures. Without
+            // explicit inline-parameter metadata, preserve the function environment.
+            let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                : !isImported
+            // Keep eligible inline arguments visible to expansion, including
+            // normal returns and nested non-local returns.
             if isInline,
+               case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
-                   || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+               (allowsRawInlineArgument
                    || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
                 continue
@@ -1058,6 +1074,28 @@ extension CallLowerer {
             return loweredArguments
         }
 
+        if externalLinkName == "__kk_job_invoke_on_completion", loweredArguments.count == 4 {
+            let handler = loweredArguments[3]
+            if driver.ctx.callableValueInfo(for: handler) != nil {
+                return Array(loweredArguments.prefix(3)) + makeCollectionHOFExpandedArguments(
+                    loweredArgID: handler,
+                    argExprID: originalArgs[3].expr,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            let (fnPtr, closureRaw) = splitCallableLambdaArgument(
+                handler,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return Array(loweredArguments.prefix(3)) + [fnPtr, closureRaw]
+        }
+
         if externalLinkName == "kk_suspend_coroutine", loweredArguments.count == 1 {
             return makeClosureThunkExpandedArguments(
                 loweredArgID: loweredArguments[0],
@@ -1247,7 +1285,20 @@ extension CallLowerer {
         if externalLinkName == "__kk_deep_recursive_function_new",
            let loweredArgID = loweredArguments.last
         {
+            var blockID = loweredArgID
             var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+            if let unboxedSymbol = callableInfo?.unboxedSymbol,
+               let function = arena.function(for: unboxedSymbol)
+            {
+                blockID = arena.appendExpr(.symbolRef(unboxedSymbol), type: arena.exprType(loweredArgID))
+                instructions.append(.constValue(result: blockID, value: .symbolRef(unboxedSymbol)))
+                callableInfo = KIRCallableValueInfo(
+                    symbol: unboxedSymbol,
+                    callee: function.name,
+                    captureArguments: arena.lambdaCaptureArgsBySymbol[unboxedSymbol] ?? [],
+                    hasClosureParam: false
+                )
+            }
             if callableInfo == nil,
                case let .symbolRef(symbol)? = arena.expr(loweredArgID),
                let function = arena.function(for: symbol)
@@ -1266,7 +1317,7 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions
             )
-            return Array(loweredArguments.dropLast()) + [loweredArgID, closureRaw]
+            return Array(loweredArguments.dropLast()) + [blockID, closureRaw]
         }
 
         return loweredArguments

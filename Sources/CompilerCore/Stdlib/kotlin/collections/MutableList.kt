@@ -11,7 +11,7 @@ private external fun <E> __kkMutableListAdd(list: MutableList<E>, element: E): B
 @KsSymbolName("__kk_mutable_list_add_at")
 private external fun <E> __kkMutableListAddAt(list: MutableList<E>, index: Int, element: E)
 
-@KsSymbolName("__kk_mutable_list_addAll")
+@KsSymbolName("__kk_mutable_list_addAll_checked")
 private external fun <E> __kkMutableListAddAll(
     list: MutableList<E>,
     elements: Collection<out E>
@@ -20,19 +20,19 @@ private external fun <E> __kkMutableListAddAll(
 @KsSymbolName("__kk_mutable_list_removeAt")
 private external fun <E> __kkMutableListRemoveAt(list: MutableList<E>, index: Int): E
 
-@KsSymbolName("__kk_mutable_list_remove_dispatch")
+@KsSymbolName("__kk_mutable_list_remove_checked")
 private external fun <E> __kkMutableListRemove(list: MutableList<E>, element: E): Boolean
 
-@KsSymbolName("__kk_mutable_list_clear")
+@KsSymbolName("__kk_mutable_list_clear_checked")
 private external fun <E> __kkMutableListClear(list: MutableList<E>)
 
-@KsSymbolName("__kk_mutable_list_removeAll")
+@KsSymbolName("__kk_mutable_list_removeAll_checked")
 private external fun <E> __kkMutableListRemoveAll(
     list: MutableList<E>,
     elements: Collection<out E>
 ): Boolean
 
-@KsSymbolName("__kk_mutable_list_retainAll")
+@KsSymbolName("__kk_mutable_list_retainAll_checked")
 private external fun <E> __kkMutableListRetainAll(
     list: MutableList<E>,
     elements: Collection<out E>
@@ -62,7 +62,7 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
     /**
      * Adds all elements of [elements] to the end of this mutable list.
      */
-    @KsSymbolName("__kk_mutable_list_addAll")
+    @KsSymbolName("__kk_mutable_list_addAll_checked")
     @IgnorableReturnValue
     public override external fun addAll(elements: Collection<out E>): Boolean
 

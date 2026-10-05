@@ -166,7 +166,10 @@ final class ExprTypeChecker {
 
         case let .memberAssign(receiverExpr, calleeName, valueExpr, range):
             // Type-check the receiver and value, bind as unit-typed expression.
-            let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+            let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+            let receiverType = driver.helpers.retypeClassNameAsCompanionValue(
+                receiverExpr, currentType: inferredReceiverType, ast: ast, sema: sema
+            ) ?? inferredReceiverType
             let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
             // Bind the property symbol so KIR lowering can emit a direct field
             // store (kk_array_set) rather than falling back to a setter call.
@@ -460,7 +463,12 @@ final class ExprTypeChecker {
 
         case let .nullAssert(exprID, _):
             let operandType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
-            let type = sema.types.makeNonNullable(operandType)
+            let type: TypeID
+            if case .typeParam = sema.types.kind(of: operandType) {
+                type = sema.types.make(.intersection([sema.types.makeNonNullable(operandType), sema.types.anyType]))
+            } else {
+                type = sema.types.makeNonNullable(operandType)
+            }
             // Smart cast: after `x!!`, narrow x to non-null in subsequent code (P5-66)
             if let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
@@ -507,6 +515,7 @@ final class ExprTypeChecker {
             return inferCallableRefExpr(id, receiver: receiver, member: member, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .blockExpr(statements, trailingExpr, _):
+            ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
             var blockLocals = locals
             var reachedNothing = false
             for stmt in statements {
@@ -1414,6 +1423,8 @@ final class ExprTypeChecker {
             switch interner.resolve(name) {
             case "downTo", "rangeTo", "rangeUntil", "step":
                 return true
+            case "unaryPlus", "unaryMinus":
+                return sema.types.isUnsigned(receiverType)
             default:
                 return false
             }
@@ -1647,7 +1658,7 @@ final class ExprTypeChecker {
             return returnType
         }
 
-        if !lhsIsPrimitive,
+        if (!lhsIsPrimitive || sema.types.isUnsigned(operandType)),
            operandType != sema.types.anyType,
            operandType != sema.types.nullableAnyType,
            operandType != sema.types.errorType

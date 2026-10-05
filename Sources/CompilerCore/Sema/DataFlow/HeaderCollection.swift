@@ -2124,7 +2124,8 @@ extension DataFlowSemaPhase {
         // source-shell treatment to the kotlin.concurrent atomic nominals
         // while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
-        if resolvedFQName == ["kotlin", "collections", "Iterator"]
+        if resolvedFQName == ["kotlinx", "coroutines", "CoroutineName"]
+            || resolvedFQName == ["kotlin", "collections", "Iterator"]
             || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
             || resolvedFQName == ["kotlin", "collections", "MutableMap", "MutableEntry"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
@@ -2200,10 +2201,11 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        enclosingTypeParameters: [InternedString: SymbolID] = [:]
     ) -> (symbols: [SymbolID], localMap: [InternedString: SymbolID]) {
         var typeParamSymbols: [SymbolID] = []
-        var localTypeParameters: [InternedString: SymbolID] = [:]
+        var localTypeParameters = enclosingTypeParameters
 
         guard !typeParams.isEmpty else {
             return (symbols: typeParamSymbols, localMap: localTypeParameters)

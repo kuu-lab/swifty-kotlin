@@ -127,8 +127,7 @@ extension CallTypeChecker {
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
         if case let .functionType(functionType) = sema.types.kind(of: lookupReceiverType),
-           sema.bindings.callableRefKind(for: receiverID) != nil
-            || sema.bindings.identifierSymbol(for: receiverID).map({ sema.bindings.inferredCallableReferenceSymbols.contains($0) }) == true,
+           functionType.isCallableReference,
            let result = inferCallableReferenceMember(
                id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
                args: args, safeCall: safeCall, ctx: ctx, locals: &locals
@@ -170,7 +169,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
-        let isSyntacticRangeCollectionMember = calleeName == knownNames.plus || calleeName == knownNames.minus
+        let isSyntacticRangeCollectionMember = (calleeName == knownNames.plus || calleeName == knownNames.minus)
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
         if let result = tryInferRegularMemberCallPrimitiveSpecials(
@@ -185,47 +184,14 @@ extension CallTypeChecker {
 
         var isSuperCall = false
         var supertypeSymbols: Set<SymbolID> = []
-        var qualifiedSuperType: SymbolID?
-        if !safeCall {
-            if let superExpr = ast.arena.expr(receiverID), case let .superRef(interfaceQualifier, _) = superExpr {
-                isSuperCall = true
-                if let currentReceiverType = ctx.implicitReceiverType,
-                   let classSymbol = driver.helpers.nominalSymbol(of: currentReceiverType, types: sema.types)
-                {
-                    // Handle qualified super: super<Type>
-                    if let qualifier = interfaceQualifier {
-                        let qualifierStr = ctx.interner.resolve(qualifier)
-                        let directSupertypes = sema.symbols.directSupertypes(for: classSymbol)
-
-                        // Find the specified class or interface in direct supertypes
-                        for superID in directSupertypes {
-                            guard let superSym = sema.symbols.symbol(superID) else { continue }
-                            let isValidKind = superSym.kind == .interface || superSym.kind == .class || superSym.kind == .enumClass
-                            if isValidKind, superSym.name == qualifier {
-                                qualifiedSuperType = superID
-                                supertypeSymbols.insert(superID)
-                                break
-                            }
-                        }
-
-                        if qualifiedSuperType == nil {
-                            ctx.semaCtx.diagnostics.error(
-                                "KSWIFTK-SEMA-0054",
-                                "No type '\(qualifierStr)' found in direct supertypes for qualified 'super'.",
-                                range: ast.arena.exprRange(receiverID)
-                            )
-                        }
-                    } else {
-                        // Handle unqualified super: search all supertypes
-                        var queue = sema.symbols.directSupertypes(for: classSymbol)
-                        var visited: Set<SymbolID> = [classSymbol]
-                        while !queue.isEmpty {
-                            let next = queue.removeFirst()
-                            if visited.insert(next).inserted {
-                                supertypeSymbols.insert(next)
-                                queue.append(contentsOf: sema.symbols.directSupertypes(for: next))
-                            }
-                        }
+        if !safeCall, case .superRef = ast.arena.expr(receiverID) {
+            isSuperCall = true
+            if let selectedSupertype = driver.helpers.nominalSymbol(of: lookupReceiverType, types: sema.types) {
+                var queue = [selectedSupertype]
+                while !queue.isEmpty {
+                    let next = queue.removeFirst()
+                    if supertypeSymbols.insert(next).inserted {
+                        queue.append(contentsOf: sema.symbols.directSupertypes(for: next))
                     }
                 }
             }
@@ -254,7 +220,7 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        let memberLookupType = (isSuperCall ? ctx.implicitReceiverType : nil) ?? rangeSourceMemberLookupType ?? lookupReceiverType
+        let memberLookupType = rangeSourceMemberLookupType ?? lookupReceiverType
 
         // `ClosedRange.isEmpty` is also a valid candidate for a syntactic
         // ULongRange expression. Prefer the exact bundled ULongRange source
@@ -1014,7 +980,7 @@ extension CallTypeChecker {
             // Normal instance receiver: use standard member lookup with
             // companion fallback via collectMemberFunctionCandidates.
             let allowedOwnerSymbols = isSuperCall && !supertypeSymbols.isEmpty ?
-                (qualifiedSuperType != nil ? [qualifiedSuperType!] : supertypeSymbols) : nil
+                supertypeSymbols : nil
             let hasScopedExactRangeExtension = rangeSourceMemberLookupType.map { sourceReceiverType in
                 guard isULongProgressionFirstLastMember,
                       let sourceReceiverSymbol = driver.helpers.nominalSymbol(
@@ -3420,12 +3386,20 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         let knownNames = KnownCompilerNames(interner: interner)
+        let rangeFQName = sema.bindings.isOpenFloatingPointRangeExpr(exprID)
+            ? knownNames.kotlinRangesPackage + [interner.intern("OpenEndRange")]
+            : knownNames.kotlinRangesClosedFloatingPointRangeFQName
         guard sema.bindings.isFloatingPointRangeExpr(exprID),
               let rangeSymbol = sema.symbols.lookup(
-                  fqName: knownNames.kotlinRangesClosedFloatingPointRangeFQName
+                  fqName: rangeFQName
               )
         else {
             return nil
+        }
+        if let inferredType = sema.bindings.exprType(for: exprID),
+           driver.helpers.isRangeLikeType(inferredType, sema: sema, interner: interner)
+        {
+            return inferredType
         }
         let elementType: TypeID = if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID) {
             elementType

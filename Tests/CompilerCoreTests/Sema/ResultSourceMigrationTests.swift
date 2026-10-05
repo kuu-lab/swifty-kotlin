@@ -102,6 +102,7 @@ struct ResultSourceMigrationTests {
                 "getOrThrow": nil,
                 "exceptionOrNull": nil,
                 "map": "kk_runtime_result_map",
+                "mapCatching": nil,
                 "fold": "kk_runtime_result_fold",
                 "onSuccess": "kk_runtime_result_on_success",
                 "onFailure": "kk_runtime_result_on_failure",

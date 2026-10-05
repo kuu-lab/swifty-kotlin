@@ -78,6 +78,7 @@ extension TypeCheckHelpers {
             params: params,
             returnType: returnType,
             isSuspend: signature.isSuspend,
+            isCallableReference: true,
             nullability: .nonNull
         )))
     }
