@@ -1146,8 +1146,8 @@ public func __kk_channel_result_create(_ status: Int, _ value: Int, _ cause: Int
 
 /// `ChannelResult.getOrThrow()`: returns the element on success; on a closed
 /// result throws the stored close cause; on a cause-less closed result or a
-/// generic failure throws the "failed channel result" `IllegalStateException`
-/// kotlinx reports (`"... result: Closed(null)"` / `"... result: Failed"`).
+/// generic failure throws the `IllegalStateException` kotlinx reports
+/// (`"... channel closed without a cause"` / `"... non-closed channel"`).
 @_cdecl("__kk_channel_result_get_or_throw")
 public func __kk_channel_result_get_or_throw(
     _ boxRaw: Int,
@@ -1166,13 +1166,13 @@ public func __kk_channel_result_get_or_throw(
             outThrown?.pointee = box.cause
         } else {
             outThrown?.pointee = runtimeAllocateIllegalStateException(
-                message: "Trying to call 'getOrThrow' on a failed channel result: Closed(null)"
+                message: "Trying to call 'getOrThrow' on a channel closed without a cause"
             )
         }
         return 0
     default:
         outThrown?.pointee = runtimeAllocateIllegalStateException(
-            message: "Trying to call 'getOrThrow' on a failed channel result: Failed"
+            message: "Trying to call 'getOrThrow' on a failed result of a non-closed channel"
         )
         return 0
     }

@@ -99,10 +99,15 @@ struct ListSearchPredicateLoweringRoutingTests {
     }
 
     /// Direct or virtual calls whose callee is one of `names`, with the
-    /// resolved symbol and argument count (receiver included).
+    /// resolved symbol and argument count (receiver included).  A bound call
+    /// is identified by its declaration's member name, not the emitted callee
+    /// spelling: `Collection.contains` keeps its canonical source symbol but
+    /// emits under its `externalLinkName` (`kk_op_contains`) because runtime
+    /// list boxes cannot take interface dispatch (BUG-166).
     private static func calls(
         in body: [KIRInstruction],
         matching names: Set<String>,
+        sema: SemaModule?,
         interner: StringInterner
     ) -> [(name: String, argumentCount: Int, symbol: SymbolID?)] {
         body.compactMap { instruction in
@@ -121,7 +126,13 @@ struct ListSearchPredicateLoweringRoutingTests {
             default:
                 return nil
             }
-            let name = interner.resolve(callee)
+            let name: String
+            if let symbol,
+               let decl = sema?.symbols.symbol(symbol) {
+                name = interner.resolve(decl.name)
+            } else {
+                name = interner.resolve(callee)
+            }
             guard names.contains(name) else { return nil }
             return (name, argumentCount, symbol)
         }
@@ -146,8 +157,13 @@ struct ListSearchPredicateLoweringRoutingTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let survivors = Set(
-                Self.calls(in: body, matching: Self.searchPredicateNames, interner: ctx.interner)
-                    .map { "\($0.name)/\($0.argumentCount)" }
+                Self.calls(
+                    in: body,
+                    matching: Self.searchPredicateNames,
+                    sema: ctx.sema,
+                    interner: ctx.interner
+                )
+                .map { "\($0.name)/\($0.argumentCount)" }
             )
             #expect(
                 survivors == Self.preservedOverloads,
@@ -208,7 +224,12 @@ struct ListSearchPredicateLoweringRoutingTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let searchCalls = Self.calls(in: body, matching: Self.searchPredicateNames, interner: ctx.interner)
+            let searchCalls = Self.calls(
+                in: body,
+                matching: Self.searchPredicateNames,
+                sema: ctx.sema,
+                interner: ctx.interner
+            )
             #expect(searchCalls.count == 23, "expected 23 search/predicate calls; got \(searchCalls.count)")
 
             // Bare `count()` is the sole overload BuildKIR leaves unbound.
@@ -234,9 +255,15 @@ struct ListSearchPredicateLoweringRoutingTests {
 
                 let fileID = try #require(sema.symbols.sourceFileID(for: symbolID), "\(label): missing source file")
                 let isListMember = call.name == "indexOf" || call.name == "lastIndexOf"
+                // `contains` is a `Collection` member: it binds to the bundled
+                // Collection.kt declaration and emits under its
+                // `externalLinkName` (`kk_op_contains`), never a ListSearchHOF
+                // extension or a `kk_*` collection rewrite.
                 let expectedPath = isListMember
                     ? "__bundled_kotlin/collections/List/List.kt"
-                    : "__bundled_kotlin/collections/ListSearchHOF.kt"
+                    : call.name == "contains"
+                        ? "__bundled_kotlin/collections/Collection.kt"
+                        : "__bundled_kotlin/collections/ListSearchHOF.kt"
                 #expect(
                     ctx.sourceManager.path(of: fileID) == expectedPath,
                     "\(label) must resolve to \(expectedPath); got \(String(describing: ctx.sourceManager.path(of: fileID)))"
@@ -273,6 +300,7 @@ struct ListSearchPredicateLoweringRoutingTests {
             let survivors = Self.calls(
                 in: body,
                 matching: Self.namesWithoutAnyLoweringRewrite,
+                sema: ctx.sema,
                 interner: ctx.interner
             )
             #expect(
