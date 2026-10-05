@@ -43,7 +43,8 @@ struct WhenStatementContextTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
-        assertNoDiagnostic("KSWIFTK-SEMA-0096", in: ctx)
+        let sourceDiagnostics = diagnosticsForPath(ctx.options.inputs[0], in: ctx)
+        #expect(!sourceDiagnostics.contains { $0.code == "KSWIFTK-SEMA-0096" }, "Got: \(sourceDiagnostics)")
     }
 
     @Test func testDiscardedControlFlowBranchesAndUnitLambdaBodies() throws {
