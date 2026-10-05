@@ -279,21 +279,11 @@ extension DeclTypeChecker {
         // constructor call. This also records constant-property bindings for
         // expressions such as `Base64(STANDARD_ALPHABET, 0)`.
         var superclassArgumentLocals: LocalBindings = [:]
-        var superclassCallArgs: [CallArg] = []
-        for argument in objectDecl.superTypeConstructorArgs {
-            let argType = driver.inferExpr(
-                argument.expr,
-                ctx: ctx,
-                locals: &superclassArgumentLocals,
-                expectedType: nil
-            )
-            superclassCallArgs.append(CallArg(label: argument.label, isSpread: argument.isSpread, type: argType))
-        }
         bindObjectSuperConstructorCall(
             objectDecl,
             symbol: symbol,
-            callArgs: superclassCallArgs,
-            ctx: ctx
+            ctx: ctx,
+            locals: &superclassArgumentLocals
         )
 
         typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
@@ -313,11 +303,11 @@ extension DeclTypeChecker {
     /// lowering can apply the same named-argument / default normalization as
     /// for a class header's `super(...)` call
     /// (`typeCheckPrimaryConstructorSuperDelegation`).
-    private func bindObjectSuperConstructorCall(
+    func bindObjectSuperConstructorCall(
         _ objectDecl: ObjectDecl,
         symbol: SymbolID,
-        callArgs: [CallArg],
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
     ) {
         let sema = ctx.sema
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
@@ -329,11 +319,15 @@ extension DeclTypeChecker {
             .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
             .filter { sema.symbols.symbol($0)?.kind == .constructor }
         guard !candidates.isEmpty else { return }
-        let resolved = ctx.resolver.resolveCall(
+        let resolved = inferConstructorDelegationArguments(
+            objectDecl.superTypeConstructorArgs,
             candidates: candidates,
-            call: CallExpr(range: objectDecl.range, calleeName: ctx.interner.intern("<init>"), args: callArgs),
-            expectedType: nil,
-            ctx: sema
+            range: objectDecl.range,
+            targetType: constructorSuperclassType(
+                ownerSymbol: symbol, superclassSymbol: superclassSymbol, ctx: ctx
+            ),
+            ctx: ctx,
+            locals: &locals
         )
         guard let chosenCallee = resolved.chosenCallee else { return }
         sema.bindings.bindConstructorDelegationCall(

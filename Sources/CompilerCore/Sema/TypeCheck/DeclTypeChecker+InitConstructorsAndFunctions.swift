@@ -157,12 +157,6 @@ extension DeclTypeChecker {
             delegationCtx = ctx.copying(scope: ctorScope)
         }
 
-        var callArgs: [CallArg] = []
-        for arg in args {
-            let argType = driver.inferExpr(arg.expr, ctx: delegationCtx, locals: &locals, expectedType: nil)
-            callArgs.append(CallArg(label: arg.label, isSpread: arg.isSpread, type: argType))
-        }
-
         let candidates = sema.symbols
             .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
             .filter { candidate in
@@ -171,16 +165,15 @@ extension DeclTypeChecker {
             }
         guard !candidates.isEmpty else { return }
 
-        let callExpr = CallExpr(
-            range: classDecl.range,
-            calleeName: ctx.interner.intern("<init>"),
-            args: callArgs
-        )
-        let resolved = ctx.resolver.resolveCall(
+        let resolved = inferConstructorDelegationArguments(
+            args,
             candidates: candidates,
-            call: callExpr,
-            expectedType: nil,
-            ctx: sema
+            range: classDecl.range,
+            targetType: constructorSuperclassType(
+                ownerSymbol: symbol, superclassSymbol: superclassSymbol, ctx: ctx
+            ),
+            ctx: delegationCtx,
+            locals: &locals
         )
         if let chosenCallee = resolved.chosenCallee {
             sema.bindings.bindConstructorDelegationCall(
@@ -194,6 +187,56 @@ extension DeclTypeChecker {
                 )
             )
         }
+    }
+
+    func inferConstructorDelegationArguments(
+        _ args: [CallArgument],
+        candidates: [SymbolID],
+        range: SourceRange,
+        targetType: TypeID?,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> ResolvedCall {
+        let typeArguments: [TypeID]
+        if let targetType, case let .classType(classType) = ctx.sema.types.kind(of: targetType) {
+            typeArguments = classType.args.map { arg in
+                switch arg {
+                case let .invariant(type), let .in(type), let .out(type): type
+                case .star: ctx.sema.types.anyType
+                }
+            }
+        } else {
+            typeArguments = []
+        }
+        let prepared = driver.callChecker.prepareCallArguments(
+            args: args,
+            candidates: candidates,
+            explicitTypeArgs: typeArguments,
+            ctx: ctx,
+            locals: &locals
+        )
+        let resolved = driver.callChecker.resolveCallRespectingLambdaReturnType(
+            candidates: candidates,
+            args: args,
+            argTypes: prepared.argTypes,
+            range: range,
+            calleeName: ctx.interner.intern("<init>"),
+            explicitTypeArgs: typeArguments,
+            expectedType: targetType,
+            implicitReceiverType: nil,
+            lambdaLiteralIndices: prepared.lambdaLiteralIndices,
+            inputOnlyLambdaIndices: prepared.inputOnlyLambdaIndices,
+            blockedLambdaRefinement: prepared.blockedLambdaRefinement,
+            hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter,
+            ctx: ctx
+        )
+        if let diagnostic = resolved.diagnostic {
+            ctx.sema.diagnostics.emit(diagnostic)
+        }
+        driver.callChecker.contextualizeResolvedIntegerArguments(
+            args: args, resolved: resolved, ctx: ctx, locals: &locals
+        )
+        return resolved
     }
 
     /// The single class-kind supertype of `symbol`, if any.
@@ -392,12 +435,6 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         guard let delegation = ctor.delegationCall else { return }
 
-        var argTypes: [CallArg] = []
-        for arg in delegation.args {
-            let argType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: nil)
-            argTypes.append(CallArg(label: arg.label, isSpread: arg.isSpread, type: argType))
-        }
-
         let delegationTargetFQName = resolveDelegationTarget(
             delegation: delegation,
             ownerSymbol: ownerSymbol,
@@ -415,37 +452,31 @@ extension DeclTypeChecker {
             if candidates.isEmpty {
                 emitUnresolvedDelegation(delegation: delegation, sema: sema)
             } else {
-                let callExpr = CallExpr(
-                    range: delegation.range,
-                    calleeName: ctx.interner.intern("<init>"),
-                    args: argTypes
-                )
-                let resolved = ctx.resolver.resolveCall(
+                let resolved = inferConstructorDelegationArguments(
+                    delegation.args,
                     candidates: candidates,
-                    call: callExpr,
-                    expectedType: delegation.kind == .this
+                    range: delegation.range,
+                    targetType: delegation.kind == .this
                         ? constructorOwnerType(ownerSymbol, ctx: ctx)
                         : constructorSuperclassType(
                             ownerSymbol: ownerSymbol,
                             superclassSymbol: explicitSuperclassSymbol,
                             ctx: ctx
                         ),
-                    ctx: sema
+                    ctx: ctx,
+                    locals: &locals
                 )
-                if let diagnostic = resolved.diagnostic {
-                    sema.diagnostics.emit(diagnostic)
-                }
                 if let chosenCallee = resolved.chosenCallee, let currentCtorSymbolID {
                     sema.bindings.bindConstructorDelegationCall(
-                currentCtorSymbolID,
-                binding: CallBinding(
-                    chosenCallee: chosenCallee,
-                    substitutedTypeArguments: resolved.substitutedTypeArguments
-                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                        .map(\.value),
-                    parameterMapping: resolved.parameterMapping
-                )
-            )
+                        currentCtorSymbolID,
+                        binding: CallBinding(
+                            chosenCallee: chosenCallee,
+                            substitutedTypeArguments: resolved.substitutedTypeArguments
+                                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                .map(\.value),
+                            parameterMapping: resolved.parameterMapping
+                        )
+                    )
                 }
             }
         } else if ownerSymbol != nil {
@@ -471,7 +502,7 @@ extension DeclTypeChecker {
     /// A secondary `super(...)` delegates to the instantiated superclass in
     /// the class header. Its type arguments are known even when none of the
     /// constructor arguments mention them.
-    private func constructorSuperclassType(
+    func constructorSuperclassType(
         ownerSymbol: SymbolID?,
         superclassSymbol: SymbolID?,
         ctx: TypeInferenceContext
