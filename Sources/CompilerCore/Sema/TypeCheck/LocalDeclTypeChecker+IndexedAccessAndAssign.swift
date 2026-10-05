@@ -386,7 +386,7 @@ extension LocalDeclTypeChecker {
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
 
-        // Pass concrete wideable numeric types or a fully-substituted function
+        // Pass concrete contextual numeric types or a fully-substituted function
         // type as the expected type; a still-generic element type (e.g. an
         // unsubstituted `MutableMap.set` value type `T`) must not influence
         // inference of non-literal values.
@@ -396,7 +396,8 @@ extension LocalDeclTypeChecker {
             switch sema.types.kind(of: nonNull) {
             case let .primitive(primitive, _):
                 guard primitive == .long || primitive == .uint || primitive == .ulong ||
-                    primitive == .byte || primitive == .short
+                    primitive == .byte || primitive == .short ||
+                    primitive == .ubyte || primitive == .ushort
                 else {
                     return nil
                 }
