@@ -300,6 +300,8 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// global pool. `nil` keeps the original global-pool behaviour, which is
     /// what dispatcher-bound bodies and direct runtime (test) calls get.
     var eventLoop: RuntimeEventLoop?
+    // Public builders leave scheduling to the intercepted continuation itself.
+    var resumesInline = false
     var builderContext: RuntimeCoroutineContext?
     private var uninterceptedEntryPointRaw: Int = 0
     private var uninterceptedCompletionContinuation: Int = 0
@@ -411,6 +413,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
 
     func configureUninterceptedCoroutine(entryPointRaw: Int, completionContinuation: Int) {
         stateLock.lock()
+        self.resumesInline = true
         self.uninterceptedEntryPointRaw = entryPointRaw
         self.uninterceptedCompletionContinuation = completionContinuation
         self.hasStartedUninterceptedCoroutine = false
@@ -643,11 +646,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
         if let cont = resumeContinuation {
             resumeContinuation = nil
             let loop = eventLoop
+            let inlineResume = resumesInline
             stateLock.unlock()
             // Queue the resumption on the coroutine's event loop when it has
             // one, so resumptions keep the loop's FIFO order instead of being
             // ordered by whichever global-pool thread happens to pick them up.
-            if let loop {
+            if inlineResume {
+                cont.invoke()
+            } else if let loop {
                 loop.enqueue { cont.invoke() }
             } else {
                 DispatchQueue.global().async {
@@ -2270,6 +2276,7 @@ public func kk_coroutine_call_direct_suspend(
         childState.scope = callerState.scope
         childState.jobHandle = callerState.jobHandle
         childState.flowCollectContext = callerState.flowCollectContext
+        childState.resumesInline = callerState.resumesInline
         callerState.bindSuspendedCallChild(childState)
     }
     let completion = RuntimeDirectSuspendCompletion()
@@ -2331,17 +2338,28 @@ public func kk_create_coroutine_unintercepted(_ entryPointRaw: Int, _ completion
     return continuation
 }
 
-/// Link-time marker for the source-backed receiver-less
-/// `createCoroutineUnintercepted`. `CoroutineLoweringPass` rewrites every call
-/// into `kk_create_coroutine_unintercepted`; this stub only exists so the
-/// standalone copy of the inline caller in the stdlib library links.
+/// Dynamic suspend function values keep their CPS entry point in the callable
+/// box. Known symbols are still rewritten directly by coroutine lowering.
+private func createCoroutineFromFunctionValue(_ functionRaw: Int, arguments: [Int], completion: Int) -> Int {
+    guard let box = runtimeFunctionValueBox(from: functionRaw),
+          box.suspendEntryPoint != 0,
+          box.arity == arguments.count else {
+        preconditionFailure("Coroutine builder requires a boxed suspend callable")
+    }
+    let continuation = kk_create_coroutine_unintercepted(box.suspendEntryPoint, completion)
+    for (index, argument) in ([box.closureRaw] + arguments).enumerated() {
+        _ = kk_coroutine_launcher_arg_set(continuation, Int64(index), Int64(argument))
+    }
+    return continuation
+}
+
 @_cdecl("kk_create_coroutine_unintercepted_no_receiver")
 public func kk_create_coroutine_unintercepted_no_receiver(
     _ functionRaw: Int,
     _ functionContextRaw: Int,
     _ completionContinuation: Int
 ) -> Int {
-    fatalError("kk_create_coroutine_unintercepted_no_receiver is rewritten by CoroutineLoweringPass")
+    createCoroutineFromFunctionValue(functionRaw, arguments: [], completion: completionContinuation)
 }
 
 /// Link-time marker for the source-backed receiver-less
@@ -2356,10 +2374,7 @@ public func kk_start_coroutine_unintercepted_or_return_no_receiver(
     fatalError("kk_start_coroutine_unintercepted_or_return_no_receiver is rewritten by CoroutineLoweringPass")
 }
 
-/// Link-time marker for the source-backed receiver-bearing
-/// `createCoroutineUnintercepted`. `CoroutineLoweringPass` rewrites every call
-/// into `kk_create_coroutine_unintercepted`; this stub only exists so the
-/// standalone copy of the inline caller in the stdlib library links.
+/// Receiver-bearing variant of the boxed suspend callable builder.
 @_cdecl("kk_create_coroutine_unintercepted_with_receiver")
 public func kk_create_coroutine_unintercepted_with_receiver(
     _ functionRaw: Int,
@@ -2367,7 +2382,7 @@ public func kk_create_coroutine_unintercepted_with_receiver(
     _ receiverRaw: Int,
     _ completionContinuation: Int
 ) -> Int {
-    fatalError("kk_create_coroutine_unintercepted_with_receiver is rewritten by CoroutineLoweringPass")
+    createCoroutineFromFunctionValue(functionRaw, arguments: [receiverRaw], completion: completionContinuation)
 }
 
 /// Link-time marker for the source-backed receiver-bearing
@@ -2431,20 +2446,12 @@ private func continueUninterceptedCoroutineToCompletion(
     continuation: Int,
     completionContinuation: Int
 ) {
-    var thrown = 0
-    let result = runSuspendEntryLoopWithContinuation(
+    runtimeContinuationState(from: continuation)?.resetResumeState()
+    startUninterceptedCoroutineFromResume(
         entryPointRaw: entryPointRaw,
         continuation: continuation,
-        outThrown: &thrown
+        completionContinuation: completionContinuation
     )
-    if completionContinuation == 0 {
-        return
-    }
-    if thrown != 0 {
-        kk_coroutine_continuation_resume_with_exception(completionContinuation, thrown)
-    } else {
-        kk_coroutine_continuation_resume(completionContinuation, result)
-    }
 }
 
 private func startCoroutineUninterceptedOrReturn(
@@ -2481,6 +2488,7 @@ private func startCoroutineUninterceptedOrReturn(
     var result: Int
     repeat {
         thrownValue = 0
+        state.consumeCancellableDelivery()
         result = entryPoint(continuation, &thrownValue)
         // Immediate child failures return the sentinel to reach the caller's catch label.
         // Deliver that pending exception inline instead of manufacturing a suspension.

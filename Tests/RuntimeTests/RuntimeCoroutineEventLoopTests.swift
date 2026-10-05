@@ -288,6 +288,31 @@ struct RuntimeCoroutineEventLoopTests {
 
     // MARK: - RuntimeEventLoop
 
+    @Test func testPublicBuilderResumesInlineButPendingYieldKeepsFIFO() throws {
+        let continuation = kk_create_coroutine_unintercepted(1, 0)
+        defer { _ = kk_coroutine_state_exit(continuation, 0) }
+        let state = try #require(runtimeContinuationState(from: continuation))
+        let loop = RuntimeEventLoop()
+        state.eventLoop = loop
+        let log = EventLoopTestLog()
+        state.installResumeContinuation { log.record("external") }
+        state.signalResume()
+        #expect(log.snapshot() == ["external"])
+
+        state.resetResumeState()
+        state.signalResume()
+        loop.enqueue { log.record("queued") }
+        let done = RuntimeCompletionFlag()
+        state.installResumeContinuation {
+            log.record("yield")
+            done.set()
+        }
+        #expect(log.snapshot() == ["external"])
+        let finished = loop.run(until: { done.isSet })
+        #expect(finished)
+        #expect(log.snapshot() == ["external", "queued", "yield"])
+    }
+
     @Test func testRunDrainsTasksInEnqueueOrder() {
         let loop = RuntimeEventLoop()
         let log = EventLoopTestLog()

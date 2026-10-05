@@ -1076,6 +1076,18 @@ extension CallLowerer {
                 receiverArgument = arena.appendTemporary(type: declaredReceiverType)
                 instructions.append(.copy(from: loweredReceiverID, to: receiverArgument))
             }
+            if sema.symbols.isSourceBackedSymbol(chosen),
+               sema.symbols.symbol(chosen)?.flags.contains(.inlineFunction) != true,
+               case let .functionType(functionType) = sema.types.kind(of: declaredReceiverType),
+               functionType.isSuspend {
+                receiverArgument = materializeFunctionValueArgument(
+                    loweredArgID: receiverArgument,
+                    argExprID: receiverExpr,
+                    functionType: functionType,
+                    sema: sema, arena: arena, interner: interner,
+                    instructions: &instructions.instructions
+                )
+            }
             finalArguments.insert(receiverArgument, at: 0)
         } else if chosen == nil {
             if Self.unresolvedCoroutineHandleMemberNames.contains(calleeStr), isCoroutineReceiver {
