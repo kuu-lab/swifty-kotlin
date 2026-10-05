@@ -136,6 +136,10 @@ extension TypeCheckHelpers {
 
         let expectedFunctionType: TypeID? = if case .functionType = sema.types.kind(of: expectedType) {
             expectedType
+        } else if let fnType = functionNType(for: expectedType, sema: sema) {
+            // KUU-1084: nominal `FunctionN<P..N, R>` drives overload
+            // selection the same way the function type it names does.
+            sema.types.make(.functionType(fnType))
         } else if let samFT = samFunctionType(for: expectedType, sema: sema) {
             sema.types.make(.functionType(samFT))
         } else {

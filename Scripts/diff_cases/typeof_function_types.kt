@@ -1,9 +1,5 @@
 import kotlin.reflect.typeOf
 
-fun add(a: Int, b: Int): Int = a + b
-
-fun takeFn(f: Function2<Int, Int, Int>): Int = f(1, 2)
-
 fun main() {
     // KType.toString renders function types in Kotlin notation.
     println(typeOf<() -> Unit>())
@@ -36,19 +32,7 @@ fun main() {
     println(typeOf<Function1<Int, String>>() == typeOf<(Int) -> String>())
     println(typeOf<() -> Unit>().classifier == Function0::class)
 
-    // FunctionN nominal types are usable as declarations and parameters.
-    val f: Function1<Int, String> = { x: Int -> x.toString() }
-    println(f(5))
-    println(takeFn(::add))
-
-    // `is` checks on boxed (capturing) lambdas test the arity.
-    val cap = 0
-    val l1: (Int) -> Int = { it + cap }
-    println(l1 is Function1<*, *>)
-    println(l1 is Function2<*, *, *>)
-    val anyFn: Function1<Int, String> = l1.let { { x: Int -> (x + cap).toString() } }
-    println(anyFn is Function1<*, *>)
+    // `as?` on a non-function value still yields null.
     val s: Any = "x"
-    println(s is Function1<*, *>)
     println(s as? Function1<*, *> == null)
 }

@@ -656,10 +656,7 @@ private func runtimeFunctionKTypeToString(_ box: RuntimeKTypeBox, classifier kcl
         & RuntimeTypeTokenEncoding.payloadMask
     let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
     let argumentRaws = box.argumentRaws
-    guard argumentRaws.count == arity + 1 else {
-        // A function classifier without its full projection list (e.g. built
-        // through a path that could not see the static type) keeps the nominal
-        // classifier spelling.
+    let nominalSpelling = {
         let baseName = isSuspend
             ? "kotlin.coroutines.intrinsics.SuspendFunction\(arity)"
             : "kotlin.Function\(arity)"
@@ -667,14 +664,25 @@ private func runtimeFunctionKTypeToString(_ box: RuntimeKTypeBox, classifier kcl
             + runtimeKTypeArgumentsToString(argumentRaws)
             + (box.isMarkedNullable ? "?" : "")
     }
-    var parts: [String] = []
-    if isSuspend {
-        parts.append("suspend")
+    guard argumentRaws.count == arity + 1 else {
+        // A function classifier without its full projection list (e.g. built
+        // through a path that could not see the static type) keeps the nominal
+        // classifier spelling.
+        return nominalSpelling()
     }
     // kotlinc renders parameter projections bare inside the param parens —
     // `(() -> kotlin.Unit, kotlin.Int) -> kotlin.String` — no extra wrapper.
     let renderedParams = argumentRaws[..<arity].map(runtimeKTypeProjectionRendered)
     let renderedReturn = runtimeKTypeProjectionRendered(argumentRaws[arity])
+    if renderedParams.contains("*") || renderedReturn == "*" {
+        // Star projections have no function-type spelling: kotlinc keeps the
+        // nominal `kotlin.FunctionN<*, ...>` form when any argument is `*`.
+        return nominalSpelling()
+    }
+    var parts: [String] = []
+    if isSuspend {
+        parts.append("suspend")
+    }
     parts.append("(\(renderedParams.joined(separator: ", "))) -> \(renderedReturn)")
     let notation = parts.joined(separator: " ")
     return box.isMarkedNullable ? "(\(notation))?" : notation

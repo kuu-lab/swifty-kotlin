@@ -80,4 +80,37 @@ extension TypeCheckHelpers {
             nullability: .nonNull
         )
     }
+
+    /// Extracts the equivalent `FunctionType` from a `kotlin.Function.FunctionN`
+    /// nominal type: `FunctionN<A1..AN, B>` IS `(A1..AN) -> B` in Kotlin, so a
+    /// lambda or callable reference infers its parameters and return type from
+    /// it exactly as it would from a function-type or SAM expectation
+    /// (KUU-1084). Star projections degrade to `Any?`, matching the captured
+    /// upper bounds Kotlin uses for `FunctionN<*, *>`.
+    func functionNType(
+        for expectedType: TypeID,
+        sema: SemaModule
+    ) -> FunctionType? {
+        guard let classType = resolveClassType(expectedType, sema: sema),
+              let arity = sema.types.functionNInterfaceSymbols
+                  .first(where: { $0.value == classType.classSymbol })?.key,
+              classType.args.count == arity + 1
+        else {
+            return nil
+        }
+        let argType = { (arg: TypeArg) -> TypeID in
+            switch arg {
+            case let .invariant(type), let .out(type), let .in(type):
+                type
+            case .star:
+                sema.types.nullableAnyType
+            }
+        }
+        return FunctionType(
+            params: classType.args.prefix(arity).map(argType),
+            returnType: argType(classType.args[arity]),
+            isSuspend: false,
+            nullability: classType.nullability
+        )
+    }
 }

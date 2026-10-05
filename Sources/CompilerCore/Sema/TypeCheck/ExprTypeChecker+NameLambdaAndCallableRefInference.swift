@@ -1189,16 +1189,30 @@ extension ExprTypeChecker {
         // extract the SAM method's function type so the lambda's parameters
         // and return type can be inferred from it.
         let samConversion: Bool
+        // KUU-1084: true when the expected type is nominal `FunctionN` — the
+        // lambda still binds a `.functionType` bound type (the nominal is
+        // only the declared spelling), so implicit-`it` params and signature
+        // extraction in KIR lowering keep working.
+        let functionNExpected: Bool
         let expectedFunctionType: FunctionType?
         if let expectedType, case let .functionType(functionType) = sema.types.kind(of: expectedType) {
             expectedFunctionType = functionType
             samConversion = false
+            functionNExpected = false
+        } else if let expectedType, let fnType = driver.helpers.functionNType(for: expectedType, sema: sema) {
+            // `FunctionN<P..N, R>` is the nominal spelling of the function
+            // type it names — no SAM adapter is emitted for it.
+            expectedFunctionType = fnType
+            samConversion = false
+            functionNExpected = true
         } else if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
             expectedFunctionType = samFT
             samConversion = true
+            functionNExpected = false
         } else {
             expectedFunctionType = nil
             samConversion = false
+            functionNExpected = false
         }
 
         var lambdaLocals = locals
@@ -1496,6 +1510,7 @@ extension ExprTypeChecker {
             // solve the type parameter from it.
             let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
+                || functionNExpected
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,

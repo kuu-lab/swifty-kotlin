@@ -309,9 +309,12 @@ extension TypeSystem {
             guard rightClass.classSymbol == functionInterfaceSymbol
                 || rightClass.classSymbol == kFunctionInterfaceSymbol
             else {
-                // KUU-1084: `(P1..PN) -> R` also conforms to the synthetic
-                // `kotlin.Function.FunctionN` interface of matching arity.
-                return functionTypeSubtypeOfFunctionN(leftFunction, rightClass)
+                // (P1..PN) -> R <: FunctionN is intentionally not offered:
+                // the function-type and nominal representations differ at
+                // run time, and lowering has no conversion at call-argument
+                // boundaries yet (KUU-1084, see KUU-1174). Accepting it here
+                // compiled code that corrupts the value at the boundary.
+                return false
             }
             guard nullabilitySubtype(leftFunction.nullability, rightClass.nullability) else {
                 return false
@@ -333,11 +336,11 @@ extension TypeSystem {
             guard nullabilitySubtype(leftClass.nullability, rightFunction.nullability) else {
                 return false
             }
-            // KUU-1084: `FunctionN<P1..PN, R>` IS `(P1..PN) -> R` in Kotlin —
-            // the nominal form is a subtype of the equivalent function type.
-            if functionNArity(of: leftClass.classSymbol) != nil {
-                return functionNSubtypeOfFunctionType(leftClass, rightFunction)
-            }
+            // FunctionN <: (P1..PN) -> R is intentionally not offered:
+            // the nominal and function-type runtime representations differ
+            // and lowering has no conversion for it yet (KUU-1084, see
+            // KUU-1174). Accepting it here compiled code that corrupts the
+            // value at the conversion boundary.
             guard let symbols = symbolTable else { return false }
             guard let sym = symbols.symbol(leftClass.classSymbol),
                   sym.kind == .interface,
@@ -877,100 +880,6 @@ extension TypeSystem {
         }
         let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
         return best.count == 1 ? best.first : nil
-    }
-
-    /// Arity of `kotlin.Function.FunctionN` when `classSymbol` is one of the
-    /// synthetic function interfaces registered by
-    /// `registerSyntheticFunctionInterface` (KUU-1084).
-    private func functionNArity(of classSymbol: SymbolID) -> Int? {
-        for (arity, symbolID) in functionNInterfaceSymbols where symbolID == classSymbol {
-            return arity
-        }
-        return nil
-    }
-
-    /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>`: the receiver counts as the
-    /// leading parameter, arity must match, each `in` argument accepts the
-    /// parameter (`Ai <: Qi`), and the return type satisfies the `out` argument
-    /// (`S <: B`). `suspend` and context-receiver function types never conform
-    /// to the non-suspend `FunctionN` interfaces.
-    private func functionTypeSubtypeOfFunctionN(
-        _ function: FunctionType,
-        _ classType: ClassType
-    ) -> Bool {
-        guard let arity = functionNArity(of: classType.classSymbol),
-              function.contextReceivers.isEmpty,
-              !function.isSuspend,
-              nullabilitySubtype(function.nullability, classType.nullability)
-        else {
-            return false
-        }
-        let effectiveParams = (function.receiver.map { [$0] } ?? []) + function.params
-        guard effectiveParams.count == arity,
-              classType.args.count == arity + 1
-        else {
-            return false
-        }
-        for (index, param) in effectiveParams.enumerated() {
-            switch classType.args[index] {
-            case .star:
-                continue
-            case let .invariant(type), let .in(type):
-                guard isSubtype(type, param) else { return false }
-            case let .out(type):
-                // `out` projection on an `in` position bounds the impl's
-                // parameter above: accept only `Qi <: Ai`.
-                guard isSubtype(param, type) else { return false }
-            }
-        }
-        switch classType.args[arity] {
-        case .star:
-            return true
-        case let .invariant(type), let .out(type):
-            return isSubtype(function.returnType, type)
-        case let .in(type):
-            // `in` projection on the `out` position requires the impl's
-            // return type to be a supertype of the bound.
-            return isSubtype(type, function.returnType)
-        }
-    }
-
-    /// `FunctionN<A1..AN, B> <: (Q1..QN) -> S`: arity must match, each
-    /// parameter of the expected function type must be accepted by the
-    /// nominal `in` argument (`Qi <: Ai`), and the nominal `out` return must
-    /// fit the expected return (`B <: S`). Star or opposite-direction
-    /// projections cannot prove either bound, so they are rejected.
-    private func functionNSubtypeOfFunctionType(
-        _ classType: ClassType,
-        _ function: FunctionType
-    ) -> Bool {
-        guard let arity = functionNArity(of: classType.classSymbol),
-              function.contextReceivers.isEmpty,
-              !function.isSuspend,
-              nullabilitySubtype(classType.nullability, function.nullability)
-        else {
-            return false
-        }
-        let effectiveParams = (function.receiver.map { [$0] } ?? []) + function.params
-        guard effectiveParams.count == arity,
-              classType.args.count == arity + 1
-        else {
-            return false
-        }
-        for (index, param) in effectiveParams.enumerated() {
-            switch classType.args[index] {
-            case let .invariant(type), let .in(type):
-                guard isSubtype(param, type) else { return false }
-            case .star, .out:
-                return false
-            }
-        }
-        switch classType.args[arity] {
-        case let .invariant(type), let .out(type):
-            return isSubtype(type, function.returnType)
-        case .star, .in:
-            return false
-        }
     }
 
     private func isNumericPrimitiveType(_ type: TypeID) -> Bool {
