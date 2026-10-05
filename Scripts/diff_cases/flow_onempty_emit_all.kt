@@ -17,7 +17,9 @@ fun main() = runBlocking {
         emit(8)
         emitAll(flowOf(9))
     }.toList())
+    var fallbackCalls = 0
     val fallback = emptyFlow<Int>().onEmpty {
+        fallbackCalls += 1
         emit(1)
         emitAll(emptyFlow<Int>())
         emit(2)
@@ -26,8 +28,10 @@ fun main() = runBlocking {
         emitAll(flowOf(6))
         emit(7)
     }
+    println("fallbackCalls:$fallbackCalls")
     println(fallback.toList())
     println(fallback.toList())
+    println("fallbackCalls:$fallbackCalls")
     println(emptyFlow<Int?>().onEmpty {
         emit(null)
         emitAll(flowOf(8, null))

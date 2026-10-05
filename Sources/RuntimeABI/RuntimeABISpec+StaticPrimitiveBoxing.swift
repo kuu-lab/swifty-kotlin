@@ -24,6 +24,7 @@ public extension RuntimeABISpec {
         "kk_unbox_ulong_static",
         "kk_unbox_float_static",
         "kk_unbox_double_static",
+        "kk_unbox_double_nonnull_static",
         "kk_unbox_char_static",
     ].map { name in
         RuntimeABIFunctionSpec(

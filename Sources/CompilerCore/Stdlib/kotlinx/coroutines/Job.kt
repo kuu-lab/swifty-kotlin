@@ -18,6 +18,9 @@ public interface Job : CoroutineContext.Element {
     @KsSymbolName("kk_job_is_cancelled")
     public val isCancelled: Boolean
 
+    @KsSymbolName("kk_job_start")
+    public fun start(): Boolean
+
     @KsSymbolName("kk_job_cancel")
     public fun cancel()
 

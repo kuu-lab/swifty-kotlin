@@ -13,6 +13,38 @@ import Testing
 @Suite
 struct BraceInDefaultValueParameterTests {
     @Test
+    func multilineScopeFunctionDefaultPreservesLambdaAndFollowingParameter() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        fun f(x: Int = run {
+            var count = 0
+            count = count + 1
+            count
+        }, y: Int = 2): Int = x + y
+        """, includeStdlib: false)
+        let funDecl = try #require(firstFunDecl(named: "f", in: ast, interner: ctx.interner))
+
+        #expect(ctx.diagnostics.diagnostics.isEmpty)
+        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["x", "y"])
+        #expect(funDecl.valueParams.allSatisfy { $0.hasDefaultValue })
+        let defaultValue = try #require(funDecl.valueParams.first?.defaultValue)
+        guard case let .call(_, _, args, _) = ast.arena.expr(defaultValue),
+              let lambda = args.first?.expr,
+              case let .lambdaLiteral(_, body, _, _) = ast.arena.expr(lambda),
+              case let .blockExpr(statements, trailingExpr, _) = ast.arena.expr(body)
+        else {
+            Issue.record("Expected a scope-function call with a block lambda")
+            return
+        }
+        #expect(statements.count == 2)
+        let result = try #require(trailingExpr)
+        guard case let .nameRef(name, _) = ast.arena.expr(result) else {
+            Issue.record("Expected the lambda to return count")
+            return
+        }
+        #expect(ctx.interner.resolve(name) == "count")
+    }
+
+    @Test
     func testScopeFunctionDefaultValueDoesNotTruncateParameterList() throws {
         let (ast, ctx) = try buildASTModule(from: """
         package demo

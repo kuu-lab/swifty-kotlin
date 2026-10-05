@@ -376,9 +376,17 @@ extension KIRLoweringDriver {
             shared: shared,
             compilationCtx: compilationCtx
         )
-        let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
+        let forwardingDecls = synthesizeClassDelegationForwardingMethods(
+            classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+        ) + synthesizeClassDelegationForwardingPropertyAccessors(
+            classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+        )
+        let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+            symbol: symbol, memberDecls: directMembers + forwardingDecls
+        )))
         var declIDs = [kirID]
         declIDs.append(contentsOf: allDecls)
+        declIDs.append(contentsOf: forwardingDecls)
 
         // Every source-backed top-level object needs a global slot for its
         // singleton heap pointer. Without it, an object crossing an Any

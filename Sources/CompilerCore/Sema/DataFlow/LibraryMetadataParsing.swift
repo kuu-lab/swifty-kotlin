@@ -926,6 +926,12 @@ extension DataFlowSemaPhase {
                 }
                 return makeNullable(inner)
             }
+            if consume(prefix: "KSF"), let next = peek(), next.isNumber {
+                return parseFunctionType(isSuspend: true, isCallableReference: true)
+            }
+            if consume(prefix: "KF"), let next = peek(), next.isNumber {
+                return parseFunctionType(isSuspend: false, isCallableReference: true)
+            }
             if consume(prefix: "SF"), let next = peek(), next.isNumber {
                 return parseFunctionType(isSuspend: true)
             }
@@ -1085,7 +1091,7 @@ extension DataFlowSemaPhase {
             return .invariant(type)
         }
 
-        private mutating func parseFunctionType(isSuspend: Bool) -> TypeID? {
+        private mutating func parseFunctionType(isSuspend: Bool, isCallableReference: Bool = false) -> TypeID? {
             guard let arity = parseNumber(), consume(character: "<") else {
                 return nil
             }
@@ -1156,6 +1162,7 @@ extension DataFlowSemaPhase {
                 params: params,
                 returnType: returnType,
                 isSuspend: isSuspend,
+                isCallableReference: isCallableReference,
                 nullability: .nonNull
             )))
         }
@@ -1218,6 +1225,7 @@ extension DataFlowSemaPhase {
                     params: functionType.params,
                     returnType: functionType.returnType,
                     isSuspend: functionType.isSuspend,
+                    isCallableReference: functionType.isCallableReference,
                     nullability: .nullable
                 )))
             case let .kClassType(kClassType):

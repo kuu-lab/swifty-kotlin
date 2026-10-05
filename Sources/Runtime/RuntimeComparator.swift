@@ -125,6 +125,11 @@ public func __kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
         }
         return Int(Int16(truncatingIfNeeded: lhs.value)) - Int(Int16(truncatingIfNeeded: rhs.value))
     }
+    let lhs = runtimeValueFromCollectionABI(lhsRaw)
+    if lhs.tag == RuntimeValue.charTag, rhsRaw != runtimeNullSentinelInt {
+        // JVM Character.compareTo preserves the code-unit difference, unlike direct Char.compareTo.
+        return lhs.payload0 - kk_unbox_char(rhsRaw)
+    }
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }
 

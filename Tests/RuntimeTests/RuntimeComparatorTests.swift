@@ -151,6 +151,22 @@ struct RuntimeComparatorTests {
     }
 
     @Test
+    func testComparableCharCompareToPreservesCodeUnitDifference() {
+        let values = [0, 97, 122, 0x7FFF, 0x8000, 0xD800, 0xDC00, 0xFFFF]
+        let boxedValues = values.map { kk_box_char($0) }
+        for (lhsIndex, lhs) in values.enumerated() {
+            for (rhsIndex, rhs) in values.enumerated() {
+                #expect(__kk_comparable_compareTo(boxedValues[lhsIndex], boxedValues[rhsIndex]) == lhs - rhs)
+                #expect(__kk_comparable_compareTo(boxedValues[lhsIndex], rhs) == lhs - rhs)
+            }
+        }
+        #expect(__kk_comparable_compareTo(kk_box_int(122), kk_box_int(97)) == 1)
+        #expect(__kk_comparable_compareTo(kk_box_int(97), kk_box_int(122)) == -1)
+        #expect(__kk_comparable_compareTo(kk_box_char(122), runtimeNullSentinelInt) == 1)
+        #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, kk_box_char(122)) == -1)
+    }
+
+    @Test
     func testComparableCompareToOrdersNullsFirst() {
         #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, kk_box_int(1)) < 0)
         #expect(__kk_comparable_compareTo(kk_box_int(1), runtimeNullSentinelInt) > 0)

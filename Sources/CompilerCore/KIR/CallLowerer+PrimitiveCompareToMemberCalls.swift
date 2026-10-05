@@ -14,9 +14,7 @@
 /// `String.compareTo` maps to `__kk_string_compareTo_member`.
 ///
 /// Char is intentionally excluded: it already resolves through its own
-/// `kk_char_compareTo` synthetic stub, which returns the raw codepoint
-/// difference (matching `Character.compare`) rather than the sign (-1/0/1) that
-/// `kk_primitive_compareTo` produces.
+/// `kk_char_compareTo` synthetic stub, which also returns the sign (-1/0/1).
 extension CallLowerer {
     func tryLowerPrimitiveCompareTo(
         _ exprID: ExprID,

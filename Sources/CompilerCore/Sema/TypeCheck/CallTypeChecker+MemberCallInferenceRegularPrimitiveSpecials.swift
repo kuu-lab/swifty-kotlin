@@ -109,6 +109,21 @@ extension CallTypeChecker {
             }
             // Use non-nullable RHS for arithmetic promotion checks
             let rhsType = sema.types.makeNonNullable(rawRhsType)
+            let arithmeticOp: BinaryOp? = switch interner.resolve(calleeName) {
+            case "plus": .add
+            case "minus": .subtract
+            case "times": .multiply
+            case "div": .divide
+            case "rem": .modulo
+            default: nil
+            }
+            if let arithmeticOp,
+               driver.exprChecker.hasInvalidBuiltinCharArithmetic(
+                   op: arithmeticOp, lhs: receiverForCheck, rhs: rawRhsType, sema: sema
+               )
+            {
+                return nil
+            }
             let isNumericReceiver = isPrimitiveReceiver
                 || receiverForCheck == floatType
                 || receiverForCheck == doubleType
@@ -121,6 +136,10 @@ extension CallTypeChecker {
                     nil
                 } else if receiverForCheck == charType && rawRhsType == intType {
                     charType
+                } else if receiverForCheck == charType && sema.types.isString(rawRhsType) {
+                    driver.exprChecker.collectScopedOperatorExtensionCandidates(
+                        names: [calleeName], receiverType: receiverForCheck, argumentType: rawRhsType, ctx: ctx
+                    ).isEmpty ? sema.types.stringType : nil
                 } else if receiverForCheck == doubleType || rhsType == doubleType {
                     doubleType
                 } else if receiverForCheck == floatType || rhsType == floatType {

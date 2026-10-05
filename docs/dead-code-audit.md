@@ -91,6 +91,96 @@ prefix、fatalError 自己言及、Swift 名別名）はいずれも再発して
 - `SKIP-DIFF (DEBT-DIFF-007)` — 10 タグ（2026-09-16 計測と同数、DEBT-DIFF-007 の
   所有タスクで継続中）
 
+## 継続監査（DEADCODE-014、2026-10-05）
+
+分岐元 `fc977cd93` と前回監査基準 `59dd246ff` を再監査した。Runtime 内部参照の
+集計が `//` / `///` の関数名まで使用として扱っていたため、コメントだけの行を
+除外した。`kk_exception_handler_invoke` が runtime-internal ではなく B に入る
+セルフテストを追加し、既存の Swift 名別名呼び出しの検証も保持した。
+
+| 指標 | 前回（旧集計） | 前回（コメント補正） | 今回（削除前・補正済み） | 今回（削除後） |
+|---|---:|---:|---:|---:|
+| Runtime `@_cdecl` export | 1,702 | 1,702 | 1,800 | 1,797 |
+| compiler-unreachable | 130 | 130 | 140 | 137 |
+| A: 完全到達不能候補 | 14 | 17 | 19 | 16 |
+| B: テストのみ | 76 | 81 | 86 | 86 |
+| runtime-internal のみ（A/B と排他的） | 40 | 32 | 35 | 35 |
+
+旧集計のままなら今回削除前は A 14 / B 79 / runtime-internal 47 だった。
+補正は compiler-unreachable の総数を変えず、その内訳のみを訂正する。
+これは字句参照による保守的な候補抽出であり、動的 prefix の過大一致や
+インラインコメント・文字列の参照は残り得る。A を無条件の削除リストとして
+扱わず、consumer と所有タスクを個別に確認する。
+
+**今回削除した E0 bridge（3 件）** — compiler / Tests / Runtime の実呼び出しが
+なく、現行の Kotlin 実装に後継経路がある。対応する `RuntimeABISpec` も削除した:
+
+- `__kk_string_builder_append_range` — `kotlin/text/StringBuilder.kt` の
+  `appendRange(CharSequence, startIndex, endIndex)` は source-backed な
+  `appendCharSequenceRange` を経由し、CharArray を作って
+  `__kk_string_builder_append_char_array` を呼ぶ。CharArray 用 bridge は保持。
+  `buildstring_appendrange.kt` に StringBuilder を CharSequence として渡すケース、
+  自己追記、空範囲、UTF-16 サロゲートの範囲切り出し、不正範囲の回帰を追加した。
+- `kk_job_invoke_on_completion` / `kk_job_dispose_completion_handler` —
+  `kotlinx/coroutines/Job.kt` は既に `__kk_job_invoke_on_completion`（5 引数）と
+  `__kk_job_dispose_handle` を使う。削除対象は呼び出し元のない旧 wrapper のみで、
+  handler 登録・dispose の実装は保持した。
+
+**前回との差分（同じコメント補正後の分類で比較）**:
+
+- A: `kk_http_client_setBearerToken` がテスト追加により B へ移動。今回削除した
+  3 bridge は前回 A に無く、残る 16 件は前回の候補と同じ。
+- B: `__kk_select_receive_value`、`kk_channel_close_cause`、`kk_dispatcher_io`、
+  `kk_flat_string_release`、`kk_http_client_addTrustedRedirectOrigin`、
+  `kk_http_client_setBearerToken`、`kk_http_client_setMaxResponseBodyBytes` が追加。
+  `kk_atomic_long_compareAndSet` と `kk_cpointer_address` は compiler-reachable
+  へ移動（+7 / −2）。
+- runtime-internal のみ: `__kk_mutable_map_entry_setValue`、`kk_string_from_utf8`、
+  `kk_worker_new` が追加（+3）。
+
+**残る A 16 件の扱い**:
+
+- KProperty の完全メタデータ 4 件と `kk_cinterop_writeBits` は、前回同様
+  MIGRATION-PROP / STDLIB-CINTEROP-FN の後続 surface 配線対象として保持。
+- HTTP の追加設定・応答メタデータ 8 件は `RuntimeNetwork.swift` の surface
+  として保持。前回記録の KUU-805 / KUU-817 は現在 Done・archived であり、
+  「進行中のセキュリティ修正」を保持理由にはしない。Kotlin HTTP surface の
+  未配線候補として、今回の限定的な bridge 整理とは分離する。
+- `__kk_iterator_builder_hasNext_coro` / `__kk_iterator_builder_next_coro` /
+  `kk_sequence_completed_sentinel` はコメント除外で A と判明した 3 件。
+  `RuntimeSequenceBuilders.swift` が明示する CORO-004 Phase 2 の将来 compiler
+  consumer 用 API で、現行の blocking iterator 経路とは別契約。
+  suspension-aware iterator の配線／撤去判断を要するため今回は保持する。
+
+**他監査軸**:
+
+- tracked `.c/.h/.cc/.cpp`: 2 件。`RuntimeCAtomics.c` と
+  `include/RuntimeCAtomics.h` は使用中の SwiftPM C ターゲットで、削除候補なし。
+- `DiagnosticRegistry`: 132 unique descriptor。全コードについて registry 外の
+  `Sources` に参照があり、参照ゼロの descriptor はない。発行には直接の
+  `error` / `warning` に加え、parser の missing-token、診断コード変数、
+  DiagnosticEngine の fallback / truncation など間接経路も含まれる。
+  この監査は静的な発行経路確認であり、全診断を実際に発火させる試験ではない。
+- active `SKIP-DIFF`: 122 タグ / 122 ファイル。DEBT-DIFF-001 は 117、007 は 2、
+  009 / 010 / 011 は各 1。KSP-959 の internal `@PublishedApi` helper ケースは
+  skip を維持したまま DEBT-DIFF-001 へ正規化した。全 skipped ケースの
+  `--force-run-skipped` 再実行は今回行わず、詳細は `diff-skip-inventory.md` に同期。
+
+再現: `bash Scripts/dead_code_audit.sh --self-test --output-dir <audit-dir>`。
+5/5 fixture が PASS。比較時は `59dd246ff` の worktree にも同じコメント除外を
+適用し、`runtime_cdecl.txt` / `kk_candidates.txt` / `dead_A.txt` / `dead_B.txt` を比較した。
+
+検証: `swift build`、Runtime ABI link 6 件、String synthetic member link 4 件、
+StringBuilder / Job completion の Runtime 19 件が PASS。
+`buildstring_appendrange.kt` は kotlinc 2.3.10 との native 出力比較も PASS。
+既存の `coroutine_job_invoke_on_completion.kt` と
+`kotlinx_coroutines_job_callback_completion.kt` は callback 内でクラッシュした。
+捕捉付き callback の最小再現は未変更の分岐元 `fc977cd93` を別 worktree で
+ビルドした compiler / Runtime でも同じ panic になり、共通 callback ABI の
+既存不具合として [KUU-1194](https://linear.app/kuu/issue/KUU-1194/jobinvokeoncompletion-の捕捉付き-callback-が-mutable-cell-を失い-native)
+で追跡する。失敗ケースは無効化しておらず、Job の diff 比較は未通過。
+全 Swift test / Golden / diff corpus はローカルでは未実行。
+
 ## 検出手法
 
 識別子トークン頻度解析（`Sources` / `Tests` / `Scripts` / `Package.swift` / `*.kt` 横断）で「宣言されているが参照ゼロ」のシンボルを抽出し、以下の到達経路を順に除外して確定した。

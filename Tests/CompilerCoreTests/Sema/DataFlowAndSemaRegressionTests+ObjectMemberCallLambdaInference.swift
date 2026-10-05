@@ -48,15 +48,15 @@ extension DataFlowAndSemaRegressionTests {
         """
     ]
 
-    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+    private static nonisolated(unsafe) var _sharedCtx: (CompilationContext, [String])?
 
-    private func sharedCtx() throws -> CompilationContext {
+    private func sharedCtx() throws -> (CompilationContext, [String]) {
         if let cached = Self._sharedCtx { return cached }
-        var result: CompilationContext?
+        var result: (CompilationContext, [String])?
         try withTemporaryFiles(contents: Self.sharedSources) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            result = ctx
+            result = (ctx, paths)
         }
         let ctx = try #require(result)
         Self._sharedCtx = ctx
@@ -82,8 +82,9 @@ extension DataFlowAndSemaRegressionTests {
     //   control so a future change can't silently regress this case while
     //   "fixing" the object case.
     @Test func testObjectMemberFunctionInfersTrailingLambdaParameterType() throws {
-        let ctx = try sharedCtx()
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
+        let (ctx, paths) = try sharedCtx()
+        let diagnostics = paths.flatMap { diagnosticsForPath($0, in: ctx) }
+        #expect(diagnostics.isEmpty, "Unexpected diagnostics: \(diagnostics.map(\.code))")
     }
 }
 #endif

@@ -117,6 +117,7 @@ public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
     public let params: [TypeID]
     public let returnType: TypeID
     public let isSuspend: Bool
+    public let isCallableReference: Bool
     public let nullability: Nullability
     public let `throws`: [TypeID]
 
@@ -126,6 +127,7 @@ public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
         params: [TypeID],
         returnType: TypeID,
         isSuspend: Bool = false,
+        isCallableReference: Bool = false,
         nullability: Nullability = .nonNull,
         `throws`: [TypeID] = []
     ) {
@@ -134,6 +136,7 @@ public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
         self.params = params
         self.returnType = returnType
         self.isSuspend = isSuspend
+        self.isCallableReference = isCallableReference
         self.nullability = nullability
         self.`throws` = `throws`
     }

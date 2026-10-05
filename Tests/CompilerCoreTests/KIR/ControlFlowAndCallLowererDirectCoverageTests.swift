@@ -4,6 +4,60 @@ import Testing
 
 @Suite
 struct ControlFlowAndCallLowererDirectCoverageTests {
+    @Test(arguments: [false, true], [false, true])
+    func resultCallbackAdapterKeepsErasedReturn(
+        hasCallableInfo: Bool, hasClosureParam: Bool
+    ) throws {
+        let fixture = makeKIRDirectLoweringFixture()
+        let functionType = fixture.types.make(.functionType(FunctionType(
+            params: [], returnType: fixture.types.booleanType,
+            isSuspend: false, nullability: .nonNull
+        )))
+        let source = appendTypedExpr(
+            .nameRef(fixture.interner.intern("block"), makeRange()),
+            type: functionType, fixture: fixture
+        )
+        let callable = fixture.kirArena.appendTemporary(type: functionType)
+        let closure = fixture.kirArena.appendTemporary(type: fixture.types.intType)
+        let symbol = defineSemanticSymbol(in: fixture, kind: .function, fqName: ["pkg", "block"])
+        if hasCallableInfo {
+            fixture.driver.ctx.registerCallableValue(
+                callable, symbol: symbol, callee: fixture.interner.intern("block"),
+                captureArguments: [closure], hasClosureParam: hasClosureParam
+            )
+        }
+        var instructions: [KIRInstruction] = []
+        let arguments = fixture.driver.callLowerer.makeClosureThunkExpandedArguments(
+            loweredArgID: callable, argExprID: source, returnsErasedValue: true,
+            sema: fixture.sema, arena: fixture.kirArena, interner: fixture.interner,
+            instructions: &instructions
+        )
+        #expect(arguments.count == 2)
+        guard case let .symbolRef(adapterSymbol)? = fixture.kirArena.expr(arguments[0]) else {
+            Issue.record("Expected callback adapter function pointer")
+            return
+        }
+        let adapter = try #require(fixture.kirArena.function(for: adapterSymbol))
+        #expect(adapter.returnType == fixture.types.anyType)
+        #expect(adapter.params.count == 1)
+        #expect(arguments[1] == (hasCallableInfo ? closure : callable))
+        #expect(adapter.body.contains {
+            guard case .returnValue = $0 else { return false }
+            return true
+        })
+        let call = try #require(adapter.body.compactMap { instruction -> InternedString? in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+            return callee
+        }.first)
+        #expect(fixture.interner.resolve(call) == (hasCallableInfo ? "block" : "kk_function_invoke_0"))
+        if !hasCallableInfo {
+            #expect(adapter.body.contains {
+                guard case .rethrow = $0 else { return false }
+                return true
+            })
+        }
+    }
+
     @Test func testControlFlowLowererCatchBindingAndLegacyTypeResolution() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
