@@ -228,7 +228,7 @@ struct LoweringFlowCodegenTests {
         import kotlinx.coroutines.flow.*
 
         suspend fun runFilter(pred: suspend (Int) -> Boolean) {
-            flow<Int> { emit(1) }.collect { v ->
+            flow { emit(1) }.collect { v ->
                 try { pred(v) } catch (e: Throwable) { }
             }
             println("filter done")
@@ -238,7 +238,7 @@ struct LoweringFlowCodegenTests {
             val scale = 2
             val op = { value: Int -> println(value * scale) }
             var n = 0
-            flow<Int> { emit(1) }.collect { v -> op(v); n += 1 }
+            flow { emit(1) }.collect { v -> op(v); n += 1 }
             println(n)
         }
 
