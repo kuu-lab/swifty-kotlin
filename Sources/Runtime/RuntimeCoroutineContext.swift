@@ -258,13 +258,27 @@ public func kk_continuation_interceptor_intercept_continuation(
     return runtimeRegisterObject(interceptedObject)
 }
 
-func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
-    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")) else {
-        return nil
-    }
+func runtimeIsNativeDispatcher(_ receiver: Int) -> Bool {
     let isDispatcherObject = isRegisteredRuntimeObjectPointer(receiver)
         && UnsafeMutableRawPointer(bitPattern: receiver).flatMap { tryCast($0, to: RuntimeDispatcher.self) } != nil
-    guard isDispatcherTag(receiver) || isDispatcherObject else {
+    return isDispatcherTag(receiver) || isDispatcherObject
+}
+
+@_cdecl("__kk_is_native_dispatcher")
+public func kk_is_native_dispatcher(_ receiver: Int) -> Int {
+    runtimeIsNativeDispatcher(receiver) ? 1 : 0
+}
+
+// The compiler supplies the source implementation, not a runtime-owned slot.
+@_cdecl("__kk_dispatcher_default_method")
+public func kk_dispatcher_default_method(_ receiver: Int, _ virtualMethod: Int, _ defaultMethod: Int) -> Int {
+    runtimeIsNativeDispatcher(receiver) ? defaultMethod : virtualMethod
+}
+
+func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
+    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")),
+          runtimeIsNativeDispatcher(receiver)
+    else {
         return nil
     }
     // ContinuationInterceptor declares intercept/release before its context overrides.

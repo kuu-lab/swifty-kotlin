@@ -761,6 +761,24 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_is_native_dispatcher",
+            parameters: [RuntimeABIParameter(name: "receiver", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_default_method",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "virtualMethod", type: .intptr),
+                RuntimeABIParameter(name: "defaultMethod", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_context_fold",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
