@@ -126,7 +126,9 @@ struct LoweringFlowCodegenTests {
                 emit(8)
                 emitAll(flowOf(9))
             }.toList())
+            var fallbackCalls = 0
             val fallback = emptyFlow<Int>().onEmpty {
+                fallbackCalls += 1
                 emit(1)
                 emitAll(emptyFlow<Int>())
                 emit(2)
@@ -135,8 +137,10 @@ struct LoweringFlowCodegenTests {
                 emitAll(flowOf(6))
                 emit(7)
             }
+            println("fallbackCalls:$fallbackCalls")
             println(fallback.toList())
             println(fallback.toList())
+            println("fallbackCalls:$fallbackCalls")
             println(emptyFlow<Int?>().onEmpty {
                 emit(null)
                 emitAll(flowOf(8, null))
@@ -174,8 +178,10 @@ struct LoweringFlowCodegenTests {
             [7, 8, 9]
             [8, 9, 7]
             [7, 8, 9]
+            fallbackCalls:0
             [1, 2, 3, 4, 5, 6, 7]
             [1, 2, 3, 4, 5, 6, 7]
+            fallbackCalls:2
             [null, 8, null, 9]
             [10]
             calls:0
@@ -588,8 +594,8 @@ struct LoweringFlowCodegenTests {
         }
     }
 
-    @Test
-    func testFlowMapCollectExecutablePrintsExpectedOutput() throws {
+    @Test(arguments: [false, true])
+    func testFlowMapCollectExecutablePrintsExpectedOutput(useSourceStdlib: Bool) throws {
         let source = """
         suspend fun runFlowCollectExecutable() {
             flow {
@@ -607,12 +613,13 @@ struct LoweringFlowCodegenTests {
         try assertFlowExecutableOutput(
             source: source,
             moduleName: "FlowExecutable",
-            expectedStdout: "2\n4\n"
+            expectedStdout: "2\n4\n",
+            useSourceStdlib: useSourceStdlib
         )
     }
 
-    @Test
-    func testNestedFlowCollectorsDoNotReenterTheInnerCollector() throws {
+    @Test(arguments: [false, true])
+    func testNestedFlowCollectorsDoNotReenterTheInnerCollector(useSourceStdlib: Bool) throws {
         let source = """
         fun main() {
             runBlocking {
@@ -631,7 +638,8 @@ struct LoweringFlowCodegenTests {
         try assertFlowExecutableOutput(
             source: source,
             moduleName: "FlowNestedCollectorOwnership",
-            expectedStdout: "2\n4\n[20, 30]\n"
+            expectedStdout: "2\n4\n[20, 30]\n",
+            useSourceStdlib: useSourceStdlib
         )
     }
 

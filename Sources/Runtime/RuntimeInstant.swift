@@ -285,13 +285,12 @@ public func kk_instant_is_distant_future(_ instantRaw: Int) -> Int {
 /// Kotlin: instant + duration
 @_cdecl("kk_instant_plus_duration")
 public func kk_instant_plus_duration(_ instantRaw: Int, _ durationRaw: Int) -> Int {
-    guard let ibox = runtimeInstantBox(from: instantRaw),
-          let durationNs = runtimeDurationNanosecondsValue(from: durationRaw)
+    guard let ibox = runtimeInstantBox(from: instantRaw)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_plus_duration received invalid handle")
     }
-    let addedSec = durationNs / 1_000_000_000
-    let addedNano = Int32(durationNs % 1_000_000_000)
+    let addedSec = runtimeDurationWholeValue(from: durationRaw, unitScale: 1_000_000_000)
+    let addedNano = Int32(runtimeDurationNanosecondsComponent(from: durationRaw))
     let result = RuntimeInstantBox(
         epochSeconds: saturatingAdd(ibox.epochSeconds, addedSec),
         nanoOfSecond: ibox.nanoOfSecond + addedNano
@@ -304,15 +303,14 @@ public func kk_instant_plus_duration(_ instantRaw: Int, _ durationRaw: Int) -> I
 /// Kotlin: instant - duration
 @_cdecl("kk_instant_minus_duration")
 public func kk_instant_minus_duration(_ instantRaw: Int, _ durationRaw: Int) -> Int {
-    guard let ibox = runtimeInstantBox(from: instantRaw),
-          let durationNs = runtimeDurationNanosecondsValue(from: durationRaw)
+    guard let ibox = runtimeInstantBox(from: instantRaw)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_minus_duration received invalid handle")
     }
-    let subSec = durationNs / 1_000_000_000
-    let subNano = Int32(durationNs % 1_000_000_000)
+    let subSec = runtimeDurationWholeValue(from: durationRaw, unitScale: 1_000_000_000)
+    let subNano = Int32(runtimeDurationNanosecondsComponent(from: durationRaw))
     let result = RuntimeInstantBox(
-        epochSeconds: saturatingAdd(ibox.epochSeconds, -subSec),
+        epochSeconds: saturatingAdd(ibox.epochSeconds, subSec == Int64.min ? Int64.max : -subSec),
         nanoOfSecond: ibox.nanoOfSecond - subNano
     )
     return registerRuntimeObject(result)
@@ -357,7 +355,5 @@ public func kk_instant_until(_ fromRaw: Int, _ toRaw: Int) -> Int {
     }
     let secDiff = saturatingAdd(toBox.epochSeconds, -fromBox.epochSeconds)
     let nanoDiff = Int64(toBox.nanoOfSecond) - Int64(fromBox.nanoOfSecond)
-    let secNs = saturatingMultiply(secDiff, 1_000_000_000)
-    let totalNs = saturatingAdd(secNs, nanoDiff)
-    return Int(truncatingIfNeeded: totalNs)
+    return kk_duration_plus(kk_duration_toDuration_long(Int(secDiff), 3), kk_duration_toDuration_long(Int(nanoDiff), 0))
 }

@@ -313,8 +313,9 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
     let threadLocalRoots = runtimeStorage.withThreadLocalLock { state in
         state.threadLocalValues
     }
+    let callableRoots = runtimeCallableReflectionRoots()
     runtimeStorage.withGCLock { state in
-        performMarkAndSweepLocked(state: &state, threadLocalValues: threadLocalRoots)
+        performMarkAndSweepLocked(state: &state, threadLocalValues: threadLocalRoots, callableRoots: callableRoots)
     }
 }
 
@@ -648,7 +649,7 @@ func kk_runtime_reset_delegate() {
     }
 }
 
-func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:]) {
+func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:], callableRoots: [Int] = []) {
     guard !state.heapObjects.isEmpty else {
         return
     }
@@ -656,6 +657,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
     var worklist: [UnsafeMutableRawPointer] = []
     worklist.reserveCapacity(state.heapObjects.count)
     collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, into: &worklist)
+    worklist.append(contentsOf: callableRoots.compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
 
     while let current = worklist.popLast() {
         let key = UInt(bitPattern: current)

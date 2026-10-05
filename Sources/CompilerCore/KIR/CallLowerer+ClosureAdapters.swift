@@ -578,12 +578,6 @@ extension CallLowerer {
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
 
-        // Source-backed inline functions are fully expanded in the same
-        // module, so lambda arguments can be consumed directly there.
-        if isInline, !isImported {
-            return
-        }
-
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
         // function-value object. Imported Kotlin functions compiled to .kklib
@@ -630,6 +624,13 @@ extension CallLowerer {
                   !signature.valueParameterIsVararg.indices.contains(parameterIndex)
                     || !signature.valueParameterIsVararg[parameterIndex]
             else {
+                continue
+            }
+            // Same-module inline expansion can consume raw symbols directly,
+            // but tagged callable references still cross the erased invoke ABI.
+            if isInline, !isImported,
+               case .symbolRef? = arena.expr(arguments[finalArgIndex])
+            {
                 continue
             }
             let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
@@ -681,8 +682,11 @@ extension CallLowerer {
             }
             // Keep eligible inline arguments visible to imported expansion,
             // including normal returns and nested non-local returns.
+            // Closure-ABI callbacks can escape through nested artifact lambdas.
             if isInline,
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
+               (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
+                   || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                    || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                    || arena.function(for: callable.symbol)?.isInlineOnly == true)
