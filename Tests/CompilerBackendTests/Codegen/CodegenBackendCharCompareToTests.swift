@@ -100,6 +100,8 @@ struct CodegenBackendCharCompareToTests {
 
         fun main() {
             println('z'.compareTo('a'))
+            val comparable: Comparable<Char> = 'z'
+            println(comparable.compareTo('a'))
             println(compareGeneric('z', 'a'))
             println(compareGeneric('a', 'z'))
             println(compareGeneric(Char.MAX_VALUE, Char.MIN_VALUE))
@@ -112,7 +114,7 @@ struct CodegenBackendCharCompareToTests {
         try assertKotlinOutput(
             source,
             moduleName: "CharCompareToGeneric",
-            expected: "1\n25\n-25\n65535\n-65535\n0\n25\n1\n"
+            expected: "1\n1\n25\n-25\n65535\n-65535\n0\n25\n1\n"
         )
     }
 }

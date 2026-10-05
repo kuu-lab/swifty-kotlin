@@ -16,6 +16,57 @@ import Testing
 /// against its function's declared return type unless it sat inside a lambda.
 @Suite
 struct GenericSupertypeSmartCastNarrowingTests {
+    @Test func testImmutablePrimitiveInitializerUsesConcreteCharCompareTo() throws {
+        let ctx = makeContextFromSource("""
+        fun probe(): Int {
+            val value: Comparable<Char> = 'z'
+            return value.compareTo('a')
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let call = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+            return ctx.interner.resolve(callee) == "compareTo"
+        })
+        let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
+        #expect(sema.symbols.externalLinkName(for: chosen) == "kk_char_compareTo")
+        guard case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call) else {
+            Issue.record("Expected member call")
+            return
+        }
+        #expect(sema.bindings.exprType(for: receiver) == sema.types.charType)
+        let local = try #require(sema.bindings.identifierSymbol(for: receiver))
+        #expect(sema.symbols.propertyType(for: local) != sema.types.charType)
+    }
+
+    @Test func testPrimitiveInitializerDoesNotNarrowMutableOrNullInitializers() throws {
+        let ctx = makeContextFromSource("""
+        fun probe() {
+            var value: Any = 'z'
+            value = 42
+            val missing: String? = null
+            println(missing?.length)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testImmutablePrimitiveInitializerNarrowsOtherPrimitiveTypes() throws {
+        let ctx = makeContextFromSource("""
+        fun probe(): Int {
+            val character: Any = 'z'
+            val integer: Any = 42
+            return character.code + integer.compareTo(0)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testSmartCastToUnparameterizedSubtypePreservesSharedTypeParameter() throws {
         let ctx = makeContextFromSources([
             """

@@ -50,6 +50,7 @@ final class LocalDeclTypeChecker {
         )
 
         let localType: TypeID
+        var initializerPrimitiveType: TypeID?
         if isDelegated, let initializer {
             // Resolve getValue (and setValue for `var`) against the delegate
             // expression's type, exactly as member/top-level delegated properties
@@ -75,6 +76,10 @@ final class LocalDeclTypeChecker {
                     sema.bindings.markSourceDeclaredExpectedType(initializer)
                 }
                 initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
+                if let initializerType, !isMutable,
+                   case .primitive = sema.types.kind(of: initializerType) {
+                    initializerPrimitiveType = initializerType
+                }
                 if declaredType == nil,
                    sema.bindings.callableRefKind(for: initializer) != nil {
                     sema.bindings.inferredCallableReferenceSymbols.insert(localSymbol)
@@ -143,7 +148,13 @@ final class LocalDeclTypeChecker {
             }
         }
         sema.symbols.setPropertyType(localType, for: localSymbol)
-        locals[name] = (localType, localSymbol, isMutable, initializer != nil)
+        let readType: TypeID
+        if let initializerPrimitiveType, sema.types.isSubtype(initializerPrimitiveType, localType) {
+            readType = initializerPrimitiveType
+        } else {
+            readType = localType
+        }
+        locals[name] = (readType, localSymbol, isMutable, initializer != nil)
         sema.bindings.bindIdentifier(id, symbol: localSymbol)
         // Propagate collection marks through local variable declarations
         // so that `val list = listOf(1,2,3); list.size` still recognizes
