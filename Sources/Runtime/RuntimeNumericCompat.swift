@@ -362,7 +362,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     // 64-bit `Int` (even with `&+`/`&*`) only happens to agree while the
     // running total stays inside Int32 range and silently diverges once a
     // longer collection or a large-hashCode element pushes it past that.
-    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+    if let listBox = runtimeListBox(from: value) {
         var hash: Int32 = 1
         for element in listBox.values {
             hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element.legacyRawValue))
@@ -417,6 +417,13 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
                 hash = hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
             }
             return Int(hash)
+        }
+        // A user hashCode override wins over the structural fallbacks below:
+        // hashed collections already honor it via runtimeElementKeyHash, and
+        // Any.hashCode() must agree with them (KUU-1093 — e.g. boxed Duration,
+        // whose member hashCode is rawValue.hashCode(), not a structural fold).
+        if let overridden = runtimeObjectHashCodeOverride(value) {
+            return overridden
         }
         if runtimeIsDataClass(classID: objBox.classID) {
             // The first two slots are the runtime object header. Data-class

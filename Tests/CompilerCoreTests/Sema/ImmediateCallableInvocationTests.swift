@@ -3,6 +3,40 @@ import Testing
 
 @Suite
 struct ImmediateCallableInvocationTests {
+    @Test func callableArgumentsUseExpectedIntegerLiteralTypes() throws {
+        let ctx = makeContextFromSource("""
+        class Holder(val f: (Byte) -> Int)
+        fun parity() {
+            val byte: (Byte) -> Int = { 0 }
+            val short: (Short) -> Int = { 0 }
+            val long: (Long) -> Int = { 0 }
+            val unsigned: (UShort) -> Int = { 0 }
+            byte(-128)
+            byte.invoke(127)
+            short(-32768)
+            long(1)
+            unsigned(65535u)
+            Holder(byte).f(-1)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func callableArgumentsDoNotCoerceNonLiteralsOrOutOfRangeValues() throws {
+        let ctx = makeContextFromSource("""
+        fun parity(value: Int) {
+            val byte: (Byte) -> Int = { 0 }
+            byte(128)
+            byte(-129)
+            byte(value)
+            byte(1L)
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.count == 4)
+    }
+
     @Test(arguments: [
         "fun main() { val value: Int = with(1) { { 2 } }() }",
         "val value: Int = with(1) { { 2 } }()",

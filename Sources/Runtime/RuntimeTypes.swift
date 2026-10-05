@@ -570,6 +570,7 @@ final class RuntimeListBox {
         case direct(DirectStorage)
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
+        case dequeViewOf(RuntimeArrayDequeBox)
         case subList(RuntimeListSlice)
         /// Live view for `MutableMap.values`: reads the backing map's
         /// values on every access instead of a disconnected snapshot.
@@ -586,7 +587,7 @@ final class RuntimeListBox {
     var isEffectivelyReadOnly: Bool {
         if isReadOnly { return true }
         switch storage {
-        case .direct, .arrayViewOf:
+        case .direct, .arrayViewOf, .dequeViewOf:
             return false
         case .reversedViewOf(let base):
             return base.isEffectivelyReadOnly
@@ -619,6 +620,10 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base)
     }
 
+    init(dequeViewOf base: RuntimeArrayDequeBox) {
+        storage = .dequeViewOf(base)
+    }
+
     init(subListOf base: RuntimeListBox, fromIndex: Int, toIndex: Int) {
         storage = .subList(RuntimeListSlice(base: base, fromIndex: fromIndex, toIndex: toIndex))
     }
@@ -635,6 +640,8 @@ final class RuntimeListBox {
             case .reversedViewOf(let base):
                 return Array(base.values.reversed())
             case .arrayViewOf(let base):
+                return base.values
+            case .dequeViewOf(let base):
                 return base.values
             case .subList(let slice):
                 return Array(slice.base.values[slice.fromIndex..<slice.toIndex])
@@ -653,6 +660,8 @@ final class RuntimeListBox {
             case .reversedViewOf(let base):
                 base.values = Array(newValue.reversed())
             case .arrayViewOf(let base):
+                base.values = newValue
+            case .dequeViewOf(let base):
                 base.values = newValue
             case .subList(let slice):
                 var baseValues = slice.base.values
@@ -685,6 +694,8 @@ final class RuntimeListBox {
             return base.modCount
         case .arrayViewOf:
             return 0
+        case .dequeViewOf(let base):
+            return base.modCount
         case .subList(let slice):
             return slice.base.modCount
         case .mapValuesViewOf(let mapRaw):
@@ -698,7 +709,7 @@ final class RuntimeListBox {
             return slice.expectedModCount == slice.base.modCount && slice.base.isValidView
         case .reversedViewOf(let base):
             return base.isValidView
-        case .direct, .arrayViewOf, .mapValuesViewOf:
+        case .direct, .arrayViewOf, .dequeViewOf, .mapValuesViewOf:
             return true
         }
     }
@@ -715,6 +726,8 @@ final class RuntimeListBox {
             return base.count
         case .arrayViewOf(let base):
             return base.count
+        case .dequeViewOf(let base):
+            return base.count
         case .subList(let slice):
             return slice.toIndex - slice.fromIndex
         case .mapValuesViewOf(let mapRaw):
@@ -726,23 +739,28 @@ final class RuntimeListBox {
         0..<count
     }
 
+    func value(at index: Int) -> RuntimeValue {
+        switch storage {
+        case .direct(let direct):
+            return direct.values[index]
+        case .reversedViewOf(let base):
+            return base.value(at: base.count - 1 - index)
+        case .arrayViewOf(let base):
+            return base.values[index]
+        case .dequeViewOf(let base):
+            return base.element(at: index)!
+        case .subList(let slice):
+            return slice.base.value(at: slice.fromIndex + index)
+        case .mapValuesViewOf(let mapRaw):
+            return runtimeMapBox(from: mapRaw)?.entryValues[index] ?? RuntimeValue(raw: 0)
+        }
+    }
+
     /// O(1) single-element access. Prefer this over `elements[index]` because
     /// `elements` materializes the whole list on every get/set.
     subscript(index: Int) -> Int {
         get {
-            switch storage {
-            case .direct(let direct):
-                return runtimeCollectionABIValue(direct.values[index])
-            case .reversedViewOf(let base):
-                return base[base.count - 1 - index]
-            case .arrayViewOf(let base):
-                return runtimeCollectionABIValue(base.values[index])
-            case .subList(let slice):
-                return slice.base[slice.fromIndex + index]
-            case .mapValuesViewOf(let mapRaw):
-                let value = runtimeMapBox(from: mapRaw)?.entryValues[index] ?? RuntimeValue(raw: 0)
-                return runtimeCollectionABIValue(value)
-            }
+            runtimeCollectionABIValue(value(at: index))
         }
         set {
             guard !isEffectivelyReadOnly else { return }
@@ -756,6 +774,9 @@ final class RuntimeListBox {
                 base[base.count - 1 - index] = newValue
             case .arrayViewOf(let base):
                 base[index] = newValue
+            case .dequeViewOf(let base):
+                let previous = base.element(at: index)!
+                base.setValue(RuntimeValue(raw: newValue, anyFallbackTag: previous.anyFallbackTag), at: index)
             case .subList(let slice):
                 slice.base[slice.fromIndex + index] = newValue
             case .mapValuesViewOf:
@@ -778,6 +799,8 @@ final class RuntimeListBox {
         case .reversedViewOf(let base):
             base.setValue(value, at: base.count - 1 - index)
         case .arrayViewOf(let base):
+            base.setValue(value, at: index)
+        case .dequeViewOf(let base):
             base.setValue(value, at: index)
         case .subList(let slice):
             slice.base.setValue(value, at: slice.fromIndex + index)
@@ -809,7 +832,7 @@ final class RuntimeListBox {
                 direct.modCount += 1
             }
             return result
-        case .reversedViewOf, .arrayViewOf, .subList:
+        case .reversedViewOf, .arrayViewOf, .dequeViewOf, .subList:
             var values = self.values
             let result = body(&values)
             self.values = values
@@ -1426,6 +1449,7 @@ final class RuntimeArrayDequeBox {
     private var buffer: [RuntimeValue]
     private var head: Int
     private(set) var count: Int
+    private(set) var modCount: Int = 0
 
     private static let minimumCapacity = 8
 
@@ -1434,6 +1458,9 @@ final class RuntimeArrayDequeBox {
             (0 ..< count).map { buffer[slot(forOffset: $0)] }
         }
         set {
+            if newValue.count != count {
+                modCount += 1
+            }
             buffer = newValue
             head = 0
             count = newValue.count
@@ -1472,17 +1499,24 @@ final class RuntimeArrayDequeBox {
         return buffer[slot(forOffset: index)]
     }
 
+    func setValue(_ value: RuntimeValue, at index: Int) {
+        let slot = slot(forOffset: index)
+        buffer[slot] = runtimeValuePreservingAnyFallbackTag(value, existing: buffer[slot])
+    }
+
     func pushFirst(_ value: RuntimeValue) {
         growIfNeeded()
         head = slot(forOffset: buffer.count - 1)
         buffer[head] = value
         count += 1
+        modCount += 1
     }
 
     func pushLast(_ value: RuntimeValue) {
         growIfNeeded()
         buffer[slot(forOffset: count)] = value
         count += 1
+        modCount += 1
     }
 
     func popFirst() -> RuntimeValue? {
@@ -1491,6 +1525,7 @@ final class RuntimeArrayDequeBox {
         buffer[head] = RuntimeValue(raw: 0)
         head = slot(forOffset: 1)
         count -= 1
+        modCount += 1
         return value
     }
 
@@ -1500,6 +1535,7 @@ final class RuntimeArrayDequeBox {
         let value = buffer[tail]
         buffer[tail] = RuntimeValue(raw: 0)
         count -= 1
+        modCount += 1
         return value
     }
 
@@ -1574,6 +1610,7 @@ final class RuntimeListIteratorBox {
     /// `nil` for iterators with no live backing (plain `Array`, or the
     /// BUG-231 empty fallback) — comodification can never be detected there.
     let currentModCount: (() -> Int)?
+    let currentValue: ((Int) -> RuntimeValue)?
     /// The backing collection's `modCount` as of the last point this
     /// iterator observed it in sync (construction, or its own successful
     /// `remove()`/`add()`, which re-syncs after performing the mutation).
@@ -1585,7 +1622,8 @@ final class RuntimeListIteratorBox {
         setAction: ((Int, RuntimeValue) -> Void)? = nil,
         addAction: ((Int, RuntimeValue) -> Void)? = nil,
         isBackingReadOnly: (() -> Bool)? = nil,
-        currentModCount: (() -> Int)? = nil
+        currentModCount: (() -> Int)? = nil,
+        currentValue: ((Int) -> RuntimeValue)? = nil
     ) {
         values = elements.map(runtimeValueFromCollectionABI)
         index = 0
@@ -1595,6 +1633,7 @@ final class RuntimeListIteratorBox {
         self.addAction = addAction
         self.isBackingReadOnly = isBackingReadOnly
         self.currentModCount = currentModCount
+        self.currentValue = currentValue
         self.expectedModCount = currentModCount?() ?? 0
     }
 
@@ -1604,7 +1643,8 @@ final class RuntimeListIteratorBox {
         setAction: ((Int, RuntimeValue) -> Void)? = nil,
         addAction: ((Int, RuntimeValue) -> Void)? = nil,
         isBackingReadOnly: (() -> Bool)? = nil,
-        currentModCount: (() -> Int)? = nil
+        currentModCount: (() -> Int)? = nil,
+        currentValue: ((Int) -> RuntimeValue)? = nil
     ) {
         self.values = values
         index = 0
@@ -1614,6 +1654,7 @@ final class RuntimeListIteratorBox {
         self.addAction = addAction
         self.isBackingReadOnly = isBackingReadOnly
         self.currentModCount = currentModCount
+        self.currentValue = currentValue
         self.expectedModCount = currentModCount?() ?? 0
     }
 

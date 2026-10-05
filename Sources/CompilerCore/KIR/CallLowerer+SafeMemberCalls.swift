@@ -1067,6 +1067,13 @@ extension CallLowerer {
             }
         }
 
+        let dispatchReceiver = chosen.flatMap {
+            memberExtensionDispatchReceiver(for: $0, callExprID: exprID, sema: sema)
+        }
+        if let dispatchReceiver {
+            finalArguments.insert(dispatchReceiver, at: 0)
+        }
+
         if let chosen,
            let localValue = driver.ctx.localValue(for: chosen),
            let callable = driver.ctx.callableValueInfo(for: localValue)
@@ -1259,7 +1266,11 @@ extension CallLowerer {
                (!hasExternalLink
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)
                    || usesIteratorRuntimeVirtualBridge),
-               let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
+               let dispatchKind = resolveVirtualDispatch(
+                   callee: chosen,
+                   receiverTypeID: dispatchReceiver.flatMap { arena.exprType($0) } ?? receiverTypeForDispatch,
+                   sema: sema, interner: interner
+               )
             {
                 var vcArguments = finalArguments
                 if let signature = sema.symbols.functionSignature(for: chosen),
@@ -1274,7 +1285,7 @@ extension CallLowerer {
                 instructions.append(.virtualCall(
                     symbol: chosen,
                     callee: virtualCalleeName,
-                    receiver: loweredReceiverID,
+                    receiver: dispatchReceiver ?? loweredReceiverID,
                     arguments: vcArguments,
                     result: memberResult,
                     canThrow: false,

@@ -2747,7 +2747,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let instantBox = tryCast(raw, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
-    if let listBox = tryCast(raw, to: RuntimeListBox.self) {
+    if let listBox = runtimeListBox(from: value) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let setBox = tryCast(raw, to: RuntimeSetBox.self) {
