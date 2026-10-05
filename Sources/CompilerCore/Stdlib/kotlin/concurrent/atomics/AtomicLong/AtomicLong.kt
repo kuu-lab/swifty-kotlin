@@ -57,17 +57,17 @@ public fun AtomicLong.exchange(newValue: Long): Long =
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun AtomicLong.getAndAdd(delta: Long): Long =
+public fun AtomicLong.fetchAndAdd(delta: Long): Long =
     __kkAtomicLongFetchAndAdd(delta)
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun AtomicLong.getAndDecrement(): Long =
+public fun AtomicLong.fetchAndDecrement(): Long =
     __kkAtomicLongFetchAndDecrement()
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun AtomicLong.getAndIncrement(): Long =
+public fun AtomicLong.fetchAndIncrement(): Long =
     __kkAtomicLongFetchAndIncrement()
 
 @ExperimentalAtomicApi

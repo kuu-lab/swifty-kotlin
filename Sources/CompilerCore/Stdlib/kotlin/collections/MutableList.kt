@@ -20,7 +20,7 @@ private external fun <E> __kkMutableListAddAll(
 @KsSymbolName("__kk_mutable_list_removeAt")
 private external fun <E> __kkMutableListRemoveAt(list: MutableList<E>, index: Int): E
 
-@KsSymbolName("__kk_mutable_list_remove")
+@KsSymbolName("__kk_mutable_list_remove_dispatch")
 private external fun <E> __kkMutableListRemove(list: MutableList<E>, element: E): Boolean
 
 @KsSymbolName("__kk_mutable_list_clear")

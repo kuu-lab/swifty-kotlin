@@ -686,10 +686,8 @@ enum ParserBoundaryPolicy {
     ]
 
     private static let nonSplittingNewlineSymbols: Set<Symbol> = [
-        .dot, .comma, .questionDot, .questionQuestion,
-        .plus, .minus, .star, .slash,
-        .equalEqual, .assign, .arrow,
-        .rParen, .rBracket, .rBrace,
+        .dot, .comma, .questionDot, .questionColon, .ampAmp, .barBar,
+        .rParen, .rBracket,
     ]
 
     /// Symbols that cannot end an expression, so a newline right after one is a
@@ -769,7 +767,7 @@ enum ParserBoundaryPolicy {
     }
 
     /// Tokens that can only continue an expression when they begin a line:
-    /// `.member`, `?.member`, `?: fallback`, `&&`, `||`, and the `else` /
+    /// `.member`, `?.member`, `?: fallback`, `&&`, `||`, `as`, and the `else` /
     /// `catch` / `finally` continuation keywords never start a statement, so a
     /// newline before one of them keeps the current declaration going
     /// (`fun f() =\n    xs\n        .map { ... }`).
@@ -783,12 +781,15 @@ enum ParserBoundaryPolicy {
             return leadingContinuationSymbols.contains(symbol)
         case .keyword(.else), .keyword(.catch), .keyword(.finally):
             return true
+        case .keyword(.as):
+            return true
         default:
             return false
         }
     }
 
     static func shouldSplitStatementOnNewline(_ kind: TokenKind) -> Bool {
+        if kind == .keyword(.as) { return false }
         if case let .symbol(symbol) = kind {
             return !nonSplittingNewlineSymbols.contains(symbol)
         }

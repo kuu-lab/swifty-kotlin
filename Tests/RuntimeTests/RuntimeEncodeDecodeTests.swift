@@ -60,6 +60,24 @@ struct RuntimeEncodeDecodeTests {
         #expect(box.exceptionHierarchyFQNames.contains("kotlin.Exception"))
     }
 
+    @Test
+    func testCharsetCanonicalNames() {
+        let charsets: [(Int, String)] = [
+            (__kk_charset_utf_8(), "UTF-8"),
+            (__kk_charset_iso_8859_1(), "ISO-8859-1"),
+            (__kk_charset_us_ascii(), "US-ASCII"),
+            (__kk_charset_utf_16(), "UTF-16"),
+            (__kk_charset_utf_16be(), "UTF-16BE"),
+            (__kk_charset_utf_16le(), "UTF-16LE"),
+            (__kk_charset_utf_32(), "UTF-32"),
+            (__kk_charset_utf_32be(), "UTF-32BE"),
+            (__kk_charset_utf_32le(), "UTF-32LE"),
+        ]
+        for (tag, name) in charsets {
+            #expect(extractSwiftString(__kk_charset_name(tag)) == name)
+        }
+    }
+
     // MARK: - encodeToByteArray: basic ASCII round-trip
 
     @Test

@@ -1874,7 +1874,21 @@ extension CallTypeChecker {
 
         // Use the companion type as implicit receiver when the candidates were
         // redirected from the owner class to its companion object.
-        let effectiveReceiverType = companionReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
+        let mutableMapSuperReceiverType: TypeID? = {
+            guard isSuperCall,
+                  [interner.intern("put"), knownNames.putAll, knownNames.remove, knownNames.clear].contains(calleeName),
+                  let currentType = ctx.implicitReceiverType,
+                  case let .classType(current) = sema.types.kind(of: currentType),
+                  case let .classType(superclass) = sema.types.kind(of: lookupReceiverType),
+                  let mutableMap = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMutableMapFQName),
+                  sema.types.isNominalSubtypeSymbol(superclass.classSymbol, of: mutableMap),
+                  let arguments = sema.types.liftedNominalSupertypeArgs(
+                      from: current.classSymbol, childArgs: current.args, to: superclass.classSymbol
+                  )
+            else { return nil }
+            return sema.types.make(.classType(ClassType(classSymbol: superclass.classSymbol, args: arguments)))
+        }()
+        let effectiveReceiverType = companionReceiverType ?? mutableMapSuperReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
         // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
         // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
         // normal candidate lookup already resolved one of these names to that
@@ -2090,10 +2104,20 @@ extension CallTypeChecker {
                 extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
+                let extensionArgs = prepareCallArguments(
+                    args: args,
+                    candidates: extensionCandidates,
+                    preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
+                    contextualCallResultType: expectedType,
+                    explicitTypeArgs: explicitTypeArgs,
+                    receiverType: effectiveReceiverType,
+                    ctx: ctx,
+                    locals: &locals
+                )
                 let retried = resolveCallRespectingLambdaReturnType(
                     candidates: extensionCandidates,
                     args: args,
-                    argTypes: preparedArgs.argTypes,
+                    argTypes: extensionArgs.argTypes,
                     range: range,
                     calleeName: calleeName,
                     explicitTypeArgs: explicitTypeArgs,
@@ -2560,6 +2584,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
         // `x.also { ... }` / `x.run { ... }` resolve as ordinary member calls
@@ -2607,6 +2632,9 @@ extension CallTypeChecker {
     ) -> [SymbolID] {
         let knownNames = KnownCompilerNames(interner: interner)
         let nonNullReceiverForScope = sema.types.makeNonNullable(memberLookupType)
+        let requiresScopedBitwiseExtension = (nonNullReceiverForScope == sema.types.byteType
+            || nonNullReceiverForScope == sema.types.shortType)
+            && ["and", "or", "xor", "inv", "shl", "shr", "ushr"].contains(interner.resolve(calleeName))
         var scopeCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
@@ -2663,7 +2691,7 @@ extension CallTypeChecker {
         // builder so they don't shadow top-level calls.  Fall back
         // to a direct symbol-table lookup by short name to find
         // synthetic extension functions (e.g. Double.pow).
-        if scopeCandidates.isEmpty {
+        if scopeCandidates.isEmpty, !requiresScopedBitwiseExtension {
             let nonNullReceiver = sema.types.makeNonNullable(memberLookupType)
             scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
@@ -3302,6 +3330,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(
             chosen: chosen,

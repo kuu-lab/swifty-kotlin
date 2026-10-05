@@ -37,11 +37,13 @@ public abstract class TestDispatcher {
     public override fun toString(): String = name ?: "TestDispatcher"
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 private class StandardTestDispatcherImpl(
     override val scheduler: TestCoroutineScheduler,
     override val name: String?
 ) : TestDispatcher()
 
+@OptIn(ExperimentalCoroutinesApi::class)
 private class UnconfinedTestDispatcherImpl(
     override val scheduler: TestCoroutineScheduler,
     override val name: String?

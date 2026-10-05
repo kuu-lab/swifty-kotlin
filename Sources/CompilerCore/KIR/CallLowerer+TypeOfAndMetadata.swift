@@ -89,6 +89,8 @@ extension CallLowerer {
                     return nullability == .nullable ? 1 : 0
                 case let .stringStruct(nullability):
                     return nullability == .nullable ? 1 : 0
+                case let .functionType(functionType):
+                    return functionType.nullability == .nullable ? 1 : 0
                 default:
                     return 0
                 }
@@ -133,13 +135,26 @@ extension CallLowerer {
 
             let tokenExpr = makeTypeTokenExpr(for: type)
             let nameHintExpr = makeNameHintExpr(for: type)
-            let typeArguments: [TypeArg] = switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+            let typeArguments: [TypeArg]
+            switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
             case let .classType(classType):
-                classType.args
+                typeArguments = classType.args
             case let .kClassType(kClassType):
-                [.invariant(kClassType.argument)]
+                typeArguments = [.invariant(kClassType.argument)]
+            case let .functionType(functionType):
+                // KUU-1084: KType.arguments for a function type is the
+                // parameter types followed by the return type (Kotlin
+                // FunctionN order: context receivers, extension receiver,
+                // value parameters, return type).
+                var argumentTypes = functionType.contextReceivers
+                if let receiver = functionType.receiver {
+                    argumentTypes.append(receiver)
+                }
+                argumentTypes.append(contentsOf: functionType.params)
+                argumentTypes.append(functionType.returnType)
+                typeArguments = argumentTypes.map { .invariant($0) }
             default:
-                []
+                typeArguments = []
             }
 
             let argsListExpr: KIRExprID
