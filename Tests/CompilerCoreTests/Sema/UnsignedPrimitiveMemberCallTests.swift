@@ -4,6 +4,61 @@ import Testing
 @Suite
 struct UnsignedPrimitiveMemberCallTests {
 
+    @Test
+    func testUnsignedArithmeticOperatorsMatchMemberCallPromotion() throws {
+        let operands = ["ub", "us", "ui", "ul"]
+        let operations = [("+", "plus"), ("-", "minus"), ("*", "times"), ("/", "div"), ("%", "rem")]
+        var statements: [String] = []
+        for lhs in operands {
+            for rhs in operands {
+                for (op, member) in operations {
+                    statements.append("\(lhs) \(op) \(rhs)")
+                    statements.append("\(lhs).\(member)(\(rhs))")
+                }
+            }
+        }
+        let source = """
+        fun sample(ub: UByte, us: UShort, ui: UInt, ul: ULong) {
+            \(statements.joined(separator: "\n"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let diagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!diagnostics.contains { $0.severity == .error }, "Unexpected diagnostics: \(diagnostics)")
+
+            var checkedExpressions = 0
+            for index in ast.arena.exprs.indices {
+                let id = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(id),
+                      let range = ast.arena.exprRange(id),
+                      ctx.sourceManager.path(of: range.start.file) == path
+                else { continue }
+                let lhs: ExprID
+                let rhs: ExprID
+                switch expr {
+                case let .binary(_, left, right, _):
+                    lhs = left
+                    rhs = right
+                case let .memberCall(receiver, _, _, args, _) where args.count == 1:
+                    lhs = receiver
+                    rhs = args[0].expr
+                default:
+                    continue
+                }
+                let hasULong = sema.bindings.exprTypes[lhs] == sema.types.ulongType
+                    || sema.bindings.exprTypes[rhs] == sema.types.ulongType
+                let expectedType = hasULong ? sema.types.ulongType : sema.types.uintType
+                #expect(sema.bindings.exprTypes[id] == expectedType, "Unsigned arithmetic must promote to UInt or ULong")
+                checkedExpressions += 1
+            }
+            #expect(checkedExpressions == operands.count * operands.count * operations.count * 2)
+        }
+    }
+
     private func nominalRangeType(
         named name: String,
         sema: SemaModule,

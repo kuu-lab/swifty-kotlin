@@ -104,6 +104,19 @@ struct CoroutineIntrinsicsSyntheticStubTests {
                 sema.symbols.lookupAll(fqName: package + [interner.intern(name)])
             }
 
+            let interceptedName = interner.intern("intercepted")
+            let continuationOwner = ["kotlin", "coroutines", "Continuation"].map { interner.intern($0) }
+            let indexed = sema.bundledIndex.contains(ownerFQName: continuationOwner, name: interceptedName, arity: 0)
+            #expect(indexed)
+            let interceptedSymbols = symbols(named: "intercepted")
+            #expect(interceptedSymbols.count == 1)
+            let interceptedSymbol = try #require(interceptedSymbols.first)
+            #expect(sema.symbols.symbol(interceptedSymbol)?.flags.contains(.synthetic) == false)
+            #expect(sema.symbols.externalLinkName(for: interceptedSymbol) == nil)
+            let bridge = try #require(symbols(named: "interceptContinuation").first)
+            #expect(sema.symbols.symbol(bridge)?.visibility == .private)
+            #expect(sema.symbols.externalLinkName(for: bridge) == "__kk_continuation_intercepted")
+
             let suspendedName = interner.intern("COROUTINE_SUSPENDED")
             #expect(sema.bundledIndex.contains(ownerFQName: package, name: suspendedName, arity: 0))
             let suspendedSymbols = symbols(named: "COROUTINE_SUSPENDED")

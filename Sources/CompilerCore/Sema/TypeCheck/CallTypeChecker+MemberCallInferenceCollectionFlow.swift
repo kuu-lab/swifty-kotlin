@@ -536,6 +536,12 @@ extension CallTypeChecker {
                         || calleeStr == "runningReduceIndexed"
                         || calleeStr == "groupBy"
                         || calleeStr == "groupByTo"
+                        || calleeStr == "associate"
+                        || calleeStr == "associateBy"
+                        || calleeStr == "associateWith"
+                        || calleeStr == "associateTo"
+                        || calleeStr == "associateByTo"
+                        || calleeStr == "associateWithTo"
                         || isIterableFilterFamilyHOF))
                         || (isIterableIndexReceiver && isIterableIndexFamilyHOF)))
                     || (allowConcreteForEachReceiver
@@ -2847,9 +2853,10 @@ extension CallTypeChecker {
                     ]
                 }
                 if calleeStr == "associateTo" {
+                    let sourceTypeArguments = [collectionElementType, destinationMapKeyType, destinationMapValueType, nonNullableDestinationType]
                     if bindBundledListSourceFunction(
-                        typeArguments: [collectionElementType, destinationMapKeyType, destinationMapValueType, nonNullableDestinationType]
-                    ) {
+                        typeArguments: sourceTypeArguments
+                    ) || bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments) {
                         if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                             sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                         }
@@ -3687,7 +3694,8 @@ extension CallTypeChecker {
                             let associateByTypeArgs: [TypeID] = args.count >= 2
                                 ? [collectionElementType, keyType, valueType]
                                 : [collectionElementType, keyType]
-                            if bindBundledListSourceFunction(typeArguments: associateByTypeArgs) {
+                            if bindBundledListSourceFunction(typeArguments: associateByTypeArgs)
+                                || bindBundledIterableSourceFunction(typeArguments: associateByTypeArgs) {
                                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                                 }
@@ -3710,7 +3718,8 @@ extension CallTypeChecker {
                                 args: [.invariant(collectionElementType), .invariant(valueType)],
                                 nullability: .nonNull
                             )))
-                            if bindBundledListSourceFunction(typeArguments: [collectionElementType, valueType]) {
+                            if bindBundledListSourceFunction(typeArguments: [collectionElementType, valueType])
+                                || bindBundledIterableSourceFunction(typeArguments: [collectionElementType, valueType]) {
                                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                                 }
@@ -3750,7 +3759,8 @@ extension CallTypeChecker {
                             if isSequenceReceiver {
                                 sourceBackedSequenceAggregateTypeArguments = [collectionElementType, keyType, valueType]
                             }
-                            if bindBundledListSourceFunction(typeArguments: [collectionElementType, keyType, valueType]) {
+                            if bindBundledListSourceFunction(typeArguments: [collectionElementType, keyType, valueType])
+                                || bindBundledIterableSourceFunction(typeArguments: [collectionElementType, keyType, valueType]) {
                                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                                 }
@@ -4411,8 +4421,8 @@ extension CallTypeChecker {
                     return sema.types.anyType
                 }
                 // Infer the destination map argument first
-                let destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-                let nonNullableDestType = sema.types.makeNonNullable(destType)
+                var destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+                var nonNullableDestType = sema.types.makeNonNullable(destType)
                 let destKeyType: TypeID
                 let destValueType: TypeID
                 if let destClassType = resolveClassType(nonNullableDestType, sema: sema),
@@ -4430,9 +4440,14 @@ extension CallTypeChecker {
                     destKeyType = sema.types.nullableAnyType
                     destValueType = sema.types.nullableAnyType
                 }
+                let destinationNeedsDeferredInference = isInferableNestedCallExpr(args[0].expr, ast: ast)
+                    && (typeContainsNothingType(destKeyType, sema: sema)
+                        || typeContainsNothingType(destValueType, sema: sema))
 
                 // First lambda return type: value for associateWithTo, key otherwise.
-                let firstLambdaReturnType: TypeID = (calleeStr == "associateWithTo") ? destValueType : destKeyType
+                let firstLambdaReturnType: TypeID = destinationNeedsDeferredInference
+                    ? sema.types.nullableAnyType
+                    : ((calleeStr == "associateWithTo") ? destValueType : destKeyType)
                 let firstLambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
                     returnType: firstLambdaReturnType,
@@ -4452,7 +4467,9 @@ extension CallTypeChecker {
                     // Second lambda provides the transformed value.
                     // For groupByTo the destination stores MutableList<V>, so the lambda returns V.
                     let secondLambdaExpectedReturn: TypeID
-                    if calleeStr == "groupByTo" {
+                    if destinationNeedsDeferredInference {
+                        secondLambdaExpectedReturn = sema.types.nullableAnyType
+                    } else if calleeStr == "groupByTo" {
                         secondLambdaExpectedReturn = extractListElementType(destValueType, sema: sema, interner: interner)
                     } else {
                         secondLambdaExpectedReturn = destValueType
@@ -4470,6 +4487,38 @@ extension CallTypeChecker {
                     valueType = inferredLambdaReturnType(
                         argExpr: args[2].expr, ast: ast, sema: sema
                     )
+                }
+
+                if destinationNeedsDeferredInference,
+                   let mapSymbol = lookupStdlibSymbol("MutableMap", symbols: sema.symbols, interner: interner) {
+                    let keyType = calleeStr == "associateWithTo" ? collectionElementType : firstLambdaReturn
+                    let inferredValueType = args.count == 3 ? valueType : collectionElementType
+                    let mapValueType: TypeID
+                    if calleeStr == "associateWithTo" {
+                        mapValueType = firstLambdaReturn
+                    } else if calleeStr == "groupByTo",
+                              let listSymbol = lookupStdlibSymbol("MutableList", symbols: sema.symbols, interner: interner) {
+                        mapValueType = sema.types.make(.classType(ClassType(
+                            classSymbol: listSymbol,
+                            args: [.invariant(inferredValueType)],
+                            nullability: .nonNull
+                        )))
+                    } else {
+                        mapValueType = inferredValueType
+                    }
+                    let boundType = sema.types.make(.classType(ClassType(
+                        classSymbol: mapSymbol,
+                        args: [.invariant(keyType), .invariant(mapValueType)],
+                        nullability: .nonNull
+                    )))
+                    if let destinationExpectedType = concreteNestedCallExpectedType(
+                        originalArgumentType: nonNullableDestType,
+                        boundType: boundType,
+                        sema: sema
+                    ) {
+                        destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: destinationExpectedType)
+                        nonNullableDestType = sema.types.makeNonNullable(destType)
+                    }
                 }
 
                 // Return type is the destination map type
