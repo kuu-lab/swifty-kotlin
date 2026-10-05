@@ -1,11 +1,16 @@
 package kotlin.time
 
-// KSP-1482: ComparableTimeMark equality and hash-code members.
-//
-// TimeMark operations remain bundled extensions in TimeMark.kt. These two
-// declarations stay as interface members so interface-typed calls use the
-// same virtual contract as Kotlin stdlib.
-public interface ComparableTimeMark : TimeMark {
+// KSP-1482: ComparableTimeMark's source-aware member contract.
+public interface ComparableTimeMark : TimeMark, Comparable<ComparableTimeMark> {
+    public override operator fun plus(duration: Duration): ComparableTimeMark
+
+    public override operator fun minus(duration: Duration): ComparableTimeMark = plus(-duration)
+
+    public operator fun minus(other: ComparableTimeMark): Duration
+
+    public override operator fun compareTo(other: ComparableTimeMark): Int =
+        (this - other).compareTo(Duration.ZERO)
+
     public override fun equals(other: Any?): Boolean
 
     public override fun hashCode(): Int
