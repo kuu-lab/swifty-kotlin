@@ -244,19 +244,7 @@ struct TypeCheckScopeBuilder {
             // Library extension functions are intentionally included in the package
             // mapping so default/wildcard imports make them visible for member-style
             // call resolution. Direct calls still filter them by requiring no receiver.
-            let candidatePackage: [InternedString] = if symbol.kind == .property,
-                sema.symbols.extensionPropertyReceiverType(for: symbol.id) != nil,
-                let companionSymbol = sema.symbols.parentSymbol(for: symbol.id),
-                let companionInfo = sema.symbols.symbol(companionSymbol),
-                companionInfo.kind == .object,
-                companionInfo.name == interner.intern("Companion"),
-                let ownerSymbol = sema.symbols.parentSymbol(for: companionSymbol),
-                let ownerInfo = sema.symbols.symbol(ownerSymbol),
-                !ownerInfo.fqName.isEmpty,
-                !sema.symbols.isSourceBackedSymbol(symbol.id)
-            {
-                Array(ownerInfo.fqName.dropLast())
-            } else if symbol.fqName.count == 1 {
+            let candidatePackage: [InternedString] = if symbol.fqName.count == 1 {
                 []
             } else {
                 Array(symbol.fqName.dropLast())
@@ -339,6 +327,7 @@ struct TypeCheckScopeBuilder {
             ["kotlin", "text"],
             ["kotlin", "time"],
             ["kotlin", "system"],
+            ["java", "lang"],
         ]
         return packages.map { segments in
             segments.map { interner.intern($0) }

@@ -89,6 +89,7 @@ final class DeclTypeChecker {
         locals: inout LocalBindings,
         expectedType: TypeID?
     ) -> TypeID {
+        ctx.dataFlow.localStability.analyze(body, ast: ctx.ast)
         switch body {
         case .unit:
             return ctx.sema.types.unitType

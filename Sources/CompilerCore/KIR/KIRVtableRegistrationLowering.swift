@@ -1478,10 +1478,10 @@ private func kirOverrideParameterTypesMatch(
     types: TypeSystem
 ) -> Bool {
     guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
-    for (candidateType, interfaceType) in zip(candidateParameterTypes, interfaceParameterTypes) {
-        if candidateType == interfaceType { continue }
-        if case .typeParam = types.kind(of: candidateType) { continue }
-        if case .typeParam = types.kind(of: interfaceType) { continue }
+    func typeMatches(_ candidateType: TypeID, _ interfaceType: TypeID) -> Bool {
+        if candidateType == interfaceType { return true }
+        if case .typeParam = types.kind(of: candidateType) { return true }
+        if case .typeParam = types.kind(of: interfaceType) { return true }
         guard case let .classType(candidateClass) = types.kind(of: candidateType),
               case let .classType(interfaceClass) = types.kind(of: interfaceType),
               candidateClass.classSymbol == interfaceClass.classSymbol,
@@ -1494,34 +1494,26 @@ private func kirOverrideParameterTypesMatch(
             for: candidateClass.classSymbol,
             arity: candidateClass.args.count
         )
-        for index in candidateClass.args.indices {
+        return candidateClass.args.indices.allSatisfy { index in
             let candidateArg = types.composedProjection(
                 declarationVariance: variances[index], useSite: candidateClass.args[index]
             )
             let interfaceArg = types.composedProjection(
                 declarationVariance: variances[index], useSite: interfaceClass.args[index]
             )
-            let argumentTypes: (TypeID, TypeID)
             switch (candidateArg, interfaceArg) {
             case let (.invariant(candidate), .invariant(interface)),
                  let (.out(candidate), .out(interface)),
                  let (.in(candidate), .in(interface)):
-                argumentTypes = (candidate, interface)
+                return typeMatches(candidate, interface)
             case (.star, .star):
-                continue
+                return true
             default:
-                return false
-            }
-            if !kirOverrideParameterTypesMatch(
-                candidateParameterTypes: [argumentTypes.0],
-                interfaceParameterTypes: [argumentTypes.1],
-                types: types
-            ) {
                 return false
             }
         }
     }
-    return true
+    return zip(candidateParameterTypes, interfaceParameterTypes).allSatisfy(typeMatches)
 }
 
 func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {

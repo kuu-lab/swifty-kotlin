@@ -167,6 +167,14 @@ func advcoro_produce_values(_ continuation: Int, _ outThrown: UnsafeMutablePoint
     return kk_coroutine_state_exit(continuation, 0)
 }
 
+@_cdecl("advcoro_boxed_producer")
+func advcoro_boxed_producer(_ closure: Int, _ channel: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let value = closure == 0 ? 3 : kk_array_get_inbounds(closure, 2)
+    _ = kk_channel_send(channel, value, 0)
+    outThrown?.pointee = 0
+    return 0
+}
+
 // MARK: - Advanced Coroutine Tests (TEST-CORO-003)
 
 private func resetAdvancedCoroutineTestState() {
@@ -559,6 +567,55 @@ struct RuntimeCoroutineAdvancedTests {
         #expect(thrown == 0, "withTimeout must clear the thrown channel when no timeout occurs")
     }
 
+    @Test(arguments: [false, true])
+    func testTimeoutBridgesPropagateBlockExceptionUnchanged(afterSuspension: Bool) {
+        let immediate: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, thrown in
+            thrown?.pointee = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+            return 0
+        }
+        let delayed: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, thrown in
+            if kk_coroutine_state_enter(continuation, 8841) == 0 {
+                _ = kk_coroutine_state_set_label(continuation, 1)
+                return kk_kxmini_delay(1, continuation)
+            }
+            thrown?.pointee = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+            return 0
+        }
+        let entryRaw = unsafeBitCast(afterSuspension ? delayed : immediate, to: Int.self)
+        for exception in [
+            runtimeAllocateIllegalStateException(message: "boom"),
+            runtimeAllocateCancellationException(message: "cancelled"),
+            runtimeAllocateTimeoutCancellationException(timeoutMillis: 10),
+        ] {
+            let continuation = kk_coroutine_continuation_new(8841)
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(exception))
+            var thrown = -1
+            #expect(kk_with_timeout(5000, entryRaw, continuation, &thrown) == 0)
+            #expect(thrown == exception)
+            thrown = -1
+            #expect(kk_with_timeout_or_null_throwing(5000, entryRaw, continuation, &thrown) == 0)
+            #expect(thrown == exception)
+        }
+    }
+
+    @Test func testThrowingTimeoutOrNullClearsThrownOnSuccessAndExpiry() {
+        let fast = unsafeBitCast(
+            advcoro_return_fixed as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let slow = unsafeBitCast(
+            advcoro_long_delay_then_return as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let continuation = kk_coroutine_continuation_new(8842)
+        var thrown = -1
+        #expect(kk_with_timeout_or_null_throwing(5000, fast, continuation, &thrown) == 42)
+        #expect(thrown == 0)
+        thrown = -1
+        #expect(kk_with_timeout_or_null_throwing(1, slow, continuation, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
+    }
+
     // MARK: - Test 12: Multiple spill slots are independent
 
     /// Setting two distinct spill slots and reading them back after a suspension
@@ -826,6 +883,26 @@ struct RuntimeCoroutineAdvancedTests {
     }
 
     // MARK: - Test 21: produce with continuation uses the existing continuation
+
+    @Test(arguments: [false, true])
+    func testProduceLaunchBoxPreservesClosureSlot(packed: Bool) {
+        let closure = packed ? kk_object_new(4, 0) : 0
+        if packed {
+            _ = kk_array_set(closure, 2, 17, nil)
+            _ = kk_array_set(closure, 3, 19, nil)
+        }
+        let entry = unsafeBitCast(
+            advcoro_boxed_producer as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let box = kk_function_create_1(entry, closure, nil)
+        let channel = kk_channel_create(1)
+        #expect(__kk_produce_launch(channel, box, 0) == channel)
+        var value = 0
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultSuccess)
+        #expect(value == (packed ? 17 : 3))
+        #expect(kk_channel_is_closed_token(kk_channel_receive(channel, 0, &value)) == 1)
+    }
 
     @Test func testProduceWithContinuationUsesExistingContinuation() {
         let continuation = kk_coroutine_continuation_new(8824)

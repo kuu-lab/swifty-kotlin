@@ -141,6 +141,28 @@ extension LoweringPassRegressionTests {
     // MARK: - INLINE-002: Lambda argument inlining
 
     @Test
+    func testInlineIdentityLambdaPreservesCallerArgument() throws {
+        let context = makeContextFromSource("""
+        inline fun select(value: String, selector: (String) -> String): String = selector(value)
+        fun main(): String = select("ab") { it }
+        """)
+        try runToLowering(context)
+        #expect(!context.diagnostics.hasError)
+        let module = try #require(context.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: context.interner)
+        let returned = try #require(body.compactMap { instruction -> KIRExprID? in
+            if case let .returnValue(value) = instruction { return value }
+            return nil
+        }.last)
+        let aliases = Dictionary(uniqueKeysWithValues: body.compactMap { instruction -> (KIRExprID, KIRExprID)? in
+            if case let .copy(from, to) = instruction { return (to, from) }
+            return nil
+        })
+        let resolved = InlineExprAliasing.resolveAlias(of: returned, aliases: aliases)
+        #expect(module.arena.expr(resolved) == .stringLiteral(context.interner.intern("ab")), "\(body)")
+    }
+
+    @Test
     func testInlineLoweringInlinesLambdaArgumentBody() throws {
         let tc = InlineLambdaTestContext()
 

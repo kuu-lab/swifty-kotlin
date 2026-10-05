@@ -11,6 +11,9 @@ extension CallLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
+        if case let .functionType(functionType) = sema.types.kind(of: nonNullType) {
+            return functionType.isCallableReference
+        }
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
@@ -132,10 +135,8 @@ extension CallLowerer {
                 || resolvedName == "KFunction1" || resolvedName == "KFunction2"
                 || resolvedName == "KFunction3" || resolvedName == "KCallable"
         }
-        // Also check function types — callable references (`::foo`) have function types
-        // but are tagged as KFunction at runtime.
-        if case .functionType = sema.types.kind(of: nonNullType) {
-            return false // Plain function types are not KFunction; only tagged callable refs are.
+        if case let .functionType(functionType) = sema.types.kind(of: nonNullType) {
+            return functionType.isCallableReference
         }
         return false
     }

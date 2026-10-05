@@ -364,6 +364,9 @@ public struct NominalLayoutHint: Equatable, Sendable {
 
 public protocol Scope: AnyObject {
     func lookup(_ name: InternedString) -> [SymbolID]
+    /// Stops at the innermost scope containing matching bindings, so declarations
+    /// in a different namespace do not shadow the requested candidates.
+    func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID]
     /// Like `lookup`, but merges bindings from every scope in the parent chain
     /// instead of stopping at the innermost scope that binds `name`. Used as a
     /// resolution fallback to recover candidates that ordinary (shadowing)
@@ -388,6 +391,14 @@ open class BaseScope: Scope {
             return local
         }
         return parent?.lookup(name) ?? []
+    }
+
+    open func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
+        let local = (locals[name] ?? []).filter(predicate)
+        if !local.isEmpty {
+            return local
+        }
+        return parent?.lookup(name, matching: predicate) ?? []
     }
 
     open func lookupMergingChain(_ name: InternedString) -> [SymbolID] {
@@ -1636,6 +1647,8 @@ public final class BindingTable {
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var floatingPointRangeElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var floatingPointRangeElementTypesBySymbol: [SymbolID: TypeID] = [:]
+    private var openFloatingPointRangeExprIDs: Set<ExprID> = []
+    private var openFloatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
     /// Tracks the real element type produced by an `async { ... }` call, keyed by
@@ -1651,6 +1664,7 @@ public final class BindingTable {
     /// `T` refers to.  Used by KIR lowering to emit the correct type token
     /// and name hint for `T::class.simpleName` / `.qualifiedName`.
     public private(set) var classRefTargetTypes: [ExprID: TypeID] = [:]
+    public private(set) var boundClassRefExprs: Set<ExprID> = []
     /// Maps expression IDs to their compile-time constant values when the
     /// expression references a `const val` property.  This allows downstream
     /// passes (KIR lowering, codegen) to fold constant references without
@@ -1918,9 +1932,18 @@ public final class BindingTable {
         floatingPointRangeExprIDs.contains(expr)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID, endExclusive: Bool = false) {
         floatingPointRangeExprIDs.insert(expr)
         floatingPointRangeElementTypesByExpr[expr] = type
+        if endExclusive {
+            openFloatingPointRangeExprIDs.insert(expr)
+        } else {
+            openFloatingPointRangeExprIDs.remove(expr)
+        }
+    }
+
+    public func isOpenFloatingPointRangeExpr(_ expr: ExprID) -> Bool {
+        openFloatingPointRangeExprIDs.contains(expr)
     }
 
     public func floatingPointRangeElementType(forExpr expr: ExprID) -> TypeID? {
@@ -2028,9 +2051,18 @@ public final class BindingTable {
         floatingPointRangeSymbolIDs.contains(symbol)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID, endExclusive: Bool = false) {
         floatingPointRangeSymbolIDs.insert(symbol)
         floatingPointRangeElementTypesBySymbol[symbol] = type
+        if endExclusive {
+            openFloatingPointRangeSymbolIDs.insert(symbol)
+        } else {
+            openFloatingPointRangeSymbolIDs.remove(symbol)
+        }
+    }
+
+    public func isOpenFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
+        openFloatingPointRangeSymbolIDs.contains(symbol)
     }
 
     public func floatingPointRangeElementType(forSymbol symbol: SymbolID) -> TypeID? {
@@ -2081,6 +2113,10 @@ public final class BindingTable {
 
     public func classRefTargetType(for expr: ExprID) -> TypeID? {
         classRefTargetTypes[expr]
+    }
+
+    public func bindBoundClassRef(_ expr: ExprID) {
+        boundClassRefExprs.insert(expr)
     }
 
     public func exprType(for expr: ExprID) -> TypeID? {

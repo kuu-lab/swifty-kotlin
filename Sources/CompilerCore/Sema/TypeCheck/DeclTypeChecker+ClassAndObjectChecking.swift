@@ -66,18 +66,42 @@ extension DeclTypeChecker {
                 enclosingClassSymbol: symbol
             )
 
+        // Primary constructor parameters without `val`/`var` are only in scope
+        // for property initializers and `init {}` blocks, not for member
+        // functions — so they're threaded through as `locals` rather than
+        // inserted into `classScope`.
+        let primaryCtorLocals = primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
+        if let companionDeclID = classDecl.companionObject {
+            // Infer both sides first: companion bodies may use inferred instance members.
+            let diagnosticSnapshot = diagnostics.count
+            inferClassLikeMemberTypes(
+                memberFunctions: classDecl.memberFunctions,
+                memberProperties: classDecl.memberProperties,
+                ctx: classCtx,
+                propertyInitializerLocals: primaryCtorLocals,
+                solver: solver,
+                diagnostics: diagnostics
+            )
+            typeCheckNestedObjectDecl(companionDeclID, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+            diagnostics.truncate(to: diagnosticSnapshot)
+        }
+
         validateClassLikeHeaderOptInTypes(
             symbol: symbol,
             ctx: classCtx,
             range: classDecl.range
         )
 
-        // Primary constructor parameters without `val`/`var` are only in scope
-        // for property initializers and `init {}` blocks, not for member
-        // functions — so they're threaded through as `locals` rather than
-        // inserted into `classScope`.
-        let primaryCtorLocals = primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
-
+        typeCheckClassLikeMembers(
+            memberFunctions: classDecl.memberFunctions,
+            memberProperties: classDecl.memberProperties,
+            nestedClasses: classDecl.nestedClasses,
+            nestedObjects: allNestedObjects,
+            ctx: classCtx,
+            propertyInitializerLocals: primaryCtorLocals,
+            solver: solver,
+            diagnostics: diagnostics
+        )
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckEnumEntryConstructorArguments(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
@@ -93,16 +117,6 @@ extension DeclTypeChecker {
             explicitSuperclassSymbol: explicitSuperclassSymbol
         )
         typeCheckClassDelegation(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
-        typeCheckClassLikeMembers(
-            memberFunctions: classDecl.memberFunctions,
-            memberProperties: classDecl.memberProperties,
-            nestedClasses: classDecl.nestedClasses,
-            nestedObjects: allNestedObjects,
-            ctx: classCtx,
-            propertyInitializerLocals: primaryCtorLocals,
-            solver: solver,
-            diagnostics: diagnostics
-        )
         typeCheckEnumEntryMemberBodies(
             classDecl,
             enumSymbol: symbol,
@@ -167,12 +181,30 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
+        typeCheckInterfaceDelegation(
+            entries: classDecl.superTypeEntries,
+            range: classDecl.range,
+            symbol: symbol,
+            ctx: ctx,
+            solver: solver,
+            diagnostics: diagnostics
+        )
+    }
+
+    private func typeCheckInterfaceDelegation(
+        entries: [SuperTypeEntry],
+        range: SourceRange,
+        symbol: SymbolID,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
         let sema = ctx.sema
-        let delegatedEntries = classDecl.superTypeEntries.filter { $0.delegateExpression != nil }
+        let delegatedEntries = entries.filter { $0.delegateExpression != nil }
         guard !delegatedEntries.isEmpty else { return }
 
         var delegationCtx = ctx
-        let ctorSymbols = sema.symbols.symbols(atDeclSite: classDecl.range)
+        let ctorSymbols = sema.symbols.symbols(atDeclSite: range)
             .compactMap { sema.symbols.symbol($0) }
             .filter { $0.kind == .constructor }
 
@@ -274,6 +306,15 @@ extension DeclTypeChecker {
             range: objectDecl.range
         )
 
+        typeCheckInterfaceDelegation(
+            entries: objectDecl.superTypeEntries,
+            range: objectDecl.range,
+            symbol: symbol,
+            ctx: ctx,
+            solver: solver,
+            diagnostics: diagnostics
+        )
+
         // Superclass constructor arguments are evaluated in the enclosing
         // declaration scope, so visit them before lowering can emit the
         // constructor call. This also records constant-property bindings for
@@ -296,7 +337,6 @@ extension DeclTypeChecker {
             ctx: ctx
         )
 
-        typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
         typeCheckClassLikeMembers(
             memberFunctions: objectDecl.memberFunctions,
             memberProperties: objectDecl.memberProperties,
@@ -306,6 +346,7 @@ extension DeclTypeChecker {
             solver: solver,
             diagnostics: diagnostics
         )
+        typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
     }
 
     /// Resolves the superclass constructor named by `object O : Base(args)`
@@ -385,6 +426,19 @@ extension DeclTypeChecker {
                 enclosingClassSymbol: symbol
             )
 
+        if let companionDeclID = interfaceDecl.companionObject {
+            let diagnosticSnapshot = diagnostics.count
+            inferClassLikeMemberTypes(
+                memberFunctions: interfaceDecl.memberFunctions,
+                memberProperties: interfaceDecl.memberProperties,
+                ctx: interfaceCtx,
+                solver: solver,
+                diagnostics: diagnostics
+            )
+            typeCheckNestedObjectDecl(companionDeclID, ctx: interfaceCtx, solver: solver, diagnostics: diagnostics)
+            diagnostics.truncate(to: diagnosticSnapshot)
+        }
+
         validateClassLikeHeaderOptInTypes(
             symbol: symbol,
             ctx: interfaceCtx,
@@ -402,11 +456,9 @@ extension DeclTypeChecker {
         )
     }
 
-    func typeCheckClassLikeMembers(
+    private func inferClassLikeMemberTypes(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
-        nestedClasses: [DeclID],
-        nestedObjects: [DeclID],
         ctx: TypeInferenceContext,
         propertyInitializerLocals: LocalBindings = [:],
         solver: ConstraintSolver,
@@ -468,6 +520,50 @@ extension DeclTypeChecker {
                 continue
             }
         }
+    }
+
+    func typeCheckClassLikeMembers(
+        memberFunctions: [DeclID],
+        memberProperties: [DeclID],
+        nestedClasses: [DeclID],
+        nestedObjects: [DeclID],
+        ctx: TypeInferenceContext,
+        propertyInitializerLocals: LocalBindings = [:],
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        inferClassLikeMemberTypes(
+            memberFunctions: memberFunctions,
+            memberProperties: memberProperties,
+            ctx: ctx,
+            propertyInitializerLocals: propertyInitializerLocals,
+            solver: solver,
+            diagnostics: diagnostics
+        )
+
+        // Infer companion types before the authoritative function pass;
+        // companion bodies can in turn depend on those function return types.
+        let diagnosticSnapshot = diagnostics.count
+        for declID in nestedObjects {
+            guard let decl = ast.arena.decl(declID),
+                  case let .objectDecl(objectDecl) = decl,
+                  let symbol = sema.bindings.declSymbols[declID],
+                  let ownerSymbol = ctx.enclosingClassSymbol,
+                  sema.symbols.companionObjectSymbol(for: ownerSymbol) == symbol
+            else {
+                continue
+            }
+            typeCheckObjectDecl(
+                objectDecl,
+                symbol: symbol,
+                ctx: ctx.with(currentDeclSymbol: symbol),
+                solver: solver,
+                diagnostics: diagnostics
+            )
+        }
+        diagnostics.truncate(to: diagnosticSnapshot)
 
         for declID in memberFunctions {
             guard let decl = ast.arena.decl(declID),
@@ -490,20 +586,29 @@ extension DeclTypeChecker {
         }
 
         for declID in nestedObjects {
-            guard let decl = ast.arena.decl(declID),
-                  case let .objectDecl(objectDecl) = decl,
-                  let symbol = sema.bindings.declSymbols[declID]
-            else {
-                continue
-            }
-            typeCheckObjectDecl(
-                objectDecl,
-                symbol: symbol,
-                ctx: ctx.with(currentDeclSymbol: symbol),
-                solver: solver,
-                diagnostics: diagnostics
-            )
+            typeCheckNestedObjectDecl(declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
         }
+    }
+
+    private func typeCheckNestedObjectDecl(
+        _ declID: DeclID,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard let decl = ctx.ast.arena.decl(declID),
+              case let .objectDecl(objectDecl) = decl,
+              let symbol = ctx.sema.bindings.declSymbols[declID]
+        else {
+            return
+        }
+        typeCheckObjectDecl(
+            objectDecl,
+            symbol: symbol,
+            ctx: ctx.with(currentDeclSymbol: symbol),
+            solver: solver,
+            diagnostics: diagnostics
+        )
     }
 
     private func memberDeclStartOffset(_ declID: DeclID, ast: ASTModule) -> Int? {
@@ -562,8 +667,21 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> ClassMemberScope {
         let sema = ctx.sema
+        let companionScope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
+        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol),
+           let companion = sema.symbols.symbol(companionSymbol)
+        {
+            for memberSymbol in sema.symbols.children(ofFQName: companion.fqName) {
+                guard let member = sema.symbols.symbol(memberSymbol),
+                      member.kind == .property || member.kind == .field || member.kind == .function
+                else {
+                    continue
+                }
+                companionScope.insert(memberSymbol)
+            }
+        }
         let classScope = ClassMemberScope(
-            parent: ctx.scope,
+            parent: companionScope,
             symbols: sema.symbols,
             ownerSymbol: ownerSymbol,
             thisType: ownerType
@@ -580,22 +698,6 @@ extension DeclTypeChecker {
         for declID in memberFunctions + memberProperties + nestedClasses + nestedObjects {
             if let symbol = sema.bindings.declSymbols[declID] {
                 classScope.insert(symbol)
-            }
-        }
-
-        // Make companion properties available as unqualified names inside the
-        // owning class/interface scope (e.g. `MAX_COUNT` instead of
-        // `Companion.MAX_COUNT`).
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol),
-           let companion = sema.symbols.symbol(companionSymbol)
-        {
-            for memberSymbol in sema.symbols.children(ofFQName: companion.fqName) {
-                guard let member = sema.symbols.symbol(memberSymbol),
-                      member.kind == .property || member.kind == .field
-                else {
-                    continue
-                }
-                classScope.insert(memberSymbol)
             }
         }
 

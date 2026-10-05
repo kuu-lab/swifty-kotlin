@@ -1059,7 +1059,7 @@ extension CoroutineLoweringPass {
                 arguments: [thunkRefExpr, continuationExpr],
                 result: call.result,
                 canThrow: call.canThrow || structuredBlockingRuntimes.contains(runtimeWithContCallee),
-                thrownResult: nil
+                thrownResult: call.thrownResult
             )
         )
         return rewritten
@@ -1149,7 +1149,7 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.arguments.count == 2 else {
+        guard call.arguments.count >= 2 else {
             return nil
         }
         let channelExpr = call.arguments[0]
@@ -1179,13 +1179,12 @@ extension CoroutineLoweringPass {
             )
         }
 
-        // Captures either arrive flattened as trailing call args or ride
-        // inside the suspend value's callable info — use whichever form the
-        // emitter produced.
+        // The trailing argument may be the function-value environment, not
+        // flattened captures. Prefer the lambda reference's capture metadata.
         let trailingCaptures = Array(call.arguments.dropFirst(2))
-        let captures: [KIRExprID] = trailingCaptures.isEmpty
-            ? (rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments ?? [])
-            : trailingCaptures
+        let captures = rewrite.module.arena.callableValueInfo(for: suspendArgExpr)?.captureArguments
+            ?? rewrite.module.arena.lambdaCaptureArgsBySymbol[suspendSymbol]
+            ?? trailingCaptures
 
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
@@ -1392,6 +1391,20 @@ extension CoroutineLoweringPass {
     ) -> [KIRInstruction] {
         let arena = rewrite.module.arena
         var instructions: [KIRInstruction] = []
+
+        // Imported calls may already carry the raw entry point and environment.
+        // Reconstructing them from the entry point would discard their captures.
+        if call.arguments.count == 3 {
+            return [.call(
+                symbol: call.symbol,
+                callee: call.callee,
+                arguments: call.arguments,
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult,
+                isSuperCall: call.isSuperCall
+            )]
+        }
 
         let entryExpr: KIRExprID
         let envExpr: KIRExprID

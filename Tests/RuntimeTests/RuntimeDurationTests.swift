@@ -383,6 +383,31 @@ struct RuntimeDurationTests {
         #expect(invalid == runtimeNullSentinelInt)
     }
 
+    @Test func testNullableParsersReturnTaggedLongPayloads() {
+        let cases: [(String, Int, Int)] = [
+            ("PT5S", 10_000_000_000, 5_000_000_000),
+            ("PT1H30M", 10_800_000_000_000, 5_400_000_000_000),
+            ("PT1.5S", 3_000_000_000, 1_500_000_000),
+            ("PT0S", 0, 0),
+            ("-PT5S", -10_000_000_000, -5_000_000_000),
+            ("PT10000000000000S", 20_000_000_000_000_001, Int.max),
+            ("PT999999999999999999999H", Int.max, Int.max),
+            ("-PT999999999999999999999H", -Int.max + 2, Int.min),
+        ]
+        for parse in [kk_duration_parseOrNull, kk_duration_parseIsoStringOrNull] {
+            for (input, expectedRaw, expectedNanoseconds) in cases {
+                let parsed = parse(stringHandle(input))
+                #expect(parsed != runtimeNullSentinelInt)
+                #expect(kk_unbox_long(parsed) == expectedRaw)
+                #expect(kk_unbox_long_static(parsed) == expectedRaw)
+                #expect(kk_duration_inWholeNanoseconds(parsed) == expectedNanoseconds)
+                #expect(runtimeObjectTypeID(rawValue: parsed) ==
+                    runtimeStableNominalTypeID(fqName: "kotlin.time.Duration"))
+            }
+            #expect(parse(stringHandle("bogus")) == runtimeNullSentinelInt)
+        }
+    }
+
     @Test func testParseIsoStringRejectsDefaultFormat() {
         var thrown = 0
         let parsed = kk_duration_parseIsoString(stringHandle("1h 30m"), &thrown)
@@ -795,10 +820,10 @@ struct RuntimeDurationTests {
         let nullable = kk_duration_parseOrNull(stringHandle(text))
         #expect(thrown == 0)
         #expect(parsed == kk_duration_toDuration_long(Int.max, 0))
-        #expect(nullable == parsed)
+        #expect(kk_unbox_long_static(nullable) == parsed)
         #expect(kk_duration_isInfinite(nullable) == 0)
         #expect(stringFromHandle(kk_duration_toString(nullable)) == text)
-        let boxed = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(nullable)))
+        let boxed = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(parsed)))
         #expect(kk_duration_compareTo(parsed, boxed) == 0)
         let expectedHash = Int(Int32(truncatingIfNeeded: Int64(parsed) ^ (Int64(parsed) >> 32)))
         #expect(kk_any_member_hashCode(boxed) == expectedHash)

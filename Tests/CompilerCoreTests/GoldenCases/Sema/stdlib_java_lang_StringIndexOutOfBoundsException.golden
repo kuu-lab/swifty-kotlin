@@ -1,0 +1,31 @@
+symbol fq=__try_0_catch_0.e[kind=local] kind=local vis=internal flags=_ type=java.lang.StringIndexOutOfBoundsException
+symbol fq=__try_0_catch_1.e[kind=local] kind=local vis=internal flags=_ type=kotlin.IndexOutOfBoundsException
+symbol fq=golden.sema.catchStringIndex[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol fq=golden.sema.index.$0.i[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.index[kind=fun;params=Int] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=kotlin.RuntimeException
+symbol fq=golden.sema.message.$1.m[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.message[kind=fun;params=String?] kind=function vis=public flags=_ sig=recv=_ params=[String?] ret=kotlin.IndexOutOfBoundsException
+symbol fq=golden.sema.noArg[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=java.lang.StringIndexOutOfBoundsException
+file fstdlib_java_lang_StringIndexOutOfBoundsException package=golden.sema
+  decl golden.sema.noArg[kind=fun;params=] fun noArg sym=golden.sema.noArg[kind=fun;params=]
+  decl golden.sema.message[kind=fun;params=String?] fun message sym=golden.sema.message[kind=fun;params=String?]
+  decl golden.sema.index[kind=fun;params=Int] fun index sym=golden.sema.index[kind=fun;params=Int]
+  decl golden.sema.catchStringIndex[kind=fun;params=] fun catchStringIndex sym=golden.sema.catchStringIndex[kind=fun;params=]
+expr e@3:48 call callee=e@3:48#1 args=[] type=java.lang.StringIndexOutOfBoundsException call=java.lang.StringIndexOutOfBoundsException.<init>[kind=ctor;recv=java.lang.StringIndexOutOfBoundsException;params=]
+expr e@4:86 name(m) type=String? ref=golden.sema.message.$1.m[kind=vparam]
+expr e@4:54 call callee=e@4:54#1 args=[_:e@4:86] type=java.lang.StringIndexOutOfBoundsException call=java.lang.StringIndexOutOfBoundsException.<init>[kind=ctor;recv=java.lang.StringIndexOutOfBoundsException;params=String?]
+expr e@5:81 name(i) type=Int ref=golden.sema.index.$0.i[kind=vparam]
+expr e@5:39 memberCall recv=e@5:39#1 callee=StringIndexOutOfBoundsException args=[_:e@5:81] type=java.lang.StringIndexOutOfBoundsException call=java.lang.StringIndexOutOfBoundsException.<init>[kind=ctor;recv=java.lang.StringIndexOutOfBoundsException;params=Int]
+expr e@9:9 string(abc) type=String
+expr e@9:15 int(5) type=Int
+expr e@9:9#1 indexedAccess receiver=e@9:9 indices=[e@9:15] type=Char call=kotlin.text.get[kind=fun;recv=String;params=Int]
+expr e@9:9#2 memberCall recv=e@9:9#1 callee=toString args=[] type=String
+expr e@8:9 blockExpr stmts=[] trailing=e@9:9#2 type=String
+expr e@11:9 name(e) type=java.lang.StringIndexOutOfBoundsException ref=__try_0_catch_0.e[kind=local]
+expr e@11:9#1 memberCall recv=e@11:9 callee=message args=[] type=String? ref=kotlin.Throwable.message[kind=prop]
+expr e@11:22 string(string) type=String
+expr e@11:9#2 binary(elvis) lhs=e@11:9#1 rhs=e@11:22 type=String
+expr e@10:50 blockExpr stmts=[] trailing=e@11:9#2 type=String ref=__try_0_catch_0.e[kind=local]
+expr e@13:9 string(parent) type=String
+expr e@12:44 blockExpr stmts=[] trailing=e@13:9 type=String ref=__try_0_catch_1.e[kind=local]
+expr e@8:5 try body=e@8:9 catches=[e@10:50,e@12:44] finally=_ type=String

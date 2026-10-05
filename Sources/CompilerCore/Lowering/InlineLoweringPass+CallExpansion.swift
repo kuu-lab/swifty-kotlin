@@ -310,8 +310,7 @@ extension InlineLoweringPass {
                         )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
-                               (fullArgs.contains(lambdaReturn)
-                                   || exprIsDefined(lambdaReturn, in: lowered.instructions))
+                               (exprIsDefined(lambdaReturn, in: lowered.instructions) || fullArgs.contains(lambdaReturn))
                             {
                                 localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
@@ -378,8 +377,7 @@ extension InlineLoweringPass {
                         )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
-                               (fullArgs.contains(lambdaReturn)
-                                   || exprIsDefined(lambdaReturn, in: lowered.instructions))
+                               (exprIsDefined(lambdaReturn, in: lowered.instructions) || fullArgs.contains(lambdaReturn))
                             {
                                 localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,

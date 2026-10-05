@@ -36,4 +36,4 @@ val bad = SingletonLike()  // KSWIFTK-SEMA-0040: cannot access 'SingletonLike': 
 // ERROR: Private function referenced in public inline function
 private fun helper() = 42
 
-inline fun publicInline() = helper()  // NOT YET DIAGNOSED: kotlinc errors with 'public-API inline function cannot access non-public-API function'; KSwiftK emits nothing
+inline fun publicInline() = helper()  // KSWIFTK-SEMA-0045: public-API inline access violation
