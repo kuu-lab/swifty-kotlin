@@ -59,11 +59,13 @@ func kirInterfacePropertyGetterSlots(
             // Collection/Map runtime-backed properties are the exception: their
             // bridges can fall back to source-backed itable dispatch for custom
             // views.
-            if let linkName = sema.symbols.externalLinkName(for: id),
-               !linkName.isEmpty,
-               !isSyntheticMapProperty,
-               !isSyntheticCollectionSize
-            {
+            let hasRuntimeLink = sema.symbols.externalLinkName(for: id)?.isEmpty == false
+                || sema.symbols.annotations(for: id).contains {
+                    KnownCompilerAnnotation.ksSymbolName.matches($0.annotationFQName)
+                }
+            // Imported properties can carry the bridge on their getter instead
+            // of the property symbol. Preserve the source-side slot layout.
+            if hasRuntimeLink, !isSyntheticMapProperty, !isSyntheticCollectionSize {
                 return nil
             }
             // Likewise for synthetic runtime members registered on an otherwise
