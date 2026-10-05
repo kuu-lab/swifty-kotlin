@@ -1602,6 +1602,114 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_mutable_collection_add_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_collection_addAll_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_collection_clear_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_collection_remove_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_collection_removeAll_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_collection_retainAll_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_addAll_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_remove_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_clear_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_removeAll_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_retainAll_checked",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "argument", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_mutable_list_remove",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),

@@ -16,7 +16,7 @@ expr e@5:17#1 memberCall recv=e@5:17 callee=isEmpty args=[] type=Boolean call=ko
 expr e@5:5 localDecl empty mutable=0 type=_ init=e@5:17#1 type=Unit ref=__local_1.empty[kind=local;type=Boolean;origin=fixture]
 expr e@6:18 name(values) type=kotlin.collections.Collection<Int> ref=inspect.$0.values[kind=vparam;origin=fixture]
 expr e@6:34 int(2) type=Int
-expr e@6:18#1 memberCall recv=e@6:18 callee=contains args=[_:e@6:34] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@6:18#1 memberCall recv=e@6:18 callee=contains args=[_:e@6:34] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[Int]
 expr e@6:5 localDecl member mutable=0 type=_ init=e@6:18#1 type=Unit ref=__local_2.member[kind=local;type=Boolean;origin=fixture]
 expr e@7:15 name(values) type=kotlin.collections.Collection<Int> ref=inspect.$0.values[kind=vparam;origin=fixture]
 expr e@7:34 name(other) type=kotlin.collections.Collection<Int> ref=inspect.$0.other[kind=vparam;origin=fixture]

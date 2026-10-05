@@ -4,6 +4,46 @@ import Testing
 /// Runtime contracts for typed range value equality and hashing.
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeRangeValueSemanticsTests {
+    @Test func floatingPointEndpointProbePreservesBitsAndRejectsOtherObjects() {
+        let doubleStart = Int(bitPattern: UInt(Double(-0.0).bitPattern))
+        let doubleEnd = Int(bitPattern: UInt(Double.nan.bitPattern))
+        let doubleRange = __kk_double_rangeTo(doubleStart, doubleEnd)
+        #expect(kk_unbox_double(__kk_floating_range_endpoint_or_null(doubleRange, 0)) == doubleStart)
+        #expect(kk_unbox_double(__kk_floating_range_endpoint_or_null(doubleRange, 1)) == doubleEnd)
+        let floatStart = Int(Float(-0.0).bitPattern)
+        let floatEnd = Int(Float.infinity.bitPattern)
+        let floatRange = __kk_float_rangeTo(floatStart, floatEnd)
+        #expect(kk_unbox_float(__kk_floating_range_endpoint_or_null(floatRange, 0)) == floatStart)
+        #expect(kk_unbox_float(__kk_floating_range_endpoint_or_null(floatRange, 1)) == floatEnd)
+        for raw in [runtimeNullSentinelInt, 0, kk_op_rangeTo(1, 2), kk_box_double(0),
+                    __kk_double_rangeUntil(0, doubleEnd), __kk_float_rangeUntil(0, floatEnd)] {
+            #expect(__kk_floating_range_endpoint_or_null(raw, 0) == runtimeNullSentinelInt)
+        }
+    }
+
+    @Test
+    func erasedIteratorDispatchPreservesNumericElementKinds() throws {
+        let iteratorTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator"))
+        for (range, matching, mismatching) in [
+            (kk_op_rangeTo(2, 2), kk_box_int(2), kk_box_long(2)),
+            (__kk_uint_rangeTo(2, 2), kk_box_uint(2), kk_box_int(2)),
+            (kk_long_rangeTo(2, 2), kk_box_long(2), kk_box_int(2)),
+            (kk_char_rangeTo(kk_box_char(98), kk_box_char(98)), kk_box_char(98), kk_box_int(98))
+        ] {
+            let iterator = kk_range_iterator(range)
+            let method = kk_itable_lookup_dynamic(iterator, iteratorTypeID, 1)
+            try #require(method != 0)
+            let next = unsafeBitCast(method, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 0
+            let element = next(iterator, &thrown)
+            #expect(thrown == 0)
+            #expect(kk_unbox_bool(kk_any_equals(element, 1, matching, 1)) == 1)
+            #expect(kk_unbox_bool(kk_any_equals(element, 1, mismatching, 1)) == 0)
+            _ = next(iterator, &thrown)
+            #expect(thrown != 0)
+        }
+    }
+
     @Test
     func floatingPointRangeGettersPreserveEndpointBits() {
         let doubleEndpoints: [(Double, Double)] = [

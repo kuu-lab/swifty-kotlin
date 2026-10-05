@@ -496,6 +496,28 @@ struct RuntimeFlowTests {
         #expect(runtimeFlowTestState.snapshot().values == [])
     }
 
+    @Test(arguments: [0, 1, 3])
+    func testLoopBorrowingLeavesOnlyScopeOwnership(iterations: Int) {
+        let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let handle = kk_flow_create(emitterPtr, 0)
+        let key = UInt(handle)
+
+        for _ in 0 ..< iterations {
+            let borrowed = __kk_flow_retain(handle)
+            runtimeFlowTestState.reset()
+            _ = kk_flow_collect(borrowed, collectorPtr, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3, 4])
+            _ = __kk_flow_release(borrowed)
+            #expect(runtimeStorage.withFlowLock { $0.flowRetainCounts[key] } == 1)
+            #expect(runtimeStorage.withFlowLock { $0.flowHandles[key] != nil })
+        }
+
+        _ = __kk_flow_release(handle)
+        #expect(runtimeStorage.withFlowLock { $0.flowRetainCounts[key] } == nil)
+        #expect(runtimeStorage.withFlowLock { $0.flowHandles[key] == nil })
+    }
+
     // MARK: - Cold stream semantics tests (STDLIB-088)
 
     @Test func testColdStreamReExecutesEmitterOnEachCollect() {

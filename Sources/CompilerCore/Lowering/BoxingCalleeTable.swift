@@ -154,6 +154,7 @@ struct BoxingCalleeTable {
     private let staticNonNullOnlyBoxOverridesByPrimitive: [PrimitiveType: InternedString]
     private let stringCallees: InternedPrimitiveCallees
     private let unitCallee: InternedString
+    private let nonNullDoubleUnboxCallees: (legacy: InternedString, staticPrimitive: InternedString)
 
     init(interner: StringInterner) {
         var internedByName: [String: InternedString] = [:]
@@ -183,6 +184,10 @@ struct BoxingCalleeTable {
             unbox: intern("kk_string_to_flat")
         )
         unitCallee = intern("kk_box_unit")
+        nonNullDoubleUnboxCallees = (
+            legacy: intern("kk_unbox_double_nonnull"),
+            staticPrimitive: intern("kk_unbox_double_nonnull_static")
+        )
 
         var nonNullOverrides: [PrimitiveType: InternedString] = [:]
         for (primitive, name) in Self.nonNullOnlyBoxCalleeOverridesByPrimitive {
@@ -263,6 +268,9 @@ struct BoxingCalleeTable {
         }
         guard let primitive = Self.primitive(for: kind, requireNonNull: requireNonNull) else {
             return nil
+        }
+        if primitive == .double, Self.isProvablyNonNull(kind) {
+            return preferStaticPrimitive ? nonNullDoubleUnboxCallees.staticPrimitive : nonNullDoubleUnboxCallees.legacy
         }
         if preferStaticPrimitive {
             return staticUnboxCalleesByPrimitive[primitive]

@@ -60,13 +60,13 @@ expr e@11:55 name(values) type=kotlin.sequences.Sequence<String> ref=sumOfInt.$5
 expr e@11:70 name(it) type=String ref=s-0
 expr e@11:70#1 memberCall recv=e@11:70 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@11:68 lambda params=[] body=e@11:70#1 label=sumOf type=(String) -> Int
-expr e@11:55#1 memberCall recv=e@11:55 callee=sumOf args=[_:e@11:68] type=Int call=kotlin.collections.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Int};ret=Int;gen=1;names=[selector]] targs=[String]
+expr e@11:55#1 memberCall recv=e@11:55 callee=sumOf args=[_:e@11:68] type=Int call=kotlin.collections.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Int};ret=Int;gen=1;nonlocal=[0];names=[selector]] targs=[String]
 expr e@12:61 name(values) type=kotlin.sequences.Sequence<String> ref=sumOfDouble.$4.values[kind=vparam;origin=fixture]
 expr e@12:76 name(it) type=String ref=s-1
 expr e@12:76#1 memberCall recv=e@12:76 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@12:76#2 memberCall recv=e@12:76#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=;ret=Double]
 expr e@12:74 lambda params=[] body=e@12:76#2 label=sumOf type=(String) -> Double
-expr e@12:61#1 memberCall recv=e@12:61 callee=sumOf args=[_:e@12:74] type=Double call=kotlin.collections.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Double};ret=Double;gen=1;names=[selector]] targs=[String]
+expr e@12:61#1 memberCall recv=e@12:61 callee=sumOf args=[_:e@12:74] type=Double call=kotlin.collections.sumOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Double};ret=Double;gen=1;nonlocal=[0];names=[selector]] targs=[String]
 expr e@13:57 name(values) type=kotlin.sequences.Sequence<String> ref=sumOfLong.$6.values[kind=vparam;origin=fixture]
 expr e@13:72 name(it) type=String ref=s-2
 expr e@13:72#1 memberCall recv=e@13:72 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]

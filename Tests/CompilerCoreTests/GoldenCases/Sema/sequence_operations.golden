@@ -22,7 +22,7 @@ expr e@4:14 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s[kind=loc
 expr e@4:37 name(it) type=Int ref=s-1
 expr e@4:26 call callee=e@4:26#1 args=[_:e@4:37] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf[kind=fun;params=T0;ret=kotlin.sequences.Sequence<T0>;gen=1;names=[element]] targs=[Int]
 expr e@4:24 lambda params=[] body=e@4:26 label=flatMap type=(Int) -> Any
-expr e@4:14#1 memberCall recv=e@4:14 callee=flatMap args=[_:e@4:24] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.flatMap[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=kotlin.sequences.Sequence<T1>};ret=kotlin.sequences.Sequence<T1>;gen=2;names=[transform]] targs=[Int,Int]
+expr e@4:14#1 memberCall recv=e@4:14 callee=flatMap args=[_:e@4:24] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.flatMap[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=kotlin.sequences.Sequence<T1>};ret=kotlin.sequences.Sequence<T1>;gen=2;nonlocal=[0];names=[transform]] targs=[Int,Int]
 expr e@4:5 localDecl fm mutable=0 type=_ init=e@4:14#1 type=Unit ref=__local_1.fm[kind=local;type=kotlin.sequences.Sequence<out Int>;origin=fixture]
 expr e@5:13 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]
 expr e@5:20 int(1) type=Int

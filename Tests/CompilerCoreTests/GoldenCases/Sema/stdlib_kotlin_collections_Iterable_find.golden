@@ -43,12 +43,12 @@ expr e@6:33 name(it) type=Int ref=s-4
 expr e@6:38 int(1) type=Int
 expr e@6:33#1 binary(greaterThan) lhs=e@6:33 rhs=e@6:38 type=Boolean
 expr e@6:31 lambda params=[] body=e@6:33#1 label=find type=(Int) -> Boolean
-expr e@6:21#1 memberCall recv=e@6:21 callee=find args=[_:e@6:31] type=Int? call=kotlin.collections.find[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=Boolean};ret=T0?;gen=1;names=[predicate]] targs=[Int]
+expr e@6:21#1 memberCall recv=e@6:21 callee=find args=[_:e@6:31] type=Int? call=kotlin.collections.find[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=Boolean};ret=T0?;gen=1;nonlocal=[0];names=[predicate]] targs=[Int]
 expr e@6:5 localDecl listFirst mutable=0 type=_ init=e@6:21#1 type=Unit ref=__local_4.listFirst[kind=local;type=Int?;origin=fixture]
 expr e@7:20 name(list) type=kotlin.collections.List<Int> ref=probe.$0.list[kind=vparam;origin=fixture]
 expr e@7:36 name(it) type=Int ref=s-5
 expr e@7:41 int(1) type=Int
 expr e@7:36#1 binary(greaterThan) lhs=e@7:36 rhs=e@7:41 type=Boolean
 expr e@7:34 lambda params=[] body=e@7:36#1 label=findLast type=(Int) -> Boolean
-expr e@7:20#1 memberCall recv=e@7:20 callee=findLast args=[_:e@7:34] type=Int? call=kotlin.collections.findLast[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=Boolean};ret=T0?;gen=1;names=[predicate]] targs=[Int]
+expr e@7:20#1 memberCall recv=e@7:20 callee=findLast args=[_:e@7:34] type=Int? call=kotlin.collections.findLast[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=Boolean};ret=T0?;gen=1;nonlocal=[0];names=[predicate]] targs=[Int]
 expr e@7:5 localDecl listLast mutable=0 type=_ init=e@7:20#1 type=Unit ref=__local_5.listLast[kind=local;type=Int?;origin=fixture]

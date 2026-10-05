@@ -8,7 +8,7 @@ file fproperty_delegation package=golden.sema
   decl golden.sema.Holder[kind=class;origin=fixture] class Holder sym=golden.sema.Holder[kind=class;origin=fixture]
 expr e@4:26 int(42) type=Int
 expr e@4:24 lambda params=[] body=e@4:26 label=lazy type=() -> Int
-expr e@4:19 call callee=e@4:19#1 args=[_:e@4:24] type=kotlin.Lazy<Int> call=kotlin.lazy[kind=fun;params=fn{p=;ret=T0};ret=kotlin.Lazy<T0>;gen=1;names=[initializer]] targs=[Int]
+expr e@4:19 call callee=e@4:19#1 args=[_:e@4:24] type=kotlin.Lazy<Int> call=kotlin.lazy[kind=fun;params=fn{p=;ret=T0};ret=kotlin.Lazy<T0>;gen=1;nonlocal=[0];names=[initializer]] targs=[Int]
 expr e@8:68 string(hello) type=String
 expr e@13:25 call callee=e@13:25#1 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>[kind=ctor;recv=golden.sema.CustomDelegate;params=;ret=golden.sema.CustomDelegate;origin=fixture]
 expr e@14:28 call callee=e@14:28#1 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>[kind=ctor;recv=golden.sema.CustomDelegate;params=;ret=golden.sema.CustomDelegate;origin=fixture]

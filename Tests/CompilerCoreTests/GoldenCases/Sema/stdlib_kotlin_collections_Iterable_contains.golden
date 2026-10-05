@@ -23,10 +23,10 @@ expr e@12:13 name(nullable) type=kotlin.collections.Iterable<String?> ref=probeC
 expr e@12:5#1 inExpr lhs=e@12:5 rhs=e@12:13 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;ret=Boolean;gen=1;names=[element]] targs=[String?]
 expr e@13:5 name(list) type=kotlin.collections.List<Int> ref=probeContains.$0.list[kind=vparam;origin=fixture]
 expr e@13:19 int(2) type=Int
-expr e@13:5#1 memberCall recv=e@13:5 callee=contains args=[_:e@13:19] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.List<T0>;params=T0;ret=Boolean;gen=1;names=[element]] targs=[Int]
+expr e@13:5#1 memberCall recv=e@13:5 callee=contains args=[_:e@13:19] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[Int]
 expr e@14:5 name(collection) type=kotlin.collections.Collection<Int> ref=probeContains.$0.collection[kind=vparam;origin=fixture]
 expr e@14:25 int(2) type=Int
-expr e@14:5#1 memberCall recv=e@14:5 callee=contains args=[_:e@14:25] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@14:5#1 memberCall recv=e@14:5 callee=contains args=[_:e@14:25] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[Int]
 expr e@15:5 name(set) type=kotlin.collections.Set<Int> ref=probeContains.$0.set[kind=vparam;origin=fixture]
 expr e@15:18 int(2) type=Int
-expr e@15:5#1 memberCall recv=e@15:5 callee=contains args=[_:e@15:18] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@15:5#1 memberCall recv=e@15:5 callee=contains args=[_:e@15:18] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[Int]

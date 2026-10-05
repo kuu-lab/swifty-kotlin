@@ -12,13 +12,13 @@ expr e@3:68 int(2) type=Int
 expr e@3:73 name(it) type=kotlin.CharSequence ref=s-0
 expr e@3:73#1 memberCall recv=e@3:73 callee=length args=[] type=Int ref=kotlin.CharSequence.length[kind=prop;type=Int]
 expr e@3:71 lambda params=[] body=e@3:73#1 label=chunked type=(kotlin.CharSequence) -> Int
-expr e@3:54#1 memberCall recv=e@3:54 callee=chunked args=[_:e@3:68,_:e@3:71] type=kotlin.collections.List<Int> call=kotlin.text.chunked[kind=fun;recv=kotlin.CharSequence;params=Int,fn{p=kotlin.CharSequence;ret=T0};ret=kotlin.collections.List<T0>;gen=1;names=[size,transform]] targs=[Int]
+expr e@3:54#1 memberCall recv=e@3:54 callee=chunked args=[_:e@3:68,_:e@3:71] type=kotlin.collections.List<Int> call=kotlin.text.chunked[kind=fun;recv=kotlin.CharSequence;params=Int,fn{p=kotlin.CharSequence;ret=T0};ret=kotlin.collections.List<T0>;gen=1;nonlocal=[0,0];names=[size,transform]] targs=[Int]
 expr e@5:51 name(value) type=String ref=golden.sema.chunkedStrings.$1.value[kind=vparam;origin=fixture]
 expr e@5:65 int(3) type=Int
 expr e@5:70 name(it) type=kotlin.CharSequence ref=s-1
 expr e@5:70#1 memberCall recv=e@5:70 callee=toString args=[] type=String call=kotlin.Any.toString[kind=fun;recv=kotlin.Any;params=;ret=String]
 expr e@5:68 lambda params=[] body=e@5:70#1 label=chunked type=(kotlin.CharSequence) -> String
-expr e@5:51#1 memberCall recv=e@5:51 callee=chunked args=[_:e@5:65,_:e@5:68] type=kotlin.collections.List<String> call=kotlin.text.chunked[kind=fun;recv=kotlin.CharSequence;params=Int,fn{p=kotlin.CharSequence;ret=T0};ret=kotlin.collections.List<T0>;gen=1;names=[size,transform]] targs=[String]
+expr e@5:51#1 memberCall recv=e@5:51 callee=chunked args=[_:e@5:65,_:e@5:68] type=kotlin.collections.List<String> call=kotlin.text.chunked[kind=fun;recv=kotlin.CharSequence;params=Int,fn{p=kotlin.CharSequence;ret=T0};ret=kotlin.collections.List<T0>;gen=1;nonlocal=[0,0];names=[size,transform]] targs=[String]
 expr e@8:20 string(abcd) type=String
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:20] type=kotlin.collections.List<Int> call=golden.sema.chunkedLengths[kind=fun;params=kotlin.CharSequence;ret=kotlin.collections.List<Int>;names=[value];origin=fixture]
 expr e@9:20 string(abcde) type=String

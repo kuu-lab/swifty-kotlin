@@ -62,7 +62,7 @@ expr e@8:5 localDecl maxOfOrNullFloat mutable=0 type=Float? init=e@8:36#1 type=U
 expr e@9:26 name(values) type=kotlin.collections.Map<out String, Int> ref=mapMaxFamilySurface.$0.values[kind=vparam;origin=fixture]
 expr e@9:55 name(it) type=Int ref=s-7
 expr e@9:53 lambda params=[] body=e@9:55 label=compareBy type=(Int) -> Any?
-expr e@9:43 call callee=e@9:43#1 args=[_:e@9:53] type=kotlin.Comparator<Int> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};ret=kotlin.Comparator<T0>;gen=1;names=[selector]] targs=[Int]
+expr e@9:43 call callee=e@9:43#1 args=[_:e@9:53] type=kotlin.Comparator<Int> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};ret=kotlin.Comparator<T0>;gen=1;nonlocal=[0];names=[selector]] targs=[Int]
 expr e@9:63 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-8
 expr e@9:63#1 memberCall recv=e@9:63 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
 expr e@9:61 lambda params=[] body=e@9:63#1 label=maxOfWith type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
@@ -71,7 +71,7 @@ expr e@9:5 localDecl maxOfWith mutable=0 type=Int init=e@9:26#1 type=Unit ref=__
 expr e@10:33 name(values) type=kotlin.collections.Map<out String, Int> ref=mapMaxFamilySurface.$0.values[kind=vparam;origin=fixture]
 expr e@10:68 name(it) type=Int ref=s-9
 expr e@10:66 lambda params=[] body=e@10:68 label=compareBy type=(Int) -> Any?
-expr e@10:56 call callee=e@10:56#1 args=[_:e@10:66] type=kotlin.Comparator<Int> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};ret=kotlin.Comparator<T0>;gen=1;names=[selector]] targs=[Int]
+expr e@10:56 call callee=e@10:56#1 args=[_:e@10:66] type=kotlin.Comparator<Int> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};ret=kotlin.Comparator<T0>;gen=1;nonlocal=[0];names=[selector]] targs=[Int]
 expr e@10:76 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-10
 expr e@10:76#1 memberCall recv=e@10:76 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
 expr e@10:74 lambda params=[] body=e@10:76#1 label=maxOfWithOrNull type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
@@ -81,14 +81,14 @@ expr e@11:43 name(values) type=kotlin.collections.Map<out String, Int> ref=mapMa
 expr e@11:70 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-11
 expr e@11:70#1 memberCall recv=e@11:70 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
 expr e@11:68 lambda params=[] body=e@11:70#1 label=compareBy type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
-expr e@11:58 call callee=e@11:58#1 args=[_:e@11:68] type=kotlin.Comparator<kotlin.collections.Map.Entry<out String, out Int>> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};ret=kotlin.Comparator<T0>;gen=1;names=[selector]] targs=[kotlin.collections.Map.Entry<out String, out Int>]
+expr e@11:58 call callee=e@11:58#1 args=[_:e@11:68] type=kotlin.Comparator<kotlin.collections.Map.Entry<out String, out Int>> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};ret=kotlin.Comparator<T0>;gen=1;nonlocal=[0];names=[selector]] targs=[kotlin.collections.Map.Entry<out String, out Int>]
 expr e@11:43#1 memberCall recv=e@11:43 callee=maxWith args=[_:e@11:58] type=kotlin.collections.Map.Entry<out String, out Int> call=kotlin.collections.maxWith[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=kotlin.Comparator<in kotlin.collections.Map.Entry<T0,T1>>;ret=kotlin.collections.Map.Entry<T0,T1>;gen=2;names=[comparator]] targs=[String,Int]
 expr e@11:5 localDecl maxWith mutable=0 type=Map.Entry<String,Int> init=e@11:43#1 type=Unit ref=__local_9.maxWith[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
 expr e@12:50 name(values) type=kotlin.collections.Map<out String, Int> ref=mapMaxFamilySurface.$0.values[kind=vparam;origin=fixture]
 expr e@12:83 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-12
 expr e@12:83#1 memberCall recv=e@12:83 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
 expr e@12:81 lambda params=[] body=e@12:83#1 label=compareBy type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
-expr e@12:71 call callee=e@12:71#1 args=[_:e@12:81] type=kotlin.Comparator<kotlin.collections.Map.Entry<out String, out Int>> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};ret=kotlin.Comparator<T0>;gen=1;names=[selector]] targs=[kotlin.collections.Map.Entry<out String, out Int>]
+expr e@12:71 call callee=e@12:71#1 args=[_:e@12:81] type=kotlin.Comparator<kotlin.collections.Map.Entry<out String, out Int>> call=kotlin.comparisons.compareBy[kind=fun;params=fn{p=T0;ret=kotlin.Comparable<*>?};ret=kotlin.Comparator<T0>;gen=1;nonlocal=[0];names=[selector]] targs=[kotlin.collections.Map.Entry<out String, out Int>]
 expr e@12:50#1 memberCall recv=e@12:50 callee=maxWithOrNull args=[_:e@12:71] type=kotlin.collections.Map.Entry<out String, out Int>? call=kotlin.collections.maxWithOrNull[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=kotlin.Comparator<in kotlin.collections.Map.Entry<T0,T1>>;ret=kotlin.collections.Map.Entry<T0,T1>?;gen=2;names=[comparator]] targs=[String,Int]
 expr e@12:5 localDecl maxWithOrNull mutable=0 type=Map.Entry<String,Int>? init=e@12:50#1 type=Unit ref=__local_10.maxWithOrNull[kind=local;type=kotlin.collections.Map.Entry<String,Int>?;origin=fixture]
 expr e@13:13 name(maxBy) type=kotlin.collections.Map.Entry<String, Int> ref=__local_0.maxBy[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]

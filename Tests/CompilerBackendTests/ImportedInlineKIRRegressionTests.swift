@@ -40,6 +40,41 @@ struct ImportedInlineKIRRegressionTests {
     }
 
     @Test
+    func publishedAPIInternalInlineHelperRemainsCallableThroughLibrary() throws {
+        try withCompiledLibrary(
+            source: """
+            package publishedcleanup
+            @PublishedApi internal inline fun hidden(): Int {
+                try { return 55 } finally { println("hidden-finally") }
+            }
+            inline fun exposed(): Int = hidden()
+            """,
+            moduleName: "PublishedInlineCleanup"
+        ) { libraryPath in
+            try withTemporaryFile(contents: """
+            import publishedcleanup.exposed
+            fun caller(): Int {
+                try { return exposed() } finally { println("caller-finally") }
+            }
+            fun main() { println(caller()) }
+            """) { path in
+                let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: output) }
+                let context = makeCompilationContext(
+                    inputs: [path], emit: .executable, outputPath: output, searchPaths: [libraryPath]
+                )
+                try runToLowering(context)
+                #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+                try CodegenPhase().run(context)
+                try LinkPhase().run(context)
+                let result = try CommandRunner.run(executable: output, arguments: [])
+                #expect(result.exitCode == 0)
+                #expect(result.stdout == "hidden-finally\ncaller-finally\n55\n")
+            }
+        }
+    }
+
+    @Test
     func importedInlineFunctionKeepsOwnNonLocalReturnTarget() throws {
         try withCompiledLibrary(
             source: """

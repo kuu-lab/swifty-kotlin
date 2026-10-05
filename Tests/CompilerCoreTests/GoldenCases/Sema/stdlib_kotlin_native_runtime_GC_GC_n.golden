@@ -62,7 +62,7 @@ expr e@30:43#1 memberCall recv=e@30:43 callee=cyclicCollectorEnabled args=[] typ
 expr e@30:5 localDecl cyclicCollectorEnabled mutable=0 type=Boolean init=e@30:43#1 type=Unit ref=__local_4.cyclicCollectorEnabled[kind=local;type=Boolean;origin=fixture]
 expr e@32:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
 expr e@32:28 int(5) type=Int
-expr e@32:28#1 memberCall recv=e@32:28 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.seconds.$get[kind=fun;recv=Int;params=;ret=kotlin.time.Duration]
+expr e@32:28#1 memberCall recv=e@32:28 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Int;params=;ret=kotlin.time.Duration]
 expr e@32:5#1 memberAssign recv=e@32:5 callee=regularGCInterval value=e@32:28#1 type=Unit ref=kotlin.native.runtime.GC.regularGCInterval[kind=prop;type=kotlin.time.Duration;mutable]
 expr e@33:29 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
 expr e@33:29#1 memberCall recv=e@33:29 callee=regularGCInterval args=[] type=kotlin.time.Duration ref=kotlin.native.runtime.GC.regularGCInterval[kind=prop;type=kotlin.time.Duration;mutable]

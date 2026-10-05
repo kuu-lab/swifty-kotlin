@@ -21,7 +21,7 @@ expr e@8:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema
 expr e@8:5#1 memberCall recv=e@8:5 callee=clear args=[] type=Unit call=kotlin.collections.ArrayList.clear[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=;ret=Unit;gen=1;classGen=1] targs=[String?]
 expr e@9:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam;origin=fixture]
 expr e@9:19 string(a) type=String
-expr e@9:5#1 memberCall recv=e@9:5 callee=contains args=[_:e@9:19] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.List<T0>;params=T0;ret=Boolean;gen=1;names=[element]] targs=[String?]
+expr e@9:5#1 memberCall recv=e@9:5 callee=contains args=[_:e@9:19] type=Boolean call=kotlin.collections.ArrayList.contains[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[String?]
 expr e@10:5 name(list) type=kotlin.collections.ArrayList<String?> ref=golden.sema.arrayListReceiverMembers.$0.list[kind=vparam;origin=fixture]
 expr e@10:22 name(elements) type=kotlin.collections.Collection<String?> ref=golden.sema.arrayListReceiverMembers.$0.elements[kind=vparam;origin=fixture]
 expr e@10:5#1 memberCall recv=e@10:5 callee=containsAll args=[_:e@10:22] type=Boolean call=kotlin.collections.containsAll[kind=fun;recv=kotlin.collections.List<T0>;params=kotlin.collections.Collection<T0>;ret=Boolean;gen=1;names=[elements]] targs=[String?]

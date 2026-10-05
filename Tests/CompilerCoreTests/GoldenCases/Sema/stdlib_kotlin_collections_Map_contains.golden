@@ -38,11 +38,11 @@ expr e@11:13#1 inExpr lhs=e@11:13 rhs=e@11:26 type=Boolean call=kotlin.collectio
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@12:13 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
 expr e@12:26 string(present) type=String
-expr e@12:13#1 memberCall recv=e@12:13 callee=contains args=[_:e@12:26] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]]
+expr e@12:13#1 memberCall recv=e@12:13 callee=contains args=[_:e@12:26] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@13:13 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
 expr e@13:26 string(missing) type=String
-expr e@13:13#1 memberCall recv=e@13:13 callee=contains args=[_:e@13:26] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]]
+expr e@13:13#1 memberCall recv=e@13:13 callee=contains args=[_:e@13:26] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
 expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@14:13 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
 expr e@14:31 name(null) type=Nothing?
@@ -68,7 +68,7 @@ expr e@19:13#1 inExpr lhs=e@19:13 rhs=e@19:28 type=Boolean call=kotlin.collectio
 expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@20:13 name(nullableMap) type=kotlin.collections.Map<String?, Int?> ref=__local_1.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
 expr e@20:34 name(null) type=Nothing?
-expr e@20:13#1 memberCall recv=e@20:13 callee=contains args=[_:e@20:34] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]]
+expr e@20:13#1 memberCall recv=e@20:13 callee=contains args=[_:e@20:34] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String?,Int?]
 expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@21:13 name(nullableMap) type=kotlin.collections.Map<String?, Int?> ref=__local_1.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
 expr e@21:39 name(null) type=Nothing?
@@ -88,7 +88,7 @@ expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#2] type=Unit call=kotlin.io.pri
 expr e@25:13 name(equalKeys) type=kotlin.collections.Map<EqualKey, String?> ref=__local_3.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture]
 expr e@25:41 int(8) type=Int
 expr e@25:32 call callee=e@25:32#1 args=[_:e@25:41] type=EqualKey call=EqualKey.<init>[kind=ctor;recv=EqualKey;params=Int;ret=EqualKey;names=[value];origin=fixture]
-expr e@25:13#1 memberCall recv=e@25:13 callee=contains args=[_:e@25:32] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]]
+expr e@25:13#1 memberCall recv=e@25:13 callee=contains args=[_:e@25:32] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[EqualKey,String?]
 expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@27:46 int(1) type=Int
 expr e@27:51 name(null) type=Nothing?
@@ -101,5 +101,5 @@ expr e@28:13#1 inExpr lhs=e@28:13 rhs=e@28:18 type=Boolean call=kotlin.collectio
 expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@29:13 name(boxedKeys) type=kotlin.collections.Map<Int, String?> ref=__local_4.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture]
 expr e@29:32 int(2) type=Int
-expr e@29:13#1 memberCall recv=e@29:13 callee=contains args=[_:e@29:32] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]]
+expr e@29:13#1 memberCall recv=e@29:13 callee=contains args=[_:e@29:32] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[Int,String?]
 expr e@29:5 call callee=e@29:5#1 args=[_:e@29:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

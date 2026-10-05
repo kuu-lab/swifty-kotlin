@@ -44,9 +44,9 @@ expr e@29:40#1 memberCall recv=e@29:40 callee=values args=[] type=kotlin.collect
 expr e@29:5 localDecl valuesView mutable=0 type=Collection<Int?> init=e@29:40#1 type=Unit ref=__local_2.valuesView[kind=local;type=kotlin.collections.Collection<Int?>;origin=fixture]
 expr e@30:5 name(keys) type=kotlin.collections.Set<String> ref=__local_0.keys[kind=local;type=kotlin.collections.Set<String>;origin=fixture]
 expr e@30:19 name(key) type=String ref=golden.sema.abstractMapSurface.$0.key[kind=vparam;origin=fixture]
-expr e@30:5#1 memberCall recv=e@30:5 callee=contains args=[_:e@30:19] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@30:5#1 memberCall recv=e@30:5 callee=contains args=[_:e@30:19] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[String]
 expr e@31:5 name(valuesView) type=kotlin.collections.Collection<Int?> ref=__local_2.valuesView[kind=local;type=kotlin.collections.Collection<Int?>;origin=fixture]
 expr e@31:25 name(amount) type=Int? ref=golden.sema.abstractMapSurface.$0.amount[kind=vparam;origin=fixture]
-expr e@31:5#1 memberCall recv=e@31:5 callee=contains args=[_:e@31:25] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@31:5#1 memberCall recv=e@31:5 callee=contains args=[_:e@31:25] type=Boolean call=kotlin.collections.Collection.contains[kind=fun;recv=kotlin.collections.Collection<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[Int?]
 expr e@32:12 name(size) type=Int ref=__local_1.size[kind=local;type=Int;origin=fixture]
 expr e@32:5 return value=e@32:12 type=Nothing

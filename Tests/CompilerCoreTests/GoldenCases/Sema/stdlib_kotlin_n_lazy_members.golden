@@ -22,7 +22,7 @@ expr e@10:12#1 memberCall recv=e@10:12 callee=isInitialized args=[] type=Boolean
 expr e@10:5 return value=e@10:12#1 type=Nothing
 expr e@14:21 int(42) type=Int
 expr e@14:19 lambda params=[] body=e@14:21 label=lazy type=() -> Int
-expr e@14:14 call callee=e@14:14#1 args=[_:e@14:19] type=kotlin.Lazy<Int> call=kotlin.lazy[kind=fun;params=fn{p=;ret=T0};ret=kotlin.Lazy<T0>;gen=1;names=[initializer]] targs=[Int]
+expr e@14:14 call callee=e@14:14#1 args=[_:e@14:19] type=kotlin.Lazy<Int> call=kotlin.lazy[kind=fun;params=fn{p=;ret=T0};ret=kotlin.Lazy<T0>;gen=1;nonlocal=[0];names=[initializer]] targs=[Int]
 expr e@14:5 localDecl x mutable=0 type=_ init=e@14:14 delegated=1 type=Unit ref=__local_2.x[kind=local;type=Int;origin=fixture]
 expr e@15:12 name(x) type=Int ref=__local_2.x[kind=local;type=Int;origin=fixture]
 expr e@15:5 return value=e@15:12 type=Nothing

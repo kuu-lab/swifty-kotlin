@@ -707,7 +707,8 @@ private final class StableSemanticKeyComputer {
             if signature.valueParameterIsVararg.contains(true) {
                 parts.append("vararg=[\(signature.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined(separator: ","))]")
             }
-            if signature.valueParameterAllowsNonLocalReturn.contains(false) {
+            if symbol.flags.contains(.inlineFunction)
+                && signature.valueParameterAllowsNonLocalReturn.contains(false) {
                 parts.append("nonlocal=[\(signature.valueParameterAllowsNonLocalReturn.map { $0 ? "1" : "0" }.joined(separator: ","))]")
             }
             let names = signature.valueParameterSymbols.compactMap { parameter in

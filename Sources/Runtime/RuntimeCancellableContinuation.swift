@@ -44,7 +44,7 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
               let job = tryCast(ptr, to: RuntimeJobHandle.self) else { return }
         parent = job
         parentHandlerID = job.addCompletionHandler(onCancelling: true) { [weak self] cause in
-            if cause != 0 { self?.cancelFromParent(cause) }
+            if cause != 0, cause != runtimeNullSentinelInt { self?.cancelFromParent(cause) }
         }
         if job.cancellationSnapshot() {
             cancelFromParent(job.cancellationCauseSnapshot())

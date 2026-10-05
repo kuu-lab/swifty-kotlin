@@ -93,7 +93,7 @@ expr e@20:61 name(acc) type=Int ref=s-5
 expr e@20:67 name(value) type=Int ref=s-6
 expr e@20:61#1 binary(add) lhs=e@20:61 rhs=e@20:67 type=Int
 expr e@20:45 lambda params=[acc,value] body=e@20:61#1 label=scan type=suspend (Int, Int) -> Int
-expr e@20:30#1 memberCall recv=e@20:30 callee=scan args=[_:e@20:42,_:e@20:45] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.scan[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1,fn{su;p=T1,T0;ret=T1};ret=kotlinx.coroutines.flow.Flow<T1>;gen=2;names=[initial,operation]] targs=[Int,Int]
+expr e@20:30#1 memberCall recv=e@20:30 callee=scan args=[_:e@20:42,_:e@20:45] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.scan[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1,fn{su;p=T1,T0;ret=T1};ret=kotlinx.coroutines.flow.Flow<T1>;gen=2;nonlocal=[0,0];names=[initial,operation]] targs=[Int,Int]
 expr e@20:5 localDecl scanned mutable=0 type=Flow<Int> init=e@20:30#1 type=Unit ref=__local_13.scanned[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
 expr e@21:32 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam;origin=fixture]
 expr e@21:51 string() type=String
@@ -101,20 +101,20 @@ expr e@21:71 name(acc) type=String ref=s-7
 expr e@21:77 name(value) type=Int ref=s-8
 expr e@21:71#1 binary(add) lhs=e@21:71 rhs=e@21:77 type=String
 expr e@21:55 lambda params=[acc,value] body=e@21:71#1 label=runningFold type=suspend (String, Int) -> String
-expr e@21:32#1 memberCall recv=e@21:32 callee=runningFold args=[_:e@21:51,_:e@21:55] type=kotlinx.coroutines.flow.Flow<String> call=kotlinx.coroutines.flow.runningFold[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1,fn{su;p=T1,T0;ret=T1};ret=kotlinx.coroutines.flow.Flow<T1>;gen=2;names=[initial,operation]] targs=[Int,String]
+expr e@21:32#1 memberCall recv=e@21:32 callee=runningFold args=[_:e@21:51,_:e@21:55] type=kotlinx.coroutines.flow.Flow<String> call=kotlinx.coroutines.flow.runningFold[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=T1,fn{su;p=T1,T0;ret=T1};ret=kotlinx.coroutines.flow.Flow<T1>;gen=2;nonlocal=[0,0];names=[initial,operation]] targs=[Int,String]
 expr e@21:5 localDecl folded mutable=0 type=Flow<String> init=e@21:32#1 type=Unit ref=__local_14.folded[kind=local;type=kotlinx.coroutines.flow.Flow<String>;origin=fixture]
 expr e@22:30 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam;origin=fixture]
 expr e@22:67 name(acc) type=Int ref=s-9
 expr e@22:73 name(value) type=Int ref=s-10
 expr e@22:67#1 binary(add) lhs=e@22:67 rhs=e@22:73 type=Int
 expr e@22:51 lambda params=[acc,value] body=e@22:67#1 label=runningReduce type=suspend (Int, Int) -> Int
-expr e@22:30#1 memberCall recv=e@22:30 callee=runningReduce args=[_:e@22:51] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.runningReduce[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0,T0;ret=T0};ret=kotlinx.coroutines.flow.Flow<T0>;gen=1;names=[operation]] targs=[Int]
+expr e@22:30#1 memberCall recv=e@22:30 callee=runningReduce args=[_:e@22:51] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.runningReduce[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0,T0;ret=T0};ret=kotlinx.coroutines.flow.Flow<T0>;gen=1;nonlocal=[0];names=[operation]] targs=[Int]
 expr e@22:5 localDecl reduced mutable=0 type=Flow<Int> init=e@22:30#1 type=Unit ref=__local_15.reduced[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
 expr e@23:31 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=accumulating.$0.source[kind=vparam;origin=fixture]
 expr e@23:53 int(1) type=Int
 expr e@23:48 call callee=e@23:48#1 args=[_:e@23:53] type=Unit call=kotlinx.coroutines.flow.FlowCollector.emit[kind=fun;recv=kotlinx.coroutines.flow.FlowCollector<T0>;params=T0;ret=Unit;susp;gen=1;classGen=1;names=[value]] targs=[Int]
 expr e@23:46 lambda params=[] body=e@23:48 label=onEmpty type=suspend kotlinx.coroutines.flow.FlowCollector<Int>.() -> Unit
-expr e@23:31#1 memberCall recv=e@23:31 callee=onEmpty args=[_:e@23:46] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.onEmpty[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T0>;p=;ret=Unit};ret=kotlinx.coroutines.flow.Flow<T0>;gen=1;names=[action]] targs=[Int]
+expr e@23:31#1 memberCall recv=e@23:31 callee=onEmpty args=[_:e@23:46] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.onEmpty[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T0>;p=;ret=Unit};ret=kotlinx.coroutines.flow.Flow<T0>;gen=1;nonlocal=[0];names=[action]] targs=[Int]
 expr e@23:5 localDecl fallback mutable=0 type=Flow<Int> init=e@23:31#1 type=Unit ref=__local_16.fallback[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
 expr e@27:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam;origin=fixture]
 expr e@27:45 name(value) type=Int ref=s-11

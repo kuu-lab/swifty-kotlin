@@ -13,6 +13,14 @@ extension ExprTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
+        if !requireUnitReturn, !bindCall,
+           receiverType == sema.types.charType, valueType == sema.types.intType,
+           !hasInvalidBuiltinCharArithmetic(
+               op: driver.helpers.compoundAssignToBinaryOp(op), lhs: receiverType, rhs: valueType, sema: sema
+           )
+        {
+            return sema.types.unitType
+        }
         // Kotlin resolves `a += b` in two phases: first the dedicated in-place
         // operator (e.g. `plusAssign`, which must return Unit), then the
         // corresponding binary operator (e.g. `plus`) rebinding as `a = a.plus(b)`.
@@ -23,11 +31,24 @@ extension ExprTypeChecker {
         let operatorNames = requireUnitReturn
             ? operatorFunctionNames(for: op, interner: interner)
             : operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)
-        let operatorCandidates = collectOperatorCandidates(
+        var operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
             receiverType: receiverType,
             ctx: ctx
         )
+        var usesScopedCharExtensions = false
+        if operatorCandidates.isEmpty,
+           sema.types.makeNonNullable(receiverType) == sema.types.charType
+            || sema.types.makeNonNullable(valueType) == sema.types.charType,
+           requireUnitReturn || hasInvalidBuiltinCharArithmetic(
+               op: driver.helpers.compoundAssignToBinaryOp(op), lhs: receiverType, rhs: valueType, sema: sema
+           )
+        {
+            operatorCandidates = collectScopedOperatorExtensionCandidates(
+                names: operatorNames, receiverType: receiverType, ctx: ctx
+            )
+            usesScopedCharExtensions = true
+        }
         guard !operatorCandidates.isEmpty else {
             return nil
         }
@@ -44,6 +65,11 @@ extension ExprTypeChecker {
             ctx: ctx.semaCtx
         )
 
+        if usesScopedCharExtensions, resolved.chosenCallee == nil,
+           resolved.diagnostic?.code == "KSWIFTK-SEMA-0002"
+        {
+            return nil
+        }
         if let diagnostic = resolved.diagnostic {
             if emitDiagnostics {
                 ctx.semaCtx.diagnostics.emit(diagnostic)
@@ -274,6 +300,31 @@ extension ExprTypeChecker {
         }
     }
 
+    func rejectInvalidBuiltinCharCompoundAssignment(
+        _ id: ExprID,
+        op: CompoundAssignOp,
+        lhs: TypeID,
+        rhs: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let binaryOp = driver.helpers.compoundAssignToBinaryOp(op)
+        let invalidResult = lhs == sema.types.charType
+            && [.add, .subtract].contains(binaryOp)
+            && rhs != sema.types.intType
+        guard invalidResult || hasInvalidBuiltinCharArithmetic(op: binaryOp, lhs: lhs, rhs: rhs, sema: sema) else {
+            return false
+        }
+        ctx.semaCtx.diagnostics.error(
+            "KSWIFTK-SEMA-0002",
+            "No viable builtin Char operator for compound assignment.",
+            range: range
+        )
+        sema.bindings.bindExprType(id, type: sema.types.errorType)
+        return true
+    }
+
     func inferCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -377,6 +428,11 @@ extension ExprTypeChecker {
                 )
             }
             let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
+            if rejectInvalidBuiltinCharCompoundAssignment(
+                id, op: op, lhs: local.type, rhs: valueType, range: range, ctx: ctx
+            ) {
+                return sema.types.errorType
+            }
             // Arithmetic compound assignment keeps the target's own numeric type
             // (BUG-015): demoting `Long`/`Double`/unsigned locals to `Int` here broke
             // later member resolution such as `longVar and 0xFFL`.
@@ -523,6 +579,11 @@ extension ExprTypeChecker {
                 )
             }
             let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
+            if rejectInvalidBuiltinCharCompoundAssignment(
+                id, op: op, lhs: propType, rhs: valueType, range: range, ctx: ctx
+            ) {
+                return sema.types.errorType
+            }
             let resultType: TypeID = switch underlyingOp {
             case .add:
                 if propType == stringType || valueType == stringType {
@@ -613,7 +674,13 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let receiverType = driver.helpers.retypeClassNameAsCompanionValue(
+            receiverExpr,
+            currentType: inferredReceiverType,
+            ast: ctx.ast,
+            sema: sema
+        ) ?? inferredReceiverType
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
@@ -640,6 +707,21 @@ extension ExprTypeChecker {
         sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
         let propType = propResult.type
         let propSymbol = sema.symbols.symbol(propResult.symbol)
+        if let propSymbol,
+           !ctx.visibilityChecker.isAccessible(
+               propSymbol,
+               fromFile: ctx.currentFileID,
+               enclosingClass: ctx.enclosingClassSymbol
+           )
+        {
+            driver.helpers.emitVisibilityError(
+                for: propSymbol,
+                name: interner.resolve(calleeName),
+                range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
         if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
             _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
         }
@@ -716,6 +798,11 @@ extension ExprTypeChecker {
         // string concat at KIR-lowering time). Unlike a bare local, a property's
         // declared type doesn't get narrowed per-assignment, so there is nothing
         // to propagate back into `locals` here.
+        if rejectInvalidBuiltinCharCompoundAssignment(
+            id, op: op, lhs: propType, rhs: valueType, range: range, ctx: ctx
+        ) {
+            return sema.types.errorType
+        }
         if propSymbol?.flags.contains(.mutable) != true {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0014",
@@ -776,7 +863,10 @@ extension ExprTypeChecker {
             if sema.bindings.isFloatingPointRangeSymbol(local.symbol) {
                 sema.bindings.markFloatingPointRangeExpr(id)
                 if let elementType = sema.bindings.floatingPointRangeElementType(forSymbol: local.symbol) {
-                    sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                    sema.bindings.bindFloatingPointRangeElementType(
+                        elementType, forExpr: id,
+                        endExclusive: sema.bindings.isOpenFloatingPointRangeSymbol(local.symbol)
+                    )
                 }
             }
             if sema.bindings.isFlowSymbol(local.symbol) {
@@ -911,6 +1001,11 @@ extension ExprTypeChecker {
         }) ?? candidates.first
         if let preferredCandidate {
             sema.bindings.bindIdentifier(id, symbol: preferredCandidate.id)
+            if ctx.implicitReceiverType != nil,
+               sema.symbols.extensionPropertyReceiverType(for: preferredCandidate.id) != nil
+            {
+                sema.bindings.markImplicitReceiverMember(id, name: name)
+            }
             // ANNO-001: Check for @Deprecated annotation on the resolved symbol.
             driver.helpers.checkDeprecation(
                 for: preferredCandidate.id,
@@ -1579,7 +1674,8 @@ extension ExprTypeChecker {
 
         if member == KnownCompilerNames(interner: interner).className,
            let receiver,
-           case let .nameRef(receiverName, _) = ast.arena.expr(receiver)
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+           locals[receiverName] == nil
         {
             if let result = inferClassRefExpr(
                 id, receiver: receiver, receiverName: receiverName,
@@ -1589,19 +1685,12 @@ extension ExprTypeChecker {
             }
         }
 
-        // ── this::class — instance class reference on implicit receiver ──
-        // REFL-002: When the receiver is `this`, infer `this` first, then
-        // bind the classRefTargetType from the receiver's resolved type so
-        // KIR lowering can emit `__kk_kclass_create` with the correct token.
         if member == KnownCompilerNames(interner: interner).className,
-           let receiver,
-           case .thisRef = ast.arena.expr(receiver)
+           let receiver
         {
-            if let result = inferExprReceiverClassRef(
-                id, receiver: receiver, ctx: ctx, locals: &locals
-            ) {
-                return result
-            }
+            return inferExprReceiverClassRef(
+                id, receiver: receiver, range: range, ctx: ctx, locals: &locals
+            )
         }
 
         // ── REFL-PRIMOP: Int::plus / Int::times — primitive operator with
@@ -2186,6 +2275,7 @@ extension ExprTypeChecker {
                 params: [receiverParam],
                 returnType: sema.types.stringType,
                 isSuspend: false,
+                isCallableReference: true,
                 nullability: .nonNull
             )))
             let resultType: TypeID
@@ -2392,6 +2482,7 @@ extension ExprTypeChecker {
             params: [operandType, operandType],
             returnType: operandType,
             isSuspend: false,
+            isCallableReference: true,
             nullability: .nonNull
         )))
         driver.emitSubtypeConstraint(
@@ -2625,6 +2716,7 @@ extension ExprTypeChecker {
             guard let sym = ctx.cachedSymbol(candidateID),
                   sym.kind == .class || sym.kind == .interface
                   || sym.kind == .object || sym.kind == .enumClass
+                  || sym.kind == .annotationClass
             else { continue }
             let classType = sema.types.make(.classType(ClassType(classSymbol: sym.id)))
             sema.bindings.bindClassRefTargetType(id, type: classType)
@@ -2667,38 +2759,61 @@ extension ExprTypeChecker {
         return nil
     }
 
-    /// REFL-002: Infers `::class` when the receiver is an expression (e.g. `this::class`).
-    /// Infers the receiver first, then derives the `classRefTargetType` from the
-    /// receiver's resolved type so KIR lowering emits the correct type token.
     private func inferExprReceiverClassRef(
         _ id: ExprID,
         receiver: ExprID,
+        range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
-    ) -> TypeID? {
+    ) -> TypeID {
         let sema = ctx.sema
         let receiverType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-
-        // Skip error types — don't bind a classRef for unresolvable receivers.
-        if nonNullReceiverType == sema.types.errorType {
-            return nil
+        if receiverType == sema.types.errorType {
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
-
-        // Resolve the nominal type from the receiver.  For class/interface
-        // types we use the type directly; for primitives we also accept them.
-        let targetType: TypeID
-        switch sema.types.kind(of: nonNullReceiverType) {
-        case .classType, .primitive, .any:
-            targetType = nonNullReceiverType
-        default:
-            return nil
+        var visited: Set<TypeID> = []
+        let isFlowNonNull: Bool
+        if case let .nameRef(name, _) = ctx.ast.arena.expr(receiver),
+           let local = locals[name],
+           let flow = ctx.flowState.variables[local.symbol] {
+            isFlowNonNull = flow.isStable && flow.nullability == .nonNull
+        } else {
+            isFlowNonNull = false
         }
-
+        if !isFlowNonNull, classRefReceiverCanBeNull(receiverType, sema: sema, visited: &visited) {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-CLASS-REF-NULLABLE",
+                "Expression in a class literal has a nullable type. Use '!!' to make it non-nullable.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        let targetType = sema.types.makeNonNullable(receiverType)
         sema.bindings.bindClassRefTargetType(id, type: targetType)
+        sema.bindings.bindBoundClassRef(id)
         let kClassType = sema.types.makeKClassType(argument: targetType)
         sema.bindings.bindExprType(id, type: kClassType)
         return kClassType
+    }
+
+    private func classRefReceiverCanBeNull(_ type: TypeID, sema: SemaModule, visited: inout Set<TypeID>) -> Bool {
+        guard visited.insert(type).inserted else {
+            return true
+        }
+        switch sema.types.kind(of: type) {
+        case let .typeParam(parameter):
+            if parameter.nullability == .nullable {
+                return true
+            }
+            let bounds = sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
+            return bounds.allSatisfy { classRefReceiverCanBeNull($0, sema: sema, visited: &visited) }
+        case let .intersection(parts):
+            return parts.allSatisfy { classRefReceiverCanBeNull($0, sema: sema, visited: &visited) }
+        default:
+            return sema.types.nullability(of: type) == .nullable
+        }
     }
 
     func inferSuperRefExpr(
@@ -2744,9 +2859,18 @@ extension ExprTypeChecker {
             guard let superSym = ctx.cachedSymbol(superID) else { continue }
             let isValidKind = superSym.kind == .interface || superSym.kind == .class || superSym.kind == .enumClass
             if isValidKind, superSym.name == qualifier {
-                let ifaceType = sema.types.make(.classType(ClassType(classSymbol: superID)))
-                sema.bindings.bindExprType(id, type: ifaceType)
-                return ifaceType
+                let typeArgs: [TypeArg]
+                if let receiverType = ctx.implicitReceiverType,
+                   case let .classType(currentClass) = sema.types.kind(of: receiverType) {
+                    typeArgs = sema.types.liftedNominalSupertypeArgs(
+                        from: classSymbol, childArgs: currentClass.args, to: superID
+                    ) ?? []
+                } else {
+                    typeArgs = []
+                }
+                let superType = sema.types.make(.classType(ClassType(classSymbol: superID, args: typeArgs)))
+                sema.bindings.bindExprType(id, type: superType)
+                return superType
             }
         }
         let qualifierStr = ctx.interner.resolve(qualifier)

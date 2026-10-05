@@ -3,6 +3,47 @@
 import Testing
 
 struct InlineNestedCaptureTests {
+    @Test(arguments: [false, true])
+    func clonedCapturesRemainAvailableToCoroutineLowering(hasCallableInfo: Bool) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbol = SymbolID(rawValue: 1)
+        let name = interner.intern("capturedBlock")
+        let source = arena.appendExpr(.symbolRef(symbol), type: types.anyType)
+        let capture = arena.appendTemporary(type: types.intType)
+        let first = arena.appendExpr(.intLiteral(7), type: types.intType)
+        let second = arena.appendExpr(.intLiteral(11), type: types.intType)
+        let firstClone = arena.appendExpr(.symbolRef(symbol), type: types.anyType)
+        let secondClone = arena.appendExpr(.symbolRef(symbol), type: types.anyType)
+        arena.registerLambdaCaptureArgs(symbol, captureArgs: [capture])
+        _ = arena.appendDecl(.function(KIRFunction(
+            symbol: symbol, name: name, params: [], returnType: types.unitType,
+            body: [.returnUnit], isSuspend: true, isInline: false
+        )))
+        if hasCallableInfo {
+            arena.callableValueInfoByExprID[source] = KIRCallableValueInfo(
+                symbol: symbol, callee: name, captureArguments: [capture], hasClosureParam: true
+            )
+        }
+        let pass = InlineLoweringPass()
+        pass.recordClonedLambdaCaptures(
+            source: source, cloned: firstClone, value: .symbolRef(symbol),
+            aliases: [capture: first], arena: arena
+        )
+        pass.recordClonedLambdaCaptures(
+            source: source, cloned: secondClone, value: .symbolRef(symbol),
+            aliases: [capture: second], arena: arena
+        )
+        let firstInfo = try #require(arena.callableValueInfo(for: firstClone))
+        let secondInfo = try #require(arena.callableValueInfo(for: secondClone))
+        #expect(firstInfo.captureArguments == [first])
+        #expect(secondInfo.captureArguments == [second])
+        #expect(firstInfo.hasClosureParam == hasCallableInfo)
+        #expect(secondInfo.hasClosureParam == hasCallableInfo)
+        #expect(arena.lambdaCaptureArgsBySymbol[symbol] == [capture])
+    }
+
     @Test(arguments: [false, true], [false, true])
     func nestedCapturesUseCallerSlots(nonLocalReturn: Bool, bodylessSnapshot: Bool) throws {
         let interner = StringInterner()

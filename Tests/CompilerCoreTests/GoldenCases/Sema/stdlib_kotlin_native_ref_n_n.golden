@@ -8,4 +8,4 @@ expr e@9:51 name(null) type=Nothing?
 expr e@12:19 name(resource) type=String? ref=golden.sema.cleanerType.$0.resource[kind=vparam;origin=fixture]
 expr e@12:30 blockExpr stmts=[] trailing=_ type=Unit
 expr e@12:29 lambda params=[_] body=e@12:30 label=createCleaner type=(String?) -> Unit
-expr e@12:5 call callee=e@12:5#1 args=[_:e@12:19,_:e@12:29] type=kotlin.native.ref.Cleaner call=kotlin.native.ref.createCleaner[kind=fun;params=T0,fn{p=T0;ret=Unit};ret=kotlin.native.ref.Cleaner;gen=1;names=[resource,cleanupAction]] targs=[String?]
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:19,_:e@12:29] type=kotlin.native.ref.Cleaner call=kotlin.native.ref.createCleaner[kind=fun;params=T0,fn{p=T0;ret=Unit};ret=kotlin.native.ref.Cleaner;gen=1;nonlocal=[0,0];names=[resource,cleanupAction]] targs=[String?]

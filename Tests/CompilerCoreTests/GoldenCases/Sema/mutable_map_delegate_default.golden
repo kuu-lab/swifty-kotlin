@@ -23,7 +23,7 @@ expr e@11:21 name(map) type=kotlin.collections.MutableMap<String, Int> ref=withD
 expr e@11:46 name(key) type=String ref=s-0
 expr e@11:46#1 memberCall recv=e@11:46 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@11:37 lambda params=[key] body=e@11:46#1 label=withDefault type=(String) -> Int
-expr e@11:21#1 memberCall recv=e@11:21 callee=withDefault args=[_:e@11:37] type=kotlin.collections.MutableMap<String, Int> call=kotlin.collections.withDefault[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=fn{p=T0;ret=T1};ret=kotlin.collections.MutableMap<T0,T1>;gen=2;names=[defaultValue]] targs=[String,Int]
+expr e@11:21#1 memberCall recv=e@11:21 callee=withDefault args=[_:e@11:37] type=kotlin.collections.MutableMap<String, Int> call=kotlin.collections.withDefault[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=fn{p=T0;ret=T1};ret=kotlin.collections.MutableMap<T0,T1>;gen=2;nonlocal=[0];names=[defaultValue]] targs=[String,Int]
 expr e@11:5 localDecl defaulted mutable=0 type=_ init=e@11:21#1 type=Unit ref=__local_3.defaulted[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
 expr e@12:17 name(defaulted) type=kotlin.collections.MutableMap<String, Int> ref=__local_3.defaulted[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
 expr e@12:36 string(any) type=String

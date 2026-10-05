@@ -20,4 +20,4 @@ expr e@9:70 name(it) type=Char ref=s-0
 expr e@9:76 char(120) type=Char
 expr e@9:70#1 binary(equal) lhs=e@9:70 rhs=e@9:76 type=Boolean
 expr e@9:68 lambda params=[] body=e@9:70#1 label=none type=(Char) -> Boolean
-expr e@9:60#1 memberCall recv=e@9:60 callee=none args=[_:e@9:68] type=Boolean call=kotlin.text.none[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Boolean};ret=Boolean;names=[predicate]]
+expr e@9:60#1 memberCall recv=e@9:60 callee=none args=[_:e@9:68] type=Boolean call=kotlin.text.none[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Boolean};ret=Boolean;nonlocal=[0];names=[predicate]]

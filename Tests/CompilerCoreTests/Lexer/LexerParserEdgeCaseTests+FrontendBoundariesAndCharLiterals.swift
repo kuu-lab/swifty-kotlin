@@ -352,8 +352,234 @@ extension LexerParserEdgeCaseTests {
     }
 
     @Test
+    func testCharArithmeticRejectsImplicitNumericConversions() throws {
+        var expressions = ["'a' + 'b'", "'a' * 2", "'a' / 2", "'a' % 3"]
+        for operand in ["c", "i", "l", "f", "d", "b", "s", "u", "ul"] {
+            for op in ["*", "/", "%"] {
+                expressions.append("c \(op) \(operand)")
+                expressions.append("\(operand) \(op) c")
+            }
+            if operand != "c" {
+                expressions.append("\(operand) + c")
+                expressions.append("\(operand) - c")
+            }
+            if operand != "i" {
+                expressions.append("c + \(operand)")
+                if operand != "c" {
+                    expressions.append("c - \(operand)")
+                }
+            }
+        }
+        expressions += ["c + ni", "c - ni", "nc + i", "nc - c", "nc + \"x\"", "c + ns"]
+        let source = expressions.enumerated().map { index, expression in
+            "fun invalid\(index)(c: Char, i: Int, l: Long, f: Float, d: Double, b: Byte, s: Short, u: UInt, ul: ULong, nc: Char?, ni: Int?, ns: String?) = \(expression)"
+        }.joined(separator: "\n")
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == expressions.count, "Expected each invalid Char operation to be rejected: \(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" })
+        }
+    }
+
+    @Test
+    func testExplicitCharArithmeticRejectsImplicitNumericConversions() throws {
+        var expressions: [String] = []
+        for operand in ["c", "i", "l", "f", "d", "b", "s", "u", "ul"] {
+            for method in ["times", "div", "rem"] {
+                expressions.append("c.\(method)(\(operand))")
+                expressions.append("\(operand).\(method)(c)")
+            }
+            if operand != "c" {
+                expressions.append("\(operand).plus(c)")
+                expressions.append("\(operand).minus(c)")
+            }
+            if operand != "i" {
+                expressions.append("c.plus(\(operand))")
+                if operand != "c" {
+                    expressions.append("c.minus(\(operand))")
+                }
+            }
+        }
+        expressions.append("c.plus(ns)")
+        let source = expressions.enumerated().map { index, expression in
+            "fun invalid\(index)(c: Char, i: Int, l: Long, f: Float, d: Double, b: Byte, s: Short, u: UInt, ul: ULong, ns: String?) = \(expression)"
+        }.joined(separator: "\n")
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            var offset = 0
+            for (expression, line) in zip(expressions, source.split(separator: "\n")) {
+                let end = offset + line.utf8.count
+                #expect(errors.contains { diagnostic in
+                    guard let start = diagnostic.primaryRange?.start.offset else { return false }
+                    return start >= offset && start < end
+                }, "Expected explicit Char operation to be rejected: \(expression)")
+                offset = end + 1
+            }
+        }
+    }
+
+    @Test
+    func testCharArithmeticExtensionsAndBuiltinPriority() throws {
+        let source = """
+        operator fun Char.plus(other: Char): Int = this.code + other.code
+        operator fun Char.plus(other: Int): Int = this.code + other
+        operator fun Char.times(other: Int): Int = this.code * other
+        operator fun Char.div(other: Int): Int = this.code / other
+        operator fun Char.rem(other: Int): Int = this.code % other
+        operator fun Int.plus(other: Char): Int = this + other.code
+        fun test(c: Char, other: Char, i: Int) {
+            val sum: Int = c + other
+            val product: Int = c * i
+            val quotient: Int = c / i
+            val remainder: Int = c % i
+            val reversed: Int = i + c
+            val shifted: Char = c + i
+            val previous: Char = c - i
+            val distance: Int = c - other
+            val text: String = c + "x"
+            val prefix: String = "x" + c
+            val explicitShift: Char = c.plus(i)
+            val explicitPrevious: Char = c.minus(i)
+            val explicitDistance: Int = c.minus(other)
+            val explicitText: String = c.plus("x")
+            val explicitSum: Int = c.plus(other)
+            val explicitProduct: Int = c.times(i)
+            val explicitQuotient: Int = c.div(i)
+            val explicitRemainder: Int = c.rem(i)
+            val explicitReversed: Int = i.plus(c)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Valid Char members and extension operators should remain accepted: \(errors)")
+        }
+    }
+
+    @Test
+    func testCharArithmeticStringExtensionRemainsAccepted() throws {
+        let source = """
+        operator fun Char.plus(other: String): Int = this.code + other.length
+        fun test(c: Char) {
+            val infix: Int = c + "x"
+            val explicit: Int = c.plus("x")
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "User-defined Char.plus(String) should override the stdlib extension: \(errors)")
+        }
+    }
+
+    @Test
+    func testCharCompoundAssignmentRejectsImplicitNumericConversions() throws {
+        var expressions: [String] = []
+        for target in ["c", "top", "holder.c", "chars[0]"] {
+            for op in ["*=", "/=", "%="] {
+                expressions.append("\(target) \(op) 2")
+                expressions.append("\(target) \(op) other")
+            }
+            for operand in ["other", "2L", "2.0", "2u", "\"x\""] {
+                expressions.append("\(target) += \(operand)")
+                expressions.append("\(target) -= \(operand)")
+            }
+        }
+        for op in ["+=", "-=", "*=", "/=", "%="] {
+            expressions.append("i \(op) other")
+        }
+        let source = """
+        var top: Char = 'a'
+        class Holder { var c: Char = 'a' }
+        """ + "\n" + expressions.enumerated().map { index, expression in
+            "fun invalid\(index)(other: Char, holder: Holder, chars: Array<Char>) { var c: Char = 'a'; var i: Int = 1; \(expression) }"
+        }.joined(separator: "\n")
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == expressions.count, "Expected each invalid Char compound assignment to be rejected: \(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" })
+        }
+    }
+
+    @Test
+    func testCharCompoundAssignmentReportsBuiltinAmbiguity() throws {
+        let source = """
+        operator fun Char.plusAssign(other: Int) { println(this.code + other) }
+        var top: Char = 'a'
+        class Holder { var c: Char = 'a' }
+        fun test(holder: Holder, chars: Array<Char>) {
+            var c: Char = 'a'
+            c += 1
+            top += 1
+            holder.c += 1
+            chars[0] += 1
+            val immutable: Char = 'a'
+            immutable += 1
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 4)
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0302" })
+        }
+    }
+
+    @Test
+    func testCharCompoundAssignmentExtensionsRemainAccepted() throws {
+        let source = """
+        var top: Char = 'a'
+        class Holder { var c: Char = 'a' }
+        operator fun Char.plus(other: Char): Char = (this.code + other.code).toChar()
+        operator fun Char.times(other: Int): Char = (this.code * other).toChar()
+        operator fun Char.divAssign(other: Int) { println(this.code / other) }
+        operator fun Char.minusAssign(other: String) { println(other) }
+        fun test(holder: Holder, chars: Array<Char>) {
+            var c: Char = 'a'
+            c += 'b'
+            top += 'b'
+            holder.c += 'b'
+            chars[0] += 'b'
+            c *= 2
+            top *= 2
+            holder.c *= 2
+            chars[0] *= 2
+            c /= 2
+            top /= 2
+            holder.c /= 2
+            chars[0] /= 2
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Applicable Char compound-assignment extensions should remain accepted: \(errors)")
+        }
+    }
+
+    @Test
     func testCharCompoundAssignmentPreservesCharType() throws {
         let source = """
+        var top: Char = 'a'
+        class Holder { var c: Char = 'a' }
+        fun members(holder: Holder, chars: Array<Char>) {
+            top += 1
+            top -= 1
+            holder.c += 1
+            holder.c -= 1
+            chars[0] += 1
+            chars[0] -= 1
+        }
         fun test() {
             var a: Char = 'a'
             a += 1

@@ -22,7 +22,7 @@ expr e@3:52 name(it) type=Int ref=s-0
 expr e@3:57 int(10) type=Int
 expr e@3:52#1 binary(add) lhs=e@3:52 rhs=e@3:57 type=Int
 expr e@3:50 lambda params=[] body=e@3:52#1 label=elementAtOrElse type=(Int) -> Int
-expr e@3:24#1 memberCall recv=e@3:24 callee=elementAtOrElse args=[_:e@3:47,_:e@3:50] type=Int call=kotlin.collections.elementAtOrElse[kind=fun;recv=kotlin.collections.Iterable<T0>;params=Int,fn{p=Int;ret=T0};ret=T0;gen=1;names=[index,defaultValue]] targs=[Int]
+expr e@3:24#1 memberCall recv=e@3:24 callee=elementAtOrElse args=[_:e@3:47,_:e@3:50] type=Int call=kotlin.collections.elementAtOrElse[kind=fun;recv=kotlin.collections.Iterable<T0>;params=Int,fn{p=Int;ret=T0};ret=T0;gen=1;nonlocal=[0,0];names=[index,defaultValue]] targs=[Int]
 expr e@3:5 localDecl iterableElse mutable=0 type=_ init=e@3:24#1 type=Unit ref=__local_1.iterableElse[kind=local;type=Int;origin=fixture]
 expr e@4:24 name(values) type=kotlin.collections.Iterable<Int> ref=probe.$0.values[kind=vparam;origin=fixture]
 expr e@4:47 int(99) type=Int
@@ -46,7 +46,7 @@ expr e@8:41 int(1) type=Int
 expr e@8:47 int(1) type=Int
 expr e@8:46 unary(unaryMinus) operand=e@8:47 type=Int
 expr e@8:44 lambda params=[] body=e@8:46 label=elementAtOrElse type=(Int) -> Int
-expr e@8:20#1 memberCall recv=e@8:20 callee=elementAtOrElse args=[_:e@8:41,_:e@8:44] type=Int call=kotlin.collections.elementAtOrElse[kind=fun;recv=kotlin.collections.List<T0>;params=Int,fn{p=Int;ret=T0};ret=T0;gen=1;names=[index,defaultValue]] targs=[Int]
+expr e@8:20#1 memberCall recv=e@8:20 callee=elementAtOrElse args=[_:e@8:41,_:e@8:44] type=Int call=kotlin.collections.elementAtOrElse[kind=fun;recv=kotlin.collections.List<T0>;params=Int,fn{p=Int;ret=T0};ret=T0;gen=1;nonlocal=[0,0];names=[index,defaultValue]] targs=[Int]
 expr e@8:5 localDecl listElse mutable=0 type=_ init=e@8:20#1 type=Unit ref=__local_6.listElse[kind=local;type=Int;origin=fixture]
 expr e@9:20 name(list) type=kotlin.collections.List<Int> ref=probe.$0.list[kind=vparam;origin=fixture]
 expr e@9:41 int(99) type=Int

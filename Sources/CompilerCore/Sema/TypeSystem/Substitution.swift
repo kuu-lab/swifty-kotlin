@@ -325,7 +325,8 @@ public extension TypeSystem {
         return make(.functionType(FunctionType(
             contextReceivers: newContextReceivers,
             receiver: newReceiver, params: newParams, returnType: newReturn,
-            isSuspend: functionType.isSuspend, nullability: functionType.nullability
+            isSuspend: functionType.isSuspend, isCallableReference: functionType.isCallableReference,
+            nullability: functionType.nullability
         )))
     }
 }

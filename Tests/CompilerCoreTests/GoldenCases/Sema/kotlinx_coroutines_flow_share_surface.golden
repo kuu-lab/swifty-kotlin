@@ -27,7 +27,7 @@ expr e@9:5#1 memberCall recv=e@9:5 callee=shareIn args=[_:e@9:20,_:e@9:27#1,_:e@
 expr e@9:76 int(0) type=Int
 expr e@9:71 call callee=e@9:71#1 args=[_:e@9:76] type=Unit call=kotlinx.coroutines.flow.FlowCollector.emit[kind=fun;recv=kotlinx.coroutines.flow.FlowCollector<T0>;params=T0;ret=Unit;susp;gen=1;classGen=1;names=[value]] targs=[Int]
 expr e@9:69 lambda params=[] body=e@9:71 label=onSubscription type=suspend kotlinx.coroutines.flow.FlowCollector<Int>.() -> Unit
-expr e@9:5#2 memberCall recv=e@9:5#1 callee=onSubscription args=[_:e@9:69] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.onSubscription[kind=fun;recv=kotlinx.coroutines.flow.SharedFlow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T0>;p=;ret=Unit};ret=kotlinx.coroutines.flow.SharedFlow<T0>;gen=1;names=[action]] targs=[Int]
+expr e@9:5#2 memberCall recv=e@9:5#1 callee=onSubscription args=[_:e@9:69] type=kotlinx.coroutines.flow.SharedFlow<Int> call=kotlinx.coroutines.flow.onSubscription[kind=fun;recv=kotlinx.coroutines.flow.SharedFlow<T0>;params=fn{su;r=kotlinx.coroutines.flow.FlowCollector<T0>;p=;ret=Unit};ret=kotlinx.coroutines.flow.SharedFlow<T0>;gen=1;nonlocal=[0];names=[action]] targs=[Int]
 expr e@12:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=state.$3.source[kind=vparam;origin=fixture]
 expr e@12:20 name(scope) type=kotlinx.coroutines.CoroutineScope ref=state.$3.scope[kind=vparam;origin=fixture]
 expr e@12:27 name(SharingStarted) type=kotlinx.coroutines.flow.SharingStarted.Companion ref=kotlinx.coroutines.flow.SharingStarted[kind=iface]

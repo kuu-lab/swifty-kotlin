@@ -87,5 +87,76 @@ import Testing
             "Expected an ABSTRACT warning for an empty abstract class"
         )
     }
+
+    @Test func testSealedTypesWithoutAbstractMembers() throws {
+        let sources = [
+            """
+            package sealedEmpty
+            sealed class S
+            class SA(val x: Int) : S()
+            fun main() { println("ok") }
+            """,
+            """
+            package sealedConcrete
+            sealed class S {
+                val value: Int = 42
+                fun answer(): Int = value
+            }
+            class SA : S()
+            """,
+            """
+            package sealedInterface
+            sealed interface S
+            class SA : S
+            """,
+            """
+            package sealedNested
+            abstract class Outer {
+                abstract fun required(): Int
+                sealed class Inner
+                class Derived : Inner()
+            }
+            """,
+            """
+            package sealedOuter
+            sealed class Outer {
+                abstract class Inner
+            }
+            """,
+            """
+            package sealedContract
+            sealed class S {
+                abstract fun required(): Int
+            }
+            class SA : S()
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            for path in paths.prefix(4) {
+                let diagnostics = diagnosticsForPath(path, in: ctx)
+                #expect(!diagnostics.hasError)
+                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diagnostics)
+            }
+
+            let nestedDiagnostics = diagnosticsForPath(paths[4], in: ctx)
+            #expect(!nestedDiagnostics.hasError)
+            let warnings = nestedDiagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.severity == .warning
+            }
+            #expect(warnings.count == 1)
+            #expect(warnings.first?.message == "Abstract class 'sealedOuter.Outer.Inner' has no abstract members. Consider removing the 'abstract' modifier.")
+
+            let contractDiagnostics = diagnosticsForPath(paths[5], in: ctx)
+            #expect(contractDiagnostics.hasError)
+            #expect(contractDiagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.severity == .error
+            })
+            #expect(!contractDiagnostics.contains { $0.severity == .warning })
+        }
+    }
 }
 #endif

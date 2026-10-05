@@ -110,7 +110,29 @@ final class TypeCheckDriver {
         expectedType: TypeID? = nil,
         isStatementContext: Bool = false
     ) -> TypeID {
-        exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        checkInlineCallVisibility(id, ctx: ctx)
+        return type
+    }
+
+    private func checkInlineCallVisibility(_ id: ExprID, ctx: TypeInferenceContext) {
+        guard let callerID = ctx.currentDeclSymbol,
+              let caller = sema.symbols.symbol(callerID),
+              caller.flags.contains(.inlineFunction),
+              ctx.visibilityChecker.isPublicAPI(caller),
+              let binding = sema.bindings.callBinding(for: id),
+              let callee = sema.symbols.symbol(binding.chosenCallee),
+              !ctx.visibilityChecker.isPublicAPI(callee, allowProtected: false),
+              let range = ast.arena.exprRange(id),
+              !diagnostics.diagnostics.contains(where: {
+                  $0.code == "KSWIFTK-SEMA-0045" && $0.primaryRange == range
+              })
+        else { return }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0045",
+            "Public-API inline function cannot access non-public-API declaration '\(interner.resolve(callee.name))'.",
+            range: range
+        )
     }
 
     // MARK: - Module-Level Type Checking

@@ -68,4 +68,4 @@ expr e@17:31 name(it) type=String ref=s-11
 expr e@17:31#1 memberCall recv=e@17:31 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@17:22 call callee=e@17:22#1 args=[_:e@17:27,_:e@17:31#1] type=kotlin.Pair<String, Int> call=kotlin.Pair.<init>[kind=ctor;recv=kotlin.Pair<T0,T1>;params=T0,T1;ret=kotlin.Pair<T0,T1>;gen=2;classGen=2;names=[first,second]] targs=[String,Int]
 expr e@17:20 lambda params=[] body=e@17:22 label=associate type=(String) -> Any
-expr e@17:5#1 memberCall recv=e@17:5 callee=associate args=[_:e@17:20] type=kotlin.collections.Map<String, Int> call=kotlin.collections.associate[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=kotlin.Pair<T1,T2>};ret=kotlin.collections.Map<T1,T2>;gen=3;names=[transform]] targs=[String,String,Int]
+expr e@17:5#1 memberCall recv=e@17:5 callee=associate args=[_:e@17:20] type=kotlin.collections.Map<String, Int> call=kotlin.collections.associate[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=kotlin.Pair<T1,T2>};ret=kotlin.collections.Map<T1,T2>;gen=3;nonlocal=[0];names=[transform]] targs=[String,String,Int]

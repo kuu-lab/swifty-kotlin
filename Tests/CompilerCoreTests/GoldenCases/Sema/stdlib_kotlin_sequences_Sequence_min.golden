@@ -89,14 +89,14 @@ expr e@20:42 name(cmp) type=kotlin.Comparator<Int> ref=__local_14.cmp[kind=local
 expr e@20:49 name(it) type=String ref=s-6
 expr e@20:49#1 memberCall recv=e@20:49 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@20:47 lambda params=[] body=e@20:49#1 label=minOfWith type=(String) -> Int
-expr e@20:26#1 memberCall recv=e@20:26 callee=minOfWith args=[_:e@20:42,_:e@20:47] type=Int call=kotlin.collections.minOfWith[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};ret=T1;gen=2;names=[comparator,selector]] targs=[String,Int]
+expr e@20:26#1 memberCall recv=e@20:26 callee=minOfWith args=[_:e@20:42,_:e@20:47] type=Int call=kotlin.collections.minOfWith[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};ret=T1;gen=2;nonlocal=[0,0];names=[comparator,selector]] targs=[String,Int]
 expr e@20:5 localDecl minOfWith mutable=0 type=Int init=e@20:26#1 type=Unit ref=__local_15.minOfWith[kind=local;type=Int;origin=fixture]
 expr e@21:33 name(words) type=kotlin.sequences.Sequence<String> ref=__local_13.words[kind=local;type=kotlin.sequences.Sequence<String>;origin=fixture]
 expr e@21:55 name(cmp) type=kotlin.Comparator<Int> ref=__local_14.cmp[kind=local;type=kotlin.Comparator<Int>;origin=fixture]
 expr e@21:62 name(it) type=String ref=s-7
 expr e@21:62#1 memberCall recv=e@21:62 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@21:60 lambda params=[] body=e@21:62#1 label=minOfWithOrNull type=(String) -> Int
-expr e@21:33#1 memberCall recv=e@21:33 callee=minOfWithOrNull args=[_:e@21:55,_:e@21:60] type=Int? call=kotlin.collections.minOfWithOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};ret=T1?;gen=2;names=[comparator,selector]] targs=[String,Int]
+expr e@21:33#1 memberCall recv=e@21:33 callee=minOfWithOrNull args=[_:e@21:55,_:e@21:60] type=Int? call=kotlin.collections.minOfWithOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};ret=T1?;gen=2;nonlocal=[0,0];names=[comparator,selector]] targs=[String,Int]
 expr e@21:5 localDecl minOfWithOrNull mutable=0 type=Int? init=e@21:33#1 type=Unit ref=__local_16.minOfWithOrNull[kind=local;type=Int?;origin=fixture]
 expr e@22:27 name(words) type=kotlin.sequences.Sequence<String> ref=__local_13.words[kind=local;type=kotlin.sequences.Sequence<String>;origin=fixture]
 expr e@22:27#1 memberCall recv=e@22:27 callee=min args=[] type=String call=kotlin.collections.min[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;ret=T0;gen=1;bounds=[kotlin.Comparable<T0>]] targs=[String]

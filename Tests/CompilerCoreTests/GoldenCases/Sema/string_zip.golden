@@ -23,4 +23,4 @@ expr e@6:97 name(a) type=Char ref=s-0
 expr e@6:99 name(b) type=Char ref=s-1
 expr e@6:95 stringTemplate[expr(e@6:97),expr(e@6:99)] type=String
 expr e@6:85 lambda params=[a,b] body=e@6:95 label=zip type=(Char, Char) -> String
-expr e@6:72#1 memberCall recv=e@6:72 callee=zip args=[_:e@6:78,_:e@6:85] type=kotlin.collections.List<String> call=kotlin.text.zip[kind=fun;recv=kotlin.CharSequence;params=kotlin.CharSequence,fn{p=Char,Char;ret=T0};ret=kotlin.collections.List<T0>;gen=1;names=[other,transform]] targs=[String]
+expr e@6:72#1 memberCall recv=e@6:72 callee=zip args=[_:e@6:78,_:e@6:85] type=kotlin.collections.List<String> call=kotlin.text.zip[kind=fun;recv=kotlin.CharSequence;params=kotlin.CharSequence,fn{p=Char,Char;ret=T0};ret=kotlin.collections.List<T0>;gen=1;nonlocal=[0,0];names=[other,transform]] targs=[String]

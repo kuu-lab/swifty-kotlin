@@ -42,11 +42,11 @@ expr e@9:31 call callee=e@9:31#1 args=[_:e@9:45] type=kotlin.collections.Set<Str
 expr e@9:5 localDecl spread mutable=0 type=Set<String> init=e@9:31 type=Unit ref=__local_7.spread[kind=local;type=kotlin.collections.Set<String>;origin=fixture]
 expr e@11:13 name(singleton) type=kotlin.collections.Set<Int> ref=__local_0.singleton[kind=local;type=kotlin.collections.Set<Int>;origin=fixture]
 expr e@11:32 int(1) type=Int
-expr e@11:13#1 memberCall recv=e@11:13 callee=contains args=[_:e@11:32] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@11:13#1 memberCall recv=e@11:13 callee=contains args=[_:e@11:32] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[Int]
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@12:13 name(nullableSingleton) type=kotlin.collections.Set<String?> ref=__local_1.nullableSingleton[kind=local;type=kotlin.collections.Set<String?>;origin=fixture]
 expr e@12:40 name(null) type=Nothing?
-expr e@12:13#1 memberCall recv=e@12:13 callee=contains args=[_:e@12:40] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@12:13#1 memberCall recv=e@12:13 callee=contains args=[_:e@12:40] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[String?]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@13:13 name(nonNullSingleton) type=kotlin.collections.Set<String> ref=__local_2.nonNullSingleton[kind=local;type=kotlin.collections.Set<String>;origin=fixture]
 expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

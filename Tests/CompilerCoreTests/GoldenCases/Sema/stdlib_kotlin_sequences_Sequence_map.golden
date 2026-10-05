@@ -23,7 +23,7 @@ expr e@5:49 name(mapDest) type=kotlin.collections.MutableList<String> ref=__loca
 expr e@5:60 name(it) type=Int ref=s-0
 expr e@5:60#1 memberCall recv=e@5:60 callee=toString args=[] type=String
 expr e@5:58 lambda params=[] body=e@5:60#1 label=mapTo type=(Int) -> String
-expr e@5:39#1 memberCall recv=e@5:39 callee=mapTo args=[_:e@5:49,_:e@5:58] type=kotlin.collections.MutableList<String> call=kotlin.sequences.mapTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=T0;ret=T1};ret=T2;gen=3;bounds=[_,_,kotlin.collections.MutableCollection<T1>];names=[destination,transform]] targs=[Int,String,kotlin.collections.MutableList<String>]
+expr e@5:39#1 memberCall recv=e@5:39 callee=mapTo args=[_:e@5:49,_:e@5:58] type=kotlin.collections.MutableList<String> call=kotlin.sequences.mapTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=T0;ret=T1};ret=T2;gen=3;bounds=[_,_,kotlin.collections.MutableCollection<T1>];nonlocal=[0,0];names=[destination,transform]] targs=[Int,String,kotlin.collections.MutableList<String>]
 expr e@5:5 localDecl mapped mutable=0 type=MutableList<String> init=e@5:39#1 type=Unit ref=__local_2.mapped[kind=local;type=kotlin.collections.MutableList<String>;origin=fixture]
 expr e@7:26 call callee=e@7:26#1 args=[] type=kotlin.collections.MutableList<String> call=kotlin.collections.mutableListOf[kind=fun;params=;ret=kotlin.collections.MutableList<T0>;gen=1] targs=[String]
 expr e@7:5 localDecl mapNotNullDest mutable=0 type=_ init=e@7:26 type=Unit ref=__local_3.mapNotNullDest[kind=local;type=kotlin.collections.MutableList<String>;origin=fixture]
@@ -39,7 +39,7 @@ expr e@9:26#1 memberCall recv=e@9:26 callee=toString args=[] type=String
 expr e@9:45 name(null) type=Nothing?
 expr e@9:9 if cond=e@9:13#2 then=e@9:26#1 else=e@9:45 type=String?
 expr e@8:79 lambda params=[] body=e@9:9 label=mapNotNullTo type=(Int) -> String?
-expr e@8:46#1 memberCall recv=e@8:46 callee=mapNotNullTo args=[_:e@8:63,_:e@8:79] type=kotlin.collections.MutableList<String> call=kotlin.sequences.mapNotNullTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=T0;ret=T1?};ret=T2;gen=3;bounds=[_,Any,kotlin.collections.MutableCollection<T1>];names=[destination,transform]] targs=[Int,String,kotlin.collections.MutableList<String>]
+expr e@8:46#1 memberCall recv=e@8:46 callee=mapNotNullTo args=[_:e@8:63,_:e@8:79] type=kotlin.collections.MutableList<String> call=kotlin.sequences.mapNotNullTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=T0;ret=T1?};ret=T2;gen=3;bounds=[_,Any,kotlin.collections.MutableCollection<T1>];nonlocal=[0,0];names=[destination,transform]] targs=[Int,String,kotlin.collections.MutableList<String>]
 expr e@8:5 localDecl mappedNotNull mutable=0 type=MutableList<String> init=e@8:46#1 type=Unit ref=__local_4.mappedNotNull[kind=local;type=kotlin.collections.MutableList<String>;origin=fixture]
 expr e@12:26 call callee=e@12:26#1 args=[] type=kotlin.collections.MutableList<String> call=kotlin.collections.mutableListOf[kind=fun;params=;ret=kotlin.collections.MutableList<T0>;gen=1] targs=[String]
 expr e@12:5 localDecl mapIndexedDest mutable=0 type=_ init=e@12:26 type=Unit ref=__local_5.mapIndexedDest[kind=local;type=kotlin.collections.MutableList<String>;origin=fixture]
@@ -53,7 +53,7 @@ expr e@14:34 name(value) type=Int ref=s-3
 expr e@14:34#1 memberCall recv=e@14:34 callee=toString args=[] type=String
 expr e@14:9#3 binary(add) lhs=e@14:9#2 rhs=e@14:34#1 type=String
 expr e@13:79 lambda params=[index,value] body=e@14:9#3 label=mapIndexedTo type=(Int, Int) -> String
-expr e@13:46#1 memberCall recv=e@13:46 callee=mapIndexedTo args=[_:e@13:63,_:e@13:79] type=kotlin.collections.MutableList<String> call=kotlin.sequences.mapIndexedTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=Int,T0;ret=T1};ret=T2;gen=3;bounds=[_,_,kotlin.collections.MutableCollection<T1>];names=[destination,transform]] targs=[Int,String,kotlin.collections.MutableList<String>]
+expr e@13:46#1 memberCall recv=e@13:46 callee=mapIndexedTo args=[_:e@13:63,_:e@13:79] type=kotlin.collections.MutableList<String> call=kotlin.sequences.mapIndexedTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=Int,T0;ret=T1};ret=T2;gen=3;bounds=[_,_,kotlin.collections.MutableCollection<T1>];nonlocal=[0,0];names=[destination,transform]] targs=[Int,String,kotlin.collections.MutableList<String>]
 expr e@13:5 localDecl mappedIndexed mutable=0 type=MutableList<String> init=e@13:46#1 type=Unit ref=__local_6.mappedIndexed[kind=local;type=kotlin.collections.MutableList<String>;origin=fixture]
 expr e@17:33 call callee=e@17:33#1 args=[] type=kotlin.collections.MutableList<String> call=kotlin.collections.mutableListOf[kind=fun;params=;ret=kotlin.collections.MutableList<T0>;gen=1] targs=[String]
 expr e@17:5 localDecl mapIndexedNotNullDest mutable=0 type=_ init=e@17:33 type=Unit ref=__local_7.mapIndexedNotNullDest[kind=local;type=kotlin.collections.MutableList<String>;origin=fixture]
@@ -74,7 +74,7 @@ expr e@19:29#3 binary(add) lhs=e@19:29#2 rhs=e@19:54#1 type=String
 expr e@19:76 name(null) type=Nothing?
 expr e@19:9 if cond=e@19:13#2 then=e@19:29#3 else=e@19:76 type=String?
 expr e@18:100 lambda params=[index,value] body=e@19:9 label=mapIndexedNotNullTo type=(Int, Int) -> String?
-expr e@18:53#1 memberCall recv=e@18:53 callee=mapIndexedNotNullTo args=[_:e@18:77,_:e@18:100] type=kotlin.collections.MutableList<String> call=kotlin.sequences.mapIndexedNotNullTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=Int,T0;ret=T1?};ret=T2;gen=3;bounds=[_,Any,kotlin.collections.MutableCollection<T1>];names=[destination,transform]] targs=[Int,String,kotlin.collections.MutableList<String>]
+expr e@18:53#1 memberCall recv=e@18:53 callee=mapIndexedNotNullTo args=[_:e@18:77,_:e@18:100] type=kotlin.collections.MutableList<String> call=kotlin.sequences.mapIndexedNotNullTo[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T2,fn{p=Int,T0;ret=T1?};ret=T2;gen=3;bounds=[_,Any,kotlin.collections.MutableCollection<T1>];nonlocal=[0,0];names=[destination,transform]] targs=[Int,String,kotlin.collections.MutableList<String>]
 expr e@18:5 localDecl mappedIndexedNotNull mutable=0 type=MutableList<String> init=e@18:53#1 type=Unit ref=__local_8.mappedIndexedNotNull[kind=local;type=kotlin.collections.MutableList<String>;origin=fixture]
 expr e@22:13 name(mapped) type=kotlin.collections.MutableList<String> ref=__local_2.mapped[kind=local;type=kotlin.collections.MutableList<String>;origin=fixture]
 expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

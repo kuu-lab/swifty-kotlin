@@ -10,8 +10,8 @@ file fstdlib_kotlin_concurrent_atomics_AtomicIntArray_n package=golden.sema anno
 expr e@10:11 name(atomic) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArrayUpdateAt.$1.atomic[kind=vparam;origin=fixture]
 expr e@10:27 int(0) type=Int
 expr e@10:30 name(transform) type=(Int) -> Int ref=golden.sema.atomicIntArrayUpdateAt.$1.transform[kind=vparam;origin=fixture]
-expr e@10:11#1 memberCall recv=e@10:11 callee=updateAt args=[_:e@10:27,_:e@10:30] type=Unit call=kotlin.concurrent.atomics.updateAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int,fn{p=Int;ret=Int};ret=Unit;names=[index,transform]]
+expr e@10:11#1 memberCall recv=e@10:11 callee=updateAt args=[_:e@10:27,_:e@10:30] type=Unit call=kotlin.concurrent.atomics.updateAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int,fn{p=Int;ret=Int};ret=Unit;nonlocal=[0,0];names=[index,transform]]
 expr e@15:10 name(atomic) type=kotlin.concurrent.atomics.AtomicIntArray ref=golden.sema.atomicIntArrayUpdateAndFetchAt.$0.atomic[kind=vparam;origin=fixture]
 expr e@15:34 int(0) type=Int
 expr e@15:37 name(transform) type=(Int) -> Int ref=golden.sema.atomicIntArrayUpdateAndFetchAt.$0.transform[kind=vparam;origin=fixture]
-expr e@15:10#1 memberCall recv=e@15:10 callee=updateAndFetchAt args=[_:e@15:34,_:e@15:37] type=Int call=kotlin.concurrent.atomics.updateAndFetchAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int,fn{p=Int;ret=Int};ret=Int;names=[index,transform]]
+expr e@15:10#1 memberCall recv=e@15:10 callee=updateAndFetchAt args=[_:e@15:34,_:e@15:37] type=Int call=kotlin.concurrent.atomics.updateAndFetchAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicIntArray;params=Int,fn{p=Int;ret=Int};ret=Int;nonlocal=[0,0];names=[index,transform]]

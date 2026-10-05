@@ -361,6 +361,12 @@ public extension RuntimeABISpec {
             ]),
             bridgeSpec("kk_with_timeout_or_null", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"],
             isThrowing: false),
+            bridgeSpec("kk_with_timeout_or_null_throwing", section: "Coroutine", typedParams: [
+                ("timeoutMillis", .intptr),
+                ("entryPointRaw", .intptr),
+                ("continuation", .intptr),
+                ("outThrown", .nullableIntptrPointer),
+            ]),
         ]
 
     static let dispatchBridgeFunctions: [RuntimeABIFunctionSpec] = [

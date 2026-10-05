@@ -42,7 +42,7 @@ expr e@18:75 name(it) type=Int ref=s-0
 expr e@18:80 name(hash) type=Int ref=__local_3.hash[kind=local;type=Int;origin=fixture]
 expr e@18:75#1 binary(add) lhs=e@18:75 rhs=e@18:80 type=Int
 expr e@18:73 lambda params=[] body=e@18:75#1 label=execute type=(Int) -> Int
-expr e@18:31#1 memberCall recv=e@18:31 callee=execute args=[_:e@18:46#1,_:e@18:65,_:e@18:73] type=kotlin.native.concurrent.Future<Int> call=kotlin.native.concurrent.execute[kind=fun;recv=kotlin.native.concurrent.Worker;params=kotlin.native.concurrent.TransferMode,fn{p=;ret=T0},fn{p=T0;ret=T1};ret=kotlin.native.concurrent.Future<T1>;gen=2;names=[mode,producer,job]] targs=[Int,Int]
+expr e@18:31#1 memberCall recv=e@18:31 callee=execute args=[_:e@18:46#1,_:e@18:65,_:e@18:73] type=kotlin.native.concurrent.Future<Int> call=kotlin.native.concurrent.execute[kind=fun;recv=kotlin.native.concurrent.Worker;params=kotlin.native.concurrent.TransferMode,fn{p=;ret=T0},fn{p=T0;ret=T1};ret=kotlin.native.concurrent.Future<T1>;gen=2;nonlocal=[0,0,0];names=[mode,producer,job]] targs=[Int,Int]
 expr e@18:5 localDecl future mutable=0 type=Future<Int> init=e@18:31#1 type=Unit ref=__local_6.future[kind=local;type=kotlin.native.concurrent.Future<Int>;origin=fixture]
 expr e@19:37 name(worker) type=kotlin.native.concurrent.Worker ref=workerReceiverSurface.$0.worker[kind=vparam;origin=fixture]
 expr e@19:63 bool(false) type=Boolean
@@ -51,7 +51,7 @@ expr e@19:5 localDecl termination mutable=0 type=Future<Unit> init=e@19:37#1 typ
 expr e@20:5 name(worker) type=kotlin.native.concurrent.Worker ref=workerReceiverSurface.$0.worker[kind=vparam;origin=fixture]
 expr e@20:26 blockExpr stmts=[] trailing=_ type=Unit
 expr e@20:25 lambda params=[] body=e@20:26 label=executeAfter type=() -> Unit
-expr e@20:5#1 memberCall recv=e@20:5 callee=executeAfter args=[_:e@20:25] type=Unit call=kotlin.native.concurrent.executeAfter[kind=fun;recv=kotlin.native.concurrent.Worker;params=Long,fn{p=;ret=Unit};ret=Unit;defaults=[1,0];names=[afterMicroseconds,operation]]
+expr e@20:5#1 memberCall recv=e@20:5 callee=executeAfter args=[_:e@20:25] type=Unit call=kotlin.native.concurrent.executeAfter[kind=fun;recv=kotlin.native.concurrent.Worker;params=Long,fn{p=;ret=Unit};ret=Unit;defaults=[1,0];nonlocal=[0,0];names=[afterMicroseconds,operation]]
 expr e@21:30 name(worker) type=kotlin.native.concurrent.Worker ref=workerReceiverSurface.$0.worker[kind=vparam;origin=fixture]
 expr e@21:30#1 memberCall recv=e@21:30 callee=processQueue args=[] type=Boolean call=kotlin.native.concurrent.processQueue[kind=fun;recv=kotlin.native.concurrent.Worker;params=;ret=Boolean]
 expr e@21:5 localDecl processed mutable=0 type=Boolean init=e@21:30#1 type=Unit ref=__local_8.processed[kind=local;type=Boolean;origin=fixture]

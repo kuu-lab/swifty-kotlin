@@ -10,7 +10,7 @@ expr e@3:18 name(values) type=kotlin.collections.List<String> ref=render.$0.valu
 expr e@3:38 name(it) type=String ref=s-0
 expr e@3:38#1 memberCall recv=e@3:38 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@3:36 lambda params=[] body=e@3:38#1 label=groupingBy type=(String) -> Int
-expr e@3:18#1 memberCall recv=e@3:18 callee=groupingBy args=[_:e@3:36] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;names=[keySelector]] targs=[String,Int]
+expr e@3:18#1 memberCall recv=e@3:18 callee=groupingBy args=[_:e@3:36] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;nonlocal=[0];names=[keySelector]] targs=[String,Int]
 expr e@3:62 name(dest) type=kotlin.collections.MutableMap<Int, Int> ref=__local_0.dest[kind=local;type=kotlin.collections.MutableMap<Int,Int>;origin=fixture]
 expr e@3:18#2 memberCall recv=e@3:18#1 callee=eachCountTo args=[_:e@3:62] type=kotlin.collections.MutableMap<Int, Int> call=kotlin.collections.eachCountTo[kind=fun;recv=kotlin.collections.Grouping<T0,T1>;params=T2;ret=T2;gen=3;bounds=[_,_,kotlin.collections.MutableMap<in T1,Int>];names=[destination]] targs=[String,Int,kotlin.collections.MutableMap<Int, Int>]
 expr e@3:5 localDecl result mutable=0 type=_ init=e@3:18#2 type=Unit ref=__local_1.result[kind=local;type=kotlin.collections.MutableMap<Int,Int>;origin=fixture]

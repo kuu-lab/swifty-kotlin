@@ -30,7 +30,7 @@ expr e@9:12 name(values) type=kotlin.collections.List<String> ref=testGroupingAg
 expr e@9:32 name(it) type=String ref=s-0
 expr e@9:32#1 memberCall recv=e@9:32 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@9:30 lambda params=[] body=e@9:32#1 label=groupingBy type=(String) -> Int
-expr e@9:12#1 memberCall recv=e@9:12 callee=groupingBy args=[_:e@9:30] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;names=[keySelector]] targs=[String,Int]
+expr e@9:12#1 memberCall recv=e@9:12 callee=groupingBy args=[_:e@9:30] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;nonlocal=[0];names=[keySelector]] targs=[String,Int]
 expr e@9:56 name(destination) type=kotlin.collections.MutableMap<Any?, String> ref=testGroupingAggregateTo.$1.destination[kind=vparam;origin=fixture]
 expr e@10:13 name(first) type=Boolean ref=s-1
 expr e@10:20 name(element) type=String ref=s-2
@@ -45,14 +45,14 @@ expr e@17:28 name(values) type=kotlin.collections.List<String> ref=testGroupingE
 expr e@17:48 name(it) type=String ref=s-4
 expr e@17:48#1 memberCall recv=e@17:48 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@17:46 lambda params=[] body=e@17:48#1 label=groupingBy type=(String) -> Int
-expr e@17:28#1 memberCall recv=e@17:28 callee=groupingBy args=[_:e@17:46] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;names=[keySelector]] targs=[String,Int]
+expr e@17:28#1 memberCall recv=e@17:28 callee=groupingBy args=[_:e@17:46] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;nonlocal=[0];names=[keySelector]] targs=[String,Int]
 expr e@17:72 name(destination) type=kotlin.collections.MutableMap<Any?, Int> ref=testGroupingEachCountTo.$2.destination[kind=vparam;origin=fixture]
 expr e@17:28#2 memberCall recv=e@17:28#1 callee=eachCountTo args=[_:e@17:72] type=kotlin.collections.MutableMap<Any?, Int> call=kotlin.collections.eachCountTo[kind=fun;recv=kotlin.collections.Grouping<T0,T1>;params=T2;ret=T2;gen=3;bounds=[_,_,kotlin.collections.MutableMap<in T1,Int>];names=[destination]] targs=[String,Int,kotlin.collections.MutableMap<Any?, Int>]
 expr e@22:28 name(values) type=kotlin.collections.List<String> ref=testGroupingFoldTo.$3.values[kind=vparam;origin=fixture]
 expr e@22:48 name(it) type=String ref=s-5
 expr e@22:48#1 memberCall recv=e@22:48 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@22:46 lambda params=[] body=e@22:48#1 label=groupingBy type=(String) -> Int
-expr e@22:28#1 memberCall recv=e@22:28 callee=groupingBy args=[_:e@22:46] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;names=[keySelector]] targs=[String,Int]
+expr e@22:28#1 memberCall recv=e@22:28 callee=groupingBy args=[_:e@22:46] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;nonlocal=[0];names=[keySelector]] targs=[String,Int]
 expr e@23:5 name(destination) type=kotlin.collections.MutableMap<Any?, Int> ref=testGroupingFoldTo.$3.destination[kind=vparam;origin=fixture]
 expr e@24:5 int(0) type=Int
 expr e@25:29 name(accumulator) type=Int ref=s-6
@@ -65,7 +65,7 @@ expr e@30:28 name(values) type=kotlin.collections.List<String> ref=testGroupingF
 expr e@30:48 name(it) type=String ref=s-8
 expr e@30:48#1 memberCall recv=e@30:48 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@30:46 lambda params=[] body=e@30:48#1 label=groupingBy type=(String) -> Int
-expr e@30:28#1 memberCall recv=e@30:28 callee=groupingBy args=[_:e@30:46] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;names=[keySelector]] targs=[String,Int]
+expr e@30:28#1 memberCall recv=e@30:28 callee=groupingBy args=[_:e@30:46] type=kotlin.collections.Grouping<String, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;nonlocal=[0];names=[keySelector]] targs=[String,Int]
 expr e@31:5 name(destination) type=kotlin.collections.MutableMap<Any?, Int> ref=testGroupingFoldToWithSelector.$4.destination[kind=vparam;origin=fixture]
 expr e@32:23 name(key) type=Int ref=s-9
 expr e@32:29 name(element) type=String ref=s-10
@@ -84,7 +84,7 @@ expr e@39:31 name(values) type=kotlin.collections.List<Cat> ref=testGroupingRedu
 expr e@39:51 name(it) type=Cat ref=s-14
 expr e@39:51#1 memberCall recv=e@39:51 callee=weight args=[] type=Int ref=Animal.weight[kind=prop;type=Int;origin=fixture]
 expr e@39:49 lambda params=[] body=e@39:51#1 label=groupingBy type=(Cat) -> Int
-expr e@39:31#1 memberCall recv=e@39:31 callee=groupingBy args=[_:e@39:49] type=kotlin.collections.Grouping<Cat, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;names=[keySelector]] targs=[Cat,Int]
+expr e@39:31#1 memberCall recv=e@39:31 callee=groupingBy args=[_:e@39:49] type=kotlin.collections.Grouping<Cat, Int> call=kotlin.collections.groupingBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Grouping<T0,T1>;gen=2;nonlocal=[0];names=[keySelector]] targs=[Cat,Int]
 expr e@39:72 name(destination) type=kotlin.collections.MutableMap<Any?, Animal> ref=testGroupingReduceTo.$5.destination[kind=vparam;origin=fixture]
 expr e@40:9 name(element) type=Cat ref=s-15
 expr e@40:9#1 memberCall recv=e@40:9 callee=weight args=[] type=Int ref=Animal.weight[kind=prop;type=Int;origin=fixture]

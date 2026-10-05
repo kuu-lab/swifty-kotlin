@@ -13,7 +13,7 @@ expr e@2:21 name(it) type=Any? ref=s-0
 expr e@2:27 name(null) type=Nothing?
 expr e@2:21#1 binary(notEqual) lhs=e@2:21 rhs=e@2:27 type=Boolean
 expr e@2:19 lambda params=[] body=e@2:21#1 label=filter type=(Any?) -> Boolean
-expr e@2:5#1 memberCall recv=e@2:5 callee=filter args=[_:e@2:19] type=kotlin.collections.List<Any?> call=kotlin.collections.filter[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=Boolean};ret=kotlin.collections.List<T0>;gen=1;names=[predicate]] targs=[Any?]
+expr e@2:5#1 memberCall recv=e@2:5 callee=filter args=[_:e@2:19] type=kotlin.collections.List<Any?> call=kotlin.collections.filter[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=Boolean};ret=kotlin.collections.List<T0>;gen=1;nonlocal=[0];names=[predicate]] targs=[Any?]
 expr e@3:5 name(values) type=kotlin.collections.Iterable<Any?> ref=filterFamily.$0.values[kind=vparam;origin=fixture]
 expr e@3:40 name(index) type=Int ref=s-1
 expr e@3:48 int(2) type=Int

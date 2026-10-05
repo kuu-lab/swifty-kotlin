@@ -14,7 +14,7 @@ expr e@5:17#1 memberCall recv=e@5:17 callee=isEmpty args=[] type=Boolean call=ko
 expr e@5:5 localDecl empty mutable=0 type=_ init=e@5:17#1 type=Unit ref=__local_1.empty[kind=local;type=Boolean;origin=fixture]
 expr e@6:24 name(values) type=kotlin.collections.Set<Int?> ref=golden.sema.inspect.$0.values[kind=vparam;origin=fixture]
 expr e@6:40 name(null) type=Nothing?
-expr e@6:24#1 memberCall recv=e@6:24 callee=contains args=[_:e@6:40] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@6:24#1 memberCall recv=e@6:24 callee=contains args=[_:e@6:40] type=Boolean call=kotlin.collections.Set.contains[kind=fun;recv=kotlin.collections.Set<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[Int?]
 expr e@6:5 localDecl containsNull mutable=0 type=_ init=e@6:24#1 type=Unit ref=__local_2.containsNull[kind=local;type=Boolean;origin=fixture]
 expr e@7:27 name(values) type=kotlin.collections.Set<Int?> ref=golden.sema.inspect.$0.values[kind=vparam;origin=fixture]
 expr e@7:27#1 memberCall recv=e@7:27 callee=iterator args=[] type=kotlin.collections.Iterator<Int?> call=kotlin.collections.Set.iterator[kind=fun;recv=kotlin.collections.Set<T0>;params=;ret=kotlin.collections.Iterator<T0>;gen=1;classGen=1] targs=[Int?]

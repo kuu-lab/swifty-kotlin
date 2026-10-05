@@ -14,7 +14,7 @@ expr e@4:5 return value=e@4:12 type=Nothing
 expr e@8:27 name(value) type=String? ref=golden.sema.requireNotNullWithMessage.$1.value[kind=vparam;origin=fixture]
 expr e@8:36 string(value was null) type=String
 expr e@8:34 lambda params=[] body=e@8:36 label=requireNotNull type=() -> Any
-expr e@8:12 call callee=e@8:12#1 args=[_:e@8:27,_:e@8:34] type=String call=kotlin.requireNotNull[kind=fun;params=T0?,fn{p=;ret=Any};ret=T0;gen=1;bounds=[Any];names=[value,lazyMessage]] targs=[String]
+expr e@8:12 call callee=e@8:12#1 args=[_:e@8:27,_:e@8:34] type=String call=kotlin.requireNotNull[kind=fun;params=T0?,fn{p=;ret=Any};ret=T0;gen=1;bounds=[Any];nonlocal=[0,0];names=[value,lazyMessage]] targs=[String]
 expr e@8:5 return value=e@8:12 type=Nothing
 expr e@12:25 string(hello) type=String
 expr e@12:5 localDecl text mutable=0 type=String? init=e@12:25 type=Unit ref=__local_0.text[kind=local;type=String?;origin=fixture]

@@ -5,6 +5,42 @@ import Testing
 
 @Suite
 struct MetadataSerializerTests {
+    @Test func testAutoInlineBodiesDoNotEnableNonLocalCallbackReturns() throws {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let callbackType = types.make(.functionType(FunctionType(params: [], returnType: types.unitType)))
+        for isDeclaredInline in [false, true] {
+            let name = interner.intern(isDeclaredInline ? "inlineCallback" : "escapingCallback")
+            let symbol = symbols.define(
+                kind: .function,
+                name: name,
+                fqName: [name],
+                declSite: nil,
+                visibility: .public,
+                flags: isDeclaredInline ? [.inlineFunction] : []
+            )
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [callbackType, callbackType, callbackType],
+                    returnType: types.unitType,
+                    valueParameterAllowsNonLocalReturn: [true, false, false]
+                ),
+                for: symbol
+            )
+            let record = MetadataEncoder().buildRecord(
+                for: try #require(symbols.symbol(symbol)),
+                symbols: symbols,
+                types: types,
+                moduleName: "Callbacks",
+                interner: interner,
+                inlineFunctionSymbols: [symbol]
+            )
+            #expect(record.isInline)
+            #expect(record.valueParameterAllowsNonLocalReturn == (isDeclaredInline ? [true, false, false] : [false, false, false]))
+        }
+    }
+
     // MARK: - Helpers
 
     /// Parse the serialized record line (after the header) into space-separated tokens,
@@ -494,6 +530,27 @@ struct MetadataSerializerTests {
         #expect(serialized == "v2:pget:demo.Box.value@3")
     }
 
+    @Test func testSerializeITableSlotsPreservesDependencyInterfaces() {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let dependencyName = interner.intern("Dependency")
+        let localName = interner.intern("Local")
+        let dependency = symbols.define(
+            kind: .interface, name: dependencyName, fqName: [dependencyName],
+            declSite: nil, visibility: .public, flags: [.importedLibrary]
+        )
+        let local = symbols.define(
+            kind: .interface, name: localName, fqName: [localName],
+            declSite: nil, visibility: .public
+        )
+        let serialized = encoder.serializeITableSlots(
+            [local: 0, dependency: 1], symbols: symbols, interner: interner,
+            includedSymbolIDs: []
+        )
+        #expect(serialized == "Dependency@1")
+    }
+
     @Test func testSerializeMultipleRecords() {
         let encoder = MetadataEncoder()
         let records = [
@@ -571,6 +628,35 @@ struct MetadataSerializerTests {
         #expect(records[0].propertyGetterExternalLinkName == "kk_fn_x_get")
         #expect(records[0].propertySetterExternalLinkName == "kk_fn_x_set")
         #expect(records[0].isMutable)
+    }
+
+    @Test func testRuntimePropertyBridgeTakesPrecedenceOverAbstractGetterStub() throws {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let property = symbols.define(
+            kind: .property,
+            name: interner.intern("size"),
+            fqName: [interner.intern("Collection"), interner.intern("size")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.abstractType]
+        )
+        symbols.setPropertyType(types.intType, for: property)
+        symbols.setExternalLinkName("__kk_collection_size", for: property)
+        let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
+        let encoder = MetadataEncoder()
+        let record = encoder.buildRecord(
+            for: try #require(symbols.symbol(property)),
+            symbols: symbols,
+            types: types,
+            moduleName: "Test",
+            interner: interner,
+            functionLinkNames: [getter: "kk_fn_get_stub"]
+        )
+        #expect(record.propertyGetterExternalLinkName == "__kk_collection_size")
+        let decoded = MetadataDecoder().decode(encoder.serialize([record]))
+        #expect(decoded.first?.propertyGetterExternalLinkName == "__kk_collection_size")
     }
 
     @Test func testBuildRecordsPreservesNominalSupertypeSignaturesForNonGenericClass() {
