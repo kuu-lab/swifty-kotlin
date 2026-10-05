@@ -1533,8 +1533,8 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
 /// Returns the qualified name of the type encoded in the given type token.
 /// For built-in Kotlin stdlib types (Any, String, Int, Boolean, etc.) this
 /// returns the fully-qualified "kotlin.X" name as Kotlin reflection specifies.
-/// For nominal (user-defined) types the compiler-supplied name hint already
-/// carries the fully-qualified name, so it is returned unchanged.
+/// For nominal (user-defined) types registered metadata takes precedence over
+/// the compiler-supplied name hint, which can carry only the simple name.
 @_cdecl("__kk_type_token_qualified_name")
 public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -1571,7 +1571,11 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
             Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
         }
     }
-    // For nominal types the nameHint carries the fully-qualified name.
+    if base == RuntimeTypeTokenEncoding.nominalBase,
+       let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
+    {
+        return runtimeMakeStringRaw(metadata.qualifiedName)
+    }
     return __kk_type_token_simple_name(typeToken, nameHint)
 }
 

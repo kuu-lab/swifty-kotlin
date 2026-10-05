@@ -94,6 +94,49 @@ struct StandaloneClassReferenceTests {
         )
     }
 
+    @Test(arguments: ["", "import annotations.MyAnno", "import annotations.MyAnno as Alias", "import annotations.*"])
+    func testAnnotationClassRefResolvesAndEmitsKClassCreate(importDeclaration: String) throws {
+        let receiverName = importDeclaration.contains(" as ") ? "Alias" : "MyAnno"
+        let packageName = importDeclaration.isEmpty ? "annotations" : "consumer"
+        let ctx = makeContextFromSources([
+            """
+            package annotations
+            annotation class MyAnno(val name: String)
+            """,
+            """
+            package \(packageName)
+            \(importDeclaration)
+            import kotlin.reflect.KClass
+
+            fun annotationClass(): KClass<\(receiverName)> = \(receiverName)::class
+            fun main() {
+                val kc = \(receiverName)::class
+                println(kc)
+            }
+            """,
+        ])
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let annotationSymbol = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("annotations"), ctx.interner.intern("MyAnno"),
+        ]))
+        let classRefID = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .callableRef(receiver?, member, _) = expr,
+                  case let .nameRef(name, _) = ast.arena.expr(receiver) else { return false }
+            return ctx.interner.resolve(name) == receiverName && ctx.interner.resolve(member) == "class"
+        })
+        let targetType = try #require(sema.bindings.classRefTargetType(for: classRefID))
+        #expect(targetType == sema.types.make(.classType(ClassType(classSymbol: annotationSymbol))))
+        #expect(sema.bindings.exprType(for: classRefID) == sema.types.makeKClassType(argument: targetType))
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        #expect(extractCallees(from: body, interner: ctx.interner).contains("__kk_kclass_create"))
+    }
+
     @Test func testFindAssociatedObjectLowersToRuntimeCall() throws {
         let source = """
         import kotlin.reflect.ExperimentalAssociatedObjects
