@@ -18,14 +18,13 @@ private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
     return tryCast(ptr, to: RuntimeDurationBox.self)
 }
 
-/// Reads both the legacy boxed representation and Duration's source-backed
-/// value-class payload. Raw values are only treated as object handles when the
-/// runtime has registered the pointer, so ordinary small Long payloads are safe.
+/// Reads legacy Duration boxes, boxed Long payloads, and raw value-class payloads.
+/// The unbox helper checks registry membership before interpreting a handle.
 func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
     if let box = runtimeDurationBox(from: raw) {
         return box.nanoseconds
     }
-    return Int64(bitPattern: UInt64(bitPattern: Int64(raw)))
+    return Int64(kk_unbox_long_static(raw))
 }
 
 private func runtimeDurationIsInfinite(_ nanoseconds: Int64) -> Bool {
@@ -37,7 +36,12 @@ private func runtimeDurationHandle(fromNanoseconds nanoseconds: Int64) -> Int {
 }
 
 private func runtimeDurationBoxHandle(fromNanoseconds nanoseconds: Int64) -> Int {
-    registerRuntimeObject(RuntimeDurationBox(nanoseconds: nanoseconds))
+    // Nullable value classes use their underlying primitive box, with a nominal
+    // tag. The non-null entry point preserves -Infinity (Long.MIN_VALUE).
+    let boxed = kk_box_long_nonnull_static(Int(truncatingIfNeeded: nanoseconds))
+    return kk_tag_value_class_box(
+        boxed, Int(runtimeStableNominalTypeID(fqName: "kotlin.time.Duration"))
+    )
 }
 
 private func runtimeDurationNanoseconds(

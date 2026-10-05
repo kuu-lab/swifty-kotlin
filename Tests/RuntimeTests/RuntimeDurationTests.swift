@@ -383,6 +383,30 @@ struct RuntimeDurationTests {
         #expect(invalid == runtimeNullSentinelInt)
     }
 
+    @Test func testNullableParsersReturnTaggedLongPayloads() {
+        let cases: [(String, Int)] = [
+            ("PT5S", 5_000_000_000),
+            ("PT1H30M", 5_400_000_000_000),
+            ("PT1.5S", 1_500_000_000),
+            ("PT0S", 0),
+            ("-PT5S", -5_000_000_000),
+            ("PT999999999999999999999H", Int.max),
+            ("-PT999999999999999999999H", Int.min),
+        ]
+        for parse in [kk_duration_parseOrNull, kk_duration_parseIsoStringOrNull] {
+            for (input, expected) in cases {
+                let parsed = parse(stringHandle(input))
+                #expect(parsed != runtimeNullSentinelInt)
+                #expect(kk_unbox_long(parsed) == expected)
+                #expect(kk_unbox_long_static(parsed) == expected)
+                #expect(kk_duration_inWholeNanoseconds(parsed) == expected)
+                #expect(runtimeObjectTypeID(rawValue: parsed) ==
+                    runtimeStableNominalTypeID(fqName: "kotlin.time.Duration"))
+            }
+            #expect(parse(stringHandle("bogus")) == runtimeNullSentinelInt)
+        }
+    }
+
     @Test func testParseIsoStringRejectsDefaultFormat() {
         var thrown = 0
         let parsed = kk_duration_parseIsoString(stringHandle("1h 30m"), &thrown)
