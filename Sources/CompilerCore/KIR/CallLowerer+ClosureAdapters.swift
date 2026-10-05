@@ -680,12 +680,16 @@ extension CallLowerer {
             default:
                 continue
             }
-            // Keep eligible inline arguments visible to imported expansion,
-            // including normal returns and nested non-local returns.
+            // Imported bodies can store callbacks in escaping closures. Without
+            // explicit inline-parameter metadata, preserve the function environment.
+            let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                : !isImported
+            // Keep eligible inline arguments visible to expansion, including
+            // normal returns and nested non-local returns.
             if isInline,
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
-                   || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+               (allowsRawInlineArgument
                    || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
                 continue
