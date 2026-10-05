@@ -794,9 +794,9 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// (via kk_kxmini_async_await or kk_job_join). Checked by scope's waitForChildren
     /// to avoid double-releasing the original passRetained.
     private var isConsumedByUserCode = false
-    /// Set when the async body is actually scheduled (`KxMiniRuntime.launch` / dispatcher queue).
-    /// Keeps `kk_job_is_active` aligned with `RuntimeJobHandle` (inactive until `markStarted`).
+    /// Actual body entry, distinct from an explicit LAZY start request.
     private var isBodyStarted = false
+    private var isStartRequested = false
     /// CORO-004: Resumers invoked with (result, thrownException) when the task completes
     /// (normally, exceptionally, or via cancel). Suspend-aware awaiters
     /// (`kk_kxmini_async_await`) and the synchronous `awaitResult()` fallback both
@@ -852,7 +852,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// Mirrors `RuntimeJobHandle.installLazyStartBody`.
     func installLazyStartBody(_ body: @escaping @Sendable () -> Void) {
         lock.lock()
-        if !isBodyStarted, !isCompleted {
+        if !isBodyStarted, !isStartRequested, !isCompleted {
             lazyStartBody = body
         }
         lock.unlock()
@@ -872,16 +872,20 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     ///
     /// `body` runs after the lock is released: it dispatches the block, and
     /// `NSLock` is not recursive.
-    func startIfNeeded() {
+    @discardableResult
+    func startIfNeeded() -> Bool {
         lock.lock()
         guard let body = lazyStartBody, !isCompleted, !isCancelled else {
             lazyStartBody = nil
             lock.unlock()
-            return
+            return false
         }
         lazyStartBody = nil
+        isStartRequested = true
+        completionJob.markScheduled()
         lock.unlock()
         body()
+        return true
     }
 
     func markConsumedByUserCode() {
@@ -914,7 +918,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     func isActiveSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return isBodyStarted && !isCompleted && !isCancelled
+        return (isBodyStarted || isStartRequested) && !isCompleted && !isCancelled
     }
 
     /// Thread-safe snapshot for `kk_job_is_failed` (aligned with `RuntimeJobHandle.isFailedSnapshot`).
@@ -1361,15 +1365,18 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     /// STDLIB-CORO-001: Start a LAZY job by dispatching its body exactly once.
-    func startIfNeeded() {
+    @discardableResult
+    func startIfNeeded() -> Bool {
         lock.lock()
         guard state == .new, let body = lazyStartBody else {
             lock.unlock()
-            return
+            return false
         }
         lazyStartBody = nil
+        state = .active
         lock.unlock()
         body()
+        return true
     }
 
     func markBodyless() {
@@ -4560,6 +4567,17 @@ public func kk_supervisor_job_new() -> Int {
     job.isSupervisorMarker = true
     job.markStarted()
     return runtimeRegisterObject(job)
+}
+
+@_cdecl("kk_job_start")
+public func kk_job_start(_ jobHandle: Int) -> Int {
+    if let job = runtimeJobHandle(from: jobHandle) {
+        return job.startIfNeeded() ? 1 : 0
+    }
+    if let task = runtimeAsyncTask(from: jobHandle) {
+        return task.startIfNeeded() ? 1 : 0
+    }
+    return 0
 }
 
 /// Joins (waits for) a job handle to complete and releases it.
