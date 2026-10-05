@@ -37,6 +37,7 @@ struct DataFlowState: Equatable {
 
 struct WhenBranchSummary {
     let coveredSymbols: Set<InternedString>
+    let coveredTypeSymbols: Set<SymbolID>
     let hasElse: Bool
     let hasNullCase: Bool
     let hasTrueCase: Bool
@@ -47,9 +48,11 @@ struct WhenBranchSummary {
         hasElse: Bool,
         hasNullCase: Bool = false,
         hasTrueCase: Bool? = nil,
-        hasFalseCase: Bool? = nil
+        hasFalseCase: Bool? = nil,
+        coveredTypeSymbols: Set<SymbolID> = []
     ) {
         self.coveredSymbols = coveredSymbols
+        self.coveredTypeSymbols = coveredTypeSymbols
         self.hasElse = hasElse
         self.hasNullCase = hasNullCase
         self.hasTrueCase = hasTrueCase ?? coveredSymbols.contains(InternedString(rawValue: 1))
@@ -779,15 +782,15 @@ final class DataFlowAnalyzer {
         else {
             return nil
         }
-        let subtypeNames = sealedSubtypeNames(for: classSymbol, sema: sema)
-        guard !subtypeNames.isEmpty else {
+        let subtypes = sealedSubtypeSymbols(for: classSymbol, sema: sema)
+        guard !subtypes.isEmpty else {
             return nil
         }
-        let missing = subtypeNames.filter { !branches.coveredSymbols.contains($0) }
+        let missing = subtypes.filter { !isSealedSubtypeCovered($0, branches: branches, sema: sema) }
         guard !missing.isEmpty else {
             return nil
         }
-        return Array(missing)
+        return Array(Set(missing.compactMap { sema.symbols.symbol($0)?.name }))
     }
 
     private func isClassWhenExhaustive(
@@ -813,11 +816,13 @@ final class DataFlowAnalyzer {
 
         default:
             if classSymbol.flags.contains(.sealedType) {
-                let subtypeNames = sealedSubtypeNames(for: classSymbol, sema: sema)
-                guard !subtypeNames.isEmpty else {
+                let subtypes = sealedSubtypeSymbols(for: classSymbol, sema: sema)
+                guard !subtypes.isEmpty else {
                     return false
                 }
-                let hasAllSealedSubtypes = subtypeNames.isSubset(of: branches.coveredSymbols)
+                let hasAllSealedSubtypes = subtypes.allSatisfy {
+                    isSealedSubtypeCovered($0, branches: branches, sema: sema)
+                }
                 if classType.nullability == .nullable {
                     return hasAllSealedSubtypes && branches.hasNullCase
                 }
@@ -827,17 +832,30 @@ final class DataFlowAnalyzer {
         }
     }
 
-    /// P5-78: Get sealed subtype names, using sealedSubclasses metadata for cross-module support,
+    private func isSealedSubtypeCovered(
+        _ subtype: SymbolID,
+        branches: WhenBranchSummary,
+        sema: SemaModule
+    ) -> Bool {
+        if let name = sema.symbols.symbol(subtype)?.name,
+           branches.coveredSymbols.contains(name)
+        {
+            return true
+        }
+        return branches.coveredTypeSymbols.contains {
+            isNominalSubtype(subtype, of: $0, symbols: sema.symbols)
+        }
+    }
+
+    /// P5-78: Get sealed subtype symbols, using sealedSubclasses metadata for cross-module support,
     /// falling back to directSubtypes for same-module sealed types.
-    private func sealedSubtypeNames(for classSymbol: SemanticSymbol, sema: SemaModule) -> Set<InternedString> {
+    private func sealedSubtypeSymbols(for classSymbol: SemanticSymbol, sema: SemaModule) -> [SymbolID] {
         // First try sealedSubclasses (populated from metadata for cross-module)
         if let sealedSubs = sema.symbols.sealedSubclasses(for: classSymbol.id) {
-            return Set(sealedSubs.compactMap { sema.symbols.symbol($0)?.name })
+            return sealedSubs
         }
         // Fall back to directSubtypes (same-module)
-        return Set(sema.symbols.directSubtypes(of: classSymbol.id).compactMap { subtype in
-            sema.symbols.symbol(subtype)?.name
-        })
+        return sema.symbols.directSubtypes(of: classSymbol.id)
     }
 
     /// Refines a raw `is` target type resolved with no explicit type argument

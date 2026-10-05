@@ -81,6 +81,7 @@ extension ControlFlowTypeChecker {
             }
             var branchTypes: [TypeID] = []
             var covered: Set<InternedString> = []
+            var coveredTypeSymbols: Set<SymbolID> = []
             var hasNullCase = false
             var hasTrueCase = false
             var hasFalseCase = false
@@ -192,12 +193,11 @@ extension ControlFlowTypeChecker {
                     guard !negated,
                           checkedExprID == subjectID,
                           let targetType = sema.bindings.isCheckTargetType(for: conditionID),
-                          let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types),
-                          let targetSymbol = sema.symbols.symbol(targetNominal)
+                          let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types)
                     else {
                         return
                     }
-                    covered.insert(targetSymbol.name)
+                    coveredTypeSymbols.insert(targetNominal)
 
                 default:
                     break
@@ -382,9 +382,10 @@ extension ControlFlowTypeChecker {
             let summary = WhenBranchSummary(
                 coveredSymbols: covered, hasElse: elseExpr != nil,
                 hasNullCase: hasNullCase, hasTrueCase: hasTrueCase,
-                hasFalseCase: hasFalseCase
+                hasFalseCase: hasFalseCase, coveredTypeSymbols: coveredTypeSymbols
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: subjectType, branches: summary, sema: sema)
+            sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
             // A subject-ful `when` used as a statement (its value discarded) only
             // needs to be exhaustive when the subject is Boolean, enum, or sealed —
             // for any other subject type, Kotlin requires exhaustiveness only when
@@ -549,6 +550,7 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: boolType, branches: summary, sema: sema)
+            sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
             // A subject-less `when` used as a statement (its value discarded) does not
             // require exhaustiveness in Kotlin - only `when` used as an expression does.
             if !isExhaustive, !isStatementContext {
