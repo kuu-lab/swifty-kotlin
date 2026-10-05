@@ -819,7 +819,8 @@ extension ExprTypeChecker {
         name: InternedString,
         nameRange: SourceRange?,
         ctx: TypeInferenceContext,
-        locals: inout LocalBindings
+        locals: inout LocalBindings,
+        isQualifier: Bool = false
     ) -> TypeID {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -835,7 +836,9 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: receiverType)
             return receiverType
         }
-        if let local = locals[name] {
+        if let local = locals[name],
+           !isQualifier || sema.symbols.symbol(local.symbol)?.kind != .function
+        {
             if !local.isInitialized {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
@@ -878,7 +881,16 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: local.type)
             return local.type
         }
-        let allCandidateIDs = ctx.cachedScopeLookup(name)
+        // An uninvoked function is not a qualified receiver. Keep values in
+        // the lookup so properties still shadow imported classifiers.
+        let allCandidateIDs: [SymbolID] = if isQualifier {
+            ctx.scope.lookup(name, matching: { symbolID in
+                guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
+                return symbol.kind != .function && symbol.kind != .constructor
+            })
+        } else {
+            ctx.cachedScopeLookup(name)
+        }
         // @DslMarker restriction: filter out candidates from outer receivers
         // that share a DslMarker annotation with the current implicit receiver.
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }

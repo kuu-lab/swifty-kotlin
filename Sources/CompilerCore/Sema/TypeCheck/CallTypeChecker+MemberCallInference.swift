@@ -38,7 +38,15 @@ extension CallTypeChecker {
             return result
         }
 
-        var receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
+        var receiverType: TypeID
+        if !safeCall, case let .nameRef(name, nameRange) = ctx.ast.arena.expr(receiverID) {
+            receiverType = driver.exprChecker.inferNameRefExpr(
+                receiverID, name: name, nameRange: nameRange, ctx: ctx,
+                locals: &locals, isQualifier: true
+            )
+        } else {
+            receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
+        }
         if !safeCall, receiverType != ctx.sema.types.errorType {
             receiverType = resolveSuperMemberReceiverType(
                 receiverID: receiverID,
