@@ -20,7 +20,8 @@ fun main() {
     println(first[CoroutineName] === first)
     println(first.fold("") { acc, element -> acc + (element[CoroutineName]?.name ?: "missing") })
     println(EmptyCoroutineContext[key]?.name)
-    println(Dispatchers.Default[key]?.name)
+    val dispatcher: CoroutineContext = Dispatchers.Default
+    println(dispatcher[key]?.name)
 
     val combined: CoroutineContext = Dispatchers.Default + first
     println(combined.get(CoroutineName)?.name)

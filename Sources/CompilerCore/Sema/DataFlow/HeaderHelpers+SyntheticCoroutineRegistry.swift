@@ -1751,9 +1751,6 @@ extension DataFlowSemaPhase {
             symbols.setDirectSupertypes([coroutineContextElementSymbol], for: coroutineNameSymbol)
             types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: coroutineNameSymbol)
         }
-        if let keySymbol = symbols.lookup(fqName: coroutineNameFQName + [interner.intern("Key")]) {
-            symbols.setExternalLinkName("kk_coroutine_name_key", for: keySymbol)
-        }
 
         let coroutineExceptionHandlerSymbol = ensureClassSymbol(
             named: "CoroutineExceptionHandler",

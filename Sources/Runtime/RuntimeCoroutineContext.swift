@@ -66,21 +66,47 @@ public func kk_coroutine_name_key_get(_ receiver: Int) -> Int {
     runtimeCoroutineNameKeyRaw
 }
 
-func runtimeCoroutineNameElementMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
+func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
     // Element declares get/fold/minusKey; its key getter follows those slots.
-    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")),
-          methodSlot == 3,
-          isRegisteredRuntimeObjectPointer(receiver),
-          let ptr = UnsafeMutableRawPointer(bitPattern: receiver),
-          tryCast(ptr, to: RuntimeCoroutineNameBox.self) != nil
-    else {
+    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")) else {
         return nil
     }
-    let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, outThrown in
-        outThrown?.pointee = 0
-        return kk_coroutine_name_key_get(receiver)
+    let ptr = isRegisteredRuntimeObjectPointer(receiver) ? UnsafeMutableRawPointer(bitPattern: receiver) : nil
+    let isName = ptr.flatMap { tryCast($0, to: RuntimeCoroutineNameBox.self) } != nil
+    let isDispatcher = isDispatcherTag(receiver) || ptr.flatMap { tryCast($0, to: RuntimeDispatcher.self) } != nil
+    guard isName || isDispatcher else {
+        return nil
     }
-    return unsafeBitCast(getter, to: Int.self)
+    switch methodSlot {
+    case 0:
+        let get: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, key, outThrown in
+            outThrown?.pointee = 0
+            let element = kk_context_get(receiver, key)
+            return element == 0 ? runtimeNullSentinelInt : element
+        }
+        return unsafeBitCast(get, to: Int.self)
+    case 1:
+        let fold: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+            receiver, initial, operation, closure, outThrown in
+            outThrown?.pointee = 0
+            return kk_context_fold(receiver, initial, operation, closure, outThrown)
+        }
+        return unsafeBitCast(fold, to: Int.self)
+    case 2:
+        let minusKey: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, key, outThrown in
+            outThrown?.pointee = 0
+            return kk_context_minusKey(receiver, key)
+        }
+        return unsafeBitCast(minusKey, to: Int.self)
+    case 3 where isName:
+        let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, outThrown in
+            outThrown?.pointee = 0
+            return kk_coroutine_name_key_get(receiver)
+        }
+        return unsafeBitCast(getter, to: Int.self)
+    default:
+        return nil
+    }
 }
 
 /// Register a heap-allocated object in the runtime storage so it is not GC'd.

@@ -6,6 +6,7 @@ import kotlin.internal.KsSymbolName
 // Runtime-owned name handles cannot store AbstractCoroutineContextElement's
 // Kotlin fields. Bridge the Element operations and properties instead.
 public class CoroutineName @KsSymbolName("kk_coroutine_name_create") constructor(name: String) : CoroutineContext.Element {
+    @KsSymbolName("kk_coroutine_name_key")
     public companion object Key : CoroutineContext.Key<CoroutineName>
 
     @KsSymbolName("kk_coroutine_name_get")

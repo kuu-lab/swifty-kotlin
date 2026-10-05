@@ -126,7 +126,7 @@ extension DataFlowSemaPhase {
                 )
             }
             let symbolKind = symbols.symbol(symbol)?.kind
-            if (symbolKind == .function || symbolKind == .constructor || symbolKind == .property),
+            if (symbolKind == .function || symbolKind == .constructor || symbolKind == .property || symbolKind == .object),
                let linkName = ksSymbolName.arguments.first.map(annotationStringArgumentValue(_:)),
                !linkName.isEmpty
             {

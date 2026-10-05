@@ -136,6 +136,7 @@ extension CallLowerer {
             ast: ast,
             sema: sema,
             arena: arena,
+            interner: interner,
             instructions: &instructions
         ) {
             return staticMemberValue
