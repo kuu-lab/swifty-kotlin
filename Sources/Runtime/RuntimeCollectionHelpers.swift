@@ -1214,11 +1214,7 @@ private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutable
 }
 
 private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    if kk_range_hasNext(iterRaw) == 0 {
-        return runtimeThrowIteratorExhausted(outThrown)
-    }
-    return kk_range_next(iterRaw)
+    kk_iterator_next(iterRaw, outThrown)
 }
 
 private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -1525,7 +1521,8 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             return lhsInt.enumClassID == rhsInt.enumClassID
                 && lhsInt.value == rhsInt.value
         }
-        return lhsInt.value == rhsInt.value
+        return lhsInt.primitiveTypeBase == rhsInt.primitiveTypeBase
+            && lhsInt.value == rhsInt.value
     }
     if let lhsBool = tryCast(lhsPtr, to: RuntimeBoolBox.self),
        let rhsBool = tryCast(rhsPtr, to: RuntimeBoolBox.self)
@@ -1979,8 +1976,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let parts = arrayBox.values.map { runtimeElementToString($0) }
-        return "[" + parts.joined(separator: ", ") + "]"
+        return runtimeArrayIdentityToString(elem)
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue

@@ -21,11 +21,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 //
 // `testScheduler`, `currentTime` and `backgroundScope` are registered as
 // synthetic member *properties* on the handle type (upstream declares them
-// `val TestScope.x` extensions): extension properties do not resolve on the
-// implicit suspend-lambda receiver — they emit a `kk_global_root_slot_*`
-// load for a slot that is never defined — while member properties route
-// through the same `kk_` bridge as `isActive`. The surface syntax is
-// identical either way. `backgroundScope` is degraded to an alias of the
+// `val TestScope.x` extensions), routing through the same `kk_` bridge as
+// `isActive`. Extension properties also use the bound implicit receiver,
+// including when it is captured by a nested lambda.
+// `backgroundScope` is degraded to an alias of the
 // test scope itself (`__kk_identity` returns the same handle) until scopes
 // grow a separately cancellable child list.
 

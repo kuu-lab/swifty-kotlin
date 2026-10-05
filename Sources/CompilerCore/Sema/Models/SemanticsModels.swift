@@ -75,6 +75,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// vtable/itable slot or be treated as a real member of the nominal
     /// (KUU-545).
     public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
+    public static let localFunction = SymbolFlags(rawValue: 1 << 25)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -1580,6 +1581,7 @@ public final class SymbolTable {
 
 public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
@@ -1649,6 +1651,7 @@ public final class BindingTable {
     /// `T` refers to.  Used by KIR lowering to emit the correct type token
     /// and name hint for `T::class.simpleName` / `.qualifiedName`.
     public private(set) var classRefTargetTypes: [ExprID: TypeID] = [:]
+    public private(set) var boundClassRefExprs: Set<ExprID> = []
     /// Maps expression IDs to their compile-time constant values when the
     /// expression references a `const val` property.  This allows downstream
     /// passes (KIR lowering, codegen) to fold constant references without
@@ -1765,6 +1768,10 @@ public final class BindingTable {
 
     public func bindExprType(_ expr: ExprID, type: TypeID) {
         exprTypes[expr] = type
+    }
+
+    public func bindWhenExhaustiveness(_ expr: ExprID, isExhaustive: Bool) {
+        whenExhaustiveness[expr] = isExhaustive
     }
 
     public func bindIdentifier(_ expr: ExprID, symbol: SymbolID) {
@@ -2075,6 +2082,10 @@ public final class BindingTable {
 
     public func classRefTargetType(for expr: ExprID) -> TypeID? {
         classRefTargetTypes[expr]
+    }
+
+    public func bindBoundClassRef(_ expr: ExprID) {
+        boundClassRefExprs.insert(expr)
     }
 
     public func exprType(for expr: ExprID) -> TypeID? {

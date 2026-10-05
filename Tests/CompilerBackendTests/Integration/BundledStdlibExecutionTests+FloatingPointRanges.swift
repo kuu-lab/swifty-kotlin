@@ -19,6 +19,8 @@ extension BundledStdlibExecutionTests {
                 println(1.5 in 1.0..2.0)
 
                 val doubleClosed = 1.0..10.50
+                println(doubleClosed.start)
+                println(doubleClosed.endInclusive)
                 println(10.50 in doubleClosed)
                 println(doubleClosed.contains(10.50))
                 println(doubleClosed.isEmpty())
@@ -28,6 +30,8 @@ extension BundledStdlibExecutionTests {
                 println((1.0..Double.NaN).isEmpty())
 
                 val floatClosed = 1.0f..10.50f
+                println(floatClosed.start)
+                println(floatClosed.endInclusive)
                 println(10.50f in floatClosed)
                 println(floatClosed.contains(10.50f))
                 println(floatClosed.isEmpty())
@@ -62,6 +66,8 @@ extension BundledStdlibExecutionTests {
             false
             true
             true
+            1.0
+            10.5
             true
             true
             false
@@ -69,6 +75,8 @@ extension BundledStdlibExecutionTests {
             1.0..10.5
             true
             true
+            1.0
+            10.5
             true
             true
             false

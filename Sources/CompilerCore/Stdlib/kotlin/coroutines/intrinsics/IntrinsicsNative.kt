@@ -12,6 +12,8 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 import kotlin.coroutines.Continuation
+import kotlin.coroutines.ContinuationInterceptor
+import kotlin.coroutines.CoroutineContext
 import kotlin.internal.InlineOnly
 import kotlin.internal.KsSymbolName
 
@@ -19,7 +21,10 @@ import kotlin.internal.KsSymbolName
 private external fun coroutineSuspended(): Any
 
 @KsSymbolName("__kk_continuation_intercepted")
-private external fun <T> interceptContinuation(continuation: Continuation<T>): Continuation<T>
+private external fun <T> interceptContinuation(
+    continuation: Continuation<T>,
+    interceptorKey: CoroutineContext.Key<ContinuationInterceptor>
+): Continuation<T>
 
 /**
  * Returns the intercepted runtime continuation, or this continuation unchanged
@@ -29,7 +34,8 @@ private external fun <T> interceptContinuation(continuation: Continuation<T>): C
  * the bridge owns the representation check and dispatcher adaptation.
  */
 @SinceKotlin("1.3")
-public fun <T> Continuation<T>.intercepted(): Continuation<T> = interceptContinuation(this)
+public fun <T> Continuation<T>.intercepted(): Continuation<T> =
+    interceptContinuation(this, ContinuationInterceptor.Key)
 
 /**
  * Marker returned by a coroutine that suspended before producing its result.

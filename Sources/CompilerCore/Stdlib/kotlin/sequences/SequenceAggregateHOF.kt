@@ -789,37 +789,27 @@ public fun <T> Sequence<T>.joinToString(
 // Migration source: Sources/Runtime/RuntimeSequence.swift
 
 public fun <T> Sequence<T>.first(): T {
-    val elements = this.toList()
-    if (elements.size == 0) throw NoSuchElementException("Sequence is empty.")
-    return elements[0]
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
+    return iterator.next()
 }
 
 public fun <T> Sequence<T>.first(predicate: (T) -> Boolean): T {
-    val elements = this.toList()
-    var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        val element = elements[i]
+    for (element in this) {
         if (predicate(element)) return element
-        i += 1
     }
     throw NoSuchElementException("Sequence contains no element matching the predicate.")
 }
 
 public fun <T> Sequence<T>.firstOrNull(): T? {
-    val elements = this.toList()
-    if (elements.size == 0) return null
-    return elements[0]
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    return iterator.next()
 }
 
 public fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? {
-    val elements = this.toList()
-    var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        val element = elements[i]
+    for (element in this) {
         if (predicate(element)) return element
-        i += 1
     }
     return null
 }

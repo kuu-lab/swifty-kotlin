@@ -214,10 +214,10 @@ extension DataFlowSemaPhase {
             return .returnIfEqual(lhs: shift(lhs), rhs: shift(rhs))
         case let .returnValue(value):
             return .returnValue(shift(value))
-        case let .nonLocalReturn(value):
-            return .nonLocalReturn(value.map(shift))
-        case let .beginNonLocalReturnScope(value, target):
-            return .beginNonLocalReturnScope(value: shift(value), target: target)
+        case let .nonLocalReturn(value, target):
+            return .nonLocalReturn(value.map(shift), target: target)
+        case let .beginNonLocalReturnScope(value, target, function):
+            return .beginNonLocalReturnScope(value: shift(value), target: target, function: function)
         case .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup:
             return instruction
         case let .resumeNonLocalReturn(value):
@@ -302,6 +302,15 @@ extension DataFlowSemaPhase {
         externalLinkNameToSymbol: [String: SymbolID],
         importedSymbolByFQName: [String: SymbolID]
     ) -> KIRInstruction? {
+        func returnTarget(_ key: String) -> KIRReturnTarget? {
+            guard let encoded = pairs[key], let link = decodeBase64String(encoded), !link.isEmpty else { return nil }
+            if let symbol = externalLinkNameToSymbol[link] { return .function(symbol) }
+            // Private inline callees have no exported symbol, but still own an exit.
+            return .importedFunction(interner.intern(link))
+        }
+        for key in ["targetB64", "functionB64"] where pairs[key] != nil {
+            guard returnTarget(key) != nil else { return nil }
+        }
         switch opcode {
         case "nop":
             return .nop
@@ -433,7 +442,7 @@ extension DataFlowSemaPhase {
             guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
                   let targetRaw = pairs["target"], let target = Int32(targetRaw)
             else { return nil }
-            return .beginNonLocalReturnScope(value: KIRExprID(rawValue: value), target: target)
+            return .beginNonLocalReturnScope(value: KIRExprID(rawValue: value), target: target, function: returnTarget("functionB64"))
         case "endNonLocalReturnScope":
             return .endNonLocalReturnScope
         case "beginFinallyCleanup":
@@ -467,9 +476,9 @@ extension DataFlowSemaPhase {
             guard let valueRaw = pairs["value"], let value = Int32(valueRaw) else {
                 return nil
             }
-            return .nonLocalReturn(KIRExprID(rawValue: value))
+            return .nonLocalReturn(KIRExprID(rawValue: value), target: returnTarget("targetB64"))
         case "nonLocalReturnUnit":
-            return .nonLocalReturn(nil)
+            return .nonLocalReturn(nil, target: returnTarget("targetB64"))
         case "call":
             guard let calleeEncoded = pairs["calleeB64"],
                   let calleeName = decodeBase64String(calleeEncoded)

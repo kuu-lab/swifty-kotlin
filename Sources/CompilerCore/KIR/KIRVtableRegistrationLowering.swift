@@ -1433,27 +1433,30 @@ private func kirFindMatchingMethod(
         {
             continue
         }
-        if firstCandidate == nil {
-            firstCandidate = candidate
-        }
-        let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
+        let candidateParameterTypes = sema.symbols.functionSignature(for: candidate)?.parameterTypes
         // Prefer a full parameter-type match so same-arity overloads
         // (e.g. StringBuilder.append(Char) vs append(String)) land in
         // the correct itable slot. Type parameters are wildcards.
-        if let interfaceParameterTypes,
+        if let interfaceParameterTypes, let candidateParameterTypes,
            kirOverrideParameterTypesMatch(
-               candidateParameterTypes: candidateParams,
+               candidateParameterTypes: candidateParameterTypes,
                interfaceParameterTypes: interfaceParameterTypes,
                types: sema.types
            )
         {
             return candidate
         }
-        // BUG-166: fall back to arity matching when type IDs don't
-        // line up (e.g. untracked signatures), then to first name match.
+        // A known, incompatible overload must not replace an inherited default.
+        if interfaceParameterTypes != nil, candidateParameterTypes != nil {
+            continue
+        }
+        if firstCandidate == nil {
+            firstCandidate = candidate
+        }
+        // BUG-166: retain arity/name fallback only for untracked signatures.
         if arityMatch == nil,
            let interfaceParamCount,
-           candidateParams.count == interfaceParamCount
+           candidateParameterTypes?.count == interfaceParamCount
         {
             arityMatch = candidate
         }
