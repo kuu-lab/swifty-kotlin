@@ -64,5 +64,19 @@ struct CompanionMemberExtensionImportTests {
             #expect(ctx.diagnostics.hasError == !imported, "Got: \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    @Test
+    func companionArgumentProvidesExtensionPropertyReceiver() throws {
+        let source = """
+        class Token {
+            companion object {
+                val Int.doubled: Int get() = this * 2
+            }
+        }
+        fun <T, R> inScope(receiver: T, block: T.() -> R): R = receiver.block()
+        fun use(): Int = inScope(Token) { 3.doubled }
+        """
+        _ = try SemaFixture(surface: "companion argument receiver").make(source: source)
+    }
 }
 #endif
